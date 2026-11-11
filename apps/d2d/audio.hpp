@@ -592,6 +592,32 @@ struct Audio {
         music_fade_in_ms = fade_of(index, true);
         play_music(game_data, index);
     }
+    // A quest's music sequence (rules::QuestMusic; FUN_004dcd40, run by
+    // FUN_004dcaa0): the song fades out by its Fade Out now (FUN_004ba8f0),
+    // its next start set to its Block 1 cue or its beginning; the jingle
+    // `jingle_ms` on; no song until `back_ms`, when update starts the level's.
+    // ponytail: the jingle isn't faded at `back_ms` (FUN_004ba890); the
+    // shipped ones have ended by then.
+    int quest_jingle = 0;
+    std::uint64_t quest_jingle_at = 0, music_held_until = 0;
+    void quest_music(const GameData& game_data, int jingle, std::uint64_t now, int jingle_ms, int back_ms, bool from_block) {
+        if (back_ms <= 0) { play_sfx(game_data, jingle, float(music_volume) / 100.f, 0); return; }
+        if (music.src && music.sound > 0) {
+            song_resume[music.sound] = from_block && music_blocks[0] > 0 ? music_blocks[0] : 0;
+            const auto out = std::size_t(music.sound) < game_data.sounds.size() ? std::uint64_t(game_data.sounds[std::size_t(music.sound)].fade_out) * kTickMs : 0;
+            stop(music_old);
+            music_old = music;
+            music = {};
+            fade(music_old, 0.f, out);
+        }
+        quest_jingle = jingle;
+        quest_jingle_at = now + std::uint64_t(std::max(jingle_ms, 0));
+        music_held_until = now + std::uint64_t(back_ms);
+    }
+    void quest_music_tick(const GameData& game_data, std::uint64_t now) {
+        if (quest_jingle <= 0 || now < quest_jingle_at) return;
+        play_sfx(game_data, std::exchange(quest_jingle, 0), float(music_volume) / 100.f, 0);
+    }
     // Where each song picks up (FUN_004dcaa0): every 125 sound ticks (5 s)
     // of play, the next Block cue point past the position — [0, block 1)
     // -> block 1, [1, 2) -> 2, [2, 3) -> 3, else the start. By Sounds.txt

@@ -349,7 +349,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) out.u8(0).i32(level_changed->from ? level_changed->from->id : -1).u8(level_changed->keep_map);
         else if (const auto* speech = std::get_if<ev::Speech>(&event)) out.u8(2).i32(speech->npc).i32(speech->string);
         else if (const auto* news = std::get_if<ev::QuestNews>(&event)) out.u8(3).i32(news->quest);
-        else if (const auto* music = std::get_if<ev::MusicCue>(&event)) out.u8(4).i32(music->sound);
+        else if (const auto* music = std::get_if<ev::MusicCue>(&event)) out.u8(4).i32(music->sound).i32(music->jingle_ms).i32(music->back_ms).u8(music->from_block ? 1 : 0);
         else if (std::holds_alternative<ev::Reassigned>(event)) out.u8(5);
         else if (std::holds_alternative<ev::Lightning>(event)) out.u8(6);
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
@@ -581,7 +581,9 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         } else if (kind_byte == 3) {
             view.events.push_back(ev::QuestNews{ i32() });
         } else if (kind_byte == 4) {
-            view.events.push_back(ev::MusicCue{ i32() });
+            ev::MusicCue music{ .sound = i32() };
+            music.jingle_ms = i32(); music.back_ms = i32(); music.from_block = byte() != 0;
+            view.events.push_back(music);
         } else if (kind_byte == 5) {
             view.events.push_back(ev::Reassigned{});
         } else if (kind_byte == 6) {

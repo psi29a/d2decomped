@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <rules.hpp>
@@ -255,11 +256,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const int operator_id = actor->id;
             int amulets = use.amulets;
             bool took_part = use.took_part;
-            if (use.took_part) class_cue("act2_complete_tainted", now_ms);
+            if (use.took_part) class_cue("act2_complete_tainted", d2d::rules::quest_line_due(0x34, now_ms));
             each_player([&](Player& player) {
                 if (player.id == operator_id) return;
                 if (tainted.open && (near_room(object.x, object.y, player.player.x, player.player.y) || act() == 1) && d2d::rules::TaintedSunQuest::credit(quests())) {
-                    class_cue("act2_complete_tainted", now_ms);
+                    class_cue("act2_complete_tainted", d2d::rules::quest_line_due(0x34, now_ms));
                     took_part = true;
                 }
                 amulets += d2d::rules::TaintedSunQuest::wants_amulet(quests(), carries("vip"), carries("hst")) ? 1 : 0;

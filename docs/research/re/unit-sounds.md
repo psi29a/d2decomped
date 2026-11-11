@@ -241,6 +241,41 @@ no site passes them, constant or computed (checked again 2026-10-25;
 the pass-through helpers FUN_00595420 / FUN_005455f0 / FUN_0055c9a0
 only get 0x25, 0 and 0x13 / 0x17).
 
+## Quest music (FUN_004dcd40)
+
+The quest-line sequence above, with its arguments. `FUN_004dcd40` (ECX the
+jingle, EDX its delay; then back, from_block, the line, its delay, speaks)
+fades the music out (`FUN_004ba8f0`: each playing music-range sound by its
+Fade Out) and, with from_block, sets the current song's next start to its
+Block 1 cue (0x4dcd7e: the song record's +0x50 + 4 × from_block), else to
+its start. The sound tick (`FUN_004dcaa0`, 0x4dcb6a..0x4dcc16) plays the
+jingle at now + EDX (`FUN_004b9a00`, no unit), the line at now + its delay
+when speaks (on the player unless `FUN_00464820` says no), and at now + back
+fades the jingle (`FUN_004ba890`) and lets the level's song start again.
+The clock is `FUN_0044db00` (DAT_007a0498), 25 a second. In address order:
+
+| Address | Trigger | Jingle | EDX | Back | Line at | Speaks | From block |
+|---|---|---|---|---|---|---|---|
+| `0046b146` | Horadric Staff (object mode, `FUN_004ad1a0`) | music_quest_horadric | 0 | 725 | 0 | no | yes |
+| `0046b33e` | the Hellforge | music_quest_forge | 0 | 350 | 0 | no | no |
+| `0046b883` | the Compelling Orb | music_quest_compelling | 0 | 350 | 0 | no | no |
+| `0046bc28` | Izual | music_quest_izual | 0 | 250 | 0 | no | no |
+| `004cba72` | unit event 0x23, the Den | music_quest_den | 0 | 300 | 250 | yes | yes |
+| `004cba9c` | 0x22, Blood Raven | music_quest_bloodraven | 475 | 800 | 525 | yes | yes |
+| `004cbac0` | 0x25, the Tower | none | 0 | 1500 | 0 | no | no |
+| `004cbae4` | 0x21, Andariel | music_quest_andariel | 0 | 475 | 425 | yes | no |
+| `004cbb0e` | 0x32, Radament | music_quest_radament | 475 | 1100 | 525 | yes | yes |
+| `004cbb35` | 0x34, the Tainted Sun | music_quest_tainted | 0 | 425 | 375 | yes | yes |
+| `004cbb5c` | 0x42, Mephisto | music_quest_mephisto | 0 | 425 | 375 | yes | no |
+| `004cbb83` | 0x4b, Diablo | music_quest_diablo | 0 | 475 | 325 | yes | no |
+
+LoD's 0x50 (Shenk), 0x52 (Nihlathak) and 0x53 (Baal) follow at 0x4cbbaa..0x4cbbf8.
+The server sends 0x4b from `FUN_005b49c0` to each player with Terror's End
+bit 13 (0x5b4a20). d2d: `rules::QuestMusic`, `World::music_cue` and
+`rules::quest_line_due` (the line's delay), `Audio::quest_music`
+(`test_quest_music`). Not done: the four objects' jingles start where d2d
+already had them, not at the object's client mode (`FUN_004ad1a0`).
+
 ## Footsteps (FUN_004caf60 → FUN_004caeb0)
 
 A walking / running unit plays a step on the tick whose animation position

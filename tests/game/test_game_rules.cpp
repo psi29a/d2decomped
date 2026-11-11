@@ -85,7 +85,7 @@ int main() try {
         sent.day.environment = 73;
         sent.quest_log.back() = 9;
         sent.game_quests.back() = 0x8000;
-        sent.events = { ev::Reassigned{}, ev::Lightning{}, ev::QuestQuake{ d2d::rules::QuestQuake::diablo } };
+        sent.events = { ev::Reassigned{}, ev::Lightning{}, ev::MusicCue{ .sound = 0x1250, .jingle_ms = 40, .back_ms = 12000, .from_block = true }, ev::QuestQuake{ d2d::rules::QuestQuake::diablo } };
         sent.party_pets.push_back({ Npc{}, UnitState{}, "WL", "hireable", 100 });   // a partner's merc (local co-op)
         sent.panel.next = 3'000'000'000; sent.panel.defense = 345; sent.panel.res = { 75, -100, 12, 40 }; sent.panel.bonus[3] = 7;
         sent.panel.blue = d2d::rules::kPanelDefense; sent.panel.red = d2d::rules::kPanelFire | d2d::rules::kPanelPoison;
@@ -108,8 +108,10 @@ int main() try {
         assert(received.panel.blue == sent.panel.blue && received.panel.red == sent.panel.red && received.stat_sum == sent.stat_sum);
         assert(received.game_quests == sent.game_quests);
         assert(received.life_preview == 426 && received.mana_preview == -3);
-        assert(received.events.size() == 3 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
-        assert(std::get<ev::QuestQuake>(received.events[2]).kind == d2d::rules::QuestQuake::diablo);
+        assert(received.events.size() == 4 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
+        assert(std::get<ev::QuestQuake>(received.events[3]).kind == d2d::rules::QuestQuake::diablo);
+        const auto& music = std::get<ev::MusicCue>(received.events[2]);   // a quest's music sequence (rules::QuestMusic)
+        assert(music.sound == 0x1250 && music.jingle_ms == 40 && music.back_ms == 12000 && music.from_block);
         assert(received.pets.empty() && received.party_pets.size() == 1 && received.party_pets[0].pettype == "hireable" && received.party_pets[0].mode == "WL");
         auto bad = bytes;
         assert(bad[bad.size() - 4] == 7);   // final event, before the empty sound count
