@@ -3,7 +3,7 @@
 // Hit function 2 (FUN_005a9d80 -> FUN_005a9370) through the REAL Fight::burst: Plague Javelin (sHitPar1 1,
 // sHitPar2 2, sHitPar3 3) sends plaguejavcloud the 8 even ways at its Param1 (2) << 7 and ways 1..15 at its
 // Param2 (4) << 7, x 75 / 100: 23 clouds, each Range 60 + (SubStop 19 - SubStart 10) x 3 = 87 frames (create
-// flag 8, FUN_0059fa30).
+// flag 8, FUN_0059fa30). Each against game.exe's own, tools/emu/hit_ring.py.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -72,9 +73,26 @@ int main() try {
         return laid;
     };
     assert(clouds("plaguejavelin", "Plague Javelin", "plaguejavcloud") == 23);
-    const auto& even = fight.pending.front();
-    assert(std::abs(std::hypot(even.velocity_x, even.velocity_y) - missile_speed((2 << 7) * 75 / 100)) < 1e-4f);
-    std::printf("OK: Plague Javelin's hit sends 23 clouds of 87 frames (FUN_005a9370)\n");
+    // game.exe's own clouds (tools/emu/hit_ring.py), in the order made: way, velocity (x 75 / 100 in
+    // FUN_0059fa30, flags 0x14) and sub loops. Row 43 is plaguejavelin (Missiles.txt Id 43).
+    struct Made { int row, flags, way_x, way_y, velocity, loops; };
+    static constexpr Made kMade[] = {
+#include "hit_ring_cases.inc"
+    };
+    const auto& cloud = data->missiles.at("plaguejavcloud");
+    std::size_t next = 0;
+    for (const auto& ring : kMade) {
+        if (ring.row != 43) continue;
+        assert(next < fight.pending.size());
+        const auto& got = fight.pending[next++];
+        const float speed = std::hypot(got.velocity_x, got.velocity_y), span = std::hypot(float(ring.way_x), float(ring.way_y));
+        assert(std::abs(speed - missile_speed(ring.velocity * 75 / 100)) < 1e-4f);
+        assert(std::abs(got.velocity_x / speed - float(ring.way_x) / span) < 1e-4f && std::abs(got.velocity_y / speed - float(ring.way_y) / span) < 1e-4f);
+        const int loops = (ring.flags & 8) && cloud.sub_loop ? (cloud.sub_stop - cloud.sub_start) * ring.loops : 0;
+        assert(got.dies == now + std::uint32_t((cloud.range + cloud.lev_range + loops) * 40));
+    }
+    assert(next == fight.pending.size());
+    std::printf("OK: Plague Javelin's hit sends 23 clouds of 87 frames as game.exe's (FUN_005a9370)\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_plague_ring: %s\n", error.what());
