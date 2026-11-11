@@ -77,7 +77,12 @@ the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
 - Point tests by collision pattern (`FUN_0064d870`): 0 one subtile
   (`FUN_0064d450`); 1/3/5 a plus — the subtile and its four neighbours
   (`FUN_0064d100`, edges clipped per room); 2/4 bigger (`FUN_0064d4a0`).
-  Players and small units use the plus.
+  Players and small units use the plus. **Verified**: `tools/emu/collisn_point.py`
+  runs the dispatch for every pattern (0..5, plus the fatal-looking default,
+  which answers `COLLISION_ALL` for an out-of-range pattern instead) against
+  a fake room and diffs it against calling each pattern's own shape function
+  directly — 20000 random (room content, mask) pairs, no disagreement
+  (`uv run python collisn_point.py 20000 42`).
 - `FUN_0064e7b0` → `FUN_0064dea0`: nearest free spot (spawns, the town
   start).
 - A door's doorway (`FUN_00581d40`, modes 2 / 5, 500 ms since it last
@@ -286,7 +291,13 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   (FUN_0064ec10), then FUN_0064d870 against the mask (path +0x50). Any bit
   blocks (LAB_0065005f, `or` into path +0x54, then LAB_00650070), so a wall,
   an object and the units' 0x1000 take one path. Only a change of subtile is
-  tested (LAB_006501c0 on).
+  tested (LAB_006501c0 on). FUN_0064eda0 is also where the stamp lands: free,
+  it's added at the new subtile and the old one stays clear (`COLLIDE_NONE`);
+  blocked, it's put back at the old one and the blocking flags are returned,
+  so a blocked test never leaves the unit unstamped. **Verified**:
+  `tools/emu/collisn_point.py`'s "move" cases do this for real (a cross-pattern
+  player stamp, the real 0x1c09 mask), checking the stamp's new position with
+  FUN_0064d870 after: 20000 random free/blocked pairs, no disagreement.
 - **Who.** Player, monster and merc share this stop; the merc differs only in
   what it stamps (0x2000, "The grid" above). What follows differs: FUN_00554ca0
   turns the stop into 2, a player's FUN_00580c20 then goes idle or takes its
