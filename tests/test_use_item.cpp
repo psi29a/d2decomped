@@ -10,7 +10,6 @@
 #include "use_item.hpp"
 
 #include <cassert>
-#include <cstdint>
 #include <cstdio>
 #include <exception>
 
