@@ -65,6 +65,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | Guardian alert state, NPC and flag gate; 32 cases with flag test hooked | `FUN_005bbfe0`; `tools/emu/quest_guardian_alert.py` | [quests-act3.md](quests-act3.md) "The Guardian" |
 | Khalim log-send filter: 12 difficulty and flag combinations with lookup, bit tests and sender hooked | `FUN_005b7f90`; `tools/emu/quest_khalim_log.py` | [quests-act3.md](quests-act3.md) "Khalim’s Will" |
 | Siege log-send filter: 48 difficulty and flag combinations with callees hooked | `FUN_00586c80`; `tools/emu/quest_siege_log.py` | [quests-act5.md](quests-act5.md) "Siege on Harrogath" |
+| Prison of Ice coordinate getter: 54 flag and missing-record cases with lookup hooked | `FUN_0058a7d0`; `tools/emu/quest_prison_position.py` | [quests-act5.md](quests-act5.md) "Prison of Ice" |
 | MonStats AI Idle (the cow): stands, never chases | `FUN_005b0cd0` (MonAI row 1, search type 0): stand 200 in a room | monster-ai.md "Idle" |
 | Iso projection: a subtile is (x - y) * 16, (x + y) * 8; units centre on H/2 - 8, floors on the view less the 40-pixel panel | `FUN_00643260`, `FUN_00643310`, `FUN_0045b440` / `FUN_0045afd0`, `FUN_0044c990` / `FUN_00476000`, `FUN_004de730` | apps/d2d/common.hpp `kViewY` |
 | COF priority row for a direction (round the compass, not DCC order) | `FUN_00470ec0`, `FUN_004db2e0`, `FUN_00600e20` (0x6e55a0), `FUN_004db110` | cof-draw-order.md |

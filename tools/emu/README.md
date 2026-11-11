@@ -192,6 +192,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Guardian alert gate (`FUN_005bbfe0`; flag test hooked) | `uv run python quest_guardian_alert.py --exe /path/to/game.exe` | `ok: 32 Guardian alert cases (flag test hooked)` |
 | Khalim log-send filter (`FUN_005b7f90`; callees hooked) | `uv run python quest_khalim_log.py --exe /path/to/game.exe` | `ok: 12 Khalim log-filter cases (callees hooked)` |
 | Siege log filter (`FUN_00586c80`; callees hooked) | `uv run python quest_siege_log.py --exe /path/to/game.exe` | `ok: 48 Siege log-filter cases (callees hooked)` |
+| Prison of Ice position gate (`FUN_0058a7d0`; lookup hooked) | `uv run python quest_prison_position.py --exe /path/to/game.exe` | `ok: 54 Prison of Ice position cases (lookup hooked)` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
 | Blood Raven quest-log filter (`FUN_00590830`; callees hooked) | `uv run python quest_burial_log.py --exe /path/to/game.exe` | `ok: 48 Blood Raven log-filter cases (callees hooked)` |
