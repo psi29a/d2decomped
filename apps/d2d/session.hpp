@@ -232,6 +232,7 @@ struct ClientSession {
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int net_pick = -1;                                       // the host item being walked to, to pick up
     std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
+    std::uint32_t net_object_panel = 0;                      // the host's unit for our open object item panel (S->C 0x58 UI 0)
     bool net_items_checked = false;                          // the once-a-game item match logged
     std::size_t net_store_shown = 0;                         // the host stock count the store last showed
     std::uint32_t net_waypoint_object = 0, net_waypoint_ms = 0;   // a waypoint we operated: its id, when
@@ -624,6 +625,7 @@ struct ClientSession {
     int identify_with = -1;               // a right-clicked Scroll / Tome of Identify's id: the next click picks the item
     use_item::Panel use_item;            // UI 0xe: Charsi's Imbue, Larzuk's sockets, Anya's personalize (use_item.hpp)
     void open_use_item(int npc);
+    void open_object_item(int object);    // S->C 0x58 kind 0: an object's panel (the orifice)
     void close_use_item();
     void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
     void use_item_reply(int kind, Audio* audio = nullptr);   // `audio`: kind 5's sound

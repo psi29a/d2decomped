@@ -209,6 +209,17 @@ auto ClientSession::send(const Command& command) -> void {
             if (net_chat_npc == net_game->trade_npc) net_chat_npc = 0;
             net_game->trade_npc = 0;
             net_game->store_items.clear();
+        } else if (const auto* panel_use = std::get_if<cmd::ObjectItem>(&command)) {
+            // An object's item panel (FUN_00478700): C->S 0x44 {our unit, the host's
+            // object, the cursor item or 0, the action: 3 place, 2 shut}; the host answers S->C 0x58.
+            const std::uint32_t item = panel_use->place && hero.held && hero.held->id == panel_use->item ? (net_cursor ? net_cursor : net_game->host_item(*hero.held)) : 0;
+            if (net_object_panel && (!panel_use->place || item))
+                net_game->send_items({ d2d::net::d2gs::c2s::object_item(net_game->self_id, net_object_panel, item, panel_use->place ? 3U : 2U) });
+            else {
+                net_game->log.note("an object's item panel with no host object or cursor item: not sent");
+                if (panel_use->place) use_item_reply(4);   // no answer is coming: the wait box down, the staff still in the slot
+            }
+            return;
         } else if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             // An NPC's service (the item panel's first button, FUN_004bfaf0): C->S 0x38
             // kind 0 {its unit, the cursor item} (FUN_004b2370 -> FUN_004786d0); the
@@ -610,7 +621,26 @@ auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
         view.den_left = net_game->den_left;
         if (net_game->sky) { world.day.set(net_game->sky->phase, net_game->sky->time, net_game->sky->eclipse); net_game->sky.reset(); }
         // The item panel's answer (S->C 0x58: an NPC's service done or refused).
-        if (const int kind = std::exchange(net_game->use_item_reply, -1); kind >= 0) use_item_reply(kind);
+        if (const int kind = std::exchange(net_game->use_item_reply, -1); kind >= 0) {
+            // Kind 5, the staff went into the object (FUN_005852e0): the host's 0x42 drops its
+            // cursor item, so ours goes too.
+            if (kind == 5 && use_item.open() && use_item.kind == 0) { hero.held.reset(); net_cursor = 0; }
+            use_item_reply(kind);
+        }
+        // The host opened an object's item panel (S->C 0x58 UI 0, the orifice): on
+        // d2d's object nearest its unit; 0x44 goes back by the host's id.
+        if (const std::uint32_t host_object = std::exchange(net_game->object_panel, 0); host_object && level)
+            if (const auto unit = net_game->units.find(std::uint64_t(2) << 32 | host_object); unit != net_game->units.end()) {
+                int nearest = -1;
+                float best = 1e9f;
+                for (std::size_t index = 0; index < level->npcs.size(); ++index) {
+                    const auto& object = level->npcs[index];
+                    if (object.root != "objects") continue;
+                    const float distance = std::hypot(unit->second.x - (object.x + float(level->world_x)) * 5.f, unit->second.y - (object.y + float(level->world_y)) * 5.f);
+                    if (distance < best) { best = distance; nearest = int(index); }
+                }
+                if (nearest >= 0) { net_object_panel = host_object; open_object_item(nearest); }
+            }
         // The Cube: the host opens it (0x77 0x15); shut here, the host's shuts too (0x4f 0x17).
         if (std::exchange(net_game->cube_opened, false)) { cube_open = net_cube_open = true; inv_open = true; stash_open = char_open = false; }
         if (net_cube_open && !cube_open) { net_game->send_items({ d2d::net::d2gs::c2s::button(0x17) }); net_cube_open = false; }

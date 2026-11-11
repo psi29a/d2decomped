@@ -31,6 +31,16 @@ auto ClientSession::open_use_item(int npc) -> void {
     inv_open = true;
 }
 
+// S->C 0x58 kind 0 (FUN_004c0550 -> FUN_004c0380): an object's panel (the
+// orifice's), the same close-all and the inventory beside it.
+auto ClientSession::open_object_item(int object) -> void {
+    close_use_item();
+    use_item::open_object(use_item, object, now_ms);
+    char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
+    waypoint = {};
+    inv_open = true;
+}
+
 // FUN_004c0090: shut; a held item back on the cursor (FUN_00468070).
 // The inventory goes with it: the open sets UI 0xe alone (FUN_004c0380, after the close-all), whose
 // flag is what draws the inventory beside the panel (FUN_00456ee0), and the close clears it.

@@ -561,11 +561,7 @@ auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame
         if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 (FUN_004c0550)
             if (service->kind == 0) {                                          // an object's panel opens (FUN_004c0380)
-                close_use_item();
-                use_item::open_object(use_item, service->npc, now_ms);
-                char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
-                waypoint = {};
-                inv_open = true;
+                open_object_item(service->npc);
             } else if (service->npc == use_item.npc) {
                 use_item_reply(service->kind, &audio);
             }

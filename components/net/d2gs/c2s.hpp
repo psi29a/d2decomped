@@ -344,6 +344,15 @@ inline auto npc_action(std::uint32_t action, std::uint32_t id, std::uint32_t ext
     put_u8(out, 0x38); put_u32(out, action); put_u32(out, id); put_u32(out, extra);
     return out;
 }
+// 0x44: an object's item panel (FUN_00478700, 17 bytes, from the panel's
+// first button FUN_004bfaf0 and its cancel 0x4c02f0 / FUN_004c0150): our
+// unit, the object's, the item (0 to cancel), the action: 3 place, 2 shut.
+// The host's FUN_005852e0 places the Horadric Staff in the orifice.
+inline auto object_item(std::uint32_t player, std::uint32_t object, std::uint32_t item, std::uint32_t action) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x44); put_u32(out, player); put_u32(out, object); put_u32(out, item); put_u32(out, action);
+    return out;
+}
 // 0x59: where we see unit (type, id), sent before an 0x13 on an NPC (a
 // real client's, recorded 2026-10-05).
 inline auto unit_position(std::uint32_t type, std::uint32_t id, std::uint32_t x, std::uint32_t y) -> Bytes {
