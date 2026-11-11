@@ -258,7 +258,10 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // MonAI rows' second word at 0x73ca18; the Hydra's last frame, the
         // Raven's hits, a trap's shots as d2d counts them).
         if (const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name; ai_name == "Hydra") pet.ctrl[0] = int(pet.until / 40);
-        else if (ai_name == "Raven") pet.ctrl[0] = pet.hits;
+        else if (ai_name == "Raven") {
+            pet.ctrl = d2d::rules::raven_init(type_info.diff[std::size_t(monster.difficulty)].aip[2], monster.seed);
+            pet.ctrl[0] = pet.hits;                                        // its first think's hits, here at once
+        }
         // The sentries' init (FUN_005ea290, MonAI 101 / 104, run as the pet
         // is made: FUN_0056d940 -> FUN_005b0e00): +0x14 the game frame (the
         // DeathSentry's last corpse, so a corpse whose id is that frame is
@@ -267,24 +270,25 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
         else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { int(now_ms / 40), pet.shots, 0 };
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
-        // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Warrior's
+        // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Master's
         // init (FUN_005eb490: Attack, the owner's class skills it may have)
-        // or the Master's (FUN_005ecb70, no skills).
+        // or the Warrior's (FUN_005eaf50: its level only; it takes the
+        // owner's hands each think).
         if (skill.srvdofunc == ServerDoFunction::kMirrorImage) {
             for (std::size_t slot = 0; slot < type_info.skill.size(); ++slot)
                 if (const auto* listed = skill_named(type_info.skill[slot]); listed && type_info.sk_lvl[slot] > 0) {
                     shadow_give(pet, listed->id, d2d::rules::monster_skill_level(type_info.sk_lvl[slot], monster.difficulty));
                     std::ranges::find(pet.skill_list, listed->id, &d2d::rules::ShadowListed::id)->mode = monster_mode(type_info.sk_mode[slot]);
                 }
-            if (type_info.ai_name == "ShadowWarrior") {
+            if (type_info.ai_name == "ShadowMaster") {
                 const auto& class_ids = game_data->skills.class_ids[std::size_t(std::clamp(actor->character.character_class, 0, 6))];
                 const bool has_attack = std::ranges::contains(pet.skill_list, 0, &d2d::rules::ShadowListed::id);
-                const auto gifts = d2d::rules::shadow_warrior_init(
+                const auto gifts = d2d::rules::shadow_master_init(
                     pet.ctrl, true, lvl, has_attack, class_ids, [&](int id) { return shadow_may_have(game_data->skills.get(id), type_info, skill); },
                     [&](int id) { return skill_base ? skill_base(id) : 0; });
                 for (const auto& gift : gifts) shadow_give(pet, gift.skill, gift.level);
                 pet.left_skill = 0;
-            } else pet.ctrl = d2d::rules::shadow_master_init(type_info.diff[std::size_t(monster.difficulty)].aip[2], monster.seed);
+            } else pet.ctrl = d2d::rules::shadow_warrior_init(true, lvl);
         }
         // FUN_005c4470 (0x5c4934): its skill's sumumod, 1..0x2a, through
         // FUN_005a4850(sumumod, 1): a trap's 32, a Shadow's 42.
