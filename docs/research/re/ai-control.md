@@ -240,3 +240,20 @@ It then sets control +0x14 to game frame plus the signed +0x5c word. The
 non-idle path dereferences the owner; a null owner is not tested.
 `tools/emu/ai_pet_follow.py` checks seven normal-difficulty cases using a
 static-coordinate owner, with owner lookup, signal and action scripted.
+
+`FUN_005e5870` reads the current AI command: a command ID 8 unlinks the unit,
+switches it using `FUN_005b0e00(control, 0)` and idles 10. Otherwise it scans
+the group and calls `FUN_005dd2b0`; either nonzero result broadcasts command 8
+before the same unlink, switch and idle. With neither, a follower without a
+command idles 15; with a command it consumes it and calls `FUN_005ded90` at
+command x/y (+0x0c/+0x10) plus control +0x14/+0x18.
+
+An owner equal to the unit advances its unit seed; a low-word draw modulo 100
+below 30 idles 10. Otherwise it increments control +0x1c, wrapping values at
+100 to zero, and computes one of four positions around its coordinates using
+a bounded random offset and sign. A failed `FUN_005dee50` placement stores the
+new phase plus 25; a success broadcasts command 2 with the chosen x/y and
+stores the new phase. `tools/emu/ai_formation_walk.py` checks 11 command,
+group, follower and leader cases, including each quadrant and failed placement.
+The group, coordinate, bounded-random, placement and action helpers are
+scripted, and the leader's initial seed update runs for real.
