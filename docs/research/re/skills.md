@@ -1014,6 +1014,23 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   durability then at its max. V: `tools/emu/mon_equip.py` runs
   FUN_005d6b60 on 2000 calls over synthetic tables, `test_mon_equip`
   (`rules::monster_gear`) matches every call and the seed after.
+- **What the gear does.** The items' stats join the monster's as a
+  hireling's do (merc-ai.md "Its gear"). A blow's physical
+  (`FUN_0057b420`, weapon argument 0 from `FUN_0057b7d0`) takes the
+  monster's weapon from its inventory (`FUN_00535bc0`: `FUN_0063c9b0`'s
+  hand item, the class check `FUN_006235a0` being for players and the
+  Shadows only) and, when `FUN_0063d340` says two-handed (`FUN_006289c0`,
+  Items +0x11c), reads stats 23 / 24, which only the weapon fills: the
+  mode's damage (`FUN_005a4f50` puts it in 21 / 22) goes unread. With a
+  one-handed weapon 21 / 22: the mode's and the weapon's together. With a
+  weapon there's no 1 / 2 floor. `FUN_00535d10` switches the weapons'
+  stat lists off only when `FUN_0057b7d0`'s third argument is set; the
+  melee and skill callers checked (0x56f178, 0x5d62f5) pass 0. So Blood
+  Raven's short bow and the Valkyrie's spears and pikes (all two-handed)
+  set their whole physical damage. d2d: `rules::gear_sum` /
+  `gear_damage`; a made monster's items are made from `Spawn::gear`'s
+  seeds in `spawn_monsters` (before a boss's mods scale them), a pet's in
+  `Fight::summon_one` (`test_valkyrie_gear`).
 - Built: `Fight::pets` (a Monster each), `summon_skill` / `cast_summon` /
   `summon` / `pets_turn` / `pet_foe`; monsters take pets as foes; Raise
   Skeleton uses a Blood Moor corpse (`Monster::corpse_used`).

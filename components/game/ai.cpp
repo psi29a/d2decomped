@@ -12,6 +12,7 @@
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <missiles.hpp>
+#include <mon_equip.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <pets.hpp>
@@ -143,7 +144,9 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         monster.props = d2d::rules::monster_props(game_data.rules, type_info, difficulty, unit_seed);   // FUN_00573cb0's end, after the look
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
-        if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng, players);
+        const auto gear = spawn_gear(game_data, spawn.gear, difficulty);
+        if (!boss && !spawn.gear.empty()) wear_gear(monster.stats, gear);
+        if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng, players, spawn.gear.empty() ? nullptr : &gear);
         else if (auto act_boss = d2d::rules::act_boss(spawn.type, type_info.base)) {   // FUN_005b1cf0: flag 8, no unique stats
             monster.boss = d2d::rules::Boss::unique;
             monster.mods = std::move(act_boss->mods);
@@ -2605,6 +2608,29 @@ void ai_toggle(const GameData& game_data, Monster& monster, int special) {
         monster.ai_command = 0;                                    // FUN_0058ede0: its command list freed
 }
 
+d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::rules::SpawnGear> gear, int difficulty) {
+    std::vector<d2d::d2s::Item> items;
+    for (const auto& worn : gear) {
+        if (!game_data.rules.item_info.contains(worn.code)) continue;
+        d2d::rules::Rng unit_seed{ worn.unit_seed }, item_seed{ worn.item_seed };
+        auto item = d2d::rules::generate_item(game_data.rules, worn.code, worn.ilvl, worn.quality, item_seed, &unit_seed, nullptr, false, difficulty);
+        item.location = d2d::d2s::item_location::kEquipped;
+        item.slot = worn.loc;
+        items.push_back(std::move(item));
+    }
+    return d2d::rules::gear_sum(game_data.rules, items);
+}
+
+void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear) {
+    // FUN_0057b420 reads the unit's stats whatever the mode, so a two-handed
+    // weapon's damage stands in for every mode's (A1 / A2 / S1).
+    // ponytail: the items' other stats (resistances, life, to-hit, their
+    // elements) don't reach a made monster yet.
+    for (auto [low, high] : { std::pair{ &stats.a1_min, &stats.a1_max }, std::pair{ &stats.a2_min, &stats.a2_max }, std::pair{ &stats.s1_min, &stats.s1_max } })
+        std::tie(*low, *high) = d2d::rules::gear_damage(gear, *low, *high);
+    stats.armor_class += int(gear.defense + gear.sum[d2d::d2s::kArmorClass]);
+}
+
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique) {
     if (game_data.monsters.lvl.empty()) return;
     const auto level = std::clamp<std::size_t>(std::size_t(std::max(monster.stats.level, 1)), 1, game_data.monsters.lvl.size() - 1);
@@ -2616,10 +2642,11 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 }
 
 void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
-               int difficulty, d2d::rules::Rng& rng, int players) {
+               int difficulty, d2d::rules::Rng& rng, int players, const d2d::rules::GearSum* gear) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto boss = d2d::rules::boss_stats(game_data.umods, type_info, kind, mods, difficulty);
     monster.stats = d2d::rules::monster_stats(game_data.monsters, monster.type, difficulty, rng, boss.level_add, players, area_monster_level(game_data, monster.level_id, difficulty));
+    if (gear) wear_gear(monster.stats, *gear);
     monster.boss = kind;
     monster.mods = mods;
     monster.super = super;

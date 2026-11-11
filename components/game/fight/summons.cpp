@@ -10,6 +10,7 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <mon_equip.hpp>
 #include <monsters.hpp>
 #include <pets.hpp>
 #include <rules.hpp>
@@ -27,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -202,6 +204,37 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             if (skill.passive_stat[k] >= 0) pet_stats[skill.passive_stat[k]] += calc(skill, skill.passive_calc[k], lvl);
         for (std::size_t k = 0; k < 6; ++k)
             if (skill.aurastat[k] >= 0) pet_stats[skill.aurastat[k]] += calc(skill, skill.aura_calc[k], lvl);
+        // Last in FUN_005c4470 (0x5c49c7), FUN_005d6b60 at the skill's level:
+        // the Valkyrie's MonEquip gear, the rows from her level down, made at
+        // calc2 or min(max(3 x level, 1), the owner's level). Its stats join
+        // hers; a two-handed weapon's damage replaces her A1 (FUN_0057b420).
+        // ponytail: her unit seed (the walk) and the game seed (the items)
+        // are the fight's rng; a Shadow's gear (the owner's items) isn't made,
+        // it fights with the owner's (pet.mirror).
+        if (const int first = std::size_t(type) < game_data->mon_equip_first.size() ? game_data->mon_equip_first[std::size_t(type)] : -1;
+            first >= 0 && skill.srvdofunc != ServerDoFunction::kMirrorImage) {
+            std::uint32_t worn = 0;
+            for (const auto& item : actor->character.items)
+                if (item.location == d2d::d2s::item_location::kEquipped && item.slot > 0 && item.slot < 11) worn |= 1u << item.slot;
+            d2d::rules::Rng own{ rng.next() };
+            const int ilvl = d2d::rules::summon_gear_level(calc(skill, skill.calc[1], lvl), lvl, clvl);
+            std::vector<d2d::d2s::Item> items;
+            for (const auto& gear : d2d::rules::monster_gear(game_data->mon_equip, first, type, lvl, false, 0, worn, own)) {
+                const auto& code = game_data->mon_equip[gear.row].item[gear.slot];
+                const std::string base = code.substr(0, code.find_last_not_of(' ') + 1);
+                if (gear.owners || !game_data->rules.item_info.contains(base)) continue;
+                d2d::rules::Rng unit_seed{ rng.next() }, item_seed{ rng.next() };
+                auto item = d2d::rules::generate_item(game_data->rules, base, ilvl, gear.quality, item_seed, &unit_seed, nullptr, false, monster.difficulty);
+                item.location = d2d::d2s::item_location::kEquipped;
+                item.slot = gear.loc;
+                items.push_back(std::move(item));
+            }
+            const auto worn_gear = d2d::rules::gear_sum(game_data->rules, items);
+            for (std::size_t stat_id = 0; stat_id < worn_gear.sum.size(); ++stat_id)
+                if (worn_gear.sum[stat_id] != 0) pet_stats[int(stat_id)] += int(stat_id == d2d::d2s::kMaxLife ? worn_gear.sum[stat_id] << 8 : worn_gear.sum[stat_id]);   // an item's maxhp is whole points
+            std::tie(monster.stats.a1_min, monster.stats.a1_max) = d2d::rules::gear_damage(worn_gear, monster.stats.a1_min, monster.stats.a1_max);
+            monster.stats.armor_class += int(worn_gear.defense);
+        }
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
         using namespace d2d::d2s;
         monster.stats.hit_points += stat(kMaxLife) >> 8;                                               // maxhp, 256ths
