@@ -86,6 +86,16 @@ template <typename Lines> constexpr int list_row_at(const ListBox& box, const Li
     return -1;
 }
 
+// Enter (FUN_004bebc0, key 0xd) calls the row callback for the row kept
+// at +0x180738 (the one under the mouse). Hired is that row's arg. No
+// row, or an arg of -1 (string 0xd25, no offers), hires nothing.
+template <typename Rows>
+constexpr int list_enter_arg(int row, const Rows& rows) {
+    if (row < 0 || row >= int(rows.size())) return -1;
+    const int arg = rows[std::size_t(row)].arg;
+    return arg < 0 ? -1 : arg;
+}
+
 // A shown line's baseline (FUN_004bee90): y + 0x19 + 6 per row shown
 // before it + 14 per line drawn before it; its x is box.x + 0x20.
 constexpr int list_line_y(const ListBox& box, int rows_before, int lines_before) { return box.y + 0x19 + box.row_gap * rows_before + box.line_height * lines_before; }

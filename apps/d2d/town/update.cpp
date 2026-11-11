@@ -197,6 +197,19 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // co-op) game.exe's own server echoes it so, d2d's chat shows it.
         // "@name message" whispers (FUN_0047bad0: a name under 0x32, then
         // the message; else the whole line goes to all).
+        // The hire list's Enter (FUN_004bebc0, key 0xd) hires the row under
+        // the mouse (+0x180738) and does not open chat. An empty offer
+        // (arg -1, string 0xd25) hires nothing. The key is still consumed.
+        if (!gold_box && !game_menu.open && npc_menu.list) {
+            const bool enter = std::erase_if(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER; }) > 0;
+            if (enter) {
+                const auto& list = *npc_menu.list;
+                if (const int offer = d2d::rules::list_enter_arg(list.hover, list.rows); offer >= 0) {
+                    net.send(cmd::Hire{ offer });
+                    npc_menu = {};
+                }
+            }
+        }
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {

@@ -133,7 +133,7 @@ and the defaults.
 - A press inside the box (`FUN_004bf430`; not on the scroll bar's parts)
   keeps the row under it (+0x180734); the release (`FUN_004bf530`) calls
   the callback when the row under it is that row. Enter (`FUN_004bebc0`,
-  key 0xd) calls it for the row at +0x180738.
+  key 0xd) calls it for the row at +0x180738. d2d keeps it.
 
 - The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
   each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame
