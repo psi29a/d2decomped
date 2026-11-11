@@ -9,6 +9,7 @@
 // instead, to diff.
 #include <hire_list.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <exception>
@@ -24,7 +25,13 @@ std::string answer(const std::string& line) {
     std::istringstream fields(line);
     int seq = 0, y = 0, height = 0, gap = 0, scroll_x = 0, first = 0, selected = 0, input = 0, arg = 0, rows = 0;
     fields >> seq >> y >> height >> gap >> scroll_x >> first >> selected >> input >> arg >> rows;
-    std::vector<int> lines(std::size_t(rows > 0 ? rows : 0));
+    // Bounded so a malformed line can't run a loop away: the box's 128 rows (FUN_004bf650),
+    // a screen's coordinates; no case is outside them.
+    rows = std::clamp(rows, 0, 0x80);
+    first = std::clamp(first, 0, 0x80); selected = std::clamp(selected, -1, 0x80);
+    y = std::clamp(y, -0x800, 0x800); height = std::clamp(height, 0, 0x800); gap = std::clamp(gap, 0, 0x100);
+    scroll_x = std::clamp(scroll_x, -0x800, 0x800); arg = std::clamp(arg, -0x800, 0x800);
+    std::vector<int> lines(static_cast<std::size_t>(rows));
     for (auto& count : lines) fields >> count;
     const d2d::rules::ListBox box{ 0, y, scroll_x + 0x12, height, gap };
     const int whole = d2d::rules::list_rows_whole(box, lines, first);

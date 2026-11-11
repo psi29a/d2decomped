@@ -7,6 +7,7 @@
 // (ambient_dip.py's `gen` output) it prints its `game` lines instead, to diff.
 #include <ambient_dip.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <exception>
@@ -23,6 +24,9 @@ std::string answer(const std::string& line) {
     std::istringstream fields(line);
     int seq = 0, fade_in = 0, hold = 0, back = 0, fill = 0, change = 0, other = 0;
     fields >> seq >> fade_in >> hold >> back >> fill >> change >> other;
+    // Bounded so a malformed line can't run the loop away: fills are a byte, the cases' frames under 300.
+    fade_in = std::clamp(fade_in, 0, 0x400); hold = std::clamp(hold, 0, 0x400); back = std::clamp(back, 0, 0x400);
+    fill = std::clamp(fill, 0, 255); other = std::clamp(other, 0, 255); change = std::clamp(change, 0, 0x1000);
     constexpr int kOwn = 1, kNext = 2;                              // the levels (not 8, 107, 108)
     d2d::rules::AmbientDip dip;
     dip.start(fade_in, hold, back, kOwn);

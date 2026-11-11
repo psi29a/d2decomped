@@ -7,6 +7,7 @@
 // it prints its `game` lines instead, to diff.
 #include <show_items.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
@@ -26,12 +27,14 @@ std::vector<Drawn> screen(const std::string& line, int& scene) {
     std::istringstream fields(line);
     int width = 0, height = 0, side = 0, mouse_x = 0, mouse_y = 0, cursor = 0, rooms = 0;
     fields >> scene >> width >> height >> side >> mouse_x >> mouse_y >> cursor >> rooms;
+    rooms = std::clamp(rooms, 0, 64);                // a malformed line can't run away: the cases hold 9 rooms of 20 at most
     std::vector<d2d::rules::LabelItem> walk;
     std::vector<int> unit_of;
     std::ptrdiff_t cursor_item = -1;
     for (int room = 0, number = 0; room < rooms; ++room) {
         int count = 0;
         fields >> count;
+        count = std::clamp(count, 0, 256);
         for (int unit = 0; unit < count; ++unit, ++number) {
             int kind = 0, drawn = 0, x = 0, y = 0, text_w = 0, text_h = 0;
             fields >> kind >> drawn >> x >> y >> text_w >> text_h;
