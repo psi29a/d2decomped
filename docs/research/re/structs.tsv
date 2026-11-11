@@ -14,6 +14,7 @@ event	0x00	u8	event	the event id (0xb: absorb)	tools/emu/monster_damage.py:153
 event	0x04	u32	active	1 while the state is on	tools/emu/monster_damage.py:153
 event	0x0c	u32	skill	the Skills row index of the state	tools/emu/monster_damage.py:153
 event	0x14	u32	handler	the handler's address (Bone Armor: FUN_005c6370)	tools/emu/monster_damage.py:153
+game	0x1c	ptr	pool	memory pool passed to the AI control allocator	docs/research/re/ai-control.md:21
 game	0x6d	u8	difficulty	0 Normal, 1 Nightmare, 2 Hell	docs/research/re/pet-ai.md:134
 game	0x70	u32	expansion	the expansion flag, set by FUN_00555230	components/rules/rules.hpp:1690
 game	0xa8	u32	frame	frame counter, + 1 a frame (FUN_0052d870)	docs/research/re/network.md:19
