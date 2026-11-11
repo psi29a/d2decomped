@@ -779,8 +779,22 @@ struct ClientSession {
     void handle(const Event& event, Audio& audio, std::uint32_t frame_ms);
     // S->C 0x89 {event} (the quest event table 0x7129d8): 3 starts the staff's light show.
     void unique_event(int event, std::uint32_t frame_ms);
-    struct StaffShow { bool playing = false; const Level* level = nullptr; int orifice = -1; float x = 0, y = 0; std::uint32_t born = 0; };
+    // The light show's client missiles (FUN_004cd540): moving `step_x`, `step_y`
+    // cells a frame for `life` frames; `rises` 1 the staff, 2 a lightning
+    // bolt (rules::staff_show heights).
+    struct ShowShot { View::Shot shot; float step_x = 0, step_y = 0; int life = 0, age = 0, rises = 0; };
+    struct StaffShow {
+        bool playing = false;
+        const Level* level = nullptr;
+        int orifice = -1;                // its Level::npcs index
+        float x = 0, y = 0;              // the orifice's spot, cells
+        std::uint32_t born = 0;
+        int frames = 0;                  // client frames since 0x89 {3}
+        d2d::rules::Rng seed;            // the staff's (unit +0x20): the dust's spread
+        std::vector<ShowShot> shots;
+    };
     StaffShow staff_show;                // 0x46b100: the orifice it plays at, from when
+    void staff_show_tick(std::uint32_t frame_ms);   // a client frame of it (FUN_004d6820 on the staff)
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
     bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
     bool quest_log_was_open = false;               // UI 0xf last frame: shutting it marks the animations seen (FUN_004a28d0)

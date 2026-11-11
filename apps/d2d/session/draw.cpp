@@ -196,6 +196,8 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
         state_clock.now = frame_ms;
         std::vector<View::Shot> client_effects = den_beams;
         for (const auto& spark : spark_trail.sparks) client_effects.push_back(spark.shot);
+        if (staff_show.level == level)   // the staff's light show, on its own level only
+            for (const auto& shot : staff_show.shots) client_effects.push_back(shot.shot);
         if (cairn_flash) {
             const std::uint32_t lifetime = std::uint32_t(std::max(cairn_flash->info ? cairn_flash->info->range : 0, 1)) * kTickMs;
             if (frame_ms - cairn_flash->born < lifetime) client_effects.push_back(*cairn_flash);

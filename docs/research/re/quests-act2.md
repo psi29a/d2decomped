@@ -512,7 +512,9 @@ d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`, its item
 panel (the client's `use_item` kind 0, C->S 0x44 as `cmd::ObjectItem`:
 `World::object_item`; a joined game's host gets game.exe's 0x44,
 `c2s::object_item`, its 0x58 UI 0 opening the panel on d2d's nearest
-object, `ClientSession::open_object_item`),
+object, `ClientSession::open_object_item`), its light show (S->C 0x89 {3}
+as `ev::UniqueEvent`: `rules::staff_show`, the client's
+`ClientSession::staff_show_tick`, light_jet through `ObjectFlash`),
 `World::durielportal_open`, portal slot 6. Checked headless (devctl,
 2026-10-11, quests 8..13 done by `debug quest`): into the Lair → state
 2, log 2 (bit 2); Duriel's death → 3 / 3 (bit 5); Tyrael → 4 / 4, bits
