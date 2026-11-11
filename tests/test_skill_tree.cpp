@@ -4,15 +4,24 @@
 // test-includes: apps/d2d
 // FUN_004abf60 icon colour (5 grey, 3 hover, else the act palette), FontFormal10
 // and a 4 px left shift from level 10, and blue/red when items change the level.
+#include "common.hpp"
+#include "scene.hpp"
 #include "skilltree.hpp"
 
+#include <dc6.hpp>
 #include <d2s_items.hpp>
+#include <font.hpp>
+#include <palette.hpp>
+#include <skills.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <initializer_list>
 #include <vector>
 
 namespace {
