@@ -462,6 +462,51 @@ That is why an item or a warp is sent once and cannot wait for range, as
 for the NPC walk (target gone, retry through the walk code), no disagreement
 found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
+#### The range-and-line gate itself (`FUN_00480c80`, 0x480c80, 160 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). Not a
+normal calling convention: action in EAX, the acting player in EBX, the
+target in EDI, no stack arguments, plain `RET` — the three callers above
+set these up before the call. In order:
+
+- Action 6 or 0xd (a left or right skill already in flight): `d2d_left_skill(EBX)`
+  (`FUN_00620190`) or `d2d_right_skill(EBX)` (`FUN_006201d0`) finds that
+  skill's cast node. A null node, or `FUN_00644140(node)` (the node's
+  current skill record, already verified at skills.md:1780) null, or that
+  record's word at `+0x2e` not 0x13, falls through to the range/line test
+  below. Otherwise `FUN_00461ac0(ECX = node, EDX = EDI the target, two
+  local out-params)` answers directly, converted to 0/1, and `FUN_00480c80`
+  returns that — the skill in flight skips the range/line test entirely.
+- Fallthrough (any other action, or the skill check above falling
+  through): a null target is true (in range); an object target (`*EDI ==
+  2`) is `d2d_monsters_object_reach(EBX, EDI)` (`FUN_00623660`, already
+  ported) true unless `FUN_00622b50(EBX, EDI, 0x804)` (the line-of-sight
+  test, already verified at collision.md:548) then answers 0; any other
+  target type is `FUN_00622c40(EBX, EDI, FUN_00622dc0(EDI))` (also already
+  verified, `ai.cpp`'s melee-range/line check) answering nonzero.
+
+So `FUN_00480c80` itself is two gates layered: a skill already queued on
+the action's own left/right slot, whose record's `+0x2e` reads 0x13, is
+let through by `FUN_00461ac0`'s own range test instead of the normal
+reach-and-line test; everything else (including a different action, or no
+such skill) takes the reach-and-line path todo.md row 39 already
+describes. d2d: not ported as a function (todo.md row 39 covers the
+reach/line half only); the skill-in-flight bypass and what skill id 0x13
+and the object-type special case mean are not ported, no disagreement
+found (no d2d code to compare the bypass against).
+
+**`FUN_00461ac0`** (fastcall `(ECX skill node, EDX target)` plus two stack
+out-pointers for range and distance, `RET 8`; only caller `FUN_00480c80`):
+a null local player, node or target answers false. Otherwise
+`FUN_00644140(node)` (the node's current skill record) null also answers
+false; else `FUN_006442a0(local player, node, 1)` and
+`FUN_00646ca0(local player, record+0x32, record[0], that)` fill the range
+out-param, `FUN_006416d0(local player, target)` fills the distance one,
+and the answer is distance <= range. Not traced: `FUN_006442a0`,
+`FUN_00646ca0` and `FUN_006416d0`'s own bodies, so what the range and
+distance actually measure (subtiles, a skill's stated range, a line
+check) is read from the call shape only.
+
 ### The action send (`FUN_00481030`, 0x481030, 601 bytes)
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
