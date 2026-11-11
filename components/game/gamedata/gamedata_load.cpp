@@ -345,6 +345,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (pass == 0) if (const std::string explosion(missiles_table.get(row_index, "ExplosionMissile")); !explosion.empty()) explosions.insert(explosion);
         GameData::MissileInfo missile_info;
         missile_info.name = name;
+        missile_info.id = number("Id");
         missile_info.size = number("Size");
         missile_info.vel_lev = number("VelLev"); missile_info.max_vel = number("MaxVel"); missile_info.accel = number("Accel"); missile_info.activate = number("Activate");
         missile_info.vel = number("Vel"); missile_info.range = number("Range"); missile_info.src_damage = number("SrcDamage"); missile_info.min = number("MinDamage"); missile_info.max = number("MaxDamage");
