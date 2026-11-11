@@ -22,3 +22,12 @@ game +0x1c using the AiGeneral.cpp line 0x1b allocation site. It clears the
 block, then sets control +0x0c and +0x2c to -1 and +0x10 and +0x30 to 1.
 The oracle uses a prefilled allocation and checks the pool, size, source site,
 and every byte of the resulting block. Allocation failure is not tested.
+
+`FUN_005ea080` takes the game in ECX, unit in EDX and think record on the
+stack. When control +0x18 is 1 it sets unit flag 0x20000 (if the unit exists)
+and calls `FUN_005ddfc0` with three zero stack arguments. Otherwise it calls
+that helper with 4, x minus 10, y and sets control +0x18 to 1. A null unit is
+only safe on the first branch. Unit types 2, 4 and 5 read coordinates at path
++0x0c / +0x10; other types use the dynamic path getters, or zero for a null
+path. The oracle scripts the action helper and dynamic getters and checks both
+branches; it does not establish the helper's effects on the rest of the game.
