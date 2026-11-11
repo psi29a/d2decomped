@@ -74,3 +74,15 @@ the target; otherwise `FUN_005de080` stands for 50. The oracle
 `tools/emu/ai_town_rogue.py` hooks these three callees, checks their arguments
 and tests the no-target and boundary-distance branches. This does not check
 the target search or attack effects themselves.
+
+`FUN_0058f160` takes a minion in ECX. For a monster with data, control and
+control +0x28 game, it resolves the owner using control +0x30 type and +0x2c
+ID. If the owner is a monster, it scans the owner's +0x34 list for the
+minion's unit +0x0c ID. On finding it, it resolves that ID as a monster;
+if the result exists and is type 1, its control gets owner ID -1, owner type
+1 and game copied from the owner's control. It unlinks and frees the matching
+node regardless of that second lookup's result. A missing owner or list entry
+leaves the list alone. The function assumes resolved monster data and control
+exist when it accesses them; the oracle does not test malformed records.
+`tools/emu/ai_minion_remove.py` scripts both lookups and the allocator, and
+tests removal at each list position, a missing ID and a missing second lookup.

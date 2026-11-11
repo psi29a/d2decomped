@@ -29,6 +29,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | AI control scratch access and the control +0x38 address, including null gates; the latter was previously mislabeled as a leader ID getter | `FUN_0058ec50`, `FUN_0058f000`; oracle `tools/emu/ai_control_access.py` | [ai-control.md](ai-control.md) |
 | AI command ring insertion and release; pool operations hooked | `FUN_0058ec90`, `FUN_0058ed80`; oracle `tools/emu/ai_command_ring.py` | [ai-control.md](ai-control.md) |
 | AI minion-list and control teardown, including cleanup order; allocator and optional-record release hooked | `FUN_0058f350`, `FUN_0058f810`; oracle `tools/emu/ai_control_free.py` | [ai-control.md](ai-control.md) |
+| Minion removal unlinks by unit ID and clears resolved minion ownership; lookups and free hooked | `FUN_0058f160`; oracle `tools/emu/ai_minion_remove.py` | [ai-control.md](ai-control.md) |
 | Town rogue think attacks a found target for a signed distance below 25, otherwise stands 50; target search and actions hooked | `FUN_005e7dc0`; oracle `tools/emu/ai_town_rogue.py` | [ai-control.md](ai-control.md) |
 | The 7TIllusion AI first acts at x minus 10, then sets a unit flag and acts in mode 0; the helper's effects are not checked | `FUN_005ea080`; oracle `tools/emu/ai_move_left.py` | [ai-control.md](ai-control.md) |
 | A limited spawn think tracks its count and next frame; static trace, no runtime oracle | `FUN_005e0160` | [ai-control.md](ai-control.md) |
