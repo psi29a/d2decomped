@@ -717,7 +717,8 @@ diff_drlg.py game`. Kurast needed nothing new. Travincal:
   | 0x21d | ancientbarb2, Madawc | tax: rarm, tax: larm, hgl: glov, hbt: feet | 9ta 9ta xhg xhb / 7ta 7ta uhg uhb |
   | 0x21e | ancientbarb3, Korlic | vou: rarm, rin: rrin, fld: tors, crn: head | 9vo – xld xrn / 7vo – uld urn |
 
-  Re-check: the 24 bytes at 0x6e2c90 in game.exe; the codes from
+  Re-check: the 96 bytes at 0x6e2c90..0x6e2cef in game.exe (rows 0x18
+  apart, an 8-byte entry per ancient); the codes from
   Weapons.txt / Armor.txt ubercode and ultracode. Misc.txt has neither
   column: whether the ring is made in Nightmare or Hell is not traced (the
   loader's value for a missing column). d2d's monsters carry no items, so
