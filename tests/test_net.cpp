@@ -135,6 +135,9 @@ int main() try {
     {
         const auto join = d2gs::c2s::join_request(3, "Tester");
         assert(join.size() == d2gs::c2s::kJoinSize && join[0] == 0x68 && join[7] == 3 && join[8] == 0x0e && join[0x15] == 'T');
+        // 0x44, an object's item panel (FUN_00478700): 17 bytes, our unit, the object, the item, the action.
+        const auto place = d2gs::c2s::object_item(0x11223344, 0x55, 0x66, 3);
+        assert(place.size() == 17 && place[0] == 0x44 && place[1] == 0x44 && place[4] == 0x11 && place[5] == 0x55 && place[9] == 0x66 && place[13] == 3 && place[16] == 0);
         const auto save = save_of(2516);
         const auto chunks = d2gs::c2s::save_chunks(save);
         std::size_t total = 0;
