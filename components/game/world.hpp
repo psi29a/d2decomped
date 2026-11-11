@@ -36,8 +36,11 @@
 #include <array>
 #include <bitset>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <expected>
+#include <functional>
 #include <initializer_list>
 #include <map>
 #include <memory>
@@ -95,8 +98,11 @@ struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
 // An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
 // 7 refused}, FUN_00579d60): the client shuts its item panel.
 struct ServiceResult { int npc = -1; bool done = false; };
+// A line for everyone in the game, wherever they are (a LAN game's chat
+// and news): typed chat, who joined or left, who was slain.
+struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -174,6 +180,12 @@ struct View {
     // The level's NPCs as they patrol, then each Level::nearby level's in
     // that order (its npcs.size() each, its own cells).
     std::vector<UnitState> npc_states;
+    // Who each npc_states entry is: the host's Level::npcs in its order (the
+    // level's, then each nearby level's). A machine drawing another's game
+    // (a LAN joiner) lays its own lists out as these say: its rooms came up
+    // in another order, or not at all (Town::lan_take_npcs, lan-host.md).
+    struct NpcKey { int level = 0, hc_idx = -1, object_id = 0; float x = 0, y = 0; int palace = 0, quest = 0; };
+    std::vector<NpcKey> npc_keys;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
@@ -222,6 +234,8 @@ struct World {
         float target_x = 0, target_y = 0;      // where the player is walking to
         bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
         int   take_warp = -1;                  // the warp of `level` the player is walking to
+        const Level* on_level = nullptr;       // split levels (World::split_levels): the level they're on
+        bool  own_screen = false;              // a LAN joiner: drawn on its own machine, so it travels alone; the host's screen's party (pad partners) goes together
         int   interact_npc = -1;               // the object / NPC being walked to
         int   pick_item = -1;                  // the ground item being walked to (its unit id)
         int take_portal = -1;                  // the portal (0..3) the player is walking to
@@ -282,13 +296,29 @@ struct World {
     // before acts again after.
     template <class Each> void each_player(Each&& each) {
         Player& was = *actor;
-        for (auto& player : players) { act_as(*player); each(*player); }
+        for (auto& player : players) if (here(*player)) { act_as(*player); each(*player); }   // split levels: those on this one
+        act_as(was);
+    }
+    // Every player in the game wherever they are (split levels: those on
+    // other levels, whose turn this isn't, too), acting as each, with the
+    // act they're in: a quest's party share goes by act (FUN_00540510), not
+    // by level.
+    template <class Each> void each_in_game(Each&& each) {
+        Player& was = *actor;
+        const auto visit = [&](Player& player) {
+            const Level* theirs = split_levels && player.on_level ? player.on_level : level;
+            act_as(player);
+            each(player, theirs ? d2d::rules::level_ids::act_of(theirs->id) : 0);
+        };
+        for (auto& player : players) visit(*player);
+        for (Player* player : elsewhere) visit(*player);
         act_as(was);
     }
     // Local co-op's death and Resurrect (docs/design/local-coop.md).
     static constexpr float kRaiseSeconds = 10;           // one channeller's; each more adds as much speed
     static constexpr float kRaiseReach = 2;              // cells from the body
-    [[nodiscard]] bool anyone_alive() const;
+    [[nodiscard]] bool anyone_alive() const;           // of those on the host's screen
+    [[nodiscard]] bool shared_screen() const;          // the actor shares the host's screen with another player (local co-op's death: a ghost, no respawn till all are dead)
     void become_ghost(Player& player);
     void revive(Player& player, std::uint32_t now_ms);   // up where they are, full life
     void raise_step(float elapsed, std::uint32_t now_ms);   // the bodies' channels this tick
@@ -306,9 +336,9 @@ struct World {
     // with no one left out: the mover's own taken already).
     void party_bits_all(int quest, std::initializer_list<int> bits) {
         const int in_act = act();
-        each_player([&](Player&) {
+        each_in_game([&](Player&, int their_act) {
             auto& theirs = quests();
-            if (act() != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            if (their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
             for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
         });
     }
@@ -317,9 +347,9 @@ struct World {
     // neither done nor due, gets `bits`.
     void party_bits(int quest, std::initializer_list<int> bits) {
         const int mover = actor->id, in_act = act();
-        each_player([&](Player& player) {
+        each_in_game([&](Player& player, int their_act) {
             auto& theirs = quests();
-            if (player.id == mover || act() != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            if (player.id == mover || their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
             for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
         });
     }
@@ -340,13 +370,13 @@ struct World {
             passed.push_back(player.id);
             any |= quest_bit::bit(quests(), quest, 13);
         });
-        each_player([&](Player& player) {
-            if (!any || act() != in_act || std::ranges::contains(passed, player.id)) return;
+        each_in_game([&](Player& player, int their_act) {      // the party: in the act, wherever in it (another level's turn too)
+            if (!any || their_act != in_act || std::ranges::contains(passed, player.id)) return;
             auto& bits = quests();
             if (quest_bit::bit(bits, quest, 0) || quest_bit::bit(bits, quest, 1)) return;
             for (const int bit : party_bits) quest_bit::set(bits, quest, bit);
         });
-        each_player([&](Player& player) { if (!std::ranges::contains(passed, player.id)) heard(player); });
+        each_in_game([&](Player& player, int) { if (!std::ranges::contains(passed, player.id)) heard(player); });
     }
     template <class Step> void credit_party(Step&& step) {
         if (players.size() == 1) { step(); return; }
@@ -438,9 +468,9 @@ struct World {
     const CharacterStore* characters = nullptr;   // where the character is saved
     // A vendor's stock (the NPC's own inventory, server side): bought items
     // gone, sold ones there to buy back, until the party leaves its town
-    // (leave_town). By NPC index. An act change clears the lot too
-    // (World::arrive), so NPC indices stay within one town.
-    std::map<int, Store> stocks;
+    // (leave_town). By level id and NPC index: with split levels two towns
+    // can trade at once.
+    std::map<std::pair<int, int>, Store> stocks;
     // The hire lists (FUN_00576070), one per act's hire NPC (Kashya, Greiz):
     // rolled when first asked for, a hired offer leaves it, and once none is
     // left it's rolled anew (FUN_00577010).
@@ -668,6 +698,12 @@ struct World {
     // game changed (level, when last played, the gear's look), its stats and
     // items. "" when it's written, else why not.
     std::string save();
+    // The acting player's character as a whole .d2s built on `raw` (the save it came from),
+    // what save() would write: a LAN joiner's, sent back to its own machine (lan-host.md).
+    std::expected<std::vector<std::byte>, std::string> save_bytes(std::span<const std::byte> raw);
+    // save()'s header: the level, when last played, the map seed, the look; held items stowed.
+    d2d::d2s::Header save_header();
+    const std::vector<d2d::d2s::Item>* saved_corpse();   // the corpse's items a save keeps
     void set_act(int act);
     void show_palace();
 
@@ -785,6 +821,7 @@ struct World {
     // The party left `from`: a town's vendors restock at their next
     // opening (FUN_00537340).
     void leave_town(const Level* from);
+    void swap_npc_states(const Level* from);         // swap_npcs without the players' level change hooks
     void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
     bool stones_pending = false;           // on Stony Field, the stones not up yet
 
@@ -963,6 +1000,28 @@ struct World {
     d2d::rules::Day day;
     std::uint32_t day_at = 0;                         // when the day last stepped
     void tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms);
+    // LAN hosting (lan-host stage 9): each player on their own level. tick
+    // takes turns, a level with players on it at a time (swap_to; `players`
+    // and the fight's heroes are just theirs meanwhile), the lead's level
+    // last so the host's screen draws what was ticked. `turn_done` runs at
+    // each turn's end with that level in (the host's joiners' Views).
+    // A player who leaves their level mid turn goes alone (go_alone): their
+    // new level comes in on its own turn. Off: one level, warps move the
+    // party (local co-op, one screen).
+    bool split_levels = false;
+    std::function<void()> turn_done;
+    std::vector<Player*> elsewhere;                  // during a turn: the players on other levels (each_in_game)
+    // Lines for everyone in the game (ev::Message), whatever level they're
+    // on: handed to every player as the tick ends.
+    std::vector<ev::Message> announced;
+    void announce(ev::Message message) { announced.push_back(std::move(message)); }
+    void hand_out_announced();
+    void swap_to(const Level* destination);
+    void go_alone(const Level* destination, float arrive_x, float arrive_y, const char* how);
+    [[nodiscard]] bool here(const Player& player) const { return !split_levels || !player.on_level || player.on_level == level; }
+    void tick_level(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms);
+    std::vector<std::uint32_t> day_frames;           // this tick's day frames, for every turn's players (the day steps once)
+    bool first_turn = true;
 
 };
 

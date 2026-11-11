@@ -34,6 +34,7 @@
 
 #include <ambient_dip.hpp>
 #include <d2s_items.hpp>
+#include <lan.hpp>
 #include <overlays.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
@@ -322,6 +323,39 @@ struct Town {
     // screen (take_focus).
     struct CoopPlayer { int seat = 0, id = 0, colour = 0; PadPlayer pad; pad::Mapper mapper; std::vector<Command> orders; std::optional<Roster> roster; };
     std::vector<CoopPlayer> coop;
+    // --host (docs/design/lan-host.md): d2d players joined over the LAN, each a World
+    // player with its own View stream. lan_poll takes their joins, commands and
+    // leaves (once a frame); lan_publish sends each their View after the ticks.
+    struct LanPlayer {
+        int client = -1, id = 0; ViewEncoder view_enc; std::vector<Command> orders;
+        std::vector<std::byte> save;            // their .d2s as last sent (the Hello's, then each Save): the next one's base
+        std::uint32_t saved_ms = 0;             // when it was last sent (every kLanSaveMs while they play)
+    };
+    std::optional<d2d::net::lan::Host> lan_host;
+    std::vector<LanPlayer> lan_players;
+    void lan_poll();
+    void lan_publish();
+    std::size_t lan_cue_from = 0;                          // split levels: this turn's sounds start here in cues.due
+    // A joiner's character, built and sent to them (their machine keeps it). False if it couldn't be.
+    bool lan_send_save(LanPlayer& lan_player);
+    // A joiner gone: out of the World, never saved on this machine.
+    void lan_remove(LanPlayer& lan_player, const std::string& why);
+    // --connect: this d2d plays in a d2d host's game. Its World doesn't tick; the host's Views
+    // come in and are taken as publish takes the local one, its commands go out over the socket.
+    std::optional<d2d::net::lan::Client> lan_client;
+    std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
+    const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
+    bool lan_resyncing = false;                   // asked the host for a whole View, none applied since
+    int lan_views = 0;                            // Views from the host so far
+    // Goodbye to the host: its last Save of our character written, then out (Town::save on leaving).
+    void lan_leave();
+    void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);
+    // Our Level::npcs laid out as the host's (View::npc_keys): our rooms never come up
+    // (this World doesn't tick), and would in another order if they did.
+    void lan_take_npcs();
+    // A View's bytes taken as the screen's (publish's second half; the client's every View).
+    // `local`: the World's own View when it made these (a local game keeps its merc's FHR).
+    bool take_view(std::span<const std::uint8_t> bytes, const View* local);
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
     // A pad took seat `seat` (its colour `colour`): its roster comes up (a held seat's player stays).
     // `pad_now`: the pad as it is, so what it holds (the Start that seated it) isn't pressed in the roster.

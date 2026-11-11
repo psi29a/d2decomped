@@ -2,6 +2,7 @@
 #include "tcp.hpp"
 #include <d2gs/wire.hpp>
 
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -108,12 +109,16 @@ auto TcpConnection::connect(const std::string& host, std::uint16_t port, int tim
     return connection;
 }
 
-TcpConnection::TcpConnection(TcpConnection&& other) noexcept : socket_(std::exchange(other.socket_, -1)) {}
+TcpConnection::TcpConnection(TcpConnection&& other) noexcept
+    : socket_(std::exchange(other.socket_, -1)), pending_(std::move(other.pending_)), failed_(std::move(other.failed_)), shut_(other.shut_) {}
 
 auto TcpConnection::operator=(TcpConnection&& other) noexcept -> TcpConnection& {
     if (this != &other) {
         if (socket_ != -1) close_native(native(socket_));
         socket_ = std::exchange(other.socket_, -1);
+        pending_ = std::move(other.pending_);
+        failed_ = std::move(other.failed_);
+        shut_ = other.shut_;
     }
     return *this;
 }
@@ -122,19 +127,67 @@ TcpConnection::~TcpConnection() {
     if (socket_ != -1) close_native(native(socket_));
 }
 
-auto TcpConnection::send(std::span<const std::uint8_t> bytes) -> std::expected<void, std::string> {
-    std::size_t sent = 0;
-    while (sent < bytes.size()) {
-        const auto result = ::send(native(socket_), reinterpret_cast<const char*>(bytes.data() + sent), static_cast<int>(bytes.size() - sent), kSendFlags);
-        if (result > 0) { sent += static_cast<std::size_t>(result); continue; }
-        if (result < 0 && !would_block()) return std::unexpected("send: " + last_error());   // the peer's gone: not a retry
-        if (wait_for(native(socket_), POLLOUT, 2000) <= 0) return std::unexpected("send: no room within 2 s");
+auto TcpConnection::finish() -> void {
+    if (socket_ == -1) return;
+    for (int round = 0; round < 40 && !pending_.empty() && failed_.empty(); ++round) {   // 2 s at most for what's waiting
+        (void)wait_for(native(socket_), POLLOUT, 50);
+        (void)flush();
     }
+#ifdef _WIN32
+    (void)::shutdown(native(socket_), SD_SEND);
+#else
+    (void)::shutdown(native(socket_), SHUT_WR);
+#endif
+    for (int round = 0; round < 4; ++round)
+        if (!receive(50)) break;
+    close_native(native(socket_));
+    socket_ = -1;
+}
+
+auto TcpConnection::finish_step() -> bool {
+    if (socket_ == -1) return true;
+    if (!shut_) {
+        if (!flush() || !pending_.empty()) {
+            if (failed_.empty()) return false;          // the rest goes next step
+        } else {
+#ifdef _WIN32
+            (void)::shutdown(native(socket_), SD_SEND);
+#else
+            (void)::shutdown(native(socket_), SHUT_WR);
+#endif
+            shut_ = true;
+        }
+    }
+    if (failed_.empty() && receive(0)) return false;    // still open: what it sends goes unread
+    close_native(native(socket_));
+    socket_ = -1;
+    return true;
+}
+
+auto TcpConnection::flush() -> bool {
+    if (!failed_.empty()) return false;
+    std::size_t sent = 0;
+    while (sent < pending_.size()) {
+        const auto result = ::send(native(socket_), reinterpret_cast<const char*>(pending_.data() + sent), static_cast<int>(pending_.size() - sent), kSendFlags);
+        if (result > 0) { sent += static_cast<std::size_t>(result); continue; }
+        if (result < 0 && !would_block()) { failed_ = "send: " + last_error(); break; }   // the peer's gone
+        break;                                                                           // no room now: the rest waits
+    }
+    pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(sent));
+    return failed_.empty();
+}
+
+auto TcpConnection::send(std::span<const std::uint8_t> bytes) -> std::expected<void, std::string> {
+    if (pending_.size() + bytes.size() > kMaxPending) failed_ = "send: the other side isn't reading";
+    if (!failed_.empty()) return std::unexpected(failed_);
+    pending_.insert(pending_.end(), bytes.begin(), bytes.end());
+    if (!flush()) return std::unexpected(failed_);
     return {};
 }
 
 auto TcpConnection::receive(int timeout_ms) -> std::expected<d2gs::Bytes, std::string> {
     d2gs::Bytes received;
+    if (!flush()) return std::unexpected(failed_);
     if (wait_for(native(socket_), POLLIN, timeout_ms) <= 0) return received;
     std::uint8_t buffer[4096];
     while (true) {

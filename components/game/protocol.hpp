@@ -126,13 +126,16 @@ struct Waypoint { int npc = -1, level = 0; };
 // puts the bytes on a D2GS socket. One bag item into head, neck, torso,
 // feet or gloves, the old piece into the bag when a cell is free.
 struct EquipFromBag { int item = -1; };
+// 0x15: a typed chat line, to everyone in the game (a LAN game's; game.exe's
+// C→S 0x15 carries a whisper's target too).
+struct Say { std::string text; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -188,6 +191,7 @@ inline constexpr std::uint8_t kMove = 0x01;
 inline constexpr std::uint8_t kLeftSkill = 0x05;
 inline constexpr std::uint8_t kRightSkill = 0x0c;
 inline constexpr std::uint8_t kInteract = 0x13;
+inline constexpr std::uint8_t kSay = 0x15;
 inline constexpr std::uint8_t kPickup = 0x16;
 inline constexpr std::uint8_t kDrop = 0x17;
 inline constexpr std::uint8_t kToGrid = 0x18;
@@ -270,6 +274,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(opcode::kCloseTrade);
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? opcode::kRunOn : opcode::kRunOff);
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(opcode::kChat).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Say>) out.u8(opcode::kSay).str(message.text);
         else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(opcode::kQuestMessage).i32(message.npc).i32(message.string);
         else if constexpr (std::is_same_v<T, cmd::Caravan>) out.u8(opcode::kNpcDeal).u8(npc_deal::kCaravan).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(opcode::kNpcDeal).u8(npc_deal::kImbue).i32(message.npc).i32(message.item);
@@ -320,8 +325,12 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
-            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc, i32() } } : kind == npc_deal::kCaravan ? Command{ cmd::Caravan{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }
-                    : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
+            if (kind == npc_deal::kImbue) command = cmd::Imbue{ npc, i32() };
+            else if (kind == npc_deal::kCaravan) command = cmd::Caravan{ npc };
+            else if (kind == npc_deal::kRespec) command = cmd::Respec{ npc };
+            else if (kind == npc_deal::kResurrectMerc) command = cmd::ResurrectMerc{ npc };
+            else if (kind == npc_deal::kHire) command = cmd::OpenHire{ npc };
+            else command = cmd::OpenTrade{ npc, kind == npc_deal::kGamble };
             break;
         }
         case opcode::kBuy: { const int stock = i32(), tab = i32(); command = cmd::Buy{ stock, tab, byte() != 0 }; break; }
@@ -333,6 +342,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kCloseTrade: command = cmd::CloseTrade{}; break;
         case opcode::kRunOn: case opcode::kRunOff: command = cmd::Run{ bytes[0] == 0x53 }; break;
         case opcode::kChat: command = cmd::Chat{ i32() }; break;
+        case opcode::kSay: command = cmd::Say{ input.str() }; break;
         case opcode::kQuestMessage: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
         case opcode::kWaypoint: { const int npc = i32(); command = cmd::Waypoint{ npc, i32() }; break; }
         default: return std::nullopt;

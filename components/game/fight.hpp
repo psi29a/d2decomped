@@ -474,6 +474,7 @@ struct Fight {
     bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
+    std::unordered_map<const Level*, std::vector<Missile>> kept_missiles;   // a level's in flight while another has its turn (World::swap_to)
     Spawning spawning;                                   // the game's rooms in play and what they spawned (new_game)
     std::vector<Missile> missiles;         // in flight in the Blood Moor
     int missile_sounds = 0;                // the last Missile::sound handed out
@@ -1142,9 +1143,10 @@ struct Fight {
     // / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
     // The skill's passive stats, aurastats and sumskills land on it as
-    // summons.cpp has them (FUN_005c4470; the masteries come in that way).
-    // ponytail: sumumod and the golems' specials (Blood Golem's life link,
-    // Iron Golem's item) aren't built.
+    // summons.cpp has them (FUN_005c4470; the masteries come in that way),
+    // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
+    // ponytail: the golems' specials (Blood Golem's life link, Iron Golem's
+    // item) aren't traced or built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
@@ -1160,16 +1162,6 @@ struct Fight {
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);   // the pet's id
-    // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
-    // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
-    // at the nearest — the skill's missile, whose row names the player's
-    // skill for the damage (sentrylightningbolt: Lightning Sentry) at the
-    // trap's sumskill level; spent after its shots (the skill's Param1,
-    // Charged Bolt Sentry's calc4), it dies.
-    // ponytail: the sentry AI function isn't traced (aip4 read as the
-    // range, the shots from the published counts); it shoots from its
-    // spot, in no animation.
-    void trap_turn(Pet& pet, std::uint32_t now_ms);
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
@@ -1186,9 +1178,10 @@ struct Fight {
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
     // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
-    // No 1.14d player summon reaches this think: every summon's MonStats AI
-    // is traced, and Decoy's (Idle, 0x5b0cd0) and Bone Wall's / Prison's
-    // (BoneWall, FUN_005e0400) only stand (pet.idle); it stays as a guard.
+    // Of the 1.14d player summons only a revived monster reaches this think
+    // (its own MonStats AI): every other summon's AI is traced, and Decoy's
+    // (Idle, 0x5b0cd0) and Bone Wall's / Prison's (BoneWall, FUN_005e0400)
+    // only stand (pet.idle).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
@@ -1306,6 +1299,9 @@ struct Fight {
     // last one's are kept as they were; nothing in flight follows.
     // Its monsters come as its rooms come into play (rooms_up).
     void enter(const Level* destination);
+    // Another level's turn (lan-host stage 9, World::swap_to): its monsters
+    // and missiles in, this one's kept, nobody's target dropped.
+    void take_turn(const Level* destination);
     // The player at (x, y) in `here`: the rooms coming into play round
     // the player populate (player_moved), their monsters joining `monsters`
     // or the level's `kept`. `arrived`: just came in through a warp.
