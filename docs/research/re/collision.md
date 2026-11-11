@@ -1420,3 +1420,41 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### The unit's sound-timer scalars (batch 8)
+
+Four small UNIT-module functions clustered right after `FUN_004ca380`/
+`FUN_004ca320`/`FUN_004ca2c0` (the mode/class/type reads `FUN_004cb460`
+and `FUN_004caf60` above already call). `FUN_004cb460` itself calls
+`FUN_004cab90` directly (`iVar4 = FUN_004cab90(), iVar4 == 0`, line
+1346 above); the other three sit beside it in address order and share its
+fatal-check shape. The getters here use **EAX**, not ECX, as the implicit
+unit pointer — a register-parameter order (EAX, EDX, EBX, ECX for up to
+four arguments) this binary uses throughout, confirmed against raw
+disassembly, not just the decompiler's guess (which shows it as an
+unnamed `in_EAX`):
+
+- **`FUN_004cab30`** (0x27 bytes, `004cab30`..`004cab57`, plain `RET`, no
+  stack args): a null unit (EAX) is fatal (`FUN_00408090(0xcbb)` message,
+  `FUN_00408a60`, `FUN_00681e09(-1)`, no return); otherwise returns the
+  dword at unit `+0x7c` — `structs.tsv`'s `sound_time` row.
+- **`FUN_004cab60`** (0x30 bytes, `004cab60`..`004cab90`, `RET 0x4`): same
+  null-unit fatal check (message id `0xcc6`); otherwise writes its one
+  stack argument to unit `+0x7c` (`sound_time`'s setter).
+- **`FUN_004cab90`** (0x2a bytes, `004cab90`..`004cabba`, plain `RET`):
+  same fatal check (id `0xcd1`); returns the dword at unit `+0x80`
+  (`neutral_time`).
+- **`FUN_004cac30`** (0x33 bytes, `004cac30`..`004cac63`, `RET 0x4`): same
+  fatal check (id `0xcf2`); writes its stack argument to unit `+0x84`
+  (`step_time`'s setter). `structs.tsv` has no row yet for `neutral_time`'s
+  setter or `step_time`'s getter; neither was found at this address range
+  (not traced further).
+
+d2d: not ported as a function; no disagreement found, nothing here was
+compared against a d2d equivalent — the already-verified caller
+`FUN_004cb460` (`object_sounds.hpp`, `fight/setup.cpp`,
+`gamedata.hpp:729`) is the one with a d2d port.
+
+Re-check: `python3 tools/ghidra/fn.py 004cab30 004cab60 004cab90
+004cac30`; disassemble `004cab30`..`004cac63` to confirm the
+EAX-implicit, no-ECX calling convention above.
