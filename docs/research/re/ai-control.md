@@ -44,3 +44,14 @@ spawn decrement the count and set the next frame to the signed word at +0x62
 plus the current game frame. Other paths end at `FUN_005de080` with 15.
 The difficulty-indexed words each have stride two. No runtime oracle has
 been run for this trace or for the called helpers.
+
+`FUN_0058ec90` allocates a zeroed 0x1c-byte command node for a valid monster
+with a control, and inserts it immediately before control +0x20 in the
+circular doubly linked command list. For the first node, +0x20 and +0x24
+both point to the self-linked node. When +0x24 equals +0x20 on insertion,
+the former is changed to the new node. `FUN_0058ed80` repeatedly removes
+the current node and frees it until the ring is empty, clearing both control
+pointers on the last node. The first function takes game in ECX and unit in
+EDX; the second takes game in EDI and control in ESI. The oracle
+`tools/emu/ai_command_ring.py` checks invalid inputs, three insertions and
+the free order with synthetic allocations; allocation failure is not tested.
