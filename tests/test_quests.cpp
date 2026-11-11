@@ -574,13 +574,15 @@ int main() try {
     assert(!quest::bit(sanctuary, 12, 1) && arcane.rewarded.has(1));
 
     // The Summoner: going for the player opens it; his death credits a
-    // player by him; three ticks on (the 4th quest step), log 4; the town's thanks are done.
+    // player by him; three ticks on (the 4th quest step) the voice, three more (the 8th) log 4
+    // (LAB_0059bfd0 runs twice); the town's thanks are done.
     QuestBits summoning{}, summoning_game{};
     SummonerQuest summoner;
     summoner.engaged(summoning);
     assert(summoner.state == 1 && summoner.log == 2 && quest::bit(summoning, 13, 2) && summoner.talk(summoning, 176, 1)[0].string == 414);
     assert(summoner.killed(summoning, true) && quest::bit(summoning, 13, 13) && quest::bit(summoning, 13, 1) && summoner.state == 2);
-    assert(!summoner.tick() && !summoner.tick() && !summoner.tick() && summoner.tick() && summoner.log == 4);
+    assert(!summoner.tick() && !summoner.tick() && !summoner.tick() && summoner.tick() && summoner.log != 4);
+    assert(!summoner.tick() && !summoner.tick() && !summoner.tick() && !summoner.tick() && summoner.log == 4 && summoner.log_in == 0);
     assert(SummonerQuest::alert(summoning, 176) && summoner.talk(summoning, 176, 1)[0].string == 427 && summoner.talk(summoning, 176, 1)[0].greet);
     summoner.said(summoning, summoning_game, 427, 1);
     assert(summoner.state == 3 && summoner.log == 0xd && quest::bit(summoning, 13, 0) && !quest::bit(summoning, 13, 1));

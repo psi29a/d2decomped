@@ -913,6 +913,7 @@ struct SummonerQuest {
     int log = 0;
     bool started = false;      // data+1
     int log_in = 0;            // data+8: the death's 3-tick timer (LAB_0059bfd0), in quest steps
+    bool voiced = false;       // data+9: its first run, the voice, done; the next sets the log
     quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {   // LAB_0059bd10
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && state == 1) quest::set(quest_bits, kQuest, 2);
@@ -940,12 +941,16 @@ struct SummonerQuest {
         if (first) quest::set(quest_bits, kQuest, 14);
         return false;
     }
-    // A quest-clock step. True: the timer's end, when a player with bit 13 in the
-    // Sanctuary says act2_complete_summoner (voice 0x33, LAB_0059bf80).
+    // A quest-clock step. The timer (LAB_0059bfd0) runs twice: first (data+9
+    // clear) each player with bit 13 in the Sanctuary says act2_complete_summoner
+    // (voice 0x33, LAB_0059bf80) and it goes again 3 ticks on (returns 0, at
+    // 0x59bfee); then log 4 (FUN_00544300 at 0x59c006) and it's done. True: the
+    // voice.
     bool tick() {
         if (log_in == 0 || --log_in > 0) return false;
+        if (!voiced) { voiced = true; log_in = quest_timer_steps(3); return true; }
         if (open) log = 4;
-        return true;
+        return false;
     }
     struct E { int npc, string; bool greet; };
     static inline const std::vector<E> kBlocks[3] = {

@@ -285,8 +285,11 @@ state → block `0x738d44` (−1, 0, 1, 2, 3, 4). Bits: 0 done, 1 reward due,
   `FUN_005f85c0`): data+1; state 0 → 1; log < 2 → log 2, mark (bit 2 in
   state 1).
 - **Dead** (+0xc0 `FUN_0059c150`): state 2; a 3-tick timer once
-  (`LAB_0059bfd0`: log 4; a player with bit 13 in the Sanctuary says voice
-  0x33, act2_complete_summoner); players by him (his room or next to it)
+  (`LAB_0059bfd0`, run twice: first, data+9 clear, data+9 set and a player
+  with bit 13 in the Sanctuary says voice 0x33, act2_complete_summoner
+  (`LAB_0059bf80`), and it returns 0 (0x59bfee), so it's due again 3 ticks
+  on; then log 4 (`FUN_00544300`, 0x59c006), data+8 clear, done: the voice
+  on the 4th quest step, the log on the 8th); players by him (his room or next to it)
   without bit 0 / 1 → bits 13, 1 (`FUN_0059be70`), their party; the rest
   bit 14 (`LAB_0059c0f0`).
 - **+0xcc** (`FUN_0059bd70`): 419..429 with bit 1: bit 13 → log 0xd, the
