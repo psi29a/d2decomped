@@ -513,7 +513,7 @@ def act2():
     cmd("debug kill")
     operate(chest_room[0][0])
     assert bits(10) & 1 and "[hst " not in cmd("items"), f"the orifice didn't take the staff: {bits(10):#x}"
-    until("the way down to Duriel", lambda: any(l.startswith("6\t") for l in cmd("debug portals").splitlines()), 5)   # its timer: quest steps
+    until("the way down to Duriel", lambda: any(l.startswith("6\t") for l in cmd("debug portals").splitlines()), 20)   # its timer: 18 ticks, 19 quest steps (15.2 s)
     take_portal(6, 73)
     cmd("debug kill")
     until("Duriel's death counts", lambda: show(14, "tombs") == 3, 10)

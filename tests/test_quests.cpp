@@ -584,6 +584,17 @@ int main() try {
     assert(SummonerQuest::alert(summoning, 176) && summoner.talk(summoning, 176, 1)[0].string == 427 && summoner.talk(summoning, 176, 1)[0].greet);
     summoner.said(summoning, summoning_game, 427, 1);
     assert(summoner.state == 3 && summoner.log == 0xd && quest::bit(summoning, 13, 0) && !quest::bit(summoning, 13, 1));
+
+    // The Seven Tombs: the staff in the orifice (FUN_0059dd80) sets the way
+    // down's timer to (Range - 75) / 20 ticks of horadricstaff (440: 18); it
+    // opens on the 19th quest step (FUN_0059d870).
+    static_assert(SevenTombsQuest::staff_ticks(440) == 18);
+    QuestBits staff_bits{};
+    SevenTombsQuest orifice;
+    orifice.staff_in(staff_bits, SevenTombsQuest::staff_ticks(440));
+    assert(quest::bit(staff_bits, 10, 0) && quest::bit(staff_bits, 10, 13));
+    for (int step = 0; step < 18; ++step) assert(!orifice.tick());
+    assert(orifice.tick() && orifice.lair_open);
     {   // The Rite of Passage and the Summit's town portals (FUN_0058cf00 / FUN_0058cf50, data +0xc).
         RiteQuest rite;
         rite.heard = rite.awake = true; rite.made = rite.alive = 3;

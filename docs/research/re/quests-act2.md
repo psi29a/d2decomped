@@ -424,7 +424,7 @@ d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`,
 3 and 13, his portal; Jerhyn → 5 / 6 (bit 4); Meshif → done (bits 0, 2,
 5, 13). Gaps: the orifice's panel (using it with the staff places it);
 the way down is drawn as a town portal, not object 100's SJ opening
-(view.cpp); its timer is 1 frame, not 18 quest ticks;
+(view.cpp);
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
 +0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
 

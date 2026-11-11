@@ -1169,14 +1169,18 @@ struct SevenTombsQuest {
         duriel_dead = true;
         tyrael_talks = true;
     }
+    // The way down's timer (FUN_0059dd80): (Range - 75) / 20 ticks of
+    // Missiles.txt row 338 horadricstaff (+0x96; Range 440: 18), so the
+    // hole opens some 75 frames before the staff's missile is done.
+    static constexpr int staff_ticks(int horadricstaff_range) { return (horadricstaff_range - 75) / 20; }
     // The staff into the orifice (FUN_0059dd80). The Horadric Staff done
     // (quest 10 bits 0, 13; the staff and its parts taken), the timer to the
-    // way down (FUN_0059d870) once.
-    void staff_in(QuestBits& quest_bits) {
+    // way down (FUN_0059d870) once, of `ticks` (staff_ticks).
+    void staff_in(QuestBits& quest_bits, int ticks) {
         quest::set(quest_bits, 10, 0);
         quest::set(quest_bits, 10, 13);
         staff_placed = true;
-        if (!timer_started) { timer_started = true; open_in = 1; }
+        if (!timer_started) { timer_started = true; open_in = ticks; }
     }
     // The orifice's room comes up (InitFn 21, FUN_0059db50). True: it's
     // open (mode 2): the staff went in, in this game or an earlier one.
