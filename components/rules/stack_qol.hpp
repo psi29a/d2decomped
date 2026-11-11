@@ -2,6 +2,12 @@
 // Counts for a d2d-only stack of items the original game keeps one to a
 // cell: potions, gems, runes, and loose scrolls. Nothing here places an
 // item, draws it, or writes a save. The belt stays one item to a box.
+// The count is not Item::quantity. That field is the save's 9-bit
+// "stackable: quantity" (docs/research/re/d2s-items.md), written only
+// when the code is in ItemTables::stackable (d2s_write.hpp, the
+// stackable.contains write). A potion, gem, rune, or loose scroll is
+// not in that set. Storing a pile there would insert bits neither
+// game.exe nor d2d's reader expects.
 #pragma once
 
 #include <string_view>
