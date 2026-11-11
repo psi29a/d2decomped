@@ -1197,6 +1197,8 @@ struct Fight {
     // trap's (32 firespike_explode, FUN_005a3d20), 4 frames after it dies.
     [[nodiscard]] bool blast_due(const Monster& golem) const;
     bool golem_blast(Pet& pet, std::uint32_t now_ms);
+    // A Shadow's (MonUMod 42 lightningdeath, FUN_005a2910), from golem_blast.
+    void shadow_nova(Pet& pet, std::uint32_t now_ms);
     // FUN_005ddc30's foe (an index into monsters, -1 none) for a pet of `size` at x, y (cells); `gap` its distance.
     [[nodiscard]] int pet_second_foe(float x, float y, int size, int& gap) const;
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);

@@ -52,7 +52,8 @@ struct BossInfo {
 namespace umod {
 inline constexpr int rndname = 1, hpmultiply = 2, light = 3, leveladd = 4, strong = 5, fast = 6, curse = 7, resist = 8,
                      fire = 9, poisondead = 10, durieldead = 11, bloodraven = 12, rage = 13, spcdamage = 14, partydead = 15, champion = 16, lightning = 17, cold = 18, scarab = 20, questcomplete = 22, poisonhit = 23, manahit = 25, teleport = 26, spectralhit = 27,
-                     stoneskin = 28, multishot = 29, aura = 30, goboom = 31, firespike = 32, suicideminion = 33, ai_after_death = 34, shatter = 35, ghostly = 36, fanatic = 37, possessed = 38, berserk = 39;
+                     stoneskin = 28, multishot = 29, aura = 30, goboom = 31, firespike = 32, suicideminion = 33, ai_after_death = 34, shatter = 35, ghostly = 36, fanatic = 37, possessed = 38, berserk = 39,
+                     lightningdeath = 42;
 }
 
 namespace unique_detail {
@@ -391,6 +392,15 @@ struct KillSelf { int monstats_row, radius, first, end; bool undead_only = false
 inline std::array<KillSelf, 5> killself_hooks(int radamentdeath_range) {
     return { { { 0x9c, 0x23, 1, 0x33 }, { 0xe5, 0x23, 0x28, std::max(radamentdeath_range - 100, 100) }, { 0x100, 0x69, 1, 2 }, { 0x10b, 0x23, 0x19, 0x7d, true },
                { 0x1df, 0x23, 0x19, 0x7d } } };
+}
+
+// Lightningdeath (MonUMod 42, a Shadow's sumumod) at its death,
+// FUN_005a2910: its nova's level is its owner's Shadow Warrior level
+// (skill 0x10c, a Shadow Master's too) / 2 + 1, 1..15; 1 when it died above
+// 10 % life (FUN_00621f20).
+inline int shadow_nova_level(int shadow_warrior_level, int life_percent) {
+    const int level = std::clamp(shadow_warrior_level / 2 + 1, 1, 15);
+    return life_percent > 10 ? 1 : level;
 }
 
 inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
