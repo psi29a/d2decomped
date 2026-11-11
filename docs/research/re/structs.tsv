@@ -168,6 +168,7 @@ unit	0x60	ptr	inventory	inventory (FUN_00647640's equipment gate)	docs/research/
 unit	0x7c	u32	sound_time	its last sound	components/game/ai.hpp:187
 unit	0x80	u32	neutral_time	its last Neutral	components/game/ai.hpp:187
 unit	0x84	u32	step_time	its last footstep	components/game/ai.hpp:187
+unit	0x88	u32	ambient_reserved	sign-edge toggle reserving its ambient sounds' group slots (FUN_004cc160)	docs/research/re/collision.md:1501
 unit	0x90	ptr	events	the head of its event list (FUN_005c0c30)	components/game/ai.hpp:510
 unit	0xa0	u32	struck_by	who last struck it (FUN_00621d50 from FUN_0057c6c0)	components/game/ai.hpp:190
 unit	0xa4	ptr	chat_node	current chatter record	docs/research/re/ai-control.md:153

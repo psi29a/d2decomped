@@ -1497,3 +1497,48 @@ piece of this pair with a d2d equivalent.
 Re-check: `python3 tools/ghidra/fn.py 004cb190 004cb950 004ca410`;
 disassemble `004cb190`..`004cb220` and `004cb950`..`004cb9b1` to confirm
 the ECX-only and EAX-implicit conventions above.
+
+### Reserving a unit's ambient sounds on an edge-triggered flag: `FUN_004cc160` (batch 9)
+
+`FUN_004cc160` (0xe6 bytes, `004cc160`..`004cc246`, plain `RET`, no stack
+args) is fastcall **ECX** the unit, **EDX** a signed value (confirmed in
+disassembly: `MOV ESI,ECX`/`MOV EDI,EDX` at entry). A null unit is fatal
+(id `0xcfd`). It reads the unit's own flag at `+0x88`; when it's 0 and
+EDX is negative, or it's already set and EDX is positive, the call is a
+no-op (the flag only changes on a sign transition of EDX). Otherwise it
+sets `+0x88` to `(0 < EDX)` and dispatches on `FUN_004ca320`'s result
+(**GetSndUnitType**, the same call batch 8's `FUN_004cb460` and the pair
+above also make):
+
+- type 1 (monster): `d2d_uniques_boss_sound(unit)`; if it returns a row,
+  call `FUN_004822b0(id, EDX)` — "Group reference counts"
+  (`sound.md:61`, already ported) — once for each of six of the row's own
+  sound-id fields, at `+4`, `+0x1c`, `+0x34`, `+0x3c`, `+0x78`, `+0x58`
+  (the same `+0x78` the pair above reads).
+- type 2 (object): `FUN_004ca2c0()` (**GetSndUnitClassId**,
+  `unit-sounds.md:38`) as an objects.txt id, bound-checked under 0x23d
+  (else fatal, id `0x1213`); if `DAT_007295f8[id]` (the per-object sound
+  record "Objects (0x7295f8)" names, `unit-sounds.md:369`, dumped whole
+  as `kObjectSounds` in `components/rules/object_sounds.hpp`) is set, call
+  `FUN_004822b0(record->modes[i], EDX)` for all eight of its `modes`
+  entries.
+
+So `FUN_004cc160(unit, value)` bumps (`EDX` > 0) or drops (`EDX` < 0) the
+group reference count of a boss unique's six listed sounds, or an
+object's eight per-mode sounds, once each time the sign of `value`
+changes — reserving or releasing their Sounds.txt group slots, most
+likely while the unit is moused over or otherwise highlighted (not
+confirmed here; no caller context ties it to a specific UI action). Its
+three callers (`FUN_00465870` `CUnit.cpp`, `FUN_00463a50`,
+`FUN_004cc410` struck-sound dispatcher, all already cited) were not read
+further to confirm that.
+
+Not traced: what sets `EDX`'s sign at any of the three call sites, and
+the MonSounds row's six named fields' own identity beyond "a sound id".
+d2d: not ported as a function; `FUN_004822b0`'s group-reference-count
+behaviour is already ported and verified (`sound.md:61`); no disagreement
+found with how this caller uses it.
+
+Re-check: `python3 tools/ghidra/fn.py 004cc160 004822b0`; disassemble
+`004cc160`..`004cc246` to confirm the ECX=unit/EDX=value order and the
+sign-transition gate on `+0x88`.
