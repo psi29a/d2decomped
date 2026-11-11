@@ -476,16 +476,29 @@ int main() try {
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted struck in GH lets off its bolts 2 frames on\n");
 
-        // A soft hit while already in GH: hook 4 (FUN_005a2ba0) tests mode 3 and
-        // does nothing, and nothing is queued (only going into GH queues).
-        in_gh.soft_hit = true;
+        // A soft hit while in GH: hook 4 (FUN_005a2ba0) tests mode 3 at the hit and
+        // does nothing, even when GH is over by the events; nothing is queued.
+        const d2d::rules::MissileDamage flame{ .etype = 0, .elo = 1, .ehi = 1 };   // under a point: no drop
         in_gh.last_hp = in_gh.hit_points;
         in_gh.bolts_at = 0;
         world.fight.monsters.push_back(std::move(in_gh));
+        world.fight.burn(world.fight.monsters.size() - 1, flame, 8000 * kTickMs, true);
+        world.fight.monsters.back().mode = world.fight.monsters.back().fx_mode = "NU";
         world.fight.boss_events({}, 8000 * kTickMs);
         assert(world.fight.pending.empty() && world.fight.monsters.back().bolts_due == 0);
-        world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted's soft hit in GH lets off nothing\n");
+
+        // A soft hit out of GH, then a hit into GH before the events: the bolts at once
+        // (event 4 at the hit), and GH's event 7 two frames on is inside the 10 frames.
+        world.fight.burn(world.fight.monsters.size() - 1, flame, 9000 * kTickMs, true);
+        world.fight.monsters.back().mode = "GH";
+        world.fight.boss_events({}, 9000 * kTickMs);
+        assert(world.fight.pending.size() == 8 && world.fight.monsters.back().bolts_due == 9002 * kTickMs);
+        world.fight.pending.clear();
+        world.fight.boss_events({}, 9002 * kTickMs);
+        assert(world.fight.pending.empty());
+        world.fight.monsters.pop_back();
+        std::printf("OK: Lightning Enchanted's soft hit then GH lets off its bolts at once, once\n");
 
         // Andariel dead (MonUMod 22, FUN_005dfe00 -> FUN_005dfbf0(35, 1, 51)):
         // the monsters within 35 subtiles get killself 1..50 frames on, and die.

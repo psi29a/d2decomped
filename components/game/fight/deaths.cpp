@@ -118,12 +118,13 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 // two frames on. Struck otherwise (event 4: FUN_0057cee0's soft path, a
                 // burner's soft hit too), hook 4 (FUN_005a2ba0) fires at once, but not
                 // in GH: it tests mode 3 (FUN_0057cee0 sets GH before its event 4).
-                // ponytail: any drop in life counts as event 4; game.exe raises it only for
-                // result flag 4 or 0x4000, not plain damage (a burn without its roll).
+                // The soft hit's mode is the one at the hit (Fight::burn).
+                // ponytail: any drop in life counts as event 4, in the mode here, not at the
+                // hit; game.exe raises it only for result flag 4 or 0x4000, not plain damage.
                 bool fire = false;
                 if (has(d2d::rules::umod::lightning)) {
                     if (into_gh) monster.bolts_due = now_ms + 2 * 40;
-                    else if (monster.mode != "GH" && (monster.hit_points < monster.last_hp || monster.soft_hit)) fire = true;
+                    if (monster.soft_hit || (monster.mode != "GH" && monster.hit_points < monster.last_hp)) fire = true;
                 }
                 if (monster.bolts_due && now_ms >= monster.bolts_due) { monster.bolts_due = 0; fire = true; }
                 if (fire && now_ms - monster.bolts_at >= 10 * 40) {
