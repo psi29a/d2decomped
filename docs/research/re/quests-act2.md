@@ -441,6 +441,40 @@ lines after Tyrael, 13 took part, 14 by others, 15 closed.
     overlay `light_jet` (Overlay.txt 0xb5, 13 frames) played once on the
     orifice (`FUN_00470390` kind 2); Duriel's (class 0xd3) graphics
     loaded ahead (`FUN_0046f870(0xd3, 1)`).
+  - **The staff's light show** (missile 338: Range 440, `HoradricStaff`
+    8 frames looped, one direction, additive, TravelSound
+    `quest_horadric_staff_spin`). Every client missile gets a motion
+    record (`FUN_004cd540`: `FUN_004da000`, then `FUN_004da690`), and the
+    client's unit frame (`FUN_00480810`) steps it (`FUN_004da350`, gfx.md
+    "The motion record") before the missile's own step (`FUN_004d2c70`).
+    So the staff starts 40 up (0x28 << 11), rises 0x200 raw (a quarter)
+    a frame, and stops at 70 (the limit, flag 0x20: at or above): 120
+    frames. Its client function 31 (`FUN_004d6820`, table 0x72a398) then
+    works on its remaining frames r (`FUN_0064a380`), x, y its spot:
+    - r 0x145, 0x12c, ... 0xaf (325 down to 175, every 0x19): one of
+      seven missile 340 `horadriclight` (`HoradricLightBeamstreaks`,
+      Light 2, TravelSound `quest_horadric_staff_light`) at its offset
+      from the staff, in its direction (the table at 0x6db7f0, 12 bytes a
+      row {dx, dy, direction}: (3, -2, 4), (1, -3, 58), (3, 1, 13), (-2,
+      -3, 49), (1, 3, 22), (-3, 0, 40), (-2, 2, 31)), its life r
+      (`FUN_0064a2b0`, `FUN_0064a330`), so all seven end with the staff;
+    - r 0x96 (150): the screen shake, strength r - 0x7d = 25, no ramp,
+      hold 4000 ms, no fade (`FUN_00476a80`, rules/shake.hpp);
+    - r under 0xa5 (165), r even: missile 339 `horadriclightning`
+      (`LightningStrike`, Vel 20, 32 directions, Light 3, TravelSound
+      `monster_lightning_1`) from (x, y) at (x - 13, y + 3), the way
+      down's spot (block flags 0x21), 70 up (`FUN_004da1d0` 0, 0, 0x46),
+      falling one a frame (`FUN_004da200` 0, 0, -1, shifted), direction
+      0x15 (`FUN_006488a0`);
+    - r under 0x96 (150): missile 150 `dust` (`FireSmoke`, Vel 4, Range
+      100) from (x - 13, y + 3) at (x - 13 + 1 + rand(5), y + 3 - 5 +
+      rand(10)) on the staff's seed (unit +0x20), `FUN_00621780(it,
+      0x40)`;
+    - then the missile step (`FUN_004d30c0`).
+    On the staff's clock: the beams from frame 115 to 265, the lightning
+    from 276, the shake at 290, the dust from 291; the way down comes 361
+    to 380 frames after the staff went in (the quest clock), the staff
+    goes at 440.
   - The orifice's ClientFn 8 (table 0x7277f0, at `0x4bdca0`): out of
     mode 0, the same load of class 0xd3 once (`FUN_004a30a0`, flag
     0x7c025d).
