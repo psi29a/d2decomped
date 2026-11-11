@@ -77,10 +77,17 @@ int main() try {
     world.burial.log_in = quest_timer_steps(0xf);
     runs_after(world, now_ms, 16, "Blood Raven's log", [&] { return world.burial.log == 3; });
 
-    // The Den of Evil cleared: "Return to Akara" 8 ticks on (0x5903d9 -> LAB_00590230).
+    // The Den of Evil cleared: "Return to Akara" 8 ticks on (0x5903d9 -> LAB_00590230),
+    // only while it's still cleared, state 4 (0x590232): Akara's reward first keeps 0xd.
+    world.den.state = 4;
     world.den.log = 2;
     world.den_log_in = quest_timer_steps(8);
     runs_after(world, now_ms, 9, "the Den's log", [&] { return world.den.log == 5; });
+    world.den.state = 5;
+    world.den.log = 0xd;
+    world.den_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "the Den's log after the reward", [&] { return world.den_log_in == 0; });
+    assert(world.den.log == 0xd);
 
     // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
     world.gidbinn_in = quest_timer_steps(7);
