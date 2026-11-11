@@ -355,6 +355,28 @@ Character character_of_save(const Scene& scene, std::size_t index) {
     return character;
 }
 
+std::optional<Character> character_of_bytes(const Scene& scene, std::span<const std::byte> bytes) {
+    if (!scene.item_tables) return std::nullopt;
+    try {
+        const auto header = d2d::d2s::parse_header(bytes);
+        Character character;
+        character.character_class = header.cls;
+        character.name = header.name;
+        character.appearance = header.look();
+        character.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
+        character.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
+        character.corpse = d2d::d2s::parse_corpse(bytes, *scene.item_tables).items;
+        character.merc_items = d2d::d2s::parse_merc_items(bytes, *scene.item_tables);
+        character.panel = panel_stats(scene, header, character.items, character.stats);
+        character.expansion = header.expansion();
+        character.header = header;
+        return character;
+    } catch (const std::exception& error) {
+        d2d::log::warn("a joiner's save: {}", error.what());
+        return std::nullopt;
+    }
+}
+
 Character made_character(const Scene& scene, int save_cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     auto made = new_character(scene, save_cls, name, hardcore, expansion, rng);
     Character character;

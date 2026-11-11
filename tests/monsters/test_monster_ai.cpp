@@ -591,8 +591,8 @@ int main() try {
                 assert(attacks > 900 && stands < 100);
             }
             // The Shadows (tools/emu/shadow_init.py / shadow_master.py --dump:
-            // game.exe's own runs): the Warrior's init and the Master's, then the
-            // Master's think (the log of what it asks and does), then its scan.
+            // game.exe's own runs): the Master's init (FUN_005eb490), the Raven's
+            // (FUN_005ecb70) and the Warrior's (FUN_005eaf50), then the Master's think (the log of what it asks and does), then its scan.
             {
                 static constexpr std::array<std::string_view, 2> kInits{
 #include "shadow_init_cases.inc"
@@ -616,7 +616,7 @@ int main() try {
                     std::string bar;
                     fields >> bar;
                     std::array<int, 3> ctrl{ 7, 7, 7 };
-                    const auto gifts = d2d::rules::shadow_warrior_init(ctrl, owner && owner_type == 0, summoned ? summon_level : -1, has_attack, ids,
+                    const auto gifts = d2d::rules::shadow_master_init(ctrl, owner && owner_type == 0, summoned ? summon_level : -1, has_attack, ids,
                         [&](int id) {
                             const auto& row = *std::ranges::find(rows, id, &Row::id);
                             return id >= 0 && id < 400 && d2d::rules::shadow_may_have(row.summon, row.pet_type, pet_class, pet_type, 20);
@@ -629,9 +629,11 @@ int main() try {
                     assert(got == want);
                     for (const int value : ctrl) assert(value == read());
                     fields >> bar;
-                    const auto master = d2d::rules::shadow_master_init(aip3, seed);
-                    for (const int value : master) assert(value == read());
+                    const auto raven = d2d::rules::raven_init(aip3, seed);
+                    for (const int value : raven) assert(value == read());
                     assert(seed.low == std::uint32_t(read()) && seed.high == std::uint32_t(read()));
+                    fields >> bar;
+                    assert(d2d::rules::shadow_warrior_init(owner, summoned ? summon_level : -1)[2] == read());
                     ++checked;
                 }
                 assert(checked > 40);

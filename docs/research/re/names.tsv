@@ -742,9 +742,13 @@ address	name	evidence
 005ae480	missile_do_stamp_then_strike	path velocity 0: ORs 0x40 into its subtile's room word (FUN_0064cb90), then FUN_005ae1f0; called by FUN_005b04a0 (missiles.md "Standing missiles")
 005ae520	missile_do_burn_footprint	missile do 5 (data ref 0x73c77c): stamps 0x40 on its footprint (FUN_0064ea00), steps its animation frame by range left, then FUN_005ae1f0 (missiles.md "Standing missiles")
 005b30e0	quest_callback_pack	pack registers and seven stack arguments into callback record for FUN_005b2a00
+005b3750	act4_opening_alert	NPC 0x16f and word 0x18 bit 0 gate the low-byte result
+005b43f0	izual_search_gate	quest 0x16 data gate and player iteration
+005b4da0	diablo_act4_share_gate	quest bit, room and act gate player share callback
 005b4ff0	quest_activate_waypoint_6d	level 0x6d index sets current difficulty player waypoint buffer
 005b5210	quest17_data13_get	quest 0x17 data byte +0x13 or zero
 005b5810	quest17_game_gate	game +0x70 zero and absent quest 0x17 or data byte +0x14 nonzero
+005b5840	act4_quest_object_init	quest 0x17 data +0x40 selects mode 1 or 2
 005b9ca0	quest11_data_coords	quest 0x11 data byte +6 gates copying dwords +0x10 and +0x14
 005b9cd0	quest11_object_timer	quest 0x11 clears data +6 and schedules the object at data +0x28
 005ba2f0	quest_party_callback	valid low-word party ID dispatches callback FUN_005ba290

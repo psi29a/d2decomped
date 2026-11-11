@@ -261,6 +261,7 @@ add_executable(d2d
     town/controls.cpp
     town/draw.cpp
     town/input.cpp
+    town/lan.cpp
     town/net.cpp
     town/setup.cpp
     town/skillpad.cpp

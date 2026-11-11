@@ -74,7 +74,11 @@ auto World::add_player() -> Player& {
 }
 
 auto World::anyone_alive() const -> bool {
-    return std::ranges::any_of(players, [](const auto& player) { return player->pmode != kModeDT && player->pmode != kModeDD; });
+    return std::ranges::any_of(players, [](const auto& player) { return !player->own_screen && player->pmode != kModeDT && player->pmode != kModeDD; });
+}
+
+auto World::shared_screen() const -> bool {
+    return !actor->own_screen && std::ranges::count_if(players, [](const auto& player) { return !player->own_screen; }) > 1;
 }
 
 auto World::become_ghost(Player& player) -> void {
@@ -123,13 +127,16 @@ auto World::raise_step(float elapsed, std::uint32_t now_ms) -> void {
 }
 
 auto World::leash(std::span<const std::pair<float, float>> before) -> void {
-    if (players.size() < 2 || before.size() != players.size()) return;
+    if (before.size() != players.size()) return;
+    std::vector<std::size_t> party;                     // the players on this screen (a LAN joiner has its own)
+    for (std::size_t slot = 0; slot < players.size(); ++slot) if (!players[slot]->own_screen) party.push_back(slot);
+    if (party.size() < 2) return;
     // The party on screen: its spread in screen pixels (isometric: a cell is
     // 160 x 80, x - y across, x + y down).
     const auto spread = [&](std::size_t moved_back) {
         float least_x = 1e9f, most_x = -1e9f, least_y = 1e9f, most_y = -1e9f;
-        for (std::size_t i = 0; i < players.size(); ++i) {
-            const auto [x, y] = i == moved_back ? before[i] : std::pair{ players[i]->player.x, players[i]->player.y };
+        for (const std::size_t slot : party) {
+            const auto [x, y] = slot == moved_back ? before[slot] : std::pair{ players[slot]->player.x, players[slot]->player.y };
             const float screen_x = (x - y) * 80, screen_y = (x + y) * 40;
             least_x = std::min(least_x, screen_x); most_x = std::max(most_x, screen_x);
             least_y = std::min(least_y, screen_y); most_y = std::max(most_y, screen_y);
@@ -139,14 +146,14 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
     const auto too_far = [&](std::pair<float, float> span) { return span.first > kLeashWidth || span.second > kLeashHeight; };
     if (!too_far(spread(players.size()))) return;
     // Whoever pulled it further than it was stays where they were.
-    for (std::size_t i = 0; i < players.size(); ++i) {
-        const auto stretched = spread(players.size()), back = spread(i);
+    for (const std::size_t slot : party) {
+        const auto stretched = spread(players.size()), back = spread(slot);
         if (back.first < stretched.first || back.second < stretched.second) {
-            auto& unit = players[i]->player;
-            std::tie(unit.x, unit.y) = before[i];
+            auto& unit = players[slot]->player;
+            std::tie(unit.x, unit.y) = before[slot];
             unit.walking = false; unit.path.clear();
-            players[i]->interact_npc = -1;
-            players[i]->target_x = unit.x; players[i]->target_y = unit.y;
+            players[slot]->interact_npc = -1;
+            players[slot]->target_x = unit.x; players[slot]->target_y = unit.y;
         }
         if (!too_far(spread(players.size()))) return;
     }
@@ -294,6 +301,7 @@ auto World::enter(const Character& entering) -> void {
         const int save_act = act_byte & 0x80 ? act_byte & 7 : 0;
         const Level* act_town = save_act > 0 && save_act < int(d2d::rules::level_ids::kActTowns.size()) ? game_data->level(d2d::rules::level_ids::kActTowns[std::size_t(save_act)]) : nullptr;
         level = act_town && act_town->start.first >= 0 ? act_town : &game_data->town;   // set_map_seed may have rebuilt the camp
+        lead().on_level = nullptr;                    // not the last game's level (split levels set it on the first tick)
         other_npcs.clear();
         npc_states = npc_start(*level);
         actor->interact_npc = actor->pick_item = actor->take_warp = -1;
@@ -388,6 +396,10 @@ auto World::spawn_merc() -> void {
 auto World::swap_npcs(const Level* from) -> void {
         if (from && from != level)                           // each player's level change (event 3): the party moved too (bring_party)
             each_player([&](Player&) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); });
+        swap_npc_states(from);
+    }
+
+auto World::swap_npc_states(const Level* from) -> void {
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -443,6 +455,27 @@ auto World::show_palace() -> void {
     }
 
 auto World::respawn(std::uint32_t now_ms) -> void {
+        if (split_levels && !in_town(level)) {               // stage 9: back to their act's town, their screen's party with them (go_alone's rule)
+            const Level* act_town = game_data->town_of(level->id);
+            const Level* town = act_town ? act_town : &game_data->town;
+            Player* const dead = actor;
+            for (auto& player : players) {
+                if (player.get() != dead && (dead->own_screen || player->own_screen)) continue;
+                act_as(*player);
+                actor->events.push_back(ev::LevelChanged{ level, false });
+                actor->on_level = town;
+                actor->interact_npc = actor->pick_item = actor->take_warp = -1;
+                actor->attack_mon = actor->merc_target = -1;     // the level's monsters stay behind (Fight::enter)
+                for (auto& pet : actor->pets) pet.target = -1;
+                std::tie(actor->player.x, actor->player.y) = town->nearest_free(town->start.first, town->start.second);
+                actor->target_x = actor->player.x; actor->target_y = actor->player.y;
+                actor->player.walking = false; actor->player.path.clear();
+            }
+            act_as(*dead);
+            fight.revive(now_ms);
+            d2d::log::info("{} respawned in {}", actor->character.name, level_name(*town));
+            return;
+        }
         if (!in_town(level)) {
             actor->events.push_back(ev::LevelChanged{ level, false });
             const Level* from = level;

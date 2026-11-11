@@ -42,6 +42,12 @@ Seis, 0x26 Grand Vizier of Chaos → 0x17.
 Tyrael (0x16f) has 664 (0x298) and "!" (`FUN_005b3750`) till word 0x18
 bit 0 (`FUN_005b36d0`: block 0). Hearing 664 (`LAB_005b36a0`) sets bit 0.
 
+The opening alert `FUN_005b3750` tests word 0x18 bit 0 only for NPC 0x16f,
+returning true in the low byte only when that test returns zero. Other NPCs
+return a zero low byte without testing flags. `tools/emu/quest_act4_open_alert.py`
+checks 24 synthetic cases with the flag helper hooked; upper EAX is not a
+boolean result and the helper itself is not checked.
+
 ## The Fallen Angel (a4q1.cpp, word 0x19)
 
 Data (0x1c bytes): +4 / +8 Izual's spot at death, +0xc told-by-ghost, +0xd
@@ -78,6 +84,13 @@ ghost spoke, +0x14 the killer.
   `ev::QuestNews`.
 - **Join** (`LAB_005b4220`): not done or closed: bit 4 → state 3, log 2,
   data +0xc; bit 3 → 3 / 1; bit 2 → 2 / 1.
+
+Izual's search helper `FUN_005b43f0` looks up quest 0x16. With a record and
+nonzero data +0x12, it clears data +0x18, stores the supplied unit at +0x14,
+and runs `FUN_005538d0` with callback `FUN_005b43d0`; it returns whether
++0x18 remains zero. Otherwise it returns zero without these writes. The
+18-case oracle `tools/emu/quest_izual_nearby.py` hooks lookup and iteration,
+including scripted changes to +0x18; it does not check the callback.
 
 ## Terror's End (a4q2.cpp, word 0x1a)
 
@@ -150,6 +163,19 @@ deaths.
 - **Join** (`FUN_005b5080`): LoD bit 9 without word 0x1c bit 0 → bit 9
   cleared (again on `LAB_005b5030`); bits 4 / 3 / 2 → states as a4q1.
 
+The player callback `FUN_005b4da0` reads word 0x1a bit 0 at the game's
+difficulty. Unless the flag helper returns exactly 1, it gets the player's
+room and level and calls `FUN_005b4d20` when the act helper's low byte is 3.
+No room skips the call. `tools/emu/quest_diablo_act_share.py` checks 72 cases
+with all helpers hooked, including non-boolean flag and act return values;
+it does not verify the helpers, the share operation or d2d parity.
+
+Object initializer `FUN_005b5840` looks up quest record 0x17. With a record,
+if data +0x40 is already 2 it sets the supplied object to mode 2; otherwise
+it writes 2 there and sets mode 1. With no record it does nothing.
+`tools/emu/quest_diablo_object_mode.py` checks ten cases with lookup and mode
+setting hooked; the object identity and helper internals are not checked.
+
 ## The Hellforge (a4q3.cpp, word 0x1b)
 
 Data (0x20 bytes): +0 the forge's mode (0 / 2 / 3), +2 Cain's word heard,
@@ -201,6 +227,13 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
   +0xc4 / +0xd8 count hammers about.
 - **Join** (`FUN_005b64e0`): `mss ` not carried → state 1 (`FUN_00558110('mss ')` 0, the push at 0x5b654d); carried: bit 5 → state 2,
   log 4; bits 3 / 2 → states as a4q1.
+
+Hellforge alert `FUN_005b5ee0` tests word 0x1b bits 0 then 1 for NPC
+0xf6. Its low return byte is 1 only when both tests return zero, record +9
+is nonzero, state is exactly 1 and data +0x1c is zero; other NPCs skip both
+flag tests. `tools/emu/quest_hellforge_alert.py` checks 486 combinations with
+the flag helper hooked, including non-boolean values. The upper EAX bytes and
+helper internals are outside the check.
 
 ## Act 4's other objects
 
