@@ -150,15 +150,20 @@ auto World::view() const -> View {
         if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, int(kGamePortals), cain_portal_closes });
         for (const auto& gate : cage_portal)
             if (gate.level == level) view.portals.push_back({ gate.x, gate.y, 1, gate.born, int(kGamePortals) });
+        const auto keys_of = [&](const Level& listed) {
+            for (const auto& npc : listed.npcs) view.npc_keys.push_back({ listed.id, npc.hc_idx, npc.root == "objects" ? npc.object_id : 0, npc.x, npc.y, npc.palace, npc.quest });
+        };
         view.npc_states = npc_states;
         grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());
+        keys_of(*level);
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
             const auto found = other_npcs.find(neighbour.level);
             auto states = found != other_npcs.end() ? found->second : npc_start(*neighbour.level);
             grow_states(states, *neighbour.level);
             states.resize(neighbour.level->npcs.size());
             view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
+            keys_of(*neighbour.level);
         }
         if (now < actor->boost.until) { view.boost = actor->boost.stats; view.boost_code = shrine_code(actor->boost.shrine); }
         view.aura = actor->aura;

@@ -180,6 +180,12 @@ struct View {
     // The level's NPCs as they patrol, then each Level::nearby level's in
     // that order (its npcs.size() each, its own cells).
     std::vector<UnitState> npc_states;
+    // Who each npc_states entry is: the host's Level::npcs in its order (the
+    // level's, then each nearby level's). A machine drawing another's game
+    // (a LAN joiner) lays its own lists out as these say: its rooms came up
+    // in another order, or not at all (Town::lan_take_npcs, lan-host.md).
+    struct NpcKey { int level = 0, hc_idx = -1, object_id = 0; float x = 0, y = 0; int palace = 0, quest = 0; };
+    std::vector<NpcKey> npc_keys;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on

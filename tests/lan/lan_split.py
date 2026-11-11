@@ -137,10 +137,19 @@ try:
     check("the host cleared the Den (bits 13, 1)", bits.get("Host", 0) & 0x2002 == 0x2002, bits)
     check("Seat2, in Act 1 on another level, has the party's share (13, 1)", levels(H)["Seat2"] == 3 and bits.get("Seat2", 0) & 0x2002 == 0x2002, bits)
 
+    print("10. a joiner's town has the host's NPCs: Lut Gholein")
+    ctl(H, "debug goto 40"); ctl(H, "debug goto 40 Seat2"); time.sleep(3)
+    for y in range(8, 64, 12):                          # the host walks the town: its rooms (and NPCs) come up
+        for x in range(8, 64, 12): ctl(H, f"debug warp {x} {y}"); time.sleep(0.2)
+    time.sleep(2)
+    def names(path): return sorted(l.split("\t")[0] for l in ctl(path, "npcs").splitlines() if l.count("\t") >= 6)
+    host_names, seat2_names = names(H), names(S2)
+    check("Seat2 sees Lut Gholein's NPCs as the host does (Atma among them)", "Atma" in seat2_names and seat2_names == host_names, (host_names, seat2_names))
+
     alive = all(p.poll() is None for p in procs)
     bad = sum(sum(1 for l in open(f"/tmp/lans/{n}.log", errors="replace") if "didn't apply" in l) for n in ("Seat1", "Seat2"))
     check("nobody crashed, every View applied", alive and bad == 0, f"alive {alive}, failed applies {bad}")
-    print("10. leaving: Seat2 quits, the others hear")
+    print("11. leaving: Seat2 quits, the others hear")
     ctl(S2, "quit")
     check("the host sees Seat2 left", bool(saw(H, "Seat2", 10)), chat(H))
     ctl(H, "quit")

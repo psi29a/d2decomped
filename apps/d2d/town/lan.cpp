@@ -9,14 +9,17 @@
 #include "ui.hpp"
 
 #include <cues.hpp>
+#include <gamedata.hpp>
 #include <lan.hpp>
 #include <log.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>
+#include <rules.hpp>
 #include <sound_mix.hpp>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -157,6 +160,51 @@ auto Town::lan_publish() -> void {
             if (!lan_host->send_view(lan_player.client, bytes)) lan_player.view_enc.reset();   // gone: lan_poll drops it
         }
         lan_cue_from = world.cues.due.size();
+    }
+
+// Each level's list to the host's keys: what's there and the same stays (its
+// anims are loaded), the rest is made as the host made it: an NPC from its
+// MonStats recipe, an object from objects.txt at the host's spot. A shrine's
+// kind or a chest's lock aren't the host's rolls (the host resolves them).
+auto Town::lan_take_npcs() -> void {
+        const GameData& game_data = *world.game_data;
+        const auto same = [](const Npc& npc, const View::NpcKey& key) {
+            const bool who = npc.root == "objects" ? key.object_id == npc.object_id && key.hc_idx < 0 : key.object_id == 0 && key.hc_idx == npc.hc_idx;
+            return who && std::abs(npc.x - key.x) < 0.5f && std::abs(npc.y - key.y) < 0.5f;
+        };
+        for (std::size_t at = 0; at < view.npc_keys.size();) {
+            const int level_id = view.npc_keys[at].level;
+            std::size_t end = at;
+            while (end < view.npc_keys.size() && view.npc_keys[end].level == level_id) ++end;
+            const auto keys = std::span(view.npc_keys).subspan(at, end - at);
+            at = end;
+            const Level* found = game_data.level(level_id);
+            if (!found) continue;
+            auto& into = const_cast<Level&>(*found);          // GameData owns its levels mutable (gamedata.cpp)
+            std::size_t kept = 0;
+            while (kept < keys.size() && kept < into.npcs.size() && same(into.npcs[kept], keys[kept])) ++kept;
+            if (kept == keys.size() && into.npcs.size() == keys.size()) continue;
+            into.npcs.resize(kept);
+            for (const auto& key : keys.subspan(kept)) {
+                const std::size_t before = into.npcs.size();
+                if (key.object_id > 0 && game_data.builder) {
+                    d2d::rules::Rng rgn{ std::uint32_t(key.object_id) ^ std::uint32_t(key.x * 5) << 16 ^ std::uint32_t(key.y * 5) };   // the rolls are the host's; this keeps ours the same each time
+                    add_object(game_data, game_data.builder->objects, game_data.builder->obj_row, into, key.object_id, int(key.x * 5), int(key.y * 5), rgn);
+                } else if (key.hc_idx >= 0 && std::size_t(key.hc_idx) < game_data.mon_bin.size() && game_data.mon_bin[std::size_t(key.hc_idx)] < game_data.mon_npc.size()) {
+                    auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(key.hc_idx)]];
+                    if (!npc.code.empty()) into.npcs.push_back(std::move(npc));
+                }
+                if (into.npcs.size() == before) {            // nothing to make of it (the host had the same tables, so hardly ever): the index stays
+                    Npc blank;
+                    blank.root = key.object_id > 0 ? "objects" : "monsters";
+                    blank.object_id = key.object_id; blank.hc_idx = key.hc_idx;
+                    into.npcs.push_back(std::move(blank));
+                }
+                auto& made = into.npcs.back();
+                made.x = key.x; made.y = key.y; made.palace = key.palace; made.quest = key.quest;
+            }
+            d2d::log::info("lan: level {}'s NPC list laid out as the host's: {} kept, {} made", level_id, kept, keys.size() - kept);
+        }
     }
 
 auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms) -> void {

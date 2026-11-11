@@ -350,6 +350,9 @@ struct Town {
     // Goodbye to the host: its last Save of our character written, then out (Town::save on leaving).
     void lan_leave();
     void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);
+    // Our Level::npcs laid out as the host's (View::npc_keys): our rooms never come up
+    // (this World doesn't tick), and would in another order if they did.
+    void lan_take_npcs();
     // A View's bytes taken as the screen's (publish's second half; the client's every View).
     // `local`: the World's own View when it made these (a local game keeps its merc's FHR).
     bool take_view(std::span<const std::uint8_t> bytes, const View* local);
