@@ -26,6 +26,10 @@ namespace d2d::client {
 // half see-through. Nothing over the bottom panel (47 pixels).
 void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& rain, const d2d::palette::Palette& pal, int panel_side);
 
+// A one-shot overlay on a level object (FUN_00470390 kind 2: the orifice's
+// light_jet, 0x46b100): its Level::npcs index, Overlay.txt row, start.
+struct ObjectFlash { int npc = -1; int row = -1; std::uint32_t start = 0; };
+
 void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    const Scene& scene,
                    const Level& level,
@@ -62,6 +66,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    std::vector<std::uint8_t>* wide = nullptr,    // widescreen: the world draws here, its centre 800 wide copied to framebuffer
                    std::pair<float, float> player_offset = {},   // the player off the camera's point, cells (local co-op's camera)
                    bool player_spirit = false,                   // the player a ghost (local co-op's dead): pale, see-through
-                   std::span<const d2d::rules::OverlayClock> alert_clocks = {});
+                   std::span<const d2d::rules::OverlayClock> alert_clocks = {},
+                   std::span<const ObjectFlash> object_flashes = {});
 
 }  // namespace d2d::client
