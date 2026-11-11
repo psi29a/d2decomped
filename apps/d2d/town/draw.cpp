@@ -22,6 +22,7 @@
 #include "tile_blit.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <combat.hpp>
