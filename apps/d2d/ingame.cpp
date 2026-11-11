@@ -321,7 +321,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                             framebuffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4));
         // Who reads the hover text: red requirements, class lines, attack speed.
         std::optional<d2d::rules::Wearer> wearer_value;
-        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
+        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) {
+            wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
+            wearer_value->holy_shield = hud.holy_shield;
+        }
         const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
         // The automap, under the border and every panel, and not at all with
         // both sides covered (FUN_00456ee0: FUN_0045ad60 first, while

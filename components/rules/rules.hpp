@@ -1145,8 +1145,9 @@ inline std::string type_class(const Tables& tables, const std::string& type, int
 inline constexpr std::string_view kClassCode[7] = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };   // by d2s class
 
 // What the player brings to an equip check: d2s class and the current
-// strength, dexterity and level.
-struct Wearer { int cls = 0, str = 0, dex = 0, lvl = 1; };
+// strength, dexterity and level. `holy_shield` is the effective Holy
+// Shield level while state 0x65 is on (FUN_00485be0 / FUN_00485d40), else 0.
+struct Wearer { int cls = 0, str = 0, dex = 0, lvl = 1, holy_shield = 0; };
 
 inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_info.find(item.code);

@@ -1499,6 +1499,53 @@ int main(int argc, char** argv) try {
         const auto cap_lines = item_lines(*data, cap, 1, &amazon);
         assert(cap_lines[1].text == "Defense: 4" && cap_lines[1].split == 9 && cap_lines[1].tail == kTxtBlue);
         std::printf("OK: hover text of a short sword and a cap\n");
+        // Holy Shield (FUN_00485be0 / FUN_00485d40): skill 0x75's dm56 on a
+        // shield's block, and its MinDam..MaxDam on smite. Boots stay put.
+        const auto holy = data->skills.by_name.find("Holy Shield");
+        assert(holy != data->skills.by_name.end() && holy->second == 0x75);
+        const auto* holy_skill = data->skills.get(0x75);
+        assert(holy_skill);
+        const int added_block = d2d::rules::calc_dm(holy_skill->par[4], holy_skill->par[5], 6);
+        const int added_min = d2d::rules::skill_phys(data->skills, *holy_skill, {}, 6, false) >> 8;
+        const int added_max = d2d::rules::skill_phys(data->skills, *holy_skill, {}, 6, true) >> 8;
+        assert(added_block > 0 && added_max >= added_min);
+        d2d::rules::Wearer paladin{ d2d::d2s::kPaladin, 30, 20, 30 };
+        d2d::d2s::Item buckler{ .code = "buc" };
+        buckler.identified = true;
+        auto line_starting = [&](const d2d::rules::Wearer& who, std::string_view prefix) {
+            for (const auto& hover_line : item_lines(*data, buckler, who.lvl, &who))
+                if (hover_line.text.starts_with(prefix)) return hover_line.text;
+            return std::string{};
+        };
+        const auto block_plain = line_starting(paladin, "Chance to Block:");
+        const auto smite_plain = line_starting(paladin, "Smite Damage:");
+        assert(!block_plain.empty() && !smite_plain.empty());
+        paladin.holy_shield = 6;
+        const auto block_up = line_starting(paladin, "Chance to Block:");
+        const auto smite_up = line_starting(paladin, "Smite Damage:");
+        const auto base = data->rules.item_base.at("buc");
+        const int column = base.block + data->class_gains[std::size_t(d2d::d2s::kPaladin)].block;
+        const int capped = std::min(column + added_block, 75);
+        assert(block_plain.ends_with(std::to_string(std::min(column, 75)) + "%"));
+        assert(block_up.ends_with(std::to_string(capped) + "%") && block_up != block_plain);
+        assert(smite_plain.ends_with(std::to_string(base.mindam) + " to " + std::to_string(base.maxdam)));
+        assert(smite_up.ends_with(std::to_string(base.mindam + added_min) + " to " + std::to_string(base.maxdam + added_max)));
+        std::string boots_code;
+        for (const auto& [code, info] : data->rules.item_info)
+            if (d2d::rules::type_is(data->rules, info.type, "boot") && data->rules.item_base.contains(code)) { boots_code = code; break; }
+        assert(!boots_code.empty());
+        d2d::d2s::Item boots{ .code = boots_code };
+        boots.identified = true;
+        d2d::rules::Wearer assassin{ d2d::d2s::kAssassin, 20, 20, 30 };
+        auto kick_of = [&](const d2d::rules::Wearer& who) {
+            for (const auto& hover_line : item_lines(*data, boots, who.lvl, &who))
+                if (hover_line.text.starts_with("Kick Damage:")) return hover_line.text;
+            return std::string{};
+        };
+        const auto kick_plain = kick_of(assassin);
+        assassin.holy_shield = 6;
+        assert(!kick_plain.empty() && kick_of(assassin) == kick_plain);
+        std::printf("OK: Holy Shield adds block and smite, not kick\n");
     }
 
     // A Blood Moor shrine (FUN_00583c70): stamina (row 14) fills stamina,
