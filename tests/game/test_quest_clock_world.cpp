@@ -82,6 +82,11 @@ int main() try {
     world.den_log_in = quest_timer_steps(8);
     runs_after(world, now_ms, 9, "the Den's log", [&] { return world.den.log == 5; });
 
+    // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
+    world.gidbinn_due = false;
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {

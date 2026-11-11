@@ -51,7 +51,7 @@ auto World::act3_join() -> void {
         bridge_check = 0;
         blade = {};
         blade.join(quests(), carries(d2d::rules::BladeQuest::kGidbinn));
-        actor->had_gidbinn = carries(d2d::rules::BladeQuest::kGidbinn); gidbinn_timer = 0; gidbinn_altar = -1;
+        actor->had_gidbinn = carries(d2d::rules::BladeQuest::kGidbinn); gidbinn_in = 0; gidbinn_due = false; gidbinn_altar = -1;
         golden_bird = {};
         golden_bird.join(quests(), carries(d2d::rules::GoldenBirdQuest::kBird), carries(d2d::rules::GoldenBirdQuest::kFigurine));
         actor->had_figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine); actor->had_bird = carries(d2d::rules::GoldenBirdQuest::kBird);
@@ -196,6 +196,11 @@ auto World::act3_bind_new_bosses() -> void {
         }
     }
 
+// A quest-clock step: a3q3's timer (7 ticks, FUN_005b9a30) runs.
+auto World::act3_quest_step() -> void {
+        if (gidbinn_in > 0 && --gidbinn_in == 0) gidbinn_due = true;
+    }
+
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
         mephisto_bridge(now_ms);
@@ -212,7 +217,7 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
         // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0);
         // till then the timer asks again.
-        if (gidbinn_timer && now_ms >= gidbinn_timer && !blade.spawned && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
+        if (gidbinn_due && !blade.spawned && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
             const auto& altar = level->npcs[std::size_t(gidbinn_altar)];
             const auto rooms = near_rooms(*game_data, *level, altar.x, altar.y);
             const bool by_altar = std::ranges::any_of(players, [&](const auto& player) {
@@ -231,7 +236,7 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
                     fetish.boss = d2d::rules::Boss::minion;
                     fight.add_monster(std::move(fetish));
                 }
-                gidbinn_timer = 0;
+                gidbinn_due = false;
                 d2d::log::info("The Blade of the Old Religion: the guardians come");
             }
         }

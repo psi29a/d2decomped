@@ -514,7 +514,8 @@ struct World {
     struct SealBoss { int superunique, x, y; std::uint32_t at; };
     std::vector<SealBoss> seal_bosses;
     [[nodiscard]] d2d::rules::KhalimQuest::Parts khalim_parts() const;
-    std::uint32_t gidbinn_timer = 0;       // a3q3's 7 ticks from the altar's use (FUN_00543f10 -> FUN_005b9a30)
+    int gidbinn_in = 0;                    // quest steps to a3q3's timer: 7 ticks from the altar's use (0x5b9c22 -> FUN_005b9a30), 0 none
+    bool gidbinn_due = false;              // that timer has run: the guardians are due
     int gidbinn_altar = -1;                // the altar's Level::npcs index
     d2d::rules::TaintedSunQuest tainted;   // and the Tainted Sun
     d2d::rules::HoradricStaffQuest staff;  // and the Horadric Staff
@@ -583,6 +584,7 @@ struct World {
     // A step of the quest clock (quest_clock): the quest timers.
     void act1_quest_step();
     void act2_quest_step();
+    void act3_quest_step();
     // The NPC's "!" over its head.
     bool act1_alert(int hc_idx);
     bool act2_alert(int hc_idx);

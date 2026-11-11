@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -368,7 +369,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             operated[{ level, npc_index }] = now_ms;
             if (!blade.use_altar(quests())) return;
             to_mode(1);
-            gidbinn_timer = now_ms + d2d::rules::BladeQuest::kTimerTicks * kTickMs;
+            gidbinn_in = d2d::rules::quest_timer_steps(d2d::rules::BladeQuest::kTimerTicks);
             gidbinn_altar = npc_index;
             d2d::log::info("The Blade of the Old Religion: the altar used");
             return;
