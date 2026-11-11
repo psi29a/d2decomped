@@ -743,6 +743,10 @@ Read from the code, no oracle or packet log.
   spot is 0x100 or more away on an axis, or under 1 on both (LAB_00462482).
 - **How near.** The spot goes out to a least distance (FUN_00474080, LAB_004624d9): a
   press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1).
+
+  FUN_004623c0's throttle and clamp above, and FUN_00461840's path-then-send
+  glue (LAB_00461879's FUN_00481030 call fires only once PATH_CalculatePath,
+  FUN_00649970, finds a path), are run for real: `tools/emu/click_move.py`.
 - **The skill branches** in FUN_004625b0, in order; what the fields mean wasn't followed:
   - No unit under the cursor, or a monster FUN_00464820 passes with a skill whose +7 lacks
     0x6ce268: LAB_00462671. There flag 0x20, or flag 2 with FUN_00645460 not 1, casts
