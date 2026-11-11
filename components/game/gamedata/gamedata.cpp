@@ -23,6 +23,7 @@
 #include <shrines.hpp>
 #include <tile_pick.hpp>
 #include <txt.hpp>
+#include <unit_size.hpp>
 
 #include <algorithm>
 #include <array>
@@ -151,7 +152,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.base_w = std::string(ms2.get(row2, "BaseW"));
     npc.composite_death = ms2.get(row2, "compositeDeath") == "1";
     npc.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
-    npc.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
+    npc.size_y = d2d::rules::unit_size_y(int(d2d::rules::UnitType::kMonster), std::atoi(std::string(ms2.get(row2, "SizeY")).c_str()));   // FUN_006205a0
     npc.shape = UnitShape::monster(npc.size_x, (monstats.get(row, "npc") == "1" || monstats.get(row, "inTown") == "1") && monstats.get(row, "interact") != "1",
                                    monstats.get(row, "flying") == "1", monstats.get(row, "opendoors") == "1");
     npc.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
@@ -671,7 +672,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     }
     npc.sync = objects.get(row, "Sync") == "1";
     npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
-    npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());
+    npc.size_y = d2d::rules::unit_size_y(int(d2d::rules::UnitType::kObject), std::atoi(std::string(objects.get(row, "SizeY")).c_str()));   // FUN_006205a0
     for (std::size_t layer = 0; layer < 16; ++layer)
         if (objects.get(row, kLayerCode[layer]) == "1") npc.comp[layer] = "lit";
     if (npc.code.empty()) return;

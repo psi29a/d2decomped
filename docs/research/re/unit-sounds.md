@@ -22,6 +22,35 @@ FUN_004b9a00 (sound ECX, unit EDX, delay, ...) queues a Sounds.txt row,
 `delay` ticks on (entry +0x34 = now + delay). The row's Group Size picks
 a random member.
 
+### The dispatch key, FUN_004ca2c0 / 004ca320 / 004ca380
+
+Three near-identical functions (confirmed by decompile, each `pUnit == 0`
+giving `UNIT_COUNT` / classId / mode `-1`) read a unit's dispatch key off
+`eUnitType` and `nClassId`, then `GetAnimOrSeqMode` for the mode, and for a
+**player** only (`eUnitType == UNIT_PLAYER`) call
+`SKILLS_GetStateTransformGfx(pUnit, &eUnitType, &nClassId, &nAnimMode,
+".\UNIT\UnitSnd.cpp", line)` (0xb01 / 0xb0d / 0xb19) to let a States.txt
+transform (gfxtype / gfxclass, [compcode.md](compcode.md), [gfx.md](gfx.md))
+override the triple before it's used:
+
+- `FUN_004ca320` **GetSndUnitType** returns `eUnitType` — the mode
+  dispatcher above (FUN_004cc5b0) branches Player vs Monster on it.
+- `FUN_004ca2c0` **GetSndUnitClassId** returns `nClassId` — a monster's
+  MonSounds row or a transformed player's effective class.
+- `FUN_004ca380` **GetSndUnitMode** returns `nAnimMode` — the effective
+  mode (SQ masked to a plain attack mode by a transform, for instance).
+
+So a Druid under a States.txt transform (werewolf / werebear, or any
+other state with a gfxtype) picks its swing and impact sounds as the
+*transformed* class and mode, not the caster's own. d2d's sound dispatch
+(`Fight::set_pmode`, `components/game/fight/setup.cpp`) reads
+`actor->character.character_class` and the real `mode` directly and has
+no equivalent `SKILLS_GetStateTransformGfx` override: a shapeshifted
+Druid's swing/impact table lookup in d2d always uses the human class.
+Not ported — the override needs the transform's gfxclass/gfxtype plumbed
+into `Fight`, which touches more than sound; left for a future gfxtype
+pass (compcode.md already carries the general transform reading).
+
 ## The swing, FUN_004cb6a0
 
 The player's weapon hit class (FUN_00623c20: the weapon's
@@ -395,7 +424,9 @@ Those callbacks aren't followed.
 
 A sound started on a unit (`FUN_004b9a00`, unit given) keeps its offset from
 the player in client pixels (`FUN_004b97d0`: dx, 2 dy and 640 up; units by
-`FUN_00620900`, path +8 / +0xc; a d2d cell is 80 px of dx and of 2 dy). Its
+`FUN_00620900`, path +8 / +0xc for types 0/1/3 and past 5, else the static
+path's own +4/+8 — units.md, oracle `tools/emu/units_small.py
+check_target_coords`; a d2d cell is 80 px of dx and of 2 dy). Its
 record's Falloff (+0x47, Sounds.txt) picks a near and a far range:
 
 | Falloff | near (`FUN_004825b0`) | far (`FUN_00482610`) |

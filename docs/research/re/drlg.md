@@ -2306,5 +2306,54 @@ the arguments and that FUN_0067c570 takes y on the stack.
   table (x and y words wrap at 16 bits separately) and a different direction from
   the last stores the position it left. A walk that ends having stored nothing
   on its last step stores its final position; the count is written and returned.
-  FUN_0067a740 and FUN_00678f70 (the A* expansion and the stepped walk beside
-  it) are not traced yet.
+
+**Stepped collision walk (FUN_00678f70).**
+the path context is in ECX and the movement record in EDX. A zero at movement
++0x18 returns 0; otherwise FUN_00678e30 updates it and the function again
+returns 0 if that field or both velocity components (+0x10, +0x14) are zero.
+The packed start and destination at +0 and +4 contain unsigned 16-bit x and y.
+Each is converted to 16.16 with 0x8000 added. FUN_00678f00 scales local copies
+of the velocity components, and the larger absolute component is the threshold.
+The walk returns 1 when both absolute differences from the destination are
+strictly below that threshold. Before returning it asserts that neither current
+coordinate is 0x80008000 (lines 0x1df and 0x1e0). Otherwise it advances by the
+scaled velocity; only when the integer x or y changes does it call
+FUN_0064d9b0 with context +8, the new unsigned x and y, context +0x24 and
++0x2c. A nonzero collision result returns 0. This function has no recorded
+caller in game-calls.tsv; its behavior here is read from its code and assembly.
+`tools/emu/drlg_walk_oracle.py` compares 1,296 synthetic calls and ordered
+collision arguments against a model. It scripts the movement update and
+collision helper, runs velocity scaling for real, and does not check the
+helper's collision behavior, the abort paths or coordinate wraparound.
+
+**Bounded path expansion (FUN_0067a740).** EDI
+holds the search state, while the cost bound and path argument are stack
+arguments (the callee pops eight bytes). The current node starts at state +0.
+The function returns that node if its packed coordinates (+8) equal the target
+at path +4, or if either coordinate is outside the inclusive state bounds at
++0x6278..+0x627e. It returns null after more than 10,000 iterations. A candidate
+is the current node's point plus the direction-table entry at 0x6f1958, with
+each coordinate truncated to 16 bits. Its grid cell uses the stride and offsets
+at state +0x6284..+0x628c and the array at +0x6290. For a zero cell,
+FUN_0064d910 tests collision with path +8, +0x28 and +0x2c; a nonzero result
+marks the cell 1 and advances via FUN_0067a690. Otherwise the tentative cost is
+the current node's signed 16-bit cost plus 2 for an axial step or 3 for a
+diagonal. An existing nonzero grid value strictly below that cost rejects the
+candidate; otherwise the cell is updated before the bound check. The heuristic
+is min(abs(dx), abs(dy)) + 2 * max(abs(dx), abs(dy)); the signed 16-bit sum
+of heuristic and cost must not exceed the bound. A child is allocated from the
+state's 900-entry, 0x1c-byte node pool if needed; exhaustion returns null.
+Its parent, costs, point and direction table are filled. When state +0x36fd0
+is nonzero, direction selection also advances the seed at +0x36fd4. The child
+is returned early if its signed heuristic is less than the unsigned byte at
+path +0x14; otherwise expansion continues. FUN_0067aaa0 calls this routine and
+retries with a larger bound. The collision helper and direction tables are not
+independently verified by this static reading.
+
+`tools/emu/drlg_expand_oracle.py` runs 80 one-step cases across eight
+directions and one three-step straight walk. Cases include destination and
+bounds exits, a blocked cell, visited costs below / equal to / above the
+candidate, the cost bound, a full node pool and a randomized direction draw.
+Collision, direction selection and backtracking are hooked; the oracle checks
+arguments, resulting grid costs, allocated child fields and the random seed.
+It does not check a general search or d2d parity.
