@@ -203,3 +203,16 @@ the control word to clear and a mode-4 attack on that target. Failing that,
 the word becomes 1, `FUN_00620c10` receives the unit and owner, and the unit
 calls `FUN_005ded40(owner, 7)`. `tools/emu/ai_stationary_npc.py` checks six
 branches with owner, room, targeting and action helpers scripted.
+
+`FUN_005fb410` initializes control +0x14 to frame plus the signed
+difficulty-indexed word at MonStats +0x5c, and +0x18 to the signed word at
++0x56, when the timer is nonpositive. In mode 1 it idles 5 if think distance
+is above 5, else requests mode 10 and waits 20; mode 10 requests mode 11 and
+waits 20. Mode 11 with a positive remaining count waits by the +0x5c word;
+when its timer is strictly before the game frame it first advances the timer,
+then obtains placement and room and attempts `FUN_005b2f20`. A successful
+spawn decrements the count and sets spawned-unit flags 0x4020000. For source
+class 0x2c7 it additionally calls `FUN_00639db0` with state 0xb8 and 1 and
+`FUN_00621e40` with stat 0xca and 0. Other mode/count cases request mode 0.
+`tools/emu/ai_spawner_lay.py` checks nine normal-difficulty cases with the
+placement, spawn, state and action helpers scripted.
