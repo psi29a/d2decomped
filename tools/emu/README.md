@@ -189,6 +189,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Ten QUESTS.CPP packet and state-list senders (`FUN_00544520`, `00544f60`, `00544fa0`, `00545090`, `00545100`, `00545530`, `005455b0`, `005456f0`, `00545780`, `00545920`; callees hooked; `--mutation-check` sixteen ways) | `uv run python quest_packets.py` | `ok: 288 quest packet cases` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
+| Blood Raven quest-log filter (`FUN_00590830`; callees hooked) | `uv run python quest_burial_log.py --exe /path/to/game.exe` | `ok: 48 Blood Raven log-filter cases (callees hooked)` |
 | Cain scroll-loss rewind (`FUN_00592c80`, `FUN_00592bd0`; callees hooked) | `uv run python quest_cain_rewind.py --exe /path/to/game.exe` | `ok: 5 Cain transitions and 10 scroll-loss trigger cases (callees hooked)` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Ten small QUESTS.CPP helpers (`FUN_00543b90`, `00543ce0`, `00543de0`, `00544470`, `00545290`, `00545300`, `00545760`, `00545830`, `00545990`, `00545d40`; callees hooked; `--mutation-check` seven ways) | `uv run python quest_small.py` | `ok: 240 small quest helper cases` |
