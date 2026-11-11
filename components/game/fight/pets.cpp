@@ -589,7 +589,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.mode1 = monster_mode(type_info.sk_mode[0], 4); scene.mode2 = monster_mode(type_info.sk_mode[1], 4);
         scene.skill_mode = scene.mode1;
         // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
-        if (const auto* curse = game_data->skills.get(pet.curse.skill); curse && now_ms < pet.curse.until) scene.slowed = curse->aurastate == "decrepify";
+        if (const auto* curse = game_data->skills.get(pet.curse.skill); curse && now_ms < pet.curse.until) scene.slowed = curse->auratarget == "decrepify";
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
