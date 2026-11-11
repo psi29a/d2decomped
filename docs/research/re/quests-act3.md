@@ -175,6 +175,11 @@ needing a flail / a Cube (`FUN_005bb7b0`).
   3 in the killer's room or next to it bit 13 and bit 0 (Khalim's Will done)
   or bit 4 (`FUN_005bae20`), the rest bit 14. The orb (0x16e) dying: unit flag
   0x20000.
+- **Object initialization** (`FUN_005bbb70`): looks up quest record 0x13
+  and, when its data byte +0xc is nonzero, sets the supplied object's mode
+  to 2. The function dereferences the returned record without a null check.
+  `tools/emu/quest_temple_object.py` checks five flag values with lookup and
+  mode setting hooked; it does not test a missing record or those helpers.
 - **The orb** (object 404, InitFn 60 `FUN_005bbba0`; OperateFn 53
   `FUN_005bb980`): with the Will in hand (`FUN_0063bef0`, weapon type 0x2d),
   the second hit: word 0x12 bits 0, 13, the Will taken, word 0x15 bit 0 for

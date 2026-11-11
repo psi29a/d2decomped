@@ -61,6 +61,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | TCP host join name: 2..15 bytes; ASCII letters and at most one ' - _, not first or last | `FUN_0053eff0` (length), `FUN_0052c5b0` (characters), EDI = 0x10 at `0052c726` | net-join.md "Stage 1" / "Stage 2" |
 | Character-create name: 2..15 characters; ASCII letters and at most one - _, not first or last; no apostrophes | `FUN_00430590` (input), `FUN_00430620` (OK state) | char-create-table.md "Name input and OK gating" |
 | Golden Bird carrier release flag and unit-ID match, including null unit; 48 original-code cases | `FUN_005bacf0`; `tools/emu/quest_bird_carrier.py` | [quests-act3.md](quests-act3.md) "The Golden Bird" |
+| Blackened Temple object mode gate and quest lookup; five cases with callees hooked, missing-record path not exercised | `FUN_005bbb70`; `tools/emu/quest_temple_object.py` | [quests-act3.md](quests-act3.md) "The Blackened Temple" |
 | MonStats AI Idle (the cow): stands, never chases | `FUN_005b0cd0` (MonAI row 1, search type 0): stand 200 in a room | monster-ai.md "Idle" |
 | Iso projection: a subtile is (x - y) * 16, (x + y) * 8; units centre on H/2 - 8, floors on the view less the 40-pixel panel | `FUN_00643260`, `FUN_00643310`, `FUN_0045b440` / `FUN_0045afd0`, `FUN_0044c990` / `FUN_00476000`, `FUN_004de730` | apps/d2d/common.hpp `kViewY` |
 | COF priority row for a direction (round the compass, not DCC order) | `FUN_00470ec0`, `FUN_004db2e0`, `FUN_00600e20` (0x6e55a0), `FUN_004db110` | cof-draw-order.md |
