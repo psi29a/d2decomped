@@ -604,8 +604,14 @@ ids).
   0xc cancelled, 0xd done; 9..0x15 other windows **(?)**.
 - **The trade close wait** (`FUN_004b9180`, 0x4b9180..0x4b91e1; called at 0x455d64 and by the
   action throttle `FUN_00486d10` at 0x486d23). Three places send C->S 0x4f with 2 (close)
-  and then set the trade state `DAT_007c0e7c` = 7 and the tick `DAT_007c0e70` =
-  `GetTickCount` (0x4b8ab0, 0x4b8bc5, 0x4b8cdb); the 0x77 handler
+  and arm the close wait (0x4b8ab0, 0x4b8bc5, and `FUN_004b8cb0`, a whole function,
+  0x4b8cb0..0x4b8ce5, not just its GetTickCount call at 0x4b8cdb): `FUN_004b8cb0` always
+  sends C->S 0x4f 2 0 0, then, only while the trade state `DAT_007c0e7c` isn't already 7,
+  sets a byte `DAT_007c0e74` = 1 (unread before this: decompiled as `gbTradeResetFlag`,
+  no caller of it was traced), the tick `DAT_007c0e70` = `GetTickCount`, and the state = 7.
+  Already-7 is a no-op past the send: state, tick and the reset flag are left alone, so a
+  second close while waiting doesn't restart the 30 s timer. Run for real
+  (`tools/emu/trade_close.py`). The 0x77 handler
   (the code at 0x4b8cf0, not a function entry in `game-functions.tsv`) sets the state back to 0 for two of its actions (0x4b8d13, 0x4b8d24;
   which ones was not read). `FUN_004b9180` returns 0 for any other state and 1
   for state 7. In state 7 with a tick other than -1 it waits for `tick + 30000` (unsigned,
