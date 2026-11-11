@@ -462,7 +462,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             for (const char* column : { "item1", "item2", "item3" }) items += equip.get(row_index, column).empty() ? 0 : 1;
             if (items > 0) game_data.mon_equip_oninit[std::size_t(found->second)].push_back(items);
         }
-    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 21, 32, 34, 35, 40-42 (none random; 24 is never applied)");
+    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 21, 34, 35, 40-42 (none random; 24 is never applied)");
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
@@ -530,7 +530,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
-        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.target_corpse = text("TargetCorpse") == "1";
+        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_corpse = text("TargetCorpse") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
             skill_row.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");

@@ -132,9 +132,17 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
 // with a record of 100 physical and 100 fire (0x6400 each, 256ths) on each
 // of its owner's enemies within 6 subtiles (dx² + dy² <= 36), the line
 // clear of 0x805, through their resistances. True when it blew.
+// A trap's is MonUMod 32 firespike_explode, its sumumod (FUN_005c4470):
+// FUN_005a3800 queues FUN_005a3d20 4 frames after its death: fire only,
+// (El1MinD + rand(El1MaxD - El1MinD) on its seed) << 8, the normal
+// columns (+0x10e / +0x120) whatever the difficulty; FUN_0057e090 (flags
+// 0, so 0x583) within its level (stat 12) x aip3 (+0x62) subtiles.
+// ponytail: every monster of the level within that radius, not only the
+// near rooms' (FUN_0065a950).
 auto Fight::blast_due(const Monster& golem) const -> bool {
         return !golem.alive() && golem.mode == "DT" && !golem.fx_done && golem.type >= 0
-            && game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem");
+            && (game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem")
+                || std::ranges::contains(golem.mods, d2d::rules::umod::firespike));
     }
 
 auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
@@ -142,27 +150,37 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
         if (!blast_due(golem) || now_ms < golem.unit.mode_ms + 4 * 40) return false;
         golem.fx_done = true;
         if (pet.where != level) return false;
+        const auto& type_info = game_data->monsters.types[std::size_t(golem.type)];
+        const bool goboom = type_info.base == game_data->monsters.row("firegolem");
+        int physical_fine = 0x6400, fire_fine = 0x6400, radius = 6;
+        if (!goboom) {
+            const auto& normal = type_info.diff[0].elements[0];
+            const int spread = normal.max - normal.min;
+            physical_fine = 0;
+            fire_fine = (normal.min + (spread > 0 ? golem.seed(spread) : 0)) << 8;
+            radius = golem.stats.level * type_info.diff[std::size_t(std::clamp(golem.difficulty, 0, 2))].aip[2];
+        }
         const int from_x = int(std::floor(golem.unit.x * 5)), from_y = int(std::floor(golem.unit.y * 5));
         for (std::size_t j = 0; j < monsters.size(); ++j) {
             const auto& other = monsters[j];
             const int to_x = int(std::floor(other.unit.x * 5)), to_y = int(std::floor(other.unit.y * 5));
-            if (!other.targetable() || d2d::rules::friends(2, other.align) || (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > 36
+            if (!other.targetable() || d2d::rules::friends(2, other.align) || (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > radius * radius
                 || d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); }))
                 continue;
             const auto target = target_of(j);
-            const int physical = d2d::rules::resisted_fine(0x6400, std::max(target.res[0], -100)), fire = d2d::rules::resisted_fine(0x6400, target.res[2]);
+            const int physical = d2d::rules::resisted_fine(physical_fine, std::max(target.res[0], -100)), fire = d2d::rules::resisted_fine(fire_fine, target.res[2]);
             d2d::rules::Blow blow{ .hit = true };
-            blow.phys = 100; blow.phys_fine = physical;
+            blow.phys = physical_fine >> 8; blow.phys_fine = physical;
             blow.damage = (physical >> 8) + (fire >> 8); blow.frac = (physical & 255) + (fire & 255);
             blow.elemental = fire > 0;
             land(j, blow, false, now_ms, golem.id);
         }
-        if (const auto found = game_data->missiles.find("monstercorpseexplode"); found != game_data->missiles.end()) {
+        if (const auto found = game_data->missiles.find("monstercorpseexplode"); goboom && found != game_data->missiles.end()) {
             Missile blast{ &found->second, golem.unit.x, golem.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
             blast.visual_only = true;
             pending.push_back(std::move(blast));
         }
-        d2d::log::info("{} blows up (100 physical, 100 fire)", golem.npc.name);
+        d2d::log::info("{} blows up ({} physical, {} fire)", golem.npc.name, physical_fine >> 8, fire_fine >> 8);
         return true;
     }
 

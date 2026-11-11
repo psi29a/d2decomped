@@ -52,7 +52,7 @@ struct BossInfo {
 namespace umod {
 inline constexpr int rndname = 1, hpmultiply = 2, light = 3, leveladd = 4, strong = 5, fast = 6, curse = 7, resist = 8,
                      fire = 9, poisondead = 10, durieldead = 11, bloodraven = 12, rage = 13, spcdamage = 14, partydead = 15, champion = 16, lightning = 17, cold = 18, scarab = 20, questcomplete = 22, poisonhit = 23, manahit = 25, teleport = 26, spectralhit = 27,
-                     stoneskin = 28, multishot = 29, aura = 30, suicideminion = 33, ai_after_death = 34, shatter = 35, ghostly = 36, fanatic = 37, possessed = 38, berserk = 39;
+                     stoneskin = 28, multishot = 29, aura = 30, goboom = 31, firespike = 32, suicideminion = 33, ai_after_death = 34, shatter = 35, ghostly = 36, fanatic = 37, possessed = 38, berserk = 39;
 }
 
 namespace unique_detail {
