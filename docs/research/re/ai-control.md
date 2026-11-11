@@ -132,3 +132,11 @@ the mode byte at +0x180, skill ID and target. Other paths stand 25 frames.
 `tools/emu/ai_sarcophagus_spawn.py` checks seven normal-difficulty decisions
 with coordinate, room, placement and action helpers hooked; it does not check
 their implementations or the other difficulty rows.
+
+`FUN_005e7f80` reads the current AI command's ID at +8. ID 8 immediately
+unlinks the unit and calls `FUN_005b0e00` with its control and zero. Otherwise
+it scans the group through `FUN_0058f380` and queries `FUN_005dd2b0`; if either
+reports nonzero, or the signed think distance is below 20, it broadcasts a
+command 8 before the same unlink and switch. All paths call `FUN_005de080`
+with 10. `tools/emu/ai_minion_retreat.py` checks six branch combinations with
+these helpers scripted; it does not check the helpers' effects.

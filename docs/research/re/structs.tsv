@@ -4,6 +4,7 @@ affix	0x67	u8	class	the player class that selects class_level, or 0xff	docs/rese
 affix	0x68	u8	class_level	the affix's class-specific required level	docs/research/re/items.md:52
 ai_command	0x00	ptr	next	next command in circular list	docs/research/re/ai-control.md:48
 ai_command	0x04	ptr	previous	previous command in circular list	docs/research/re/ai-control.md:48
+ai_command	0x08	u32	command	command identifier	docs/research/re/ai-control.md:136
 ai_control	0x14	u32	scratch_one	first scratch word	docs/research/re/ai-control.md:3
 ai_control	0x18	u32	scratch_two	second scratch word	docs/research/re/ai-control.md:3
 ai_control	0x1c	u32	scratch_three	third scratch word	docs/research/re/ai-control.md:3
