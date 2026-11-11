@@ -104,3 +104,11 @@ next two outputs, and copies the minion-list head to the fifth. It resets
 owner ID to -1 and clears the list head. Valid monster data and control are
 assumed; `tools/emu/ai_minion_detach.py` tests the valid and early-return
 paths with the flag helper hooked, not malformed monster data.
+
+`FUN_0058f4d0` takes game ECX, unit EDX and five stack arguments. For a
+monster unit it frees the existing minion list using `FUN_0058f350`, passes
+the first four stack arguments with game and unit to `FUN_0058f030`, and
+then stores the fifth as the new list head. A null or non-monster unit is a
+no-op. The oracle `tools/emu/ai_minion_detach.py` checks the call ordering,
+arguments and replacement head, with `FUN_0058f030` and pool free hooked;
+the node-list free runs for real. It does not test malformed monster data.
