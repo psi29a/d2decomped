@@ -113,6 +113,32 @@ inline int stand_quality(const Tables& tables, const std::string& code, int ilvl
     return made_quality(tables, code, 3);
 }
 
+// One TreasureClassEx item cell (FUN_00654440): the code, then comma
+// parameters. "uni" / "uni=N" is flag 1, "set" / "set=N" flag 2; N is the
+// unique / set index (entry +0xa). Gold keeps "gld,mul=N" as its code (the
+// roll reads the multiplier). Quotes around the cell are dropped.
+struct TreasureEntry { std::string code; int flags = 0; int index = 0; };
+inline TreasureEntry treasure_entry(std::string cell) {
+    std::erase(cell, '"');
+    TreasureEntry entry;
+    const auto comma = cell.find(',');
+    if (comma == std::string::npos) { entry.code = std::move(cell); return entry; }
+    entry.code = cell.substr(0, comma);
+    if (entry.code == "gld") { entry.code = std::move(cell); return entry; }
+    std::size_t cursor = comma;
+    while (cursor < cell.size()) {
+        const auto next = cell.find(',', cursor + 1);
+        const auto token = cell.substr(cursor + 1, (next == std::string::npos ? cell.size() : next) - (cursor + 1));
+        const auto equals = token.find('=');
+        const auto key = token.substr(0, equals);
+        const int value = equals == std::string::npos ? 0 : std::atoi(token.c_str() + equals + 1);
+        if (key == "uni" || key == "unique") { entry.flags |= 1; entry.index = value; }
+        else if (key == "set") { entry.flags |= 2; entry.index = value; }
+        cursor = next == std::string::npos ? cell.size() : next;
+    }
+    return entry;
+}
+
 // A gold pile's coins (FUN_00557ab0, the first draw on the new item's
 // unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
 // a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
@@ -165,8 +191,11 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
             if (roll < nodrop) continue;
             roll -= nodrop;
         } else if (roll >= total) break;
-        for (const auto& [name, chance] : treasure.items) {
+        for (std::size_t entry = 0; entry < treasure.items.size(); ++entry) {
+            const auto& name = treasure.items[entry].first;
+            const int chance = treasure.items[entry].second;
             if (roll >= chance) { roll -= chance; continue; }
+            const int flags = entry < treasure.entry_flags.size() ? treasure.entry_flags[entry] : 0;
             if (const auto sub = tables.treasure.find(name); sub != tables.treasure.end()) {
                 if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, shares, magic_find, depth + 1, forced)) return false;
             } else if (name.starts_with("gld")) {
@@ -174,7 +203,18 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
                 out.push_back({ "gld", forced ? forced : 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) });
                 if (++count >= max) return false;
             } else if (tables.item_info.contains(name)) {
-                out.push_back({ name, forced ? forced : roll_quality(tables, name, ilvl, mod, rng, magic_find) });
+                // FUN_0055a6d0 step 4: forced quality, else 7 / 5 for a unique /
+                // set entry (flags 1 / 2), else the quality roll. A zero flag
+                // modifier (flag_mod, bin +0x30 / +0x32; the txt chances are 0)
+                // does not draw. Set 29 is not decided here: it drops only from
+                // a Hell Bovine (flag 1 on the made item, FUN_005c25c0).
+                int quality = forced;
+                if (quality == 0) {
+                    if ((flags & 1) != 0) quality = 7;
+                    else if ((flags & 2) != 0) quality = 5;
+                    else quality = roll_quality(tables, name, ilvl, mod, rng, magic_find);
+                }
+                out.push_back({ name, quality });
                 if (++count >= max) return false;
             }
             break;
@@ -192,10 +232,12 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // whose running weight passes n (the Countess: her item TC, then her rune
 // TC), stopping at the weights' total. At most `max` items (6) in all.
 // A nonzero `forced` quality (a chest round's) replaces the quality roll, gold's too.
-// ponytail: TreasureClassEx's unique / set item entries (flags 1 / 2: Cow
-// King's classes only, a later-game level) and the m4 / m5 flag draws (bin +0x30 / +0x32,
-// always 0) aren't here; every item counts (game.exe doesn't count one
-// FUN_00555da0 finds no floor for, but Loot::drop_at always places one).
+// A unique / set entry (flags 1 / 2) is quality 7 / 5 and skips the quality roll.
+// Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
+// ponytail: every item counts (game.exe doesn't count one
+// FUN_00555da0 finds no floor for, but Loot::drop_at always places one);
+// the unique / set index (entry +0xa) is stored and not applied when the
+// item is made (struct +0x40).
 // With `players` in the game and `nearby` of the killer's party on its
 // level (FUN_005408e0; a lone killer 1), NoDrop rolls for n = nearby +
 // (players - nearby) / 2 (drops.md "Rolling"); a monster dropper (unit type

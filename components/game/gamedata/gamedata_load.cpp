@@ -1039,9 +1039,12 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {},
                                                       number("group"), number("level"), {} };
             for (int i = 1; i <= 10; ++i) {
-                auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
-                std::erase(item, '"');
-                if (!item.empty() && number("Prob" + std::to_string(i)) >= 1) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
+                const auto entry = d2d::rules::treasure_entry(std::string(tcx.get(row, "Item" + std::to_string(i))));
+                if (!entry.code.empty() && number("Prob" + std::to_string(i)) >= 1) {
+                    treasure_class.items.emplace_back(entry.code, number("Prob" + std::to_string(i)));
+                    treasure_class.entry_flags.push_back(entry.flags);
+                    treasure_class.entry_index.push_back(entry.index);
+                }
             }
             std::string name(tcx.get(row, "Treasure Class"));
             if (last_group != 0 && treasure_class.group == last_group) game_data.rules.treasure[last_name].next = name;
