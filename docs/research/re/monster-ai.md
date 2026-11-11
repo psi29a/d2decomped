@@ -554,7 +554,8 @@ unit's death).
   its A1 damage (`FUN_006538a0` kind 8: MonLvl-scaled A1MinD / A1MaxD at
   out[5] / [6]) rolled on its seed, x 256 as physical (+8), and by its
   aip1 (MonStats +0x56): 1 fire (+0x10), 2 up cold (+0x24) for aip1 frames
-  (+0x30); missile 426 suicidecorpseexplode on it (`FUN_0056ecb0`); the
+  (+0x30); on it (`FUN_0056ecb0`) missile 427 suicidefireexplode for
+  fire, 428 suicideiceexplode for cold, else 426 suicidecorpseexplode; the
   blast within aip4 (+0x68) through `FUN_0057e090` (flags 0x581).
 
 d2d: `ai.cpp` (`castable`, the action-frame dispatcher, the whirl block,

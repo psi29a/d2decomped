@@ -311,7 +311,9 @@ inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& 
 // primepoisoncloud), 4 trap-nova's Skill1 Trap Nova (a nova of trapnova);
 // 5 / 7 fires (FUN_00582380), 8 undead (FUN_005822f0).
 // The missiles a unique's mods fire (uniques.hpp): loaded with the rest.
-inline constexpr std::array<const char*, 3> kBossMissile{ "lightunique", "coldunique", "monstercorpseexplode" };
+// A suicide minion's blast's look (FUN_005a3ef0: 426..428) too.
+inline constexpr std::array<const char*, 6> kBossMissile{ "lightunique", "coldunique", "monstercorpseexplode",
+                                                          "suicidecorpseexplode", "suicidefireexplode", "suicideiceexplode" };
 inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
                                                           "", "trapfirebolt", "", "" };
 // The trap a chest's event 4 springs (FUN_005817a0, 35 frames after it
