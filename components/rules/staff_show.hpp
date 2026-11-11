@@ -17,6 +17,7 @@ namespace staff_show {
 // Missiles.txt rows: the staff, its beams, the lightning at the way down, the dust there.
 inline constexpr int kStaff = 338, kBeam = 340, kLightning = 339, kDust = 150;
 inline constexpr int kStaffRange = 440;            // the staff's Range: its frames
+inline constexpr int kLightJet = 0xb5;              // Overlay.txt light_jet, once on the orifice (FUN_00470390 kind 2)
 // The way down's spot from the orifice's, subtiles (FUN_0059d870 and the lightning's target).
 inline constexpr int kWayDownX = -13, kWayDownY = 3;
 

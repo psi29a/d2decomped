@@ -134,7 +134,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    bool show_items,               // Alt held: every ground item's name
                    const Hud& hud,
                    std::vector<std::uint8_t>* wide, std::pair<float, float> player_offset, bool player_spirit,
-                   std::span<const d2d::rules::OverlayClock> alert_clocks) {
+                   std::span<const d2d::rules::OverlayClock> alert_clocks,
+                   std::span<const ObjectFlash> object_flashes) {
     // Widescreen: the world (and its labels) draw on `wide`; its centre
     // 800x600 is then copied into `framebuffer`, where the HUD and panels draw
     // as at 800x600. Mouse x is relative to that centre, so the world's is
@@ -205,6 +206,9 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             units.back().hold = holds(npc, state);
             frames_of(npc, state, units.back());
             units.back().name_offset = npc.name_offset;
+            for (const auto& object_flash : object_flashes)   // played once from its start (FUN_00470390 kind 2)
+                if (object_flash.npc == int(i) && object_flash.row >= 0 && std::size_t(object_flash.row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(object_flash.row)])
+                    units.back().overs.push_back({ scene.overlay_rows[std::size_t(object_flash.row)], object_flash.start, true });
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
         // gate, Flavie, patrolling rogues), where they are now: D2 draws the

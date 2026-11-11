@@ -14,13 +14,14 @@
 namespace d2d::client {
 
 // 0x89 {event}: 3, the staff in the orifice (0x46b100), finds the orifice
-// (FUN_0065a620: class 0x98, in the player's room; d2d: OperateFn 25) and starts its light
-// show there; no orifice, nothing.
+// (FUN_0065a620: class 0x98, in the player's room; d2d: OperateFn 25) and
+// starts its light show there, light_jet on it once (FUN_00470390 kind 2);
+// no orifice, nothing.
 auto ClientSession::unique_event(int event, std::uint32_t frame_ms) -> void {
     if (event != 3 || !level) return;
     const auto orifice = std::ranges::find(level->npcs, d2d::rules::operate_fn::kOrifice, &Npc::operate_fn);
     if (orifice == level->npcs.end()) return;
-    staff_show = { .playing = true, .x = orifice->x, .y = orifice->y, .born = frame_ms };
+    staff_show = { .playing = true, .level = level, .orifice = int(orifice - level->npcs.begin()), .x = orifice->x, .y = orifice->y, .born = frame_ms };
     d2d::log::info("The Horadric Staff: its light show starts");
 }
 
