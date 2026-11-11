@@ -5,7 +5,8 @@ were cited or untouched in the gap map generated at source `1265c32d`.
 Evidence read: the local stock 1.14d Ghidra export `game_all.c`, with the
 matching `research/game114d.asm` instruction listing checked for register
 arguments, stack cleanup, dispatch and no-op bodies. These are static
-observations, not emulator results or claims of runtime parity.
+observations unless a later oracle is explicitly named below; they are not
+claims of d2d runtime parity.
 
 The decompiler loses register arguments. In particular `FUN_0055bff0`
 takes the item in ESI; `FUN_0055c070`/`FUN_0055c110` take item in EAX and
@@ -17,7 +18,7 @@ ordinary failure returns.
 |---|---|
 | `FUN_0055bed0` | ECX unit, EDX client. Return unless unit is nonnull, unit flags `+0xc4` lack `0x10`, and mode `+0x10` is 3. Resolve the client's player with `FUN_00537860(client,0)`; send through `FUN_0053ec90` when unit flag `0x1000` is set, otherwise `FUN_0053ecf0`, passing client, player, unit and trailing zero. Those wrappers select item actions 2 and 3 respectively. |
 | `FUN_0055bf30` | ECX unit, EDX client: call `FUN_0055bed0` only for a nonnull unit with bit 0 of flags `+0xc4` set. |
-| `FUN_0055bff0` | Assert ESI item nonnull. Require item type scroll `0x16` or book `0x12`; use suffix slot 0 as Books-table index through `FUN_006374b0`. Return Books record dword `+8` for scrolls, `+0xc` for books, otherwise -1. Scroll classification wins when both type tests pass. |
+| `FUN_0055bff0` | Assert ESI item nonnull. Require item type scroll `0x16` or book `0x12`; use suffix slot 0 as Books-table index through `FUN_006374b0`. Return Books record dword `+8` for scrolls, `+0xc` for books, otherwise -1. Scroll classification wins when both type tests pass. Oracle `tools/emu/item_books_skill.py` checks 16 combinations with type, suffix and table lookups hooked; the null-item assertion is not exercised. |
 | `FUN_0055c070` | Assert EDI player and EAX item nonnull. Resolve the item's Books skill with `FUN_0055bff0`, then find that player's skill node with owner -1. If found, add the signed stack argument directly to the node count, without a local clamp; write it through `FUN_00645120`, then send player type/id, skill id and new count through `FUN_0053c520`. Unknown skill or absent node does nothing. |
 | `FUN_0055c110` | Add/remove the item's contribution to its Books skill count. Unknown skill returns 0. Contribution is stat `0x46` (quantity); zero quantity returns 0 for books, otherwise contributes 1. On add, an absent node causes stat 5 to be incremented and `FUN_00570080` to learn the skill before relookup; failed relookup asserts. Existing nodes add quantity; remove requires a node and clamps subtraction to zero. Set and send the count; on zero clear each selected hand referencing that exact node via `FUN_005701b0(player,hand,0,-1)`, hand 1 for left, 0 for right. Return 1 after updating. |
 | `FUN_0055c270` | ECX owner, EDX item: assert both nonnull, and only for player unit type 0 call `FUN_0055c110(1)` with EDI=owner and EAX=item. |
