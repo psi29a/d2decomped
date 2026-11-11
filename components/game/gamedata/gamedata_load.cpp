@@ -736,6 +736,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto portal = [&](int oid, Npc& look) { Level one; add(one, oid, 0, 0); if (!one.npcs.empty()) look = std::move(one.npcs[0]); };
         portal(59, game_data.town_portal);                    // the town portal
         portal(60, game_data.red_portal);                     // the permanent (red) one
+        portal(100, game_data.duriel_portal);                 // the true tomb's way down (FUN_0059d870)
         portal(189, game_data.cain_portal);                   // Cain's
     }
     for (const auto& object : game_data.town.ds1.objects())

@@ -809,6 +809,7 @@ struct GameData {
     Npc afterglow;                                         // object 131 (9b), OP: the "vile dog afterglow" the Dark Wanderer leaves
     Npc town_portal;                                       // object 59 (TP): a town portal's look and light
     Npc red_portal;                                        // object 60 (PP): a permanent (red) portal's (World::portal_object)
+    Npc duriel_portal;                                     // object 100 (SJ): the true tomb's way down to Duriel's Lair
     Npc cain_portal;                                       // object 189 (tP: TP's files): Tristram Cain's and the cages' portals
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     std::unordered_map<std::string, std::string> gem_letters;   // gems.txt letter by code (the runes'; gems.txt +0x20)
