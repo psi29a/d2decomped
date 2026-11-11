@@ -92,8 +92,11 @@ struct TradeRefused { d2d::rules::Trade result = d2d::rules::Trade::no_gold; };
 // The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
 // frames and the level it's for.
 struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
+// An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
+// 7 refused}, FUN_00579d60): the client shuts its item panel.
+struct ServiceResult { int npc = -1; bool done = false; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP

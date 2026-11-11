@@ -101,8 +101,10 @@ struct Respec { int npc = -1; };
 // 0x38 (game.exe's kind 0, arg the level): Warriv's caravan, "Go East" to
 // Lut Gholein (warriv1) or "Go West" back to the camp (warriv2).
 struct Caravan { int npc = -1; };
-// 0x38 (game.exe's kind 0 at Charsi): imbue the item in hand.
-struct Imbue { int npc = -1; };
+// 0x38 (game.exe's kind 0 at Charsi, Larzuk or Anya, FUN_004b2370): their
+// service on the item in hand, `item` its id (the server checks it's the
+// cursor item, FUN_00578610).
+struct Imbue { int npc = -1; int item = -1; };
 // 0x53 / 0x54: run or walk.
 struct Run { bool running = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
@@ -270,7 +272,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(opcode::kChat).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(opcode::kQuestMessage).i32(message.npc).i32(message.string);
         else if constexpr (std::is_same_v<T, cmd::Caravan>) out.u8(opcode::kNpcDeal).u8(npc_deal::kCaravan).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(opcode::kNpcDeal).u8(npc_deal::kImbue).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(opcode::kNpcDeal).u8(npc_deal::kImbue).i32(message.npc).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Waypoint>) out.u8(opcode::kWaypoint).i32(message.npc).i32(message.level);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, command);
@@ -318,7 +320,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
-            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc } } : kind == npc_deal::kCaravan ? Command{ cmd::Caravan{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }
+            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc, i32() } } : kind == npc_deal::kCaravan ? Command{ cmd::Caravan{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }
                     : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
             break;
         }

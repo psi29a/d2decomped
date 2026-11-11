@@ -250,36 +250,40 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // Charsi's imbue (FUN_00579d60, kind 0 at hcIdx 0x9a): while it's
         // due (quest 3 bit 1), the item in hand made anew, rare; the
         // reward's used (FUN_00591790).
-        // ponytail: no S->C 0x58 result (waits for networking); the new item stays in hand.
         // The same C->S 0x38 kind 0 at Larzuk (0x1ff: quest 0x23 bit 1) sockets
         // the item in hand (socket_item, FUN_005877c0), at Anya (0x200: quest
         // 0x26 bit 1) puts the player's name on it (flag 0x1000000, FUN_0058bc00).
+        // Not the cursor item: no answer (FUN_00578610, 0x579f75). Else S->C
+        // 0x58 answers 7, refused (0x579fc6, 0x57a002, 0x57a2e6, 0x57a54a), or
+        // 6, done (0x57a1b4, 0x57a488, 0x57a63f): ev::ServiceResult.
+        // ponytail: the new item stays in hand; game.exe puts it back (FUN_00560200) or drops it.
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
-            if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held) return true;
+            if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held || actor->held->id != imbue->item) return true;
             const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;
+            const auto answer = [&](bool done) { actor->events.push_back(ev::ServiceResult{ imbue->npc, done }); return true; };
             if (service_npc == d2d::rules::SiegeQuest::kLarzuk) {
-                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(item_rules, *actor->held)) return true;
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(item_rules, *actor->held)) return answer(false);
                 actor->held = d2d::rules::socket_item(item_rules, *actor->held);
                 siege.socketed(quests());
                 d2d::log::info("Siege on Harrogath: Larzuk put {} sockets in the {}", actor->held->sockets, actor->held->code);
-                return true;
+                return answer(true);
             }
             if (service_npc == d2d::rules::BetrayalQuest::kAnya) {
-                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(item_rules, *actor->held)) return true;
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(item_rules, *actor->held)) return answer(false);
                 actor->held->personalized = true;
                 actor->held->owner = actor->character.header.name;
                 betrayal.personalized(quests());
                 d2d::log::info("Betrayal of Harrogath: Anya personalized the {}", actor->held->code);
-                return true;
+                return answer(true);
             }
-            if (service_npc != d2d::rules::monster_ids::kCharsi
-                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held, actor->character.expansion)) return true;
+            if (service_npc != d2d::rules::monster_ids::kCharsi) return true;
+            if (!d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held, actor->character.expansion)) return answer(false);
             auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);
             tools.imbued(quests());
             d2d::log::info("Tools of the Trade: Charsi imbued the {}", actor->held->code);
-            return true;
+            return answer(true);
         }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { actor->running = run->running; return true; }
         if (const auto* chat = std::get_if<cmd::Chat>(&command)) {

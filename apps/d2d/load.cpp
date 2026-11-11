@@ -145,6 +145,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\PANEL\gemsocket.dc6)", scene.gem_socket);
     sprite(R"(data\global\ui\MENU\dialogbackground.dc6)", scene.gold_dialog);
     sprite(R"(data\global\ui\MENU\spinner.dc6)", scene.spinner);
+    sprite(R"(data\global\ui\MENU\upgrade.dc6)", scene.use_item_panel);
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
         auto& graphics = scene.type_invgfx[code];

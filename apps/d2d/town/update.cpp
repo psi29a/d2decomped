@@ -138,6 +138,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
             std::erase_if(keys_this_frame, [](const auto key) { return key != SDLK_ESCAPE; });   // the Enter it closed on hires nothing, opens no chat
         }
+        // An NPC's item panel (UI 0xe) takes the clicks and Esc first (town/use_item.cpp).
+        if (!gold_box && !game_menu.open) drive_use_item(mouse, keys_this_frame, audio);
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
         if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
@@ -517,17 +519,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         // A keeps the ordinary inventory pickup/move action, including usable tomes.
         // Use starts Identify; the active Identify branch above accepts A to confirm.
-        // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
-        if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {
-            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
-            if (click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd)) {
-                net.send(*click.cmd);
-                net.send(cmd::Imbue{ imbue_with });
-            }
-            imbue_with = -1;
-            item_click = true;
-        }
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && !pad_a_edge && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
@@ -557,8 +548,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                 { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
-            if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too
-            else if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
+            if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
             else if (used != character.items.end() &&
                      (((pad_playing && pad_config.skill_buttons) || touch_enabled) ? item_use(*used).kind == ItemUseKind::Identify : (used->code == "isc" || used->code == "ibk"))) {
                 identify_with = used->id;
@@ -881,16 +871,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kResurrectMerc) {
                 net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {
-                // 0x4b35b0: the menu closes and the inventory opens; the
-                // server imbues the item in hand (C->S 0x38 kind 0).
-                // ponytail: game.exe opens a one-slot item panel (0x4c0620):
-                // the item in hand goes in its slot, identified and
-                // imbuable only (FUN_004bfc50), and the panel's button sends
-                // (FUN_004bfaf0). Here an item in hand goes at once, else
-                // the next click on an item takes it up and sends
-                // (act1-end.md "Imbue").
-                if (held) net.send(cmd::Imbue{ who });
-                else { imbue_with = who; inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
+                open_use_item(who);                             // 0x4b35b0: the menu shuts, the item panel opens (0x4c0620)
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), frame_ms);
                 send(cmd::QuestMessage{ who, npc_menu_arg });

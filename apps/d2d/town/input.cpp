@@ -465,7 +465,7 @@ auto Town::take_focus(int id) -> void {
         // Whatever the last owner had open shuts (it's theirs, not the next one's).
         inv_open = char_open = stash_open = cube_open = tree_open = belt_open = false;
         quest_log.open = false; automap.open = false; skillbar.picking = 0;
-        npc_menu = {}; speech = {}; waypoint = {}; store = {}; menu_after_speech = -1;
+        npc_menu = {}; speech = {}; waypoint = {}; store = {}; use_item = {}; menu_after_speech = -1;
         focus = id == hero.id ? 0 : id;
         auto& owner = focused();
         static_cast<Character&>(character) = owner.character;
@@ -676,7 +676,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         query.shop = store.npc >= 0;
         query.gamble = store.gamble;
         query.identify = identify_with >= 0;
-        query.imbue = imbue_with >= 0;
+        query.imbue = use_item.open();
         query.hand_empty = !held;
         query.bag = item != nullptr;
         query.store_mode = store.mode;
@@ -818,7 +818,7 @@ auto Town::pad_panel() const -> int {
 auto Town::pad_tab(int step) -> void {
         if (store.npc < 0) {
             const int current = pad_panel();
-            if (current < 0 || held || identify_with >= 0 || imbue_with >= 0 || gold_box) return;
+            if (current < 0 || held || identify_with >= 0 || use_item.open() || gold_box) return;
             const int next = (current + (step > 0 ? 1 : 5)) % 6;
             if (game_menu.open) close_game_menu();
             inv_open = char_open = tree_open = quest_log.open = party.open = false;

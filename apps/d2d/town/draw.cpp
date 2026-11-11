@@ -332,6 +332,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                        trade.our_gold, nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
         draw_portraits(framebuffer, left_panel_open());
+        use_item::draw(framebuffer, *scene, use_item, held ? &*held : nullptr, mouse.x, mouse.y, frame_ms);
         if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
         draw_chat(framebuffer, left_panel_open(), inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
@@ -402,14 +403,14 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                     tabs += index == active ? "] | " : " | ";
                 }
                 tabs += "> " + label(pad::Action::TabNext);
-                const bool blocked = held || identify_with >= 0 || imbue_with >= 0 || gold_box;
+                const bool blocked = held || identify_with >= 0 || use_item.open() || gold_box;
                 for (int pixel_y = 4; pixel_y < (blocked ? 50 : 32); ++pixel_y)
                     for (int pixel_x = 4; pixel_x < int(kScreenWidth) - 4; ++pixel_x) {
                         auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
                         pixel[0] /= 4; pixel[1] /= 4; pixel[2] /= 4;
                     }
                 scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 14, tabs);
-                if (held || identify_with >= 0 || imbue_with >= 0 || gold_box)
+                if (held || identify_with >= 0 || use_item.open() || gold_box)
                     scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 34, "Finish or cancel the item action to switch panels");
             }
         }

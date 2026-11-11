@@ -1646,7 +1646,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // D2 plays the grab frames in between.
             const int cursor_dx = (fb_width(framebuffer) - int(kScreenWidth)) / 2;
             bool os_cursor = false;   // the OS shows the gauntlet this frame (hw_cursor.hpp)
-            if (screen == Screen::InGame && town.held) {
+            if (screen == Screen::InGame && town.held && !town.use_item.placed()) {   // placed in an item panel: the hand (FUN_00468070(0))
                 draw_held(framebuffer, *scene, *town.held, mouse.x + cursor_dx, mouse.y);
             } else if (screen == Screen::InGame && town.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
                 // An identify pick: cursor state 6, buysell's frame = Books.txt
