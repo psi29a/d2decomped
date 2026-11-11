@@ -48,6 +48,9 @@ address	name	evidence
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4b0	skill_row	ECX skill id: id*0x23c + [0x744304]+0xb98, 0 when id < 0 or >= [0x744304]+0xba0; no assert (cited, decompile only; skills.md "Iron Maiden's event function")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
+004609f0	player_stat_change_hook	EDX unit, stack source, stat<<16|layer, unused, value; RET 0x10: stats 0x59 / 0x5a forward, 0x61 / 0x6b add or remove the layer's skill, 0xcc the charged skill (unit-player-trace.md)
+00460bf0	client_player_unit_init	ECX unit, EDX room, stack x, y; RET 8: path, inventory, stat hook FUN_004609f0, stats 0x43..0x45 = 100, light, player data (unit-player-trace.md)
+00460d50	client_player_unit_free	ECX unit: frees gfx, path, inventory, light and player data, tail jump FUN_004608c0; no null check (unit-player-trace.md)
 00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
 00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
 00461250	client_unit_command	fastcall (ECX command, EDX unit, record, flag) RET 8: prelude (skill list +0x14, FUN_004611f0, FUN_00620210, path restore) then the switch at 0x4616a4, mode set by FUN_00480e70 (collision.md "The client's command switch")
