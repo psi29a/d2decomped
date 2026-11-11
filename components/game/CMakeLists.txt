@@ -39,6 +39,12 @@ add_library(game STATIC
     world/travel.cpp
     world/view.cpp
 )
+# GCC 14 reads ev::Event's copies (a std::variant with ev::Message's strings)
+# in these as maybe uninitialized: a false alarm, a warning here, not an error.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(world/quests/act1.cpp world/quests/act4.cpp world/quests/act5.cpp world/quests/shared.cpp world/tick.cpp
+                                PROPERTIES COMPILE_OPTIONS -Wno-error=maybe-uninitialized)
+endif()
 target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/character
                                        ${CMAKE_CURRENT_SOURCE_DIR}/gamedata ${CMAKE_CURRENT_SOURCE_DIR}/npc)
 target_link_libraries(game PUBLIC log mpq d2s rules drlg txt userdir install_detect cof compcode ds1 dt1 tbl)
