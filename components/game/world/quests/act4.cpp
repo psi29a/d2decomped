@@ -11,6 +11,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
+#include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act4.hpp>
 #include <rules.hpp>
@@ -186,6 +187,13 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 } else if (!quest::bit(bits, kTerrorQuest, 0) && !quest::bit(bits, kTerrorQuest, 1)) quest::set(bits, kTerrorQuest, 14);
             });
             if (!terror.dead) { terror.dead = true; if (terror.open) { terror.log = 13; terror.news = true; } }   // no one by him: the record's death all the same
+            // FUN_005b49c0: each player with bit 13 gets unit event 0x4b, the client's
+            // quest music (act4_kill_diablo, music_quest_diablo; rules::QuestMusic).
+            each_player([&](Player&) {
+                if (!quest::bit(quests(), kTerrorQuest, 13)) return;
+                class_cue("act4_kill_diablo", d2d::rules::quest_line_due(0x4b, now_ms));
+                music_cue("music_quest_diablo");
+            });
             if (!expansion) {
                 diablo_dead_at = std::max(now_ms, 1u);
                 end_movie = d2d::rules::quest::bit(quests(), kTerrorQuest, 13);
