@@ -1510,3 +1510,35 @@ here was compared against a d2d equivalent — the already-verified caller
 Re-check: `python3 tools/ghidra/fn.py 004ca900 004caa10 004b9ca0
 004ba790`; disassemble `004ca900`..`004ca98f` and `004caa10`..`004caa6c`
 to confirm the ECX/EDX argument order above.
+
+### A room's floor-tile lookup by subtile: `FUN_004cace0` (batch 8)
+
+`FUN_004cace0` (0x74 bytes, `004cace0`..`004cad54`, plain `RET`, no stack
+args) sits right after the sound cluster above and is the only caller's
+dependency of `FUN_004cadb0` (already `d2d verified`:
+`fight.hpp:469`, `sound_ids.hpp:118,122`, `unit-sounds.md:252,256`), which
+calls it in a loop over near rooms when its own room lookup misses. Its
+three arguments are register-passed in the same EAX/EDX/ECX order as the
+getters above (confirmed in disassembly): **EAX** a y subtile, **EDX** the
+room, **ECX** an x subtile. It calls `FUN_00619730(room, &rect)` (the
+room's rect, already cited above at line 8, "The grid") to get the room's
+origin, subtracts it from the x and y arguments, divides each by 5 (the
+tile-to-subtile ratio the grid section already gives: 5x5 subtiles per
+tile), then calls `FUN_00619660(room, &count)` (also already cited above
+at line 10) to get the room's floor-tile list and count. It walks that
+list's 0x30-byte-stride records (the same record size "The grid" section
+names) comparing each record's `+8` field against the x-in-tiles value
+and `+0xc` against the y-in-tiles value; the first match returns a
+pointer to that record's start, and an empty or exhausted list returns 0.
+So `FUN_004cace0(y, room, x)` finds the floor-tile record under a given
+subtile position within one room — a lookup helper for the same
+DT1-tile-record layout "The grid" section already describes, not a new
+one. Not traced: what a caller does with the returned record beyond the
+match/no-match the two outer functions above use it for. d2d: not ported
+as a function; `Level::walk`/`set_level_tiles` (already cited at "The
+grid" above) build d2d's own per-subtile flags without a one-to-one
+per-tile-record lookup, so there is nothing here to disagree with.
+
+Re-check: `python3 tools/ghidra/fn.py 004cace0 004cadb0 00619660
+00619730`; disassemble `004cace0`..`004cad54` to confirm the
+EAX=y/EDX=room/ECX=x argument order.
