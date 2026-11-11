@@ -328,7 +328,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
-        const bool in_moor = !in_town(level);     // outside: this level's monsters are about
+        bool in_moor = !in_town(level);           // outside: this level's monsters are about
+        const Level* tick_level = level;
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then Resurrect respawns in camp; a
         // swing or a flinch holds the player in place until it ends, and
@@ -507,6 +508,17 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             }
             }
         });
+        in_moor = !in_town(level);                // a command above may have changed levels
+        if (level != tick_level) {
+            crowd.units.clear();
+            for (const auto& player : players) {
+                crowd.units.push_back(&player->player);
+                if (player->merc) crowd.units.push_back(&player->merc->unit);
+            }
+            for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
+            if (in_moor) fight.crowd(crowd);
+        }
         leash(before);
         // The world goes on with the player dead (game.exe runs the rooms
         // around the corpse till the respawn): monsters see the dead player
