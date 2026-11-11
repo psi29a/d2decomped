@@ -324,9 +324,12 @@ E. **Monsters** — spawning done: game.exe's monster region and room
 
 ## Later research (noted, not scheduled)
 
-- **Render paths**: the DirectDraw, Direct3D, Glide and OpenGL back ends
-  (lighting, blends, shadows, perspective). What d2d could do with them in
-  `docs/design/rendering.md`.
+- **Render paths** (traced 2026-11-11: `docs/research/re/video-drivers.md`).
+  Wanted eventually, in this order (`docs/design/rendering.md` "Features
+  we want, eventually"): Gamma and Contrast that apply (todo.md #52; the
+  default, 155 as DirectDraw or 100 as `-w`, is decided then); the 3D
+  drivers' hit silhouette and coloured light, behind toggles; perspective,
+  once there's a draw list and a GPU back end.
 
 ## Skills: where they stand (2026-09-26)
 

@@ -1,93 +1,99 @@
-# Rendering — looking better, the Glide way
+# Rendering — what d2d draws, and what game.exe's 3D drivers could add
 
-Status: design notes, nothing built. Written 2026-09-25 against the code as
-of commit ffc527c. The research into game.exe's render paths (the
-DirectDraw, Direct3D, Glide and OpenGL back ends) is listed under "Later
-research" in `docs/PLAN.md`.
+Status: design notes. First written 2026-09-25; rewritten 2026-11-11 once
+game.exe's drivers were traced. What game.exe does is in
+[video-drivers.md](../research/re/video-drivers.md) (the four drivers and
+their 54 slots) and [lighting.md](../research/re/lighting.md) (the software
+light); this page is only what d2d could do with it.
 
-## What D2's renderers did
+## What game.exe has
 
-game.exe carries several back ends (strings: `glide3x.dll`,
-`grGlideInit`, "Error 23 … initializing Glide", "Error 24 … initializing
-OpenGL", DirectDraw and Direct3D paths). The software one (DirectDraw)
-draws 8-bit palettised pixels, doing blends and light through PL2 lookup
-tables. The 3D ones (Glide above all) drew the same sprites as textured
-quads and got, for free or cheaply:
-
-- **Real transparency**: 25 / 50 / 75 % blends, additive (fire, spells,
-  missiles), darken (shadows) done by the card instead of by table.
-- **Smooth lighting**: a light level per tile corner, interpolated across
-  each floor and wall, so light pools and fades instead of stepping; light
-  from the player's radius, torches, fires, missiles and spells, coloured
-  where the source is (Missiles.txt Red / Green / Blue, objects' lights).
-- **Shadows**: units cast a darkened, skewed copy of their sprite (MonStats2
-  `Shadow`), and tile shadow layers blend at 50 % instead of drawing
-  opaque.
-- **Tints**: frozen units blue, poisoned green, cursed and item colours,
-  through colormaps.
-- **Perspective mode**: the floor tilted into a slight 3D perspective
-  (Glide / Direct3D only).
-- **Smoother weather and effects**: rain, snow and spell overlays blended.
+Four drivers: GDI (`-w`) and DirectDraw (the default) draw 8-bit pixels
+through PL2 tables; Glide (`-3dfx`) and Direct3D (`-d3d`) draw the same
+cels as textures. OpenGL and RAVE are names with no driver. The engine
+above the drivers is the same for all four, except a handful of slots the
+software drivers leave empty: those are the whole of "the 3D look".
 
 ## Where d2d stands
 
-- A CPU framebuffer, 800×600 RGBA; sprites are palette-indexed and
-  converted to RGB at blit time (`blit_sprite`, `blit_dt1_tile`,
-  `blit_dcc_frame`).
-- Floors are queued in the sweep's order, then drawn in horizontal bands
-  on up to four threads (`draw_in_bands`, tile_blit.cpp), the same bytes
-  as one pass; walls, units and the rest draw on the main thread.
-- PL2 (`components/palette`) parses only the additive and 50 % blend
-  tables; used by the frontend fire, not in game.
-- Shadow tiles draw opaque; no unit shadows; no light (the whole screen at
-  full brightness); no tints; no blend modes on units or missiles; walls
-  sort per cell.
+d2d copies the software drivers, onto an RGBA framebuffer:
 
-## The key decision: a draw list
+- Floors, walls and roofs lit from the light grid (per pixel, a little
+  smoother than game.exe's 32-pixel blocks: deviations.md approximation 2),
+  floors drawn in bands on up to four threads (`draw_in_bands`).
+- Tile shadows at a quarter, unit shadows, the COF draw modes (all but mode
+  6), state colour shifts and item colours. Blends are done in RGB, not
+  through the PL2 tables' nearest colour (approximation 1).
+- Additions game.exe never had: widescreen (`--widescreen`, the world wider
+  than 800, the panels at the centre), borderless fullscreen, the window's
+  scale filter (`scalemode`), cinematics in a window (game.exe's GDI driver
+  has no cutscene mode, so `-w` skips them).
+- Not there: Gamma and Contrast (the rows move, nothing applies them),
+  Light Quality (always high), the 640×480 resolution, and everything 3D
+  below.
 
-Everything above wants the same change: instead of blitting straight into
-pixels, the world renderer produces a **draw list** — sprite, position,
-depth, blend mode, light (per corner), tint — and a back end turns it into
-pixels. Then:
+## Features we want, eventually
 
-- A **CPU back end** (today's code, extended) keeps the authentic 8-bit
-  look through PL2 tables: blends, light levels and tints as D2's software
-  renderer did them.
-- A **GPU back end** (SDL3's GPU API, or OpenGL) does what Glide did:
-  hardware blending, interpolated light, perspective, higher resolutions
-  and widescreen, all from the same list.
-- Depth sorting (units against walls per subtile, not per cell) moves into
-  one place.
+Wanted, not scheduled (2026-11-11; PLAN.md "Later research"). Ranked by
+what a player sees for the work. All but the last fit the CPU path d2d
+has now.
 
-## Steps, in order
+1. **Gamma and Contrast that work.** game.exe's DirectDraw driver runs the
+   palette through one ramp (`FUN_006be190`; at contrast 100, entry i =
+   min(255, i × gamma / 100)), and its default gamma is 155: a default
+   install shows every colour at 1.55 times, the top third clipped. d2d
+   converts palette to RGB at each blit, so this is one 256-entry table
+   rebuilt when a slider moves. Start the rows where game.exe does
+   (Gamma at 10 of 0..20, Contrast at 99), save them in d2d.cfg, and freeze
+   the oracle's ramps (`tools/emu/video_drivers.py gamma`) as a test.
+   - **Open, decided when it's picked up:** the default. 155 is the default fullscreen look
+     (DirectDraw); 100 is `-w`'s, which is what every live check so far
+     compared against (`make run og` runs `-w`). Suggested: 155 as
+     game.exe ships, the checks pinned to 100. First take one live
+     DirectDraw screenshot to confirm the brightening on screen.
+   - Cost: half a day with the test.
+2. **The hit silhouette** (Glide / Direct3D only). A monster that's hit
+   or blocks gets its sprite drawn in its life colour (green, yellow, red,
+   or blue for some) for 3 draws, offset a pixel, behind it
+   (video-drivers.md "What the 3D drivers add"). Small: a counter on the
+   unit, set by the get-hit and block commands, and one solid-colour blit
+   of the COF layers. It's a 3D-mode feature, so a toggle,
+   `--toggle hit_flash=on|off`, with deviations.md naming the driver it
+   comes from. Direct3D's offset is still to read.
+   - Cost: half a day, plus a look at Glide under a wrapper if one runs.
+3. **Coloured light** (Glide / Direct3D only). The light records already
+   carry RGB (lighting.md: the environment's colour, missiles' and
+   objects' lights); the software path uses the intensity alone. d2d's
+   RGB framebuffer can tint by it. How the 3D drivers mix the colour per
+   vertex wasn't followed, so until it is, this would be d2d's own
+   approximation, behind a toggle.
+   - Cost: a day or two, more to trace the drivers' mix.
+4. **Perspective** (Glide / Direct3D only, the Perspective row). The floor
+   tilts and sprites move (and some shrink) with depth. The projection
+   itself is short and traced to its functions (Glide `0x50dd60`,
+   `0x50de10`), but drawing tilted floors and walls needs a GPU back end,
+   or a CPU warp of every tile. This is the one item that needs the draw
+   list below.
+   - Cost: weeks; only after the draw list.
 
-1. **Blend modes** on the existing CPU path: the rest of PL2
-   (Transparency25/75, light levels, hue variations), and COF / animdata /
-   Missiles.txt draw effects (missiles and spells additive, ghosts
-   translucent).
-2. **Shadows**: tile shadow layers at 50 %; unit shadows (MonStats2
-   `Shadow`, players always) as a darkened, skewed copy.
-3. **Light**: a light map per subtile from the player's light radius
-   (stat), objects (objects.txt), missiles; levels dark outside it
-   (Levels.txt, act palettes' light tables); day and night outdoors.
-4. **Tints**: unit states (cold, poison) and item colormaps (the save's
-   tints, already read).
-5. **The draw list**, then a **GPU back end** offering the Glide look:
-   smooth light, perspective, larger resolutions. Authentic 800×600 stays
-   the default.
+Not worth doing: OpenGL and RAVE (never built), a live windowed switch
+(no game.exe driver has one; d2d has Alt+Enter), the 1344×700 size
+(nothing found selects it; widescreen covers it), the texture caches.
 
-**Widescreen (done on the CPU path, opt-in).** The framebuffer's height is
-always 600 and its width is a runtime value (`fb_width()` from its size), so
-a wide view is just a wider buffer. The world (tiles, units, rain, labels)
-draws on the wide buffer around its centre; the HUD and panels then run
-unchanged on a copy of the centre 800×600 (`Town::draw`) and are pasted back.
-Mouse x counts from that centre, so the UI's hit tests and the world's
-click maths are untouched. The window is resizable, the width follows its
-aspect (clamped 800–1400), and the menus/cinematics switch the texture back
-to 800×600. Larger scales (4K) come from the logical presentation's zoom now,
-and from the GPU back end later. Not yet: panels anchored to the screen's
-edges (they sit at the 800 centre's), a wider monster bar/chat, edge-aware
-minimap.
+## The draw list (for perspective)
 
-Each step is visible on its own and testable against screenshots of the
-original (the headless `screenshot` verb already captures frames).
+Instead of blitting straight into pixels, the world renderer would produce
+a list (cel, position, depth, draw mode, corner light, tint) and a back end
+would turn it into pixels: the CPU one as now, a GPU one (SDL3's GPU API)
+for perspective, larger scales and smooth light. Depth sorting would move
+into one place. Nothing above needs it except perspective, so it waits
+until perspective is wanted.
+
+## Widescreen (done, opt-in)
+
+The framebuffer is always 600 high and its width follows the window's
+aspect (800–1400). The world draws on the wide buffer around its centre;
+the HUD and panels run unchanged on a copy of the centre 800×600 and are
+pasted back, and mouse x counts from that centre, so the UI's hit tests
+are untouched. Not yet: panels anchored to the screen's edges, a wider
+monster bar and chat, an edge-aware minimap.
