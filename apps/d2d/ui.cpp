@@ -204,9 +204,9 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
     const int off = speech.offset_px(now_ms);
     for (std::size_t i = 0; i < speech.lines.size(); ++i) {
         const int base = top + 0x70 - off + int(i) * 18;
-        if (base < top - 5 || base - cell > top - 5 + 0x7a) continue;
+        if (!speech_line_visible(base, cell)) continue;
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box_x + 16, base - cell + 1, speech.lines[i], 255, 255, 255,
-                      top - 5, top - 5 + 0x7a);
+                      kSpeechBoxTop, kSpeechBoxBottom);
     }
 }
 

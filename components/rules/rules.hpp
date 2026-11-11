@@ -69,12 +69,17 @@ struct ItemType {
 // entries (item codes, other classes, "gld" or "gld,mul=N"; Prob >= 1).
 // group / level: a monster's level moves it on to the group's next rows
 // (FUN_00654e00); `next` is that row's name ("" past the group's last).
+// entry_flags / entry_index, parallel to items (empty: all 0): entry +0xc
+// (1 unique item, 2 set item, 4 a class) and +0xa (the unique / set index).
+// flag_mod: the two flag chances (bin +0x30 / +0x32). The txt leaves them 0.
 struct TreasureClass {
     int picks = 1, nodrop = 0;
     std::array<int, 4> mod{};
     std::vector<std::pair<std::string, int>> items;
     int group = 0, level = 0;
     std::string next;
+    std::vector<int> entry_flags, entry_index;
+    std::array<int, 2> flag_mod{};
 };
 // ItemRatio.txt per [class specific * 2 + uber][unique, set, rare, magic,
 // superior, normal]: odds base, level divisor, minimum (FUN_00637910: the
@@ -1145,8 +1150,9 @@ inline std::string type_class(const Tables& tables, const std::string& type, int
 inline constexpr std::string_view kClassCode[7] = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };   // by d2s class
 
 // What the player brings to an equip check: d2s class and the current
-// strength, dexterity and level.
-struct Wearer { int cls = 0, str = 0, dex = 0, lvl = 1; };
+// strength, dexterity and level. `holy_shield` is the effective Holy
+// Shield level while state 0x65 is on (FUN_00485be0 / FUN_00485d40), else 0.
+struct Wearer { int cls = 0, str = 0, dex = 0, lvl = 1, holy_shield = 0; };
 
 inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_info.find(item.code);

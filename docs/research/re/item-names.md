@@ -53,8 +53,8 @@ below it, so the call order is bottom to top. Top line first (d2d
 | name | `FUN_0048c060` | — | quality colour (as before) |
 | 'rune letters' | `FUN_00486670` | 20506 RuneQuote `'` each side, then 3998 newline | an item that takes sockets (items +0x137, `FUN_00629900`), runeword or not: each socketed item of type 0x4a (rune) whose items +0xf0 names a gems.txt row (`FUN_006372c0`, 0xc0-byte rows) adds that row's letter (+0x20, up to 6 chars), in the item's inventory list order (`FUN_0063b2c0` / `FUN_0063dfa0`); no rune, no line. It sets no colour of its own; `FUN_0048dd90` gives it one as it joins it: `FUN_004521c0(buffer, 4)` (EDX 4 at 0x48ebac) puts colour code 4 (gold) in front, where the other helpers' buffers get 0 (white). Its buffer (ebp-0x2434) is the last one `FUN_0048dd90` adds to the bottom-up string before the name's (0x48ebb1; the helpers fill their own buffers, joined at 0x48ea21..0x48ebc4), so it shows just under the name, in gold |
 | Defense: N | `FUN_00485ee0` | 3461 | armor, total > 0; N blue when ≠ base |
-| Chance to Block: N% | `FUN_00485be0` | 11018, `"%d%%"` 0x6d9bec | shields: block column + stat 20 + class BlockFactor, cap 75; blue over the column |
-| Smite / Kick Damage: a to b | `FUN_00485d40` | 3468 / 21782, "to" 3464 | Paladin + shield (no other class's) / Assassin + boots; armor.txt mindam/maxdam |
+| Chance to Block: N% | `FUN_00485be0` | 11018, `"%d%%"` 0x6d9bec | shields: block column + stat 20 + class BlockFactor; Holy Shield (state 0x65, skill 0x75) adds dm56 (`FUN_00645c10`, Param5/Param6) before the cap of 75; blue over the column |
+| Smite / Kick Damage: a to b | `FUN_00485d40` | 3468 / 21782, "to" 3464 | Paladin + shield (no other class's) / Assassin + boots; armor.txt mindam/maxdam. A shield adds Holy Shield's MinDam..MaxDam (`FUN_00647bc0` / `FUN_00647d00` >> 8) while state 0x65 is on. Boots do not |
 | Throw / One-Hand / Two-Hand Damage: a to b | `FUN_00485410`, `FUN_00485240` | 3467 / 3465 / 3466 | weapons: stats 21-24/159-160 (`LAB_0062d300`: low quality ×3/4 floor 1/2, ethereal ×3/2), min ×(100+18)%, max ×(100+17+219·clvl/8)% + 218·clvl/8; throw line for ItemTypes Throwable; Barbarian + 1-or-2-handed gets both; numbers blue when raised |
 | Quantity: N | `FUN_00486100` | 3462 | identified, not socketed, stacks |
 | spelldesc | `FUN_00486370` | misc.txt spelldescstr | replaces quantity; mode 2 scales potions by class (`FUN_0062a5d0` life, `FUN_0062a620` mana: ×1.5 Ama/Pal/Asn, ×2 Barb life / Sor/Nec/Dru mana) |
@@ -70,8 +70,8 @@ below it, so the call order is bottom to top. Top line first (d2d
 | Ethereal (Cannot be Repaired), Socketed (N) | `FUN_00484b10` | 22745, 3453 | blue |
 
 Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
-line (`FUN_00486670`), Holy Shield's block and smite, time-of-day stats
-268-273, throwing potions' missile damage, charged skill details.
+line (`FUN_00486670`), time-of-day stats 268-273, throwing potions'
+missile damage, charged skill details.
 
 ## Sockets
 

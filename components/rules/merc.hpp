@@ -101,7 +101,7 @@ MercAct hireable_think(const MercView& view, Rng& seed, AreaAt&& area_at, TryMov
         if (seed.next() & 1) off_y = -off_y;
         return std::pair{ centre_x + off_x, centre_y + off_y };
     };
-    auto wander = [&](int centre_x, int centre_y, int reach) { const auto [x, y] = about(centre_x, centre_y, reach); return set_out(x, y); };
+    auto wander = [&](int centre_x, int centre_y, int reach) { const auto [target_x, target_y] = about(centre_x, centre_y, reach); return set_out(target_x, target_y); };
     // FUN_005e3930 mode 0: 8 off the owner's path end, from where it heads
     // (rules::direction64 into 8, DAT_00745600) round the compass, on the
     // owner's level; else wander 4.
@@ -130,16 +130,16 @@ MercAct hireable_think(const MercView& view, Rng& seed, AreaAt&& area_at, TryMov
         bool searched = false;
         for (int looked = 0, cursor = view.cursor; looked < 20; ++looked) {
             cursor = cursor == 0 ? 0x13 : cursor - 1;
-            const auto [x, y] = view.ring[std::size_t(cursor)];
-            if (npc_distance(view.x, view.y, x, y) <= 5) continue;
+            const auto [step_x, step_y] = view.ring[std::size_t(cursor)];
+            if (npc_distance(view.x, view.y, step_x, step_y) <= 5) continue;
             pace(0, pct, 100);
-            if (set_out(x, y)) return;
+            if (set_out(step_x, step_y)) return;
             pace(0xf, pct, 100);
-            if (set_out(x, y, mode)) return;
+            if (set_out(step_x, step_y, mode)) return;
             if (searched) continue;
             searched = true;
             pace(1, pct, 100);
-            if (set_out(x, y, mode)) return;
+            if (set_out(step_x, step_y, mode)) return;
         }
         pace(0, 0xf, 0);
         wander(view.x, view.y, std::max(merc_gap(view.x, view.y, view.size, view.owner_x, view.owner_y) >> 2, 4));

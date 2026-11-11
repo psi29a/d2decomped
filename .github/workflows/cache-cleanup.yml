@@ -50,11 +50,12 @@ jobs:
               ["gh", "cache", "list", "--limit", "1000", "--json", "id,key,ref,createdAt"],
               check=True, capture_output=True, text=True).stdout)
           # What varies per save: a timestamp (ccache), a run id (Flatpak),
-          # a file hash (FFmpeg), the ISO week (apt), commit + run (CodeQL).
+          # a file hash (FFmpeg, Sentry), the ISO week (apt), commit + run (CodeQL).
           kinds = [
               re.compile(r"^(ccache-.+?)-\d{4}-\d\d-\d\dT"),
               re.compile(r"^(flatpak-builder-[^-]+)-"),
               re.compile(r"^(ffmpeg-[^-]+)-"),
+              re.compile(r"^(sentry-[^-]+)-"),
               re.compile(r"^(apt-.+?)-\d{4}-\d\d$"),
               re.compile(r"^(codeql-.+)-[0-9a-f]{40}-\d+-\d+$"),
           ]

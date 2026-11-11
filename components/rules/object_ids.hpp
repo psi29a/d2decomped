@@ -77,6 +77,7 @@ inline constexpr int kGibbet = 26;
 inline constexpr int kMephistoBridge = 341;   // InitFn 45: rises over the lava once he's dead (a3q6)
 inline constexpr int kHellgate = 342;         // InitFn 44: the red portal to Act 4 (a3q6)
 inline constexpr int kDiabloStart = 255;      // InitFn 55: where Diablo comes (a4q2)
+inline constexpr int kCainStart = 385;        // InitFn 54 (FUN_005940e0): where camp Cain is made (a1q4)
 inline constexpr int kLastPortal = 566;       // OperateFn 73: Tyrael's portal to Harrogath (a4q2, LoD)
 inline constexpr int kLargeChestR = 371;      // the Countess' treasure chests
 inline constexpr int kSparklyChest = 397;     // rolls its own table (open_container)

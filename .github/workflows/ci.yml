@@ -239,6 +239,30 @@ jobs:
           key: ffmpeg-${{ runner.os }}-${{ steps.ffmpeg-key.outputs.key }}
           restore-keys: ffmpeg-${{ runner.os }}-
 
+      # Sentry Native and Crashpad are built through FetchContent. Keep their
+      # isolated source/build trees so unchanged vendor code needn't compile.
+      - name: Sentry cache key
+        id: sentry-key
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            compiler_version=$(cl 2>&1 | head -n 1 || true)
+          else
+            compiler_version="$(cc --version | head -n 1) / $(c++ --version | head -n 1)"
+          fi
+          key=$({
+            sed -n -e '/^    set(SENTRY_BACKEND /,/^    set(SENTRY_SCREENSHOT /p' \
+              -e '/^    FetchContent_Declare(/,/^    )/p' apps/d2d/CMakeLists.txt
+            printf '%s\n' "$compiler_version"
+          } | git hash-object --stdin)
+          echo "key=${key:0:16}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Sentry (all platforms)
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/sentry_native-*
+          key: sentry-${{ runner.os }}-${{ steps.sentry-key.outputs.key }}
+
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
@@ -488,7 +512,7 @@ jobs:
             echo "Changed-files mode: $(wc -l < tidy_files.txt) files to tidy"
             cat tidy_files.txt
           fi
-          xargs -P $(nproc) -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
+          xargs -P "$(nproc)" -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
 
   flatpak:
     name: Flatpak (${{ matrix.arch }})

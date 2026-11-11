@@ -488,8 +488,8 @@ auto Town::take_focus(int id) -> void {
  */
 auto Town::pad_focus() const -> std::optional<PadFocus> {
         if (controls.open) {                                            // Configure Controls: the selected row's column
-            const auto [x, y] = controls.focus();
-            return PadFocus{ 9000 + controls.sel * 2 + controls.column + (controls.pad_page ? 1000 : 0), x, y };
+            const auto [focus_x, focus_y] = controls.focus();
+            return PadFocus{ 9000 + controls.sel * 2 + controls.column + (controls.pad_page ? 1000 : 0), focus_x, focus_y };
         }
         if (skillbar.picking == 3) return std::nullopt;                // the wheel draws its own highlight
         if (skillbar.picking) {                                         // the hand's skill now, else its button
@@ -498,8 +498,8 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
             for (std::size_t row = 0; row < rows.size(); ++row)
                 for (std::size_t col = 0; col < rows[row].size(); ++col)
                     if (rows[row][col] == skillbar.hand(on_left)) {
-                        const auto [x, y] = skillbar.picker_at(rows, on_left, int(row), int(col));
-                        return PadFocus{ 3000 + skillbar.picking, x + SkillBar::kIcon / 2, y - SkillBar::kIcon / 2 };
+                        const auto [icon_x, icon_y] = skillbar.picker_at(rows, on_left, int(row), int(col));
+                        return PadFocus{ 3000 + skillbar.picking, icon_x + SkillBar::kIcon / 2, icon_y - SkillBar::kIcon / 2 };
                     }
             return PadFocus{ 3000 + skillbar.picking, (on_left ? SkillBar::kButtonLeftX : SkillBar::kButtonRightX) + SkillBar::kIcon / 2, int(kScreenHeight) - SkillBar::kIcon / 2 };
         }
@@ -564,8 +564,8 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
             const auto rows = skillbar.rows(on_left);
             for (std::size_t row = 0; row < rows.size(); ++row)
                 for (std::size_t col = 0; col < rows[row].size(); ++col) {
-                    const auto [x, y] = skillbar.picker_at(rows, on_left, int(row), int(col));
-                    centre(x, y - SkillBar::kIcon, SkillBar::kIcon, SkillBar::kIcon);
+                    const auto [icon_x, icon_y] = skillbar.picker_at(rows, on_left, int(row), int(col));
+                    centre(icon_x, icon_y - SkillBar::kIcon, SkillBar::kIcon, SkillBar::kIcon);
                 }
             for (const int x : { SkillBar::kButtonLeftX, SkillBar::kButtonRightX }) centre(x, int(kScreenHeight) - SkillBar::kIcon, SkillBar::kIcon, SkillBar::kIcon);
         }
@@ -573,7 +573,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
             const auto& list = scene->rules.class_skills[std::size_t(std::max(character.character_class, 0))];
             for (const auto& class_skill : list)
                 if (class_skill.page == tree_tab)
-                    if (const auto [x, y] = skill_icon_at(class_skill); x > -1000) centre(x, y - 0x30, 0x30, 0x30);
+                    if (const auto [icon_x, icon_y] = skill_icon_at(class_skill); icon_x > -1000) centre(icon_x, icon_y - 0x30, 0x30, 0x30);
             for (const int top : { kTreeB - 0x174, kTreeB - 0x108, kTreeB - 0x9c }) centre(kTreeR - 0x58, top, 0x58, 0x6b);
         }
         if (tree_open) {

@@ -163,7 +163,9 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 if (quest::bit(bits, kIzualQuest, 13)) class_cue("act4_free_izual", now_ms);
                 else if (!quest::bit(bits, kIzualQuest, 0) && !quest::bit(bits, kIzualQuest, 1)) quest::set(bits, kIzualQuest, 14);
             });
-            music_cue("music_quest_izual");
+            // His death (mode 0) runs his questcomplete mod's client hook (0x4ad2f0,
+            // class 0x100): the jingle for each client seeing him.
+            music_cue_near("music_quest_izual", kill.x, kill.y);
             izual_ghost_in = d2d::rules::quest_timer_steps(3);
             izual_level = game_data->level(kill.level);
             d2d::log::info("The Fallen Angel: Izual is dead");
@@ -384,7 +386,9 @@ auto World::act4_operate(int npc_index, std::uint32_t now_ms) -> bool {
                 gem_rounds = d2d::rules::HellforgeQuest::kRounds;
                 gems_at = now_ms + d2d::rules::HellforgeQuest::kStrikeFrames * kTickMs;
                 cues.cue("quest_hellforge_smash", now_ms, object.x, object.y);
-                music_cue("music_quest_forge");
+                // S->C 0x89 event 14 (0x5b5dfc) to the game; its client entry (0x46b300)
+                // plays the jingle with the forge (object 376) near its player.
+                music_cue_near("music_quest_forge", object.x, object.y);
                 d2d::log::info("The Hellforge: the soulstone is shattered");
             }
             return true;

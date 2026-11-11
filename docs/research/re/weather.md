@@ -164,3 +164,26 @@ mode 5, at over 9 fps, instead of the rain); a strike's second flash is 3
 ticks on, then the next strike 500 + rand(1500) ticks on with
 event_thunder_1 (202) 25 + rand(50) sound ticks later at ±200 each way.
 Full rain, falling and snow put it out.
+
+The globals, read off `FUN_00473910`'s decompile and disassembly:
+lightning `DAT_007a8a08`, the flash left `DAT_007a89e8`, the second flash's
+due flag `DAT_007a896c`, the next strike's countdown `DAT_007a8968`, heard
+`DAT_00712b4c` (not the first strike's). `RollBetweenMinAndMax` (`FUN_00472280`)
+is `d2d::rules::Rng::operator()`'s `min + roll(bound)`, not an inclusive
+range, confirmed against `d2d`'s formula (`roll(0x5dc) + 500` for the
+countdown, `roll(0x32) + 25` for the delay).
+
+The thunder's two position rolls land **y then x**: the disassembly at
+0x473a02..0x473a2b rolls once (pushed on the stack) then again (left in
+EAX), moves the second roll into EDX and the first's pushed word stays on
+the stack, and `SOUND_PlayEnvironmentSound` (`FUN_004b99a0`, confirmed
+`nSoundId` ECX, `nPosX` EDX, `nPosY` Stack[0x4], `nPosZ` Stack[0x8]) reads
+EDX as `nPosX` and the stack word as `nPosY`: first roll → y, second → x.
+d2d's `Rain::frame` (weather.hpp) **DISAGREED**: it rolled x then y
+(`out.x = roll(400) - 200; out.y = roll(400) - 200;`), landing each
+strike's thunder at the swapped position (same two numbers, x and y
+exchanged) with no effect on later rolls (the seed advances the same
+either way). Fixed to roll y then x. Oracle: `tools/emu/weather_flash.py`,
+`tests/test_weather_flash.cpp` / `weather_flash_cases.inc`
+(`uv run python tools/emu/weather_flash.py > tests/weather_flash_cases.inc`
+to re-check against game.exe).

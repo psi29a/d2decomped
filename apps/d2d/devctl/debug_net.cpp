@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <format>
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace d2d::client {

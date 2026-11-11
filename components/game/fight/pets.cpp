@@ -15,6 +15,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <pets.hpp>
 #include <rules.hpp>
@@ -29,6 +30,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -142,7 +144,7 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
 auto Fight::blast_due(const Monster& golem) const -> bool {
         return !golem.alive() && golem.mode == "DT" && !golem.fx_done && golem.type >= 0
             && (game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem")
-                || std::ranges::contains(golem.mods, d2d::rules::umod::firespike));
+                || std::ranges::contains(golem.mods, d2d::rules::umod::firespike) || std::ranges::contains(golem.mods, d2d::rules::umod::lightningdeath));
     }
 
 auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
@@ -150,6 +152,7 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
         if (!blast_due(golem) || now_ms < golem.unit.mode_ms + 4 * 40) return false;
         golem.fx_done = true;
         if (pet.where != level) return false;
+        if (std::ranges::contains(golem.mods, d2d::rules::umod::lightningdeath)) { shadow_nova(pet, now_ms); return true; }
         const auto& type_info = game_data->monsters.types[std::size_t(golem.type)];
         const bool goboom = type_info.base == game_data->monsters.row("firegolem");
         int physical_fine = 0x6400, fire_fine = 0x6400, radius = 6;
@@ -182,6 +185,31 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
         }
         d2d::log::info("{} blows up ({} physical, {} fire)", golem.npc.name, physical_fine >> 8, fire_fine >> 8);
         return true;
+    }
+
+// A Shadow's death nova (MonUMod 42, FUN_005a2910 4 frames after its death,
+// hook 1 FUN_005a3800): 64 of missile 90 (nova) round it (FUN_0056d400),
+// Nova's damage at rules::shadow_nova_level, hitting monsters.
+// ponytail: FUN_0056d400's last argument there is FUN_00663270(90, 0), the
+// row's +0x9a byte; like d2d's other novas, these fly the row's Range.
+auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
+        const auto found = game_data->missiles.find("nova");
+        const auto* nova = skill_named("Nova");
+        if (found == game_data->missiles.end() || !nova) return;
+        const auto& missile_info = found->second;
+        const auto& shadow = pet.monster;
+        const int life_percent = shadow.stats.hit_points > 0 ? std::max(shadow.hit_points, 0) * 100 / shadow.stats.hit_points : 0;
+        const int lvl = d2d::rules::shadow_nova_level(cast_level(0x10c), life_percent);
+        const float speed = missile_speed(missile_info, lvl);
+        const auto ring = std::make_shared<std::vector<int>>();
+        for (const auto& [aim_x, aim_y] : d2d::rules::kNovaRing) {
+            const float distance = std::max(std::hypot(float(aim_x), float(aim_y)), 0.01f);
+            Missile x{ &missile_info, shadow.unit.x, shadow.unit.y, float(aim_x) / distance * speed, float(aim_y) / distance * speed,
+                       missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
+            x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
+            pending.push_back(std::move(x));
+        }
+        d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
     }
 
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {

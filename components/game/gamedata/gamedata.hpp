@@ -14,6 +14,7 @@
 #include <ds1.hpp>
 #include <dt1.hpp>
 #include <level_ids.hpp>
+#include <mon_equip.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <mpq.hpp>
@@ -808,15 +809,16 @@ struct GameData {
     Npc afterglow;                                         // object 131 (9b), OP: the "vile dog afterglow" the Dark Wanderer leaves
     Npc town_portal;                                       // object 59 (TP): a town portal's look and light
     Npc red_portal;                                        // object 60 (PP): a permanent (red) portal's (World::portal_object)
+    Npc duriel_portal;                                     // object 100 (SJ): the true tomb's way down to Duriel's Lair
     Npc cain_portal;                                       // object 189 (tP: TP's files): Tristram Cain's and the cages' portals
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     std::unordered_map<std::string, std::string> gem_letters;   // gems.txt letter by code (the runes'; gems.txt +0x20)
     std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)
     std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
-    // MonEquip.txt's oninit rows (FUN_005d6b60 as a monster's made), by
-    // MonStats row: each row's item count (1..3). Only Blood Raven's and the
-    // flying scimitar's in 1.14d, both from level 0.
-    std::vector<std::vector<int>> mon_equip_oninit;
+    // MonEquip.txt (FUN_00659e60), and by MonStats row its first row there
+    // (MonStats +0x2a, -1 none): rules::monster_gear's tables.
+    std::vector<d2d::rules::MonEquipRow> mon_equip;
+    std::vector<int> mon_equip_first;
     // The level builder: its own MPQ handles, the DRLG tables and the
     // tables a build reads. Last, so it's torn down first: a build in
     // flight reads the rest of GameData.

@@ -109,6 +109,8 @@ struct Rain {
     // (event_thunder_1, 202) 25 + rand(50) ticks later at -200 + rand(400)
     // each way, when the sound can play (FUN_004b9a00).
     struct Strike { bool flash = false; int thunder = -1, x = 0, y = 0; };
+    // FUN_00473910: this client tick's flash, and past it the next strike's wait and, once a
+    // strike's already been heard, the thunder's delay and position (y rolled before x).
     Strike frame(Rng& roll, bool sound_on) {
         Strike out;
         flashing = false;
@@ -119,7 +121,9 @@ struct Rain {
                 strike_left = roll(0x5dc) + 500;
                 second = false;
                 if (!heard) heard = true;
-                else if (const int delay = roll(0x32) + 25; sound_on) { out.thunder = delay; out.x = roll(400) - 200; out.y = roll(400) - 200; }
+                // The two rolls land y then x (FUN_00473910 0x473a02..0x473a2b: the first roll is
+                // pushed and read back as SOUND_PlayEnvironmentSound's nPosY, the second is its nPosX).
+                else if (const int delay = roll(0x32) + 25; sound_on) { out.thunder = delay; out.y = roll(400) - 200; out.x = roll(400) - 200; }
             }
         }
         out.flash = flashing = true;

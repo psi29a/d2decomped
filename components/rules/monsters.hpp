@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -111,6 +112,15 @@ inline Region monster_region(const Monsters& monsters, const LevelMon& level_mon
     return region;
 }
 
+// An item a monster wears from the start (FUN_005d6b60 as it's made): its
+// code, body slot, quality and item level, and the two game seed steps
+// FUN_00573b20 -> FUN_00559ce0 took for it (its unit and item seeds).
+struct SpawnGear {
+    std::string code;
+    int loc = 0, quality = 0, ilvl = 1;
+    std::uint32_t unit_seed = 0, item_seed = 0;
+};
+
 // A spawned monster, in level-relative subtiles; `leader` is the index
 // of its group's first monster (itself for a leader).
 struct Spawn {
@@ -124,6 +134,7 @@ struct Spawn {
     std::vector<std::pair<int, int>> path;                    // its preset's map AI points (FUN_00555910), subtiles
     bool dead = false;                                        // made in mode 12 (FUN_0054e600's dead MonPlace codes)
     int cage = -1;                                            // a5q2's prisoner: its cage's slot (FUN_00588600)
+    std::vector<SpawnGear> gear;                              // its MonEquip items
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
