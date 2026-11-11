@@ -228,3 +228,15 @@ and sound event 1 is scheduled for it at game frame plus missile 0x182 row
 `tools/emu/ai_catapult.py` checks five success/failure and coordinate paths;
 room, marker, coordinate, missile and action helpers are scripted. The missing
 marker assertion is not exercised.
+
+`FUN_005ea7a0` gets an owner using `FUN_0058f0d0` and a signed
+difficulty-indexed radius from MonStats +0x56. Owner mode 3 halves the radius
+with truncation toward zero. If control +0x14 is at or after the game frame,
+owner mode is not 3, and `FUN_005dd2b0` returns zero, it idles for the signed
+word at +0x5c. Otherwise it makes two independent draws from twice the radius
+when that bound is positive, advancing the unit seed for each, and calls
+`FUN_005dead0(9, 0x124, 0, owner_x + draw_x - radius, owner_y + draw_y - radius)`.
+It then sets control +0x14 to game frame plus the signed +0x5c word. The
+non-idle path dereferences the owner; a null owner is not tested.
+`tools/emu/ai_pet_follow.py` checks seven normal-difficulty cases using a
+static-coordinate owner, with owner lookup, signal and action scripted.
