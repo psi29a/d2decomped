@@ -93,6 +93,10 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             if (scarab && monster.mode != monster.fx_mode && (monster.mode == "GH" || monster.mode == "DT")) monster.scarab_due.push_back(now_ms + 2 * 40);
             const bool questcomplete = std::ranges::contains(monster.mods, d2d::rules::umod::questcomplete) || std::ranges::contains(family, d2d::rules::umod::questcomplete);
             if (questcomplete && monster.mode != monster.fx_mode && monster.mode == "DT") quest_death(monster, now_ms);
+            // Shatter_on_death (MonUMod 35, every frozenhorror1 by FUN_005b21b0):
+            // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
+            // 0), whatever the kill: no corpse to raise or blow up.
+            if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
             // Killself's event (FUN_005a3aa0): alive, 3 frames on while
             // uninterruptable (state 0x36), else into death (FUN_005a7c20 mode 0:
             // no credit). Its player-owner branch (FUN_005750e0) needs a pet,
