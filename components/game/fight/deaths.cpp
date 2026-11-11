@@ -106,6 +106,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                     killed(std::size_t(&monster - monsters.data()), now_ms, false);
                 }
             }
+            const bool into_gh = monster.mode != monster.fx_mode && monster.mode == "GH";
             monster.fx_mode = monster.mode;
             while (!monster.scarab_due.empty() && now_ms >= monster.scarab_due.front()) {
                 monster.scarab_due.erase(monster.scarab_due.begin());
@@ -113,12 +114,16 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 charged_bolts("buglightning", mlvl);
             }
             if (monster.alive()) {
-                // Struck in GH, hook 1 (FUN_005a37d0) queues event 7 two frames on;
-                // otherwise hooks 2 / 4 (FUN_005a2ba0) fire at once.
+                // Into GH, hook 1 (FUN_005a37d0, after the mode change) queues event 7
+                // two frames on. Struck otherwise (event 4: FUN_0057cee0's soft path, a
+                // burner's soft hit too), hook 4 (FUN_005a2ba0) fires at once, but not
+                // in GH: it tests mode 3 (FUN_0057cee0 sets GH before its event 4).
+                // ponytail: any drop in life counts as event 4; game.exe raises it only for
+                // result flag 4 or 0x4000, not plain damage (a burn without its roll).
                 bool fire = false;
-                if (has(d2d::rules::umod::lightning) && (monster.hit_points < monster.last_hp || monster.soft_hit)) {
-                    if (monster.mode == "GH") monster.bolts_due = now_ms + 2 * 40;
-                    else fire = true;
+                if (has(d2d::rules::umod::lightning)) {
+                    if (into_gh) monster.bolts_due = now_ms + 2 * 40;
+                    else if (monster.mode != "GH" && (monster.hit_points < monster.last_hp || monster.soft_hit)) fire = true;
                 }
                 if (monster.bolts_due && now_ms >= monster.bolts_due) { monster.bolts_due = 0; fire = true; }
                 if (fire && now_ms - monster.bolts_at >= 10 * 40) {

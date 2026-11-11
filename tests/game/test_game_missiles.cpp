@@ -472,8 +472,20 @@ int main() try {
         world.fight.boss_events({}, 7002 * kTickMs);
         assert(world.fight.pending.size() == 8);
         world.fight.pending.clear();
+        Monster in_gh = world.fight.monsters.back();   // in GH since 7000
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted struck in GH lets off its bolts 2 frames on\n");
+
+        // A soft hit while already in GH: hook 4 (FUN_005a2ba0) tests mode 3 and
+        // does nothing, and nothing is queued (only going into GH queues).
+        in_gh.soft_hit = true;
+        in_gh.last_hp = in_gh.hit_points;
+        in_gh.bolts_at = 0;
+        world.fight.monsters.push_back(std::move(in_gh));
+        world.fight.boss_events({}, 8000 * kTickMs);
+        assert(world.fight.pending.empty() && world.fight.monsters.back().bolts_due == 0);
+        world.fight.monsters.pop_back();
+        std::printf("OK: Lightning Enchanted's soft hit in GH lets off nothing\n");
 
         // Andariel dead (MonUMod 22, FUN_005dfe00 -> FUN_005dfbf0(35, 1, 51)):
         // the monsters within 35 subtiles get killself 1..50 frames on, and die.
