@@ -581,7 +581,7 @@ auto World::find_voice(std::uint32_t tick_ms) -> void {
         namespace q = d2d::rules::quest;
         if (closed_at_join[quest] || game_quest_done(quest) || q::bit(bits, row->quest, 0) || q::bit(bits, row->quest, 1) || q::bit(bits, row->quest, 14)) return;
         if (row->quest == d2d::rules::DenQuest::kQuest && den.log_state(bits) >= 5) return;
-        if (actor->voice_at && tick_ms - actor->voice_at < kWait) return;
+        if (actor->voice_at && (tick_ms < actor->voice_at || tick_ms - actor->voice_at < kWait)) return;   // a line still due counts
         class_cue(row->line, tick_ms);
     }
 
