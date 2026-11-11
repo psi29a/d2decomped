@@ -810,7 +810,7 @@ address	name	evidence
 005e8eb0	diablo_prime_firewall	Diablo Prime Firewall/Lightning think; AiThink4.cpp
 005e9750	diablo_player_search	Diablo player room area search; AiThink4.cpp
 005e9dd0	uber_diablo_toggle	Uber Diablo AI toggle; AiThink4.cpp
-005ea080	pet_target_search	pet target search; AiThink4.cpp
+005ea080	ai_move_left_once	one action at x minus 10, then unit flag 0x20000 and mode 0; AiThink4.cpp; tools/emu/ai_move_left.py
 005ea290	ai_stamp_frame	stamps frame into +0x14 and sets +0x18 = -1
 005ea510	summon_unassign	unassigns summon from master; AiThink4.cpp
 005ea7a0	pet_follow_pace	pet follow distance and pace; AiThink4.cpp
