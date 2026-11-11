@@ -18,6 +18,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
@@ -118,7 +119,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         each_player([&](Player&) {
             auto& bits = quests();
             if (!quest::bit(bits, kQuest, 0) && !quest::bit(bits, kQuest, 1)) quest::set(bits, kQuest, 14);
-            if (quest::bit(bits, kQuest, 1) && quest::bit(bits, kQuest, 13)) class_cue("act1_complete_andariel", now_ms);
+            if (quest::bit(bits, kQuest, 1) && quest::bit(bits, kQuest, 13)) class_cue("act1_complete_andariel", d2d::rules::quest_line_due(0x21, now_ms));
         });
         if (!first) return;
         music_cue("music_quest_andariel");
@@ -136,7 +137,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 // FrameCnt1 + 1 frames on taking it to mode 2 (FUN_00581490).
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         each_player([&](Player& player) { guardian.killed(player.id); });   // the killer and each player in the level: one level in co-op
-        class_cue("act3_complete_guardian", now_ms);   // FUN_005bc8b0: unit event 0x42
+        class_cue("act3_complete_guardian", d2d::rules::quest_line_due(0x42, now_ms));   // FUN_005bc8b0: unit event 0x42
         music_cue("music_quest_mephisto");
         bridge_check = now_ms + 24 * kTickMs;
         int owed = 0;
@@ -203,7 +204,7 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
         const auto by_kill = [&](const Player& player) { return level->id == d2d::rules::BurialQuest::kBurial && near_room(killer_x, killer_y, player.player.x, player.player.y); };
         kill_credit(d2d::rules::BurialQuest::kQuest, 0, { 13, 1 }, by_kill, [&](Player&) { burial.killed(quests(), true); }, [&](Player&) { burial.killed(quests(), false); });
         bool any = false;
-        each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::BurialQuest::kQuest, 13)) { class_cue("act1_complete_burial", now_ms); any = true; } });
+        each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::BurialQuest::kQuest, 13)) { class_cue("act1_complete_burial", d2d::rules::quest_line_due(0x22, now_ms)); any = true; } });
         if (!any) return;
         music_cue("music_quest_bloodraven");
         d2d::log::info("Sisters' Burial Grounds: Blood Raven is dead, return to Kashya");
@@ -320,7 +321,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         const auto credit = [&](bool took_part) {
             const auto result = radament.killed(quests(), game_bits, took_part, carries("ass"));
             books += result.books;
-            if (result.took_part) { class_cue("act2_complete_radament", now_ms); any = true; }
+            if (result.took_part) { class_cue("act2_complete_radament", d2d::rules::quest_line_due(0x32, now_ms)); any = true; }
         };
         kill_credit(d2d::rules::RadamentQuest::kQuest, 1, { 13, 1, 5 }, by_kill, [&](Player&) { credit(true); }, [&](Player&) { credit(false); });
         for (int i = 0; i < books; ++i) loot.put({ .code = "ass" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
@@ -591,9 +592,15 @@ auto World::class_cue(std::string_view line, std::uint32_t at_ms) -> void {
         if (actor->character.header.cls < kClass.size()) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), std::format("{}_{}", kClass[actor->character.header.cls], line), at_ms, actor->player.x, actor->player.y);
     }
 
+// The client's quest music sequence (rules::QuestMusic, FUN_004dcd40).
 auto World::music_cue(std::string_view sound) -> void {
-        if (const auto found = game_data->sound_index.find(std::string(sound)); found != game_data->sound_index.end())
-            actor->events.push_back(ev::MusicCue{ found->second });
+        const auto found = game_data->sound_index.find(std::string(sound));
+        if (found == game_data->sound_index.end()) return;
+        ev::MusicCue music{ .sound = found->second };
+        if (const auto row = d2d::rules::quest_music_jingle(sound)) {
+            music.jingle_ms = row->jingle_at * 40; music.back_ms = row->back * 40; music.from_block = row->from_block;
+        }
+        actor->events.push_back(music);
     }
 
 // FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").
@@ -710,7 +717,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
                 // with bit 13 says the line (LAB_005900e0).
                 using Den = d2d::rules::DenQuest;
                 kill_credit(Den::kQuest, 0, { 13, 1 }, [&](const Player& player) { return den.participants.has(player.id); }, [&](Player&) { Den::credit(quests(), true); }, [&](Player&) { Den::credit(quests(), false); });
-                each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), Den::kQuest, 13)) class_cue("act1_complete_den", now_ms); });   // unit event 0x23
+                each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), Den::kQuest, 13)) class_cue("act1_complete_den", d2d::rules::quest_line_due(0x23, now_ms)); });   // unit event 0x23
             }
         }
         den_left = left;

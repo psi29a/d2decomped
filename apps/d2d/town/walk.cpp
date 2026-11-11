@@ -469,7 +469,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             return;
         }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
-        if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.play_sfx(*scene, music->sound, float(audio.music_volume) / 100.f, 0); return; }
+        if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
         if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
             speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);

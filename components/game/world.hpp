@@ -83,8 +83,10 @@ struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; i
 struct Speech { int npc = -1; int string = 0; };
 // A quest's log state sent again (S->C 0x5d, no flags): the Quest Log button.
 struct QuestNews { int quest = 0; };
-// A short quest music sting, over the level's looping song.
-struct MusicCue { int sound = 0; };
+// A quest's music sequence (rules::QuestMusic): the level's song fades out
+// now, `sound` plays `jingle_ms` on, the song comes back `back_ms` on (from
+// its Block 1 cue with `from_block`); 0 / 0: the sound at once, the song on.
+struct MusicCue { int sound = 0; int jingle_ms = 0, back_ms = 0; bool from_block = false; };
 // A store buy or sale the server refused (S->C 0x2a's result, rules::Trade).
 struct TradeRefused { d2d::rules::Trade result = d2d::rules::Trade::no_gold; };
 // The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
