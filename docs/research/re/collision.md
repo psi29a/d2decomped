@@ -1254,3 +1254,19 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   flag 9 (`FUN_004638a0`) semantics (also unresolved at line 1054 above).
   d2d: not ported as a function; no disagreement found, nothing here was
   compared against a d2d equivalent.
+- **`FUN_004bdff0`** (fastcall ECX unit; 0x30 bytes, `004bdff0`..`004be01c`,
+  plain `RET`): the object's per-frame step. `FUN_004bcbb0(unit)` runs
+  first — the object's own cof/frame-rate advance, already fully ported
+  (`apps/d2d/ingame.cpp:169,175`, `apps/d2d/world_view.cpp:39`,
+  `components/game/gamedata/gamedata.hpp:119`, `components/game/world/tick.cpp:53`).
+  Then it reads the object's Objects.txt ClientFn (`+0x1b4`, objects.md:574
+  already names this field and its dispatch) off the object's row (unit
+  `+0x14` data, dereferenced once more to the row); when ClientFn is over 3
+  it calls `FUN_004bdee0(unit)` (the ClientFn dispatch table at `0x7277f0`,
+  19 entries, already cited at objects.md:560) and a zero result returns
+  with nothing else done. Otherwise (ClientFn 3 or under, or `FUN_004bdee0`
+  non-zero) it tail-calls `FUN_004cb460(unit)` (the same already-verified
+  ambient-sound step `FUN_004b13a0` ends with above). d2d: the cof/frame
+  step and the sound tail are both already ported at the citations above;
+  the ClientFn gate itself has no d2d equivalent found (not ported as a
+  function).
