@@ -167,7 +167,7 @@ struct Monster {
     // sets off Lightning Enchanted's bolts, at most every 10 frames), when
     // its death effect is due, its mana burn per hit.
     int last_hp = 0;
-    bool soft_hit = false;                    // a burner's soft hit since (Fight::burn): event 4 with no drop of its own
+    bool soft_hit = false;                    // a burner's soft hit out of GH since (Fight::burn): event 4 with no drop of its own
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
