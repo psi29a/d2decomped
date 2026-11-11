@@ -266,7 +266,9 @@ FUN_004cb9c0 are the refusals, the mana check and this table. See
 stubs.md. The same holds for two completions, act2_complete_tightspot
 (0x35) and act3_complete_beneath (0x3f), and for act2_begin_tainted
 (0x31), act2_near_tightspot (0x3d) and act2_trigger_field (0x3e):
-no site passes them, constant or computed (checked again 2026-10-25;
+no site passes them, constant or computed (checked again 2026-10-25,
+and 2026-11-11: the 99 calls to FUN_00553380 in the code, each one's EDX
+read back to its `mov` or `lea`;
 the pass-through helpers FUN_00595420 / FUN_005455f0 / FUN_0055c9a0
 only get 0x25, 0 and 0x13 / 0x17).
 
