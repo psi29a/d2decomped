@@ -7,8 +7,10 @@
 // the staff goes in (FUN_0059dd80). In mode 1 a click by the busy player
 // lets them go, mode 2. ev::ObjectPanel survives the view codec.
 
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>

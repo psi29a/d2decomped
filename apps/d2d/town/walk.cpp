@@ -15,6 +15,7 @@
 #include "store.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <automap_step.hpp>
