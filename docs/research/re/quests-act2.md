@@ -350,14 +350,69 @@ lines after Tyrael, 13 took part, 14 by others, 15 closed.
   8-tick timer once (`LAB_0059cee0`: log 3 unless 3..5); players by him
   (`FUN_0059cfb0`, the Lair) without bit 0 / 3 / 4 → bit 5; Tyrael talks
   (data+0x18 2).
-- **The orifice** (objects.txt 152, InitFn 21 `FUN_0059db50`, OperateFn
-  25 `FUN_0059dc70`): with the Horadric Staff carried, a panel takes it
-  (C→S 0x44 3); placed (`FUN_0059dd80`): quest 10 bits 0 and 13, the staff
-  and its parts gone, a timer once (`FUN_0059d870`) that opens the way
-  down: object 100 thirteen subtiles left of the orifice and three down
-  (`FUN_00555230`), OperateFn 43 into level 73. Without the staff: "I
-  can't use this yet" (voice). Its room coming up opens it (mode 2) on
-  data+0xc: the staff placed in an earlier game.
+- **The orifice** (objects.txt 152, token HA, 3 x 3, one frame a mode;
+  InitFn 21 at `0x59db50`, an entry of the InitFn table `0x731bc0` that
+  Ghidra has no function for; OperateFn 25 `FUN_0059dc70`). In order:
+  1. **The click** (`FUN_0059dc70`), orifice in mode 0: with the staff
+     carried (`FUN_00558110('hst ')`) the player turns busy on it
+     (`FUN_00554120(player, 2, orifice id)`: player +0x64 the id, +0x68
+     2, +0x6c 1), the orifice goes to mode 1, and S->C **0x58 {orifice id,
+     UI 0}** (7 bytes, built at 0x59dd54) opens the panel. Without the
+     staff: `FUN_00553380`, "I can't use this yet". In mode 1, a click by
+     the player busy on it releases them (`FUN_00554190`) and sets mode 2.
+  2. **The panel** is the item panel (`.\UI\UseItem.cpp`, act1-end.md
+     "The item panel"): 0x58 UI 0 (`FUN_0045e490` -> `FUN_004c0550`) sets
+     its kind `0x7c5470` = 0 and the object `0x7c547c`, and opens it
+     beside the inventory (`FUN_004c0380`: panel 8). The staff is dragged
+     into the slot, then the button (`FUN_004bfaf0`) sends **C->S 0x44
+     {player, orifice, item id, 3}** (`FUN_00478700`, opcode in CL); the
+     close box or button 1 (`0x4c02f0`) sends 0x44 {player, orifice, 0, 2}.
+  3. **The server's 0x44** (`FUN_005852e0`): action 2 sends 0x58, sets
+     the orifice back to mode 0 and releases the player. Action 3 with
+     the orifice (class 0x98) and an `hst ` item: release, 0x58 (UI 1:
+     the panel closes), mode 1, then mode 2, then `FUN_0059dd80(game,
+     player, orifice)`.
+  4. **Placed** (`FUN_0059dd80`): quest 10 bits 0 and 13, the staff and
+     its parts gone (`FUN_00544160` 'hst ', 'vip ', 'msf '), the party's
+     the same (`FUN_0059dbd0`); `FUN_00545760` (S->C 0x89); data +0xd and
+     +0xe = 1; once (+3), the quest timer `FUN_0059d870` at
+     **(Range - 75) / 20** of Missiles.txt row 338 `horadricstaff`
+     (+0x96, Range 440, loader `FUN_00661b20` at 0x66250f): **18 ticks**;
+     the orifice ends in mode 1; its room and the room 3 below are kept
+     up (`FUN_0061aed0(room, 0)`).
+  5. **The way down** (`FUN_0059d870`, data +0xd): object 100 ("Portal to
+     Duriel's Lair", token SJ, 1 x 3, OperateFn 43) made 13 subtiles left
+     of the orifice and 3 down (`FUN_00555230(x - 13, y + 3, game, room,
+     1, 1, 0)`) in **mode 1**: its 16-frame opening (FrameDelta 200), then
+     mode 2 held; placed in an earlier game (data +0xc), straight in mode
+     2. Then data +0xb (open) = 1, +0xd = 0. The same function first
+     looks at an object kept at data +0x28 by InitFn 37 (`FUN_0059da50`:
+     mode 1 and a quest event after its frames); no objects.txt row has
+     InitFn 37 in 1.14d, so that branch never runs.
+  - **The quest clock**: a timer (`FUN_00543f10`) fires when the quest
+    list's counter (game +0x10f4, +0x14) passes its due count
+    (`FUN_00543e10`), and that counter steps once every **20 game
+    frames** (`FUN_0052d870`: game +0xa8 % 0x14). So 18 ticks is 19
+    steps, 361..380 frames (about 15 s), the hole opening about 75
+    frames before the 440-frame `horadricstaff` missile is done.
+  - **What the clients see** (S->C **0x89 {3}**, sent by `FUN_00545760`
+    from `FUN_0059dd80` at 0x59de02; the client's quest event table
+    0x7129d8, entry 3 at `0x46b100`, which Ghidra has no function for):
+    the orifice found in the player's room (`FUN_0065a620(room, 2,
+    0x98)`); `FUN_004dcd40(0x1252, 0, 0x2d5, 1, 0, 0, 0)` (not
+    identified); client missile 338 `horadricstaff` at the orifice's spot
+    (`FUN_004cdb40(player, 0x152, x, y, 0, 1)`), its motion set by
+    `FUN_004da1d0` (0, 0, 0x28), `FUN_004da200` (0, 0, 0x200, 0),
+    `FUN_004da2a0` (0, 0, 0x46, 0) and flag 0x20 (`FUN_004da6e0`); the
+    overlay `light_jet` (Overlay.txt 0xb5, 13 frames) played once on the
+    orifice (`FUN_00470390` kind 2); Duriel's (class 0xd3) graphics
+    loaded ahead (`FUN_0046f870(0xd3, 1)`).
+  - The orifice's ClientFn 8 (table 0x7277f0, at `0x4bdca0`): out of
+    mode 0, the same load of class 0xd3 once (`FUN_004a30a0`, flag
+    0x7c025d).
+  - Its room coming up (InitFn 21): data +4, +0x20 the orifice's id;
+    placed in an earlier game (+0xc) and not yet open: the 1-tick timer
+    and mode 2; already open (+0xb): mode 2.
 - **Tyrael** is the Lair's DS1 preset (`1:251`, NpcStationary) by
   objects 352 / 353; he stands there from the start, and leaves once his
   portal is open and no player is within 12 of him (monster-ai.md).
@@ -368,6 +423,8 @@ d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`,
 2, log 2 (bit 2); Duriel's death → 3 / 3 (bit 5); Tyrael → 4 / 4, bits
 3 and 13, his portal; Jerhyn → 5 / 6 (bit 4); Meshif → done (bits 0, 2,
 5, 13). Gaps: the orifice's panel (using it with the staff places it);
+the way down is drawn as a town portal, not object 100's SJ opening
+(view.cpp); its timer is 1 frame, not 18 quest ticks;
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
 +0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
 
