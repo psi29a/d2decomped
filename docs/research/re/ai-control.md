@@ -171,3 +171,13 @@ target it advances the unit seed once and calls the wander helper for 5 when
 the low word modulo 100 is below 20, otherwise idles 10.
 `tools/emu/ai_npc_melee.py` checks eight cases, including both roll boundaries,
 with room, town, search, bounded-roll and action helpers hooked.
+
+`FUN_005e7ac0` idles 5 frames for a null or non-mode-1 unit. Outside town it
+searches for a target and, at distance strictly below 20, draws [0, 100): a
+draw below 30 attacks (or, for class 0x10f, uses skill 1 and its mode). A
+first draw of 30 or more triggers a second draw; below 30, it calls
+`FUN_005df7d0(target, 4, 0)`, otherwise it idles 10. Town, no target and
+distance 20 or more instead advance the unit seed and wander for 5 when the
+low word modulo 100 is below 20, else idle 10. `tools/emu/ai_npc_ranged.py`
+checks eight cases with search, random and action helpers scripted; the
+helpers and downstream actions are not checked.
