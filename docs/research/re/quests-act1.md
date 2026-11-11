@@ -1048,9 +1048,17 @@ For Cain, G bit 13 is the game flag that `FUN_00544720(4, 13)` sets, both on the
 
 **The spawn: `FUN_00592960(game, x, y)`, with the room in ESI.**
 1. Step (x+i, y+i), i < 21, until the point is inside the room.
-2. `FUN_005b2f20(x, y, 0x109, 1, 5, 0)`: radius 5.
-3. On failure, 20 more diagonal steps at radius 10, then (x, y) at radius 15.
-4. On success: unit+0xc4 |= 0x3000000, d51 = 1, d52 = 0, d68 = GUID.
+2. `FUN_00545340(room, &spot, 2, 0x100, &room, 1, 100)` (0x5929fe): a
+   size-2 spot clear of 0x100 near it; none found keeps (x, y). Its fifth
+   argument is never read.
+3. `FUN_005b2f20(x, y, 0x109, 1, 5, 0)` (0x592a2e): radius 5.
+4. On failure, 20 more diagonal steps (each through `FUN_00545340` again)
+   at radius 10, then (x, y) at radius 15.
+5. On success: unit+0xc4 |= 0x3000000, d51 = 1, d52 = 0, d68 = GUID.
+
+d2d (`load_npcs`) stands camp Cain on step 2's spot by object 385 (DS1
+preset 110), the same for the rescue and a later game; step 3's search on
+the room's seed isn't taken.
 
 **Where the spawn is called:**
 - `FUN_005940e0`: the InitFn 54 of object 385 "cain start position" (token `ss`), a camp preset. It records d6c / d70 = 1 / d84 / d88, and spawns if d52 == 1 && !d51.

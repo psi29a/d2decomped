@@ -213,10 +213,11 @@ identical, the game seed after too.
 
 Sends the request (FUN_00478680) and the server identifies the items.
 d2d identifies inventory, cube and worn items, as FUN_0062a530 counts them (`rules::identify_all`).
-Cain is cain5 (hcIdx 265 = 0x109, whose record has 0xfb4). a1q4.cpp spawns
-him in camp on the rescue where the player came back through the portal
-(FUN_00596de0 → FUN_00592960); where a game with the quest already done
-places him isn't located — d2d stands him 3 subtiles off the town start.
+Cain is cain5 (hcIdx 265 = 0x109, whose record has 0xfb4). a1q4.cpp makes
+him in camp at the "cain start position", object 385 (DS1 preset 110),
+however he comes: the rescue, a join with the quest done or the way into
+town (FUN_005940e0 / FUN_00596de0 → FUN_00592960; quests-act1.md "Cain in
+camp"). d2d stands him on FUN_00545340's size-2 spot there.
 
 ## Building (`FUN_004b4830`)
 
