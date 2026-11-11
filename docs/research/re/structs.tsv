@@ -15,6 +15,7 @@ ai_control	0x30	u32	owner_type	owner unit type	docs/research/re/ai-control.md:81
 ai_control	0x34	ptr	minions	first minion ID node	docs/research/re/ai-control.md:60
 ai_control	0x38	ptr	preset_record	optional record released at teardown	docs/research/re/ai-control.md:60
 ai_think	0x00	ptr	control	AI control passed to a think function	docs/research/re/ai-control.md:27
+ai_think	0x08	ptr	target	target passed to a think's skill action	docs/research/re/ai-control.md:122
 ai_think	0x14	u32	distance	initial distance for target search	docs/research/re/ai-control.md:72
 ai_think	0x18	u32	melee	initial melee flag for target search	docs/research/re/ai-control.md:72
 ai_think	0x1c	ptr	monstats	monster row used for think parameters	docs/research/re/ai-control.md:35
@@ -57,6 +58,8 @@ monster_data	0x28	ptr	ai_control	AI control pointer	docs/research/re/ai-control.
 monstats_spawn	0x56	u16	count	spawn count for normal difficulty	docs/research/re/ai-control.md:37
 monstats_spawn	0x5c	u16	range	activation range for normal difficulty	docs/research/re/ai-control.md:38
 monstats_spawn	0x62	u16	delay	spawn delay for normal difficulty	docs/research/re/ai-control.md:43
+monstats_spawn	0x170	u16	skill	first monster skill ID	docs/research/re/ai-control.md:122
+monstats_spawn	0x180	u8	skill_mode	mode for the first monster skill	docs/research/re/ai-control.md:122
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
 path	0x54	u32	collided	this frame's collision bits, masked	docs/research/re/missiles.md:54
