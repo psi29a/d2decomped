@@ -1031,6 +1031,14 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `gear_damage`; a made monster's items are made from `Spawn::gear`'s
   seeds in `spawn_monsters` (before a boss's mods scale them), a pet's in
   `Fight::summon_one` (`test_valkyrie_gear`).
+- **Its gear never drops.** MonItemPercent.txt is loaded
+  (`FUN_00654f20` into `0x96d484`) but nothing reads TreasureClassPercent:
+  `0x96d484` is read only by the loader, its free (`FUN_00654fc0`) and
+  its row getter `FUN_00654fe0`, which nothing calls (stubs.md), and the
+  death's drop (`FUN_005a6830` → `FUN_005a6600` → `FUN_0055afa0` →
+  `FUN_0055a6d0`) calls no inventory function directly: it rolls the
+  treasure class only. Where the worn items go when the unit is freed
+  isn't traced.
 - Built: `Fight::pets` (a Monster each), `summon_skill` / `cast_summon` /
   `summon` / `pets_turn` / `pet_foe`; monsters take pets as foes; Raise
   Skeleton uses a Blood Moor corpse (`Monster::corpse_used`).
