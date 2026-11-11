@@ -9,13 +9,17 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act4.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -112,8 +116,22 @@ int main() try {
 
     // Izual dead: a4q1's 3-tick timer, his ghost (0x5b4126 -> 0x5b3e60).
     world.izual_ghost_in = quest_timer_steps(3);
+    // He died on the Plains of Despair and the player went to town: the ghost goes
+    // where he died (0x5b3eaf: Act 4's map at his spot), not where the player is.
+    const auto* plains = data->level(d2d::rules::level_ids::kPlainsOfDespair);
+    assert(plains);
+    const auto ghost_code = data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)].code;
+    const auto ghosts = [&](const Level& where) { return std::ranges::count(where.npcs, ghost_code, &Npc::code); };
+    const auto on_plains = ghosts(*plains), in_town = ghosts(*world.level);
+    world.izual.state = 4;
+    world.izual.ghost_due = true;
+    world.izual.spot_x = float(plains->ds1.width()) / 2;
+    world.izual.spot_y = float(plains->ds1.height()) / 2;
+    world.izual_level = plains;
+    world.izual_ghost_in = quest_timer_steps(3);
     runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
-    world.izual_ghost_due = false;
+    for (int frame = 0; frame < 2; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
+    assert(ghosts(*plains) == on_plains + 1 && ghosts(*world.level) == in_town && world.izual.log == 3);
 
     // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
     world.betrayal.log = 2;

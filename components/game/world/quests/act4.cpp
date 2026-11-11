@@ -79,6 +79,7 @@ auto World::act4_join() -> void {
         diablo_at = diablo_dead_at = gems_at = 0;
         izual_ghost_in = 0;
         izual_ghost_due = false;
+        izual_level = nullptr;
         gem_rounds = 0;
         forge_inited = false;
         seal_bosses.clear();
@@ -164,6 +165,7 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             });
             music_cue("music_quest_izual");
             izual_ghost_in = d2d::rules::quest_timer_steps(3);
+            izual_level = game_data->level(kill.level);
             d2d::log::info("The Fallen Angel: Izual is dead");
         }
         if (kill.type == d2d::rules::HellforgeQuest::kHephasto) {         // FUN_005b65d0: the Hellforge Hammer
@@ -245,9 +247,10 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             izual.ghost_timer();
             if (std::exchange(izual.ghost_due, false))
                 if (const auto& ghost = game_data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)]; !ghost.code.empty()) {
+                    const Level& died = izual_level ? *izual_level : *level;
                     auto npc = ghost;
-                    std::tie(npc.x, npc.y) = level->nearest_free(izual.spot_x, izual.spot_y);
-                    const_cast<Level&>(*level).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
+                    std::tie(npc.x, npc.y) = died.nearest_free(izual.spot_x, izual.spot_y);
+                    const_cast<Level&>(died).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
                     d2d::log::info("The Fallen Angel: Izual's ghost");
                 }
         }
