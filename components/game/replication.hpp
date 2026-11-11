@@ -398,6 +398,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->kind);
         else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
         else if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { out.u8(12); for (const int stone : stones->order) out.u8(stone); }
+        else if (const auto* unique = std::get_if<ev::UniqueEvent>(&event)) out.u8(13).u8(unique->event);
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -664,6 +665,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             ev::StoneOrder stones;
             for (auto& stone : stones.order) stone = byte();
             view.events.push_back(std::move(stones));
+        } else if (kind_byte == 13) {
+            view.events.push_back(ev::UniqueEvent{ byte() });
         } else if (kind_byte == 11) {
             const auto kind = byte();
             if (kind > ev::Message::slain) return false;

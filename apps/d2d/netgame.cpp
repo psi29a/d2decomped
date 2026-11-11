@@ -471,6 +471,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 2 && packet[1] == 12) { quest_quakes.push_back(d2d::rules::QuestQuake::diablo); diablo_red = true; }
         if (size >= 2 && packet[1] == 13) diablo_red = false;
         if (size >= 2 && packet[1] == 1) cairn_opened = true;
+        if (size >= 2 && packet[1] == 3) unique_events.push_back(3);   // the staff in the orifice (0x46b100)
         break;
     case 0x5d: {   // quest log news: +1 quest record, +2 flags (2: a sound), +3 log state, +4 s16 (quests.md)
         // No flags: the record's log state (its row is its word) and the Quest

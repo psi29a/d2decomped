@@ -111,8 +111,12 @@ struct StoneOrder { std::array<int, 5> order{}; };
 // A line for everyone in the game, wherever they are (a LAN game's chat
 // and news): typed chat, who joined or left, who was slain.
 struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
+// A unique event (S->C 0x89 {event}, FUN_00545760 to every client): the
+// client's quest event table 0x7129d8 runs it; 3, the staff in the orifice
+// (FUN_0059dd80): its light show (0x46b100).
+struct UniqueEvent { int event = 0; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeResult, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeResult, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder, ev::UniqueEvent>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP

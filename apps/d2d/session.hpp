@@ -777,6 +777,10 @@ struct ClientSession {
 
     // What the World told the client.
     void handle(const Event& event, Audio& audio, std::uint32_t frame_ms);
+    // S->C 0x89 {event} (the quest event table 0x7129d8): 3 starts the staff's light show.
+    void unique_event(int event, std::uint32_t frame_ms);
+    struct StaffShow { bool playing = false; float x = 0, y = 0; std::uint32_t born = 0; };
+    StaffShow staff_show;                // 0x46b100: the orifice it plays at, from when
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
     bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
     bool quest_log_was_open = false;               // UI 0xf last frame: shutting it marks the animations seen (FUN_004a28d0)

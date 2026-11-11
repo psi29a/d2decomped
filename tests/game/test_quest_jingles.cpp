@@ -6,7 +6,8 @@
 // 0x5b5dfc), the Compelling Orb's and Izual's as the orb monster (0x16e) and
 // Izual (0x100) die (the questcomplete mod's client hook, 0x4ad2f0). Each
 // plays only for a player whose room or one next to it holds the unit
-// (FUN_0065a620 over FUN_00619790's list); none on making the staff.
+// (FUN_0065a620 over FUN_00619790's list); none on making the staff. The staff's
+// S->C 0x89 {3} itself goes to every player (ev::UniqueEvent, its light show).
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -138,6 +139,9 @@ int main() try {
     };
     place_staff(1000);
     assert(!first.held && heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 0);
+    // ... while S->C 0x89 {3} reaches every player (FUN_00545760 at 0x59de02): the light show.
+    const auto show = [](const World::Player& player) { return std::ranges::count_if(player.events, [](const Event& event) { const auto* unique = std::get_if<ev::UniqueEvent>(&event); return unique && unique->event == 3; }); };
+    assert(show(first) == 1 && show(second) == 1);
     second.player.x = hole.x; second.player.y = hole.y + 1;   // both by it: both hear it
     first.events.clear(); second.events.clear();
     world.operated.erase({ tomb, orifice });

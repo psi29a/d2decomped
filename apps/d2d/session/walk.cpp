@@ -148,6 +148,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
             }
             for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
             net_game->quest_news.clear();
+            for (const int unique : std::exchange(net_game->unique_events, {})) unique_event(unique, frame_ms);
             for (const auto kind : std::exchange(net_game->quest_quakes, {}))
                 if (kind != d2d::rules::QuestQuake::diablo || level->id == d2d::rules::level_ids::kChaosSanctuary)
                     quest_quakes.push_back({ kind, frame_ms });
@@ -559,6 +560,7 @@ auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
         if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
+        if (const auto* unique = std::get_if<ev::UniqueEvent>(&event)) { unique_event(unique->event, frame_ms); return; }
         if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 (FUN_004c0550)
             if (service->kind == 0) {                                          // an object's panel opens (FUN_004c0380)
                 open_object_item(service->npc);
