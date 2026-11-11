@@ -1142,9 +1142,10 @@ struct Fight {
     // / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
     // The skill's passive stats, aurastats and sumskills land on it as
-    // summons.cpp has them (FUN_005c4470; the masteries come in that way).
-    // ponytail: sumumod and the golems' specials (Blood Golem's life link,
-    // Iron Golem's item) aren't built.
+    // summons.cpp has them (FUN_005c4470; the masteries come in that way),
+    // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
+    // ponytail: the golems' specials (Blood Golem's life link, Iron Golem's
+    // item) aren't traced or built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
