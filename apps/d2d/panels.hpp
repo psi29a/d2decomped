@@ -9,9 +9,11 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <dc6.hpp>
+#include <item_text.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -42,10 +44,49 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr, bool weapon_set_two = false,
                     const d2d::d2s::Header* header = nullptr);   // the player's quest words (tint_cells)
 
-// A grid item's cells under their colour: red when `wearer` can't use it,
-// dull red unidentified, else blue (FUN_00483ff0; inventory and store).
-void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect,
-                const d2d::d2s::Header* header = nullptr);
+// The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
+// filled at 25 % over what's there (draw mode 0). Red (kind 0) when the wearer
+// can't use it (FUN_0062eaf0), item flag 0x4 (FUN_006280a0 at 0x48424f),
+// FUN_004c2240 (0x48425a, the item in ECX: FUN_00625760(item, 2), a child stat
+// list flagged 2, or the client player in state 0x36), or flags 0x100 / 0x4000
+// (FUN_0062a4e0). Dull red (kind 4) when flag 0x10 is clear. Blue (kind 2)
+// otherwise, and red again for an identified quest consumable its quest holds
+// back (FUN_00483f80). Green (kind 1) when this is the grid item under the
+// cursor (0x7bcbf4 with 0x7bcbe4 set). FUN_00483960's colours are the nearest
+// palette entry of (0x80, 0, 0), (0, 0x80, 0), (0, 0, 0x80), (0x80, 0x40, 0x40);
+// the first, third and fourth are act 1's 0x08 / 0xea / 0x4d, and green is
+// that lookup on the palette in use.
+// ponytail: cursor mode 8 (DAT_007a6af0) with Items.txt Transmogrify clear
+// (FUN_0062a0a0, +0x139) is red, not green. draw_inventory does not know that
+// cursor, a child stat list flagged 2, or the player in state 0x36. A cursor
+// item kept off the drawn list is not seen either.
+inline void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer,
+                       const std::array<int, 4>& rect, const d2d::d2s::Header* header = nullptr, bool under_cursor = false,
+                       bool stat_list_flag_2 = false, bool player_state_36 = false) {
+    const auto green_of = [&]() -> std::array<int, 3> {
+        const auto& loaded = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+        const auto colour = loaded[loaded.nearest(0, 0x80, 0)];
+        if (colour.r != 0 || colour.g != 0 || colour.b != 0) return { int(colour.r), int(colour.g), int(colour.b) };
+        return { 0, 0x80, 0 };   // FUN_00483960's green, before the nearest-palette lookup
+    };
+    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item, wearer.cls)) && !(item.flags & 0x4100u);
+    const bool held_back = item.identified && header && d2d::game::quest_item_held_back(item.code, *header);
+    const bool blocked = !usable || (item.flags & 0x4u) != 0 || stat_list_flag_2 || player_state_36 || held_back;
+    int kind = 2;
+    if (under_cursor) kind = 1;
+    else if (blocked) kind = 0;
+    else if (!item.identified) kind = 4;
+    std::array<int, 3> tint = { 144, 0, 0 };   // act 1's 0x08
+    if (kind == 1) tint = green_of();
+    else if (kind == 2) tint = { 24, 0, 104 };   // act 1's 0xea
+    else if (kind == 4) tint = { 140, 64, 64 };   // act 1's 0x4d
+    const int screen_w = fb_width(framebuffer);
+    for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
+        for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
+            auto* pixel = &framebuffer[(std::size_t(y_pos) * std::size_t(screen_w) + std::size_t(x_pos)) * 4];
+            for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((tint[channel] + 3 * pixel[channel]) / 4);
+        }
+}
 
 // Character panel (left of the inventory: 800x600 puts the left panels
 // at 80..400). Art: invchar6.dc6 frames 0..3. Label and value boxes are

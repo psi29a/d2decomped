@@ -109,6 +109,11 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   around `FUN_005b9930`'s `FUN_005a43e0` at 0x5b993f..0x5b995a; that unit
   is class 0x197, excluded anyway): the quest bound to it
   (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
+- **Carrier release** (`FUN_005bacf0`): when data +2 is exactly 1 and
+  data +4 matches the unit ID (or `0xffffffff` for a null unit), clear +2
+  and set +1 to 1. `FUN_00544f20` reaches it for a quest-bound unit in Act 3.
+  `tools/emu/quest_bird_carrier.py` checks 48 synthetic cases; no d2d parity
+  or caller-path check is claimed.
 - **Its death** (`FUN_005bab60`): unless the killer has bit 0, `j34 ` drops
   (`FUN_00559a30`), due off, state 1.
 - **Talk** (`FUN_005b9ed0`, blocks 0x7401d0): done → block 6 once rewarded;
@@ -149,6 +154,11 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   `FUN_00559a30(2)` each; no quest bit is read), a chest's drops
   (`FUN_00585b90`). In the sewers 2 (93), the Spider Cavern (85), the Flayer
   Dungeon 3 (91).
+- **Log-send filter** (`FUN_005b7f90`): reads the player's quest flags for
+  the game's difficulty and sends quest 0x10 only when word 0x12 bits 0 and
+  15 are both clear. `tools/emu/quest_khalim_log.py` checks all four bit
+  combinations in all three difficulties with lookup, bit tests and sender
+  hooked; it does not check those helpers or d2d parity.
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
   mode; OperateFn 44 `FUN_005b84e0`: in mode 2 the warp tiles of its room are
   made usable, `FUN_0059d9d0` → `FUN_005550b0`) open by the lever (367, InitFn
@@ -170,6 +180,11 @@ needing a flail / a Cube (`FUN_005bb7b0`).
   3 in the killer's room or next to it bit 13 and bit 0 (Khalim's Will done)
   or bit 4 (`FUN_005bae20`), the rest bit 14. The orb (0x16e) dying: unit flag
   0x20000.
+- **Object initialization** (`FUN_005bbb70`): looks up quest record 0x13
+  and, when its data byte +0xc is nonzero, sets the supplied object's mode
+  to 2. The function dereferences the returned record without a null check.
+  `tools/emu/quest_temple_object.py` checks five flag values with lookup and
+  mode setting hooked; it does not test a missing record or those helpers.
 - **The orb** (object 404, InitFn 60 `FUN_005bbba0`; OperateFn 53
   `FUN_005bb980`): with the Will in hand (`FUN_0063bef0`, weapon type 0x2d),
   the second hit: word 0x12 bits 0, 13, the Will taken, word 0x15 bit 0 for
@@ -188,6 +203,11 @@ state → 0x741518; bit 0xb → block 5: every docks NPC greets with the report,
 657..663, `FUN_005bc5a0` clears bit 0xb); "!" `FUN_005bbfe0` (Ormus while
 given out, everyone with bit 0xb); join `LAB_005bcc80` (bit 0, 0xb or word
 0x17 bit 0: +0xc 2, the hellgate open).
+
+The alert gate `FUN_005bbfe0` tests word 0x16 bit 0 first. If clear,
+NPC 0xff and record state 1 return true immediately; all other cases return
+whether bit 0xb is set. `tools/emu/quest_guardian_alert.py` checks 32
+synthetic flag, NPC and state combinations with the flag test hooked.
 
 Record callbacks (`FUN_005bcdc0`): +0xc0 a monster dies `FUN_005bc8b0`,
 +0xa0 `FUN_005bc270`, +0xcc `FUN_005bc5a0`, +0xac entering a level
