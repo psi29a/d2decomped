@@ -7,6 +7,7 @@
 
 #include <combat.hpp>
 #include <missiles.hpp>
+#include <mon_equip.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <town_npcs.hpp>
@@ -1107,9 +1108,15 @@ std::string unique_name(const GameData& game_data, int name_seed);
 // A champion / unique / superunique / minion (rules/uniques.hpp,
 // FUN_005a2120): a higher level, more life, damage and to-hit,
 // resistances, speed, an element; its name. At full life. `players`: in
-// the game (rules::monster_stats' bonus).
+// the game (rules::monster_stats' bonus). `gear`: what it wears from the
+// start (wear_gear), before its mods scale it.
 void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
-               int difficulty, d2d::rules::Rng& rng, int players = 1);
+               int difficulty, d2d::rules::Rng& rng, int players = 1, const d2d::rules::GearSum* gear = nullptr);
+// A made monster's MonEquip items (rules::SpawnGear), each made as a drop on
+// its seeds, summed (rules::gear_sum); and that gear on its stats: every
+// mode's blow as FUN_0057b420 reads it, its defence (stat 31).
+[[nodiscard]] d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::rules::SpawnGear> gear, int difficulty);
+void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear);
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
