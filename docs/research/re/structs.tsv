@@ -11,6 +11,32 @@ damage	0x08	i32	physical	the physical field, in 256ths (what Bone Armor takes fr
 damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 256ths	docs/research/re/combat.md:274
 data_tables	0xbf8	ptr	item_types	the ItemTypes records, with stride 0xe4	docs/research/re/items.md:53
 data_tables	0xbfc	u32	item_type_count	the number of ItemTypes records	docs/research/re/items.md:53
+drlg_astar_cell	0x00	u32	cost	visited grid entry	docs/research/re/drlg.md:2338
+drlg_astar_node	0x00	u16	total	total path cost	docs/research/re/drlg.md:2343
+drlg_astar_node	0x02	u16	heuristic	remaining cost estimate	docs/research/re/drlg.md:2343
+drlg_astar_node	0x04	u16	cost	path cost	docs/research/re/drlg.md:2341
+drlg_astar_node	0x06	u16	attempt	candidate counter	docs/research/re/drlg.md:2343
+drlg_astar_node	0x08	u32	position	packed x and y	docs/research/re/drlg.md:2332
+drlg_astar_node	0x0c	ptr	direction_table	direction table pointer	docs/research/re/drlg.md:2346
+drlg_astar_node	0x10	u32	direction	current direction	docs/research/re/drlg.md:2335
+drlg_astar_node	0x14	ptr	parent	parent node	docs/research/re/drlg.md:2346
+drlg_astar_node	0x18	ptr	child	allocated child	docs/research/re/drlg.md:2344
+drlg_astar_path	0x04	u32	target	packed destination	docs/research/re/drlg.md:2332
+drlg_astar_path	0x08	u32	room	collision room	docs/research/re/drlg.md:2338
+drlg_astar_path	0x14	u8	radius	early return threshold	docs/research/re/drlg.md:2348
+drlg_astar_path	0x28	u32	shape	collision shape	docs/research/re/drlg.md:2338
+drlg_astar_path	0x2c	u32	mask	collision mask	docs/research/re/drlg.md:2338
+drlg_astar_state	0x00	ptr	root	initial node	docs/research/re/drlg.md:2331
+drlg_astar_state	0x6274	u32	count	allocated node count	docs/research/re/drlg.md:2345
+drlg_astar_state	0x6278	u16	min_x	inclusive left bound	docs/research/re/drlg.md:2333
+drlg_astar_state	0x627a	u16	min_y	inclusive upper bound	docs/research/re/drlg.md:2333
+drlg_astar_state	0x627c	u16	max_x	inclusive right bound	docs/research/re/drlg.md:2333
+drlg_astar_state	0x627e	u16	max_y	inclusive lower bound	docs/research/re/drlg.md:2333
+drlg_astar_state	0x6284	u32	width	visited grid stride	docs/research/re/drlg.md:2337
+drlg_astar_state	0x6288	i32	offset_x	visited grid x offset	docs/research/re/drlg.md:2337
+drlg_astar_state	0x628c	i32	offset_y	visited grid y offset	docs/research/re/drlg.md:2337
+drlg_astar_state	0x36fd0	u32	randomized	random direction flag	docs/research/re/drlg.md:2346
+drlg_astar_state	0x36fd4	ptr	seed	random direction seed	docs/research/re/drlg.md:2347
 drlg_walk_context	0x08	u32	room	collision helper's first argument	docs/research/re/drlg.md:2321
 drlg_walk_context	0x24	u32	shape	collision helper's fourth argument	docs/research/re/drlg.md:2321
 drlg_walk_context	0x2c	u32	mask	collision helper's fifth argument	docs/research/re/drlg.md:2321
@@ -59,6 +85,8 @@ room	0x4c	u32	x	the room's first subtile column	docs/research/re/act1-end.md:737
 room	0x50	u32	y	its first subtile row	docs/research/re/act1-end.md:737
 room	0x54	u32	w	its width in subtiles	docs/research/re/act1-end.md:737
 room	0x58	u32	h	its height in subtiles	docs/research/re/act1-end.md:737
+seed	0x00	u32	low	low word of the random seed	docs/research/re/drlg.md:2347
+seed	0x04	u32	high	high word of the random seed	docs/research/re/drlg.md:2347
 skill	0x08	u8	flags	0x20: usemanaondo	tools/emu/sk_mana.py:88
 skill	0x2c	u16	srvst	the server start function id (srvstfunc)	tools/emu/sk_mana.py:87
 skill	0x2e	u16	srvdo	the server do function id (srvdofunc)	tools/emu/sk_mana.py:88
