@@ -19,9 +19,17 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+00451880	message_record_dispatch	ECX record (+0 frame stamp, must equal FUN_0044da90 else line 0x12a; +4 msg, +8 wParam, +0xc lParam): FUN_00420b00 looks up the SMSG/SMSH/SMSI/SMSJ handlers; only caller FUN_004519c0's queue walk (net-join.md "Who calls the shutdown")
+00451f10	handler_level_push	no args: FUN_00420360(window) -> FUN_00426370 pushes a new level (0x10-byte record, SEVT.CPP line 0x11c) on the SMSH / SMSI / SMSJ / SMSG nodes; only caller FUN_0044f360 (net-join.md "Who calls the shutdown")
+00451f20	handler_level_pop	no args: FUN_00420320(window) -> FUN_004269c0 drops the top level of the four tag nodes (the level below becomes node[3]; none: FUN_00426810); pair of FUN_00451f10, called at 0x44d569 (net-join.md "Who calls the shutdown")
 00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044da40	mouse_buttons_reset	0x70f234 = 0x70f2bc = 0x10 (both buttons up), 0x7a0650 / 0x7a0654 / 0x7a066c / 0x7a0670 = 0, then jumps to FUN_00466fe0 (collision.md "The mouse-button state words")
+004359d0	frontend_screen_run	ECX record -> DAT_007795d4; FUN_004f8fe0 first, FUN_004f90a0(1), screen body; tail FUN_004f9180 / FUN_004fa590 / FUN_00515020..70 / FUN_00524e40, zeroes record +0xa5..+0xb9 (6 dwords), FUN_004fa550; returns DAT_007795e8; data ref 0x70896c (net-join.md "Who calls the shutdown")
+00442150	d2win_screen_run	ECX record -> DAT_0077bbd8; FUN_004f8fe0 (setup), FUN_004f90a0(1), FUN_00441b70 (body), FUN_004fa550; returns DAT_0077bda0; referenced by a data word at 0x70cd14 (net-join.md "Who calls the shutdown")
+0044b880	set_quit_program	ECX -> DAT_0070ee8c, the flag FUN_0044b8a0 sets to 1 at 0x44b946 and tests at 0x44b98a after shutdown (0 = back to the menus, return 3 / 4); callers pass 0 (net-join.md "The client's leave flags")
+0044c860	set_left_game	ECX -> DAT_007a0674, set to 1 after the client sent C->S 0x69; its only reader (0x44c870 at 0x45ca6f) turns an unasked end in game types 7 / 9 into FUN_0044e380(8) (net-join.md "The client's leave flags")
+0044db30	game_type	returns DAT_007a0610, the game type copied from config +0x19 at 0x44d630: 0x468960 (Party key) wants nonzero, 0x486d10 passes 0 and 1 (net-join.md "Game types")
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044dca0	ladder_or_one	no args, 24 bytes: game type at 0x7a0610 is 2 or 3 returns dword 0x7a04f8 (S->C 0x01 byte +7, ladder), else 1 (net-join.md)
@@ -46,6 +54,7 @@ address	name	evidence
 00463260	client_run_stamina_stop	EAX unit, from FUN_00463390 in mode 3: the local player at stat 10 (stamina) 0 re-walks to its target or spot in walk mode (collision.md "The client's command switch")
 00463390	client_player_tick	ECX unit: per-frame step by the 12-byte mode rows at 0x711e00; walk / skill handling, frame step, end of mode, then FUN_00463260 in mode 3 (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
+00463990	client_unit_find	ECX id, EDX type: FUN_00463940 on bucket id & 0x7f of 0x7a5e70 + (type << 9), chain unit +0xe4, id at +0xc; 0 if none, a type mismatch (unit +0) ends the run with error 0x5a (net-packets.md "Unit handlers")
 00463830	monstats_base_id	ECX class id: the signed word at +2 (BaseId) of the 0x1a8-byte MonStats row (table +0xa78, count +0xa80); a bad index or no row returns the id itself; verified by unit_client.py
 00463900	monster_class_valid	ECX class id: itself when 0 <= id < MonStats count (+0xa80 of 0x744304's block), else -1; verified by unit_client.py
 00463940	unit_find_in_chain	EAX bucket, EDX table, ECX id, stack type: first node of the +0xe4 chain with +0xc == id; its +0 type must equal the stack type, else fatal line 0x5a; none = 0; verified by unit_client.py
@@ -206,6 +215,7 @@ address	name	evidence
 004a9d70	hotkeys_unbind_skill	(skill record, count): with count < 1 clears every hotkey slot (0x7c06c8 / 0x7c07b8 / 0x7c0768) bound to a skill id in the picker array 0x7c04e0 equal to the record's id, then FUN_004786a0(-1); skills.md "Skill list accessors and the hotkey sweep"
 004a9df0	hotkeys_unbind_empty	() sweeps the player's skill list, records with +8 & 0x10: FUN_004a9d70(record, node count); empty list asserts (line 0x47d); called by FUN_0048ffe0; skills.md "Skill list accessors and the hotkey sweep"
 004aa160	hotkeys_default_fill	() binds up to 16 non-passive picker slots (of 60) to the next free hotkey slots via FUN_004aa0f0; empty list asserts (line 0x524); no caller in game-calls.tsv (cited); skills.md "Skill list accessors and the hotkey sweep"
+004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #109)
 004ade40	monster_mod_dispatch_0	ECX unit: FUN_004add90(unit, 0, 0); verified by unit_client.py
 004ade50	monster_mod_dispatch_1	ECX unit: FUN_004add90(unit, 0, 1); verified by unit_client.py
 004ade60	monster_mod_dispatch_2	ECX unit: FUN_004add90(unit, 0, 2); verified by unit_client.py
@@ -293,6 +303,11 @@ address	name	evidence
 004e7120	damage_add_listed_skills	walks tables+0x16c (count +0x170): per id the stat list's stats 0x15e / 0x15f (skill, level) add SkillDesc calc min / max (+0x20 / +0x2c) or EMin / EMax (char-panel.md)
 004ec040	desc_damage_handler_18	slot 18 of the descdam table 0x72d768 (data ref at 0x72d7b0): SkillDesc found, then FUN_004ea010 (descdam 7)
 004eda80	skill_attack_rating	(player, hand): the hand's skill -> SkillDesc descatt (+0x14) handler in table 0x72d7f8, returns its first rating; 0 if none
+004f59a0	window_handle_get	no args: returns the dword at 0x7c8cbc, the HWND (FUN_004f90a0 passes it to GetWindowRect); FUN_004fa550 and FUN_004f8fe0 pass it as ECX of the handler-table calls (net-join.md "D2Win shutdown")
+004f68e0	renderer_tile_draw	stdcall 9 args (ret 0x24): arg 1 to ECX, arg 2 to EDX, args 3..9 pushed, then calls [DAT_007c8cc0 + 0x7c] (gdi-driver.md)
+004f9290	d2win_list_trim	frees leading nodes of the list at DAT_007d55c0 (flags +8, next +0x3c) until bit 1, then until bit 2; skipped when DAT_007d55c4 > 0; returns 1; D2WinMain.cpp lines 0x25a / 0x263 (net-join.md "D2Win shutdown")
+004fa550	d2win_shutdown	no args, returns 1: DAT_007d55c4 = 0, FUN_004f9290, FUN_00507140, FUN_005015f0, then FUN_00506e00 on 0x72dc48 x 0x21; called at the end of FUN_004359d0, by FUN_00442150 and after state 1 of FUN_0044b8a0 (net-join.md "D2Win shutdown")
+005015f0	font_table_release	D2WinFont.cpp: 14 entries of 0x14 bytes from 0x841da8: +0 closed (FUN_004faae0), +4 freed (line 0x135), both zeroed; then DAT_00841da4 closed and zeroed (net-join.md "D2Win shutdown")
 004f5050	renderer_shutdown	slot +0x08, then the Error 21..25 box when start-up had failed (video-drivers.md)
 004f5140	renderer_mode	returns DAT_007c8cb0, the driver mode 1/3/4/6 (video-drivers.md)
 004f5160	renderer_resolution	returns DAT_007c8cb8, the resolution index for FUN_004f5570 (video-drivers.md)
@@ -353,6 +368,8 @@ address	name	evidence
 004f6950	renderer_wall_tile_a0	slot +0xa0 (gdi-driver.md "Wall tile draw")
 004f6980	renderer_shadow_tile	slot +0xa4 (lighting.md "Tile shadows")
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
+00506e00	handler_table_remove	ECX owner (null: line 0x5a), EDX table of 12-byte (kind, code, handler) entries, stack count (ret 4): FUN_00506cf0 per entry -> FUN_00426720 unlinks it; shutdown passes 0x72dc48 x 0x21 (net-join.md "D2Win shutdown")
+00507140	pentspin_close	FUN_004faae0 (CloseFile) on DAT_0087e96c, the front end's pentspin (menu.md), then zeroes it (net-join.md "D2Win shutdown")
 00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
 00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
 00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
