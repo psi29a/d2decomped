@@ -31,6 +31,9 @@ its EDX, run after the path is set.
   the target; position (16.16) the start subtile's centre; unit vector
   FUN_0064fc60 toward the target's centre. If the target isn't in the
   missile's room (path +0x1c), path flag 1: the room follows the missile.
+  d2d keeps both when the missile has no target point: `missile_fly` aims
+  with FUN_0064fc60 at the start plus (1, 1), and the room follows only
+  when that point lies outside the first room.
 - Flag 0x400 (FUN_0056ee90): range = (FUN_006417f0 distance << 16) /
   (velocity << 4), the frames to arrive.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit
@@ -515,8 +518,8 @@ changes the picture.
   `missile_touches`, `kMissileAim` (test_exe_tables).
 - `game::missile_fly` (ai.hpp) flies every moving missile (the player's,
   the merc's, pets', monsters', traps') in act subtiles from its first
-  frame: at `Missile::to` when the site knows the target point, else along
-  its velocity; speed from `missile_speed` (path velocity / 4096 subtiles
+  frame: at `Missile::to` when the site knows the target point, else
+  FUN_0064fc60 toward the start plus (1, 1); speed from `missile_speed` (path velocity / 4096 subtiles
   a frame); its rooms from `missile_rooms` (gamedata.cpp near lists).
   Hits: the subtiles entered against each foe's footprint by size.
 - Charged Bolt (do 17) sends `bolt` = its index: the wiggle path.
