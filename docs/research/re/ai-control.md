@@ -118,3 +118,17 @@ the node-list free runs for real. It does not test malformed monster data.
 boundary, failed location and spawn, and successful spawn with either class
 row selection. Its room, class, location, spawn and action helpers are hooked;
 it does not check those helpers or the other two difficulty rows.
+
+`FUN_005e0260` is a skill-driven spawn think. Its think record supplies the
+target at +8 and MonStats row at +0x1c. Within the signed difficulty-indexed
+range at row +0x5c, a control +0x18 count greater than the signed limit at
+row +0x56 sets unit flag 0x20000 (for a non-null unit) and calls
+`FUN_005ddfc0` with zeros. Otherwise, with skill 1 at row +0x170 nonnegative
+and control +0x14 strictly before the game frame, it asks `FUN_005fd350` for
+a placement using class 0x14e when the table count exceeds 0x14e, else -1.
+Successful placement increments the count, sets the next frame from the
+signed difficulty-indexed delay at row +0x62, and calls `FUN_005dead0` with
+the mode byte at +0x180, skill ID and target. Other paths stand 25 frames.
+`tools/emu/ai_sarcophagus_spawn.py` checks seven normal-difficulty decisions
+with coordinate, room, placement and action helpers hooked; it does not check
+their implementations or the other difficulty rows.
