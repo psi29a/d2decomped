@@ -261,9 +261,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         std::string out;
         for (std::size_t i = 0; i < town.level->npcs.size(); ++i) {
             const auto& npc = town.level->npcs[i];
-            if (npc.name.empty() || (i < town.npc_states.size() && town.npc_states[i].hidden)) continue;
-            const bool live = i < town.npc_states.size() && !npc.path.empty();
-            const float dx = (live ? town.npc_states[i].x : npc.x) - town.player.x, dy = (live ? town.npc_states[i].y : npc.y) - town.player.y;
+            const auto& states = town.view.npc_states;            // as drawn (a LAN joiner's are the host's)
+            if (npc.name.empty() || (i < states.size() && states[i].hidden)) continue;
+            const bool live = i < states.size() && !npc.path.empty();
+            const float dx = (live ? states[i].x : npc.x) - town.player.x, dy = (live ? states[i].y : npc.y) - town.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });

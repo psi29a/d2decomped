@@ -110,14 +110,14 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         const bool killer_took_part = quest::bit(quests(), kQuest, 13);
         each_player([&](Player& player) { if (level->id == d2d::rules::level_ids::kCatacombsLevel4) andy.in_lair(quests(), player.id); });
         const int killer = actor->id;
-        each_player([&](Player& player) {
+        each_in_game([&](Player& player, int their_act) {      // the party in Act 1, whatever level they're on
             auto& bits = quests();
-            if (player.id == killer || !killer_took_part || act() != 0 || quest::bit(bits, kQuest, 0) || quest::bit(bits, kQuest, 1)) return;
+            if (player.id == killer || !killer_took_part || their_act != 0 || quest::bit(bits, kQuest, 0) || quest::bit(bits, kQuest, 1)) return;
             andy.cain.add(player.id); andy.akara.add(player.id); andy.kashya.add(player.id);
             quest::set(bits, kQuest, 13); quest::set(bits, kQuest, 1);
             open_act(1);
         });
-        each_player([&](Player&) {
+        each_in_game([&](Player&, int) {
             auto& bits = quests();
             if (!quest::bit(bits, kQuest, 0) && !quest::bit(bits, kQuest, 1)) quest::set(bits, kQuest, 14);
             if (quest::bit(bits, kQuest, 1) && quest::bit(bits, kQuest, 13)) class_cue("act1_complete_andariel", d2d::rules::quest_line_due(0x21, now_ms));
