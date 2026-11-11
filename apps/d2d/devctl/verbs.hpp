@@ -55,6 +55,10 @@ const char* screen_name(Screen screen) {
 // Registers them on `ch`. They capture main()'s loop locals by reference;
 // the channel is only pumped inside that loop, so the captures never
 // outlive it.
+/**
+ * Register game-loop debug commands for synthetic input and state inspection. Callbacks capture
+ * loop-owned state by reference and must only be pumped while that state is alive.
+ */
 void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& screen, CharSelectUI& csu, CharCreateUI& character,
                          Town& town, std::optional<Scene>& scene, Audio& audio) {
     auto click_verb = [&window = win](const std::vector<std::string>& args, std::uint8_t button) {
@@ -184,7 +188,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         const bool is_trigger = trigger == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || trigger == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
         if (button == SDL_GAMEPAD_BUTTON_INVALID && !is_trigger) return std::string("err unknown button (a, b, x, y, dpleft, leftshoulder, lefttrigger, ...)\n");
         if (const auto err = plug(false); !err.empty()) return err;
-        if (is_trigger) SDL_SetJoystickVirtualAxis(handle, trigger, word(1) == "down" ? SDL_JOYSTICK_AXIS_MAX : 0);
+        // Raw joystick triggers rest at -32768; SDL maps that to gamepad zero.
+        if (is_trigger) SDL_SetJoystickVirtualAxis(handle, trigger, word(1) == "down" ? SDL_JOYSTICK_AXIS_MAX : SDL_JOYSTICK_AXIS_MIN);
         else SDL_SetJoystickVirtualButton(handle, button, word(1) == "down");
         return std::string("ok\n");
     });
@@ -204,6 +209,20 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         SDL_RenderCoordinatesToWindow(win.renderer, std::stof(args[1]), std::stof(args[2]), &x, &y);
         SDL_Event event{};
         event.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(win.window), .x = x, .y = y };
+        SDL_PushEvent(&event);
+        return std::string("ok\n");
+    });
+    channel.on("touch", [&window = win](const std::vector<std::string>& args) {
+        if (args.size() != 5) return std::string("err touch <finger> down|move|up|cancel <x> <y>\n");
+        SDL_Event event{};
+        event.type = args[2] == "down" ? SDL_EVENT_FINGER_DOWN : args[2] == "move" ? SDL_EVENT_FINGER_MOTION
+                   : args[2] == "up" ? SDL_EVENT_FINGER_UP : args[2] == "cancel" ? SDL_EVENT_FINGER_CANCELED : SDL_EVENT_FIRST;
+        if (event.type == SDL_EVENT_FIRST) return std::string("err touch phase\n");
+        event.tfinger.touchID = 1;
+        event.tfinger.fingerID = std::strtoull(args[1].c_str(), nullptr, 10);
+        event.tfinger.windowID = SDL_GetWindowID(window.window);
+        event.tfinger.x = std::stof(args[3]) / float(window.view_w);
+        event.tfinger.y = std::stof(args[4]) / float(kScreenHeight);
         SDL_PushEvent(&event);
         return std::string("ok\n");
     });
@@ -310,6 +329,35 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " cam=" + std::format("{:.2f},{:.2f}", town.player.x, town.player.y)
              + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
+             + " aura=" + std::to_string(town.view.aura)
+             + " hotkeys=" + [&] {
+                 std::string out;
+                 for (const auto binding : town.character.header.hotkeys) {
+                     if (!out.empty()) out += ",";
+                     out += std::to_string(binding);
+                 }
+                 return out;
+             }()
+             + " character_panel=" + std::to_string(town.char_open)
+             + " quests=" + std::to_string(town.quest_log.open)
+             + " touch_page=" + std::to_string(town.touch_input.alternate)
+             + " touch_aiming=" + std::to_string(town.touch_input.aiming)
+             + " touch_item_finger=" + std::to_string(town.touch_item_finger)
+             + " touch_skill=" + std::to_string(town.touch_input.preview.skill)
+             + " touch_target=" + std::to_string(town.touch_input.preview.unit)
+             + " touch_point=" + std::to_string(town.touch_input.preview.x) + "," + std::to_string(town.touch_input.preview.y)
+             + " touch_move=" + std::to_string(town.touch_input.move_x) + "," + std::to_string(town.touch_input.move_y)
+             + " pad_south=" + [&] {
+                   const auto found = town.skill_sheets.find(town.sheet_key(character.name));
+                   return std::to_string(found == town.skill_sheets.end() ? 0 : found->second.slot(false, 0));
+               }()
+             + " panel_tab=" + std::to_string(town.pad_panel())
+             + " radial_skill=" + std::to_string(town.wheel_at >= 0 && town.wheel_at < int(town.wheel_ids.size()) ? town.wheel_ids[std::size_t(town.wheel_at)] : -1)
+             + " radial_at=" + std::to_string(town.wheel_at)
+             + " assignment=" + town.assignment_feedback
+             + " inventory=" + (town.inv_open ? "1" : "0")
+             + " identify=" + std::to_string(town.identify_with)
+             + " pad_field=" + (town.pad_field() ? "1" : "0")
              + " stash=" + (town.stash_open ? "1" : "0")
              + " cube=" + (town.cube_open ? "1" : "0")
              + " store=" + std::to_string(town.store.npc >= 0 ? town.store.vendor : -1) + " store_tab=" + std::to_string(town.store.tab)

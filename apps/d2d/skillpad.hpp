@@ -10,11 +10,34 @@
 #include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
 
 namespace d2d::client::skillpad {
+
+/**
+ * Recognize the Town Portal skill names that dispatch through a carried portal tome.
+ */
+[[nodiscard]] inline bool portal_name(std::string_view name) {
+    return name == "Book of Townportal" || name == "Town Portal" || name == "Scroll of Townportal";
+}
+
+// Modern assignment excludes inventory Identify actions and generic Kick.
+/**
+ * Exclude inventory Identify entries and generic Kick from modern skill assignment. Comparisons
+ * ignore ASCII case; named class kick skills remain eligible.
+ */
+[[nodiscard]] inline bool assignable_name(std::string_view name) {
+    const auto matches = [&](std::string_view excluded) {
+        return name.size() == excluded.size() && std::equal(name.begin(), name.end(), excluded.begin(), [](char left, char right) {
+            const auto lower = [](char value) { return value >= 'A' && value <= 'Z' ? char(value + ('a' - 'A')) : value; };
+            return lower(left) == lower(right);
+        });
+    };
+    return !matches("Kick") && !matches("Identify") && !matches("Scroll of Identify") && !matches("Book of Identify");
+}
 
 inline constexpr int kSlots = 6;          // A B X Y LB RB, each with a second set
 inline constexpr int kEmpty = -1;         // the slot casts nothing
@@ -22,12 +45,48 @@ inline constexpr int kUnset = -2;         // the main skill has never been saved
 inline constexpr int kInteract = -3;      // the slot talks, uses, or picks up, as the right stick does
 inline constexpr int kShowItems = -4;     // the slot holds Show Items, as Alt does
 
-[[nodiscard]] inline bool binds_action(int id) { return id == kInteract || id == kShowItems; }
+inline constexpr int kInventory = -5;
+inline constexpr int kCharacter = -6;
+inline constexpr int kSkillTree = -7;
+inline constexpr int kAutomap = -8;
+inline constexpr int kQuests = -9;
+inline constexpr std::array<int, 8> kActions = {
+    kEmpty, kInteract, kShowItems, kInventory, kCharacter, kSkillTree, kAutomap, kQuests };
+
+// The same panel indices as the Start list below.
+/**
+ * Translate a panel action ID to its index in the controller panel-shortcut list, or -1 when it is
+ * not a panel action.
+ */
+[[nodiscard]] inline int panel_index(int id) {
+    switch (id) {
+        case kCharacter: return 0;
+        case kInventory: return 1;
+        case kSkillTree: return 2;
+        case kAutomap: return 3;
+        case kQuests: return 4;
+        default: return -1;
+    }
+}
+/**
+ * Report whether an assignment ID names an interaction, item-label hold or panel shortcut rather
+ * than a spell.
+ */
+[[nodiscard]] inline bool binds_action(int id) { return id == kInteract || id == kShowItems || panel_index(id) >= 0; }
 // `full` is the wheel's highlighted name. The tray uses the short one.
+/**
+ * Return the full editor label or compact tray label for an action assignment. Unknown IDs have no
+ * label.
+ */
 [[nodiscard]] inline std::string_view action_label(int id, bool full) {
     if (id == kEmpty) return "Clear";
     if (id == kInteract) return full ? "Interact" : "Use";
     if (id == kShowItems) return full ? "Show Items" : "Items";
+    if (id == kInventory) return full ? "Inventory" : "Inv";
+    if (id == kCharacter) return full ? "Character" : "Char";
+    if (id == kSkillTree) return full ? "Skill Tree" : "Skills";
+    if (id == kAutomap) return "Map";
+    if (id == kQuests) return "Quests";
     return {};
 }
 
@@ -52,6 +111,29 @@ struct Sheet {
     bool operator==(const Sheet&) const = default;
 };
 
+// First activation only: current hands first, then the player's saved hotkeys.
+// Callers filter eligibility and charged entries before passing these IDs.
+/**
+ * Build a first-use layout from eligible current hand skills and ordered saved hotkeys. Fill only
+ * enabled destinations, skip duplicates, and leave unused positions explicitly empty; callers must
+ * not apply this to an existing sheet.
+ */
+[[nodiscard]] inline Sheet initial_sheet(int left, int right, std::span<const int> hotkeys, const std::array<bool, 7>& enabled) {
+    Sheet sheet;
+    sheet.slots.fill(kEmpty);
+    sheet.main = enabled[6] ? left : kEmpty;
+    sheet.set_slot(false, 5, enabled[5] ? right : kEmpty);
+    std::array<int, 11> destinations{ 0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 };
+    std::size_t next = 0;
+    for (const int skill : hotkeys) {
+        if (skill < 0 || skill == sheet.main || std::ranges::contains(sheet.slots, skill)) continue;
+        while (next < destinations.size() && !enabled[std::size_t(destinations[next] % kSlots)]) ++next;
+        if (next == destinations.size()) break;
+        sheet.slots[std::size_t(destinations[next++])] = skill;
+    }
+    return sheet;
+}
+
 // Screen axes: +x right, +y down. Wedge 0 is centred half a step clockwise
 // from straight up, then clockwise. The same centre is what the wheel draws.
 inline constexpr float kTau = 6.2831853f;
@@ -73,6 +155,32 @@ inline constexpr int kWheelShown = 8;       // icons on the ring at once; the re
     if (index >= count) index = 0;
     if (index < 0) index = 0;
     return index;
+}
+
+// Modern radial selection: centre hold and a small angular boundary margin.
+/**
+ * Resolve radial selection while retaining the current wedge near the stick centre and wedge
+ * boundaries. The angular margin prevents small movements from repeatedly changing the highlight.
+ */
+[[nodiscard]] inline int stable_wedge(float x, float y, int count, int current) {
+    if (count <= 0 || std::hypot(x, y) <= .30f) return current;
+    const float angle = std::atan2(y, x);
+    if (current >= 0 && current < count) {
+        const float delta = std::remainder(angle - wedge_center(current, count), kTau);
+        if (std::abs(delta) <= kTau / float(count) / 2 + .08f) return current;
+    }
+    float turn = std::fmod(angle + kHalfPi + kTau, kTau);
+    return std::min(count - 1, int(turn / kTau * float(count)));
+}
+/**
+ * Move the radial highlight to the adjacent wrapping page, preserving its position where possible.
+ * Clamp that position on a short final page; an empty list resolves to zero.
+ */
+[[nodiscard]] inline int next_page(int highlight, int count, int step) {
+    if (count <= 0) return 0;
+    const int pages = (count + kWheelShown - 1) / kWheelShown;
+    const int page = (highlight / kWheelShown + (step > 0 ? 1 : pages - 1)) % pages;
+    return std::min(count - 1, page * kWheelShown + highlight % kWheelShown);
 }
 
 // The icons actually drawn. `start` is the previous window. The highlight
@@ -158,8 +266,13 @@ inline constexpr std::array<std::string_view, 9> kPanels = {
 // One line each: "main <id>", "amain <id>" when LT+RT was saved, "s0".."s5"
 // the first set, "a0".."a5" the second. A missing main stays unset. A missing
 // amain means "use main". A missing slot stays empty. -1 is an explicit clear.
+/**
+ * Serialize a skill sheet with its initialization marker, explicit slot clears and saved trigger
+ * overrides. Omit unset trigger fields so legacy alternate-trigger fallback remains distinguishable
+ * from a clear.
+ */
 [[nodiscard]] inline std::string write(const Sheet& sheet) {
-    std::string out;
+    std::string out = "initialized 1\n";
     if (sheet.main != kUnset) out += "main " + std::to_string(sheet.main) + "\n";
     if (sheet.alt_main != kUnset) out += "amain " + std::to_string(sheet.alt_main) + "\n";
     for (int index = 0; index < kSlots; ++index) {
@@ -169,8 +282,13 @@ inline constexpr std::array<std::string_view, 9> kPanels = {
     return out;
 }
 
+/**
+ * Parse recognized skill-sheet fields, ignoring malformed or unknown lines. Missing slots remain
+ * empty and an absent alternate trigger retains the legacy main-trigger fallback.
+ */
 [[nodiscard]] inline Sheet read(std::string_view text) {
     Sheet sheet;
+    sheet.slots.fill(kEmpty);  // existing files keep missing and deliberately empty slots empty
     while (!text.empty()) {
         const auto split = text.find('\n');
         const auto line = text.substr(0, split);

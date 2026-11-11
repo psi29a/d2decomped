@@ -37,6 +37,19 @@ ordinary and state loops, cast endings, tick boundaries, a stopped
 animation and a rate faster than one loop per tick. The test also checks
 independent alert starts, restarts, new-level resets and clock wrap.
 
+`pad_skill_use_d2d` uses a virtual pad with the skill-button preset: assigning
+Inventory from the wheel, using identify and portal tomes, buying with X,
+selling with Hold A, and Attack/Use on a portal and waypoint. It shares
+`pad_use_d2d.py` with the default-layout check; both need MPQs and the patch.
+
+`pad_controls_ux_d2d` checks the skill-panel entry, remapped destination labels,
+both banks, panel cancellation and holding Might without moving. The two
+`touch_*_d2d` tests inject SDL finger events for assignment, page changes during
+movement, aim/cancel, panel interruption, Teleport and corpse casting.
+`test_touch_input` covers finger ownership and gesture invalidation without
+assets; `test_direct_controls` covers saved clears, legacy RT fallback, both
+LT-chord release orders and item-use availability. None is a hardware test.
+
 Fast act checks (need the MPQs and `D2_PATCH_INSTALLER`): the quests of
 Acts 1–5 played headless, an act per test, side by side:
 `ctest --test-dir build -R quests_act -j3`. Each act's levels against
@@ -56,3 +69,37 @@ quest effects reaching local co-op participants.
 The Act 1 and Act 4 headless quest tests also wait for the real quest
 effects to reach the client offsets and OpenAL quake channel, check that a
 level change stops the loop, and observe Diablo's delayed arrival taunt.
+
+Controller regressions: `test_pad_stop` exercises an exact-position fresh Move
+through World and preserves facing/position; `pad_portal_d2d` loads a saved RT
+portal binding and uses a carried tome with Inventory closed. Both use the
+existing local 1.14d data gate. `test_direct_controls` covers the modern radial
+filter, retaining class kick skills. Native touch hardware remains unverified.
+
+`test_panel_navigation` covers radial pages, centre/boundary stability,
+column-first tree movement and shoulder mapping. `pad_controls_ux_d2d`
+cycles all six actual panels in both directions with simulated SDL input.
+
+`test_skill_seed` covers deterministic hand/hotkey setup, duplicates, disabled
+destinations, round trips and legacy clears. `pad_seed_d2d` uses a temporary
+character and actual save/reload to check initialization, excluded skills,
+cleared slots, preset toggling, legacy preservation and skill-tree close input.
+It also captures the open shortcut strip with controller input active.
+
+`test_retail_keyboard` compares the close rectangle against frozen retail
+output for every class/tab and checks 0x51 hotkey packet bytes.
+`keyboard_bindings_d2d` uses actual picker clicks and F-keys to check binding
+stability, duplicate reassignment, selection and local save/reload. It also
+checks conditional New Stats and retail tree close/drag-off behavior.
+Retail re-check commands and limits are in skill-tree.md and skills.md.
+
+Controller Identify review regressions: `pad_identify_classic_d2d` and
+`pad_identify_d2d` exercise real A pickup of Identify scrolls/tomes, both before
+and after unidentified targets are present. Skill Buttons also checks Use to
+activate Identify and A to confirm. These require local MPQs and the 1.14d patch;
+empty-tome availability is covered by `test_direct_controls`.
+
+The touch inventory test also sells through actual mouse down/up events (owner
+-2), in addition to injected SDL fingers. Cancellation and closing a shop while
+holding an item must not commit a sale. This validates the single-pointer input
+path in simulation, not native Sidecar or phone event delivery.

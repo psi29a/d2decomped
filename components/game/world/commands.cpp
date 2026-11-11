@@ -343,6 +343,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         return false;
     }
 
+/**
+ * Apply a gameplay command to the active world actor after checking its state and command-specific
+ * rules. A fresh move to the exact current position explicitly stops walking without choosing a new
+ * facing.
+ */
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // The character's own: through whatever the player's doing.
         if (const auto* stat_point = std::get_if<cmd::StatPoint>(&command)) {
@@ -611,6 +616,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->interact_npc = -1;
             if (fresh) actor->take_portal = actor->take_corpse = -1;
             if (!fresh) return;
+            // A fresh move to the current position is the controller's stop.
+            // Do not re-path to a subtile centre and turn on release (UX decision).
+            if (x == actor->player.x && y == actor->player.y) {
+                actor->player.walking = false;
+                actor->player.path.clear();
+                actor->attack_mon = actor->pick_item = actor->take_warp = -1;
+                return;
+            }
             actor->player.path.clear();                                             // a click: a new path (FUN_006503f0 re-plans only a moved unit's)
             actor->attack_mon = actor->pick_item = -1;
             actor->take_warp = -1;                                                  // a click on a warp: go through it

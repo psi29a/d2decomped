@@ -79,6 +79,7 @@ Known differences in the ones it draws, and what's left to check:
 
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
+| 52 | Video Options' Gamma and Contrast move but do nothing. game.exe's default driver (DirectDraw) shows the palette through `FUN_006be190`'s ramp at gamma 155: every colour 1.55 times, clipped; `-w` (GDI) has no gamma | build | yes | video-drivers.md "Gamma and Contrast", design/rendering.md item 1 |
 | 25 | Timings from the COF, where AnimData.d2 is game.exe's | exact | maybe | world_view.hpp:140, fight.hpp:498, fight.hpp:729 |
 | 27 | Kind 8's visible state overlays aren't rotated after 50 ticks; active states draw together | exact | maybe | states.md, town.hpp `StateClock`; Radius is stamped and LoopWaitTime applies only to kind 6 |
 | 28 | A joined monster's act lasts 600 ms, not its animation | exact | maybe | town/net.cpp `net_overlay`; balloon starts and rate now traced (quests.md) |

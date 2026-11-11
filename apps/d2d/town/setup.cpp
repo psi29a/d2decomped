@@ -42,6 +42,10 @@
 namespace d2d::client {
 
 // Town
+/**
+ * Publish the focused player world snapshot to the client view. Preserve client-owned hotkey
+ * metadata when replacing the display character header.
+ */
 auto Town::publish() -> void {
         auto& owner = focused();                        // local co-op: the screen's player
         world.act_as(owner);
@@ -64,7 +68,10 @@ auto Town::publish() -> void {
         if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
         if (!view.has_character) return;
-        character.header = view.header; character.stats = view.stats; character.items = view.items;
+        const auto hotkeys = character.header.hotkeys;  // client-owned bindings, not replicated gameplay state
+        character.header = view.header;
+        character.header.hotkeys = hotkeys;
+        character.stats = view.stats; character.items = view.items;
         // A weapon switch brought the other set's skills: the buttons take them.
         if (int(view.header.weapon_set) != skillbar_set) {
             skillbar.left = int(view.header.left_skill); skillbar.right = int(view.header.right_skill); skillbar.left_item = skillbar.right_item = -1;
@@ -97,6 +104,10 @@ auto Town::publish() -> void {
 // Where the automap's files go: beside the save (none with saving off).
 std::filesystem::path automap_dir(const World& world) { return world.characters ? world.characters->dir : std::filesystem::path{}; }
 
+/**
+ * Initialize the client view and input presentation when entering the current world. Refresh the
+ * controller panel shortcuts alongside other screen state.
+ */
 auto Town::enter() -> void {
         shake = {}; quest_quakes.clear(); shake_rng = d2d::rules::Rng{ 666 };
         automap.cells.clear();                    // a new game: what the files beside the save kept
@@ -121,6 +132,7 @@ auto Town::enter() -> void {
         }
         game_menu.open = false;
         controls.open = false;
+        tree_close_down = false;
         world.enter(character);
         if (scene) load_keys();
         coop.clear();                             // a new game: its first player alone
@@ -147,7 +159,12 @@ auto Town::save() -> std::string {
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
+/**
+ * Reset session state for a newly started game, including skill-assignment state that must not
+ * survive the previous session.
+ */
 auto Town::new_game() -> void {
+        tree_close_down = false;
         world.new_game();
         skillbar.new_game();
         hand_items.clear();

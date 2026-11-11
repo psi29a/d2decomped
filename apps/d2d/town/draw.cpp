@@ -15,6 +15,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
@@ -80,16 +81,22 @@ auto Town::open_menu(int npc) -> void {
 
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
+/**
+ * Draw the current Town view and enabled UI overlays, including the optional touch controls.
+ */
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
+    present_skill_pad();
     const int screen_w = fb_width(framebuffer);
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
+        draw_touch(framebuffer);
         draw_coop_portraits(framebuffer, left_panel_open());
         return;
     }
     const int off = (screen_w - int(kScreenWidth)) / 2;
     ui_buffer.resize(std::size_t(kScreenWidth) * kScreenHeight * 4);
     draw_view(ui_buffer, &framebuffer, mouse, frame_ms);
+    draw_touch(ui_buffer);
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
@@ -107,6 +114,10 @@ auto Town::sync_panel_cam() -> void {
     panel_cam_x = want_x; panel_cam_y = want_y;
 }
 
+/**
+ * Render the interpolated world view and gameplay panels from the published snapshot. Keep
+ * controller panel/run hints and skill-tree close feedback aligned with their input targets.
+ */
 auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
@@ -332,16 +343,31 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        if (tree_open && scene->store_buttons.frames_per_direction() > 11) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const auto& frame = scene->store_buttons.frame(0, tree_close_down ? 11 : 10);
+            // FUN_004ab530 supplies the cel's bottom-left; sprite offsets are not a new hit box.
+            blit_sprite(framebuffer, frame, scene->act_pal.entries().empty() ? scene->pal : scene->act_pal,
+                close.left, close.bottom - int(frame.height) + 1);
+        }
+        if (tree_open && pad_config.skill_buttons && pad_playing && !skillbar.picking) {
+            const int tree_class = std::max(character.character_class, 0);
+            const int index = skill_at(*scene, tree_class, tree_tab, mouse.x, mouse.y);
+            const auto& ids = scene->skills.class_ids[std::size_t(tree_class)];
+            if (index >= 0 && std::size_t(index) < ids.size() && skill_known(character.name, ids[std::size_t(index)]))
+                scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 420, 548,
+                    std::string(pad::label(pad_family, pad::Button::North)) + " . Assign to button");
+        }
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = left_panel_open();
-        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, !pad_bar);
+        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, true);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
-        if (int button_x = 0; !coop_hud_hidden() && !pad_bar)
+        if (int button_x = 0; !coop_hud_hidden())
             if (const int kind = mini.hovered(left_open, mini_right(), mouse.x, mouse.y, button_x); kind >= 0) {
                 static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
                 std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));
@@ -358,7 +384,35 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         draw_hud_hovers(framebuffer, *scene, hud_hovers);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
-        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
+        if (pad_playing && pad_config.skill_buttons) {
+            const auto label = [&](pad::Action action) {
+                const auto& pair = pad_config.bindings[action];
+                const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+                return button == pad::Bindings::kNone ? std::string("-") : std::string(pad::label(pad_family, button));
+            };
+            if (pad_field()) scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 225, 553,
+                label(pad::Action::ToggleRun) + (view.running ? " Run" : " Walk"));
+            if (const int active = pad_panel(); active >= 0) {
+                static constexpr std::array<std::string_view, 6> names{ "Party", "Quest Log", "Character", "Inventory", "Skill Tree", "Options" };
+                std::string tabs = label(pad::Action::TabPrev) + " < ";
+                for (int index = 0; index < 6; ++index) {
+                    if (index == active) tabs += "[";
+                    tabs += names[std::size_t(index)];
+                    tabs += index == active ? "] | " : " | ";
+                }
+                tabs += "> " + label(pad::Action::TabNext);
+                const bool blocked = held || identify_with >= 0 || imbue_with >= 0 || gold_box;
+                for (int pixel_y = 4; pixel_y < (blocked ? 50 : 32); ++pixel_y)
+                    for (int pixel_x = 4; pixel_x < int(kScreenWidth) - 4; ++pixel_x) {
+                        auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                        pixel[0] /= 4; pixel[1] /= 4; pixel[2] /= 4;
+                    }
+                scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 14, tabs);
+                if (held || identify_with >= 0 || imbue_with >= 0 || gold_box)
+                    scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 34, "Finish or cancel the item action to switch panels");
+            }
+        }
+        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (help.open) help.draw(framebuffer, *scene, key_table);

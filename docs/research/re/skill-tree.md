@@ -54,3 +54,45 @@ R-90..R at baseline 60 + y: "Skill Choices Remaining" 0x1083..0x1085 at
 
 The save's 30 `if` bytes are the class's skills in Skills.txt order
 (rows with that `charclass`), base levels — `d2s::Stats::skills`.
+
+## Close control (verified draw coordinates and hit bounds)
+
+`FUN_004ab530` reads the class/tab offsets at `0x724ce4`, adds
+`W - panel_x` to X and uses `H + panel_y - 63` as the bottom. It gets the
+buy/sell button cel through `FUN_00454600` and selects frame 10, or 11
+while `0x7c0c38` is nonzero. `FUN_004ab5f0` tests inclusive bounds of
+width/height 34; `FUN_004abc30` closes UI 4 after release inside.
+
+At 800x600 the bottom is 477. X follows tab order 1,2,3:
+
+| Class | Tab 1 | Tab 2 | Tab 3 |
+|---|---:|---:|---:|
+| Amazon | 571 | 500 | 415 |
+| Sorceress | 415 | 415 | 571 |
+| Necromancer | 415 | 571 | 415 |
+| Paladin | 415 | 500 | 415 |
+| Barbarian | 571 | 415 | 571 |
+| Druid | 571 | 571 | 571 |
+| Assassin | 500 | 571 | 415 |
+
+Re-check with the existing emulator environment (no downloads):
+
+```sh
+tools/emu/.venv/bin/python -c 'import sys; sys.path.insert(0,"tools/emu"); import skill_tree_close; skill_tree_close.main()' /path/to/Game.exe
+```
+
+This runs the real draw and hit helpers with only the cel renderer/getter,
+memset and mouse getters stubbed. It asserts both frames and rectangle
+boundaries for seven classes and three tabs. Frozen coordinates are in
+`tests/retail_tree_close_cases.inc`; `test_retail_keyboard` checks the port.
+This verifies coordinates/frames/hit bounds, not pixel-perfect rendering.
+
+For a direct port/oracle diff, add `--tsv` to that oracle command, redirect to
+`build/tree-close-oracle.tsv`, and run:
+
+```sh
+build/tests/test_retail_keyboard --dump-close > build/tree-close-port.tsv
+diff -u build/tree-close-oracle.tsv build/tree-close-port.tsv
+```
+
+The local run produced 21 rows on both sides with no differences.

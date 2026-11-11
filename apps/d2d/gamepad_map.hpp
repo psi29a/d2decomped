@@ -140,10 +140,23 @@ struct Bindings {
 // With skill buttons on, the field belongs to the slots. Attack, the right
 // skill and the panel keys keep their other screens, so a face button can
 // be a skill in the field and a click in a panel.
+/**
+ * Return the input contexts in which an action participates in binding-conflict checks. Skill
+ * Buttons mode separates panel cancellation, inventory use and field skill destinations.
+ */
 [[nodiscard]] inline unsigned where_of(std::size_t action, bool skill_buttons) {
     unsigned mask = kWhere[action];
     if (!skill_buttons) return mask;
+    if (Action(action) == Action::Back) mask |= where::kPanel;
+    if (Action(action) == Action::Secondary) mask &= ~where::kPanel; // B cancels; Interact uses items
+    if (Action(action) == Action::Interact) mask |= where::kPanel | where::kShop;
     switch (Action(action)) {
+        case Action::TabPrev: case Action::TabNext:
+            mask |= where::kPanel | where::kDialog;
+            break;
+        case Action::Recentre:
+            mask &= ~(where::kPanel | where::kShop);  // RS uses the hovered item in skill-button mode
+            break;
         case Action::Primary: case Action::Secondary: case Action::Inventory: case Action::Character:
         case Action::SkillTree: case Action::QuestLog: case Action::Automap: case Action::SwapWeapons:
             mask &= ~where::kField;
@@ -305,6 +318,8 @@ struct Actions {
     bool  panel_strip = false;                     // Start opens the panel list
     bool  skill_busy = false;                      // a skill button, the modifier or the strip is down
     int   skill_slot = -1;                         // 0..5 just pressed, or -1
+    bool  assign_skill = false;
+    int   wheel_tab = 0;
     int   wheel_step = 0;                          // the wheel's d-pad, -1 or 1
     int   strip_step = 0;                          // the panel list's d-pad, -1 or 1
     bool  confirm = false, cancel = false;        // the panel list: South, and East or Start
@@ -367,6 +382,25 @@ struct Point { int x = 0, y = 0; };
     return best;
 }
 
+// Skill-tree arrows follow the current column across gaps before moving sideways.
+/**
+ * Choose a skill-tree focus destination in the requested direction. Vertical navigation prefers a
+ * skill in the same column across gaps, then falls back to geometric cursor snapping.
+ */
+[[nodiscard]] inline int tree_pick(int from_x, int from_y, int dir_x, int dir_y, std::span<const Point> points) {
+    if (dir_x == 0 && dir_y != 0) {
+        int best = -1, distance = 0;
+        for (std::size_t index = 0; index < points.size(); ++index) {
+            const int along = (points[index].y - from_y) * dir_y;
+            if (along >= 4 && std::abs(points[index].x - from_x) <= 24 && (best < 0 || along < distance)) {
+                best = int(index); distance = along;
+            }
+        }
+        if (best >= 0) return best;
+    }
+    return snap_pick(from_x, from_y, dir_x, dir_y, points);
+}
+
 class Mapper {
 public:
     explicit Mapper(const Config& config = {}) : config_(config) {}
@@ -374,6 +408,11 @@ public:
     // `seconds` since the last frame. A pad that went away is a default
     // Sample: every button lets go, so nothing stays held. `skill_ui` is
     // the wheel or the panel strip; None is every other screen.
+    /**
+     * Translate one controller sample into context-specific actions and update edge/hold state.
+     * Skill UI consumes destination presses; LT skill chords suppress weapon swapping until the
+     * modifier is released.
+     */
     Actions step(const Sample& sample, Context context, float seconds, SkillUi skill_ui = SkillUi::None) {
         Actions out;
         left_trigger_ = hysteresis(sample.left_trigger, left_trigger_);
@@ -440,12 +479,11 @@ public:
 
         // The left button: Primary in the game; the confirm button or the right trigger in the menus.
         out.click_down = game ? down(Action::Primary) : held[std::size_t(confirm)] || right_trigger_;
-        out.click_press = out.click_down && !click_prev_;
+        out.click_press = out.click_down && !click_prev_ && (!game || hit(Action::Primary));
         out.click_release = !out.click_down && click_prev_;
         click_prev_ = out.click_down;
-        const bool secondary = down(Action::Secondary);
-        out.rclick_press = secondary && !secondary_prev_;
-        secondary_prev_ = secondary;
+        out.rclick_press = hit(Action::Secondary) ||
+                           (skills && (context == Context::Panel || context == Context::Shop) && hit(Action::Interact));
 
         // The aiming stick (the right one; the left one when swapped): the cursor. In the menus the other one moves it too.
         const float walk_x = config_.swap_sticks ? sample.rx : sample.lx, walk_y = config_.swap_sticks ? sample.ry : sample.ly;
@@ -482,6 +520,7 @@ public:
             key(Action::Belt2, Key::Belt2);
             key(Action::Belt3, Key::Belt3);
             key(Action::Belt4, Key::Belt4);
+            out.assign_skill = skills && context == Context::Panel && pressed(Button::North);
             out.trade_press = hit(Action::Trade);
             out.drop_press = hit(Action::DropItem);
             out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
@@ -509,11 +548,12 @@ public:
         }
         if (wheel) {
             const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
-            out.aim_active = tilt_aim > 0;
+            out.aim_active = std::hypot(aim_x, aim_y) > std::max(.30f, config_.deadzone);
             out.aim_x = face_x; out.aim_y = face_y;
             out.cursor_dx = 0;
             out.cursor_dy = 0;
-            out.wheel_step = int(dpad_on[3] || dpad_on[1]) - int(dpad_on[2] || dpad_on[0]);
+            out.wheel_step = int(dpad_on[1]) - int(dpad_on[0]);
+            out.wheel_tab = int(dpad_on[3]) - int(dpad_on[2]);
             out.click_down = false;
             out.click_press = false;
             out.click_release = false;
@@ -523,7 +563,7 @@ public:
             out.snap_y = 0;
             out.trade_press = false;
             out.tab_step = 0;
-            if (pressed(Button::Start)) out.panel_strip = true;
+            if (pressed(Button::Start)) out.cancel = true;
         } else if (skill_ui == SkillUi::Strip) {
             // South confirms and East or Start cancels, whatever screen
             // context the caller passed. The d-pad step does not depend on
@@ -549,6 +589,11 @@ public:
             const bool field = context == Context::Game && skill_ui == SkillUi::None;
             const bool watching = field || wheel;
             const bool down_trigger = left_trigger_;
+            // A chord counts even when LT was pressed after the skill, or
+            // released in the same frame as the skill's press.
+            if (watching && (down_trigger || swap_down_) &&
+                (out.main_skill_down || out.main_skill || out.skill_slot >= 0 ||
+                 std::ranges::any_of(out.slot_down, [](bool held_slot) { return held_slot; }))) swap_cast_ = true;
             if (watching && down_trigger) {
                 swap_hold_ += std::max(seconds, 0.f);
                 if (out.skill_slot >= 0 || out.main_skill) swap_cast_ = true;
@@ -559,6 +604,16 @@ public:
             swap_down_ = watching && down_trigger;
             out.skill_busy = out.modifier_held || out.main_skill_down || out.skill_slot >= 0 || out.interact_press || out.panel_strip || out.swap_tap
                              || std::ranges::any_of(out.slot_down, [](bool held_slot) { return held_slot; });
+        }
+        if (skills && skill_ui != SkillUi::None) skill_handoff_ = true;
+        else if (skills && skill_handoff_) {
+            // Leaving an editor consumes every destination until all buttons
+            // are up. In particular, Done must never cast on the next screen.
+            if (!std::ranges::any_of(held, [](bool pressed_button) { return pressed_button; })) skill_handoff_ = false;
+            out.skill_slot = -1; out.slot_down.fill(false);
+            out.main_skill = out.main_skill_down = out.interact_press = out.swap_tap = false;
+            out.keys.clear();
+            swap_hold_ = 0; swap_cast_ = true;
         }
         prev_ = held;
         return out;
@@ -579,10 +634,11 @@ private:
 
     Config config_;
     std::array<bool, std::size_t(Button::Count)> prev_{};
-    bool click_prev_ = false, secondary_prev_ = false, left_trigger_ = false, right_trigger_ = false;
+    bool click_prev_ = false, left_trigger_ = false, right_trigger_ = false;
     std::array<float, 4> dpad_hold_{};             // up, down, left, right, while a menu d-pad is repeating
     float swap_hold_ = 0.f;                        // how long the left trigger has been down
     bool swap_cast_ = false;                       // a skill fired during that press
+    bool skill_handoff_ = false;
     bool swap_down_ = false;                       // the trigger was down last frame, in the field or the wheel
 };
 
@@ -639,6 +695,15 @@ private:
     struct Seat { std::string key; int pad = -1; bool used = false; std::uint32_t gone_at = 0; int colour = 0; };
     std::array<Seat, kMost> seats_{};
 };
+
+// D-pad roster navigation owns confirmation until a real pointer moves.
+/**
+ * Resolve the selected character without letting a stale pointer override D-pad navigation. Outside
+ * navigation mode, a valid hovered save replaces the prior selection.
+ */
+[[nodiscard]] inline int roster_target(bool navigating, int under, int selected) {
+    return navigating ? selected : under >= 0 ? under : selected;
+}
 
 // Controller A starts the character under the cursor, or the one the d-pad
 // highlighted when the cursor is on neither a slot nor a button. A on

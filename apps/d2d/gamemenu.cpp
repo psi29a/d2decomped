@@ -69,8 +69,8 @@ constexpr Row kVideo[] = {                         // LoD 0x71875c (classic 0x71
     { 1, false, "LightQuality", 3, 2, false, { "Low", "Medium", "High" } },
     { 1, false, "BlendShadow", 2, 1, false, { "SmallOff", "SmallOn" } },
     { 1, false, "Perspective", 2, 1, false, { "SmallOff", "SmallOn" } },
-    { 2, false, "Gamma", 21, 0, true, {} },
-    { 2, false, "Contrast", 100, 50, true, {} },
+    { 2, false, "Gamma", 21, 10, true, {} },        // 155 on 55..255 (FUN_0047d230, FUN_0047cc90)
+    { 2, false, "Contrast", 100, 99, true, {} },    // 100 on 0..100 (FUN_0047d2f0); ponytail: neither slider applies yet (rendering.md)
     { 0, false, "SPrevious", 0, 0, false, {} },
 };
 constexpr Row kAutomap[] = {                       // LoD 0x71d734 (classic 0x71d720: no AutoMapMode)

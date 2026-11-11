@@ -4,6 +4,8 @@
 
 #include "debug.hpp"
 
+#include "skilltree.hpp"
+
 #include <d2s_items.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -19,6 +21,10 @@
 
 namespace d2d::client {
 
+/**
+ * Register character debug commands, including skill-icon coordinates used by input tests. The
+ * callbacks operate on this Town and require the owning debug session to remain alive.
+ */
 void DebugVerbs::add_hero() {
     add("clearinv", [this](const Args& /*args*/) -> Reply {   // empty the inventory grid (tests that need room)
         std::erase_if(town.hero.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
@@ -64,6 +70,19 @@ void DebugVerbs::add_hero() {
             out += std::format(" {}={}{}{}", passive.stat, passive.value, passive.itype.empty() ? "" : "/", passive.itype);
         return out + "\n";
     });
+    add("pickerat", [this](const Args& args) -> Reply {
+        if (args.size() < 3 || !scene || (town.skillbar.picking != 1 && town.skillbar.picking != 2)) return std::string("err open a hand picker first\n");
+        const bool left = town.skillbar.picking == 1;
+        const int skill = std::atoi(args[2].c_str());
+        const auto rows = town.skillbar.rows(left);
+        for (std::size_t row = 0; row < rows.size(); ++row)
+            for (std::size_t column = 0; column < rows[row].size(); ++column)
+                if (rows[row][column].skill == skill) {
+                    const auto [pixel_x, pixel_y] = town.skillbar.picker_at(rows, left, int(row), int(column));
+                    return std::format("ok {} {}\n", pixel_x + 24, pixel_y - 24);
+                }
+        return std::string("err no picker entry\n");
+    });
     add("points", [this](const Args& args) -> Reply {   // give class skill <id> n points (tests)
         if (args.size() < 4 || !scene) return std::nullopt;
         const auto& ids = scene->skills.class_ids[std::size_t(std::max(town.hero.character.character_class, 0))];
@@ -79,6 +98,18 @@ void DebugVerbs::add_hero() {
         if (!town.skillbar.usable(id, left)) return std::string("err not usable\n");
         town.skillbar.choose(left, { id, -1 });
         return std::string("ok\n");
+    });
+    add("skillat", [this](const Args& args) -> Reply {
+        if (args.size() < 3 || !scene) return std::nullopt;
+        const int cls = std::max(town.character.character_class, 0);
+        const auto& ids = scene->skills.class_ids[std::size_t(cls)];
+        const auto found = std::ranges::find(ids, std::atoi(args[2].c_str()));
+        if (found == ids.end()) return std::string("err not a class skill\n");
+        const auto index = std::size_t(found - ids.begin());
+        if (index >= scene->rules.class_skills[std::size_t(cls)].size()) return std::string("err no skill icon\n");
+        const auto& entry = scene->rules.class_skills[std::size_t(cls)][index];
+        const auto [icon_x, icon_y] = skill_icon_at(entry);
+        return std::format("ok {} {} {}\n", entry.page, icon_x + 24, icon_y - 24);
     });
     const auto grant_points = [this](const Args& args) -> Reply {   // grant unspent points
         if (args.size() < 3) return std::nullopt;

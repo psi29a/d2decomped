@@ -31,6 +31,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "touch_input.hpp"
 #include "town.hpp"
 #include "ui.hpp"
 #include "video.hpp"
@@ -382,6 +383,7 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
 }
 static int         g_scale = 1;          // window = game res * g_scale
 static SDL_ScaleMode g_scale_mode = SDL_SCALEMODE_PIXELART;   // d2d.cfg scalemode, --toggle scalemode=
+static bool        g_touch_controls = false;
 static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
 static bool        g_widescreen = false; // d2d.cfg widescreen = 1 / --widescreen: the game view widens to the window
 static int         g_forced_view_w = 0;  // --view-width: the widescreen width, else the window's aspect
@@ -447,6 +449,10 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
     }
 }
 
+/**
+ * Run the interactive window loop, routing SDL and controller input to the current screen. Touch
+ * gestures and character-selection cursor ownership are resolved before gameplay and UI updates.
+ */
 int run_windowed(std::vector<std::uint8_t>& framebuffer,
                  std::optional<Scene>& scene,
                  std::future<void>& loading,
@@ -597,6 +603,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     std::map<SDL_JoystickID, bool> start_held;    // each pad's Start last frame, for an unseated pad's rejoin
     std::uint32_t pad_last_ms = std::uint32_t(SDL_GetTicks());
     int pad_focus_key = 0;
+    bool roster_navigation = false;
     bool pad_in_use = false, pad_was_field = false, pad_cursor_hidden = false;   // the pad was the last to act; its field mode
     TitleUI title = scene ? title_ui(*scene, g_coop_lobby) : TitleUI{};
     Lobby lobby;                                  // local co-op's lobby on character select
@@ -703,6 +710,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     bool text_active = false;
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
+    town.touch_enabled = g_touch_controls;
     // The left button is down while a source holds it: the physical button or an Attack / Use key.
     const auto attack_key_held = [&] { return std::ranges::any_of(town.click_keys[keys::kClickAttack], key_held); };
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
@@ -817,6 +825,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
         bool mouse_took_over = false;   // the mouse moved or clicked this frame: it ends the pad's field mode
+        town.touch_input.frame();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             // SDL3 doesn't rescale event coords under logical presentation;
@@ -824,9 +833,38 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             SDL_ConvertEventToRenderCoordinates(win.renderer, &event);
             // Widescreen: mouse x counts from the centre 800x600, where the UI is.
             const float view_off = float(win.view_w - int(kScreenWidth)) / 2;
-            if (event.type == SDL_EVENT_MOUSE_MOTION) event.motion.x -= view_off;
+            if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                event.motion.x -= view_off;
+                if (event.motion.xrel != 0 || event.motion.yrel != 0) roster_navigation = false;
+            }
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
+            if (town.touch_enabled && screen == Screen::InGame) {
+                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) { town.touch_input.clear(); town.touch_item_finger = -1; }
+                if ((event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
+                    ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID)) continue;
+                // Sidecar/Pencil may arrive as a single pointer rather than SDL fingers.
+                // Reserve a distinct owner; never synthesize a second finger.
+                if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT) {
+                    const auto phase = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? touch::Phase::Down : touch::Phase::Up;
+                    if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                }
+                if (event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
+                    if (town.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
+                if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
+                    event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
+                    pad_in_use = true;
+                    const auto phase = event.type == SDL_EVENT_FINGER_DOWN ? touch::Phase::Down : event.type == SDL_EVENT_FINGER_UP ? touch::Phase::Up
+                                     : event.type == SDL_EVENT_FINGER_MOTION ? touch::Phase::Move : touch::Phase::Cancel;
+                    const float touch_x = event.tfinger.x - view_off, touch_y = event.tfinger.y;
+                    if (town.touch_event(std::int64_t(event.tfinger.fingerID), phase, touch_x, touch_y)) continue;
+                    mouse.x = int(touch_x); mouse.y = int(touch_y);
+                    if (phase == touch::Phase::Down) { mouse.down = true; mouse.press_this_frame = true; }
+                    if (phase == touch::Phase::Up) { mouse.down = false; mouse.release_this_frame = true; }
+                    if (phase == touch::Phase::Cancel) mouse.down = false;
+                    continue;
+                }
+            }
             gamepads.handle_event(event);
             if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) pad_in_use = false;
@@ -979,7 +1017,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) pad_in_use = true;
             town.skill_actions = pad_actions;
-            if (town.drive_skill_ui(pad_actions)) {
+            if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
                 pad_actions.click_press = false;
                 pad_actions.click_down = false;
                 pad_actions.click_release = false;
@@ -1004,9 +1042,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             const auto pad_focus = screen == Screen::InGame && pad_in_use && !mouse_took_over ? town.pad_focus() : std::nullopt;
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
-            pad_cursor_hidden = pad_field;
+            if (screen != Screen::CharSelect || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || pad_actions.focus_step != 0) roster_navigation = false;
+            if (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty)
+                for (const auto key : pad_actions.keys)
+                    if (key == pad::Key::Up || key == pad::Key::Down || key == pad::Key::Left || key == pad::Key::Right) roster_navigation = true;
+            pad_cursor_hidden = pad_field || roster_navigation;
             town.pad_playing = pad_in_use;
-            town.pad_cue = pad_field && !town.pad_config.skill_buttons;
+            town.pad_cue = pad_field && !town.pad_config.skill_buttons && !town.touch_enabled;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
             const int label_pad = seats.label_pad(coop_game, ui_seat);
             town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
@@ -1044,7 +1086,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
                 const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
                 const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
-                if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
+                if (const int pick = (town.tree_open && screen == Screen::InGame ? pad::tree_pick : pad::snap_pick)(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
                 }
             }
@@ -1339,7 +1381,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const int max_scroll = charselect_max_scroll(count);
                 int rows = -mouse.wheel;   // wheel up = scroll toward the top
                 bool play = false;
-                if (mouse.press_this_frame && chosen_difficulty < 0) {   // a pick's click stays in the box, off the slots under it
+                if (mouse.press_this_frame && chosen_difficulty < 0 && !roster_navigation) {   // a pick's click stays in the box, off the slots under it
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
                     if (slot >= 0 && csu.scroll + slot < count) {
                         // A second press on the same character within
@@ -1368,9 +1410,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         && ((mouse.y >= kScrollUpTop && mouse.y < kScrollUpTop + kScrollArrow)
                             || (mouse.y >= kScrollDownTop && mouse.y < kScrollDownTop + kScrollArrow));
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
-                    const int under = slot >= 0 && csu.scroll + slot < count ? csu.scroll + slot : -1;
-                    if (under >= 0) csu.selected = under;
-                    if (pad::starts_character(true, on_button || on_scroll, under, csu.selected, count)) play = true;
+                    const int under = !roster_navigation && slot >= 0 && csu.scroll + slot < count ? csu.scroll + slot : -1;
+                    csu.selected = pad::roster_target(roster_navigation, under, csu.selected);
+                    if (pad::starts_character(true, !roster_navigation && (on_button || on_scroll), under, csu.selected, count)) play = true;
                 }
                 // Keyboard, as LoD's FUN_00439e90: Home/End jump to the
                 // ends, Left/Right only move within the row (2 columns),
@@ -1614,7 +1656,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const auto& frame = scene->cursor_buysell.frame(0, 0);
                 blit_sprite(framebuffer, frame, pal, mouse.x + cursor_dx + frame.offset_x,
                             mouse.y + 0x21 + frame.offset_y - int(frame.height) + 1);
-            } else if (screen != Screen::Video && !(screen == Screen::InGame && pad_cursor_hidden) && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
+            } else if (screen != Screen::Video && !pad_cursor_hidden && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act_pal.entries().empty() ? scene->pal : scene->act_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
@@ -1732,6 +1774,10 @@ extern "C" void d2d_sigint_handler(int) {
     if (g_sigint_count >= 2) _exit(130);
 }
 
+/**
+ * Parse launcher/config options and start the game with the selected local data and input settings.
+ * Touch controls remain opt-in through the flag or saved configuration.
+ */
 int main(int argc, char** argv) {
     // Ctrl-C and SIGTERM set the loop-quit flag instead of terminating
     // mid-frame. SIGPIPE gets ignored so a closed devctl client doesn't
@@ -1801,6 +1847,7 @@ int main(int argc, char** argv) {
                    "Widen the in-game view to the window's aspect (menus stay 800x600)");
     app.add_option("--data", data_dir_str,
                    "D2 MPQ directory (else $D2_MPQ_DIR, d2data.mpq beside d2d or in ./, d2d.cfg data =)");
+    app.add_flag("--touch-controls", g_touch_controls, "Show the touch control prototype");
     app.add_flag  ("--headless", headless,
                    "Run without opening a window");
     app.add_flag  ("--send-crash-reports", send_crash_reports,
@@ -1983,6 +2030,7 @@ int main(int argc, char** argv) {
     g_start_hardcore = start_hardcore;
     g_start_classic  = start_classic;
     g_no_save        = no_save;
+    g_touch_controls = g_touch_controls || cfg["touch_controls"] == "1";
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked

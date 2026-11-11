@@ -237,16 +237,23 @@ struct SkillBar {
     std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
     // The opt-in skill-button mode, filled by Town::present_skill_pad. The
     // mouse fan (picking 1 and 2) does not use these.
+    bool panel_shortcuts_open = false;
     bool mode_on = false, mode_modifier = false, wheel_on = false, strip_on = false, legend_on = false;
     int mode_main = -1, mode_aura = 0, wheel_at = 0, wheel_page = 0, strip_at = 0;
     std::array<int, 6> mode_slots{};
     std::array<std::string, 6> mode_labels{};
-    std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, strip_prompt;
+    std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, wheel_controls, assignment_feedback, strip_prompt;
+    bool portal_available = false;
     std::vector<int> wheel_ids;
     std::vector<std::string> strip_rows;
 
     // The buttons, the open picker (hotkey labels on its icons) and the
     // hovered skill's name.
+    /**
+     * Draw hand skill pickers and the optional controller tray, radial and assignment feedback.
+     * Display unavailable portal entries with a disabled palette and use the current remapped
+     * destination labels.
+     */
     void draw(std::vector<std::uint8_t>& framebuffer, int mouse_x, int mouse_y, const d2d::rules::CalcEnv& env) const {
         // A hovered button's or picker icon's tooltip (FUN_004a8d50 -> FUN_004ef990).
         const auto tip = [&](Pick pick, int x, int y) {
@@ -261,6 +268,14 @@ struct SkillBar {
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
         // A skill it can't use now draws in text colour 1 (FUN_004aa3a0's and
         // FUN_004a8d30's draw colour off FUN_004d9fc0: 0 usable, 4 status 6, else 1).
+        std::array<d2d::palette::Rgba, 256> grey_entries{};
+        for (std::size_t index = 0; index < grey_entries.size(); ++index) {
+            auto colour = pal[std::uint8_t(index)];
+            const auto luminance = std::uint8_t((int(colour.r) + int(colour.g) + int(colour.b)) / 6);
+            colour.r = colour.g = colour.b = luminance;
+            grey_entries[index] = colour;
+        }
+        const d2d::palette::Palette disabled_pal{ grey_entries };
         const auto& refused_pal = scene->act_text_red.entries().empty() ? pal : scene->act_text_red;
         auto icon = [&](Pick pick, int x, int y) {
             const int id = pick.skill;
@@ -272,7 +287,8 @@ struct SkillBar {
             const auto& spr = column >= 0 ? scene->skill_icons[std::size_t(column)] : scene->generic_skill_icons;
             if (skill->icon < 0 || spr.frames_per_direction() <= std::uint32_t(skill->icon)) return;
             const auto& frame = spr.frame(0, std::uint32_t(skill->icon));
-            blit_sprite(framebuffer, frame, pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
+            const bool portal_disabled = mode_on && !portal_available && skillpad::portal_name(skill->name);
+            blit_sprite(framebuffer, frame, portal_disabled ? disabled_pal : pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
             if (const auto charged = entry(pick); charged && charged->left > 0) {   // SPELLSEL_DrawSkillLevel: the charges left
                 std::string count = std::to_string(charged->left);
                 while (scene->font_small.measure(count) > 0x28) count.pop_back();
@@ -292,7 +308,8 @@ struct SkillBar {
                 // On the flat stone fill (panels.cpp): the real bar is the bottom
                 // 55px, the fill is 74 above that. Icons sit in the fill with
                 // the glyph row under them, centered in x 165..635.
-                constexpr int kPitch = 48, kTrayLeft = 232, kTrayBottom = int(kScreenHeight) - 55 - 20;
+                constexpr int kPitch = 48, kTrayLeft = 232;
+                const int kTrayBottom = int(kScreenHeight) - 55 - 20 - (panel_shortcuts_open ? 24 : 0);
                 auto plot = [&](int pixel_x, int pixel_y) {
                     if (pixel_x < 0 || pixel_y < 0 || pixel_x >= int(kScreenWidth) || pixel_y >= int(kScreenHeight)) return;
                     auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
@@ -341,6 +358,10 @@ struct SkillBar {
                 }
                 if (!mode_set.empty())
                     caption(mode_set, kTrayLeft - small.measure(mode_set) - 8, kTrayBottom - kIcon / 2 + small.line_height() / 2);
+                if (!wheel_on && mode_aura > 0) {
+                    const auto* aura = scene->skills.get(mode_aura);
+                    if (aura) caption("Aura: " + aura->name, 165, kTrayBottom + 32);
+                }
                 if (!wheel_on && !mode_hint.empty())
                     caption(mode_hint, (int(kScreenWidth) - small.measure(mode_hint)) / 2, kTrayBottom - kIcon - 6);
             }
@@ -353,7 +374,7 @@ struct SkillBar {
             if (wheel_on && !wheel_ids.empty()) {
                 const int count = int(wheel_ids.size());
                 const int highlight = std::clamp(wheel_at, 0, count - 1);
-                const auto page = skillpad::wheel_page(count, highlight, skillpad::kWheelShown, wheel_page);
+                const skillpad::WheelPage page{ wheel_page, std::min(skillpad::kWheelShown, count - wheel_page) };
                 for (int slot = 0; slot < page.shown; ++slot) {
                     const int index = page.start + slot;
                     const float angle = skillpad::wedge_center(slot, page.shown);
@@ -372,9 +393,20 @@ struct SkillBar {
                         }
                     }
                 }
+                caption(mode_modifier ? "Bank II (" + mode_set + ")" : "Bank I", 16, 85);
+                const auto name_of = [&](int id) -> std::string {
+                    if (id >= 0) { const auto* info = scene->skills.get(id); return info ? info->name : "Unavailable"; }
+                    return id == skillpad::kEmpty ? "Empty" : std::string(skillpad::action_label(id, true));
+                };
+                for (int index = 0; index < 6; ++index)
+                    caption(mode_labels[std::size_t(index)] + " . " + name_of(mode_slots[std::size_t(index)]), 16, 110 + index * 24);
+                caption(mode_main_label + " . " + name_of(mode_main), 16, 254);
+                if (mode_aura > 0) caption("Aura: " + name_of(mode_aura), 16, 285);
                 const std::string line = wheel_prompt.empty() ? "Hit " + wheel_close + " to close" : wheel_prompt;
                 const int line_x = std::max(4, (int(kScreenWidth) - small.measure(line)) / 2);
                 caption(line, line_x, 330);
+                caption(wheel_controls, std::max(4, (int(kScreenWidth) - small.measure(wheel_controls)) / 2), 350);
+                caption(assignment_feedback, std::max(4, (int(kScreenWidth) - small.measure(assignment_feedback)) / 2), 375);
             }
         }
         if (picking == 3) return;

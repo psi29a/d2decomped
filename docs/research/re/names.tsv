@@ -308,6 +308,65 @@ address	name	evidence
 004f9290	d2win_list_trim	frees leading nodes of the list at DAT_007d55c0 (flags +8, next +0x3c) until bit 1, then until bit 2; skipped when DAT_007d55c4 > 0; returns 1; D2WinMain.cpp lines 0x25a / 0x263 (net-join.md "D2Win shutdown")
 004fa550	d2win_shutdown	no args, returns 1: DAT_007d55c4 = 0, FUN_004f9290, FUN_00507140, FUN_005015f0, then FUN_00506e00 on 0x72dc48 x 0x21; called at the end of FUN_004359d0, by FUN_00442150 and after state 1 of FUN_0044b8a0 (net-join.md "D2Win shutdown")
 005015f0	font_table_release	D2WinFont.cpp: 14 entries of 0x14 bytes from 0x841da8: +0 closed (FUN_004faae0), +4 freed (line 0x135), both zeroed; then DAT_00841da4 closed and zeroed (net-join.md "D2Win shutdown")
+004f5050	renderer_shutdown	slot +0x08, then the Error 21..25 box when start-up had failed (video-drivers.md)
+004f5140	renderer_mode	returns DAT_007c8cb0, the driver mode 1/3/4/6 (video-drivers.md)
+004f5160	renderer_resolution	returns DAT_007c8cb8, the resolution index for FUN_004f5570 (video-drivers.md)
+004f5170	renderer_perspective_allowed	returns DAT_0072da4c, 0 below mode 4 (video-drivers.md; menu.md's perspective enabled test)
+004f51d0	renderer_perspective_on	DAT_0072da48 while DAT_0072da4c (video-drivers.md "What the 3D drivers add")
+004f51e0	renderer_set_perspective	sets DAT_0072da48; FUN_00405c30 (-per) and the Perspective row FUN_0047d130 (video-drivers.md)
+004f5230	renderer_set_gamma	keeps a non-zero arg in DAT_0072da54, then slot +0x58 with it in ECX (video-drivers.md "Gamma and Contrast")
+004f5260	renderer_has_gamma	slot +0x5c: GDI 0, DirectDraw / Glide 1 (video-drivers.md)
+004f5290	renderer_stats	slot +0x4c: Glide / Direct3D 0x7c90c8, software 0 (video-drivers.md)
+004f52b0	renderer_set_option	slot +0x30, ECX option, EDX value; 11 is Contrast (video-drivers.md)
+004f52e0	renderer_start	registers the class, takes 0x72da80[mode] into DAT_007c8cc0, slots +0x30, +0x00, +0x04 (video-drivers.md "Picking one")
+004f5570	renderer_resolution_size	index 0 640x480, 1 and 2 800x600, 3 1344x700, else fatal (video-drivers.md)
+004f5610	renderer_open_window	CreateWindowExA by mode and windowed flag, then slot +0x0c (video-drivers.md "The window and the resolution")
+004f5900	renderer_close_window	slot +0x10, DestroyWindow, ChangeDisplaySettingsA(0) (video-drivers.md)
+004f59b0	renderer_buffer_size	slot +0x50: width and height through ECX / EDX (video-drivers.md)
+004f5a50	renderer_set_windowed	windowed = !arg, then slot +0x2c, which every driver answers 0 (video-drivers.md)
+004f5aa0	renderer_change_resolution	resizes a small window, then slot +0x24 (video-drivers.md)
+004f5d50	renderer_flush_caches	slot +0xd4: the 3D drivers' floor, subtile and texture caches (video-drivers.md)
+004f5d60	renderer_cutscene_mode	slot +0x34; GDI answers 0, so -w plays no startup videos (video-drivers.md)
+004f5d90	renderer_cutscene_setup	slot +0x38 (video.md's playback call; GDI ret 4) (video-drivers.md)
+004f5dd0	renderer_in_cutscene	slot +0x3c (GDI 0), read by FUN_004f9f20 (video-drivers.md)
+004f5e00	renderer_video_open	slot +0x40 (gdi-driver.md "Videos")
+004f5e40	renderer_video_frame	slot +0x44 (gdi-driver.md "Videos")
+004f5e80	renderer_video_close	slot +0x48 (gdi-driver.md "Videos")
+004f5fa0	renderer_activate	on an activation change: taskbars, cursor, slot +0x14 (video-drivers.md)
+004f60f0	renderer_begin_frame	slot +0x18 (gdi-driver.md)
+004f6190	renderer_present	the frame pacing sleep, then slots +0x1c and +0x20 (video-drivers.md)
+004f6250	renderer_copy_rgb	slot +0x28: the frame as 24-bit RGB (video-drivers.md)
+004f6280	renderer_rect_outline	slot +0xa8 (video-drivers.md)
+004f62a0	renderer_rect_outline_alt	slot +0xac (video-drivers.md)
+004f62c0	renderer_rect_fill	slot +0xb0; no caller (stubs.md)
+004f62e0	renderer_dot	slot +0xb4; no caller (stubs.md)
+004f6300	renderer_rect_mode	slot +0xb8 unless the rectangle is inverted: a rectangle in a draw mode (video-drivers.md)
+004f6340	renderer_rect_alpha	slot +0xbc unless the rectangle is inverted: alpha byte to draw mode (video-drivers.md)
+004f6380	renderer_line	slot +0xc0 (video-drivers.md; weather.md's rain)
+004f63b0	renderer_clear	slot +0xc4 (gdi-driver.md "Clearing the draw buffer")
+004f63d0	renderer_set_palette	copies 256 entries to 0x7c9378, then slot +0x70 (video-drivers.md)
+004f6410	renderer_set_pl2	slot +0x74, then FUN_004f8e40 (tools/emu/cof_effects.py)
+004f6430	renderer_ambient_rgb	slot +0x78: the environment's RGB, 3D drivers only (video-drivers.md)
+004f6450	renderer_unit_cel	slot +0x80, from FUN_00470ec0 (video-drivers.md)
+004f64b0	renderer_cel_colour	slot +0x88: a cel through a colour table, the fonts (video-drivers.md)
+004f64e0	renderer_cel_table	slot +0x8c when arg 5 isn't 0 (video-drivers.md)
+004f6510	renderer_cel_clipped	slot +0x98: a cel in a clip rectangle, the automap (video-drivers.md)
+004f6540	renderer_unit_shadow	slot +0x90 (lighting.md "Unit shadows")
+004f6570	renderer_cel_solid	slot +0x94: a cel in one colour, 3D drivers only (video-drivers.md)
+004f65a0	renderer_pixel	slot +0xd0; no caller (stubs.md)
+004f65c0	renderer_world_begin	DAT_0072db44 = DAT_0072db40, then slot +0x54 (video-drivers.md)
+004f65f0	renderer_world_end	DAT_0072db44 = 0x100, then slot +0x54 (video-drivers.md)
+004f6670	renderer_perspective_centre	slot +0x60; asserts mode 4..7 and perspective on (video-drivers.md)
+004f66e0	renderer_perspective_in_range	both coordinates within 0x320000 of the +0x60 centre; asserts as FUN_004f6670 (video-drivers.md)
+004f6760	renderer_project	slot +0x64; asserts mode 4 or more and perspective on (video-drivers.md)
+004f67c0	renderer_project_scaled	slot +0x68: project and set the next sprites' size (video-drivers.md)
+004f6830	renderer_scale_reset	slot +0x6c (video-drivers.md)
+004f6890	renderer_debug_text	slot +0xc8 ("%d FPS", FUN_00477980) (video-drivers.md)
+004f68b0	renderer_glide_upload	slot +0xcc, filled by Glide only (video-drivers.md)
+004f68e0	renderer_tile_draw	stdcall 9 args (ret 0x24): arg 1 to ECX, arg 2 to EDX, args 3..9 pushed, then calls [DAT_007c8cc0 + 0x7c] (gdi-driver.md)
+004f6920	renderer_wall_tile_9c	slot +0x9c (dt1.md, video-drivers.md)
+004f6950	renderer_wall_tile_a0	slot +0xa0 (gdi-driver.md "Wall tile draw")
+004f6980	renderer_shadow_tile	slot +0xa4 (lighting.md "Tile shadows")
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
 00506e00	handler_table_remove	ECX owner (null: line 0x5a), EDX table of 12-byte (kind, code, handler) entries, stack count (ret 4): FUN_00506cf0 per entry -> FUN_00426720 unlinks it; shutdown passes 0x72dc48 x 0x21 (net-join.md "D2Win shutdown")
 00507140	pentspin_close	FUN_004faae0 (CloseFile) on DAT_0087e96c, the front end's pentspin (menu.md), then zeroes it (net-join.md "D2Win shutdown")
@@ -472,6 +531,7 @@ address	name	evidence
 0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
+00543520	player_quest_flags	fastcall (ECX game, EDX player): player data (FUN_006221a0) +0x10 + game +0x6d * 4, the pointer FUN_0065c310 tests (drops.md "A player's quest flags")
 00543590	quest_free_list	free each node through game pool +0x1c, following node +4
 00543800	quest_state_destroy	free quest records, extra list, quest buffer and state using game pool
 00543b90	quest_event_kind3	builds a kind-3 event record (game, stack words, EDX) and runs FUN_005438e0(1, 0); verified quest_small.py
@@ -536,6 +596,9 @@ address	name	evidence
 005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
 00548a50	player_walk_to_unit_queued	EBX unit, ECX game, EDI type, ESI id, stack marker (-1, or -2 when FUN_00548b00's fourth argument is set): FUN_00580a70 mode 3 then FUN_00641f20 sets pending +0x150 = 1, +0x154 marker, +0x158 type, +0x15c id (collision.md "The pending interact's fields")
 00548b00	player_interact_unit	ECX player, EDX type 0..5, stack id, to_cursor, game: within 0x33 of unit_distance, by type: 0 player (corpse FUN_0057fb70), 1 NPC (talk FUN_00573020), 2 object (FUN_00584540), 4 item (FUN_00563560 / FUN_0055cf50), 5 warp (FUN_005550b0); out of reach walks by FUN_00548a50 (collision.md "The pending interact's fields")
+00556b60	item_roll_sockets	(EDI item, drop record, roll +0x6d difficulty): quality >= 2, hasinv, not stackable; most = FUN_0062bc20 cut to 3 / 4 / 6; rand(100) < 33 on the item's seed; count seed field % most + 1 (version 100+), flag 0x800, FUN_0062bcb0
+00556e80	item_type_fixups	(EAX item, EDI drop record): ItemTypes 0xd FUN_00556a60; 0x28 / 7 item data +0x28 = record +0x40 or *record +4 (7 also flag 0x10000); 0x16 / 0x12 books row into item data +0x3e; then FUN_005c1260
+00556f60	item_roll_quality	(item, record): forced quality at record +0x30 in an expansion item, else ItemRatio row by FUN_00637910, tries 7..2 by rand(b - past / d), else 3 or 1 by record +0x80 & 0x40 (drops.md "The quality roll")
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
@@ -548,6 +611,8 @@ address	name	evidence
 00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
 00559ce0	item_make_drop	0x84-byte create record (memset), level clamp to 1, FUN_00558d90, flag 0x10 on the result
 0055a200	player_kill_drop_ear	code "ear " (0x20726165) row via FUN_00633640, spot FUN_00555da0, made by FUN_00559ce0, placed by FUN_00558aa0; called from FUN_00580ec0
+0055a550	drop_item_make	thiscall (ECX item index, ESI dropper): spot FUN_00555da0, 0x84-byte record, level by the dropper's type, FUN_00558d90; nothing when no spot (drops.md "Making the item")
+0055afa0	drop_class_roll	fastcall (ECX game, EDX dropper; killer, class, forced, ilvl, noNoDrop, out, count, max): class moved on by the monster's level (FUN_00654e00) in expansion past normal for a non-noRatio non-boss monster, then FUN_0055a6d0 (drops.md "The class moved on by level")
 0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
@@ -646,6 +711,7 @@ address	name	evidence
 0058eea0	ai_command_advance	steps command head +0x20 forward (or backward if negative); AiGeneral.cpp
 0058f000	ai_control_get_leader	reads leader unit id from +0x2c; AiGeneral.cpp
 0058f030	ai_minion_attach	links minion to owner (+0x28, +0x2c) and group list; AiGeneral.cpp
+0058f0d0	monster_owner_unit	ECX unit: a monster whose AI control (data +0x28) has +0x28 set gives FUN_00552f60(game ctl +0x28, type ctl +0x30, id ctl +0x2c), else 0 (drops.md "A monster's owner")
 0058f100	ai_minion_group_update	notifies minion group (+0x34) of update; AiGeneral.cpp
 0058f160	ai_minion_remove	removes minion unit from leader's minion list (+0x34); AiGeneral.cpp line 0x217
 0058f260	ai_minions_clear	clears leader's minion list (+0x34) and resets each minion's owner; AiGeneral.cpp line 0x237
@@ -661,9 +727,11 @@ address	name	evidence
 00597a20	invmode_changed_pending	unit +0xc8 bits 0x16/0x17, or a changed-list id that FUN_00552f60 still finds
 0059b6e0	quest0b_data10_mark	quest 0xb data +0xf equals 1 and +0x10 is zero: set +0x10
 0059c810	quest_tomb_transition	sets quest 0xe bits 0xd and 3 and client progression for current difficulty
+005a0180	monster_flag_test	fastcall (ECX unit, DX mask): a monster (type 1) with data whose +0x16 & mask is non-zero; 2 superunique (FUN_005a03a0), 4 champion, 8 unique by the class pick (drops.md "A monster flag test")
 005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
 005a23d0	boss_curse_apply	Cursed mod's per-enemy callback: Amplify Damage record 0x42 calcs, d2d_states_put_state, five stat slots set; monster-ai.md "Boss mods in the hit"
 005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
+005a6600	kill_drop_roll	stdcall (game, dropper, noNoDrop, record; record +8 the killer): level id, ilvl (FUN_00558200), class by superunique / champion (flag 4) / unique (flag 8) / normal, TreasureClass4 while the killer's quest lacks bits 15, 1, TCQuestCP, then FUN_0055afa0 (drops.md "The kill's drop roll")
 005a8910	missile_stat_roll	two stat reads on the missile, 0 if either < 1, lower end + optional bonus-stat term + seed draw (missiles.md "The roll helper")
 005a8c70	missile_fill_damage_record	ECX game, EDX missile, stack unit and 0x70-byte record: per element class (FUN_0064b0c0) rolls the missile's stats into the record, physical scaled by stat 0x19 / 0x79 / 0x7a and doubled by 0x8d (missiles.md "The record fill")
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
@@ -872,6 +940,7 @@ address	name	evidence
 00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc; verified by datatbls_finish.py
 00618d90	pettype_load	"pettype" 0xe0 (DataTbls.cpp 0x72b); verified by txt_schemas.py
 00619140	tables_unload_all	every unloader; verified by datatbls_finish.py
+0061a1b0	room_level_id	stdcall (room): 0 for null, else FUN_0066bab0 of room +0x10 (*(*(r + 0x58) + 0x1d0), the level id) (drops.md "A room's level id")
 0061dd00	portal_level_array	LvlTbls.cpp: count at 0x96c9f8, pointer 0x96c9f4 (alloc line 0x16c), LevelDefs Portal at +0x8c; verified by lvl_small.py
 0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
 0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
@@ -988,6 +1057,7 @@ address	name	evidence
 00625250	stat_list_owner_type	stat list +8; null 6
 006252b0	stat_list_owner_id	stat list +0xc; null 0
 00625480	unit_stat_value	(unit, stat id, layer 0): unit +0x5c stat list, id below [0x744304] +0xbd4 rows of 0x144 from +0xbcc, then FUN_00624f60(row); 0 for none
+00625760	unit_stat_sublist_by_flag	stdcall (unit, flags): 0 for no list at unit +0x5c or one without 0x80000000, else FUN_006256e0(list, flags); no null check of the unit (drops.md "A unit's stat sub-list by flag")
 00625d10	unit_max_life	stat 7 (maxhp, ItemStatCost row 7 at tables +0xbcc + 0x8dc) through FUN_00624f60, 0 for no unit / stats list
 00625d60	unit_max_mana	stat 9 (maxmana, ItemStatCost row 9 at tables +0xbcc + 0xb64) through FUN_00624f60, 0 for no unit / stats list
 006266c0	stat_refresh_derived	ECX list, EDX key, row, ctx: FUN_00626200 value stored by FUN_00625150, dependents at row+0x58 / +0x5e recomputed
@@ -1115,6 +1185,7 @@ address	name	evidence
 00639cb0	runes_count_ptr	returns &0x96ca98
 00639cc0	runes_set_row	0x120-byte rows (ItemTbls.cpp 0x95b)
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
+0063a690	unit_has_state_of_set144	stdcall (unit): any bit of the unit's state words (FUN_00625bb0) in the set at [0x744304] +0x144, over (count [+0xc4] + 31) / 32 words, via FUN_0063a130 (drops.md "Does a unit have a state of one set")
 0063a970	inv_grid_unlink	unlinks item data +0x6c/+0x70 from a grid and clears its cells (Inventory.cpp 0x199)
 0063aaf0	inv_remove_item	clears item data +0x5c/+0x68/+0x69, inventory +0x20 or +0x28 count, wielded id +0x1c
 0063ac40	inv_free	frees grids, node lists and the 0x40-byte record (Inventory.cpp 0x261..0x27f)
@@ -1170,6 +1241,7 @@ address	name	evidence
 0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
 00640e90	objects_row	stdcall (index) -> 0x96d470 + index * 0x1c0 for 0 <= index < the count at 0x96d474; else message 0xde (index < 0) or 0xdd, then exit -1; never 0 (collision.md "The pending interact's fields")
 0063ee90	hireling_kind	(unit): 0 for a null unit or not type 1; class 0x10f 1, 0x152 2, 0x167 3, 0x230 / 0x231 4, else 0 (combat.md "The pair percent"; ai.hpp Crushing Blow note: the same five classes; cited)
+006427f0	level_act_index	stdcall (level id): i - 1 for the first of the dwords at 0x6eb2f0 + i * 4 (i = 1..5) above the id, else 0; the act, 0 = Act 1 (drops.md "The act of a level id")
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
@@ -1238,7 +1310,7 @@ address	name	evidence
 00648900	path_get_y	(path): the word at path +6 (subtile y); null path raises the internal error, line 0x69d (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 00648f40	path_step_list	(path, &list): returns path +0x1d4 (count), sets list to path +0x1d8; asserts when path flag 0x20000 is clear, line 0x8f4 (missiles.md "Standing missiles")
-00649400	unit_stamp_footprint	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
+00649400	unit_stamp_by_type	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
 00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
 00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
 0064a100	missile_data_alloc	0x34 bytes, +0x1c = -1 (Missile.cpp 0x22)

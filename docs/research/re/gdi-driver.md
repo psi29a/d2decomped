@@ -9,7 +9,9 @@ row with `tools/ghidra/fn.py <address>`; register arguments are where the
 decompile reads them. `Src/gdiSmack.cpp` (`game-srcfiles.tsv`) is the file
 the video slots come from; the DirectDraw twins' file is `Src/ddSmack.cpp`.
 
-Slots read so far (GDI `0x74c4a8 + slot`; DirectDraw `0x72f6d0 + slot`):
+All 54 slots, and which ones only the 3D drivers fill, are in
+[video-drivers.md](video-drivers.md). The ones read in depth here (GDI
+`0x74c4a8 + slot`; DirectDraw `0x72f6d0 + slot`):
 
 | Slot | GDI entry | DirectDraw entry | What |
 |---|---|---|---|

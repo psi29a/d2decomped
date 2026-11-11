@@ -11,8 +11,10 @@
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
 #include "hold_confirm.hpp"
+#include "identify_prompt.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
+#include "item_use.hpp"
 #include "keyconfig.hpp"
 #include "load.hpp"
 #include "pad_hold.hpp"
@@ -21,6 +23,8 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "ui.hpp"
@@ -100,10 +104,14 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         return out;
     }
 
+/**
+ * Report whether gameplay input owns the field. Open panels, assignment editors, held items,
+ * dialogs and chat prevent field actions from leaking through UI interaction.
+ */
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
-            && !skillbar.picking && skill_strip < 0 && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+            && !skillbar.picking && skill_strip < 0 && touch_assign == skillpad::kUnset && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
     }
 
 auto Town::mini_right() const -> bool {
@@ -371,6 +379,10 @@ auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
         lead_field.wants_strip = false;            // the lead's Start does not take the screen back
     }
 
+/**
+ * Resolve controller movement and field action commands for the selected player. A fresh press
+ * permits interaction/pickup; held combat does not acquire loot after a kill.
+ */
 auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
                       const Send& out) -> std::vector<pad::Key> {
         const auto actions = mapper.step(sample, pad::Context::Game, seconds);
@@ -398,6 +410,10 @@ auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::P
         if (mapper.config().skill_buttons) {
             apply_skill_pad(player_pad, hero_there.player, dead, field, hero_there.character.name, int(hero_there.character.header.right_skill),
                             hero_there.character.header.expansion(), actions, out);
+            static constexpr std::array<pad::Key, 5> kPanelKeys = {
+                pad::Key::Character, pad::Key::Inventory, pad::Key::SkillTree, pad::Key::Automap, pad::Key::QuestLog };
+            const int panel = std::exchange(player_pad.wants_panel, -1);
+            if (panel >= 0 && panel < int(kPanelKeys.size())) opens.push_back(kPanelKeys[std::size_t(panel)]);
             return opens;
         }
         // Its hands' charged entries (kept while another player has the
@@ -466,6 +482,10 @@ auto Town::take_focus(int id) -> void {
         d2d::log::info("co-op: the screen is {}'s", owner.character.name);
     }
 
+/**
+ * Return the current panel control for controller focus, or no focus for a self-highlighting
+ * radial. Prefer a skill icon when entering the skill tree.
+ */
 auto Town::pad_focus() const -> std::optional<PadFocus> {
         if (controls.open) {                                            // Configure Controls: the selected row's column
             const auto [x, y] = controls.focus();
@@ -482,6 +502,13 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
                         return PadFocus{ 3000 + skillbar.picking, x + SkillBar::kIcon / 2, y - SkillBar::kIcon / 2 };
                     }
             return PadFocus{ 3000 + skillbar.picking, (on_left ? SkillBar::kButtonLeftX : SkillBar::kButtonRightX) + SkillBar::kIcon / 2, int(kScreenHeight) - SkillBar::kIcon / 2 };
+        }
+        if (tree_open && scene) {
+            for (const auto& node : scene->rules.class_skills[std::size_t(std::max(character.character_class, 0))])
+                if (node.page == tree_tab) {
+                    const auto [pixel_x, pixel_y] = skill_icon_at(node);
+                    if (pixel_x > -1000) return PadFocus{ 7000 + tree_tab, pixel_x + 24, pixel_y - 24 };
+                }
         }
         if (game_menu.open) {                                           // its highlight: the d-pad steps it by key, the cursor follows
             const int count = int(game_menu.rows().size());
@@ -501,6 +528,10 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
 // Where a panel's d-pad hops the cursor: each item and free cell of the open
 // grids, the body slots, and a store's stock (with an item held, the stock
 // grid's middle: dropping it there sells it).
+/**
+ * Collect valid controller cursor destinations for the currently open panel. Skill-tree entries and
+ * its close button share the same geometry as drawing and hit testing.
+ */
 auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         std::vector<pad::Point> points;
         if (!scene) return points;
@@ -544,6 +575,10 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
                 if (class_skill.page == tree_tab)
                     if (const auto [x, y] = skill_icon_at(class_skill); x > -1000) centre(x, y - 0x30, 0x30, 0x30);
             for (const int top : { kTreeB - 0x174, kTreeB - 0x108, kTreeB - 0x9c }) centre(kTreeR - 0x58, top, 0x58, 0x6b);
+        }
+        if (tree_open) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            centre(close.left, close.bottom - 34, 34, 34);
         }
         if (char_open && character.stats.get(d2d::d2s::kStatPts) > 0)  // the stat buttons
             for (const auto& button : kStatButtons) centre(kCharPanelX + button.x, kCharPanelY + button.y - 22, 40, 22);
@@ -606,6 +641,16 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
 
+/**
+ * Resolve the hovered item availability using the shared item-use policy and current player state.
+ * The result supplies both inventory prompts and item dispatch.
+ */
+auto Town::item_use(const d2d::d2s::Item& item) const -> ItemUse {
+    const bool potion = potion_code(item.code) || (scene && scene->rules.potions.contains(item.code));
+    const bool unidentified = std::ranges::any_of(character.items, [&](const auto& carried) { return carried.id != item.id && !carried.identified; });
+    return item_use_action(item.code, item.quantity, potion, level && d2d::rules::level_ids::is_town(level->id), view.dead, unidentified);
+}
+
 // Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
 // A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
 // A joined game skips that pair. The drop packet needs a cursor the pickup has not filled yet.
@@ -619,6 +664,10 @@ auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
         }
     }
 
+/**
+ * Update controller hold actions and contextual inventory/shop hints. Hold-to-sell and field-use
+ * state are handled separately so prompts describe the available action.
+ */
 auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         pad_hold_text.clear();
         pad_hold_fraction = 0.f;
@@ -660,13 +709,31 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool can_equip = query.equippable && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
         const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
                               && query.store_mode != 1 && query.store_mode != 3;
+        if (pad_playing && pad_config.skill_buttons && query.shop && query.hand_empty && scene &&
+            store_item_at(*scene, store, mouse.x, mouse.y) >= 0) {
+            const auto& pair = pad_config.bindings[pad::Action::Trade];
+            const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+            if (button != pad::Bindings::kNone)
+                pad_hold_text = std::string(pad::label(pad_family, button)) + " to buy";
+        }
+        const auto label_of = [&](pad::Action action) {
+            const auto& pair = pad_config.bindings[action];
+            return std::string(pad::label(pad_family, pair[0] != pad::Bindings::kNone ? pair[0] : pair[1]));
+        };
+        if (pad_playing && identify_with >= 0) {
+            const bool valid = item && item->id != identify_with && !item->identified;
+            pad_hold_text = identify_prompt(pad_config.bindings, pad_family, valid);
+        } else if (pad_playing && pad_config.skill_buttons && item && query.hand_empty && !query.imbue) {
+            const auto use = item_use(*item);
+            if (!use.label.empty()) pad_hold_text = (use.kind == ItemUseKind::None ? "" : label_of(pad::Action::Interact) + " . ") + std::string(use.label) + "  ";
+        }
         if (pad_shows_hold_cue(pad_playing, can_potion, can_equip, can_sell)) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
             const std::string_view aye = pad::label(pad_family, pad::Button::South);
             const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
-            if (can_potion) pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
-            else if (can_sell) pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
-            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to equip";
+            if (can_potion) pad_hold_text += std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
+            else if (can_sell) pad_hold_text += std::string("Hold ") + std::string(aye) + " to sell";
+            else pad_hold_text += std::string("Hold ") + std::string(aye) + " to equip";
         }
         if (step == hold_confirm::Step::Click && scene) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
@@ -715,21 +782,56 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
 
 // The field's right stick click: the right hand's skill picker (A on the
 // left skill button switches to the left's), the cursor on its skill.
+/**
+ * Open the controller skill-assignment editor in Skill Buttons mode, or the existing hand picker in
+ * the classic mode.
+ */
 auto Town::pad_open_picker() -> void {
         if (pad_config.skill_buttons) {
-            if (skillbar.picking == 3) { skillbar.picking = 0; return; }
+            if (skillbar.picking == 3) { close_assignment(); return; }
             if (!pad_field() && skillbar.picking != 0) return;
-            rebuild_wheel();
-            wheel_at = int(wheel_ids.size()) > 1 ? 1 : 0;
-            wheel_page = 0;
-            skillbar.picking = 3;
+            open_assignment(0);
             return;
         }
         if (pad_field()) skillbar.picking = 2;
     }
 
 // A store's shoulders: the next tab with stock on it, that way round.
+/**
+ * Return the active panel in shoulder-navigation order, or -1 when none of those panels is open.
+ */
+auto Town::pad_panel() const -> int {
+        if (controls.open || stash_open || cube_open || store.npc >= 0 || waypoint.open || npc_menu.npc >= 0 || speech.npc >= 0 || help.open || skillbar.picking) return -1;
+        if (game_menu.open) return 5;
+        if (tree_open) return 4;
+        if (inv_open) return 3;
+        if (char_open) return 2;
+        if (quest_log.open) return 1;
+        if (party.open) return 0;
+        return -1;
+    }
+
+/**
+ * Cycle open gameplay panels with the shoulder inputs, preserving classic/store tab behavior.
+ * Refuse a panel switch while item, identification, imbue or gold transactions are pending.
+ */
 auto Town::pad_tab(int step) -> void {
+        if (store.npc < 0) {
+            const int current = pad_panel();
+            if (current < 0 || held || identify_with >= 0 || imbue_with >= 0 || gold_box) return;
+            const int next = (current + (step > 0 ? 1 : 5)) % 6;
+            if (game_menu.open) close_game_menu();
+            inv_open = char_open = tree_open = quest_log.open = party.open = false;
+            inv_close_down = char_close_down = tree_close_down = false;
+            if (next == 0) party.open = true;
+            if (next == 1) toggle_quest_log();
+            if (next == 2) char_open = true;
+            if (next == 3) inv_open = true;
+            if (next == 4) tree_open = true;
+            if (next == 5) { open_game_menu(); game_menu.show(1); }
+            sync_panel_cam();
+            return;
+        }
         for (int i = 1; i < 4; ++i)
             if (const int tab = ((store.tab + step * i) % 4 + 4) % 4; !store.tabs[std::size_t(tab)].empty()) { store.tab = tab; return; }
     }

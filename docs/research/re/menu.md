@@ -173,8 +173,10 @@ SmallOn), 2 a slider.
 - NPCSpeech is a choice: AudioOnly / TextOnly / AudioText.
 
 Enabled fns: `0x4df880` (sound present) is true; 3D provider / EAX /
-perspective `0x4f5170` are false here; gamma `0x4f5260` is true; party
-names `0x4577b0` is true.
+perspective `0x4f5170` are false here; gamma `0x4f5260` is the driver's
+slot +0x5c: true under DirectDraw (the default) and Glide, false under
+`-w`, Direct3D's by the device (video-drivers.md "Gamma and Contrast");
+party names `0x4577b0` is true.
 
 Volumes: master at `0x8817b0` (default 100), music at `0x8817b4`
 (default 50). `0x4dfc84`: Music Vol sounds times music/100, then all of
@@ -320,8 +322,9 @@ the World doesn't tick while the menu is open without a host.
 - Configure Controls (UI 0xb) is its own screen: controls.md.
 - The mini-panel has no hover tooltips; Messages does nothing.
 - The darkened strip's modes 0 / 2 are taken as keeping (3-mode)/4 of
-  the colour (unverified). Gamma's and 3DBias's starting values aren't
-  traced: they start at 0.
+  the colour (unverified). 3DBias's starting value isn't traced: it
+  starts at 0. Gamma starts at 10 and Contrast at 99, where game.exe's
+  defaults (155 and 100) put them (video-drivers.md "Gamma and Contrast").
 - The volumes persist as `master_volume` / `music_volume` in
   `<user dir>/d2d.cfg`. The master scales each game sound, not the
   cinematics, as game.exe (sound.md "The master volume reaches nothing

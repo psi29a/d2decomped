@@ -6,6 +6,7 @@
 #include "automap_reveal.hpp"
 #include "common.hpp"
 #include "controls.hpp"
+#include "gamepad_map.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
 #include "panels.hpp"
@@ -47,6 +48,10 @@
 
 namespace d2d::client {
 
+/**
+ * Advance the client gameplay frame, synchronize joined-world state and drive player movement. Run
+ * controller and optional touch commands through the existing world dispatch path.
+ */
 auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         frame_now = frame_ms;
         if (net_game) {
@@ -369,11 +374,17 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         const Send to_world = [this](const Command& command) { send(command); };
         const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
         pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
-        present_skill_pad();
-        if (pad_config.skill_buttons)
+        if (pad_config.skill_buttons) {
             apply_skill_pad(pad, focused().player, view.dead, pad_field(), focused().character.name, int(focused().character.header.right_skill),
                             focused().character.header.expansion(), skill_actions, to_world);
-        else pad_act(pad, focused().player, view.dead, pad_field(), skillbar.left, skillbar.right, to_world, skillbar.left_item, skillbar.right_item);
+            if (const int panel = std::exchange(pad.wants_panel, -1); panel >= 0) {
+                skill_strip = panel;
+                pad::Actions open;
+                open.confirm = true;
+                drive_strip(open);
+            }
+        } else pad_act(pad, focused().player, view.dead, pad_field(), skillbar.left, skillbar.right, to_world, skillbar.left_item, skillbar.right_item);
+        drive_touch();
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || frame_ms - world_ms > 1000) world_ms = frame_ms - std::min<std::uint32_t>(frame_ms - last_ms, kTickMs);

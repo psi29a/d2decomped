@@ -264,6 +264,7 @@ add_executable(d2d
     town/net.cpp
     town/setup.cpp
     town/skillpad.cpp
+    town/touch.cpp
     town/update.cpp
     town/view.cpp
     town/walk.cpp

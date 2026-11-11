@@ -11,12 +11,15 @@
 #include "cursor.hpp"
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
+#include "item_use.hpp"
 #include "keyconfig.hpp"
 #include "mini_panel.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
 #include "store.hpp"
@@ -61,6 +64,11 @@
 
 namespace d2d::client {
 
+/**
+ * Process one client UI update, routing modal panels and item interactions before field actions.
+ * Skill-tree close hits and controller Identify confirmation use the same geometry/state as their
+ * displayed controls.
+ */
 auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
@@ -130,14 +138,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
-        if (party.open && (net_game || coop_hud_hidden()) && !help.open && !controls.open && !game_menu.open) {
+        if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
             if (net_game && click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
             if (net_game && click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
             if (net_game && click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
-        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty()) party.open = false;
+        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty() && !(pad_playing && pad_config.skill_buttons)) party.open = false;
         // The merc's portrait (FUN_00493760 / FUN_004936e0 / FUN_004938e0): 700 ms
         // on it (x .. x + 0x2e, y 0x18 .. 0x3c) with nothing in hand lights it
         // and shows its hint; a right-click opens the Hireling screen; a
@@ -237,7 +245,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
             if (fires(keys::kSwapWeapons) && character.expansion) send(cmd::SwapWeapons{});
             for (int slot = 0; slot < 16; ++slot)
-                if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skillbar.hotkey(slot, mouse.x, mouse.y);
+                if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skill_hotkey(slot, mouse.x, mouse.y);
             if (fires(keys::kShowBelt)) belt_open = !belt_open;
             if (fires(keys::kAutomap)) automap.open = !automap.open;
             if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
@@ -274,12 +282,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kNamesOnAutomap)) automap_values[5] = !automap_values[5];
             if (fires(keys::kToggleMiniMap)) automap.left = !automap.left;          // "AutoMap Left": the mini map's corner
             // Center Automap (0x468a60) puts the mini map's box back (FUN_00457520); d2d's never moves.
-            if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
+            if (key == SDLK_ESCAPE && skillbar.picking) { if (skillbar.picking == 3) close_assignment(); else skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
                 if (chat_typing) chat_typing.reset();                         // a chat line being typed first
+                else if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; touch_input.clear(); }
+                else if (identify_with >= 0) identify_with = -1;
                 else if (gold_box) gold_box.reset();                          // then the gold box
                 else if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
                 else if (waypoint.open) waypoint = {};
@@ -422,6 +432,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (mouse.release_this_frame && down) { down = false; if (over) open = false; mouse.release_this_frame = false; }
         };
         if (inv_open && !held) close_button(inv_close_down, inv_open, lay.panel_x + 0x12, lay.panel_y + 416);
+        if (!tree_open || held) tree_close_down = false;
+        if (tree_open && !held) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const bool over = close.contains(mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { tree_close_down = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && tree_close_down) {
+                tree_close_down = false;
+                if (over) tree_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
         if (char_open && !held) close_button(char_close_down, char_open, kCharPanelX + 0x80, kCharPanelY + 420);
         const bool over_panel =
             (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
@@ -451,13 +472,23 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool item_click = false;
         drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
-        if (identify_with >= 0 && mouse.press_this_frame) {
+        if (identify_with >= 0 && (mouse.press_this_frame || (pad_playing && mouse.rpress_this_frame))) {
+            if (pad_playing) mouse.rpress_this_frame = false;
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
-            if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) net.send(cmd::IdentifyWith{ identify_with, to_cursor->item });
-            identify_with = -1;
+            const bool direct_ui = (pad_playing && pad_config.skill_buttons) || touch_enabled;
+            if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) {
+                const auto target = std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id);
+                if (!direct_ui || (target != character.items.end() && target->id != identify_with && !target->identified)) {
+                    net.send(cmd::IdentifyWith{ identify_with, to_cursor->item });
+                    identify_with = -1;
+                }
+            }
+            if (!direct_ui) identify_with = -1;
             item_click = true;
         }
+        // A keeps the ordinary inventory pickup/move action, including usable tomes.
+        // Use starts Identify; the active Identify branch above accepts A to confirm.
         // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
         if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
@@ -500,11 +531,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
             if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too
             else if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
-            else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) {
+            else if (used != character.items.end() &&
+                     (((pad_playing && pad_config.skill_buttons) || touch_enabled) ? item_use(*used).kind == ItemUseKind::Identify : (used->code == "isc" || used->code == "ibk"))) {
                 identify_with = used->id;
                 audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorIdentifyReady, 1.f, 0);
             }
-            else if (to_cursor) net.send(cmd::UseItem{ to_cursor->item });
+            else if (to_cursor && ((!(pad_playing && pad_config.skill_buttons) && !touch_enabled) || (used != character.items.end() && item_use(*used).kind != ItemUseKind::None))) net.send(cmd::UseItem{ to_cursor->item });
         }
         // Quest log (FUN_004a3e40 press, FUN_004a42a0 release): a tab switches
         // on the press; an icon with something to say, close and questlast

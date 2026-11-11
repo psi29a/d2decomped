@@ -64,28 +64,48 @@ the cursor speed, as `pad_*` lines in `d2d.cfg`. The same screen sets
 the keyboard's keys, as game.exe does (kept beside the saves as
 `<name>.key` and `default.key`).
 
-Skill buttons is a third preset on that page (`pad_skill_buttons`).
-The layout above stays the default. With the preset on, A, B, X, Y, LB
-and RB each cast a skill, and holding LT uses a second set. RT casts
-one skill, and holding LT casts a second one on RT. A file that only
-saved the first uses it for both until the second is assigned. The right stick's click
-talks, picks up and uses, and does not cast. A short LT tap swaps
-weapons. View opens a wheel of the existing skill icons, eight at a time:
-highlight one, press a button to assign it, and press it again to
-leave it there. The line under the wheel says to hit that same button
-to close. Clear is its own wedge, and so are Interact (talk, use, or
-pick up) and Show Items (held, like Alt). Charged items stay on the
-mouse fan. A skill the character no longer has does not cast. An aura selects that skill on the right hand, which is how the aura turns on, and pressing it again restores the previous right-hand skill. Start opens a list of the panels (character,
-inventory, skill tree, automap, quests, party, hireling, help and the
-game menu). South confirms that list and East closes it. The button
-layout is `d2d.cfg`, for every character. Which skill is on a button is
-`<name>.padskills` beside the save, and only for that character. While
-the pad is the last input, the seven slots sit above the original bar,
-between the orbs, with the button name under each icon. A mouse move,
-a click, or a key brings the classic panel back, and the mini-panel's
-option row with it. Restore default controller, on the Gamepad page,
-turns the preset off and puts the normal bindings back. Accept keeps
-that. The mouse fan and the keyboard are unchanged.
+Skill buttons is a third preset on that page (`pad_skill_buttons`). Fresh
+layouts are initialized once per character: the current left-click ability goes
+to RT and the right-click ability to RB (or their remapped destinations). Saved
+skill hotkeys fill available A/B/X/Y/LB positions, then alternate-bank positions,
+in saved order, skipping duplicates and unavailable skills. Existing files and
+explicit clears are preserved; switching presets never reseeds them. LT holds the
+alternate bank; a short tap swaps weapons, but a skill chord never swaps.
+
+In the skill panel, highlight a learned skill and press the north button
+(Y on Xbox) for **Assign to button**. View opens the editor from the field.
+D-pad left/right selects Skills or Actions; up/down changes pages. The editor shows
+actual destination glyphs, current occupants and bank I/II. Hold LT to preview
+bank II. Press a destination to assign; the resulting binding is shown and
+the editor stays open. View or Start finishes; held buttons cannot cast on exit.
+Inventory is available in Actions and through Start's panel menu.
+
+In this preset B closes panels; RS uses the hovered item. Tome prompts reflect
+charges and availability. Identify waits for an unidentified target; B cancels.
+Shop stock shows Buy (X by default), and sellable bag items show Hold to sell
+(A by default). Labels follow remapped bindings. Attack / Use shows its action
+and target: a fresh press can use or pick up, while a held attack stays combat.
+Loot under a dead enemy requires a fresh press. Auras and self-buffs do not
+chase enemies; the active aura stays labelled across banks.
+
+Assignments remain `<name>.padskills` beside the save. Older files with only
+one RT skill use it on LT+RT until assigned separately. Item-granted charged
+skills stay on the mouse fan. The original controller preset, mouse fan,
+keyboard bindings and `.d2s` hotkeys retain their existing behavior.
+
+For the touch prototype, pass `--touch-controls` (or set `touch_controls = 1`).
+It has a movement area, fixed Attack / Use, four assigned skills, a latching
+I/II page switch and belt access on both pages. In Skills, tap a learned skill,
+then Assign, then a destination; Done returns. Touch assignments use separate
+`<name>.touchskills` files. Tap for the previewed target, or drag an aimed skill
+and lift to cast. Drag to Cancel, interrupt the finger, or open a panel to
+cancel without casting. Movement and skill fingers are independent. Teleport
+shows its landing point; corpse skills preview eligible corpses. Tap a usable
+tome to use it; tap stock to buy and hold a sellable carried item to sell.
+
+See [design, sources and the playtest script](../../docs/design/controller-touch.md).
+This is a landscape input prototype; physical phone/controller testing remains
+necessary before claiming device support.
 
 Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 `~/.config/d2d` (Linux), `Documents\My Games\d2d` (Windows). The log,
@@ -102,3 +122,49 @@ Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 | Anything else | Run with `--log-level debug` and read `d2d.log` |
 
 Where d2d differs from game.exe on purpose: `docs/research/re/deviations.md`.
+
+Controller follow-up: D-pad character selection hides the pointer until mouse or
+analog movement; A confirms the highlighted character. In Inventory, the remapped Use input (RS by default in Skill Buttons mode)
+activates an Identify tome/scroll. A or Use confirms an unidentified target;
+A otherwise picks up or moves inventory items, including usable tomes. B cancels. Identify items are not controller spell
+bindings. A bound Town Portal uses a charged tome carried in inventory directly from the field; opening the Inventory panel is unnecessary. An empty/missing tome or town restriction disables it.
+
+The touch prototype also accepts a single mouse/Pencil-style pointer over its
+controls, including drag/release aiming. This does not provide simultaneous
+movement and aiming: that requires independent SDL finger events. Sidecar
+hardware and OS-specific event delivery remain unverified. Skill and attack
+buttons use rounded outlines; the larger rectangular hit regions remain forgiving.
+
+The controller radial excludes generic Kick and Identify scroll/tome entries.
+Dragon Talon and other class kick skills remain assignable. Potion labels use
+drawn D-pad arrows when mapped to directions, and actual button names when
+remapped. Releasing movement stops without planning a new walk to a subtile
+centre, preserving facing. Physical touch tests are unavailable; Sidecar is
+not a native multitouch validation device.
+
+Controller Skill Buttons navigation: the run/walk control shows its actual
+remapped stick-click binding and current Run/Walk state. With Party, Quests,
+Character, Inventory, Skills or Options open, the configured previous/next
+shoulder inputs cycle that order with wraparound. A tab strip shows the current
+panel. Held items, Identify, Imbue and gold confirmation block switching with
+a visible explanation. Store tabs and classic controller shortcuts retain
+their existing behavior. Offline Party is informational.
+
+The radial uses D-pad Up/Down for pages, Left/Right for Skills/Actions and the
+aiming stick for selection. A separate 30% centre deadzone (or the user's
+larger configured deadzone) preserves selection at rest; a small angular
+margin stabilizes wedge boundaries. Destinations and Done remain unchanged.
+Skill-tree Up/Down prefers a node in the same column across gaps before
+moving sideways. Tree opening focuses a skill rather than a tab button.
+These are controller UX decisions, not newly traced original-game claims.
+
+First-time setup is stored in `<name>.padskills` with `initialized 1`. Existing
+files, including old one-RT layouts and deliberately cleared slots, count as
+already initialized and are never reseeded. Touch bindings remain separate.
+The open panel-shortcut strip stays visible while using a controller. The
+skill tree has a clickable close button as well as controller B-to-close.
+
+The untraced permanent Character/Stats shortcut has been removed; the original
+HUD art and conditional New Stats notification are retained. Character remains
+available through its normal key and mini-panel action. The tree close control
+now uses retail class/tab placement, rather than the earlier fixed corner.

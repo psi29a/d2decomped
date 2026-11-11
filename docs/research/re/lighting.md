@@ -223,8 +223,8 @@ there; Act 5 is outside todo.md.
 
 - **Video modes** (`DAT_007c8cb0`; drivers at 0x72da80 by mode): 1
   software GDI (0x74c4a8, what `-w` runs: read live under Wine), 3
-  DirectDraw (0x72f6d0), 4 Glide (0x72f178), 6 Direct3D (0x74bf28); 2
-  and 5 are empty. GDI's tile entries (+0x9c 0x6c94b0, +0xa4 0x6c9290)
+  DirectDraw (0x72f6d0), 4 Glide (0x72f178), 6 Direct3D (0x74bf28); 0,
+  2, 5 and 7 are empty (all 54 slots: video-drivers.md). GDI's tile entries (+0x9c 0x6c94b0, +0xa4 0x6c9290)
   are copies of DirectDraw's and draw through the same callbacks
   (`DAT_007c914c`), so what follows holds for both.
 - **Floors and roofs** (`FUN_004de410`, `FUN_004dea70`): in the software
