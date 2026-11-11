@@ -49,14 +49,16 @@ const std::vector<TreeLabel> kTreeTabs[7] = {
 
 // The panel (FUN_004ac690): background frames 0..3 then 4t..4t+3 at the
 // 2x2 spots, the labels, the unspent points (font16 centred in R-65..R-25
-// at baseline 140), and each skill of the tab: icon frame IconCel (+1
-// while pressed), greyed when it can't take a point (draw colour 5), its
-// level at (x + 48, bottom + 12) when learned (4 left for two digits).
+// at baseline 140), and each skill of the tab (FUN_004abf60): icon frame
+// IconCel (+1 while pressed). With skill points left, an icon that can't
+// take one draws in text colour 5; with none left, every unlearned icon
+// does. Hovered, colour 3. Its level (with item bonuses) at (x + 48,
+// bottom + 12) when that level is not zero: font16 below 10, FontFormal10
+// and 4 px further left from 10 up; blue (text colour 3) when items add
+// levels, red (text colour 1) when they take them away.
 // Hovered, the skill's tooltip (game::skill_tree_tip, FUN_004abf60 ->
 // FUN_004eef00) for its level with `env` (the character's skill levels).
 // The tooltip hangs under the icon (rules::skill_tree_tip_box).
-// ponytail: grey is a 50% darken; no hover brightening; the game draws 10+
-// in FontFormal10.
 void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int cls, int tab,
                      const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, const d2d::rules::CalcEnv& env,
                      int pressed, int mouse_x, int mouse_y);

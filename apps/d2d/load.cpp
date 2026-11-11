@@ -199,6 +199,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\menu\waygateicons.dc6)", scene.wp_icons);
     sprite(R"(data\global\ui\menu\waygatetabs.dc6)", scene.wp_tabs[0]);
     sprite(R"(data\global\ui\menu\expwaygatetabs.dc6)", scene.wp_tabs[1]);
+    if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal10.tbl)"))
+        if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal10.dc6)"))
+            scene.font_formal10 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
             scene.font_formal11 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
@@ -574,6 +577,7 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
     scene.act_lit = {};
     scene.act_text_red = {};
     scene.act_text_blue = {};
+    scene.act_text_grey = {};
     if (auto bytes = mpqs.try_read(dir + "pal.dat"))
         scene.act_pal = d2d::palette::Palette(*bytes);
     if (scene.act_pal.entries().empty()) { scene.palette_act = act; return; }
@@ -595,6 +599,7 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
         };
         scene.act_text_red = text_colour(1);
         scene.act_text_blue = text_colour(3);
+        scene.act_text_grey = text_colour(5);
     }
     scene.palette_act = act;
 }
