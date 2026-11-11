@@ -62,6 +62,12 @@ log 2. His death (`FUN_00587330`): players in his room or its near list
 Bit 0 comes with Larzuk's socketing. Log `FUN_00586ce0`: bit 1 / 13 → 3 (4
 with bit 5).
 
+The Siege log-send filter `FUN_00586c80` selects the player's quest buffer
+by game difficulty. It sends quest 0x1f unless word 0x23 has bit 0 or 15
+and has neither bit 13 nor 14. `tools/emu/quest_siege_log.py` checks all 16
+bit combinations for all three difficulties with lookup, bit test and sender
+hooked; it does not check the helpers or d2d parity.
+
 ## Rescue on Mount Arreat (a5q2)
 
 Data: +0x84 told, +0x86..88 cages up, +0x8c cage spots, +0xa4 made, +0xa8
