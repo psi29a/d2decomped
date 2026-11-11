@@ -694,9 +694,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         const bool day = view.day.phase >= 1 && view.day.phase <= 3;
         const int amb = day ? level->ambience : level->night_ambience;
         audio.quest_music_tick(*scene, frame_ms);
+        if (audio.music.sound == 0 && audio.ambience.sound != amb) {
+            audio.play(audio.ambience, *scene, amb);   // under a quest's hold too
+            audio.ambience.sound = amb;           // tried: not again every frame
+        }
         if (audio.music.sound == 0 && frame_ms >= audio.music_held_until) {
             audio.play_music(*scene, level->song);
-            if (audio.ambience.sound != amb) audio.play(audio.ambience, *scene, amb);
             if (audio.music.sound == 0) audio.music.sound = -1;   // don't retry every frame
         }
         // Another level's song: game.exe (FUN_004dcaa0) switches 75 sound

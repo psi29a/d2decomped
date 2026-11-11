@@ -388,6 +388,8 @@ struct Audio {
         for (auto* channel : { &ambience, &ambience_old, &rain }) stop(*channel);
         world_paused = false;
         menu_paused = false;                     // left from the game menu: step_ducks fades back up
+        quest_jingle = 0;                        // a quest's jingle and hold end with the game
+        quest_jingle_at = music_held_until = 0;
     }
     // A cinematic over the game: the world's sounds hold until it ends.
     // (Under the paused game menu they fade out instead: menu_paused.)
@@ -609,6 +611,8 @@ struct Audio {
             music_old = music;
             music = {};
             fade(music_old, 0.f, out);
+        } else if (music.sound > 0) {
+            music = {};                          // still decoding: update drops it; it starts after the hold
         }
         quest_jingle = jingle;
         quest_jingle_at = now + std::uint64_t(std::max(jingle_ms, 0));
