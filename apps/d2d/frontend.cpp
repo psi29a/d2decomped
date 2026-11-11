@@ -757,10 +757,10 @@ TitleUI other_multiplayer_ui(const Scene& scene) {
     static constexpr Entry kEntries[] = { { 310, 0x13fb, "OPEN BATTLE.NET", Screen::OtherMultiplayer },
                                           { 350, 0x13fc, "TCP/IP GAME", Screen::TcpIp },
                                           { 568, 0x13ef, "CANCEL", Screen::Title } };
-    for (const auto& [y, tbl_id, fallback, target] : kEntries) {
+    for (const auto& [top, tbl_id, fallback, target] : kEntries) {
         const auto found = lookup_string(scene, std::uint16_t(tbl_id));
         menu.labels.push_back(found ? u16_to_latin1(*found) : std::string(fallback));
-        menu.buttons.push_back(Button{ 264, rec_top(y, 35), 272, 35, menu.labels.back().c_str(), &scene.btn_wide,
+        menu.buttons.push_back(Button{ 264, rec_top(top, 35), 272, 35, menu.labels.back().c_str(), &scene.btn_wide,
                                        target, target != Screen::OtherMultiplayer });
     }
     return menu;

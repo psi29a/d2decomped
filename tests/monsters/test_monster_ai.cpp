@@ -311,7 +311,7 @@ int main() try {
                     scene.skill1 = read(); scene.skill2 = read(); scene.mode1 = read(); scene.mode2 = read(); scene.velocity = read(); scene.run = read();
                     if (const bool corpse = read() != 0; which == 6) scene.nearby = corpse;   // the Death Sentry's corpse is its `nearby`
                     scene.ends = read() != 0;
-                    for (auto& [x, y] : scene.end) { x = read(); y = read(); }
+                    for (auto& [end_x, end_y] : scene.end) { end_x = read(); end_y = read(); }
                     scene.left = read(); scene.right = read(); scene.owner_class = read(); scene.pet_attack = read() != 0;
                     scene.aip8_nightmare = read(); scene.aip8_hell = read();
                     for (auto& skill : scene.skills) { skill.id = read(); skill.cls = read(); skill.ai_ok = read() != 0; skill.mana = read(); skill.kind = read(); skill.mode = read(); skill.delay = scene.skill_calc; }

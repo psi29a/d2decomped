@@ -960,9 +960,9 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     };
     const auto& name_font = scene.font_tiny.line_height() > 0 ? scene.font_tiny : scene.font;
     for (const auto& other : automap.marks) {
-        const auto [x, y] = mark(other.x, other.y, nearest(other.rgb[0], other.rgb[1], other.rgb[2]));
-        if (x < 0 || other.name.empty()) continue;
-        name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x - name_font.measure(other.name) / 2, y - 10 - name_font.line_height() + 1,
+        const auto [mark_x, mark_y] = mark(other.x, other.y, nearest(other.rgb[0], other.rgb[1], other.rgb[2]));
+        if (mark_x < 0 || other.name.empty()) continue;
+        name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, mark_x - name_font.measure(other.name) / 2, mark_y - 10 - name_font.line_height() + 1,
                               other.name, other.name_rgb[0], other.name_rgb[1], other.name_rgb[2]);
     }
     mark(player_x, player_y, nearest(0, 0, 0xff));                  // you: blue
