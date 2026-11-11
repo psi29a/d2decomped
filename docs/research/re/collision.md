@@ -1450,3 +1450,50 @@ function and nothing here disagrees with `kSwing`'s contents.
 
 Re-check: `python3 tools/ghidra/fn.py 004ca4c0 004c6140`; disassemble
 `004ca4c0`..`004ca4fa` to confirm the ECX=unit/EDX=hit-class order above.
+
+### Starting and stopping a boss unique's ambient sound (batch 9)
+
+Two UNIT functions a short distance after batch 8's sound-node pair,
+both gated on `FUN_004ca320` (**GetSndUnitType**, `unit-sounds.md:38`)
+returning 1 (monster) and then `d2d_uniques_boss_sound(unit)`
+(`components/rules/uniques.hpp:196`, already ported) returning a non-null
+MonSounds.txt row pointer (0x94-byte stride, confirmed via that function's
+own tail calls `FUN_00656f90`/`FUN_00656fc0`, which compute `row * 0x94 +
+DAT_0096c6b4`):
+
+- **`FUN_004cb190`** (0x90 bytes, `004cb190`..`004cb220`, plain `RET`, no
+  stack args): fastcall **ECX** the unit only (confirmed in
+  disassembly — EDX is never read). When the unit's type is 1 and it has
+  a boss-sound row, a null unit is fatal (id `0xc2c`, same shape as the
+  other checks here); otherwise it walks the unit's `sound_nodes` list
+  (`+0x78`, batch 8) exactly as `FUN_004caa10` does — `FUN_004b9ca0`
+  resolves each node, and when the resolved value matches any of the
+  boss-sound row's `+0x44`/`+0x48`/`+0x4c`/`+0x50` dwords (four of its own
+  sound-id fields, not otherwise identified), it calls
+  `FUN_004ba790(node_data, unit, 1)` — the same stop-sound entry point
+  `FUN_004caa10` calls with a flag of 0 (batch 8); here the flag is 1.
+- **`FUN_004cb950`** (0x61 bytes, `004cb950`..`004cb9b1`, plain `RET`, no
+  stack args): **EAX**-implicit unit (confirmed in disassembly: the first
+  instruction is `MOV ESI,EAX`), no stack args — the same implicit-EAX
+  convention batch 8 found on the sound-timer scalars. Same type/boss-row
+  gate as above; then, only once at least 4 ticks (`FUN_0044db00`, a tick
+  counter) have passed since the global `DAT_007c88bc`, it calls
+  `FUN_004e40a0(3, 0, 0)` for a sound-category base, adds 6, and queues it
+  with `FUN_004b9a00(category, unit, boss_row->+0x78 + 6)` — the row's
+  `+0x78` field (batch 8 named this `sound_nodes` on the *unit*; here
+  `+0x78` is a different field of the MonSounds-shaped boss row, not the
+  unit). It then sets the unit's `sound_time` (`FUN_004cab60`, batch 8,
+  EAX-implicit) to the current tick and updates `DAT_007c88bc` to it too.
+  So this is "play the boss unique's ambient sound, throttled to once
+  every 4+ ticks globally", with `FUN_004cb190` above as its stop
+  counterpart.
+
+Not traced: the MonSounds.txt row's own field layout beyond the `0x94`
+stride and the five fields read here (`+0x44`, `+0x48`, `+0x4c`, `+0x50`,
+`+0x78`); `FUN_004e40a0`'s own category table. d2d: not ported as a
+function; no disagreement found — `d2d_uniques_boss_sound` is the only
+piece of this pair with a d2d equivalent.
+
+Re-check: `python3 tools/ghidra/fn.py 004cb190 004cb950 004ca410`;
+disassemble `004cb190`..`004cb220` and `004cb950`..`004cb9b1` to confirm
+the ECX-only and EAX-implicit conventions above.
