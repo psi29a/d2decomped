@@ -257,6 +257,33 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // 0x58 answers 7, refused (0x579fc6, 0x57a002, 0x57a2e6, 0x57a54a), or
         // 6, done (0x57a1b4, 0x57a488, 0x57a63f): ev::ServiceResult.
         // ponytail: the new item stays in hand; game.exe puts it back (FUN_00560200) or drops it.
+        // An object's item panel (C->S 0x44, FUN_005852e0). Action 2: S->C
+        // 0x58 kind 1 (the panel shuts), the object to mode 0, the player let
+        // go. Action 3 with the Horadric Staff at the orifice (class 0x98,
+        // 'hst '): let go, 0x58 kind 5 (taken), modes 1 and 2, then the staff
+        // goes in (FUN_0059dd80); any other item, kind 4 (not taken).
+        // ponytail: action 3 at an object other than the orifice (FUN_0055eea0) isn't traced; d2d answers 4.
+        if (const auto* given = std::get_if<cmd::ItemToObject>(&command)) {
+            if (std::size_t(given->object) >= level->npcs.size() || hosted_quests) return true;
+            const auto key = std::pair{ level, given->object };
+            const auto& object = level->npcs[std::size_t(given->object)];
+            const auto answer = [&](int kind) { actor->events.push_back(ev::ObjectPanel{ given->object, kind }); };
+            if (given->action == 2) {
+                answer(1);
+                if (const auto hole = doors.find(key); hole != doors.end()) hole->second = Door{ 0, now_ms };
+                set_footprint(*level, object, object.collision & 1);
+                actor->busy_object = -1;
+            } else if (given->action == 3) {
+                const auto& items = actor->character.items;
+                const auto* item = actor->held && actor->held->id == given->item ? &*actor->held : nullptr;
+                if (const auto found = std::ranges::find(items, given->item, &d2d::d2s::Item::id); !item && found != items.end()) item = &*found;
+                if (object.operate_fn != d2d::rules::operate_fn::kOrifice || !item || item->code != "hst") { answer(4); return true; }
+                actor->busy_object = -1;
+                answer(5);
+                place_staff(given->object, now_ms);
+            }
+            return true;
+        }
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held || actor->held->id != imbue->item) return true;
             const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;

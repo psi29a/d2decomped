@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The item panel an NPC's service opens (game.exe's .\UI\UseItem.cpp, UI
-// 0xe, kind 1: 0x4c0620): Charsi's Imbue, Larzuk's sockets, Anya's
-// personalize. One slot and two buttons on MENU\upgrade; the item on the
-// cursor goes in the slot, the first button sends C->S 0x38 kind 0 and a
-// wait box stays up till S->C 0x58 answers (docs/research/re/act1-end.md
-// "Imbue"). The rules are here; use_item.cpp draws it, Town drives it.
-// ponytail: kind 0, the panel S->C 0x58 kind 0 opens on MENU\horadricback
-// (the Horadric Staff's orifice, `hst` only), isn't drawn by d2d.
+// The item panel (game.exe's .\UI\UseItem.cpp, UI 0xe). Kind 1 (0x4c0620)
+// an NPC's service opens: Charsi's Imbue, Larzuk's sockets, Anya's
+// personalize, on MENU\upgrade; the first button sends C->S 0x38 kind 0.
+// Kind 0 S->C 0x58 kind 0 opens (0x4c0563): the Horadric Staff's orifice,
+// on MENU\horadricback; the first button sends C->S 0x44 action 3, a cancel
+// 0x44 action 2. One slot and two buttons either way; the item on the
+// cursor goes in the slot, and a wait box stays up till S->C 0x58 answers
+// (docs/research/re/act1-end.md "Imbue", quests-act2.md "The orifice").
+// The rules are here; use_item.cpp draws it, Town drives it.
 #pragma once
 
 #include <array>
@@ -46,10 +47,14 @@ inline constexpr std::array<Button, 2> kButtons = { {
 
 // The NPCs whose menu opens it (hcIdx), and what they check (FUN_004bfc50).
 inline constexpr int kCharsi = 0x9a, kLarzuk = 0x1ff, kAnya = 0x200;
-// The first button's label as its hover draws it (FUN_004bfdd0): 0xfb1
-// "imbue", 0x58dc "add sockets", 0x58dd "personalize".
-[[nodiscard]] inline std::uint16_t service_label(int hc_idx) {
-    return hc_idx == kLarzuk ? 0x58dc : hc_idx == kAnya ? 0x58dd : 0xfb1;
+// 0x7c5470: kind 0 an object's (the orifice: an identified `hst `, ItemsTxt
+// +0x80, FUN_004bfc50 at 0x4bfd8f), kind 1 an NPC's service.
+inline constexpr int kObjectKind = 0, kServiceKind = 1;
+// The first button's label as its hover draws it (FUN_004bfdd0): kind 0
+// 0xd49 (0x4bff07); else 0xfb1 "imbue", 0x58dc "add sockets", 0x58dd
+// "personalize" by the NPC.
+[[nodiscard]] inline std::uint16_t service_label(int kind, int hc_idx) {
+    return hc_idx == kLarzuk ? 0x58dc : hc_idx == kAnya ? 0x58dd : kind == kObjectKind ? 0xd49 : 0xfb1;
 }
 // The instructions: 0x275c upgraderestrictEx, 0x58de Addsocketsui2, 0x58db Rename Instruct.
 [[nodiscard]] inline std::uint16_t instructions(int hc_idx) {
@@ -63,6 +68,8 @@ inline constexpr int kPass = 1, kSelect = 2, kError = 3;
 
 struct Panel {
     State state = State::kClosed;
+    int kind = kServiceKind;         // 0x7c5470
+    int object = -1;                 // kind 0: the object's index (0x7c547c: its unit)
     int npc = -1;                    // the NPC's index (0x7c0d25: its unit)
     int hc_idx = -1;                 // its class (FUN_004b1670)
     int item = -1;                   // the placed item's id (0x7c5480)
@@ -78,8 +85,8 @@ enum class Act : std::uint8_t {
     kNone,
     kInventory,      // the inventory's own click (state 1: FUN_004922a0)
     kPlace,          // the cursor item into the slot: play its dropsound
-    kSend,           // C->S 0x38 kind 0 {npc, item}
-    kClose,          // shut, and the NPC's talk ends (FUN_004c0090, FUN_004b3fe0)
+    kSend,           // kind 1 C->S 0x38 kind 0 {npc, item}; kind 0 C->S 0x44 {object, item, 3}
+    kClose,          // shut (FUN_004c0090): kind 1 the NPC's talk ends (FUN_004b3fe0), kind 0 C->S 0x44 {object, 0, 2}
 };
 struct Outcome {
     Act act = Act::kNone;
@@ -101,6 +108,10 @@ struct Outcome {
 // 1, the press clock from now.
 inline void open(Panel& panel, int npc, int hc_idx, std::uint32_t now_ms) {
     panel = { .state = State::kOpen, .npc = npc, .hc_idx = hc_idx, .press_ms = now_ms };
+}
+// S->C 0x58 kind 0 (0x4c0563): kind 0 for that object, then FUN_004c0380 as above.
+inline void open_object(Panel& panel, int object, std::uint32_t now_ms) {
+    panel = { .state = State::kOpen, .kind = kObjectKind, .object = object, .press_ms = now_ms };
 }
 
 // A press (FUN_004bfc50; the right button's too, 0x204). `in_inventory`:
@@ -182,14 +193,19 @@ inline void cancel(Panel& panel, Outcome& out) {
     return out;
 }
 
-// S->C 0x58's kind (FUN_004c0550): 1 shuts it; 4 takes the wait box down,
-// the item still placed; 6 (done) and 7 (refused) shut it and end the NPC's
-// talk (FUN_004b3fb0). Returns whether to shut it.
+// S->C 0x58's kind (FUN_004c0550, its table at 0x4c05f8): 1 shuts it; 4
+// takes the wait box down, the item still placed; 5 (taken: the cursor
+// item gone, FUN_0063c180) plays `taken_sound` and shuts it; 6 (done) and 7
+// (refused) shut it and end the NPC's talk (FUN_004b3fb0). Returns whether
+// to shut it.
 [[nodiscard]] inline bool reply(Panel& panel, int kind) {
     if (!panel.open()) return false;
     if (kind == 4 && panel.state == State::kWaiting) panel.state = State::kPlaced;
-    return kind == 1 || kind == 6 || kind == 7;
+    return kind == 1 || kind == 5 || kind == 6 || kind == 7;
 }
+// Kind 5's sound (0x4c05b2): Sounds.txt 5 when its +6 byte is set, which
+// the orifice's always is (FUN_005852e0 at 0x5853cd).
+inline constexpr int kTaken = 5;
 
 // The panel (FUN_004c01e0), `held` the cursor item, drawn in the slot while placed (use_item.cpp).
 void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Panel& panel, const d2d::d2s::Item* held,

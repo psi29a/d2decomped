@@ -177,7 +177,7 @@ def menu_pick(text):
 
 
 def use_item_panel(x, y):
-    """An NPC service's item panel (use_item.hpp), as a player works it: the
+    """An item panel (use_item.hpp: an NPC service's or the orifice's), as a player works it: the
     item at x, y up from the inventory, into the slot, then the first button.
     Its presses come 400 ms apart at least (FUN_004bfc50)."""
     until("the item panel open", lambda: state()["useitem"] == "1")
@@ -527,7 +527,12 @@ def act2():
     assert chest_room, "no orifice"
     cmd(f"debug warp {chest_room[0][2] + 1} {chest_room[0][3] + 1}")
     cmd("debug kill")
-    operate(chest_room[0][0])
+    staff = re.search(r"^\[hst .* id=(\d+) ", cmd("items"), re.MULTILINE)
+    assert staff, "no staff carried"
+    operate(chest_room[0][0])                         # its item panel opens (S->C 0x58 kind 0)
+    x, y = cmd(f"debug itemat {staff.group(1)}").split()[1:3]
+    use_item_panel(x, y)                              # the staff in the slot, the first button: C->S 0x44 3
+    time.sleep(1)
     assert bits(10) & 1 and "[hst " not in cmd("items"), f"the orifice didn't take the staff: {bits(10):#x}"
     take_portal(6, 73)
     cmd("debug kill")

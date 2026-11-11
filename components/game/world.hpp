@@ -98,11 +98,15 @@ struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
 // An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
 // 7 refused}, FUN_00579d60): the client shuts its item panel.
 struct ServiceResult { int npc = -1; bool done = false; };
+// An object's item panel (S->C 0x58 {object, kind}, FUN_0053d8d0, 7
+// bytes): 0 opens it (the orifice, FUN_0059dc70), 1 shuts it, 4 the item
+// isn't taken, 5 it is (FUN_005852e0). `object` its Level::npcs index.
+struct ObjectPanel { int object = -1; int kind = 0; };
 // A line for everyone in the game, wherever they are (a LAN game's chat
 // and news): typed chat, who joined or left, who was slain.
 struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::ObjectPanel>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -254,6 +258,7 @@ struct World {
         std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
         std::uint32_t voice_at = 0;            // when the class last spoke
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
+        int busy_object = -1;                  // the object whose item panel it has open (FUN_00554120 kind 2), -1 none
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
@@ -712,6 +717,8 @@ struct World {
     // drops at the area level).
     // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    // The Horadric Staff into the orifice (FUN_0059dd80), from its item panel.
+    void place_staff(int orifice, std::uint32_t now_ms);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
     // containers, stands, wells, bookshelves, shrines, traps and doors.

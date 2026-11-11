@@ -504,6 +504,11 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
             return;
         }
+        if (const auto* panel = std::get_if<ev::ObjectPanel>(&event)) {     // S->C 0x58 for an object (FUN_005852e0, FUN_0059dc70)
+            if (panel->kind == 0) open_object_use_item(panel->object);
+            else if (use_item.kind == use_item::kObjectKind && panel->object == use_item.object) use_item_reply(panel->kind);
+            return;
+        }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
             speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
             send(cmd::QuestMessage{ object_speech->npc, object_speech->string });

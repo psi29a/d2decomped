@@ -989,9 +989,9 @@ struct SummonerQuest {
 // lines heard, 13 took part, 14 by others, 15 closed. Its log is its own
 // (+0xe8, FUN_0059ca50).
 // Duriel's death marks each player in the Lair (World::act2_kill). The
-// orifice's panel (the staff dragged in: C->S 0x44) is skipped — using it
-// with the staff places it; the log override (data+0x10 / +0x14) isn't
-// traced; Tyrael's prison (data+0x2c) isn't opened.
+// staff goes in through the orifice's panel (C->S 0x44, World::place_staff).
+// The log override (data+0x10 / +0x14) isn't traced; Tyrael's prison
+// (data+0x2c) isn't opened.
 struct SevenTombsQuest {
     static constexpr int kQuest = 14, kJerhyn = monster_ids::kJerhyn, kTyrael = monster_ids::kTyrael, kMeshif = monster_ids::kMeshif;
     static constexpr int kLair = level_ids::kDurielsLair, kCanyon = level_ids::kCanyonOfTheMagi, kDuriel = monster_ids::kDuriel;

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace d2d::client::use_item {
@@ -31,7 +32,7 @@ void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Pane
         blit_sprite(framebuffer, image, pal, left, bottom - int(image.height));
     };
     const auto& font = scene.font;                               // FUN_00502ef0(1): font16
-    cel(scene.use_item_panel, 0, kPanelX, kPanelBottom);         // MENU\upgrade (0x7c5494)
+    cel(panel.kind == kObjectKind ? scene.object_item_panel : scene.use_item_panel, 0, kPanelX, kPanelBottom);   // MENU\horadricback (0x7c5498) / upgrade (0x7c5494)
     for (std::size_t index = 0; index < kButtons.size(); ++index) {
         const auto& button = kButtons[index];
         cel(scene.store_buttons, button.frame + (panel.down[index] ? 1 : 0), button.x, button.bottom);   // buysellbtn (FUN_00454600)
@@ -42,7 +43,7 @@ void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Pane
     // 0x2a), the text white from x - w/2 + 0x10 to its bottom at bottom - 0x26.
     if (const int index = button_at(mouse_x, mouse_y); index >= 0 && mouse_x < 0x140 && mouse_y < int(kScreenHeight) - 0x30) {
         const auto& button = kButtons[std::size_t(index)];
-        const auto label = string_id(scene, index == 0 ? service_label(panel.hc_idx) : button.label);
+        const auto label = string_id(scene, index == 0 ? service_label(panel.kind, panel.hc_idx) : button.label);
         const int width = font.measure(label), height = font.line_height();
         const int left = button.x - width / 2 + 10, top = button.bottom - height - 0x2a;
         for (int pixel_y = std::max(0, top); pixel_y < std::min(int(kScreenHeight), top + height + 6); ++pixel_y)
@@ -52,8 +53,8 @@ void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Pane
             }
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, button.x - width / 2 + 0x10, glyph_top(font, button.bottom - 0x26), label, 255, 255, 255);
     }
-    // The instructions, gold, wrapped (FUN_00502970) and centred.
-    const auto lines = d2d::font::wrap_edit_box(string_id(scene, instructions(panel.hc_idx)), kTextWidth, [&](unsigned char code) {
+    // The instructions, gold, wrapped (FUN_00502970) and centred: kind 1 only (0x4bffb2).
+    const auto lines = panel.kind == kObjectKind ? std::vector<std::string>{} : d2d::font::wrap_edit_box(string_id(scene, instructions(panel.hc_idx)), kTextWidth, [&](unsigned char code) {
         const auto* glyph = font.find(code);
         return glyph ? int(glyph->width) : 0;
     });

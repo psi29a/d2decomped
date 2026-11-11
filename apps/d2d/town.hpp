@@ -544,8 +544,11 @@ struct Town {
     bool  stash_open = false;
     std::optional<d2d::d2s::Item> held;   // the item on the cursor (the View's)
     int identify_with = -1;               // a right-clicked Scroll / Tome of Identify's id: the next click picks the item
-    use_item::Panel use_item;            // UI 0xe: Charsi's Imbue, Larzuk's sockets, Anya's personalize (use_item.hpp)
+    use_item::Panel use_item;            // UI 0xe: Charsi's Imbue, Larzuk's sockets, Anya's personalize, the orifice (use_item.hpp)
+    int use_item_sound = 0;              // S->C 0x58 kind 5's sound, played by drive_use_item (it has the audio)
+    std::uint32_t net_panel_object = 0;  // a joined game: the host's object whose panel is open (S->C 0x58 kind 0)
     void open_use_item(int npc);
+    void open_object_use_item(int object);
     void close_use_item();
     void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
     void use_item_reply(int kind);
