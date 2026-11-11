@@ -189,6 +189,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // co-op) game.exe's own server echoes it so, d2d's chat shows it.
         // "@name message" whispers (FUN_0047bad0: a name under 0x32, then
         // the message; else the whole line goes to all).
+        // A move in the hire list's box (FUN_004beb70) selects the row under it, before
+        // the frame's keys: game.exe takes its messages in order, and a move then Enter
+        // hires the row moved to. Outside the box the selection stays.
+        if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))
+            npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
@@ -746,8 +751,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (found != kSpeechSound.end()) { speech.voice = found->second; audio.play_voice(*scene, found->second); }
         }
         if (npc_menu.list && npc_menu.list->draws < 2) ++npc_menu.list->draws;   // FUN_004bee90 counts its draws: one a frame here
-        if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))   // a move in the box (FUN_004beb70): the row under it
-            npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         // An arrow held (FUN_004bee90, each draw, 25 a second here): a step each
         // draw it's still under the mouse, but every 10th (rules::list_held_step).
         if (npc_menu.list && (npc_menu.list->part == d2d::rules::ListPart::kUp || npc_menu.list->part == d2d::rules::ListPart::kDown))
