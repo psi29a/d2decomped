@@ -300,7 +300,7 @@ enum class ServerDoFunction : int {
     kChargeUp = 34,                // FUN_005d3490: Tiger Strike, Cobra Strike, Royal Strike
     kElementalChargeUp = 35,       // FUN_005d35d0: Fists of Fire, Claws of Thunder, Blades of Ice
     kReleaseNova = 36,             // FUN_005d4db0: a nova of the count's missile
-    kReleaseMissileAtUnits = 37,   // FUN_005d4e70 -> FUN_005d4150: a missile at each unit in reach
+    kReleaseMissileAtUnits = 37,   // FUN_005d4e70 -> FUN_005d4150: the count's missile on the 64-point ring
     kReleaseAreaHit = 38,          // FUN_005d3e80: the skill's damage on everything in reach
     kReleaseScatter = 39,          // FUN_005d3f90: missiles at random points in reach
     kReleaseAtTarget = 40,         // FUN_005d5010: the count's missile standing at the target
@@ -389,13 +389,40 @@ enum class ServerDoFunction : int {
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kBaalCorpseExplode = 141,      // FUN_005d2e80: the corpses about the caster spent (baal_corpse_spent)
-    kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan
+    kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: the same ring, hops only on missile 0x238
     kHydra = 144,                  // FUN_005ca910
     kDoomKnightMissile = 148,      // FUN_005cdfb0: srvmissilea (+ the knight's variant) at the target
     kVariantMissile = 149,         // FUN_005ce0b0: srvmissilea with the caster's variant 1..4 (necromage1..4)
     kSmite = 150,                  // FUN_005ce9f0
     kDiabLight = 152,              // FUN_005cc690: diablight at the target every calc3 frames while state 0xc's on
 };
+
+// The 64 subtile offsets embedded in FUN_005d4150 and FUN_005d4870 (the same
+// list in both). A release walks it by `step` entries, byte offset under 0x100.
+inline constexpr std::array<std::pair<int, int>, 64> kReleaseRing{{
+    {30, 0}, {29, 2}, {29, 5}, {28, 8}, {27, 11}, {26, 14}, {24, 16}, {23, 19},
+    {21, 21}, {19, 23}, {16, 24}, {14, 26}, {11, 27}, {8, 28}, {5, 29}, {2, 29},
+    {0, 30}, {-2, 29}, {-5, 29}, {-8, 28}, {-11, 27}, {-14, 26}, {-16, 24}, {-19, 23},
+    {-21, 21}, {-23, 19}, {-24, 16}, {-26, 14}, {-27, 11}, {-28, 8}, {-29, 5}, {-29, 2},
+    {-30, 0}, {-29, -2}, {-29, -5}, {-28, -8}, {-27, -11}, {-26, -14}, {-24, -16}, {-23, -19},
+    {-21, -21}, {-19, -23}, {-16, -24}, {-14, -26}, {-11, -27}, {-8, -28}, {-5, -29}, {-2, -29},
+    {0, -30}, {2, -29}, {5, -29}, {8, -28}, {11, -27}, {14, -26}, {16, -24}, {19, -23},
+    {21, -21}, {23, -19}, {24, -16}, {26, -14}, {27, -11}, {28, -8}, {29, -5}, {29, -2},
+}};
+// FUN_004efc20(0x118) is that skill's Param2 (+0x14c). FUN_005d4150 stores it
+// plus 1 on every missile. FUN_005d4870 stores it only when the missile row is 0x238.
+inline constexpr int kReleaseHopSkill = 0x118;
+inline constexpr int kReleaseHopMissile = 0x238;
+inline int release_ring_hops(int param2, int missile_id, bool second_scan) {
+    if (second_scan && missile_id != kReleaseHopMissile) return 0;
+    return param2 + 1;
+}
+// `step` is prgcalc, or aurarange when that is 0. A step under 1 would not advance.
+template <class Visit>
+void visit_release_ring(int step, Visit&& visit) {
+    if (step < 1) step = 1;
+    for (int byte = 0; byte < 0x100; byte += step * 4) visit(kReleaseRing[std::size_t(byte / 4)]);
+}
 
 // ---- skill rows
 
