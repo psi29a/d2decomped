@@ -385,6 +385,20 @@ handlers do nothing without it, so a unique's minions don't explode.
 | 26 teleport | spawn `FUN_005a1600`: skill 184 MonTeleport level 1, AI-control flag 0x20 (`FUN_005dd250`); AI `FUN_005b11f0` | at a think: rand(100) < 40 (its seed), then — life under 30 % (`FUN_00621f20`), or not flagged by `FUN_00457490(class, 1)` (monsters 10 / 0x159 / 0x22d count as flagged) and AI param +0x14 < 10 — rand(100) < 15: a free spot in its room (`FUN_0054dc40`), not in town; under 30 %, rand(100) < 25 and no state 0x34: life + mlvl (stat 6 + mlvl × 256); then cast 184 there |
 | 30 aura | spawn `FUN_005a1650` | the table at 0x73bf68 {min mlvl, add, mul, div, skill}: Might 98 /6, Holy Fire 102 /6, Blessed Aim 108 /5, Holy Freeze 114 /7, Conviction 123 /8, Fanaticism 122 /8, Holy Shock 118 /8 from mlvl 20; pick = rand(rows reached) on {name seed (monster data +0x14), 666}; superunique 37 → Fanaticism; class 0x2c0 → Conviction 20; level = (add + mlvl) × mul / div, 1..99 |
 
+Mod 26's **client** mirror, `FUN_004acd70` (ECX unit, EDX modifier id — unused
+in the body, Stack bApply): a 44-entry client dispatch table
+(`MONUNIQUE_ApplyModifierEffects`, LAB_004ad097, reads it at index-by-mod-id
+from 0x724d78) calls it when mod 26 is applied; with `bApply != 0` it gives
+the client-side `AddSkill(SKILL_MonTeleport, 1, 1)` and sets its mode to 4
+(`SetSkillMode`) — the client half of the server's `FUN_005a1600` above, so
+the teleport animation plays on a joined client too. With `bApply == 0`
+(the mod removed) it does nothing: no client-side skill removal.
+Ghidra's proposed name for this function is `MONUNIQUE_ApplyModifierBloodRaven`
+(an `llm-named` tag, unconfirmed); nothing in the body or its callers is
+specific to Blood Raven — it is reached for any monster the client applies
+mod 26 to, so that name looks wrong and is not used here. Not ported
+(d2d's `monster_update` teleport path is server-logic only, fight.hpp).
+
 - DifficultyLevels +0x34 / +0x30 (ChampionDamageBonus / UniqueDamageBonus,
   90 / 75 / 66) scale the champion and strong damage and to-hit bonuses.
 
