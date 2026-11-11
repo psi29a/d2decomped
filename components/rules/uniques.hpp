@@ -371,9 +371,9 @@ inline std::vector<int> family_mods(int base_id) {
         case 0xd3: return { umod::durieldead, umod::questcomplete };   // Duriel
         case 0x146: case 0x147: case 0x148: case 0x149: case 0x14a: case 0x162: return { umod::spcdamage };   // traps
         case 0x154: case 0x155: case 0x156: case 0x157: return { umod::partydead };                          // Diablo's bone prisons
-        case 0x1b4: return { umod::ai_after_death };                   // barricade towers (Act 5)
+        case 0x1b4: return { umod::ai_after_death };                   // reanimatedhorde1 (Act 5)
         case 0x1cd: return { umod::suicideminion };                    // minion8 (Act 5)
-        case 0x1f5: return { umod::shatter };                          // catapults (Act 5)
+        case 0x1f5: return { umod::shatter };                          // frozenhorror1 (Act 5)
         case 0x21c: case 0x21d: case 0x21e: return { umod::questcomplete };
         default: return {};
     }
