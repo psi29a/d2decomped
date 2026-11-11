@@ -51,7 +51,7 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
     for (std::size_t i = 0; i < offers.size(); ++i) {
         const auto& offer = offers[i];
         const auto merc = scene.mercs.find(offer.id);
-        const auto name = merc != scene.mercs.end() ? merc_name(scene, merc->second, offer.name) : std::string("?");
+        const std::string name = merc != scene.mercs.end() ? merc_name(scene, merc->second, offer.name) : std::string("?");
         const std::uint16_t desc = merc != scene.mercs.end() ? d2d::rules::hire_desc_string(merc->second.hire_desc) : 0;
         list.rows.push_back({ { name + space + string_id(scene, 0xf9c) + space + stat(0xd28, offer.level) + space + space + stat(0xd26, offer.life) + space + space +
                                     stat(0xd27, offer.def) + space + space + stat(0xd29, offer.cost),
