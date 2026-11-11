@@ -27,6 +27,7 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <font.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
@@ -427,8 +428,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
 
 // Chat text broken at spaces into lines no wider than `width` (a longer
 // word by characters).
-// ponytail: FUN_00502970 (the edit box's wrap) taken to break as the chat
-// lines' does.
+// ponytail: FUN_0049e3a0 calls FUN_00502970 too. These lines still break
+// on spaces. The edit box uses wrap_edit_box.
 auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     std::vector<std::string> wrapped{ std::string{} };
@@ -504,7 +505,14 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     if (!chat_typing) return;
     constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
     darken(0x7f, kHeight - 0x67, kWidth - 0xff, 0x2f);
-    const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} } : wrap_chat(*chat_typing, kWidth - 0x109);
+    // FUN_00502970, width W - 0x109. A trailing space stays when it fits
+    // and the next word does not (FUN_00526d30). ponytail: language ids
+    // 6, 8 and 9 break on the other rule in that function.
+    const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} }
+        : d2d::font::wrap_edit_box(*chat_typing, kWidth - 0x109, [&](unsigned char code) {
+              if (const auto* glyph = font.find(code)) return int(glyph->width);
+              return 0;
+          });
     const auto shown = std::min<std::size_t>(lines.size(), 3);
     for (std::size_t i = 0; i < shown; ++i)
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83, kHeight - 0x58 + 15 * int(i) - font.line_height() + 1, lines[i], 255, 255, 255);
