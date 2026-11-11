@@ -1077,10 +1077,14 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return;
         }
         const auto ring = [&](int first, int step, int velocity) {
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
             for (int way = first; way < 16; way += step) {
-                const float dx = float(kRingWayX[std::size_t(way)]), dy = float(kRingWayY[std::size_t(way)]), span = std::hypot(dx, dy);
+                const int dx = kRingWayX[std::size_t(way)], dy = kRingWayY[std::size_t(way)];
+                const float span = std::hypot(float(dx), float(dy));
                 const float speed = missile_speed((velocity << 7) * 75 / 100);   // flags 0x14: the velocity as is
-                laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
+                laid.push_back(missile_from(missile, *sub, missile.x, missile.y, float(dx) / span * speed, float(dy) / span * speed, now_ms));
+                // FUN_005a9370 flags 0x17 include flag 2: this offset is the target, relative to the start.
+                laid.back().to = { (float(at_x + dx) + 0.5f) / 5.f, (float(at_y + dy) + 0.5f) / 5.f };
             }
         };
         ring(0, 2, sub->param1);

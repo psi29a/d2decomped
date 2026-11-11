@@ -306,7 +306,9 @@ paths I read in the decompile return 1.
 
 d2d: `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
 on the 8 even ways at Param1 << 7, the
-odd ones at a stride of sHitPar1 entries (at least 1) at Param2 << 7 and the × 75 / 100. Two
+odd ones at a stride of sHitPar1 entries (at least 1) at Param2 << 7 and the × 75 / 100.
+Each spoke's target is that ring offset added to the start subtile (flag 2), so
+the ways do not share the no-target (+1, +1) aim. Two
 notes: its comment says "flags 0x14", game.exe's is 0x17 (the velocity is as
 given in both, so the numbers agree as cited from the decompile, no oracle run), and d2d does not check that an owner
 exists as the gate does (not examined further).
