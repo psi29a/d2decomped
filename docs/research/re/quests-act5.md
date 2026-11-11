@@ -205,6 +205,12 @@ open, +0x4c altar mode.
   shut); mode 0 opens, mode 2 leads to 128.
 - Town congratulations: bits 5..9 (20167 / 20165 / 20166 / 20168 / 20164).
 
+The object initialization helper `FUN_0058d280` looks up record 0x23; if
+present it sets the supplied object's mode to 2 when data +0x4a is nonzero,
+or 0 otherwise. With no record it does nothing. `tools/emu/quest_rite_object.py`
+checks ten cases with lookup and mode setting hooked; the object identity and
+those helpers are not established by this check.
+
 ## Eve of Destruction (a5q6)
 
 - Chain: state 2, log 1. Out of town at 2: state 3, log 1. Into 131+:
