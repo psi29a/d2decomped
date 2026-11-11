@@ -2,8 +2,10 @@
 // test-links: game
 // What a monster's death does by its MonUMod: 35 shatter_on_death (every
 // frozenhorror1, FUN_005b21b0) puts state 107 on it as it dies
-// (0x5a3a80), so it leaves no corpse to use. The REAL
-// Fight::boss_events. Needs the game data.
+// (0x5a3a80), so it leaves no corpse to use; 42 lightningdeath (a
+// Shadow's sumumod) lets off a nova of missile 90 four frames after its
+// death (FUN_005a2910). The REAL Fight::boss_events and Fight::golem_blast.
+// Needs the game data.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -13,6 +15,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
+#include <uniques.hpp>
 #include <world.hpp>
 
 #include <cassert>
@@ -64,6 +67,30 @@ int main() try {
     fight.boss_events({}, 1040);
     assert(fight.monsters[0].shatter && !fight.monsters[1].shatter);
     std::printf("shatter_on_death: the Frozen Horror shatters, the Fallen doesn't\n");
+
+    using d2d::rules::shadow_nova_level;
+    assert(shadow_nova_level(0, 0) == 1 && shadow_nova_level(1, 0) == 1 && shadow_nova_level(2, 0) == 2 && shadow_nova_level(3, 0) == 2);
+    assert(shadow_nova_level(28, 0) == 15 && shadow_nova_level(40, 10) == 15 && shadow_nova_level(40, 11) == 1);
+    const int shadow_row = data->monsters.row("shadowwarrior");
+    const auto* shadow_skill = data->skills.get(268);
+    assert(shadow_row >= 0 && shadow_skill && shadow_skill->sumumod == d2d::rules::umod::lightningdeath);
+    auto& pets = world.actor->pets;
+    pets.clear();
+    auto& pet = pets.emplace_back();
+    pet.monster = make_monster(*data, shadow_row, 100, 100, rng, 0);
+    pet.monster.mods = { shadow_skill->sumumod };                  // FUN_005c4470's, as Fight::summon_one puts it
+    pet.where = world.level;
+    pet.monster.hit_points = 0;
+    set_mode(*data, pet.monster, "DT", 2000);
+    fight.pending.clear();
+    assert(fight.blast_due(pet.monster));
+    assert(!fight.golem_blast(pet, 2000 + 3 * 40) && fight.pending.empty());
+    assert(fight.golem_blast(pet, 2000 + 4 * 40));
+    assert(fight.pending.size() == 64);
+    for (const auto& made : fight.pending)
+        assert(made.info->name == "nova" && made.friendly && made.level == 1 && made.striker == pet.monster.id && made.struck == fight.pending.front().struck);
+    assert(!fight.golem_blast(pet, 2000 + 5 * 40) && fight.pending.size() == 64);   // once
+    std::printf("lightningdeath: 64 novas at level 1 (no Shadow Warrior skill)\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_on_death_mods: %s\n", error.what());
