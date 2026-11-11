@@ -1458,3 +1458,55 @@ compared against a d2d equivalent — the already-verified caller
 Re-check: `python3 tools/ghidra/fn.py 004cab30 004cab60 004cab90
 004cac30`; disassemble `004cab30`..`004cac63` to confirm the
 EAX-implicit, no-ECX calling convention above.
+
+### The unit's own list of playing sounds: `FUN_004ca900` / `FUN_004caa10` (batch 8)
+
+Two more UNIT-module functions right after the timer scalars above, both
+called from the same already-verified ambient-sound sequencer
+`FUN_004cb460` (lines 1331-1332 above: `FUN_004ca900` to decide whether
+to re-trigger, `FUN_004caa10` to stop the old sound first) — unlike the
+EAX-implicit accessors above, both use the ordinary fastcall ECX/EDX
+convention (confirmed in disassembly):
+
+- **`FUN_004ca900`** (0x8f bytes, `004ca900`..`004ca98f`, plain `RET`;
+  ECX the unit, EDX a sound-category index — `MOV ESI,ECX` / `MOV
+  EDI,EDX` in the disassembly): a null unit is fatal (id `0xc47`); then
+  `FUN_004df880()` (cited at `menu.md:132`, the "sound enabled" global)
+  zero returns 0 (sound off: never "already playing"). Otherwise
+  `FUN_00481890(EDX)` and `FUN_004818c0(EDX)` read a Sounds.txt-shaped
+  table row (0x8e-byte stride, fields `+0x60` and `+0x3d`) for a
+  channel-count value, then the function walks the unit's own list head
+  at `+0x78` (a linked list, next pointer at node `+4`, data at node
+  `+0`): for each node it resolves the node's data through
+  `FUN_004b9ca0` (walks the global playing-sound list `DAT_007c5458`,
+  matching each entry's `+8` field, returning its `+4` field — the active
+  sound's resolved index/slot) and returns that node's data the first
+  time the resolved value falls in `[EDX, EDX + count)`; an empty or
+  exhausted list returns 0. So `FUN_004ca900(unit, soundIndex)` answers
+  "is a sound in this category already playing on this unit", returning
+  the matching node data (not traced further) or 0.
+- **`FUN_004caa10`** (0x5c bytes, `004caa10`..`004caa6c`, plain `RET`;
+  ECX the unit only, no EDX): same null-unit fatal check (id `0xc2c`) as
+  `FUN_004ca900`. With a unit it walks the same `+0x78` node list; for
+  each node, `FUN_004b9ca0` resolves it the same way, then
+  `FUN_004818f0(resolved)` reads the Sounds.txt-shaped row's `+0x3e` byte
+  and, when set, calls `FUN_004ba790(node_data, unit, 0)` — the
+  stop-sound entry point (matches by the same `DAT_007c5458` list, then
+  gates on a `d2d_sound_row` field before calling `FUN_004ba760`). So
+  this is "stop every currently-playing sound this unit owns that's
+  flagged `+0x3e`". `structs.tsv` has no row yet for unit `+0x78`; from
+  this pair it is the head of the unit's own linked list of active-sound
+  nodes, distinct from the `+0x7c`/`+0x80`/`+0x84` cooldown scalars
+  above — added here as `sound_nodes`.
+
+Not traced: `FUN_004b9ca0`'s and `FUN_004ba790`'s own global sound-node
+format (`DAT_007c5458`'s `+4`/`+8` fields beyond "an id" and "a resolved
+index"), the Sounds.txt-shaped table's own identity and the rest of its
+0x8e-byte row, and `FUN_004ba760`/`FUN_004ca8d0`/`d2d_sound_row`'s own
+bodies. d2d: not ported as a function; no disagreement found, nothing
+here was compared against a d2d equivalent — the already-verified caller
+`FUN_004cb460` is the one with a d2d port.
+
+Re-check: `python3 tools/ghidra/fn.py 004ca900 004caa10 004b9ca0
+004ba790`; disassemble `004ca900`..`004ca98f` and `004caa10`..`004caa6c`
+to confirm the ECX/EDX argument order above.
