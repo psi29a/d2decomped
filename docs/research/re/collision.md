@@ -466,8 +466,15 @@ found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
 action, EDX the player, then the target type, id and a third value on the
-stack. `FUN_00480ba0` (not traced) must accept it first (0: return, nothing
-sent). The switch is on the action itself (`action - 1`, a byte index at
+stack. `FUN_00480ba0` must accept it first (0: return, nothing sent).
+**Verified**: `tools/emu/unitmode_caninterrupt.py` runs it for real with a
+faked `Skills.txt` row: with no current skill, an invalid skill id or a
+missing row it always answers 1 (go ahead); with a skill row, its flags
+byte (+7) against a fixed mask (0x80, game.exe's own byte at 0x6ce284)
+answers 1 regardless of the player when set; clear, it answers 0 unless
+the player is null or its mode (+0x10) is 1 or 5 (Neutral, TownNeutral) —
+34 cases, no disagreement
+(`uv run python unitmode_caninterrupt.py`). The switch is on the action itself (`action - 1`, a byte index at
 0x4812b4 into a jump table at 0x48128c; 0x48107d to 0x481084). By action:
 
 | action | does |
