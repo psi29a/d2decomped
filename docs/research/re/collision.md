@@ -1420,3 +1420,33 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### The swing sound's id alone: `FUN_004ca4c0` (batch 9)
+
+`FUN_004ca4c0` (0x3a bytes, `004ca4c0`..`004ca4fa`, plain `RET`, no stack
+args) sits right before the sound-timer cluster batch 8 traced. Plain
+fastcall, confirmed in disassembly: **ECX** the unit, **EDX** a weapon hit
+class. A null unit (ECX) is fatal (`FUN_00408090(0xb5c)` message,
+`FUN_00408a60`, `FUN_00681e09(-1)`, no return) — ECX is only ever used for
+this check, never dereferenced. Otherwise it masks EDX to its low nibble,
+and a value under 0xe (14) returns the dword at `DAT_00727ed8 + (EDX &
+0xf) * 8`; 0xe or above is fatal too (message `0xb60`). `0x727ed8` is the
+8-byte `{sound, frames}` table "The swing, FUN_004cb6a0" already names
+(`unit-sounds.md:51`, ported whole as `kSwing` in
+`components/rules/sound_ids.hpp:52`) — this function returns only the
+`sound` half of the pair, given the hit class directly rather than
+computing it. Its three callers (`FUN_004c6140` Skills.cpp's skill-start
+dispatcher, ported; `FUN_004c7d50`, `FUN_004c8ed0`, `FUN_004f4c20`, all
+`SKILLS` module) each call `FUN_00623c20` (the weapon's hit class,
+`sound_ids.hpp:51`) immediately before, then feed this function's result
+as the sound id into `FUN_004b9a00` (queue a Sounds.txt row,
+`unit-sounds.md:17`) — the `weaponsnd` swing play `unit-sounds.md:138`
+already describes as reading "the 0x727ed8 table".
+
+d2d: the `0x727ed8` table itself is already ported as `kSwing`
+(`sound_ids.hpp:52`); this accessor (an index into the table's `sound`
+field alone, with a redundant unit-null check) has no separate d2d
+function and nothing here disagrees with `kSwing`'s contents.
+
+Re-check: `python3 tools/ghidra/fn.py 004ca4c0 004c6140`; disassemble
+`004ca4c0`..`004ca4fa` to confirm the ECX=unit/EDX=hit-class order above.
