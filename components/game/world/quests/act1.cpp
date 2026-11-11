@@ -165,10 +165,13 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
     }
 
 auto World::act1_tick() -> void {
-        if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) actor->portal_due = true;   // tick 10 of her death (FUN_00596490)
+        tower_treasure(day_at);
+    }
+
+auto World::act1_quest_step() -> void {
+        if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) actor->portal_due = true;   // her timer's 10 (FUN_00596490)
         burial.tick();
         tower.tick();
-        tower_treasure(day_at);
     }
 
 auto World::act1_alert(int hc_idx) -> bool {

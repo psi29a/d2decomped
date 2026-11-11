@@ -70,15 +70,17 @@ int main() try {
         ToolsQuest::party_credit(low, 7); ToolsQuest::party_credit(high, 8); ToolsQuest::party_credit(done, 30);
         assert(!quest::bit(low, 3, 1) && quest::bit(high, 3, 13) && quest::bit(high, 3, 1) && !quest::bit(done, 3, 13));
     }
-    // Sisters to the Slaughter: available 20 ticks after the chain reaches it; Cain gives it;
-    // the Catacombs; Andariel's kill (portal at tick 10, log 3 at 12);
+    // Sisters to the Slaughter: available 21 quest steps after the chain reaches it (a
+    // 0x14-tick timer: due < count, FUN_00543e10); Cain gives it; the Catacombs;
+    // Andariel's kill (her 1-tick timer runs every 2 steps: portal at its 10, step 18;
+    // log 3 at its 12, step 22);
     // Warriv's reward, once.
     QuestBits andy_bits{};
     AndyQuest andy;
     andy.tick();
     assert(andy.start_in == 0 && andy.state == 0);                                   // no timer till the chain
     andy.chain();
-    for (int i = 0; i < 19; ++i) andy.tick();
+    for (int i = 0; i < 20; ++i) andy.tick();
     assert(andy.state == 0 && andy.talk(andy_bits, AndyQuest::kCain, 1).empty());
     andy.tick();
     assert(andy.state == 1 && andy.alert(andy_bits, AndyQuest::kCain, 1) && andy.talk(andy_bits, AndyQuest::kCain, 1)[0].string == 166);
@@ -92,8 +94,8 @@ int main() try {
     assert(andy.killed(andy_bits) && andy.state == 4 && quest::bit(andy_bits, 6, 1) && quest::bit(andy_bits, 6, 13) && andy.cain.has(1) && !andy.cain.has(2));
     assert(!andy.killed(andy_bits));                                            // no second drop
     int portal_tick = 0;
-    for (int i = 2; i <= 12; ++i) if (andy.tick()) portal_tick = i;
-    assert(portal_tick == 10 && andy.log == 3 && andy.after_kill == 0);
+    for (int step = 1; step <= 22; ++step) if (andy.tick()) portal_tick = step;
+    assert(portal_tick == 18 && andy.log == 3 && andy.after_kill == 0);
     assert(andy.alert(andy_bits, AndyQuest::kWarriv, 1) && andy.talk(andy_bits, AndyQuest::kWarriv, 1)[0].string == 183 && andy.talk(andy_bits, AndyQuest::kWarriv, 1)[0].greet);
     assert(andy.talk(andy_bits, AndyQuest::kCain, 1)[0].string == 184 && andy.talk(andy_bits, monster_ids::kCharsi, 1)[0].string == 180);
     assert(andy.said(andy_bits, AndyQuest::kWarriv, 183, 1) && quest::bit(andy_bits, 6, 0) && !quest::bit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
@@ -119,7 +121,7 @@ int main() try {
     burial_again.join(burial_bits);
     assert(burial_again.state == 3 && burial_again.log == 2);
     assert(burial.killed(burial_bits, true) && burial.state == 4 && quest::bit(burial_bits, 2, 13) && quest::bit(burial_bits, 2, 1) && !quest::bit(burial_bits, 2, 14));
-    for (int i = 0; i < 14; ++i) burial.tick();
+    for (int i = 0; i < 15; ++i) burial.tick();                                        // 0xf ticks: the 16th step
     assert(burial.log == 2);
     burial.tick();
     assert(burial.log == 3 && burial.alert(burial_bits, BurialQuest::kKashya) && burial.talk(burial_bits, BurialQuest::kKashya, 1)[0].string == 92);
@@ -163,7 +165,7 @@ int main() try {
     assert(tower.state == 3 && tower.log == 2 && quest::bit(tower_bits, 5, 4));
     assert(tower.killed(tower_bits, true, 1) && quest::bit(tower_bits, 5, 0) && quest::bit(tower_bits, 5, 13) && tower.state == 5);
     assert(!tower.killed(tower_bits, true, 1));                                         // once
-    for (int i = 0; i < 6; ++i) tower.tick();
+    for (int i = 0; i < 7; ++i) tower.tick();                                          // 7 ticks: the 8th step
     assert(tower.log == 2);
     tower.tick();
     assert(tower.log == 13);
@@ -410,7 +412,7 @@ int main() try {
     assert(fresh.tools.state == 1);                                                    // Tools holds it
     fresh.tools.state = 5;                                                             // the malus back (FUN_00591490)
     fresh.run(3);
-    assert(fresh.andy.start_in == 20);
+    assert(fresh.andy.start_in == 21);
     quest::set(chain_bits, 1, 0);
     assert(Game(chain_bits).burial.state == 1 && Game(chain_bits).cain.state == 0);
     quest::set(chain_bits, 2, 15);
@@ -419,8 +421,8 @@ int main() try {
     assert(Game(chain_bits).tools.state == 1 && Game(chain_bits).andy.start_in == 0);
     quest::set(chain_bits, 3, 0);
     Game late_game(chain_bits);
-    assert(late_game.andy.start_in == 20);
-    for (int i = 0; i < 20; ++i) late_game.andy.tick();
+    assert(late_game.andy.start_in == 21);
+    for (int i = 0; i < 21; ++i) late_game.andy.tick();
     assert(late_game.andy.state == 1);
 
     // Lut Gholein's palace (a2q4.cpp): a fresh act 2 has Jerhyn outside and
@@ -473,6 +475,8 @@ int main() try {
     const auto kill = radament.killed(lair, lair_game, true, false);
     assert(kill.books == 1 && kill.took_part && quest::bit(lair, 9, 13) && quest::bit(lair, 9, 1) && quest::bit(lair, 9, 5) && quest::bit(lair_game, 9, 13));
     for (int i = 0; i < 12; ++i) radament.tick();
+    assert(radament.log != 3);                                                         // 0xc ticks: the 13th step
+    radament.tick();
     assert(radament.log == 3 && radament.alert(lair, RadamentQuest::kAtma) && radament.talk(lair, RadamentQuest::kAtma, 1)[0].string == 334);
     radament.said(lair, lair_game, RadamentQuest::kAtma, RadamentQuest::kSuccess, 1);
     assert(radament.state == 5 && radament.log == 0xd && quest::bit(lair, 9, 0) && !quest::bit(lair, 9, 1));
@@ -504,6 +508,8 @@ int main() try {
     assert(altar.used && altar.amulets == 1 && altar.took_part && !tainted.dark && tainted.state == 4 && quest::bit(sun, 11, 1) && quest::bit(sun_game, 11, 13));
     assert(!tainted.use_altar(sun, sun_game, false, false).used && tainted.use_altar(sun, sun_game, true, false).refused);
     for (int i = 0; i < 10; ++i) tainted.tick(sun);
+    assert(tainted.log != 3);                                                          // 10 ticks: the 11th step
+    tainted.tick(sun);
     assert(tainted.log == 3 && tainted.talk(sun, 176, 1)[0].string == 368);
     tainted.said(sun, sun_game, 176, 368, 1);
     assert(tainted.state == 5 && tainted.log == 0xd && quest::bit(sun, 11, 0) && !quest::bit(sun, 11, 1));
@@ -568,13 +574,13 @@ int main() try {
     assert(!quest::bit(sanctuary, 12, 1) && arcane.rewarded.has(1));
 
     // The Summoner: going for the player opens it; his death credits a
-    // player by him; three ticks on, log 4; the town's thanks are done.
+    // player by him; three ticks on (the 4th quest step), log 4; the town's thanks are done.
     QuestBits summoning{}, summoning_game{};
     SummonerQuest summoner;
     summoner.engaged(summoning);
     assert(summoner.state == 1 && summoner.log == 2 && quest::bit(summoning, 13, 2) && summoner.talk(summoning, 176, 1)[0].string == 414);
     assert(summoner.killed(summoning, true) && quest::bit(summoning, 13, 13) && quest::bit(summoning, 13, 1) && summoner.state == 2);
-    assert(!summoner.tick() && !summoner.tick() && summoner.tick() && summoner.log == 4);
+    assert(!summoner.tick() && !summoner.tick() && !summoner.tick() && summoner.tick() && summoner.log == 4);
     assert(SummonerQuest::alert(summoning, 176) && summoner.talk(summoning, 176, 1)[0].string == 427 && summoner.talk(summoning, 176, 1)[0].greet);
     summoner.said(summoning, summoning_game, 427, 1);
     assert(summoner.state == 3 && summoner.log == 0xd && quest::bit(summoning, 13, 0) && !quest::bit(summoning, 13, 1));

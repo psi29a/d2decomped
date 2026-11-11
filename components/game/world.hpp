@@ -24,6 +24,7 @@
 #include <light.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
@@ -449,6 +450,7 @@ struct World {
     // The player's act (0-based): the act of the level they're on.
     [[nodiscard]] int act() const { return level ? d2d::rules::level_ids::act_of(level->id) : 0; }
     int next_item_id = 1;                  // the next item's unit id
+    d2d::rules::QuestClock quest_clock;    // the quest timers' clock: a step every 20 frames (FUN_0052d870)
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
     d2d::rules::BurialQuest burial;        // and Sisters' Burial Grounds
@@ -578,6 +580,9 @@ struct World {
     // A frame of the day clock (40 ms).
     void act1_tick();
     void act2_tick();
+    // A step of the quest clock (quest_clock): the quest timers.
+    void act1_quest_step();
+    void act2_quest_step();
     // The NPC's "!" over its head.
     bool act1_alert(int hc_idx);
     bool act2_alert(int hc_idx);
