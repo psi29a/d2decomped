@@ -477,10 +477,11 @@ auto Fight::pet_second_foe(float x, float y, int size, int& gap) const -> int {
 // owner (Fenris: 10 subtiles; the cycle vines: their skill's calc, 5..50)
 // or near the Death Sentry. The AI driver's target is that foe too; the
 // Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
-// ponytail: no unit is ever poisoned (state 2), slowed (0x3c) or in
-// Fenris's rage (0x8a); the owner's life / mana are whole points; Blade
-// Sentinel isn't summoned, so its think doesn't run. The Shadows: the Warrior's scene and the Master's
-// think below.
+// The foe2 poisoned (state 2: its poison running), the pet under
+// Decrepify (0x3c), the owner's life / mana in 256ths.
+// ponytail: no pet is ever in Fenris's rage (0x8a: its rage's effect isn't
+// traced, pet_cast); Blade Sentinel isn't summoned, so its think doesn't run.
+// The Shadows: the Warrior's scene and the Master's think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
         auto& monster = pet.monster;
@@ -561,6 +562,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             scene.foe2_melee = d2d::rules::unit_distance(foe_x - pet_x, foe_y - pet_y, size, game_data->monsters.types[std::size_t(foe.type)].size) <= type_info.melee_rng + 1;
             scene.clear[4] = d2d::rules::pet_line_clear(pet_x, pet_y, size, foe_x, foe_y, [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x805); });
             scene.poison_resist = target_of(std::size_t(second)).res[5];
+            scene.poisoned = now_ms < foe.poison_until;                 // state 2 while its poison runs
         }
         for (std::size_t k = 3; k < 6; ++k) {
             if (index[k] < 0) continue;
@@ -574,8 +576,10 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.skill_level = std::max(monster.stats.level, 1);
         {
             using namespace d2d::d2s;
-            scene.life = int(actor->character.stats.values[kLife] >> 8); scene.max_life = int(actor->character.stats.values[kMaxLife] >> 8);
-            scene.mana = int(actor->character.stats.values[kMana] >> 8); scene.max_mana = int(actor->character.stats.values[kMaxMana] >> 8);
+            // Stats 6 / 8 against FUN_00625d10 / FUN_00625d60 (stats 7 / 9), all
+            // in 256ths.
+            scene.life = int(actor->character.stats.values[kLife]); scene.max_life = int(actor->character.stats.values[kMaxLife]);
+            scene.mana = int(actor->character.stats.values[kMana]); scene.max_mana = int(actor->character.stats.values[kMaxMana]);
         }
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         for (std::size_t k = 0; k < 5; ++k) scene.aip[k] = per_difficulty.aip[k];
@@ -584,6 +588,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.skill1 = skill1 ? skill1->id : -1; scene.skill2 = skill2 ? skill2->id : -1;
         scene.mode1 = monster_mode(type_info.sk_mode[0], 4); scene.mode2 = monster_mode(type_info.sk_mode[1], 4);
         scene.skill_mode = scene.mode1;
+        // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
+        if (const auto* curse = game_data->skills.get(pet.curse.skill); curse && now_ms < pet.curse.until) scene.slowed = curse->aurastate == "decrepify";
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
