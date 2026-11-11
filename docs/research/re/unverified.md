@@ -64,6 +64,11 @@ trust. `git grep -n "unverified (source"` lists them.
 | Blackened Temple object mode gate and quest lookup; five cases with callees hooked, missing-record path not exercised | `FUN_005bbb70`; `tools/emu/quest_temple_object.py` | [quests-act3.md](quests-act3.md) "The Blackened Temple" |
 | Guardian alert state, NPC and flag gate; 32 cases with flag test hooked | `FUN_005bbfe0`; `tools/emu/quest_guardian_alert.py` | [quests-act3.md](quests-act3.md) "The Guardian" |
 | Khalim log-send filter: 12 difficulty and flag combinations with lookup, bit tests and sender hooked | `FUN_005b7f90`; `tools/emu/quest_khalim_log.py` | [quests-act3.md](quests-act3.md) "Khalim’s Will" |
+| Act IV opening alert NPC and flag gates: 24 cases, flag test hooked; low return byte checked | `FUN_005b3750`; `tools/emu/quest_act4_open_alert.py` | [quests-act4.md](quests-act4.md) "The opening" |
+| Terror's End object initializer: ten absent-record and state cases with callees hooked | `FUN_005b5840`; `tools/emu/quest_diablo_object_mode.py` | [quests-act4.md](quests-act4.md) "Terror's End" |
+| Izual search gate and output byte: 18 cases with lookup and iteration hooked | `FUN_005b43f0`; `tools/emu/quest_izual_nearby.py` | [quests-act4.md](quests-act4.md) "The Fallen Angel" |
+| Diablo Act IV player share gate: 72 cases including exact flag result 1 and act low byte, callees hooked | `FUN_005b4da0`; `tools/emu/quest_diablo_act_share.py` | [quests-act4.md](quests-act4.md) "Terror’s End" |
+| Hellforge alert NPC, flags and state gates: 486 cases with flag test hooked; low return byte checked | `FUN_005b5ee0`; `tools/emu/quest_hellforge_alert.py` | [quests-act4.md](quests-act4.md) "The Hellforge" |
 | Siege log-send filter: 48 difficulty and flag combinations with callees hooked | `FUN_00586c80`; `tools/emu/quest_siege_log.py` | [quests-act5.md](quests-act5.md) "Siege on Harrogath" |
 | Prison of Ice coordinate getter: 54 flag and missing-record cases with lookup hooked | `FUN_0058a7d0`; `tools/emu/quest_prison_position.py` | [quests-act5.md](quests-act5.md) "Prison of Ice" |
 | Betrayal portal retry gates and event arguments; 48 cases with callees hooked | `FUN_0058b940`; `tools/emu/quest_betrayal_retry.py` | [quests-act5.md](quests-act5.md) "Betrayal of Harrogath" |
