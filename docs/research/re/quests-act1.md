@@ -132,7 +132,11 @@ MonUMod 0xc and 0x16 (`FUN_005a4850(mod, 1)`), attach quest 2
   - bit 3 → state 3, log 1
   - bit 2 → state 2, log 1
 - **Quest-log send filter** (`FUN_00590830`): send (`FUN_00544190(game,
-  player, 2)`) unless (bit0 || bit15) && !bit13 && !bit14.
+  player, 2)`) unless (bit0 || bit15) && !bit13 && !bit14. The flags
+  pointer comes from the game difficulty; it tests bits in short-circuit
+  order 0, 15, 13, 14. `tools/emu/quest_burial_log.py` checks all 16 bit
+  combinations at all three difficulties, with the lookup, test and sender
+  hooked; it does not check those helpers or d2d parity.
 
 ### Messages
 
