@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -181,5 +182,114 @@ private:
     dc6::Sprite sheet_;
     int         line_height_ = 0;
 };
+
+// The edit box's wrap (FUN_00502970, Src/D2WinFont.cpp). One byte is one
+// code unit, which is the Latin wchar the box copies. `glyph_width` is
+// the font record's byte +3 (FUN_00501730 via DAT_00841da0). A line feed
+// adds no width. 0xff, 'c', and '0'..'6' add no width when three count
+// slots remain (the measure's EBX starts at 3). A prefix fits when its
+// width is less than or equal to `box_width`. The walk back stops where
+// FUN_00526d30's Latin branch returns 1: the unit at the index is not
+// _isspace (00687006; DAT_0096dfe4 is 0, ctype bit 8, codes 9..13 and 32)
+// and the previous unit is. That space stays on the line. FUN_005028e0
+// with flag 1 then drops one leading space. No such break: the line is
+// the longest prefix that fits, and one glyph if even that is over.
+// ponytail: language ids 6, 8 and 9 (FUN_00525150) use the other break
+// in FUN_00526d30, not this one.
+template <class GlyphWidth>
+auto wrap_edit_box(std::string_view text, int box_width, GlyphWidth glyph_width) -> std::vector<std::string> {
+    auto space_unit = [](unsigned char code) {
+        return code == ' ' || (code >= 9 && code <= 13);
+    };
+    auto unit_at = [&](int pos) -> unsigned char {
+        if (pos < 0 || pos >= int(text.size())) return 0;
+        return static_cast<unsigned char>(text[std::size_t(pos)]);
+    };
+    auto measured = [&](int origin, int count) {
+        if (origin >= int(text.size()) || unit_at(origin) == 0) return 0;
+        int total = 0;
+        int index = 0;
+        int budget = 3;
+        int pos = origin;
+        while (index < count && pos < int(text.size())) {
+            const auto code = unit_at(pos);
+            if (code == 0) break;
+            if (code == 10) {
+                ++pos;
+                ++index;
+                ++budget;
+                continue;
+            }
+            const bool colour = budget < count && code == 0xff && unit_at(pos + 1) == 'c'
+                && unit_at(pos + 2) >= '0' && unit_at(pos + 2) <= '6';
+            if (colour) {
+                pos += 3;
+                index += 3;
+                budget += 3;
+                continue;
+            }
+            total += glyph_width(code);
+            ++pos;
+            ++index;
+            ++budget;
+        }
+        return total;
+    };
+    auto kept_break = [&](int origin, int index) {
+        if (index == 0) return true;
+        if (space_unit(unit_at(origin + index))) return false;
+        return space_unit(unit_at(origin + index - 1));
+    };
+    auto copy_line = [&](int origin, int count) {
+        if (origin < int(text.size()) && count > 0 && space_unit(unit_at(origin))) {
+            ++origin;
+            --count;
+        }
+        if (origin >= int(text.size()) || count <= 0) return std::string{};
+        const auto available = int(text.size()) - origin;
+        const int take = count < available ? count : available;
+        auto slice = text.substr(std::size_t(origin), std::size_t(take));
+        const auto end = slice.find('\0');
+        if (end != std::string_view::npos) slice = slice.substr(0, end);
+        return std::string(slice);
+    };
+    if (measured(0, int(text.size())) <= box_width) return { std::string(text) };
+
+    std::vector<std::string> lines;
+    const int length = int(text.size());
+    int start = 0;
+    while (start <= length) {
+        int end = length;
+        int measured_width = 0;
+        if (length > start) {
+            const int base = 1 - start;
+            while (true) {
+                measured_width = measured(start, base + end);
+                if (measured_width <= box_width) break;
+                --end;
+                if (end <= start) break;
+            }
+            if (measured_width <= box_width && end > start) {
+                int mark = end - start + 1;
+                while (end > start) {
+                    if (end == length || kept_break(start, mark)) break;
+                    --end;
+                    --mark;
+                }
+            }
+        }
+        if (end == start && length > start) {
+            const int base = 1 - start;
+            end = length;
+            while (end > start) {
+                if (measured(start, base + end) <= box_width) break;
+                --end;
+            }
+        }
+        lines.push_back(copy_line(start, end - start + 1));
+        start = end + 1;
+    }
+    return lines;
+}
 
 }  // namespace d2d::font

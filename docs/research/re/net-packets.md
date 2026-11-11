@@ -633,6 +633,25 @@ ids).
   (`FUN_0047b450`) is string 0xd4c "_" (strMenuMain15) after the last line
   drawn, on 500 ms, off 100 (0x713000 / 0x713004, GetTickCount). The IME
   states (0x7bb5e0 / e1 / f0) draw a candidate list instead, not ported.
+  `FUN_00502970` (`.\Src\D2WinFont.cpp`, 708 bytes, `RET 4`): ECX the
+  text, EDX the line count, stack the pixel width. `FUN_00501730` sums
+  glyph widths (record byte +3). A line feed adds none. `0xff`, `c`,
+  then `0`..`6` add none while three count slots remain (EBX starts at
+  3). The whole string is one line when its width is at most the limit.
+  Otherwise each line is the longest prefix that fits, walked back while
+  `FUN_00526d30` returns 0. Language ids other than 6, 8 and 9
+  (`FUN_00525150`; 7 stays on this path): return 0 when the unit at the
+  index is `_isspace` (`00687006`, `DAT_0096dfe4` is 0, ctype bit 8, so
+  9..13 and 32), and 1 when the previous unit is. The space stays on the
+  line. `FUN_005028e0` flag 1 drops one leading space. No break in the
+  prefix: cut on the last glyph that fits, one glyph if it is over. A
+  line that ends on the last unit (the index walks to the length) is
+  followed by an empty line; a remainder that fits, including the early
+  whole-string return, is not. d2d's box does this for bytes. Ids 6, 8
+  and 9 are not ported. The shrink at `0x502b60` repeats that search
+  when the saved width is still over the limit; the first search stores
+  a width that already fits before the walk back, so that path is not
+  taken.
 - **0x5a event message** (40; `FUN_0049eb10`; builder `FUN_0053c850`):
   +1 u8 event, +2 u8 the line's colour (4 gold for a join), +3 u32
   argument, +7 u8, +8 char[16] name, +0x18 char[16] second name. A
