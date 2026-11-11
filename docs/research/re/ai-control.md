@@ -42,8 +42,8 @@ unit's room, passes row 0x60 or -1 according to the table count, and asks
 `FUN_0054dc40` for a location. A successful location and `FUN_005b2f20`
 spawn decrement the count and set the next frame to the signed word at +0x62
 plus the current game frame. Other paths end at `FUN_005de080` with 15.
-The difficulty-indexed words each have stride two. No runtime oracle has
-been run for this trace or for the called helpers.
+The difficulty-indexed words each have stride two. The called helpers are
+scripted in the oracle described below.
 
 `FUN_0058ec90` allocates a zeroed 0x1c-byte command node for a valid monster
 with a control, and inserts it immediately before control +0x20 in the
@@ -112,3 +112,9 @@ then stores the fifth as the new list head. A null or non-monster unit is a
 no-op. The oracle `tools/emu/ai_minion_detach.py` checks the call ordering,
 arguments and replacement head, with `FUN_0058f030` and pool free hooked;
 the node-list free runs for real. It does not test malformed monster data.
+
+`tools/emu/ai_limited_spawn.py` checks eight normal-difficulty cases of
+`FUN_005e0160`, including initialization, range, exhaustion, the due-frame
+boundary, failed location and spawn, and successful spawn with either class
+row selection. Its room, class, location, spawn and action helpers are hooked;
+it does not check those helpers or the other two difficulty rows.
