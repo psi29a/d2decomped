@@ -1176,9 +1176,10 @@ struct Fight {
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
     // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
-    // No 1.14d player summon reaches this think: every summon's MonStats AI
-    // is traced, and Decoy's (Idle, 0x5b0cd0) and Bone Wall's / Prison's
-    // (BoneWall, FUN_005e0400) only stand (pet.idle); it stays as a guard.
+    // Of the 1.14d player summons only a revived monster reaches this think
+    // (its own MonStats AI): every other summon's AI is traced, and Decoy's
+    // (Idle, 0x5b0cd0) and Bone Wall's / Prison's (BoneWall, FUN_005e0400)
+    // only stand (pet.idle).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);

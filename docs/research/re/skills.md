@@ -1118,7 +1118,12 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with its
   own stats (FUN_006538a0), brought down to the owner's level and life
   when above it, then FUN_005c4470 (200 % life, Revive's speed and
-  damage %); the pet's time is calc2 frames.
+  damage %); the pet's time is calc2 frames. It is the corpse itself
+  (FUN_00553540: the unit cast at) on its own MonStats think:
+  FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
+  15 frames on) and swaps no AI (no FUN_005b0e00). d2d runs a stand-in
+  (`Fight::pets_turn`'s untraced branch): monster thinks don't take
+  monsters as targets yet.
 - Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
   owner's max life x calc3 %, the owner's level, gone in calc2 frames.
 - Do 49 (**FUN_005d6e70**, Shadow Warrior / Master): the owner's level
