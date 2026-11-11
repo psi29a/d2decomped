@@ -206,37 +206,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (monster.mode == "KB") { if (d2d::game::knock_slide(monster, now_ms)) continue; set_mode(*game_data, monster, "GH", now_ms); }   // knocked back, then its get-hit
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
-            if (pet.shot_skill >= 0 && !traced) { trap_turn(pet, now_ms); continue; }
             if (pet.aura >= 0) pet_aura(pet, now_ms);
             if (pet.idle) continue;                            // Decoy stands where it was cast
-            if (const auto* skill = game_data->skills.get(pet.skill); !traced && skill && skill->srvdofunc == ServerDoFunction::kVine && now_ms >= pet.aura_next) {
-                // The vines: Poison Creeper poisons what's within 1.5 cells
-                // with the skill's poison; Carrion Vine / Solar Creeper eat a
-                // corpse within 5 cells for Param6 seconds, giving Param5 %
-                // of max life / mana a second.
-                // ponytail: their AI (Vines, CycleOfLife) and Vine Attack /
-                // the cyclers (do 130, st 63) aren't traced: the published
-                // behaviour.
-                pet.aura_next = now_ms + 1000;
-                using namespace d2d::d2s;
-                if (skill->etype == 3) {
-                    const auto damage = d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), pet.monster.stats.level);
-                    for (std::size_t j = 0; j < monsters.size(); ++j)
-                        if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - unit.x, monsters[j].unit.y - unit.y) < 1.5f)
-                            land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), rng), false, now_ms, pet.monster.id);
-                } else if (pet.hits > 0 || [&] {
-                               const int corpse = corpse_near(unit.x, unit.y);
-                               if (corpse < 0 || std::hypot(monsters[std::size_t(corpse)].unit.x - unit.x, monsters[std::size_t(corpse)].unit.y - unit.y) > 5) return false;
-                               monsters[std::size_t(corpse)].corpse_used = true;
-                               pet.hits = std::max(skill->par[5], 1);
-                               return true;
-                           }()) {
-                    --pet.hits;
-                    const bool life = skill->name == "Cycle of Life";
-                    auto& value = actor->character.stats.values[life ? kLife : kMana];
-                    value = std::min(actor->character.stats.values[life ? kMaxLife : kMaxMana], value + actor->character.stats.values[life ? kMaxLife : kMaxMana] * skill->par[4] / 100);
-                }
-            }
             if (monster.mode != "NU" && monster.mode != "WL" && monster.mode != "RN" && monster.mode != "GH" && monster.mode != "DT") {
                 if (!monster.struck && (pet.target >= 0 || pet.cast >= 0) && now_ms >= unit.mode_ms + game_data->npc_timing(monster.npc, monster.mode).action_ms()) {
                     monster.struck = true;
@@ -256,7 +227,6 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
                         auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
                                                          target, monster.stats.level, rng);
-                        if (!traced && pet.hits > 0 && --pet.hits == 0) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }   // a Raven's last
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
                         pet_strike(pet, monster_index, blow, now_ms);
                     }
