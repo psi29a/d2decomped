@@ -510,6 +510,51 @@ summary above shortens it to. Not traced: `FUN_00464820`'s own body, the
 `+7` bit's name, and the ESI/-1 branch inside `FUN_00481400`'s nonzero
 case.
 
+#### The range-and-line gate itself (`FUN_00480c80`, 0x480c80, 160 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). Not a
+normal calling convention: action in EAX, the acting player in EBX, the
+target in EDI, no stack arguments, plain `RET` — the three callers above
+set these up before the call. In order:
+
+- Action 6 or 0xd (a left or right skill already in flight): `d2d_left_skill(EBX)`
+  (`FUN_00620190`) or `d2d_right_skill(EBX)` (`FUN_006201d0`) finds that
+  skill's cast node. A null node, or `FUN_00644140(node)` (the node's
+  current skill record, already verified at skills.md:1780) null, or that
+  record's word at `+0x2e` not 0x13, falls through to the range/line test
+  below. Otherwise `FUN_00461ac0(ECX = node, EDX = EDI the target, two
+  local out-params)` answers directly, converted to 0/1, and `FUN_00480c80`
+  returns that — the skill in flight skips the range/line test entirely.
+- Fallthrough (any other action, or the skill check above falling
+  through): a null target is true (in range); an object target (`*EDI ==
+  2`) is `d2d_monsters_object_reach(EBX, EDI)` (`FUN_00623660`, already
+  ported) true unless `FUN_00622b50(EBX, EDI, 0x804)` (the line-of-sight
+  test, already verified at collision.md:548) then answers 0; any other
+  target type is `FUN_00622c40(EBX, EDI, FUN_00622dc0(EDI))` (also already
+  verified, `ai.cpp`'s melee-range/line check) answering nonzero.
+
+So `FUN_00480c80` itself is two gates layered: a skill already queued on
+the action's own left/right slot, whose record's `+0x2e` reads 0x13, is
+let through by `FUN_00461ac0`'s own range test instead of the normal
+reach-and-line test; everything else (including a different action, or no
+such skill) takes the reach-and-line path todo.md row 39 already
+describes. d2d: not ported as a function (todo.md row 39 covers the
+reach/line half only); the skill-in-flight bypass and what skill id 0x13
+and the object-type special case mean are not ported, no disagreement
+found (no d2d code to compare the bypass against).
+
+**`FUN_00461ac0`** (fastcall `(ECX skill node, EDX target)` plus two stack
+out-pointers for range and distance, `RET 8`; only caller `FUN_00480c80`):
+a null local player, node or target answers false. Otherwise
+`FUN_00644140(node)` (the node's current skill record) null also answers
+false; else `FUN_006442a0(local player, node, 1)` and
+`FUN_00646ca0(local player, record+0x32, record[0], that)` fill the range
+out-param, `FUN_006416d0(local player, target)` fills the distance one,
+and the answer is distance <= range. Not traced: `FUN_006442a0`,
+`FUN_00646ca0` and `FUN_006416d0`'s own bodies, so what the range and
+distance actually measure (subtiles, a skill's stated range, a line
+check) is read from the call shape only.
+
 ### The action send (`FUN_00481030`, 0x481030, 601 bytes)
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
@@ -1133,6 +1178,18 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_004804a0`** (fastcall unit ECX / x EDX, y on the stack; commands 1
+  and 0x17 of the table above): `FUN_00648ad0(path, x, y)` (already
+  verified, `path.md:76`) stores the point as the path's target and clears
+  its "has run" flag (+0x58); then `FUN_00649970(path, unit, unit+0xc4 bit
+  0x15)` (already verified, `ai.cpp`) calculates the path to it, the third
+  argument being the unit's own "already in position" bit. Same shape as
+  `FUN_00480780` (collision.md "Out of reach" above, already verified with
+  an oracle) but for a point instead of a unit lookup — no target to
+  re-resolve, so no `FUN_00463990` / `FUN_00648b90` pair first. d2d: not
+  ported as a function; the walk-to-a-spot path in `follow_path` (ai.cpp)
+  covers the same `FUN_00648ad0` / `FUN_00649970` pair, no disagreement
+  found.
 - **`FUN_00480e70`** (`UNITMODE_SetAnimMode`, fastcall unit ECX / mode EDX) has two
   siblings sharing its shape: clear unit flag 0x40 (`+0xc4 &= ~0x40`), call
   `FUN_00624690` (`SetupUpdateFlag`); a true answer loads the cof
@@ -1181,6 +1238,30 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
   mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
   `target == 0` arms (record `{6, -1}`) cannot run.
+- **`FUN_00480810`** (fastcall ECX unit, 268 bytes; the client's per-unit
+  frame dispatch — no caller read here): the local player, a null unit, or
+  a unit whose `+0xc4` bit 0x17 is clear takes the step below; any other
+  unit (not the local player, bit 0x17 set) skips it for the "frozen" arm
+  at the end. The step: `FUN_00627460(unit, 0)` (the missile freeze list,
+  already verified), `FUN_004da350(unit)` (already cited at collision.md
+  "view/camera" above), `FUN_00470c30(unit)` (overlay/timer tick, already
+  verified), then by unit type `*unit`: 0 `FUN_00463390` (below), 1
+  `FUN_004b13a0` (monster), 2 `FUN_004bdff0` (object), 3 `FUN_004d2c70`
+  (missile), 4 `FUN_004c1ad0` (item) — none of the last four read here.
+  After the type's own step: `unit+0xc4` bit 0x15 clear calls
+  `FUN_00463990(unit)`, set calls `FUN_004639b0(unit)` (both already
+  ported, `ctrl_click.hpp:17`, and both just call `FUN_00463940`, a
+  unit-by-id lookup with an assert on a type mismatch); a nonzero answer
+  calls `FUN_0045fa40()` (already cited, net-packets.md:52, a buffered
+  net-message dispatch). The "frozen" arm (not the local player, bit 0x17
+  set): `unit+0xc8` bit 5 set clears it and `+0xc4` bit 0x17, and calls
+  `FUN_004786a0(unit+0xc)`; then `+0xc4` bit 0x15 set calls `FUN_00465f00()`
+  and returns, skipping the type dispatch and the lookup/dispatch pair
+  above entirely. Not traced: what `+0xc4` bits 0x15/0x17 and `+0xc8` bit
+  5 mean, and `FUN_00463940`'s own lookup list. d2d: not
+  ported as a function; the per-type dispatch is `World`'s own per-unit
+  tick (`world/tick.cpp`), no disagreement found on the player arm
+  (`FUN_00463390` below).
 - **`FUN_00463390`** (fastcall ECX unit; the only caller is `FUN_00480810`): the client's
   per-frame step for a player, driven by a table of 12-byte rows indexed by the unit's mode
   (`+0x10`): `[0x711e00 + mode*12]` (a class: 1 = a walk-like mode, 2 = a mode with a
@@ -1203,6 +1284,22 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
   agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
   the rest of the step is not ported as a function.
+- **`FUN_004807c0`** (fastcall ECX unit, 67 bytes; only caller `FUN_00463390`
+  above, class 1 and class-2-over): `FUN_00480420(unit)` first (the stale
+  path-target clear, already traced above). Then two state checks, both
+  `FUN_00639df0(unit, state)` (already verified, `ai.cpp:1222`): state 0xd
+  set calls `FUN_004e3ab0(unit)`, state 0x16 set calls `FUN_004e2d40(unit)`
+  — both read a queued skill's Skills.txt range fields (0x15e / 0x15f) and
+  the current node, and end in `FUN_004cd540` (not read here; their own
+  effect, a quest or sound trigger tied to standing still with a skill
+  queued, is not traced). Last, `FUN_00650840(unit, FUN_0044db10())`
+  (already verified, `ai.cpp:357` — the real per-frame path-motion step,
+  `DAT_007a04c4` the second argument) runs the walk; `FUN_004807c0` answers
+  true ("over") exactly when that step answers 0 (no more steps queued
+  this frame). d2d: not ported as a function; `FUN_00650840`'s own port
+  (`move_frame`-adjacent code in `world/tick.cpp`) already covers the walk
+  step itself, no disagreement found; the two state/trigger calls (0xd,
+  0x16) are not ported, not traced further here.
 
 ### The per-type dispatch targets (monster, object, missile, item)
 
