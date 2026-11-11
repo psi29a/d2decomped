@@ -1023,13 +1023,12 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   player's skill (sentrylightningbolt → Lightning Sentry), so the damage
   is the Assassin's skill at the trap's sumskill level.
 - Built: traps as pets (`Pet::shot_skill / shot_level / shots`,
-  `trap_shot`, `trap_turn`): every aidel ticks at the nearest monster
-  within aip4 subtiles; Charged Bolt Sentry's do 17 spread; spent after
-  Param1 shots (calc4 for Charged Bolt Sentry), untargetable. Not traced:
-  the AssassinSentry / DeathSentry AI functions (aip4 as range, shot
-  counts as published); not built: Wake of Fire / Inferno (do 125 / 95),
-  Death Sentry's corpse blast (do 55), Blade Sentinel / Fury / Shield,
-  Fire Blast / Shock Web (thrown traps).
+  `trap_shot`, `trap_fire`), untargetable. Their thinks are the traced
+  AssassinSentry / DeathSentry (pet-ai.md "The other thinks",
+  `Fight::pet_think_turn`); d2d's first guess at them (`trap_turn`: aip4 as
+  the range, the published shot counts) is gone, as no trap reached it.
+  Wake of Fire's do 125 (`kWakeOfDestruction`) and Blade Fury's do 48 have
+  no handler of their own.
 
 ### Do-function missiles (phase 6, part 1)
 - Tables: srvdofunc 0x7322b0, missile pSrvDoFunc 0x73c768, pSrvHitFunc
@@ -1109,9 +1108,15 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   the aura events, sumumod, sumoverlay. **FUN_005d6b60** isn't a
   mastery: it's the pet's MonEquip.txt gear.
 - A pet's life and damage are MonStats' own columns (a skeleton 21 life,
-  1-2 damage in Normal, 30 / 42 in Nightmare / Hell), not MonLvl-scaled.
-  The Druid's and Raven's rows have no damage: the skill's physical
-  (MinDam + MinLevDam) is theirs. (Neither traced: the published values.)
+  1-2 damage in Normal, 30 / 42 in Nightmare / Hell), not MonLvl-scaled:
+  every player summon's row but hydra1 (no life) is noRatio (+0xc & 4),
+  which the stat init (FUN_00573cb0 -> FUN_006538a0) and the per-mode
+  damage (FUN_005a4f50) take as written; Align 1 (row +0x4c, read in the
+  emulator: necroskeleton 1, skeleton1 0) skips the players' life bonus
+  (FUN_00573930). The Druid's and Raven's rows have no damage: d2d gives
+  them the skill's physical (MinDam + MinLevDam). Not traced where
+  game.exe does: not in the summon (FUN_005c6910 / FUN_005c7390,
+  FUN_005c49e0, FUN_005c4470) nor FUN_005a4f50.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
@@ -1119,7 +1124,12 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with its
   own stats (FUN_006538a0), brought down to the owner's level and life
   when above it, then FUN_005c4470 (200 % life, Revive's speed and
-  damage %); the pet's time is calc2 frames.
+  damage %); the pet's time is calc2 frames. It is the corpse itself
+  (FUN_00553540: the unit cast at) on its own MonStats think:
+  FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
+  15 frames on) and swaps no AI (no FUN_005b0e00). d2d runs a stand-in
+  (`Fight::pets_turn`'s untraced branch): monster thinks don't take
+  monsters as targets yet.
 - Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
   owner's max life x calc3 %, the owner's level, gone in calc2 frames.
 - Do 49 (**FUN_005d6e70**, Shadow Warrior / Master): the owner's level
