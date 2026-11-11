@@ -1300,3 +1300,122 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   (`move_frame`-adjacent code in `world/tick.cpp`) already covers the walk
   step itself, no disagreement found; the two state/trigger calls (0xd,
   0x16) are not ported, not traced further here.
+
+### The per-type dispatch targets (monster, object, missile, item)
+
+`FUN_00463390` above is the client's per-frame step for a player (unit type 0). The
+client's own per-unit-per-frame dispatcher that picks it, and the three siblings
+below for the other unit types, is `FUN_00480810` (traced separately, batch 6, not
+in this file as of this writing); its own write-up names these four as its
+"every other type" targets without reading them. Traced here, each fastcall ECX
+unit, no stack arguments, in the order `FUN_00480810` calls them:
+
+- **`FUN_004b13a0`** (573 bytes, `004b13a0`..`004b15dd`, plain `RET`): the
+  monster's per-frame step. A null unit, a non-monster (`*unit != 1`), a unit
+  with state 1 active (`FUN_00639df0(unit, 1)`) unless `FUN_00464820()` is
+  zero, or a mode (`+0x10`) of 0x10 or over, each return with nothing done.
+  Otherwise `piVar2 = FUN_004af400()` (no visible argument; a global, not a
+  per-unit table row) gates the rest: a null result returns. `FUN_004af4c0()`
+  runs next, then, only when `*piVar2 == 1`, `local_8 = FUN_004807c0(unit)`
+  (the frame-step helper `FUN_00480810`'s own write-up names, shared with
+  the player's class-1/2 step) is called and its result kept.
+  Mode 1 (`+0x10`) additionally gates on `FUN_00649210` not running something,
+  then adjusts a target lookup through `FUN_00648bf0` / `FUN_00648bb0` /
+  `FUN_00463990` / `FUN_00648b90` (the same clear-stale-target pattern
+  `FUN_004648f0`/`FUN_00480420` already read above, lines 1071-1084) or calls
+  `FUN_00649210(unit)` when there's no usable target. The rest, gated on
+  `FUN_00451f80(unit[1])` (a monster-class lookup; a null result skips to the
+  end) being non-null, is a block that: for a monster whose MonStats row
+  flag 2 is set, that isn't flagged by `FUN_004638a0`, in mode 1, passing
+  `FUN_00451f30`, not class 0x219/0x21a/0x21b, not the local player
+  (`FUN_00463dd0`), within 7 of the local player
+  (`d2d_monsters_unit_distance`) and some further gates
+  (`FUN_0045c390() < 10`, a path present) — plays something through
+  `FUN_00649ef0` with two values from `FUN_0045ae20`/`FUN_0045adf0`,
+  `0`. After that: `FUN_004b1280()` and a second switch on `piVar2[2]`
+  (1: keep the earlier `FUN_004807c0` result, 2/3: this new result, 4: 1
+  only when both are non-zero and `FUN_006217c0(unit)` is also non-zero),
+  then `FUN_004af2e0()`, `FUN_004ade60()`, `FUN_00648640(path)` when there's
+  a path, and, when that switch's result was non-zero, `FUN_004af6a0()`.
+  A monster of class 0x210 with MonStats2 flag `+0x31` bit 0 set and
+  `FUN_00451f30()` non-zero clears that bit and plays another sound-like
+  call (`FUN_0045ae20(2, 0)`, `FUN_0045adf0`, `FUN_00466730`). Finally
+  `FUN_0063a340(unit)` non-zero calls `FUN_004c72f0()`, then
+  `FUN_004cb460(unit)` and `FUN_004caf60(unit)` (both already verified
+  elsewhere: `object_sounds.hpp`, `fight/setup.cpp`, `world/tick.cpp`,
+  `world.hpp`; `FUN_004bdff0` below ends the same way, the shared
+  object/unique-boss "ambient sound" tail; the missile and item steps
+  below do not call either). **Not traced**: `FUN_004af400`'s own
+  global and what `piVar2[0]`/`piVar2[1]`/`piVar2[2]` mean beyond the two
+  switches read here; `FUN_00649ef0`'s own effect; the MonStats flag 2 /
+  flag 9 (`FUN_004638a0`) semantics (also unresolved at line 1054 above).
+  d2d: not ported as a function; no disagreement found, nothing here was
+  compared against a d2d equivalent.
+- **`FUN_004bdff0`** (fastcall ECX unit; 0x30 bytes, `004bdff0`..`004be01c`,
+  plain `RET`): the object's per-frame step. `FUN_004bcbb0(unit)` runs
+  first — the object's own cof/frame-rate advance, already fully ported
+  (`apps/d2d/ingame.cpp:169,175`, `apps/d2d/world_view.cpp:39`,
+  `components/game/gamedata/gamedata.hpp:119`, `components/game/world/tick.cpp:53`).
+  Then it reads the object's Objects.txt ClientFn (`+0x1b4`, objects.md:574
+  already names this field and its dispatch) off the object's row (unit
+  `+0x14` data, dereferenced once more to the row); when ClientFn is over 3
+  it calls `FUN_004bdee0(unit)` (the ClientFn dispatch table at `0x7277f0`,
+  19 entries, already cited at objects.md:560) and a zero result returns
+  with nothing else done. Otherwise (ClientFn 3 or under, or `FUN_004bdee0`
+  non-zero) it tail-calls `FUN_004cb460(unit)` (the same already-verified
+  ambient-sound step `FUN_004b13a0` ends with above). d2d: the cof/frame
+  step and the sound tail are both already ported at the citations above;
+  the ClientFn gate itself has no d2d equivalent found (not ported as a
+  function).
+- **`FUN_004d2c70`** (fastcall ECX unit; 0xf1 bytes, `004d2c70`..`004d2d61`,
+  plain `RET`): the missile's per-frame step. A null unit, an out-of-range
+  or missing Missiles.txt row (`unit+4`, the same `PTR_DAT_00744304+0xb64`
+  table at `0x1a4` per row missiles.md already reads throughout) end in a
+  tail call to `FUN_004cd390(unit)` (a cleanup/removal-sound step: gated on
+  the row's `+0x12` and unit `+0xc4` bit 0x15, calls `FUN_00621150`,
+  `FUN_00465f00`/`FUN_00465ee0`; not traced further here). With a row:
+  `FUN_004cd1c0()` runs first when the row's `+0x131` byte is set (reads
+  unaffected `EBX` directly rather than a passed argument — a sound-chance
+  check against the row's `+0x130` byte and the unit's own seed state,
+  `+0x44` flags `0x300` and `+100`). Not in town (`FUN_00620bb0`): the
+  unit's path position is read the same way `FUN_00480ef0` already reads
+  it above (type 2 or 4/5 direct from the path struct, else
+  `d2d_path_get_x`/`_get_y`), then `FUN_00463740(0, y, x)` — not the same
+  call shape as the near-list walk missiles.md:81 reads for this address
+  elsewhere, so this may be a different overload; not resolved here. Then,
+  unless the row's `+5` byte bit 4 is set, `FUN_0061ab00` of that result
+  non-zero also tail-calls `FUN_004cd390` and returns. Otherwise it reads
+  the row's `+8` short and, when it's a valid index under `DAT_0072a34c`,
+  tail-jumps through the pointer table at `0x72a398` — the same client
+  missile-callback table missiles.md:161 already names two slots further
+  in (`0x72a3a0`, `FUN_004d33e0` and the entry at `0x004d3460`); an
+  out-of-range index
+  is a no-op return. So `FUN_004d2c70` is the entry into that table, not a
+  table member itself: the room/position gate before every missile client
+  callback runs. d2d: not ported as a function; the table's own callbacks
+  are the ones missiles.md's "Client missile callbacks" section already
+  covers (not re-read here).
+- **`FUN_004c1ad0`** (fastcall ECX unit; 0x8d bytes, `004c1ad0`..`004c1b5d`):
+  the item's per-frame step. A null unit is fatal (assert id 0x348); a mode
+  (`+0x10`) over 6 is fatal too (id 0x362; both share the tail
+  `FUN_00408090`/`FUN_00408a60`/`FUN_00681e09(-1)`, no return). Otherwise a
+  switch on the mode:
+  - 0, 1, 2, 4, 6: clear the unit's selectable bit (`+0xc4 &= ~2`, the same
+    bit line 475 above names "selectable"); return.
+  - 3: set the selectable bit (`+0xc4 |= 2`); `FUN_0046e100(_, 0x46)` —
+    which, read from its own decompile, ignores the unit it's passed and
+    instead walks a global list (`FUN_00463e10()+0x2c`, linked by `+0xa4`)
+    for an entry whose `+4` field is `0x46`, returning 1 if found — a
+    non-zero result returns (no overlay this frame); zero falls into the
+    shared overlay block below.
+  - 5: `FUN_006217c0(unit)` zero calls `FUN_00621310(unit)` and returns; a
+    non-zero result sets the mode (`+0x10`) to 3 and falls into the same
+    overlay block, skipping the 0x46 check mode 3 has.
+  - the shared overlay block: `FUN_00470390(unit, 0x46, kind=6, 8, 0, 0, 8,
+    0)` (`GFX_AddOverlayToUnit`, already ported at
+    `components/rules/overlays.hpp`; its own comment there notes kind 6 is
+    the only kind that "waits" rather than looping). Overlay.txt row 0x46's
+    name was not read here. Then return.
+  d2d: the overlay call itself is already ported (`overlays.hpp`); the
+  mode switch and the selectable-bit toggle have no d2d equivalent found
+  (not ported as a function).
