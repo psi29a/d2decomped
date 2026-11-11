@@ -565,6 +565,18 @@ smoulders; d2d drew it blazing.
 - d2d: `Npc::env_effect`; `World` sets NU / OP each tick by the day's type.
   The embers' FrameDelta0 128 runs them at half speed (below).
 
+## Teardown (client, UNIT/Object.cpp)
+
+- **FreeObjectData, FUN_004bca50** (ECX unit; called from the client's
+  type-dispatched `FreeAny`, FUN_0046593d, so once per freed object unit):
+  frees the gfx info (`FreeGfxInfo`), and — only while a DRLG act is
+  loaded (`sgpDrlgAct != 0`, i.e. not at shutdown) — removes it from the
+  collision vector (`RemoveCollision_Vector`), unlinks it from its room
+  (`RemoveUnitFromRoom`) and frees its light map (`FreeLightMap`); always
+  frees the unit's own data block last (`FreeClientMemory`, line 0xfe).
+  d2d's object lifetime is RAII (no manual free list to drain), so this
+  is a teardown order note only, not something to port as code.
+
 ## Animation length (FUN_004bcbb0, client)
 
 The client steps an object's frame counter (unit +0x44, 8.8) by its rate
