@@ -1083,6 +1083,19 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   and the three downstream calls to record whether they ran, over a null and
   a real unit — 36 cases, no disagreement
   (`uv run python unitmode_setanim.py`).
+- **`FUN_00480d20`** (`UNITMODE_ShowElementalHitOverlay`, fastcall unit ECX /
+  mode EDX): a no-op for a null unit or any type but player (0) or monster
+  (1); for a player, modes 0/4 are a hit and 0x13 a maybe-hit, for a monster
+  0/3 and 0xd; every other mode is a no-op. On a hit, the high nibble of
+  `unit+0xb0` (`hit_class`) picks the overlay via `FUN_00470390`
+  (`GFX_AddOverlayToUnit`), but only when the low nibble is also set: 0x10
+  `OVERLAY_doubledamage1`, 0x20 `OVERLAY_fire_hit`, 0x30 `OVERLAY_ice_explode`,
+  0x40 `OVERLAY_lightning`, 0x70 `OVERLAY_bash`, 0x80 `OVERLAY_hit_thorns`,
+  0x90 `OVERLAY_sanctuaryknockback`; any other high nibble is a no-op.
+  **Verified**: `tools/emu/unitmode_hit_overlay.py` runs it for real over
+  every (unit type, mode, `hit_class`) combination that exercises each
+  branch, hooking `GFX_AddOverlayToUnit` to record the overlay id it got —
+  792 cases, no disagreement (`uv run python unitmode_hit_overlay.py`).
 - **`FUN_00463260`** (unit in EAX, no stack arguments; only caller `FUN_00463390`, which calls it
   for a unit whose mode `+0x10` is 3, RN): the client's run stop. Nothing happens unless the
   unit is `FUN_00463de0()`, the local player, and `FUN_00625480(unit, 10, 0)`, stat 10
