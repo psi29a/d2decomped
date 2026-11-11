@@ -1115,6 +1115,18 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_004804a0`** (fastcall unit ECX / x EDX, y on the stack; commands 1
+  and 0x17 of the table above): `FUN_00648ad0(path, x, y)` (already
+  verified, `path.md:76`) stores the point as the path's target and clears
+  its "has run" flag (+0x58); then `FUN_00649970(path, unit, unit+0xc4 bit
+  0x15)` (already verified, `ai.cpp`) calculates the path to it, the third
+  argument being the unit's own "already in position" bit. Same shape as
+  `FUN_00480780` (collision.md "Out of reach" above, already verified with
+  an oracle) but for a point instead of a unit lookup — no target to
+  re-resolve, so no `FUN_00463990` / `FUN_00648b90` pair first. d2d: not
+  ported as a function; the walk-to-a-spot path in `follow_path` (ai.cpp)
+  covers the same `FUN_00648ad0` / `FUN_00649970` pair, no disagreement
+  found.
 - **`FUN_00480e70`** (`UNITMODE_SetAnimMode`, fastcall unit ECX / mode EDX) has two
   siblings sharing its shape: clear unit flag 0x40 (`+0xc4 &= ~0x40`), call
   `FUN_00624690` (`SetupUpdateFlag`); a true answer loads the cof
