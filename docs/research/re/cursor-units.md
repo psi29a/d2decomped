@@ -211,8 +211,9 @@ against an oracle; the hit test's selectable and pixel checks still follow.
 
 ## The click's own path
 
-Read from the code; `FUN_004623c0` and `FUN_00461840` are run for real below
-(`tools/emu/click_move.py`). The rest has no oracle run.
+Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
+`FUN_0064e780` are run for real below (`tools/emu/click_move.py`,
+`tools/emu/click_free_spot.py`). The rest has no oracle run.
 
 - `FUN_00467a10` (0x467a10) returns the latched unit (0x7a6a94 non-zero)
   only if `FUN_00466870(0,0)` still passes for it; if not it clears
@@ -255,11 +256,15 @@ Read from the code; `FUN_004623c0` and `FUN_00461840` are run for real below
   `FUN_0064e780`). It takes the current target's subtile x, y (the click's
   own x, y when the target is null), asks `FUN_0064cb30(room, x, y, 1)`
   (the collision flags at that spot, mask 1) and `FUN_0064e780(room, &xy,
-  1, 1, 0, 7)` (a free-spot search, not read) and, if both pass, writes the
-  spot back to the click's x, y and returns null: the unit target is
-  dropped for the ground. Else it returns the target as it was. So it can
-  only turn a target into a spot; it never adds a unit, and a converted
-  monster (null from `FUN_00467a10`) enters it as the click's own spot.
+  1, 1, 0, 7)` (a thin wrapper over `FUN_0064dea0`'s 50-ring free-spot search,
+  already run for real by `sk_tele_spot.py` / `corpse_spot.py`) and, if both
+  pass, writes the spot back to the click's x, y and returns null: the unit
+  target is dropped for the ground. Else it returns the target as it was. So
+  it can only turn a target into a spot; it never adds a unit, and a
+  converted monster (null from `FUN_00467a10`) enters it as the click's own
+  spot. The whole function (both branches: open ground unchanged, a blocked
+  null target or unit target moved or left alone) runs natively on
+  `sk_tele_spot`'s rooms: `tools/emu/click_free_spot.py`.
 - The right click (kind 3 of `FUN_00462d00`) with a converted monster is
   the same null target as the left: `FUN_00466fe0` (not `FUN_00467a70`),
   then `FUN_00462ba0`: `FUN_00462930` (a press arms 0x7a526c to 1 for a
@@ -271,8 +276,8 @@ Read from the code; `FUN_004623c0` and `FUN_00461840` are run for real below
   (`LAB_00462671`) and the same `FUN_004621d0` re-pick. There is no
   separate rule for a converted monster on the right button.
 
-Not traced: what `FUN_0064e780` / `FUN_0064dea0` search, and the byte +0x14
-meaning.
+Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
+`FUN_00462a20` and `FUN_00462d00` itself (read from the code only).
 
 ## The label helpers of `FUN_00454f30`
 
