@@ -58,6 +58,24 @@ auto World::cross_level() -> void {
                 unit.goal_x -= dx; unit.goal_y -= dy;
                 for (auto& [step_x, step_y] : unit.path) { step_x -= dx; step_y -= dy; }
             };
+            if (split_levels) {                          // stage 9: this player crosses (with the host's screen's party, if theirs); that level has its own turn
+                Player* const mover = actor;
+                each_player([&](Player& player) {
+                    if (&player != mover && (mover->own_screen || player.own_screen)) return;
+                    shift(player.player);
+                    player.target_x -= dx; player.target_y -= dy;
+                    if (player.merc) shift(player.merc->unit);
+                    fight.pets_cross(level, neighbour.level, dx, dy);
+                    player.events.push_back(ev::LevelChanged{ level, true });
+                    player.interact_npc = -1;
+                    player.attack_mon = player.merc_target = -1;   // the monsters stay with the level left (Fight::enter)
+                    for (auto& pet : player.pets) pet.target = -1;
+                    act1_enter(*level); act2_enter(*level); act3_enter(*level); act4_enter(*level); act5_enter(*level);
+                    player.on_level = neighbour.level;
+                    d2d::log::info("{}: level {} at ({:.1f}, {:.1f})", player.character.name, level_name(*neighbour.level), player.player.x, player.player.y);
+                });
+                return;
+            }
             each_player([&](Player& player) {            // the party crosses together (one screen, one level)
                 shift(player.player);
                 player.target_x -= dx; player.target_y -= dy;
@@ -75,6 +93,59 @@ auto World::cross_level() -> void {
             d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), actor->player.x, actor->player.y);
             return;
         }
+    }
+
+// Stage 9: the acting player leaves for `destination` alone, mid turn; the
+// level stays in for the others on it, and theirs comes in on its own turn
+// (swap_to). What arrive does for the level itself (its rooms, objects,
+// doors) happens there and in that turn's tick.
+auto World::go_alone(const Level* destination, float arrive_x, float arrive_y, const char* how) -> void {
+        Player* const mover = actor;
+        const Level* from = mover->on_level ? mover->on_level : level;   // theirs (a debug goto acts between turns)
+        // A player with a screen of their own goes alone; the host's screen's
+        // party goes together (one screen, as bring_party), round the mover.
+        std::vector<Player*> travellers{ mover };
+        if (!mover->own_screen)
+            for (auto& player : players) if (player.get() != mover && !player->own_screen && here(*player)) travellers.push_back(player.get());
+        static constexpr std::array<std::pair<float, float>, 4> kAround{ { { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f }, { 0.f, -1.f } } };
+        std::size_t around = 0;
+        for (Player* traveller : travellers) {
+            act_as(*traveller);
+            const auto [near_x, near_y] = traveller == mover ? std::pair{ arrive_x, arrive_y } : std::pair{ arrive_x + kAround[around % 4].first, arrive_y + kAround[around % 4].second };
+            if (traveller != mover) ++around;
+            const auto [free_x, free_y] = destination->nearest_free(near_x, near_y);
+            fight.pets_cross(from, destination, actor->player.x - free_x, actor->player.y - free_y);
+            actor->events.push_back(ev::LevelChanged{ from, true });
+            act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from);   // swap_npcs' hooks, theirs alone
+            if (const int to_act = d2d::rules::level_ids::act_of(destination->id); to_act != d2d::rules::level_ids::act_of(from->id)) set_act(to_act);
+            actor->on_level = destination;
+            actor->player.x = free_x; actor->player.y = free_y;
+            actor->player.walking = false; actor->player.path.clear();
+            actor->target_x = free_x; actor->target_y = free_y;
+            if (actor->merc) {
+                actor->merc->unit.path.clear();
+                std::tie(actor->merc->unit.x, actor->merc->unit.y) = destination->nearest_free(free_x + 1, free_y + 1);
+            }
+            actor->warp_spot = { int(std::floor(free_x * 5)), int(std::floor(free_y * 5)) };
+            actor->interact_npc = actor->pick_item = actor->take_warp = actor->take_portal = -1;
+            actor->attack_mon = actor->merc_target = -1;     // the level's monsters stay behind (Fight::enter): an index into another level's isn't a target
+            for (auto& pet : actor->pets) pet.target = -1;
+            actor->store = {};                               // a trip ends the trade (leave_town); the town's stock stays for those still in it
+            if (destination->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
+            d2d::log::info("{}: level {} at ({:.1f}, {:.1f}), through {} from {}", actor->character.name, level_name(*destination), free_x, free_y, how, level_name(*from));
+        }
+        act_as(*mover);
+    }
+
+// Stage 9: `destination`'s turn: its NPCs, monsters, missiles and floor in,
+// the last level's kept (no one's level change: nobody moved).
+auto World::swap_to(const Level* destination) -> void {
+        if (destination == level) return;
+        const Level* from = level;
+        level = destination;
+        fight.take_turn(level);
+        loot.enter(level);
+        swap_npc_states(from);
     }
 
 auto World::level_name(const Level& level) -> const char* {
@@ -137,6 +208,7 @@ auto World::use_warp() -> void {
     }
 
 auto World::arrive(const Level* destination, float arrive_x, float arrive_y, const char* how) -> void {
+        if (split_levels) { go_alone(destination, arrive_x, arrive_y, how); return; }
         const auto [free_x, free_y] = destination->nearest_free(arrive_x, arrive_y);
         const float dx = actor->player.x - free_x, dy = actor->player.y - free_y;
         fight.pets_cross(level, destination, dx, dy);

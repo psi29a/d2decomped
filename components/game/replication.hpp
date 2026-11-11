@@ -108,7 +108,7 @@ inline const Level* level_of(const GameData& game_data, int id) { return game_da
 // client lost track, everything (a keyframe).
 struct ViewEncoder {
     int level = -2;
-    std::array<std::vector<std::uint8_t>, 8> section;
+    std::array<std::vector<std::uint8_t>, 9> section;
     std::unordered_map<int, std::vector<std::uint8_t>> look, state;
     std::vector<std::vector<std::uint8_t>> npc;
     void reset() { *this = {}; }
@@ -343,6 +343,13 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         out.u16(int(view.npc_states.size())).u16(int(changed.size()));
         for (const auto index : changed) { out.u16(int(index)); out.bytes.insert(out.bytes.end(), now[index].begin(), now[index].end()); }
     }
+    // Who they are (View::npc_keys), when the lists changed (a room came up).
+    {
+        wire::Out chunk;
+        chunk.u16(int(view.npc_keys.size()));
+        for (const auto& listed : view.npc_keys) chunk.i32(listed.level).i32(listed.hc_idx).i32(listed.object_id).f32(listed.x).f32(listed.y).u8(listed.palace).i32(listed.quest);
+        wire::section(out, enc.section[8], std::move(chunk.bytes));
+    }
     // What happened: events and sounds (never repeated).
     out.u16(int(view.events.size()));
     for (const auto& event : view.events) {
@@ -356,6 +363,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
         else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->done ? 1 : 0);
+        else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -569,6 +577,14 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         auto unit = wire::unit(input);
         if (npc_index < view.npc_states.size()) view.npc_states[npc_index] = std::move(unit);
     }
+    body([&] {
+        view.npc_keys.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            View::NpcKey listed;
+            listed.level = i32(); listed.hc_idx = i32(); listed.object_id = i32(); listed.x = f32(); listed.y = f32(); listed.palace = byte(); listed.quest = i32();
+            view.npc_keys.push_back(listed);
+        }
+    });
     view.events.clear();
     for (int k = u16(); k > 0 && input.ok; --k) {
         const int kind_byte = byte();
@@ -603,6 +619,11 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         } else if (kind_byte == 10) {
             const int npc = i32();
             view.events.push_back(ev::ServiceResult{ npc, byte() != 0 });
+        } else if (kind_byte == 11) {
+            const auto kind = byte();
+            if (kind > ev::Message::slain) return false;
+            auto name = input.str();
+            view.events.push_back(ev::Message{ ev::Message::Kind(kind), std::move(name), input.str() });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };

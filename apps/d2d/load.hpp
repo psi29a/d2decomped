@@ -44,6 +44,9 @@ void load_saves(Scene& scene, const fs::path& dir);
 // Save `index` (Scene::saves' order) as the in-game character: its header,
 // items, stats, corpse, its merc's items, the char panel's numbers.
 [[nodiscard]] Character character_of_save(const Scene& scene, std::size_t index);
+// A whole .d2s's bytes as the in-game character, as character_of_save reads a save
+// (a LAN joiner's, docs/design/lan-host.md). Empty when the bytes don't parse.
+[[nodiscard]] std::optional<Character> character_of_bytes(const Scene& scene, std::span<const std::byte> bytes);
 // A new character as char-create's OK makes one (CharStats.txt's start; not
 // saved yet): its header, stats, items, the char panel's numbers.
 [[nodiscard]] Character made_character(const Scene& scene, int save_cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng);

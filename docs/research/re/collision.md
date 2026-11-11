@@ -462,6 +462,99 @@ That is why an item or a warp is sent once and cannot wait for range, as
 for the NPC walk (target gone, retry through the walk code), no disagreement
 found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
+#### The three target-type gates (`FUN_00481400`, `FUN_004814a0`, `FUN_004815a0`)
+
+Read from the decompile and disassembly (cited, no oracle run). All three
+share the shape FUN_00481600 calls them with: the resolved target arrives
+in EAX (kept in EDI for the rest of the function — its selectable bit is
+read off this register below) and the acting player stays in ESI from the
+caller; the stack carries the queue's action, target type and id, in that
+order (`[ebp+8]`, `[ebp+0xc]`, `[ebp+0x10]`).
+
+- **`FUN_004815a0`** (object target, type 2, 94 bytes): a null target, or
+  one whose `+0xc4` bit 1 (selectable) is clear, is `FUN_00467a70`
+  (abandon), return 0. Otherwise `FUN_00480c80(EAX = action, EBX = ESI the
+  player, EDI = the target)`: false (not yet in position) returns 1 so
+  `FUN_00481600`'s caller tries again; true sends the engage,
+  `FUN_004812e0(EAX = ESI, stack = id, action)`, return 0.
+- **`FUN_00481400`** (player target, type 0, 89 bytes): first asks
+  `FUN_00464820(ECX = the target)`. A **zero** answer takes the same
+  selectable-bit-then-`FUN_00480c80` gate as `FUN_004815a0`. A **nonzero**
+  answer skips `FUN_00480c80` entirely: `ECX` becomes the target's `+0xc`
+  field when ESI (a second, apparently unrelated register read in this
+  branch only) is non-null, else -1; `FUN_0047a4f0(ECX, EDX = id)` gates a
+  direct send — nonzero sends `FUN_00481030(ECX = action, EDX = the
+  target, stack = id, 0, 0)` and returns 0, zero is `FUN_00467a70` and
+  returns 0. Which case `FUN_00464820` answers (town vs. elsewhere, a
+  player vs. a merc) isn't traced; its own body wasn't read here.
+- **`FUN_004814a0`** (monster target, type 1, 227 bytes): the same
+  `FUN_00464820(target)` split. A **zero** answer: the same selectable-bit
+  + `FUN_00480c80` gate as the other two. A **nonzero** answer instead
+  switches on the action (`[ebp+8]`, the jump table at 0x481584, byte
+  index 0x48158c): 5-0xb calls `d2d_left_skill(ESI)` (`FUN_00620190`),
+  0xc-0x12 `d2d_right_skill(ESI)` (`FUN_006201d0`); any other action is
+  `FUN_00467a70`, return 0. A null skill record, or its node id
+  (`FUN_00643ce0`, asserting `.\UNIT\UnitMode.cpp` line 0x44f) negative or
+  past the Skills.txt row count (`PTR_DAT_00744304+0xba0`), is also
+  `FUN_00467a70`; otherwise the row (`0x23c` bytes, `PTR_DAT_00744304
+  +0xb98`) byte `+7` is read and masked by `DAT_006ce268` — a clear bit is
+  `FUN_00467a70` too. Only a set bit falls through to `FUN_00480c80` (same
+  gate, no skill-record check this time) and the same send/retry split as
+  `FUN_004815a0`.
+
+So all three only ever reach `FUN_00480c80`'s range-and-line test for a
+player target through `FUN_00464820`'s zero branch, and skip it for a
+monster target whose cast skill passes the Skills.txt row's `+7` bit;
+`FUN_00481030` is reached from inside these three, not after them as the
+summary above shortens it to. Not traced: `FUN_00464820`'s own body, the
+`+7` bit's name, and the ESI/-1 branch inside `FUN_00481400`'s nonzero
+case.
+
+#### The range-and-line gate itself (`FUN_00480c80`, 0x480c80, 160 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). Not a
+normal calling convention: action in EAX, the acting player in EBX, the
+target in EDI, no stack arguments, plain `RET` — the three callers above
+set these up before the call. In order:
+
+- Action 6 or 0xd (a left or right skill already in flight): `d2d_left_skill(EBX)`
+  (`FUN_00620190`) or `d2d_right_skill(EBX)` (`FUN_006201d0`) finds that
+  skill's cast node. A null node, or `FUN_00644140(node)` (the node's
+  current skill record, already verified at skills.md:1780) null, or that
+  record's word at `+0x2e` not 0x13, falls through to the range/line test
+  below. Otherwise `FUN_00461ac0(ECX = node, EDX = EDI the target, two
+  local out-params)` answers directly, converted to 0/1, and `FUN_00480c80`
+  returns that — the skill in flight skips the range/line test entirely.
+- Fallthrough (any other action, or the skill check above falling
+  through): a null target is true (in range); an object target (`*EDI ==
+  2`) is `d2d_monsters_object_reach(EBX, EDI)` (`FUN_00623660`, already
+  ported) true unless `FUN_00622b50(EBX, EDI, 0x804)` (the line-of-sight
+  test, already verified at collision.md:548) then answers 0; any other
+  target type is `FUN_00622c40(EBX, EDI, FUN_00622dc0(EDI))` (also already
+  verified, `ai.cpp`'s melee-range/line check) answering nonzero.
+
+So `FUN_00480c80` itself is two gates layered: a skill already queued on
+the action's own left/right slot, whose record's `+0x2e` reads 0x13, is
+let through by `FUN_00461ac0`'s own range test instead of the normal
+reach-and-line test; everything else (including a different action, or no
+such skill) takes the reach-and-line path todo.md row 39 already
+describes. d2d: not ported as a function (todo.md row 39 covers the
+reach/line half only); the skill-in-flight bypass and what skill id 0x13
+and the object-type special case mean are not ported, no disagreement
+found (no d2d code to compare the bypass against).
+
+**`FUN_00461ac0`** (fastcall `(ECX skill node, EDX target)` plus two stack
+out-pointers for range and distance, `RET 8`; only caller `FUN_00480c80`):
+a null local player, node or target answers false. Otherwise
+`FUN_00644140(node)` (the node's current skill record) null also answers
+false; else `FUN_006442a0(local player, node, 1)` and
+`FUN_00646ca0(local player, record+0x32, record[0], that)` fill the range
+out-param, `FUN_006416d0(local player, target)` fills the distance one,
+and the answer is distance <= range. Not traced: `FUN_006442a0`,
+`FUN_00646ca0` and `FUN_006416d0`'s own bodies, so what the range and
+distance actually measure (subtiles, a skill's stated range, a line
+check) is read from the call shape only.
+
 ### The action send (`FUN_00481030`, 0x481030, 601 bytes)
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
@@ -1063,6 +1156,21 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
   | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
 
+  **`FUN_00480ef0`** (fastcall unit ECX / x EDX, then y and a result flag on
+  the stack — command 7's record fields `a`, `b`, `result`): compares `x`,
+  `y` against the unit's current path position (its path struct `+0xc` /
+  `+0x10` directly for type 2 or 4/5, else `d2d_path_get_x` / `_get_y`, or
+  0 with no path) and sets a "moved" flag when either delta is over 1.
+  Nothing happens (`FUN_00648750(path, 0)`, a stop) unless that flag is
+  set and, for a monster (type 1), `FUN_0046c140()` also answers nonzero.
+  Moved: a player (type 0) that isn't `FUN_00463de0()` (the local player)
+  with a nonzero `result` instead sends `FUN_004804e0(y, 2, 0, 0)` and
+  returns (no recompute); a monster (type 1) tags the record's third field
+  1; every other case leaves it 0. All of those (and the local player's
+  own case) end in `FUN_00480c10(&{x, y, tag}, 0)`, the same path-recompute
+  call commands 0 and 1 use. `FUN_0046c140`'s own body and what `result`
+  means for a player aren't traced.
+
   The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
   ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
   Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
@@ -1070,6 +1178,18 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_004804a0`** (fastcall unit ECX / x EDX, y on the stack; commands 1
+  and 0x17 of the table above): `FUN_00648ad0(path, x, y)` (already
+  verified, `path.md:76`) stores the point as the path's target and clears
+  its "has run" flag (+0x58); then `FUN_00649970(path, unit, unit+0xc4 bit
+  0x15)` (already verified, `ai.cpp`) calculates the path to it, the third
+  argument being the unit's own "already in position" bit. Same shape as
+  `FUN_00480780` (collision.md "Out of reach" above, already verified with
+  an oracle) but for a point instead of a unit lookup — no target to
+  re-resolve, so no `FUN_00463990` / `FUN_00648b90` pair first. d2d: not
+  ported as a function; the walk-to-a-spot path in `follow_path` (ai.cpp)
+  covers the same `FUN_00648ad0` / `FUN_00649970` pair, no disagreement
+  found.
 - **`FUN_00480e70`** (`UNITMODE_SetAnimMode`, fastcall unit ECX / mode EDX) has two
   siblings sharing its shape: clear unit flag 0x40 (`+0xc4 &= ~0x40`), call
   `FUN_00624690` (`SetupUpdateFlag`); a true answer loads the cof
@@ -1118,6 +1238,30 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
   mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
   `target == 0` arms (record `{6, -1}`) cannot run.
+- **`FUN_00480810`** (fastcall ECX unit, 268 bytes; the client's per-unit
+  frame dispatch — no caller read here): the local player, a null unit, or
+  a unit whose `+0xc4` bit 0x17 is clear takes the step below; any other
+  unit (not the local player, bit 0x17 set) skips it for the "frozen" arm
+  at the end. The step: `FUN_00627460(unit, 0)` (the missile freeze list,
+  already verified), `FUN_004da350(unit)` (already cited at collision.md
+  "view/camera" above), `FUN_00470c30(unit)` (overlay/timer tick, already
+  verified), then by unit type `*unit`: 0 `FUN_00463390` (below), 1
+  `FUN_004b13a0` (monster), 2 `FUN_004bdff0` (object), 3 `FUN_004d2c70`
+  (missile), 4 `FUN_004c1ad0` (item) — none of the last four read here.
+  After the type's own step: `unit+0xc4` bit 0x15 clear calls
+  `FUN_00463990(unit)`, set calls `FUN_004639b0(unit)` (both already
+  ported, `ctrl_click.hpp:17`, and both just call `FUN_00463940`, a
+  unit-by-id lookup with an assert on a type mismatch); a nonzero answer
+  calls `FUN_0045fa40()` (already cited, net-packets.md:52, a buffered
+  net-message dispatch). The "frozen" arm (not the local player, bit 0x17
+  set): `unit+0xc8` bit 5 set clears it and `+0xc4` bit 0x17, and calls
+  `FUN_004786a0(unit+0xc)`; then `+0xc4` bit 0x15 set calls `FUN_00465f00()`
+  and returns, skipping the type dispatch and the lookup/dispatch pair
+  above entirely. Not traced: what `+0xc4` bits 0x15/0x17 and `+0xc8` bit
+  5 mean, and `FUN_00463940`'s own lookup list. d2d: not
+  ported as a function; the per-type dispatch is `World`'s own per-unit
+  tick (`world/tick.cpp`), no disagreement found on the player arm
+  (`FUN_00463390` below).
 - **`FUN_00463390`** (fastcall ECX unit; the only caller is `FUN_00480810`): the client's
   per-frame step for a player, driven by a table of 12-byte rows indexed by the unit's mode
   (`+0x10`): `[0x711e00 + mode*12]` (a class: 1 = a walk-like mode, 2 = a mode with a
@@ -1140,3 +1284,138 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
   agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
   the rest of the step is not ported as a function.
+- **`FUN_004807c0`** (fastcall ECX unit, 67 bytes; only caller `FUN_00463390`
+  above, class 1 and class-2-over): `FUN_00480420(unit)` first (the stale
+  path-target clear, already traced above). Then two state checks, both
+  `FUN_00639df0(unit, state)` (already verified, `ai.cpp:1222`): state 0xd
+  set calls `FUN_004e3ab0(unit)`, state 0x16 set calls `FUN_004e2d40(unit)`
+  — both read a queued skill's Skills.txt range fields (0x15e / 0x15f) and
+  the current node, and end in `FUN_004cd540` (not read here; their own
+  effect, a quest or sound trigger tied to standing still with a skill
+  queued, is not traced). Last, `FUN_00650840(unit, FUN_0044db10())`
+  (already verified, `ai.cpp:357` — the real per-frame path-motion step,
+  `DAT_007a04c4` the second argument) runs the walk; `FUN_004807c0` answers
+  true ("over") exactly when that step answers 0 (no more steps queued
+  this frame). d2d: not ported as a function; `FUN_00650840`'s own port
+  (`move_frame`-adjacent code in `world/tick.cpp`) already covers the walk
+  step itself, no disagreement found; the two state/trigger calls (0xd,
+  0x16) are not ported, not traced further here.
+
+### The per-type dispatch targets (monster, object, missile, item)
+
+`FUN_00463390` above is the client's per-frame step for a player (unit type 0). The
+client's own per-unit-per-frame dispatcher that picks it, and the three siblings
+below for the other unit types, is `FUN_00480810` (traced separately, batch 6, not
+in this file as of this writing); its own write-up names these four as its
+"every other type" targets without reading them. Traced here, each fastcall ECX
+unit, no stack arguments, in the order `FUN_00480810` calls them:
+
+- **`FUN_004b13a0`** (573 bytes, `004b13a0`..`004b15dd`, plain `RET`): the
+  monster's per-frame step. A null unit, a non-monster (`*unit != 1`), a unit
+  with state 1 active (`FUN_00639df0(unit, 1)`) unless `FUN_00464820()` is
+  zero, or a mode (`+0x10`) of 0x10 or over, each return with nothing done.
+  Otherwise `piVar2 = FUN_004af400()` (no visible argument; a global, not a
+  per-unit table row) gates the rest: a null result returns. `FUN_004af4c0()`
+  runs next, then, only when `*piVar2 == 1`, `local_8 = FUN_004807c0(unit)`
+  (the frame-step helper `FUN_00480810`'s own write-up names, shared with
+  the player's class-1/2 step) is called and its result kept.
+  Mode 1 (`+0x10`) additionally gates on `FUN_00649210` not running something,
+  then adjusts a target lookup through `FUN_00648bf0` / `FUN_00648bb0` /
+  `FUN_00463990` / `FUN_00648b90` (the same clear-stale-target pattern
+  `FUN_004648f0`/`FUN_00480420` already read above, lines 1071-1084) or calls
+  `FUN_00649210(unit)` when there's no usable target. The rest, gated on
+  `FUN_00451f80(unit[1])` (a monster-class lookup; a null result skips to the
+  end) being non-null, is a block that: for a monster whose MonStats row
+  flag 2 is set, that isn't flagged by `FUN_004638a0`, in mode 1, passing
+  `FUN_00451f30`, not class 0x219/0x21a/0x21b, not the local player
+  (`FUN_00463dd0`), within 7 of the local player
+  (`d2d_monsters_unit_distance`) and some further gates
+  (`FUN_0045c390() < 10`, a path present) — plays something through
+  `FUN_00649ef0` with two values from `FUN_0045ae20`/`FUN_0045adf0`,
+  `0`. After that: `FUN_004b1280()` and a second switch on `piVar2[2]`
+  (1: keep the earlier `FUN_004807c0` result, 2/3: this new result, 4: 1
+  only when both are non-zero and `FUN_006217c0(unit)` is also non-zero),
+  then `FUN_004af2e0()`, `FUN_004ade60()`, `FUN_00648640(path)` when there's
+  a path, and, when that switch's result was non-zero, `FUN_004af6a0()`.
+  A monster of class 0x210 with MonStats2 flag `+0x31` bit 0 set and
+  `FUN_00451f30()` non-zero clears that bit and plays another sound-like
+  call (`FUN_0045ae20(2, 0)`, `FUN_0045adf0`, `FUN_00466730`). Finally
+  `FUN_0063a340(unit)` non-zero calls `FUN_004c72f0()`, then
+  `FUN_004cb460(unit)` and `FUN_004caf60(unit)` (both already verified
+  elsewhere: `object_sounds.hpp`, `fight/setup.cpp`, `world/tick.cpp`,
+  `world.hpp`; `FUN_004bdff0` below ends the same way, the shared
+  object/unique-boss "ambient sound" tail; the missile and item steps
+  below do not call either). **Not traced**: `FUN_004af400`'s own
+  global and what `piVar2[0]`/`piVar2[1]`/`piVar2[2]` mean beyond the two
+  switches read here; `FUN_00649ef0`'s own effect; the MonStats flag 2 /
+  flag 9 (`FUN_004638a0`) semantics (also unresolved at line 1054 above).
+  d2d: not ported as a function; no disagreement found, nothing here was
+  compared against a d2d equivalent.
+- **`FUN_004bdff0`** (fastcall ECX unit; 0x30 bytes, `004bdff0`..`004be01c`,
+  plain `RET`): the object's per-frame step. `FUN_004bcbb0(unit)` runs
+  first — the object's own cof/frame-rate advance, already fully ported
+  (`apps/d2d/ingame.cpp:169,175`, `apps/d2d/world_view.cpp:39`,
+  `components/game/gamedata/gamedata.hpp:119`, `components/game/world/tick.cpp:53`).
+  Then it reads the object's Objects.txt ClientFn (`+0x1b4`, objects.md:574
+  already names this field and its dispatch) off the object's row (unit
+  `+0x14` data, dereferenced once more to the row); when ClientFn is over 3
+  it calls `FUN_004bdee0(unit)` (the ClientFn dispatch table at `0x7277f0`,
+  19 entries, already cited at objects.md:560) and a zero result returns
+  with nothing else done. Otherwise (ClientFn 3 or under, or `FUN_004bdee0`
+  non-zero) it tail-calls `FUN_004cb460(unit)` (the same already-verified
+  ambient-sound step `FUN_004b13a0` ends with above). d2d: the cof/frame
+  step and the sound tail are both already ported at the citations above;
+  the ClientFn gate itself has no d2d equivalent found (not ported as a
+  function).
+- **`FUN_004d2c70`** (fastcall ECX unit; 0xf1 bytes, `004d2c70`..`004d2d61`,
+  plain `RET`): the missile's per-frame step. A null unit, an out-of-range
+  or missing Missiles.txt row (`unit+4`, the same `PTR_DAT_00744304+0xb64`
+  table at `0x1a4` per row missiles.md already reads throughout) end in a
+  tail call to `FUN_004cd390(unit)` (a cleanup/removal-sound step: gated on
+  the row's `+0x12` and unit `+0xc4` bit 0x15, calls `FUN_00621150`,
+  `FUN_00465f00`/`FUN_00465ee0`; not traced further here). With a row:
+  `FUN_004cd1c0()` runs first when the row's `+0x131` byte is set (reads
+  unaffected `EBX` directly rather than a passed argument — a sound-chance
+  check against the row's `+0x130` byte and the unit's own seed state,
+  `+0x44` flags `0x300` and `+100`). Not in town (`FUN_00620bb0`): the
+  unit's path position is read the same way `FUN_00480ef0` already reads
+  it above (type 2 or 4/5 direct from the path struct, else
+  `d2d_path_get_x`/`_get_y`), then `FUN_00463740(0, y, x)` — not the same
+  call shape as the near-list walk missiles.md:81 reads for this address
+  elsewhere, so this may be a different overload; not resolved here. Then,
+  unless the row's `+5` byte bit 4 is set, `FUN_0061ab00` of that result
+  non-zero also tail-calls `FUN_004cd390` and returns. Otherwise it reads
+  the row's `+8` short and, when it's a valid index under `DAT_0072a34c`,
+  tail-jumps through the pointer table at `0x72a398` — the same client
+  missile-callback table missiles.md:161 already names two slots further
+  in (`0x72a3a0`, `FUN_004d33e0` and the entry at `0x004d3460`); an
+  out-of-range index
+  is a no-op return. So `FUN_004d2c70` is the entry into that table, not a
+  table member itself: the room/position gate before every missile client
+  callback runs. d2d: not ported as a function; the table's own callbacks
+  are the ones missiles.md's "Client missile callbacks" section already
+  covers (not re-read here).
+- **`FUN_004c1ad0`** (fastcall ECX unit; 0x8d bytes, `004c1ad0`..`004c1b5d`):
+  the item's per-frame step. A null unit is fatal (assert id 0x348); a mode
+  (`+0x10`) over 6 is fatal too (id 0x362; both share the tail
+  `FUN_00408090`/`FUN_00408a60`/`FUN_00681e09(-1)`, no return). Otherwise a
+  switch on the mode:
+  - 0, 1, 2, 4, 6: clear the unit's selectable bit (`+0xc4 &= ~2`, the same
+    bit line 475 above names "selectable"); return.
+  - 3: set the selectable bit (`+0xc4 |= 2`); `FUN_0046e100(_, 0x46)` —
+    which, read from its own decompile, ignores the unit it's passed and
+    instead walks a global list (`FUN_00463e10()+0x2c`, linked by `+0xa4`)
+    for an entry whose `+4` field is `0x46`, returning 1 if found — a
+    non-zero result returns (no overlay this frame); zero falls into the
+    shared overlay block below.
+  - 5: `FUN_006217c0(unit)` zero calls `FUN_00621310(unit)` and returns; a
+    non-zero result sets the mode (`+0x10`) to 3 and falls into the same
+    overlay block, skipping the 0x46 check mode 3 has.
+  - the shared overlay block: `FUN_00470390(unit, 0x46, kind=6, 8, 0, 0, 8,
+    0)` (`GFX_AddOverlayToUnit`, already ported at
+    `components/rules/overlays.hpp`; its own comment there notes kind 6 is
+    the only kind that "waits" rather than looping). Overlay.txt row 0x46's
+    name was not read here. Then return.
+  d2d: the overlay call itself is already ported (`overlays.hpp`); the
+  mode switch and the selectable-bit toggle have no d2d equivalent found
+  (not ported as a function).
