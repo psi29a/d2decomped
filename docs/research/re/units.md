@@ -51,6 +51,7 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 
 | Address | What |
 |---|---|
+| `FUN_006205a0` | A unit's collision size: player 2; monster MonStats2 `+9` SizeY (`FUN_00451fe0` by class, 0 if not found; the field is a signed char, sign-extended); object its data row's `+0xd4` SizeY; missile Missiles `+0x18a` Size (`FUN_0046ace0` by class, 0 if not found; an unsigned byte); item 1; any other type 0. No null check. Oracle: `tools/emu/units_small.py check_unit_size_y` (collision.md cites it from the caller side; d2d loads the same MonStats2/Objects SizeY fields at gamedata time, gamedata.cpp:154/674, instead of dispatching per unit at runtime) |
 | `FUN_006219c0` | An object's Objects.txt `+0x120 + mode`; 1 for others |
 | `FUN_00621a70` | An object's Objects.txt `+0x13a`, 0 for others |
 | `FUN_00621ac0` | Objects.txt `+0x13c` == 1 (not an object: fatal 0xe1e) |
@@ -108,7 +109,7 @@ game.exe 1.14d only (SHA-256 checked).
 
 | Oracle | Functions |
 |---|---|
-| `tools/emu/units_small.py` (61 functions) | `FUN_00620360`, `006203b0`, `00620410`, `00620470`, `006204c0`, `00620710`, `00620780`, `006207f0`, `00620830`, `00620980`, `00620ae0`, `00620b50`, `00620c70`, `00620cd0`, `00620d30`, `00620f50`, `00620fa0`, `00621150`, `006211c0`, `006212c0`, `00621310`, `00621330`, `00621420`, `00621870`, `006218d0`, `00621920`, `006219c0`, `00621a70`, `00621ac0`, `00621b00`, `00621b70`, `00621c00`, `00621f60`, `00622150`, `006220f0`, `006221e0`, `00622230`, `00622270`, `006222c0`, `00622300`, `00622350`, `00622dc0`, `00622e90`, `00622ea0`, `00622f10`, `00622f80`, `00622ff0`, `00623060`, `006230c0`, `00623120`, `006231a0`, `00623220`, `00623290`, `00623300`, `00623350`, `006233a0`, `00623410`, `006234c0`, `006234f0`, `00623520`, `00623570` |
+| `tools/emu/units_small.py` (62 functions) | `FUN_00620360`, `006203b0`, `00620410`, `00620470`, `006204c0`, `00620710`, `00620780`, `006207f0`, `00620830`, `00620980`, `00620ae0`, `00620b50`, `00620c70`, `00620cd0`, `00620d30`, `00620f50`, `00620fa0`, `00621150`, `006211c0`, `006212c0`, `00621310`, `00621330`, `00621420`, `00621870`, `006218d0`, `00621920`, `006219c0`, `00621a70`, `00621ac0`, `00621b00`, `00621b70`, `00621c00`, `00621f60`, `00622150`, `006220f0`, `006221e0`, `00622230`, `00622270`, `006222c0`, `00622300`, `00622350`, `00622dc0`, `00622e90`, `00622ea0`, `00622f10`, `00622f80`, `00622ff0`, `00623060`, `006230c0`, `00623120`, `006231a0`, `00623220`, `00623290`, `00623300`, `00623350`, `006233a0`, `00623410`, `006234c0`, `006234f0`, `00623520`, `00623570`, `006205a0` |
 | `tools/emu/units_calls.py` (17 functions) | `FUN_00620300`, `00620d80`, `00621c30`, `00621cc0`, `00621ed0`, `00621f90`, `00622060`, `00622830`, `00622de0`, `00623600`, `006238c0`, `006219f0`, `0064a100`, `0064a150`, `0065a900`, `00663d40`, `00663d90` |
 
 What the runs settled (the earlier rows above stand; these are additions and

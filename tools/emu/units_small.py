@@ -27,7 +27,7 @@ Covered: FUN_00620360, 006203b0, 00620410, 00620470, 006204c0, 00620710,
 006222c0, 00622300, 00622350, 00622dc0, 00622e90, 00622ea0, 00622f10,
 00622f80, 00622ff0, 00623060, 006230c0, 00623120, 006231a0, 00623220,
 00623290, 00623300, 00623350, 006233a0, 00623410, 006234c0, 006234f0,
-00623520, 00623570.
+00623520, 00623570, 006205a0 (GetUnitSizeY).
 
 `--mutation-check` breaks the model on purpose, one defect at a time, and
 requires each to fail.
@@ -43,7 +43,8 @@ MASK = 0xFFFFFFFF
 FILE = ".\\UNITS\\Units.cpp"
 FILE_ADDRESS = 0x6E8E10
 ASSERT = 0x40_8A60
-COVERED = (0x62_0360, 0x62_03b0, 0x62_0410, 0x62_0470, 0x62_04c0, 0x62_0710, 0x62_0780, 0x62_07f0, 0x62_0830, 0x62_0980, 0x62_0ae0, 0x62_0b50, 0x62_0c70, 0x62_0cd0, 0x62_0d30, 0x62_0f50, 0x62_0fa0, 0x62_1150, 0x62_11c0, 0x62_12c0, 0x62_1310, 0x62_1330, 0x62_1420, 0x62_1870, 0x62_18d0, 0x62_1920, 0x62_19c0, 0x62_1a70, 0x62_1ac0, 0x62_1b00, 0x62_1b70, 0x62_1c00, 0x62_1f60, 0x62_2150, 0x62_20f0, 0x62_21e0, 0x62_2230, 0x62_2270, 0x62_22c0, 0x62_2300, 0x62_2350, 0x62_2dc0, 0x62_2e90, 0x62_2ea0, 0x62_2f10, 0x62_2f80, 0x62_2ff0, 0x62_3060, 0x62_30c0, 0x62_3120, 0x62_31a0, 0x62_3220, 0x62_3290, 0x62_3300, 0x62_3350, 0x62_33a0, 0x62_3410, 0x62_34c0, 0x62_34f0, 0x62_3520, 0x62_3570)
+COVERED = (0x62_0360, 0x62_03b0, 0x62_0410, 0x62_0470, 0x62_04c0, 0x62_0710, 0x62_0780, 0x62_07f0, 0x62_0830, 0x62_0980, 0x62_0ae0, 0x62_0b50, 0x62_0c70, 0x62_0cd0, 0x62_0d30, 0x62_0f50, 0x62_0fa0, 0x62_1150, 0x62_11c0, 0x62_12c0, 0x62_1310, 0x62_1330, 0x62_1420, 0x62_1870, 0x62_18d0, 0x62_1920, 0x62_19c0, 0x62_1a70, 0x62_1ac0, 0x62_1b00, 0x62_1b70, 0x62_1c00, 0x62_1f60, 0x62_2150, 0x62_20f0, 0x62_21e0, 0x62_2230, 0x62_2270, 0x62_22c0, 0x62_2300, 0x62_2350, 0x62_2dc0, 0x62_2e90, 0x62_2ea0, 0x62_2f10, 0x62_2f80, 0x62_2ff0, 0x62_3060, 0x62_30c0, 0x62_3120, 0x62_31a0, 0x62_3220, 0x62_3290, 0x62_3300, 0x62_3350, 0x62_33a0, 0x62_3410, 0x62_34c0, 0x62_34f0, 0x62_3520, 0x62_3570,
+           0x62_05a0)
 CALLED = set()
 MUTATIONS = ("tile-path-swap", "precise-x-no-shift", "precise-x-static-wrong-type", "set-x-allows-missile", "dx-signed",
              "dx-dynamic-null-path", "screen-x-swapped", "init-path-flag-kept", "clear-room-dynamic-always",
@@ -92,6 +93,8 @@ class Rig(mw.World):
         lg(0x62_0190, 1, "left-skill", ret=lambda c: self.script.get("node", 0), regs=())
         lg(0x64_3CE0, 3, "skill-node-id", ret=lambda c: self.script.get("id", 0), regs=())
         lg(0x64_3AD0, 1, "skill-node-4", ret=lambda c: self.script.get("word", 0), regs=())
+        lg(0x45_1FE0, 0, "monstats2", ret=lambda c: self.script.get("monstats2_row", 0), regs=("ecx",))
+        lg(0x46_ACE0, 0, "missile-tbl", ret=lambda c: self.script.get("missile_row", 0), regs=("ecx",))
         self.m.hook(0x64_8BB0, self.target, 3)
         self.m.hook(0x64_3260, self.pixel, 2)
         self.m.hook(0x66_3410, self.seq, 7)
@@ -932,6 +935,55 @@ def check_static_path_alloc(rig, rng):
         require(rig.log == [], "623570 with no path")
 
 
+def check_unit_size_y(rig, rng):
+    """FUN_006205a0 (unit): player 2; monster MonStats2Txt +9 SizeY (0x45_1fe0 by class, null row 0); object
+    data's row +0xd4 SizeY; missile MissilesTxt +0x18a Size (0x46_ace0 by class, null row 0); item 1; any
+    other type (or a not-found row) 0. No null-unit check in the decompile (no fatal line, unlike its
+    neighbours)."""
+    for _ in range(40):
+        kind = kinds(rng)
+        sc = make_unit(rig, rng, kind)
+        log = []
+        if kind == 0:
+            want = 2
+        elif kind == 1:
+            found = rng.random() < 0.8
+            class_id = sc.r(sc.unit + 4)
+            if found:
+                row = sc.block(0x20)
+                byte = rng.randrange(256)
+                sc.put(row + 9, byte, 1)
+                want = byte - 0x100 if byte & 0x80 else byte  # SizeY is a signed char, sign-extended to int
+                rig.script["monstats2_row"] = row
+            else:
+                rig.script["monstats2_row"] = 0
+                want = 0
+            log = [("monstats2", class_id)]
+        elif kind == 2:
+            want = sc.r(sc.row + 0xD4)
+        elif kind == 3:
+            found = rng.random() < 0.8
+            class_id = sc.r(sc.unit + 4)
+            if found:
+                row = sc.block(0x200)
+                want = rng.randrange(256)
+                sc.put(row + 0x18A, want, 1)
+                rig.script["missile_row"] = row
+            else:
+                rig.script["missile_row"] = 0
+                want = 0
+            log = [("missile-tbl", class_id)]
+        elif kind == 4:
+            want = 1
+        else:
+            want = 0
+        got = rig.go(0x62_05A0, sc.unit)
+        expect(rig, f"6205a0 kind {kind}", got, ("ret", want & MASK))
+        require(rig.log == log, f"6205a0 kind {kind}: callee log {rig.log} != {log}")
+        sc.check(f"6205a0 kind {kind}")
+        rig.script["monstats2_row"] = rig.script["missile_row"] = 0
+
+
 def run_all():
     """Run every check; returns the case count."""
     rng = random.Random(0x620300)
@@ -942,7 +994,8 @@ def run_all():
             (check_path_flag, 4), (check_take, 3), (check_mode_field, 3), (check_set_frame, 3), (check_advance, 3),
             (check_row, 3), (check_frame_length, 3), (check_event_copy, 3), (check_event, 3), (check_object_data, 4),
             (check_object_flags, 4), (check_misc_unit, 4), (check_player_checks, 4), (check_kept_skills, 4),
-            (check_kept_readers, 4), (check_kept_setters, 4), (check_static_path_alloc, 4)]
+            (check_kept_readers, 4), (check_kept_setters, 4), (check_static_path_alloc, 4),
+            (check_unit_size_y, 1)]
     cases = 0
     for check, rounds in plan:
         for _ in range(rounds):

@@ -854,7 +854,7 @@ EAX); read the asm for them.
   the callees was not read): a 1 x 1 footprint calls `FUN_0064caf0`
   (one subtile), any other `FUN_0064d060` (the rect box above). Callers
   `FUN_00620a70`, `FUN_00649400` (unit type 2, size from `FUN_00620510` /
-  `FUN_006205a0`), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
+  `FUN_006205a0`, oracle: `tools/emu/units_small.py check_unit_size_y`, units.md), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
   `set_footprint` (gamedata.hpp:1051), which cites it; `FUN_0064caf0` was
   not read here.
 - **Stamp a unit, `FUN_00649400`** (unit): by the unit's type (first
