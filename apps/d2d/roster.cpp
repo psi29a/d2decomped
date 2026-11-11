@@ -47,7 +47,7 @@ Roster open_roster(const Scene& scene, std::span<const std::string> playing, con
     roster.expansion = lead.expansion();
     for (std::size_t i = 0; i < scene.saves.size(); ++i) {
         const auto& save = scene.saves[i];
-        const bool usable = !std::ranges::contains(playing, save.name) && save.hardcore() == lead.hardcore() && save.expansion() == lead.expansion()
+        const bool usable = !std::ranges::contains(playing, save.name) && save.hardcore() == lead.hardcore() && !(save.hardcore() && save.died()) && save.expansion() == lead.expansion()
                             && top_difficulty(save) >= lead.active_difficulty();
         roster.entries.push_back({ save.name, level_class_line(scene, save), int(i), usable });
     }
