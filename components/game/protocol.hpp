@@ -325,8 +325,12 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
-            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc, i32() } } : kind == npc_deal::kCaravan ? Command{ cmd::Caravan{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }
-                    : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
+            if (kind == npc_deal::kImbue) command = cmd::Imbue{ npc, i32() };
+            else if (kind == npc_deal::kCaravan) command = cmd::Caravan{ npc };
+            else if (kind == npc_deal::kRespec) command = cmd::Respec{ npc };
+            else if (kind == npc_deal::kResurrectMerc) command = cmd::ResurrectMerc{ npc };
+            else if (kind == npc_deal::kHire) command = cmd::OpenHire{ npc };
+            else command = cmd::OpenTrade{ npc, kind == npc_deal::kGamble };
             break;
         }
         case opcode::kBuy: { const int stock = i32(), tab = i32(); command = cmd::Buy{ stock, tab, byte() != 0 }; break; }

@@ -176,23 +176,25 @@ a monster, so `FUN_005dd510` takes the primary (no path test).
   life (stat 6 < `FUN_00625d10`) or mana (stat 8 < `FUN_00625d60`) short,
   Skill1 in mode 8 every aip1 frames. Else hit by the target, rand(100)
   under 25 aip4 away from it; no corpse stand aip3; else a walk at it.
-- **AssassinSentry** (`0x5ea3d0`, init `0x5ea510`: -1, 1, 0) and the trap
+- **AssassinSentry** (`0x5ea3d0`, init `0x5ea290`: +0x14 the frame,
+  +0x18 -1, run as the pet is made: `FUN_0056d940` -> `FUN_005b0e00`) and the trap
   shots `FUN_005ea2b0`: no owner, the owner in town, or +0x18 shots spent
   (Skill1's calc when below 0) and it dies. `FUN_005ddc30`'s foe under aip4:
   rand(100) under aip1 a shot (Skill1 in its skill's mode,
   `FUN_00644360`), a shot spent; else stand aip2; no foe stand aip3.
-- **DeathSentry** (`0x5ea980`, init `0x5eaf50`: +0x1c the owner's skill
-  level): no skill level, nothing. A corpse (`FUN_0056e390`) not blown last
+- **DeathSentry** (`0x5ea980`, init `0x5ea290` as AssassinSentry's, so its
+  last corpse (+0x14) starts as the frame it was made): no skill level, nothing. A corpse (`FUN_0056e390`) not blown last
   (+0x14) within half the radius (`FUN_004cc7c0`) of the foe: Skill1 in
   mode 9. The foe under aip4, rand(100) under aip3: Skill2 in mode 0xe.
   Else stand aip2.
-- **BladeCreeper** (`0x5ea540`, Blade Sentinel): +0x14 its last frame
+- **BladeCreeper** (`0x5ea540`, init `0x5ea510`: -1, 1, 0; Blade Sentinel): +0x14 its last frame
   (Skill1's calc on); past it, dies. Its missile is made once (+0x1c,
   `FUN_0056ede0`). It walks (path type 0xf, 20 steps) to one end of its line
   (`FUN_0058ee80` +0xc / +0x14; +0x18 which first), flipping when one fails;
   else 5 about the owner (`FUN_005df530`; with no owner `FUN_005de200(2)`),
   else stand 5. No line: stand 3.
-- **Raven** (`0x5ecc10`): +0x14 its hits (-1 at first: Skill1's
+- **Raven** (`0x5ecc10`, init `0x5ecb70`: +0x14 -1, +0x18 aip3 + 1, +0x1c
+  a seed step's low bit): +0x14 its hits (-1 at first: Skill1's
   `FUN_004efcb0`, else 3); 0 and it dies (`FUN_0057ccb0`). Over 50 from the
   owner mode 3, over 28 mode 0. The driver's target past the +0x18 frame,
   rand(100) under aip4 and under aip5 off: in melee a swing (a hit spent,
@@ -252,8 +254,12 @@ them in `Fight::pet_think_turn` / `pet_cast`.
 
 ## The Shadows
 
-AI table rows 105 / 106 (`0x73ca20`): ShadowWarrior think `0x5eafa0`, init
-`0x5eb490`; ShadowMaster think `0x5eb970`, init `0x5ecb70`. Both read
+AI table rows 105 / 106 (`0x73ca18` + ai x 16: a count, the init, the
+think, the other think; `FUN_005b0e00` calls +4 and installs +8):
+ShadowWarrior init `0x5eaf50`, think `0x5eafa0`; ShadowMaster init
+`0x5eb490`, think `0x5eb970`. (Read from `0x73ca20`, as this page once did,
+each row's "init" is the next row's: that gave the Warrior the Master's
+init and the Master the Raven's.) Both read
 MonStats aip slots by fixed offset as well as by difficulty: +0x56..+0x60
 are aip1 (N, NM, H) and aip2 (N, NM, H), +0x80 aip8 (N) is the summoning
 skill (268 Shadow Warrior, 279 Shadow Master), +0x82 / +0x84 aip8 (NM / H).
@@ -268,15 +274,16 @@ of Ice, Dragon Claw, Dragon Flight, Claws of Thunder (their seq_sw*
 sequences) and Attack (A2), at level 1. A skill joins the list's tail
 (`FUN_00647110`, mode: Skills.txt monanim +0x11 for a monster, anim +0x10
 for a player); giving one it has sets its level (+0x28, `FUN_00647280`).
-The Shadow Master gets nothing more: its init (`FUN_005ecb70`) gives no
-skills, nor does do 49 (`FUN_005d6e70`: stats `FUN_005d6cf0`, gear
+The Shadow Warrior gets nothing more as it's made: its init (`FUN_005eaf50`)
+gives no skills, nor does do 49 (`FUN_005d6e70`: stats `FUN_005d6cf0`, gear
 `FUN_005d6b60`), nor Skills.txt (no sumskill). MonAI 143
-ShadowMasterNoInit runs its think with no init (no monster uses it).
+ShadowMasterNoInit has the Master's think with init `0x5eb5c0` (not read;
+no monster uses it).
 A handle's kind (`FUN_00645460`) is Skills.txt range (+0x14: none 0, h2h
 1, rng 2, both 3, which counts 2 with a missile weapon and 1 else); its
 mode `FUN_00644360` (+8).
 
-### ShadowWarrior's init (FUN_005eb490)
+### ShadowMaster's init (FUN_005eb490)
 
 AI control 0, 0, 1. With an owner that is a player: +0x1c its level, with
 bonuses, in the skill aip8 (N) names (`FUN_006439f0`, `FUN_006442a0(.., 1)`).
@@ -285,13 +292,15 @@ Attack (given at level 1 if missing, `FUN_00647280`) goes on both hands
 (`FUN_00451f60`, `FUN_00646140` / `FUN_006460f0`) it may have
 (`FUN_005eab20`: no Skills.txt `summon`, or one that isn't this monster and
 whose `pettype` isn't this pet's, `FUN_00574a20`) at the owner's hard points
-/ 2 + +0x1c / 2, 1..24 (`FUN_005eb420`; none counts 1). Each think it gives
-itself the owner's left and right skills again at +0x1c / 3 + their level
-with bonuses / 2, at least 1 (`FUN_005eaf00`).
+/ 2 + +0x1c / 2, 1..24 (`FUN_005eb420`; none counts 1).
 
-### ShadowMaster's init (FUN_005ecb70)
+### ShadowWarrior's init (FUN_005eaf50)
 
-+0x14 −1, +0x18 aip3 + 1, +0x1c a seed step's low bit.
++0x1c 1; with an owner (any, unlike the Master's player test) that has the
+skill aip8 (N) names, its level with bonuses (`FUN_006439f0`,
+`FUN_006442a0(.., 1)`). +0x14 / +0x18 stay as `FUN_005b0e00` cleared them.
+Each think (`0x5eafa0`) gives itself the owner's left and right skills at
++0x1c / 3 + their level with bonuses / 2, at least 1 (`FUN_005eaf00`).
 
 ### ShadowMaster's think (FUN_005eb970)
 
@@ -374,7 +383,8 @@ Blade Shield; 2 Cloak of Shadows; 3 the sentries, Shadow Warrior / Master;
 Sentinel, Blade Fury; 10 Claw Mastery, Weapon Block (never scored); 11
 Shock Field (Shock Web), Mind Blast; 12 Cobra Strike; 13 Dragon Flight.
 
-Checked: `tools/emu/shadow_init.py` (both inits and `FUN_005eabf0`, 3 000 cases),
+Checked: `tools/emu/shadow_init.py` (the Master's, the Warrior's and the
+Raven's inits and `FUN_005eabf0`, 3 000 cases),
 `tools/emu/shadow_master.py` (the think with the cast, group test, walk
 away and distances native, 5 000 cases, every aitype scored; the scan
 callback with `FUN_005eb650` native, 2 000 cases), all equal.
@@ -382,7 +392,8 @@ callback with `FUN_005eb650` native, 2 000 cases), all equal.
 ### In d2d
 
 `Fight::summon_one` builds a Shadow's skill list (`Pet::skill_list`: the
-MonStats skills, then `shadow_warrior_init` or `shadow_master_init`).
+MonStats skills, then the Master's `shadow_master_init`; the Warrior's AI
+control is `shadow_warrior_init`, the Raven's `raven_init`).
 `Fight::pet_think_turn` runs `shadow_warrior_think` on a PetScene with the
 owner's left / right skills (d2s header), given as its think reaches
 `FUN_005eaf00` (`give_hands`), and
