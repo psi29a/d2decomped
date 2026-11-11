@@ -2322,4 +2322,26 @@ FUN_0064d9b0 with context +8, the new unsigned x and y, context +0x24 and
 +0x2c. A nonzero collision result returns 0. This function has no recorded
 caller in game-calls.tsv; its behavior here is read from its code and assembly.
 
-FUN_0067a740, the bounded path expansion, is not traced yet.
+**Bounded path expansion (FUN_0067a740).** Static trace, not an oracle: EDI
+holds the search state, while the cost bound and path argument are stack
+arguments (the callee pops eight bytes). The current node starts at state +0.
+The function returns that node if its packed coordinates (+8) equal the target
+at path +4, or if either coordinate is outside the inclusive state bounds at
++0x6278..+0x627e. It returns null after more than 10,000 iterations. A candidate
+is the current node's point plus the direction-table entry at 0x6f1958, with
+each coordinate truncated to 16 bits. Its grid cell uses the stride and offsets
+at state +0x6284..+0x628c and the array at +0x6290. For a zero cell,
+FUN_0064d910 tests collision with path +8, +0x28 and +0x2c; a nonzero result
+marks the cell 1 and advances via FUN_0067a690. Otherwise the tentative cost is
+the current node's signed 16-bit cost plus 2 for an axial step or 3 for a
+diagonal. An existing nonzero grid value strictly below that cost rejects the
+candidate; otherwise the cell is updated before the bound check. The heuristic
+is min(abs(dx), abs(dy)) + 2 * max(abs(dx), abs(dy)); the signed 16-bit sum
+of heuristic and cost must not exceed the bound. A child is allocated from the
+state's 900-entry, 0x1c-byte node pool if needed; exhaustion returns null.
+Its parent, costs, point and direction table are filled. When state +0x36fd0
+is nonzero, direction selection also advances the seed at +0x36fd4. The child
+is returned early if its signed heuristic is less than the unsigned byte at
+path +0x14; otherwise expansion continues. FUN_0067aaa0 calls this routine and
+retries with a larger bound. The collision helper and direction tables are not
+independently verified by this static reading.
