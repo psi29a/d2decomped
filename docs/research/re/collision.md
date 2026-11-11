@@ -337,7 +337,11 @@ object or player going is the client, every game frame, until it stands in reach
   LAB_004816d8).
 - **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
   FUN_00480c10 → FUN_00461250 → FUN_00480780: a new path from where the unit is) and, with a
-  path, sends C→S 0x02 or 0x04 (LAB_0048137a). Path or no path it queues the
+  path, sends C→S 0x02 or 0x04 (LAB_0048137a). **Verified**:
+  `tools/emu/path_target_unit.py` runs FUN_00480780 for real with the lookup
+  (UNITS_FindClientSideUnit) hooked found and not found: not found, it
+  clears the path's target and returns 0 without a path call; found, it
+  sets the target then calls PATH_CalculatePath and forwards its answer. Path or no path it queues the
   action again (LAB_004813c3), with no count, no timer and no test of the
   steps made. With no path the unit goes neutral, nothing is sent, and the
   next frame tries again.
