@@ -94,3 +94,13 @@ gets owner ID -1, owner type 1 and the leader's game pointer. Each node is
 freed, including one whose lookup failed, and the list head becomes null.
 `tools/emu/ai_minion_remove.py` checks this with two resolved members, one
 missing member and the owner-not-self no-op; lookups and free are hooked.
+
+`FUN_0058f440` takes a unit in ECX, the first output pointer in EDX and four
+more output pointers on the stack. A null or non-monster unit, or a monster
+whose control +0x30 is not 1, writes -1 to the first output and leaves the
+others untouched. Otherwise it copies control +0x2c and +0x30 to the first
+two outputs, calls `FUN_005dd220` with the control and flags 1 and 2 for the
+next two outputs, and copies the minion-list head to the fifth. It resets
+owner ID to -1 and clears the list head. Valid monster data and control are
+assumed; `tools/emu/ai_minion_detach.py` tests the valid and early-return
+paths with the flag helper hooked, not malformed monster data.
