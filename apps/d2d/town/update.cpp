@@ -136,6 +136,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (ok || cancel) gold_box.reset();
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            std::erase_if(keys_this_frame, [](const auto key) { return key != SDLK_ESCAPE; });   // the Enter it closed on hires nothing, opens no chat
         }
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
         if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
