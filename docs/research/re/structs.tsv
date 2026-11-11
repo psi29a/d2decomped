@@ -28,6 +28,16 @@ damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 
 data_tables	0xa80	u32	spawn_class_count	bound for the AI spawner's class selection	docs/research/re/ai-control.md:41
 data_tables	0xbf8	ptr	item_types	the ItemTypes records, with stride 0xe4	docs/research/re/items.md:53
 data_tables	0xbfc	u32	item_type_count	the number of ItemTypes records	docs/research/re/items.md:53
+drlg_walk_context	0x08	u32	room	collision helper's first argument	docs/research/re/drlg.md:2321
+drlg_walk_context	0x24	u32	shape	collision helper's fourth argument	docs/research/re/drlg.md:2321
+drlg_walk_context	0x2c	u32	mask	collision helper's fifth argument	docs/research/re/drlg.md:2321
+drlg_walk_move	0x00	u16	start_x	initial x	docs/research/re/drlg.md:2314
+drlg_walk_move	0x02	u16	start_y	initial y	docs/research/re/drlg.md:2314
+drlg_walk_move	0x04	u16	end_x	destination x	docs/research/re/drlg.md:2314
+drlg_walk_move	0x06	u16	end_y	destination y	docs/research/re/drlg.md:2314
+drlg_walk_move	0x10	i32	velocity_x	x velocity	docs/research/re/drlg.md:2313
+drlg_walk_move	0x14	i32	velocity_y	y velocity	docs/research/re/drlg.md:2313
+drlg_walk_move	0x18	u32	speed	zero disables the walk	docs/research/re/drlg.md:2312
 event	0x00	u8	event	the event id (0xb: absorb)	tools/emu/monster_damage.py:153
 event	0x04	u32	active	1 while the state is on	tools/emu/monster_damage.py:153
 event	0x0c	u32	skill	the Skills row index of the state	tools/emu/monster_damage.py:153

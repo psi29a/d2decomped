@@ -21,7 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
-| Stepped collision walk: fixed-point steps, termination and collision calls; static trace, no runtime oracle | `FUN_00678f70`, `FUN_00678e30`, `FUN_00678f00` | [drlg.md](drlg.md) "Stepped collision walk" |
+| Stepped collision walk: fixed-point steps, termination and collision calls; 1,296 cases with movement update and collision scripted | `FUN_00678f70`, `FUN_00678f00`; `tools/emu/drlg_walk_oracle.py` | [drlg.md](drlg.md) "Stepped collision walk" |
 | Bounded path expansion: visited grid, cost bound, node pool and direction selection; static trace, no runtime oracle | `FUN_0067a740`, `FUN_0067aaa0`, `FUN_0067a690` | [drlg.md](drlg.md) "Bounded path expansion" |
 | Client missile callback paths: bounds dispatch, follow-up missile creation, and two state-driven path handlers; callback meanings and exact Missiles.txt indices remain unresolved (static binary trace; no end-to-end client oracle) | `FUN_004d2760`, `FUN_004d33e0`, `FUN_004d55c0`, `FUN_004d6fa0`, `FUN_004d7e00`; pointer tables `0x72a3a0`, `0x72a420`, `0x72a448`, `0x72a49c` | [missiles.md](missiles.md) "Client missile callbacks" |
 | DC6/DCC frame anchor: a cel's last row is y + offset_y, its first y + offset_y - height + 1 (the anchor only; when arguments 4 and 5 are zero, `FUN_006014c0` skips a cel whose left column is negative, which isn't traced: cels.md) | `FUN_006014c0` (SRC/CelCmp.cpp) from the renderer slots `FUN_006c84b0` / `FUN_00511fb0`; DCC frames reach the same header via `FUN_0060bff0`; oracle `tools/emu/cel_anchor.py`, 399 cases | [cels.md](cels.md) |
