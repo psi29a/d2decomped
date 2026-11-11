@@ -14,6 +14,7 @@
 #include <exception>
 
 int main() try {
+    d2d::palette::Palette::set_ramp(100, 100);   // file colours, not the shipped gamma
     std::array<d2d::palette::Rgba, 256> colours{};
     colours[7] = { 10, 20, 30, 255 };
     const d2d::palette::Palette pal{ colours };

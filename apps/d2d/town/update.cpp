@@ -33,6 +33,7 @@
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
+#include <palette.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
