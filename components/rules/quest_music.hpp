@@ -26,8 +26,10 @@ struct QuestMusic {
 };
 
 // By unit event (FUN_004cb9c0, 0x4cba52..0x4cbbfd), the classic ones, then
-// by object (FUN_004ad1a0's mode handlers: 0x46b146 the Horadric Staff,
-// 0x46b33e the Hellforge, 0x46b883 the Compelling Orb, 0x46bc28 Izual's).
+// the client's own: S->C 0x89 events 3 and 14 (0x46b630's table at
+// 0x7129d8: 0x46b146 the Horadric Staff, 0x46b33e the Hellforge) and the
+// questcomplete mod's death hook (0x4ad2f0: 0x46b883 the Compelling Orb,
+// 0x46bc28 Izual).
 inline constexpr std::array<QuestMusic, 12> kQuestMusic{ {
     { 0x21, "music_quest_andariel", 0, 0x1db, 0x1a9, true, false },
     { 0x22, "music_quest_bloodraven", 0x1db, 0x320, 0x20d, true, true },
