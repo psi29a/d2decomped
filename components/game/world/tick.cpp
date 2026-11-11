@@ -324,13 +324,6 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });
         if (level != wanted_near) { want_nearby(*game_data, *level); wanted_near = level; }
         each_player([&](Player&) { item_ids(); });
-        // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
-        if (now_ms - day_at > 1000) day_at = now_ms;
-        for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
-            day.step(act(), level->id);
-            const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
-            credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
-            each_player([&](Player&) { stamina_frame(); life_update_frame(day_at); footstep_frame(day_at); find_voice(day_at); });
         // This tick's day frames (tick): the day and the quests' timers step
         // once a tick, in the first turn; every turn's players each frame.
         // ponytail: split levels run the quest timers (act1_tick, act2_tick)
@@ -340,7 +333,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             day_at = frame_at;
             if (first_turn) {
                 day.step(act(), level->id);
-                credit_party([&] { act1_tick(); act2_tick(); });
+                const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
+                credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
             each_player([&](Player&) { stamina_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
