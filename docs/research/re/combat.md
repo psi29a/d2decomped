@@ -337,6 +337,28 @@ on each record the state cast last takes first: Energy Shield cast after Bone /
 Cyclone Armor takes its percent before the armor's pool sees the field; the
 armor cast after the shield goes first (as d2d always did).
 
+The same `+0x90` list is a general queued-event list, not only absorb
+events (its nodes carry a queue number, an owner key and a skill, read by
+the two functions below), and two more server functions (SUnitEvent.cpp)
+round it out:
+
+- **UNITEVENT_FreeAllEvents, FUN_005c0a90** (game, unit): walks the list
+  freeing every node (`FreeServerMemory`, `.\UNIT\SUnitEvent.cpp` line
+  0x3d) and clears the head. Its only caller is `FreeServerUnit`
+  (FUN_00555733), so it's the list's teardown when a unit is removed from
+  the game.
+- **UNITEVENT_FindByCallbackParams, FUN_005c0be0** (game, unit, queueNo,
+  ownerKey, eSkill): the first node whose (queueNo, ownerKey, skill) match,
+  or none. Callers `STATSLISTEX_FunctionCallback` and
+  `SKILLNEC_ApplySummonBuffs` use it (queueNo 2, the summon's GUID as
+  ownerKey, the passive/aura stat as skill) to skip re-registering an aura
+  event (`D2SetAuraEvent`) a summon already has.
+
+d2d has no literal node list for this queue — its equivalents
+(`energy_shield_blows`, `monprop_hit`) compute each effect directly rather
+than scheduling and later freeing/searching nodes — so there is nothing to
+port for either function; documented for the record only.
+
 ## Corrections applied (phase 0)
 
 1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
