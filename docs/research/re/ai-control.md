@@ -140,3 +140,12 @@ reports nonzero, or the signed think distance is below 20, it broadcasts a
 command 8 before the same unlink and switch. All paths call `FUN_005de080`
 with 10. `tools/emu/ai_minion_retreat.py` checks six branch combinations with
 these helpers scripted; it does not check the helpers' effects.
+
+`FUN_005e5730` looks up the unit's owner with `FUN_0058f0d0` and stores the
+unit's x and y minus the owner's in control +0x14 and +0x18. Unit types 2, 4
+and 5 use their path's +0x0c / +0x10 coordinates; other types use dynamic
+path getters, with a null path contributing zero. When owner and unit are the
+same, it also advances the unit seed once and stores its low word modulo 100
+in control +0x1c. A missing owner reaches an assertion and is not tested.
+`tools/emu/ai_formation_offset.py` checks five owner, coordinate and seed
+cases with owner lookup and dynamic getters hooked.
