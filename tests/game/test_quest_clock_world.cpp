@@ -143,6 +143,13 @@ int main() try {
     runs_after(world, now_ms, 3, "the statues' return timer", [&] { return world.statues_back_due; });
     world.statues_back_due = false;
 
+    // A new game on the same World (World::new_game): its frame and quest
+    // count start over (a game's own +0xa8 and +0x10f4 +0x14), so its first
+    // step is a full 20 frames in.
+    assert(world.quest_clock.frame > 0 && world.quest_clock.count > 0);
+    world.enter(character);
+    assert(world.quest_clock.frame == 0 && world.quest_clock.count == 0);
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {

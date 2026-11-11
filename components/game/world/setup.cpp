@@ -314,6 +314,7 @@ auto World::new_game() -> void {
         fight.new_game(actor->character.header.active_difficulty());
         set_waypoint(0);                          // the town's is always active (FUN_00661030 forces index 0 as the save loads)
         day = {};                                 // a new game starts at sunrise
+        quest_clock = {};                         // and its frame and quest count from 0 (game +0xa8, +0x10f4 +0x14)
         day_at = now;
         loot.ground.clear();
         loot.kept.clear();
