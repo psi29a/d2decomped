@@ -34,6 +34,7 @@
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
+#include "skill_list.hpp"
 #include "skillpad.hpp"
 #include "ui.hpp"
 
@@ -84,15 +85,9 @@ struct SkillBar {
         const auto* skill = scene->skills.get(id);
         return skill && !skill->passive && (!on_left || skill->leftskill) && level(id) > 0 && listed(*skill);
     }
-    // ponytail: the picker's own filter on the general skills every class has
-    // at level 1 (FUN_004aa3a0: ListRow -1, FUN_006446a0 & 8, a scroll's or
-    // tome's count) isn't traced; it lists Attack, Throw and a tome's skill
-    // with the tome carried, as it did before they had their level.
-    [[nodiscard]] bool listed(const d2d::rules::Skill& skill) const {
-        if (!skill.cls.empty() || skill.id == 0 || skill.srvdofunc == d2d::rules::ServerDoFunction::kThrow) return true;
-        const char* tome = skill.name == "Book of Townportal" ? "tbk" : skill.name == "Book of Identify" ? "ibk" : nullptr;
-        return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; });
-    }
+    // FUN_004aa3a0's membership test (skill_list.hpp). usable() adds the
+    // level and the left list's leftskill bit.
+    [[nodiscard]] bool listed(const d2d::rules::Skill& skill) const { return picker_lists(skill, character.items); }
     // A picker icon, a hand's or a hotkey's skill: its Skills.txt id and,
     // for a charged entry, the item's unit id (-1 none).
     struct Pick {

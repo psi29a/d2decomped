@@ -1927,39 +1927,51 @@ cited module, not a quoted assert.
   existing rows (above, "frame clock 0x7a0498 plus min(delay, 12)");
   this adds the exact test: strict `<`, player only. Callers: 004610c0,
   00467880, 004a8d30, 004aa3a0, 004c1200.
-- **FUN_004aa3a0**(three args from `FUN_004aa7e0`): the picker's list
-  builder. Ghidra shows five params, so the roles are read from the uses,
-  not proven. `param_3` (the stack word) is 0 in all of `FUN_004aa7e0`'s
-  calls, so its `!= 0` branches (the right-list record test `+7 & 0x40`,
-  x step +0x30) are not reached from there; `param_4` selects placing
-  (`FUN_004a8d50` / `FUN_004aa1f0`) instead of `FUN_004a9a00` + the icon
-  draw, `param_5` skips the icon draw. Per category 0..4, for
-  each node of `FUN_00620150(unit)` (next from `FUN_006438f0` read first):
-  record non-null; id in `[0, [0x744304]+0xba0)`; Skills row (+0xb98 + id *
-  0x23c) non-null; its SkillDesc index (row `+0x194`) in `[0, +0xb94)` with
-  the row (+0xb8c + idx * 0x120) non-null; for the right list the record
-  `+7 & 0x40`; record `+4 & 0x10` (passive) clear; `FUN_006446a0(node) & 8`
-  clear. `FUN_00643b00` gives the item id (and charges); for the left list a
-  non-item node with `FUN_006450f0(node) > 0` and record `+8 & 0x10` counts
-  as an item entry (the scroll / tome rows). Categories 0..3 take non-item
-  nodes whose SkillDesc byte `+5` equals the category; category 4 takes the
-  item entries (so five rows, as the HUD notes above say). A SkillDesc byte
+- **FUN_004aa3a0** (fastcall, `ret 0xc`; the asm of `FUN_004aa7e0` at
+  0x4aa80e, 0x4aa83a, 0x4aa861 and 0x4aa887): the picker's list builder.
+  ECX is the player (`FUN_00463dd0`), EDX the row's x. Three stack words.
+  `[0x7c07fc] == 0` is the right list: EDX is `[0x71146c] - 0x80`, first
+  word 0, then the same with the second word 1. `[0x7c07fc] != 0` is the
+  left list: EDX is 0x50, first word 1, then the same with the second word
+  1. The third word is 0. The second word selects the number draw
+  (`FUN_004a8d50` / `FUN_004aa1f0`) instead of the icon. The first word is
+  the left list: it must be 0, or Skills.txt byte `+7` tested with the mask
+  at `0x6ce280` (the dword 0x40, leftskill, bit 0x1e) must be set (0x4aa48d).
+  Per category 0..4, for each node of `FUN_00620150(unit)` (next from
+  `FUN_006438f0` read first): record non-null; id in `[0, [0x744304]+0xba0)`;
+  Skills row (+0xb98 + id * 0x23c) non-null; its SkillDesc index (row
+  `+0x194`) in `[0, +0xb94)` with the row (+0xb8c + idx * 0x120) non-null;
+  the left-list test above; record `+4` clear of the mask at `0x6ce278`
+  (the dword 0x10, passive, bit 4); `FUN_006446a0(node) & 8` clear (0x4aa4b5).
+  `FUN_00643b00` gives the item id (and charges). On the right list (first
+  word 0) a non-item node with `FUN_006450f0(node) > 0` and record `+8`
+  holding that same 0x10 mask (scroll, bit 0x24) counts as an item entry
+  (0x4aa4da). Categories 0..3 take non-item nodes whose SkillDesc byte `+5`
+  (sign-extended, 0x4aa513) equals the category, so a ListRow of -1 is
+  absent. Category 4 takes the item entries. 1.14d's ListRow -1 rows are
+  Kick and Left Hand Swing. ListRow 0 is Attack, Throw, Unsummon, Left Hand
+  Throw and Delerium Change. ListRow 4, and the scroll bit, are Scroll of
+  Identify, Book of Identify, Scroll of Townportal and Book of Townportal
+  (books.txt `+8` / `+0xc`: `isc`/`ibk`, `tsc`/`tbk`). A SkillDesc byte
   `+6` (1..255) already seen is skipped (a 256-byte `seen` table), so two
   skills sharing it show once. Status colour: `FUN_004d9fc0`: 0 -> 0, 6 -> 4,
   other -> 1. The row's y starts at `[0x711470] - 0x56` and drops 0x30 for each
   new category reached; the y of rows 1..4 is saved at `0x7c070c..0x7c0718`.
   The icon is drawn by `FUN_004a9870`, an item entry by `FUN_004a8d50`
-  (level) or `FUN_004aa1f0` (count). d2d: **agrees** with `skillbar.hpp`
-  (categories, charged entries, passives and flag 0x6ce278 as the existing
-  rows say); the SkillDesc `+6` de-duplication and the count-based
-  (`+8 & 0x10`) entry were not found in d2d (`git grep` on skillbar.hpp:
-  no mention): **not ported**, untested whether it matters in play.
+  (level) or `FUN_004aa1f0` (count). The count `FUN_0055c110` adds is stat
+  0x46; a scroll (ItemTypes 0x12) whose stat reads 0 is not added, and a
+  book (0x16) whose stat reads 0 is added as 1. d2d: `skillbar.hpp`
+  `listed` (ListRow -1 off; a ListRow 4 skill when the carried quantity is
+  above 0, on inventory, cube, stash, belt, cursor or worn). The SkillDesc
+  `+6` de-duplication is not ported. Neither is flag bit 8 (`FUN_004c6140`
+  sets it when the client grants a skill the local player didn't have), nor
+  the book that comes in with quantity stat 0 (d2d treats a stored 0 as none
+  left).
 - **FUN_004aa7e0**(): the picker rebuild. Zeroes `0x7c0300` (0x3c5 bytes),
-  sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then two passes,
-  each `FUN_00463dd0(a, b, 0)` and `FUN_004aa3a0(a, b, 0)`. With
-  `[0x7c07fc]` zero: (a=0, b=0) then (0, 1); non-zero: (1, 0) then (1, 1).
+  sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then calls
+  `FUN_004aa3a0` twice on one side (the asm in the paragraph above).
   Only caller `FUN_00456ee0` (panel draw). d2d: **agrees** in outline with
-  `skillbar.hpp:7` (two lists); what a and b select was not compared.
+  `skillbar.hpp` (two lists).
 - **FUN_004aa160**(): with the list asserted non-empty (line `0x524`), for each
   of the 60 picker slots whose entry lookup (`FUN_006439f0`, registers not
   read) is non-null and whose record has `+4 & 0x10` clear (not a passive),
@@ -2192,9 +2204,9 @@ Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
 ### Traced 2026-09-29 (2nd HUD pass)
 
 Picker top-level: **FUN_004aa7e0** (`.\\UI\\spellsel.cpp`) calls picker draw
-**FUN_004aa3a0** up to four times per frame — one for each of {left / right
-button} × {"current class" / "other" categories}. Argument shape (ECX + EDX
-fastcall, rest ignored — Ghidra guesses `param_3..5` from stack junk):
+**FUN_004aa3a0** for each side. ECX and EDX are fastcall. The three stack
+words are real (`ret 0xc`): the first is the left list. See the
+FUN_004aa3a0 paragraph above for the filter. X in EDX:
 
 | call | button | initial X (EDX)          | notes                          |
 |---:|---|---|---|
