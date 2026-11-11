@@ -196,6 +196,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
+            bool box_took_enter = false;
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
                 // The hire list's box takes Enter (FUN_004bebc0, its break queued before
@@ -210,6 +211,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                         net.send(cmd::Hire{ list.rows[std::size_t(row)].arg });
                         npc_menu = {};
                     }
+                    box_took_enter = true;
                     continue;
                 }
                 if (!chat_typing) { if (keys::bound(key_table, keys::kChat, virtual_key(key))) chat_typing = std::string{}; continue; }   // the key config's Chat (Enter)
@@ -226,6 +228,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 }
                 chat_typing.reset();
             }
+            // The box's Enter goes no further: a key config with Enter on another function doesn't fire it too.
+            if (box_took_enter) std::erase_if(keys_this_frame, [](const auto key) { return virtual_key(key) == 0x0d; });
         }
         if (net_game) {
             // FUN_0049f490: to all, the name gold (colour code 4) then
