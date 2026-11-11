@@ -664,7 +664,18 @@ FUN_006503f0's re-path at idx ≥ count isn't reached from this.
 
 A held button: FUN_0044efa0 calls FUN_0044c000 each frame (LAB_0044f039) while the
 press was taken and 0x7a061c is set. That is FUN_00462d00 with flags 9 (the press has 5),
-so FUN_00462a20 and FUN_004625b0. On the ground FUN_004623c0 and FUN_00461840 path anew
+so FUN_00462a20 and FUN_004625b0. **Verified**: `tools/emu/queued_click.py` runs
+FUN_0044c000 for real over all 16 combinations of its three gates
+(`ServerLoadingComplete`, `gQueuedPrimaryClick`, `gbMouseButtonEventPending`) and
+whether a player unit exists, diffing against a hooked FUN_00462d00: it's called
+with clickType 1 exactly when all four hold, never otherwise.
+`tools/emu/click_map.py` runs FUN_00462d00 itself for real over every clickType
+(0..5, and the unhandled default), the run and stamina flag bits, and the
+target-selected/not branch (112 cases, all agree): clickType 1 is flags 9 into
+FUN_00462a20 (`WalkToCoordOrUnit`), as the doc says; the other five clicks carry
+their own base flags (0 -> 5, 2 -> 0x11, 3 -> 6, 4 -> 0xa, 5 -> 0x12) into
+FUN_00462a20's five siblings, with 0x20 added for the run key and 0x40 for a
+stamina check that only applies when the run key is held. On the ground FUN_004623c0 and FUN_00461840 path anew
 from where the unit stands, with the same FUN_00650840 stop, so a blocked
 walk gets a new one the next frame: the stop is the same, the button restarts it. With a queued
 action a held button on the ground does nothing (LAB_00462b1d) unless shift is held, so
