@@ -53,6 +53,14 @@ item_record	0x10f	u8	field_10f	the first byte returned by FUN_006286c0	docs/rese
 item_record	0x110	u8	field_110	the second byte returned by FUN_006286c0	docs/research/re/items.md:47
 item_type	0x10	u8	field_10	the byte returned by FUN_00628860	docs/research/re/items.md:53
 levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowed)	tools/emu/sk_tele_spot.py:124
+missile_request	0x00	u32	flags	launcher request flags	docs/research/re/ai-control.md:220
+missile_request	0x04	ptr	owner	launcher owner	docs/research/re/ai-control.md:220
+missile_request	0x08	ptr	origin	launcher source	docs/research/re/ai-control.md:220
+missile_request	0x10	u32	missile	missile row	docs/research/re/ai-control.md:220
+missile_request	0x1c	u32	x	target x	docs/research/re/ai-control.md:220
+missile_request	0x20	u32	y	target y	docs/research/re/ai-control.md:220
+missile_request	0x30	u32	level	missile level	docs/research/re/ai-control.md:220
+missile_row	0xdc	u32	delay	launcher retry timing in 256ths	docs/research/re/ai-control.md:220
 minion_node	0x00	u32	unit_id	minion unit ID	docs/research/re/ai-control.md:81
 minion_node	0x04	ptr	next	next minion ID node	docs/research/re/ai-control.md:60
 monster_data	0x28	ptr	ai_control	AI control pointer	docs/research/re/ai-control.md:3
