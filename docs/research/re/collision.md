@@ -396,6 +396,14 @@ test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
 a blocked walk to one gets the two walks and stops. The 0x16 handler (`54aad0`)
 ends in FUN_00548b00 (LAB_0054ab27). An NPC farther than 8 gets no walk at
 all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+**Partly verified**: `tools/emu/interact_any_object.py` runs FUN_00480930 for
+real for a player, an item, a non-interactable object and a monster (both
+sides of its 200ms throttle, `GetTickCount`/`dwTickCount`): the item alone
+sends 0x16 (with the inventory-open flag), everything else here sends 0x13,
+and a target not found sends nothing. Not run: an interactable object's
+melee/kick skill cast and the 0x194/0x178 class-specific cases, which need
+real weapon and inventory state; they still end in the same 0x13 send,
+untested by this oracle.
 
 The sends, as FUN_00481030 reaches them: action 0x13 (LAB_004810f1) → FUN_00480c10
 → FUN_00461250's command 2 (LAB_00461634) → FUN_00480930 (LAB_0046163d). That
