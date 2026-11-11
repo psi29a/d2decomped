@@ -216,3 +216,15 @@ class 0x2c7 it additionally calls `FUN_00639db0` with state 0xb8 and 1 and
 `FUN_00621e40` with stat 0xca and 0. Other mode/count cases request mode 0.
 `tools/emu/ai_spawner_lay.py` checks nine normal-difficulty cases with the
 placement, spawn, state and action helpers scripted.
+
+`FUN_005dfee0` locates a type-2 marker with class 0x182 in the unit's room;
+a null marker reaches an assertion. It clears a 0x5c-byte missile request,
+sets flags 0x420, owner and origin to the unit, missile 0x170, target x/y
+from the marker and level 1, and calls `FUN_0059fa30`. A successful result
+receives the marker ID via `FUN_0064a710`, then the marker's room is passed
+to `FUN_0061aed0` with zero. On failure, a mode-0 marker is switched to mode 1
+and sound event 1 is scheduled for it at game frame plus missile 0x182 row
++0xdc shifted right eight. A nonzero marker mode skips those failure effects.
+`tools/emu/ai_catapult.py` checks five success/failure and coordinate paths;
+room, marker, coordinate, missile and action helpers are scripted. The missing
+marker assertion is not exercised.
