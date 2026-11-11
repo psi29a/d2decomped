@@ -424,7 +424,9 @@ Those callbacks aren't followed.
 
 A sound started on a unit (`FUN_004b9a00`, unit given) keeps its offset from
 the player in client pixels (`FUN_004b97d0`: dx, 2 dy and 640 up; units by
-`FUN_00620900`, path +8 / +0xc; a d2d cell is 80 px of dx and of 2 dy). Its
+`FUN_00620900`, path +8 / +0xc for types 0/1/3 and past 5, else the static
+path's own +4/+8 — units.md, oracle `tools/emu/units_small.py
+check_target_coords`; a d2d cell is 80 px of dx and of 2 dy). Its
 record's Falloff (+0x47, Sounds.txt) picks a near and a far range:
 
 | Falloff | near (`FUN_004825b0`) | far (`FUN_00482610`) |

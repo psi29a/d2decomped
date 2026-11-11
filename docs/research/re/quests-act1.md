@@ -132,7 +132,11 @@ MonUMod 0xc and 0x16 (`FUN_005a4850(mod, 1)`), attach quest 2
   - bit 3 → state 3, log 1
   - bit 2 → state 2, log 1
 - **Quest-log send filter** (`FUN_00590830`): send (`FUN_00544190(game,
-  player, 2)`) unless (bit0 || bit15) && !bit13 && !bit14.
+  player, 2)`) unless (bit0 || bit15) && !bit13 && !bit14. The flags
+  pointer comes from the game difficulty; it tests bits in short-circuit
+  order 0, 15, 13, 14. `tools/emu/quest_burial_log.py` checks all 16 bit
+  combinations at all three difficulties, with the lookup, test and sender
+  hooked; it does not check those helpers or d2d parity.
 
 ### Messages
 
@@ -186,7 +190,25 @@ Sets rec+0xa = 1, rec+0xd = 6 and rec+0x10 = 3. Allocates data (0x1bc bytes, FUN
 | +0xf0 | FUN_00593d70 | state 0 -> 1; chains to the next record's +0xf0 when state == 6 or +9 == 0 |
 
 - **Leaving the camp** (`FUN_00596de0`, from level 1, the player's bits 0 and 1 clear): state 2 goes to 3 (`FUN_00544350`, EDX 3 at 0x596eef, line 0x436) and nothing more; the player's log bit isn't touched there. It's set at the next event 4 on a quest item bound to this record (`0x543d80(game, player, item)` on an item into a player's inventory, from the ground pickup's auto-place `FUN_00563560`, its cursor path `FUN_0055cf50` and others; `FUN_005439a0` walks the item's own record list, item +0x74, which an item joins as it's made: `FUN_00555d20` at 0x555d82 binds Items.txt quest (+0x12a) − 1, so only `bks ` / `bkd ` reach a1q4): `FUN_00592e20` with +9 runs `LAB_00592130` over the players: bits 0 and 1 clear, state 2 sets bit 2 (0x592177), state 3..5 bit 3 (0x592190).
-- **FUN_00592c80:** only if +9 and state != 6. If the item is bkd or bks: data+0x7c--. Then, if data+0x7c == 0, state < 6, !+0x4f and +0x47: state 3, then 592bd0 (log 1). Losing the scroll rewinds the quest.
+- **Scroll count (`FUN_00592b90`):** on the join callback it looks for
+  `bkd ` and `bks ` in that order, using the game and player from the event.
+  Each nonzero lookup adds one to data +0x7c, wrapping at 32 bits. The
+  oracle `tools/emu/quest_cain_scroll_count.py` checks all four lookup
+  combinations at four initial counts with lookup hooked, not d2d parity.
+- **Scroll-loss rewind (`FUN_00592c80` → `FUN_00592bd0`):** while record
+  +9 is nonzero and state is not 6, the item code getter is called; `bkd `
+  or `bks ` decrements the 32-bit count at data +0x7c (including wraparound).
+  The zero-count test also runs for other item codes. If the count is zero,
+  state is below 6, data +0x4f is not 1 and +0x47 is exactly 1, the state
+  helper is called with 3 and the rewind runs. The rewind looks up the known
+  tree by data +0x30; only a found unit of class 30 gets mode 0. It clears
+  record +0x14, sends log 1, calls the state helper with 3, clears tree mode
+  at data +0x58, then iterates players through `LAB_00592130`. If +0x47 is
+  not 1, the rewind skips tree lookup and player iteration but still clears
+  the two fields, sends log 1 and calls the state helper. Oracle
+  `tools/emu/quest_cain_rewind.py`: 15 synthetic cases with callees hooked;
+  this checks the branches and call sequence, not the hooked helpers or d2d
+  parity.
 - **LAB_00592cf0:** FUN_00545530, then removes the guid from list A and list B.
 
 ### Data (rec+0x18)

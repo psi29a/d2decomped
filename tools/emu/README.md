@@ -187,8 +187,15 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest object-class dispatch (`FUN_005447a0`, handlers hooked; `--mutation-check` three ways) | `uv run python quest_object_dispatch.py` | `ok: 48 quest object dispatch cases` |
 | Quest 0x11 object timer (`FUN_005b9cd0`, lookups and scheduler hooked; `--mutation-check` three ways) | `uv run python quest_object_timer.py` | `ok: 24 quest object timer cases` |
 | Ten QUESTS.CPP packet and state-list senders (`FUN_00544520`, `00544f60`, `00544fa0`, `00545090`, `00545100`, `00545530`, `005455b0`, `005456f0`, `00545780`, `00545920`; callees hooked; `--mutation-check` sixteen ways) | `uv run python quest_packets.py` | `ok: 288 quest packet cases` |
+| Golden Bird carrier release (`FUN_005bacf0`) | `uv run python quest_bird_carrier.py --exe /path/to/game.exe` | `ok: 48 Golden Bird carrier release cases` |
+| Blackened Temple object-mode gate (`FUN_005bbb70`; callees hooked) | `uv run python quest_temple_object.py --exe /path/to/game.exe` | `ok: 5 Blackened Temple object-mode cases (callees hooked)` |
+| Guardian alert gate (`FUN_005bbfe0`; flag test hooked) | `uv run python quest_guardian_alert.py --exe /path/to/game.exe` | `ok: 32 Guardian alert cases (flag test hooked)` |
+| Khalim log-send filter (`FUN_005b7f90`; callees hooked) | `uv run python quest_khalim_log.py --exe /path/to/game.exe` | `ok: 12 Khalim log-filter cases (callees hooked)` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
+| Blood Raven quest-log filter (`FUN_00590830`; callees hooked) | `uv run python quest_burial_log.py --exe /path/to/game.exe` | `ok: 48 Blood Raven log-filter cases (callees hooked)` |
+| Cain scroll count (`FUN_00592b90`; item lookup hooked) | `uv run python quest_cain_scroll_count.py --exe /path/to/game.exe` | `ok: 16 Cain scroll-count cases (lookup hooked)` |
+| Cain scroll-loss rewind (`FUN_00592c80`, `FUN_00592bd0`; callees hooked) | `uv run python quest_cain_rewind.py --exe /path/to/game.exe` | `ok: 5 Cain transitions and 10 scroll-loss trigger cases (callees hooked)` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Ten small QUESTS.CPP helpers (`FUN_00543b90`, `00543ce0`, `00543de0`, `00544470`, `00545290`, `00545300`, `00545760`, `00545830`, `00545990`, `00545d40`; callees hooked; `--mutation-check` seven ways) | `uv run python quest_small.py` | `ok: 240 small quest helper cases` |
 | Quest 0x21 spawn attempt (`FUN_0058a820`, lookup, room and spawn hooked; `--mutation-check` three ways) | `uv run python quest_spawn_rescue.py` | `ok: 24 quest rescue spawn cases` |

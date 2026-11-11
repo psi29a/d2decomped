@@ -266,9 +266,11 @@ add_executable(d2d
     town/skillpad.cpp
     town/touch.cpp
     town/update.cpp
+    town/use_item.cpp
     town/view.cpp
     town/walk.cpp
     ui.cpp
+    use_item.cpp
     window.cpp
     world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)

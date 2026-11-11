@@ -77,7 +77,12 @@ the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
 - Point tests by collision pattern (`FUN_0064d870`): 0 one subtile
   (`FUN_0064d450`); 1/3/5 a plus — the subtile and its four neighbours
   (`FUN_0064d100`, edges clipped per room); 2/4 bigger (`FUN_0064d4a0`).
-  Players and small units use the plus.
+  Players and small units use the plus. **Verified**: `tools/emu/collisn_point.py`
+  runs the dispatch for every pattern (0..5, plus the fatal-looking default,
+  which answers `COLLISION_ALL` for an out-of-range pattern instead) against
+  a fake room and diffs it against calling each pattern's own shape function
+  directly — 20000 random (room content, mask) pairs, no disagreement
+  (`uv run python collisn_point.py 20000 42`).
 - `FUN_0064e7b0` → `FUN_0064dea0`: nearest free spot (spawns, the town
   start).
 - A door's doorway (`FUN_00581d40`, modes 2 / 5, 500 ms since it last
@@ -286,7 +291,13 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   (FUN_0064ec10), then FUN_0064d870 against the mask (path +0x50). Any bit
   blocks (LAB_0065005f, `or` into path +0x54, then LAB_00650070), so a wall,
   an object and the units' 0x1000 take one path. Only a change of subtile is
-  tested (LAB_006501c0 on).
+  tested (LAB_006501c0 on). FUN_0064eda0 is also where the stamp lands: free,
+  it's added at the new subtile and the old one stays clear (`COLLIDE_NONE`);
+  blocked, it's put back at the old one and the blocking flags are returned,
+  so a blocked test never leaves the unit unstamped. **Verified**:
+  `tools/emu/collisn_point.py`'s "move" cases do this for real (a cross-pattern
+  player stamp, the real 0x1c09 mask), checking the stamp's new position with
+  FUN_0064d870 after: 20000 random free/blocked pairs, no disagreement.
 - **Who.** Player, monster and merc share this stop; the merc differs only in
   what it stamps (0x2000, "The grid" above). What follows differs: FUN_00554ca0
   turns the stop into 2, a player's FUN_00580c20 then goes idle or takes its
@@ -326,7 +337,11 @@ object or player going is the client, every game frame, until it stands in reach
   LAB_004816d8).
 - **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
   FUN_00480c10 → FUN_00461250 → FUN_00480780: a new path from where the unit is) and, with a
-  path, sends C→S 0x02 or 0x04 (LAB_0048137a). Path or no path it queues the
+  path, sends C→S 0x02 or 0x04 (LAB_0048137a). **Verified**:
+  `tools/emu/path_target_unit.py` runs FUN_00480780 for real with the lookup
+  (UNITS_FindClientSideUnit) hooked found and not found: not found, it
+  clears the path's target and returns 0 without a path call; found, it
+  sets the target then calls PATH_CalculatePath and forwards its answer. Path or no path it queues the
   action again (LAB_004813c3), with no count, no timer and no test of the
   steps made. With no path the unit goes neutral, nothing is sent, and the
   next frame tries again.
@@ -381,6 +396,14 @@ test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
 a blocked walk to one gets the two walks and stops. The 0x16 handler (`54aad0`)
 ends in FUN_00548b00 (LAB_0054ab27). An NPC farther than 8 gets no walk at
 all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+**Partly verified**: `tools/emu/interact_any_object.py` runs FUN_00480930 for
+real for a player, an item, a non-interactable object and a monster (both
+sides of its 200ms throttle, `GetTickCount`/`dwTickCount`): the item alone
+sends 0x16 (with the inventory-open flag), everything else here sends 0x13,
+and a target not found sends nothing. Not run: an interactable object's
+melee/kick skill cast and the 0x194/0x178 class-specific cases, which need
+real weapon and inventory state; they still end in the same 0x13 send,
+untested by this oracle.
 
 The sends, as FUN_00481030 reaches them: action 0x13 (LAB_004810f1) → FUN_00480c10
 → FUN_00461250's command 2 (LAB_00461634) → FUN_00480930 (LAB_0046163d). That
@@ -443,8 +466,15 @@ found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
 action, EDX the player, then the target type, id and a third value on the
-stack. `FUN_00480ba0` (not traced) must accept it first (0: return, nothing
-sent). The switch is on the action itself (`action - 1`, a byte index at
+stack. `FUN_00480ba0` must accept it first (0: return, nothing sent).
+**Verified**: `tools/emu/unitmode_caninterrupt.py` runs it for real with a
+faked `Skills.txt` row: with no current skill, an invalid skill id or a
+missing row it always answers 1 (go ahead); with a skill row, its flags
+byte (+7) against a fixed mask (0x80, game.exe's own byte at 0x6ce284)
+answers 1 regardless of the player when set; clear, it answers 0 unless
+the player is null or its mode (+0x10) is 1 or 5 (Neutral, TownNeutral) —
+34 cases, no disagreement
+(`uv run python unitmode_caninterrupt.py`). The switch is on the action itself (`action - 1`, a byte index at
 0x4812b4 into a jump table at 0x48128c; 0x48107d to 0x481084). By action:
 
 | action | does |
@@ -460,7 +490,15 @@ sent). The switch is on the action itself (`action - 1`, a byte index at
 
 The send is `FUN_00480c10(&command, 0)`; when it answers nonzero, actions 5 to
 0x11 (the skill ones) add 1 to the player's stat 0x148 (`FUN_006253b0`,
-`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. Whatever
+`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. **Verified**:
+`tools/emu/unitmode_click_send.py` runs FUN_00480b40 for real over every
+`eD2UnitModeAction` (1..20): `UNITMODEACTION_ITEM_INTERACT` (19) sends
+nothing; attack (2, 4) and a left/right skill on a unit (6, 7, 9, 10, 13,
+14, 16, 17) go out as `FUN_004786a0` (`NET_D2GS_CLIENT_Send_INT_INT`, the
+full 32-bit `type`/`id`); every other action (an interact, or a left/right
+skill at a coordinate) goes out as `FUN_004785d0`
+(`NET_D2GS_CLIENT_Send_SHORT_SHORT`, truncated to 16 bits each) — 60
+cases, no disagreement (`uv run python unitmode_click_send.py`). Whatever
 happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
 (LAB_00481240, "abandoned" above). An action 1/3 early return, and the 0x13 one,
 leave it. What stat 0x148 counts is in missiles.md (the pierce seed), not traced here. d2d: `tick.cpp` and
@@ -653,7 +691,18 @@ FUN_006503f0's re-path at idx ≥ count isn't reached from this.
 
 A held button: FUN_0044efa0 calls FUN_0044c000 each frame (LAB_0044f039) while the
 press was taken and 0x7a061c is set. That is FUN_00462d00 with flags 9 (the press has 5),
-so FUN_00462a20 and FUN_004625b0. On the ground FUN_004623c0 and FUN_00461840 path anew
+so FUN_00462a20 and FUN_004625b0. **Verified**: `tools/emu/queued_click.py` runs
+FUN_0044c000 for real over all 16 combinations of its three gates
+(`ServerLoadingComplete`, `gQueuedPrimaryClick`, `gbMouseButtonEventPending`) and
+whether a player unit exists, diffing against a hooked FUN_00462d00: it's called
+with clickType 1 exactly when all four hold, never otherwise.
+`tools/emu/click_map.py` runs FUN_00462d00 itself for real over every clickType
+(0..5, and the unhandled default), the run and stamina flag bits, and the
+target-selected/not branch (112 cases, all agree): clickType 1 is flags 9 into
+FUN_00462a20 (`WalkToCoordOrUnit`), as the doc says; the other five clicks carry
+their own base flags (0 -> 5, 2 -> 0x11, 3 -> 6, 4 -> 0xa, 5 -> 0x12) into
+FUN_00462a20's five siblings, with 0x20 added for the run key and 0x40 for a
+stamina check that only applies when the run key is held. On the ground FUN_004623c0 and FUN_00461840 path anew
 from where the unit stands, with the same FUN_00650840 stop, so a blocked
 walk gets a new one the next frame: the stop is the same, the button restarts it. With a queued
 action a held button on the ground does nothing (LAB_00462b1d) unless shift is held, so
@@ -709,6 +758,10 @@ Read from the code, no oracle or packet log.
   spot is 0x100 or more away on an axis, or under 1 on both (LAB_00462482).
 - **How near.** The spot goes out to a least distance (FUN_00474080, LAB_004624d9): a
   press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1).
+
+  FUN_004623c0's throttle and clamp above, and FUN_00461840's path-then-send
+  glue (LAB_00461879's FUN_00481030 call fires only once PATH_CalculatePath,
+  FUN_00649970, finds a path), are run for real: `tools/emu/click_move.py`.
 - **The skill branches** in FUN_004625b0, in order; what the fields mean wasn't followed:
   - No unit under the cursor, or a monster FUN_00464820 passes with a skill whose +7 lacks
     0x6ce268: LAB_00462671. There flag 0x20, or flag 2 with FUN_00645460 not 1, casts
@@ -854,7 +907,7 @@ EAX); read the asm for them.
   the callees was not read): a 1 x 1 footprint calls `FUN_0064caf0`
   (one subtile), any other `FUN_0064d060` (the rect box above). Callers
   `FUN_00620a70`, `FUN_00649400` (unit type 2, size from `FUN_00620510` /
-  `FUN_006205a0`), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
+  `FUN_006205a0`, oracle: `tools/emu/units_small.py check_unit_size_y`, units.md), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
   `set_footprint` (gamedata.hpp:1051), which cites it; `FUN_0064caf0` was
   not read here.
 - **Stamp a unit, `FUN_00649400`** (unit): by the unit's type (first
@@ -1017,6 +1070,36 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_00480e70`** (`UNITMODE_SetAnimMode`, fastcall unit ECX / mode EDX) has two
+  siblings sharing its shape: clear unit flag 0x40 (`+0xc4 &= ~0x40`), call
+  `FUN_00624690` (`SetupUpdateFlag`); a true answer loads the cof
+  (`FUN_00470610`, unit, 0) and (`FUN_00480e70` only) shows the hit overlay
+  and plays the mode sound (`FUN_00480d20`, `FUN_004cc5b0(unit, mode, 0)`); a
+  false answer skips the cof load. `FUN_00480e30` (`UNITMODE_SetModeAndLoadCof`,
+  mode on the stack, unit in ESI) is the same two calls without the overlay or
+  sound, and has no caller anywhere in game.exe (0 xrefs; `stubs.md`).
+  `FUN_00480ec0` (`UNITMODE_SetAnimModeSilent`, same fastcall shape as
+  `FUN_00480e70`) is also the silent pair, and has exactly one caller:
+  `MonsterMessage`'s unique-death case (monster base id 0xbe) when the
+  monster is already in mode `Skill2`, so its death doesn't replay the
+  overlay/sound a second time. **Verified**: `tools/emu/unitmode_setanim.py`
+  runs all three for real, hooking `SetupUpdateFlag` to answer both 0 and 1
+  and the three downstream calls to record whether they ran, over a null and
+  a real unit — 36 cases, no disagreement
+  (`uv run python unitmode_setanim.py`).
+- **`FUN_00480d20`** (`UNITMODE_ShowElementalHitOverlay`, fastcall unit ECX /
+  mode EDX): a no-op for a null unit or any type but player (0) or monster
+  (1); for a player, modes 0/4 are a hit and 0x13 a maybe-hit, for a monster
+  0/3 and 0xd; every other mode is a no-op. On a hit, the high nibble of
+  `unit+0xb0` (`hit_class`) picks the overlay via `FUN_00470390`
+  (`GFX_AddOverlayToUnit`), but only when the low nibble is also set: 0x10
+  `OVERLAY_doubledamage1`, 0x20 `OVERLAY_fire_hit`, 0x30 `OVERLAY_ice_explode`,
+  0x40 `OVERLAY_lightning`, 0x70 `OVERLAY_bash`, 0x80 `OVERLAY_hit_thorns`,
+  0x90 `OVERLAY_sanctuaryknockback`; any other high nibble is a no-op.
+  **Verified**: `tools/emu/unitmode_hit_overlay.py` runs it for real over
+  every (unit type, mode, `hit_class`) combination that exercises each
+  branch, hooking `GFX_AddOverlayToUnit` to record the overlay id it got —
+  792 cases, no disagreement (`uv run python unitmode_hit_overlay.py`).
 - **`FUN_00463260`** (unit in EAX, no stack arguments; only caller `FUN_00463390`, which calls it
   for a unit whose mode `+0x10` is 3, RN): the client's run stop. Nothing happens unless the
   unit is `FUN_00463de0()`, the local player, and `FUN_00625480(unit, 10, 0)`, stat 10

@@ -196,6 +196,15 @@ auto Town::send(const Command& command) -> void {
             if (net_chat_npc == net_game->trade_npc) net_chat_npc = 0;
             net_game->trade_npc = 0;
             net_game->store_items.clear();
+        } else if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
+            // An NPC's service (the item panel's first button, FUN_004bfaf0): C->S 0x38
+            // kind 0 {its unit, the cursor item} (FUN_004b2370 -> FUN_004786d0); the
+            // host makes it and answers S->C 0x58 (FUN_00579d60).
+            const auto* host_npc = net_npc(imbue->npc);
+            const std::uint32_t item = hero.held && hero.held->id == imbue->item ? (net_cursor ? net_cursor : net_game->host_item(*hero.held)) : 0;
+            if (host_npc && item) net_game->send_items({ d2d::net::d2gs::c2s::npc_action(0, host_npc->id, item) });
+            else net_game->log.note("an NPC service with no host NPC or cursor item: not sent");
+            return;                                         // the host's item comes back to us
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
                    || std::holds_alternative<cmd::AutoBelt>(command)
@@ -576,6 +585,8 @@ auto Town::net_quests(std::uint32_t frame_ms) -> void {
         }
         view.den_left = net_game->den_left;
         if (net_game->sky) { world.day.set(net_game->sky->phase, net_game->sky->time, net_game->sky->eclipse); net_game->sky.reset(); }
+        // The item panel's answer (S->C 0x58: an NPC's service done or refused).
+        if (const int kind = std::exchange(net_game->use_item_reply, -1); kind >= 0) use_item_reply(kind);
         // The Cube: the host opens it (0x77 0x15); shut here, the host's shuts too (0x4f 0x17).
         if (std::exchange(net_game->cube_opened, false)) { cube_open = net_cube_open = true; inv_open = true; stash_open = char_open = false; }
         if (net_cube_open && !cube_open) { net_game->send_items({ d2d::net::d2gs::c2s::button(0x17) }); net_cube_open = false; }
