@@ -109,6 +109,11 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   around `FUN_005b9930`'s `FUN_005a43e0` at 0x5b993f..0x5b995a; that unit
   is class 0x197, excluded anyway): the quest bound to it
   (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
+- **Carrier release** (`FUN_005bacf0`): when data +2 is exactly 1 and
+  data +4 matches the unit ID (or `0xffffffff` for a null unit), clear +2
+  and set +1 to 1. `FUN_00544f20` reaches it for a quest-bound unit in Act 3.
+  `tools/emu/quest_bird_carrier.py` checks 48 synthetic cases; no d2d parity
+  or caller-path check is claimed.
 - **Its death** (`FUN_005bab60`): unless the killer has bit 0, `j34 ` drops
   (`FUN_00559a30`), due off, state 1.
 - **Talk** (`FUN_005b9ed0`, blocks 0x7401d0): done → block 6 once rewarded;
