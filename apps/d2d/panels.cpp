@@ -78,31 +78,6 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 }
 }  // namespace
 
-// The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
-// filled at 25 % over what's there (draw mode 0; game.exe's RGB blend, as
-// measured live 2026-10-25): red (0x80, 0, 0) when the wearer can't use it
-// (FUN_0062eaf0's requirements, or flags 0x100 / 0x4000: FUN_0062a4e0),
-// dull red (0x80, 0x40, 0x40) unidentified, else blue (0, 0, 0x80)
-// (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea). An
-// identified quest consumable its quest holds back (`header`'s quest words,
-// FUN_00483f80: game::quest_item_held_back) is red too.
-// ponytail: the picked-up item's green, flag 4 and FUN_004c2240's states (a
-// sub stat list with flag 2 on the item, FUN_00625760, or the player in
-// state 0x36) aren't told apart.
-void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect,
-                const d2d::d2s::Header* header) {
-    static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
-    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item, wearer.cls)) && !(item.flags & 0x4100u);
-    const bool held_back = item.identified && header && d2d::game::quest_item_held_back(item.code, *header);
-    const auto& tint = kTints[!usable || held_back ? 0 : !item.identified ? 1 : 2];
-    const int screen_w = fb_width(framebuffer);
-    for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
-        for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
-            auto* pixel = &framebuffer[(std::size_t(y_pos) * std::size_t(screen_w) + std::size_t(x_pos)) * 4];
-            for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((tint[channel] + 3 * pixel[channel]) / 4);
-        }
-}
-
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
                     const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two, const d2d::d2s::Header* header) {
@@ -162,6 +137,11 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     };
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
+    // 0x7bcbe4 is clear while a cursor item is held (FUN_00487000), so the
+    // cell under the mouse is green only with an empty hand.
+    const bool hand_empty = std::none_of(items.begin(), items.end(), [](const d2d::d2s::Item& entry) {
+        return entry.location == d2d::d2s::item_location::kCursor;
+    });
     for (const auto& item : items) {
         std::array<int, 4> rect{};
         if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) {
@@ -174,7 +154,10 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             if (weapon_set_two && (item.slot == body::kRightArm || item.slot == body::kLeftArm)) { rect[0] += 4; rect[1] -= 4; }
         }
         if (rect[2] <= 0) continue;
-        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(framebuffer, scene, item, *wearer, rect, header);
+        if (item.location == d2d::d2s::item_location::kStored && wearer) {
+            const bool under_cursor = hand_empty && mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3];
+            tint_cells(framebuffer, scene, item, *wearer, rect, header, under_cursor);
+        }
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }

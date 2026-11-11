@@ -494,15 +494,24 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
 - **Grid colours** (`FUN_00483ff0` -> `FUN_004839d0`): every cell of an item filled with
   draw mode 0 (25 % over what's there): `DAT_007bcad8[kind]` = nearest palette colour of
   (0x80,0,0) red, (0,0x80,0) green, (0,0,0x80) blue, (0x80,0x80,0), (0x80,0x40,0x40)
-  (`FUN_00483960`: 0x08, 0x76, 0xea, 0x7e, 0x4d). Kind 0 when `FUN_0062eaf0` (requirements)
-  fails, item flag 4, `FUN_004c2240` (a sub stat list with flag 2 on the item,
-  `FUN_00625760`, or the player in state 0x36 uninterruptable), or flags 0x100 / 0x4000
-  (`FUN_0062a4e0`); 4 when unidentified (flag 0x10 clear); 2 otherwise, but 0 for a spent
+  (`FUN_00483960`: 0x08, 0x76, 0xea, 0x7e, 0x4d). The item under the cursor
+  (`0x7bcbf4`, and `0x7bcbe4` nonzero: `FUN_00487000` sets both when the hand is
+  empty) is kind 1, except cursor mode 8 (`DAT_007a6af0`, `FUN_00468830`) with
+  Items.txt Transmogrify clear (`FUN_0062a0a0`, `+0x139`), which is kind 0
+  (`0x48417a`). Otherwise kind 0 when `FUN_0062eaf0` fails, item flag 0x4
+  (`FUN_006280a0` at `0x48424f`), `FUN_004c2240` at `0x48425a` (ECX is the item:
+  `FUN_00625760(item, 2)`, a child stat list whose flags have bit 2, or the
+  client player in state 0x36), or `FUN_0062a4e0` returns 0 (flags 0x100 /
+  0x4000); kind 4 when flag 0x10 is clear; kind 2 otherwise, but 0 for a spent
   quest consumable (items +0x12a set and `FUN_00483f80`, on the client's quest words,
   `FUN_004b32d0` / `FUN_0065c310`: `ass` the Book of Skill unless word 9 bit 5, `xyz` the
   Potion of Life unless word 0x14 bit 5, `tr2` the Scroll of Resistance unless word 0x25
-  has bit 8 and not bit 7); 1 the picked item.
+  has bit 8 and not bit 7).
   Measured: red (42,6,6) / blue (12,6,32) over (8,8,8), i.e. RGB 25 %.
+  d2d: `tint_cells` (panels.hpp). Green is the loaded palette's nearest of
+  (0, 0x80, 0). The draw passes the cell under the mouse when the list has no
+  cursor item. Flag 0x4 and the two `FUN_004c2240` inputs are arguments; the
+  draw does not know the stat list or state 0x36. Cursor mode 8 is not applied.
 - **800x600 border** (`FUN_00499450`, mode 2): `PANEL\800BorderFrame` frames 0..4 round a
   left panel (`FUN_00498630`), 5..9 a right one (`FUN_00498700`), before the panels.
 - **Close buttons**: `PANEL\buysellbtn` 10 (11 held): the inventory's at W - 80 - 0x12e,
