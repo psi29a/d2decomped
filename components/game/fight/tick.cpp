@@ -520,15 +520,15 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
         }
         for (Hero* hero : heroes) {
             act_as(*hero);
-            if (!in_moor) {                                      // pets follow the player about camp
-                const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
-                // ponytail: game.exe's walk rule for a pet in town isn't traced or claimed here; every pet follows at the
-                // owner's RunVelocity x 1.1 as it did, outside the MonStats Velocity claim.
-                for (auto& pet : actor->pets)
-                    if (pet.where == level && pet.monster.alive()) {
-                        pet_follow(*level, pet.monster.unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
-                        if (const std::string_view want = pet.monster.unit.walking ? "WL" : "NU"; pet.monster.mode != want) set_mode(*game_data, pet.monster, want, now_ms);
-                    }
+            // In town each pet runs its own think as out of it: the AI driver
+            // (FUN_005b1740) and its steps before the think (FUN_005b10e0,
+            // FUN_005b1650, FUN_005b13e0) test no town; the thinks test the
+            // pet's room themselves (pets.hpp). The last level's monsters stay
+            // out of their sight: Fight::enter keeps them through a town.
+            if (!in_moor) {
+                auto elsewhere = std::exchange(monsters, {});
+                pets_turn(now_ms, elapsed, crowd);
+                monsters = std::move(elsewhere);
             }
             if (actor->merc && actor->merc_npc) merc_turn(now_ms, elapsed, crowd, !in_moor);
         }
