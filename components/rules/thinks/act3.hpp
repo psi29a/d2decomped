@@ -367,9 +367,8 @@ struct Act3Thinks : Thinker {
     // Skill6; under 15 off, past Normal, rand < 100 / n Skill5; under 2 ×
     // 100 / n Skill4, 3 × Skill2, else Skill1. Then under 50 - hurt % the
     // count restarts (state2 0). 3: under hurt + 80 %, under 80 - hurt % A1,
-    // else Skill3; else circles 3 (can't: wanders 12). 4: about the target 6.
-    // ponytail: about the target always sets off, so its fallback
-    // (FUN_00540e60, keep 12 / 6) isn't taken.
+    // else Skill3; else circles 3 (can't: wanders 12). 4: about the target 6
+    // (can't: FUN_00540e60, keep 12 / 6).
     Think mephisto() {
         const int hurt = std::max((100 - input.life_pct) / 5, 0);
         int& phase = *input.state3;
@@ -431,8 +430,10 @@ struct Act3Thinks : Thinker {
         default: {
             phase = 0;
             set_pace(50, 0);
-            auto out = think_wander(rng, 6); out.act = MonAct::around;
-            return out;
+            auto out = think_wander(rng, 6);
+            out.act = MonAct::around;
+            set_off = away(6, false);
+            return set_off ? out : keep_off(12, 6);
         }
         }
     }
