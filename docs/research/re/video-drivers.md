@@ -99,7 +99,8 @@ not followed.
   640×480 at 16, 24 or 32 bits ("Opening DirectDraw window for cutscenes
   failed!"), Glide's (`0x509fe0`) returns 1 unless paused, and GDI's
   (`0x6c7cc0`) is `xor eax, eax`: **under `-w` the startup videos are
-  skipped.** Read from the code, not run.
+  skipped** (`-3dfx -w` is a windowed Glide, which plays them). Read from
+  the code, not run.
 
 ## Gamma and Contrast
 
@@ -178,7 +179,7 @@ those are what the 3D modes add.
 | `+0x6c` | `FUN_004f6830` | Perspective: size back to 0x100, from `FUN_004dc7b0`. 3D only | `0x510360` `ret` |
 | `+0x70` | `FUN_004f63d0` | Set the palette (256 entries, kept at `0x7c9378`) | `0x510160` |
 | `+0x74` | `FUN_004f6410` | Install the PL2 tables (0x48 pointers; tools/emu/cof_effects.py) | `0x5102d0` |
-| `+0x78` | `FUN_004f6430` | The environment's RGB (`FUN_0061c0b0`), every frame from `FUN_0044c990`. 3D only | `0x510320` `ret 4` |
+| `+0x78` | `FUN_004f6430` | The environment's RGB (`FUN_0061c0b0`), each frame from `FUN_0044c990` while the window is active (`FUN_004f6070` 0). 3D only | `0x510320` `ret 4` |
 | `+0x7c` | `FUN_004f68e0` | Floor / roof tile (gdi-driver.md) | `0x5132c0` |
 | `+0x80` | `FUN_004f6450` | A unit's cel, from `FUN_00470ec0` | `0x512410` |
 | `+0x84` | `FUN_004f6480` | A cel in a draw mode | `0x511fb0` |

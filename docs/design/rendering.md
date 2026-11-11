@@ -11,8 +11,9 @@ light); this page is only what d2d could do with it.
 Four drivers: GDI (`-w`) and DirectDraw (the default) draw 8-bit pixels
 through PL2 tables; Glide (`-3dfx`) and Direct3D (`-d3d`) draw the same
 cels as textures. OpenGL and RAVE are names with no driver. The engine
-above the drivers is the same for all four, except a handful of slots the
-software drivers leave empty: those are the whole of "the 3D look".
+above the drivers is shared: it checks the mode in a few places (the light
+path, perspective, the cursor), and the software drivers leave a handful
+of slots empty. Those slots are "the 3D look".
 
 ## Where d2d stands
 
@@ -24,10 +25,10 @@ d2d copies the software drivers, onto an RGBA framebuffer:
 - Tile shadows at a quarter, unit shadows, the COF draw modes (all but mode
   6), state colour shifts and item colours. Blends are done in RGB, not
   through the PL2 tables' nearest colour (approximation 1).
-- Additions game.exe never had: widescreen (`--widescreen`, the world wider
-  than 800, the panels at the centre), borderless fullscreen, the window's
-  scale filter (`scalemode`), cinematics in a window (game.exe's GDI driver
-  has no cutscene mode, so `-w` skips them).
+- Additions: widescreen (`--widescreen`, the world wider than 800, the
+  panels at the centre), borderless fullscreen, the window's scale filter
+  (`scalemode`), cinematics in a window (game.exe's GDI driver has no
+  cutscene mode, so a plain `-w` skips them).
 - Not there: Gamma and Contrast (the rows move, nothing applies them),
   Light Quality (always high), the 640×480 resolution, and everything 3D
   below.
