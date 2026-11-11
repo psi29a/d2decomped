@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <string>
 #include <vector>
 
 namespace d2d::client {
