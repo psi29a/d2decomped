@@ -27,7 +27,10 @@ Covered: FUN_00620360, 006203b0, 00620410, 00620470, 006204c0, 00620710,
 006222c0, 00622300, 00622350, 00622dc0, 00622e90, 00622ea0, 00622f10,
 00622f80, 00622ff0, 00623060, 006230c0, 00623120, 006231a0, 00623220,
 00623290, 00623300, 00623350, 006233a0, 00623410, 006234c0, 006234f0,
-00623520, 00623570, 006205a0 (GetUnitSizeY), 00620900 (GetTargetCoords).
+00623520, 00623570, 006205a0 (GetUnitSizeY), 00620900 (GetTargetCoords),
+00623d60 (GetItemComponent, its callees mocked: no d2d code builds the
+packets that would feed it, so this run stands as a standalone check of
+the research doc, not a behaviour diff).
 
 `--mutation-check` breaks the model on purpose, one defect at a time, and
 requires each to fail.
@@ -44,7 +47,7 @@ FILE = ".\\UNITS\\Units.cpp"
 FILE_ADDRESS = 0x6E8E10
 ASSERT = 0x40_8A60
 COVERED = (0x62_0360, 0x62_03b0, 0x62_0410, 0x62_0470, 0x62_04c0, 0x62_0710, 0x62_0780, 0x62_07f0, 0x62_0830, 0x62_0980, 0x62_0ae0, 0x62_0b50, 0x62_0c70, 0x62_0cd0, 0x62_0d30, 0x62_0f50, 0x62_0fa0, 0x62_1150, 0x62_11c0, 0x62_12c0, 0x62_1310, 0x62_1330, 0x62_1420, 0x62_1870, 0x62_18d0, 0x62_1920, 0x62_19c0, 0x62_1a70, 0x62_1ac0, 0x62_1b00, 0x62_1b70, 0x62_1c00, 0x62_1f60, 0x62_2150, 0x62_20f0, 0x62_21e0, 0x62_2230, 0x62_2270, 0x62_22c0, 0x62_2300, 0x62_2350, 0x62_2dc0, 0x62_2e90, 0x62_2ea0, 0x62_2f10, 0x62_2f80, 0x62_2ff0, 0x62_3060, 0x62_30c0, 0x62_3120, 0x62_31a0, 0x62_3220, 0x62_3290, 0x62_3300, 0x62_3350, 0x62_33a0, 0x62_3410, 0x62_34c0, 0x62_34f0, 0x62_3520, 0x62_3570,
-           0x62_05a0, 0x62_0900)
+           0x62_05a0, 0x62_0900, 0x62_3d60)
 CALLED = set()
 MUTATIONS = ("tile-path-swap", "precise-x-no-shift", "precise-x-static-wrong-type", "set-x-allows-missile", "dx-signed",
              "dx-dynamic-null-path", "screen-x-swapped", "init-path-flag-kept", "clear-room-dynamic-always",
@@ -97,6 +100,13 @@ class Rig(mw.World):
         lg(0x46_ACE0, 0, "missile-tbl", ret=lambda c: self.script.get("missile_row", 0), regs=("ecx",))
         lg(0x64_89C0, 1, "target-x", ret=lambda c: self.script.get("by_target_x", {}).get(c.arg(0), 0), regs=())
         lg(0x64_89D0, 1, "target-y", ret=lambda c: self.script.get("by_target_y", {}).get(c.arg(0), 0), regs=())
+        lg(0x62_7D40, 1, "body-loc", ret=lambda c: self.script.get("bodyloc", 0), regs=())
+        lg(0x63_BDE0, 2, "grid-item", ret=lambda c: self.script.get("grid_item", {}).get(c.arg(1), 0), regs=())
+        lg(0x62_A4E0, 1, "not-broken", ret=lambda c: self.script.get("not_broken", {}).get(c.arg(0), 0), regs=())
+        lg(0x62_89C0, 1, "two-handed", ret=lambda c: self.script.get("two_handed", {}).get(c.arg(0), 0), regs=())
+        lg(0x62_35A0, 1, "dual-wield", ret=lambda c: self.script.get("dual_wield", 0), regs=())
+        lg(0x63_BEF0, 1, "equipped-weapon", ret=lambda c: self.script.get("equipped_weapon", 0), regs=())
+        lg(0x62_8660, 1, "items-component", ret=lambda c: self.script.get("component", 0), regs=())
         self.m.hook(0x64_8BB0, self.target, 3)
         self.m.hook(0x64_3260, self.pixel, 2)
         self.m.hook(0x66_3410, self.seq, 7)
@@ -1011,6 +1021,60 @@ def check_target_coords(rig, rng):
     null_halt(rig, 0x62_0900, 0x7E7, 0, 0)
 
 
+def check_item_component(rig, rng):
+    """FUN_00623d60 (unit, item): FUN_00627d40 (item) gives its body slot; off an arm slot it falls straight
+    to FUN_00628660 (the default, ItemsTxt +0x115). On an arm slot (4 R_ARM, 5 L_ARM): FUN_0063bde0 reads
+    both grid slots (4, 5) off the unit's inventory (+0x60), FUN_0062a4e0 clears either that isn't usable;
+    with both present and neither FUN_006289c0 (two-handed) and the unit's FUN_006235a0 (can dual-wield),
+    item other than FUN_0063bef0's own weapon returns 6 without calling FUN_00628660 at all; every other
+    path still calls it. No null check in the decompile."""
+    for scenario in ("not-arm", "arm-missing-one", "arm-two-handed", "no-dual-wield", "dual-wield-self", "dual-wield-other"):
+        for _ in range(8):
+            sc = make_unit(rig, rng, kinds(rng))
+            item = sc.block(0x40)
+            inv = sc.block(0x20)
+            sc.put(sc.unit + 0x60, inv)
+            default_component = rng.randrange(256)
+            rig.script["component"] = default_component
+            log = [("body-loc", item)]
+            if scenario == "not-arm":
+                rig.script["bodyloc"] = rng.choice((0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12))
+                log.append(("items-component", item))
+                want = default_component
+            else:
+                rig.script["bodyloc"] = rng.choice((4, 5))
+                right, left = sc.block(0x40), sc.block(0x40)
+                right_broken = scenario == "arm-missing-one" and rng.random() < 0.5
+                left_broken = scenario == "arm-missing-one" and not right_broken
+                rig.script["not_broken"] = {right: 0 if right_broken else 1, left: 0 if left_broken else 1}
+                rig.script["grid_item"] = {4: right, 5: left}
+                log += [("grid-item", inv, 4), ("not-broken", right), ("grid-item", inv, 5), ("not-broken", left)]
+                both_present = scenario != "arm-missing-one"
+                if both_present:
+                    right_two_handed = scenario == "arm-two-handed" and rng.random() < 0.5
+                    left_two_handed = scenario == "arm-two-handed" and not right_two_handed
+                    rig.script["two_handed"] = {right: 1 if right_two_handed else 0, left: 1 if left_two_handed else 0}
+                    log.append(("two-handed", right))
+                    if not right_two_handed:
+                        log.append(("two-handed", left))
+                        if not left_two_handed:
+                            rig.script["dual_wield"] = 1 if scenario in ("dual-wield-self", "dual-wield-other") else 0
+                            log.append(("dual-wield", sc.unit))
+                            if scenario in ("dual-wield-self", "dual-wield-other"):
+                                rig.script["equipped_weapon"] = item if scenario == "dual-wield-self" else right
+                                log.append(("equipped-weapon", inv))
+                if both_present and scenario == "dual-wield-other":
+                    want = 6
+                else:
+                    log.append(("items-component", item))
+                    want = default_component
+            got = rig.go(0x62_3D60, sc.unit, item)
+            # a byte return (uint8_t): only AL is the documented value, the rest of EAX is not cleared
+            require(got[0] == "ret" and got[1] & 0xFF == want and rig.log == log,
+                    f"623d60 {scenario}: {got} {rig.log} != ({want}, {log})")
+            sc.check(f"623d60 {scenario}")
+
+
 def run_all():
     """Run every check; returns the case count."""
     rng = random.Random(0x620300)
@@ -1022,7 +1086,7 @@ def run_all():
             (check_row, 3), (check_frame_length, 3), (check_event_copy, 3), (check_event, 3), (check_object_data, 4),
             (check_object_flags, 4), (check_misc_unit, 4), (check_player_checks, 4), (check_kept_skills, 4),
             (check_kept_readers, 4), (check_kept_setters, 4), (check_static_path_alloc, 4),
-            (check_unit_size_y, 1), (check_target_coords, 1)]
+            (check_unit_size_y, 1), (check_target_coords, 1), (check_item_component, 1)]
     cases = 0
     for check, rounds in plan:
         for _ in range(rounds):
