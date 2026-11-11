@@ -51,6 +51,8 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 
 | Address | What |
 |---|---|
+| `FUN_006205a0` | A unit's collision size: player 2; monster MonStats2 `+9` SizeY (`FUN_00451fe0` by class, 0 if not found; the field is a signed char, sign-extended); object its data row's `+0xd4` SizeY; missile Missiles `+0x18a` Size (`FUN_0046ace0` by class, 0 if not found; an unsigned byte); item 1; any other type 0. No null check. Oracle: `tools/emu/units_small.py check_unit_size_y` (collision.md cites it from the caller side; d2d loads the same MonStats2/Objects SizeY fields at gamedata time, gamedata.cpp:154/674, instead of dispatching per unit at runtime) |
+| `FUN_00620900` | A unit's target coordinates (unit, out point): types 0 (player), 1 (monster), 3 (missile) and anything past 5 take the dynamic path's ScreenPos (`FUN_006489c0`/`FUN_006489d0`, path `+8`/`+0xc`); types 2 (object), 4 (item) and 5 (tile) take the static path's own `+4`/`+8` screen x/y instead. 0x7e7 null. Oracle: `tools/emu/units_small.py check_target_coords`. (unit-sounds.md's citation doesn't give the per-type split; this is it, read from the decompile) |
 | `FUN_006205a0` | A unit's footprint height in subtiles (stdcall; null asserts, 0x74b): a player 2, an item 1; a monster its MonStats2 SizeY (`FUN_00451fe0`, byte `+9`, signed; the loader `FUN_006571a0` maps SizeY to 9), an object its objects.txt SizeY (`*(+0x14)` `+0xd4`; loader `FUN_0063f690`, 0x63f89a), a missile its Missiles.txt Size (`FUN_0046ace0`, byte `+0x18a`, unsigned; loader `FUN_00661b20`, 0x662f94); 0 for a row not found or any other type. The width is `FUN_00620510` (`+8`, `+0xd0`). d2d: `rules::unit_size_y`, checked by `tools/emu/unit_size.py` |
 | `FUN_006219c0` | An object's Objects.txt `+0x120 + mode`; 1 for others |
 | `FUN_00621a70` | An object's Objects.txt `+0x13a`, 0 for others |
@@ -65,6 +67,7 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 | `FUN_00622de0` | (missing life + missing mana, both >> 8) × stat 0xc >> 2; 0 when nothing is missing |
 | `FUN_00623600` | A dead monster (mode 0xc) whose MonStats2 row (`FUN_00451fe0`) has byte `+4` & 0x80 and not byte `+6` & 8, and `FUN_0063a770` false |
 | `FUN_00623990` | The weapon a skill uses (unit, flag): by the skill's Skills `+0x168`: 1 the left hand's; 2 the right unless it's a weapon and the left is one too with skill flag 0x2000; 3 alternate by the frame (`+0x38 >> 8`, odd or above 5); 4 none; else the right hand's if a weapon, else the left. Only a usable weapon (`FUN_0062a4e0`); otherwise `FUN_0063c9b0`'s |
+| `FUN_00623d60` | `GetItemComponent` (unit, item): off an arm slot (`FUN_00627d40` not 4 R_ARM / 5 L_ARM) it's `FUN_00628660`'s default (ItemsTxt `+0x115`). On an arm slot: both grid slots 4/5 (`FUN_0063bde0`) that pass `FUN_0062a4e0` count; with both present, neither two-handed (`FUN_006289c0`) and the unit able to dual-wield (`FUN_006235a0`), the item that isn't `FUN_0063bef0`'s own equipped weapon returns 6 instead of `FUN_00628660`'s default. No null check. Oracle: `tools/emu/units_small.py check_item_component`, all seven callees mocked — a standalone check of the branch logic, not a diff (d2d builds neither the 0x9c nor 0x9d item packet this feeds; net-packets.md) |
 
 ## Player data (unit `+0x14`)
 
@@ -109,7 +112,7 @@ game.exe 1.14d only (SHA-256 checked).
 
 | Oracle | Functions |
 |---|---|
-| `tools/emu/units_small.py` (61 functions) | `FUN_00620360`, `006203b0`, `00620410`, `00620470`, `006204c0`, `00620710`, `00620780`, `006207f0`, `00620830`, `00620980`, `00620ae0`, `00620b50`, `00620c70`, `00620cd0`, `00620d30`, `00620f50`, `00620fa0`, `00621150`, `006211c0`, `006212c0`, `00621310`, `00621330`, `00621420`, `00621870`, `006218d0`, `00621920`, `006219c0`, `00621a70`, `00621ac0`, `00621b00`, `00621b70`, `00621c00`, `00621f60`, `00622150`, `006220f0`, `006221e0`, `00622230`, `00622270`, `006222c0`, `00622300`, `00622350`, `00622dc0`, `00622e90`, `00622ea0`, `00622f10`, `00622f80`, `00622ff0`, `00623060`, `006230c0`, `00623120`, `006231a0`, `00623220`, `00623290`, `00623300`, `00623350`, `006233a0`, `00623410`, `006234c0`, `006234f0`, `00623520`, `00623570` |
+| `tools/emu/units_small.py` (64 functions) | `FUN_00620360`, `006203b0`, `00620410`, `00620470`, `006204c0`, `00620710`, `00620780`, `006207f0`, `00620830`, `00620980`, `00620ae0`, `00620b50`, `00620c70`, `00620cd0`, `00620d30`, `00620f50`, `00620fa0`, `00621150`, `006211c0`, `006212c0`, `00621310`, `00621330`, `00621420`, `00621870`, `006218d0`, `00621920`, `006219c0`, `00621a70`, `00621ac0`, `00621b00`, `00621b70`, `00621c00`, `00621f60`, `00622150`, `006220f0`, `006221e0`, `00622230`, `00622270`, `006222c0`, `00622300`, `00622350`, `00622dc0`, `00622e90`, `00622ea0`, `00622f10`, `00622f80`, `00622ff0`, `00623060`, `006230c0`, `00623120`, `006231a0`, `00623220`, `00623290`, `00623300`, `00623350`, `006233a0`, `00623410`, `006234c0`, `006234f0`, `00623520`, `00623570`, `006205a0`, `00620900`, `00623d60` |
 | `tools/emu/units_calls.py` (17 functions) | `FUN_00620300`, `00620d80`, `00621c30`, `00621cc0`, `00621ed0`, `00621f90`, `00622060`, `00622830`, `00622de0`, `00623600`, `006238c0`, `006219f0`, `0064a100`, `0064a150`, `0065a900`, `00663d40`, `00663d90` |
 
 What the runs settled (the earlier rows above stand; these are additions and
@@ -189,8 +192,16 @@ corrections):
 
 Not covered: the allocator's copy on growth (`FUN_0040b4b0` is hooked, its
 size and arguments are checked), the callees (`FUN_00648940` ... are
-recorded, not run), `FUN_00623990` / `00623d60` (the skill weapon), the
+recorded, not run), `FUN_00623990` (the skill weapon), the
 missile stream walkers `FUN_00663e00` / `00663ed0`, `FUN_00621dc0`.
+`FUN_00623d60` (`GetItemComponent`, the item's visual component for the
+0x9c/0x9d item packets) is now covered (`check_item_component`, below):
+off an arm slot it's `ITEM_GetItemsTxt_bComponent`'s default; on an arm
+slot with both hands one-handed and the unit able to dual-wield, the item
+that isn't the inventory's own equipped weapon gets component 6 instead.
+All seven callees are mocked, so this run is a standalone check of the
+branch logic against the decompile, not a diff against d2d (which builds
+neither of those packets — net-packets.md).
 
 ## Client-side units (CUnit.cpp, CUnitEvent.cpp, monster-flag helpers)
 
