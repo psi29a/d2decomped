@@ -465,8 +465,10 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 
 ## Not ours yet
 
-- Unique / set item entries (flags 1 / 2; ROP only in 1.14d) and forced
-  picks (struct +0x40).
+- Unique / set item entries (flags 1 / 2; ROP only in 1.14d) force quality
+  7 / 5 in `roll_drops`, with no quality draw. Flag modifiers (bin +0x30 /
+  +0x32) are 0, so those draws do not run. Forced picks (struct +0x40, the
+  entry's unique / set index) are stored and not applied when the item is made.
 - `Loot::drop_at` reads the live walk grid (& 0x01) and the items lying
   there, not the rooms' full flags: units (0x1000 / 0x2000) don't block,
   and its walk stays on one level.

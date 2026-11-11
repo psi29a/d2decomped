@@ -69,12 +69,17 @@ struct ItemType {
 // entries (item codes, other classes, "gld" or "gld,mul=N"; Prob >= 1).
 // group / level: a monster's level moves it on to the group's next rows
 // (FUN_00654e00); `next` is that row's name ("" past the group's last).
+// entry_flags / entry_index, parallel to items (empty: all 0): entry +0xc
+// (1 unique item, 2 set item, 4 a class) and +0xa (the unique / set index).
+// flag_mod: the two flag chances (bin +0x30 / +0x32). The txt leaves them 0.
 struct TreasureClass {
     int picks = 1, nodrop = 0;
     std::array<int, 4> mod{};
     std::vector<std::pair<std::string, int>> items;
     int group = 0, level = 0;
     std::string next;
+    std::vector<int> entry_flags, entry_index;
+    std::array<int, 2> flag_mod{};
 };
 // ItemRatio.txt per [class specific * 2 + uber][unique, set, rare, magic,
 // superior, normal]: odds base, level divisor, minimum (FUN_00637910: the
