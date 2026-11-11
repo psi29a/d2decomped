@@ -10,12 +10,13 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <iterator>
 
 using namespace d2d::rules;
 
 // Replays each oracle case through Rain::frame and checks its state and thunder against game.exe.
-int main() {
+int main() try {
     struct Case {
         int second, heard, sound_ok;
         std::uint32_t seed_low, seed_high;
@@ -56,4 +57,7 @@ int main() {
     }
     std::printf("weather flash: %zu cases match game.exe\n", std::size(kOracle));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "weather flash: %s\n", error.what());
+    return 1;
 }
