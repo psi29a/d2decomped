@@ -101,7 +101,8 @@ or 0x13 falls through, and any other EDI returns 0), `00454ed1`
   scripts decide them.
   d2d builds them for the Den of Evil (quests.md): its kind-2 messages
   are topics named "Den of Evil", and a kind-0 one plays on the click.
-- Lines are clipped to the box rather than revealed partially.
+- A line that meets the box is drawn for the glyph rows inside it
+  (`speech_line_visible`, `FUN_00501df0`). A line clear of the box is not drawn.
 - Voice: when a speech starts, `FUN_004a10e0` looks up its string with
   `FUN_004e0650`. That walks `{u32 sound, u32 string}` pairs at
   `0x72b0e0` (864, zero-terminated; `apps/d2d/speech_sound.hpp`) and plays
