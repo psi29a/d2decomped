@@ -1222,7 +1222,7 @@ address	name	evidence
 00648900	path_get_y	(path): the word at path +6 (subtile y); null path raises the internal error, line 0x69d (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 00648f40	path_step_list	(path, &list): returns path +0x1d4 (count), sets list to path +0x1d8; asserts when path flag 0x20000 is clear, line 0x8f4 (missiles.md "Standing missiles")
-00649400	unit_stamp_footprint	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
+00649400	unit_stamp_by_type	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
 00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
 00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
 0064a100	missile_data_alloc	0x34 bytes, +0x1c = -1 (Missile.cpp 0x22)
