@@ -66,3 +66,11 @@ finally frees the control at line 0x19d. The allocator and optional record
 release are hooked by `tools/emu/ai_control_free.py`; the command-ring
 routine runs for real. The oracle checks an empty control and a populated
 control, including release ordering and null inputs.
+
+`FUN_005e7dc0` takes game ECX, unit EDX and a think record on the stack. It
+passes copies of think +0x14 and +0x18 to `FUN_005ddc30`. A non-null result
+and a signed returned distance below 25 call `FUN_005ddf90` with mode 4 and
+the target; otherwise `FUN_005de080` stands for 50. The oracle
+`tools/emu/ai_town_rogue.py` hooks these three callees, checks their arguments
+and tests the no-target and boundary-distance branches. This does not check
+the target search or attack effects themselves.
