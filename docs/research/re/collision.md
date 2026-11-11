@@ -1542,3 +1542,43 @@ found with how this caller uses it.
 Re-check: `python3 tools/ghidra/fn.py 004cc160 004822b0`; disassemble
 `004cc160`..`004cc246` to confirm the ECX=unit/EDX=value order and the
 sign-transition gate on `+0x88`.
+
+### A missile's progress-to-frame mapper: `FUN_004cc950` (batch 9)
+
+`FUN_004cc950` (0x48 bytes, `004cc950`..`004cc998`, plain `RET`, no stack
+args, no calls) takes **EAX** a progress value and **ECX** a record
+pointer (confirmed in disassembly — EDX is never read; ECX is read only
+on the branch that needs it, at `+0x96`, a signed 16-bit field):
+
+- EAX under 0x1e (30): returns 1.
+- EAX in `[0x1e, 0x55)` (30..84): returns `(EAX - 0xf) >> 2` (arithmetic
+  shift, so integer division by 4 for these positive values).
+- EAX at or above 0x55, with `record->+0x96` (signed 16-bit) as `max`: let
+  `low = max - 0x32`. EAX under `low` returns 0xc (12, the ramp's
+  apparent ceiling — note the branch above can already return above 12
+  for EAX near 84, so 12 is not a hard cap on the whole function, only on
+  this branch). EAX at or above `low` but under `max` returns `0xc -
+  ((EAX - low) >> 2)`. EAX at or above `max` falls through to the same
+  default: 1.
+
+Its only caller, `FUN_004d5310` (`andycontrol0`, client function 29,
+already `d2d verified`: `components/rules/shake.hpp:63`,
+`unit-sounds.md:570`, with a committed oracle,
+`tools/emu/shake.py`/`tests/quake_control_cases.inc`), passes the
+MissileTypeTxt-shaped record it already holds (stride `0x1a4`,
+`PTR_DAT_00744304+0xb64`/`+0xb6c`) as `ECX` and `FUN_0064a3b0`'s result
+("reads total minus remaining", `unit-sounds.md:573`) as `EAX`, then
+feeds this function's return value into `FUN_004ce850` alongside the
+record's `+0x1e` field and the same progress value — a frame or intensity
+pick for Andariel's death-effect decal, not traced further.
+
+Not traced: `record->+0x96`'s own meaning beyond "a bound used past
+EAX == 0x55", and `FUN_004ce850`'s own use of the returned index. d2d:
+not ported as a function; `shake.hpp`'s screen-shake and quake-loop
+volume are the parts of `andycontrol0` already ported, and this
+particular decal-frame computation is listed there under "Not done"
+(the control missiles' fire/debris visuals) rather than disagreed with.
+
+Re-check: `python3 tools/ghidra/fn.py 004cc950 004d5310`; disassemble
+`004cc950`..`004cc998` to confirm the EAX=progress/ECX=record order and
+that EDX is unused.
