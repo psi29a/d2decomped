@@ -342,7 +342,19 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 if (shrine_code(player.boost.shrine) == 14) player.character.stats.values[d2d::d2s::kStamina] = player.character.stats.values[d2d::d2s::kMaxStamina];
                 player.boost = {};
             }
+            // Deaths and Find Item drop inside update_fighters (deaths.cpp, strike.cpp).
+            // The walk's crowd is built later; this one is who stands as the drop lands.
+            Crowd drop_crowd;
+            for (const auto& one : players) {
+                drop_crowd.units.push_back(&one->player);
+                if (one->merc) drop_crowd.units.push_back(&one->merc->unit);
+            }
+            for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                if (level->npcs[i].root != "objects" && !npc_states[i].hidden) drop_crowd.units.push_back(&npc_states[i]);
+            if (!in_town(level)) fight.crowd(drop_crowd);
+            loot.standing = &drop_crowd;
             fight.update_fighters(now_ms);
+            loot.standing = nullptr;
         });
         spring_traps(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -392,6 +404,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         bool in_moor = !in_town(level);           // outside: this level's monsters are about
         const Level* tick_level = level;
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
+        loot.standing = &crowd;                // FUN_00555da0: this level's 0x1000 / 0x2000
         // Dead: the death plays out, then Resurrect respawns in camp; a
         // swing or a flinch holds the player in place until it ends, and
         // an attack goes on while the button's held (the left skill sent
@@ -676,6 +689,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again
             each_player([&](Player& player) { if (player.ghost) revive(player, now_ms); });
+        loot.standing = nullptr;                                 // the crowd dies with this tick
     }
 
 // State 153 on a unit: each client's setfunc 2 (FUN_004d87e0) dips its
