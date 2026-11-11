@@ -42,6 +42,12 @@ Seis, 0x26 Grand Vizier of Chaos → 0x17.
 Tyrael (0x16f) has 664 (0x298) and "!" (`FUN_005b3750`) till word 0x18
 bit 0 (`FUN_005b36d0`: block 0). Hearing 664 (`LAB_005b36a0`) sets bit 0.
 
+The opening alert `FUN_005b3750` tests word 0x18 bit 0 only for NPC 0x16f,
+returning true in the low byte only when that test returns zero. Other NPCs
+return a zero low byte without testing flags. `tools/emu/quest_act4_open_alert.py`
+checks 24 synthetic cases with the flag helper hooked; upper EAX is not a
+boolean result and the helper itself is not checked.
+
 ## The Fallen Angel (a4q1.cpp, word 0x19)
 
 Data (0x1c bytes): +4 / +8 Izual's spot at death, +0xc told-by-ghost, +0xd
