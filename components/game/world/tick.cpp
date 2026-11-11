@@ -227,6 +227,60 @@ auto World::stamina_frame() -> void {
 // Runs one game frame with these orders; it also steps the day and the environment's
 // intensity for the player's act and level (FUN_0061bb80).
 auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
+        // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
+        if (now_ms - day_at > 1000) day_at = now_ms;
+        day_frames.clear();
+        for (; now_ms - day_at >= kTickMs; day_at += kTickMs) day_frames.push_back(day_at);
+        first_turn = true;
+        if (!split_levels) {
+            tick_level(orders, now_ms, last_ms);
+            hand_out_announced();
+            if (turn_done) turn_done();
+            return;
+        }
+        // Stage 9: a turn for each level with players on it, the lead's last.
+        for (auto& player : players) if (!player->on_level) player->on_level = level;
+        std::vector<const Level*> turns;
+        for (const auto& player : players)
+            if (player->on_level != lead().on_level && std::ranges::find(turns, player->on_level) == turns.end()) turns.push_back(player->on_level);
+        turns.push_back(lead().on_level);
+        const Level* const lead_level = lead().on_level;
+        auto everyone = std::move(players);
+        const auto all_heroes = fight.heroes;
+        auto between = std::exchange(fight.kills, {});           // kills since the last tick (a debug kill): the lead's level's, for its turn
+        std::vector<bool> ticked(everyone.size(), false);
+        for (const Level* turn : turns) {
+            std::vector<std::size_t> slots;
+            for (std::size_t i = 0; i < everyone.size(); ++i) if (!ticked[i] && everyone[i]->on_level == turn) slots.push_back(i);
+            if (slots.empty()) continue;                     // all left it this tick (a warp): ticked already
+            players.clear();
+            fight.heroes.clear();
+            for (const auto slot : slots) { ticked[slot] = true; fight.heroes.push_back(everyone[slot].get()); players.push_back(std::move(everyone[slot])); }
+            elsewhere.clear();
+            for (const auto& other : everyone) if (other) elsewhere.push_back(other.get());
+            swap_to(turn);
+            if (turn == lead_level) fight.kills.insert(fight.kills.begin(), between.begin(), between.end());
+            act_as(*players.front());
+            tick_level(orders, now_ms, last_ms);
+            if (turn_done) turn_done();
+            for (std::size_t k = 0; k < slots.size(); ++k) everyone[slots[k]] = std::move(players[k]);
+            first_turn = false;
+        }
+        elsewhere.clear();
+        players = std::move(everyone);
+        fight.heroes = all_heroes;
+        act_as(lead());
+        swap_to(lead().on_level);                                  // the host's screen: where its player is now
+        hand_out_announced();                                // the joiners have them in their next View
+    }
+
+auto World::hand_out_announced() -> void {
+        if (announced.empty()) return;
+        for (auto& player : players) for (const auto& message : announced) player->events.push_back(message);
+        announced.clear();
+    }
+
+auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
         // The look follows what's worn (compcode::look, the save header's bytes).
@@ -269,13 +323,20 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });
         if (level != wanted_near) { want_nearby(*game_data, *level); wanted_near = level; }
         each_player([&](Player&) { item_ids(); });
-        // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
-        if (now_ms - day_at > 1000) day_at = now_ms;
-        for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
-            day.step(act(), level->id);
-            credit_party([&] { act1_tick(); act2_tick(); });
-            each_player([&](Player&) { stamina_frame(); life_update_frame(day_at); footstep_frame(day_at); find_voice(day_at); });
+        // This tick's day frames (tick): the day and the quests' timers step
+        // once a tick, in the first turn; every turn's players each frame.
+        // ponytail: split levels run the quest timers (act1_tick, act2_tick)
+        // in the first turn's level only; their level tests see that one.
+        const std::uint32_t day_end = day_at;
+        for (const std::uint32_t frame_at : day_frames) {
+            day_at = frame_at;
+            if (first_turn) {
+                day.step(act(), level->id);
+                credit_party([&] { act1_tick(); act2_tick(); });
+            }
+            each_player([&](Player&) { stamina_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
+        day_at = day_end;
         each_player([&](Player& player) {
             if (player.boost.until && now_ms >= player.boost.until) {     // the state runs out
                 if (shrine_code(player.boost.shrine) == 14) player.character.stats.values[d2d::d2s::kStamina] = player.character.stats.values[d2d::d2s::kMaxStamina];
@@ -328,7 +389,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
-        const bool in_moor = !in_town(level);     // outside: this level's monsters are about
+        bool in_moor = !in_town(level);           // outside: this level's monsters are about
+        const Level* tick_level = level;
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then Resurrect respawns in camp; a
         // swing or a flinch holds the player in place until it ends, and
@@ -353,25 +415,27 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             const bool resurrect = std::ranges::any_of(cmds, [](const Command& command) { return std::holds_alternative<cmd::Resurrect>(command); });
             // Back in camp after dying: alone, or in co-op once no one's left alive. A dead
             // hardcore character leaves the game instead (FUN_0054c0e0: flag 4 at 0054c12c,
-            // then FUN_0052caf0 drops the client).
+            // then FUN_0052caf0 drops the client). LAN: a joiner's screen is its own, so no one waits.
             if (fight.player_modes(button, now_ms, elapsed) && resurrect) {
                 const auto& header = actor->character.header;
                 if (header.hardcore() && header.died()) actor->out = true;
-                else if (players.size() == 1 || !anyone_alive()) respawn(now_ms);
+                else if (!shared_screen() || !anyone_alive()) respawn(now_ms);
             }
             if (actor->pmode != actor->last_pmode) {                 // death's stages: the penalty as it starts, the corpse as it ends
                 if (actor->pmode == kModeDT) {
                     death_penalty(now_ms);
                     actor->interact_npc = -1;
                     actor->character.header.status |= 0x08;   // the save's died bit (FUN_00580ec0: FUN_00538650 with 8 at 00580f7c)
+                    if (split_levels) { announce({ ev::Message::slain, actor->character.name, {} }); d2d::log::info("{} died", actor->character.name); }   // ponytail: the killer's name (game.exe's "was slain by")
                 }
-                if (actor->pmode == kModeDD) { if (players.size() > 1) become_ghost(player); else make_corpse(); }   // co-op: a ghost, the gear kept
+                if (actor->pmode == kModeDD) { if (shared_screen()) become_ghost(player); else make_corpse(); }   // co-op (one screen): a ghost, the gear kept; a screen of one's own: a corpse, as game.exe
                 actor->last_pmode = actor->pmode;
             }
+            for (const auto& command : cmds) if (std::holds_alternative<cmd::Say>(command)) apply(command, now_ms);   // the dead chat too
             if (!fight.dead() || actor->ghost) {
             const bool busy = actor->pmode >= 0 && !actor->ghost;
             for (const auto& command : cmds) {
-                if (std::holds_alternative<cmd::Resurrect>(command)) continue;
+                if (std::holds_alternative<cmd::Resurrect>(command) || std::holds_alternative<cmd::Say>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 apply(command, now_ms);
                 // ItemMode.cpp's server moves end with FUN_0055dbc0: a hand's or body
@@ -507,6 +571,17 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             }
             }
         });
+        in_moor = !in_town(level);                // a command above may have changed levels
+        if (level != tick_level) {
+            crowd.units.clear();
+            for (const auto& player : players) {
+                crowd.units.push_back(&player->player);
+                if (player->merc) crowd.units.push_back(&player->merc->unit);
+            }
+            for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
+            if (in_moor) fight.crowd(crowd);
+        }
         leash(before);
         // The world goes on with the player dead (game.exe runs the rooms
         // around the corpse till the respawn): monsters see the dead player
@@ -588,7 +663,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             act5_update(now_ms);
         });
         each_player([&](Player&) { cross_level(); });
-        for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);
+        for (const auto& player : players) if (here(*player)) fight.rooms_up(*level, player->player.x, player->player.y, false);
         act3_bind_new_bosses();
         init_new_objects();
         reopen_doors();

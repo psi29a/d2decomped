@@ -113,7 +113,7 @@ public:
     // `reach`. 5: path type 7, `reach` about the owner, `reach` away, its
     // path end. 2 and 4 stand 15 when nothing took.
     bool follow(int mode, bool run, int pct, int reach) {
-        // A run (FUN_005deeb0): RN, a walk in state 0x3c (slowed, never on in d2d).
+        // A run (FUN_005deeb0): RN, a walk in state 0x3c (decrepify).
         const int move_mode = run ? kMonsterRun : kMonsterWalk;
         const int pet_x = view_.x, pet_y = view_.y, own_x = view_.owner_x, own_y = view_.owner_y, end_x = view_.end_x, end_y = view_.end_y;
         if (mode == 3) { act = { .kind = PetAct::Kind::teleport }; return true; }   // ponytail: d2d's teleport always lands
@@ -280,7 +280,7 @@ inline bool traced_pet_ai(std::string_view ai_name) {
 // target (AI params [2] is `foe2`, [5] its distance, [6] in melee); per unit
 // a clear line (FUN_005dc640), in melee of the pet (FUN_00622c40), dying
 // (FUN_005541b0); the foe2 poisoned (state 2) and its poison resist (stat
-// 0x2d), the pet slowed (state 0x3c) or in Fenris's rage (0x8a), the
+// 0x2d), the pet in decrepify (state 0x3c) or Fenris's rage (0x8a), the
 // owner's life / mana (stats 6 / 8) and their max (FUN_00625d10 / d60);
 // the owner's summoning skill: its calc (FUN_00646ca0: shots, hits, life
 // frames, radius), level, mode (FUN_00644360); the Death Sentry's corpse
@@ -594,6 +594,10 @@ void fenris_think(PetBrain<World>& brain) {
     brain.set_out(0, 0, 4, foe ? PetUnit::foe : PetUnit::none);
     brain.wait(brain.aip(0));
 }
+
+// The Raven's init (FUN_005ecb70, row 107): +0x14 -1, +0x18 aip3 + 1, +0x1c
+// a seed step's low bit (the side it circles the owner first).
+inline std::array<int, 3> raven_init(int aip3, Rng& seed) { return { -1, aip3 + 1, int(seed.next() & 1) }; }
 
 // MonAI 107 Raven (FUN_005ecc10). +0x14: hits left (Skill1's calc at the
 // first think, 3 without a Skill1); none left, it dies. Over 50 from the

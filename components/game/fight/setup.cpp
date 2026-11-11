@@ -75,6 +75,7 @@ auto Fight::new_game(int difficulty) -> void {
         actor->chilled = 0;
         actor->stunned = 0;
         kept.clear();
+        kept_missiles.clear();
         next_id = 1;
         missiles.clear();
         actor->regen.clear();

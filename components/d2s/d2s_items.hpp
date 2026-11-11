@@ -273,7 +273,7 @@ inline void realm(Bits& bits, Item& parsed) {
     if (bits.file_version > 86 && bits.read(1))
         for (std::uint32_t word = 0; word < (bits.file_version > 93 ? 3u : 2u); ++word) parsed.realm.push_back(bits.read(32));
 }
-inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = nullptr) {
+inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = nullptr, int depth = 0) {
     if (!net && (bits.pos % 8 || bits.read(16) != 0x4d4a)) throw std::runtime_error("d2s items: missing JM");
     Item parsed;
     const std::uint32_t flags = bits.read(32);
@@ -357,7 +357,8 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
     }
     if (net) return parsed;                                         // its sockets' items come apart
     bits.pos = (bits.pos + 7) & ~std::size_t(7);
-    for (int i = 0; i < filled; ++i) parsed.socketed_items.push_back(item(bits, item_tables));
+    if (filled > 0 && depth > 0) throw std::runtime_error("d2s items: a socketed item with items in it");   // a joiner's save: no chain to run the stack out
+    for (int i = 0; i < filled; ++i) parsed.socketed_items.push_back(item(bits, item_tables, nullptr, depth + 1));
     return parsed;
 }
 }  // namespace detail

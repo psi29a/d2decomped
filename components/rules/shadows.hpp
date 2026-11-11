@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The Shadows (MonAI 105 ShadowWarrior / 106 ShadowMaster): the skills a
-// Shadow Warrior is given (FUN_005eb490), the Shadow Master's init
-// (FUN_005ecb70) and think (FUN_005eb970) with its unit scan (FUN_005eb6d0).
+// The Shadows (MonAI 105 ShadowWarrior / 106 ShadowMaster): the Warrior's
+// init (FUN_005eaf50), the skills the Master's init gives (FUN_005eb490) and
+// its think (FUN_005eb970) with its unit scan (FUN_005eb6d0).
 // tools/emu/shadow_init.py and shadow_master.py check them against game.exe;
 // docs/research/re/pet-ai.md "The Shadows". The Warrior's think is
 // shadow_warrior_think in pets.hpp.
@@ -58,14 +58,21 @@ struct ShadowGift {
     int skill = 0, level = 0;
 };
 
-// FUN_005eb490 (ShadowWarrior's init): AI control 0, 0, 1; with a player
-// owner +0x1c its level in the summoning skill (-1: it hasn't the skill,
-// +0x1c stays 1), Attack (given at 1 if missing) on both hands, then each of
-// the owner's class's skills it may have (may_have(id)) at
+// FUN_005eaf50 (ShadowWarrior's init, the MonAI row's second word at
+// 0x73ca18 + 105 x 16): +0x1c 1, or with an owner (any) that has the skill
+// MonStats aip8 (N) names its level with bonuses (summoned_level, -1 it
+// hasn't it); +0x14 / +0x18 stay as FUN_005b0e00 cleared them. Its skills
+// are its MonStats ones and the owner's hands, given each think.
+inline std::array<int, 3> shadow_warrior_init(bool owner, int summoned_level) { return { 0, 0, owner && summoned_level >= 0 ? summoned_level : 1 }; }
+
+// FUN_005eb490 (ShadowMaster's init, row 106): AI control 0, 0, 1; with a
+// player owner +0x1c its level in the summoning skill (-1: it hasn't the
+// skill, +0x1c stays 1), Attack (given at 1 if missing) on both hands, then
+// each of the owner's class's skills it may have (may_have(id)) at
 // shadow_skill_level (hard_points(id), -1 none). What it's given, in order.
 template <class MayHave, class HardPoints>
-std::vector<ShadowGift> shadow_warrior_init(std::array<int, 3>& ctrl, bool player_owner, int summoned_level, bool has_attack,
-                                            std::span<const int> class_skills, MayHave&& may_have, HardPoints&& hard_points) {
+std::vector<ShadowGift> shadow_master_init(std::array<int, 3>& ctrl, bool player_owner, int summoned_level, bool has_attack,
+                                           std::span<const int> class_skills, MayHave&& may_have, HardPoints&& hard_points) {
     ctrl = { 0, 0, 1 };
     std::vector<ShadowGift> gifts;
     if (!player_owner) return gifts;
@@ -78,10 +85,6 @@ std::vector<ShadowGift> shadow_warrior_init(std::array<int, 3>& ctrl, bool playe
     }
     return gifts;
 }
-
-// FUN_005ecb70 (ShadowMaster's init): +0x14 -1, +0x18 aip3 + 1, +0x1c a seed
-// step's low bit.
-inline std::array<int, 3> shadow_master_init(int aip3, Rng& seed) { return { -1, aip3 + 1, int(seed.next() & 1) }; }
 
 // A unit as the Shadow Master sees it (subtiles). `target`: its own target
 // (FUN_00553540), `owner` (FUN_0058f0d0), both unit indexes or -1. `foe`:
