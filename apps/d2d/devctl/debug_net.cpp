@@ -29,6 +29,11 @@ void DebugVerbs::add_net() {
         town.add_chat(text);
         return std::string("ok\n");
     });
+    add("chatlog", [this](const Args& /*args*/) -> Reply {   // the chat lines on screen now, oldest first (a LAN game's chat and news)
+        std::string out;
+        for (const auto& line : town.chat_lines) out += line.text + "\n";
+        return out + "ok\n";
+    });
     add("net", [this](const Args& /*args*/) -> Reply {   // a joined game: where the host has us, where d2d has us (act subtiles), and how far apart
         if (!town.net_game || !town.level) return std::nullopt;
         const float local_x = (town.hero.player.x + float(town.level->world_x)) * 5.f, local_y = (town.hero.player.y + float(town.level->world_y)) * 5.f;
@@ -58,12 +63,21 @@ void DebugVerbs::add_net() {
         town.party.open = !town.party_preview.empty();
         return std::string("ok\n");
     });
-    add("players", [this](const Args& /*args*/) -> Reply {   // the game's players (local co-op): id, name, cell, seat (-1: the first player's), mode (-1 none)
+    add("players", [this](const Args& args) -> Reply {   // the game's players (local co-op): id, name, cell, seat (-1: the first player's), mode (-1 none), ghost, level id[, quest q's bits]
+        const int quest = args.size() >= 3 ? std::atoi(args[2].c_str()) : -1;
+        if (args.size() >= 3 && (quest < 0 || quest >= 48)) return std::string("err quest 0..47\n");
         std::string out;
         for (const auto& player : town.world.players) {
             const auto coop_player = std::ranges::find(town.coop, player->id, &Town::CoopPlayer::id);
-            out += std::format("{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n", player->id, player->character.name, player->player.x, player->player.y,
-                               coop_player == town.coop.end() ? -1 : coop_player->seat, player->pmode, int(player->ghost));
+            const auto* at_level = player->on_level ? player->on_level : town.world.level;
+            out += std::format("{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{}", player->id, player->character.name, player->player.x, player->player.y,
+                               coop_player == town.coop.end() ? -1 : coop_player->seat, player->pmode, int(player->ghost), at_level ? at_level->id : -1);
+            if (quest >= 0) {
+                const auto& header = player->character.header;
+                const auto& bits = header.quests[std::size_t(std::clamp(header.active_difficulty(), 0, 2))];
+                out += std::format("\t{:#06x}", bits[std::size_t(quest * 2)] | bits[std::size_t(quest * 2 + 1)] << 8);
+            }
+            out += "\n";
         }
         return out + "ok\n";
     });
@@ -88,6 +102,18 @@ void DebugVerbs::add_net() {
         for (std::size_t i = 2; i < args.size(); ++i) text += (i > 2 ? " " : "") + args[i];
         town.chat_typing = text;
         return std::string("ok\n");
+    });
+    add("view", [this](const Args& /*args*/) -> Reply {   // what this screen was last told: its level, the monsters (and their positions summed), the other players (a LAN joiner's View)
+        const auto& view = town.view;
+        std::string others;
+        for (const auto& other : view.others) others += (others.empty() ? "" : ",") + other.name;
+        double spread = 0;                                     // where the monsters are, summed: it changes as they move
+        for (const auto& monster : view.monsters) spread += monster.unit.x + monster.unit.y;
+        const auto nearest = std::ranges::min_element(view.monsters, {}, [&](const auto& monster) { return std::hypot(monster.unit.x - view.player.x, monster.unit.y - view.player.y); });
+        const auto closest = nearest == view.monsters.end() ? std::string("-") : std::format("{:.1f},{:.1f}", nearest->unit.x, nearest->unit.y);
+        std::string ids;                                       // the monsters' unit ids: which ones they are
+        for (const auto& monster : view.monsters) ids += (ids.empty() ? "" : ",") + std::to_string(monster.id);
+        return std::format("ok level={} monsters={} others={} ground={} where={:.1f} near={} ids={}\n", view.level ? view.level->id : -1, view.monsters.size(), others.empty() ? "-" : others, view.ground.size(), spread, closest, ids.empty() ? "-" : ids);
     });
 }
 
