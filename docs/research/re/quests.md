@@ -238,11 +238,16 @@ A quest's timers count quest ticks, not frames:
   frames** (0.8 s).
 
 d2d: `rules::QuestClock` (`World::quest_clock`, stepped in the day's frame
-loop) and `quest_timer_steps(ticks)`; the Act 1 and 2 timers in
-`rules/quests.hpp` count its steps (`World::act1_quest_step`,
-`act2_quest_step`). Not yet: the timers Acts 1, 3, 4 and 5 keep as ticks x
-40 ms (the Den's log, the Gidbinn, the afterglow, Izual's ghost, Diablo's
-release, Nihlathak's log, the Ancients' statues) (#383).
+loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
+`act2_quest_step`):
+
+| Timer | Set at | Ticks |
+|---|---|---|
+| The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
+| The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
+
+Not yet, kept as ticks x 40 ms: the Gidbinn, the afterglow, Izual's ghost,
+Diablo's release, Nihlathak's log, the Ancients' statues (#383).
 
 ## Messages
 

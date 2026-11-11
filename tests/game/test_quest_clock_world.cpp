@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // The quest timers step on the quest clock through World::tick: a step
-// every 20th frame (FUN_0052d870 -> FUN_00543e10), so Sisters' Burial
-// Grounds' 0xf-tick log (LAB_00590bf0) comes on the 16th step, 301..320
-// frames after the kill, not 15 frames on (issue #383).
+// every 20th frame (FUN_0052d870 -> FUN_00543e10), and a timer of n ticks
+// runs on the (n + 1)th step (issue #383). Each case sets one timer as its
+// quest would, then counts the frames and steps till it runs.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -20,9 +20,31 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <functional>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
+using d2d::rules::quest_timer_steps;
+
+namespace {
+
+// The frames and quest steps World::tick takes till `done`; the steps must
+// be `steps` exactly, the last on a step's frame.
+void runs_after(World& world, std::uint32_t& now_ms, int steps, const char* what, const std::function<bool()>& done) {
+    const std::uint32_t count_at = world.quest_clock.count;
+    int frames = 0;
+    while (!done() && frames < 4000) {
+        world.tick({}, now_ms + kTickMs, now_ms);
+        now_ms += kTickMs;
+        ++frames;
+    }
+    const auto taken = int(world.quest_clock.count - count_at);
+    std::printf("%s: %d frames, %d quest steps\n", what, frames, taken);
+    assert(done() && taken == steps && world.quest_clock.frame % d2d::rules::QuestClock::kFrames == 0);
+    assert(frames > (steps - 1) * 20 && frames <= steps * 20);
+}
+
+}  // namespace
 
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
@@ -49,21 +71,17 @@ int main() try {
     std::uint32_t now_ms = 60 * kTickMs;
     for (int warm = 0; warm < 7; ++warm, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
 
-    // Blood Raven just died (BurialQuest::killed: state 4, its timer set).
+    // Sisters' Burial Grounds: Blood Raven's 0xf-tick log (LAB_00590bf0).
     world.burial.state = 4;
     world.burial.log = 2;
-    world.burial.log_in = d2d::rules::quest_timer_steps(0xf);
-    const std::uint32_t count_at = world.quest_clock.count;
-    int frames = 0;
-    while (world.burial.log != 3 && frames < 1000) {
-        world.tick({}, now_ms + kTickMs, now_ms);
-        now_ms += kTickMs;
-        ++frames;
-    }
-    std::printf("the log after %d frames, %u quest steps\n", frames, world.quest_clock.count - count_at);
-    assert(world.burial.log == 3);
-    assert(world.quest_clock.count - count_at == 16 && world.quest_clock.frame % d2d::rules::QuestClock::kFrames == 0);
-    assert(frames > 15 * 20 && frames <= 16 * 20);
+    world.burial.log_in = quest_timer_steps(0xf);
+    runs_after(world, now_ms, 16, "Blood Raven's log", [&] { return world.burial.log == 3; });
+
+    // The Den of Evil cleared: "Return to Akara" 8 ticks on (0x5903d9 -> LAB_00590230).
+    world.den.log = 2;
+    world.den_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "the Den's log", [&] { return world.den.log == 5; });
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {

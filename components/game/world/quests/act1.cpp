@@ -172,6 +172,7 @@ auto World::act1_quest_step() -> void {
         if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) actor->portal_due = true;   // her timer's 10 (FUN_00596490)
         burial.tick();
         tower.tick();
+        if (den_log_in > 0 && --den_log_in == 0) den.log = 5;   // LAB_00590230: "Return to Akara"
     }
 
 auto World::act1_alert(int hc_idx) -> bool {

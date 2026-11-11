@@ -334,7 +334,7 @@ auto World::new_game() -> void {
         act4_join();
         act5_join();
         den_left = -1;
-        den_log_at = 0;
+        den_log_in = 0;
         actor->voice_found.reset();               // FUN_004ca280: a new game's find lines
         actor->voice_checked = 0;
         operated.clear();

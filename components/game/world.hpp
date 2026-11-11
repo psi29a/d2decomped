@@ -529,7 +529,7 @@ struct World {
     // reward nothing and drop nothing; the client shows the host's.
     bool hosted_quests = false;     // the game's own quest flags (game +0x10f4 +0xc), as Act 2's records set them
     int den_left = -1;                     // its monsters alive when last counted
-    std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
+    int den_log_in = 0;                    // quest steps to the log's "Return to Akara" (8 ticks, LAB_00590230), 0 none
     std::array<bool, d2d::rules::kQuestFlagCount> closed_at_join{};  // quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
