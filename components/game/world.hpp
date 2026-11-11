@@ -495,7 +495,8 @@ struct World {
     std::uint32_t thaw_at = 0;             // a5q3's thaw timer (FUN_0058aab0), a tick a step
     std::pair<const Level*, int> fana{ nullptr, -1 };     // the fana object made (Level::npcs index)
     bool nihlathak_made = false;           // a5q3 +0x92: InitFn 69's Nihlathak (superunique 60)
-    std::uint32_t izual_ghost_at = 0;      // a4q1's 3-tick timer (FUN_005b3e60): his ghost
+    int izual_ghost_in = 0;                // quest steps to a4q1's 3-tick timer (0x5b4126 -> 0x5b3e60): his ghost, 0 none
+    bool izual_ghost_due = false;          // that timer has run
     std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
@@ -586,6 +587,7 @@ struct World {
     void act1_quest_step();
     void act2_quest_step();
     void act3_quest_step();
+    void act4_quest_step();
     // The NPC's "!" over its head.
     bool act1_alert(int hc_idx);
     bool act2_alert(int hc_idx);

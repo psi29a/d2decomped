@@ -92,6 +92,11 @@ int main() try {
     world.afterglow_in = quest_timer_steps(2);
     runs_after(world, now_ms, 3, "the afterglow's timer", [&] { return world.afterglow_due; });
 
+    // Izual dead: a4q1's 3-tick timer, his ghost (0x5b4126 -> 0x5b3e60).
+    world.izual_ghost_in = quest_timer_steps(3);
+    runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
+    world.izual_ghost_due = false;
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {
