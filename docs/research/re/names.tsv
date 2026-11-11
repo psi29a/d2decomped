@@ -709,7 +709,7 @@ address	name	evidence
 0058ec90	ai_command_push	pushes command node onto AI control queue; AiGeneral.cpp
 0058ed80	ai_command_free_ring	frees the circular command list at AI control +0x20 / +0x24; AiGeneral.cpp line 0xc4
 0058eea0	ai_command_advance	steps command head +0x20 forward (or backward if negative); AiGeneral.cpp
-0058f000	ai_control_get_leader	reads leader unit id from +0x2c; AiGeneral.cpp
+0058f000	ai_control_field_38_address	returns control +0x38, or 0x38 for invalid unit/data or null control; AiGeneral.cpp; tools/emu/ai_control_access.py
 0058f030	ai_minion_attach	links minion to owner (+0x28, +0x2c) and group list; AiGeneral.cpp
 0058f0d0	monster_owner_unit	ECX unit: a monster whose AI control (data +0x28) has +0x28 set gives FUN_00552f60(game ctl +0x28, type ctl +0x30, id ctl +0x2c), else 0 (drops.md "A monster's owner")
 0058f100	ai_minion_group_update	notifies minion group (+0x34) of update; AiGeneral.cpp

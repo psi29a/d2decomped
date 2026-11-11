@@ -2,6 +2,9 @@ struct	offset	type	name	what	evidence
 affix	0x65	u8	level	the affix's normal required level	docs/research/re/items.md:52
 affix	0x67	u8	class	the player class that selects class_level, or 0xff	docs/research/re/items.md:52
 affix	0x68	u8	class_level	the affix's class-specific required level	docs/research/re/items.md:52
+ai_control	0x14	u32	scratch_one	first scratch word	docs/research/re/ai-control.md:3
+ai_control	0x18	u32	scratch_two	second scratch word	docs/research/re/ai-control.md:3
+ai_control	0x1c	u32	scratch_three	third scratch word	docs/research/re/ai-control.md:3
 damage	0x04	u32	flags	which fields the record carries (1 | 4 as FUN_0057b420's callers set it)	tools/emu/monster_damage.py:165
 damage	0x08	i32	physical	the physical field, in 256ths (what Bone Armor takes from)	docs/research/re/combat.md:274
 damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 256ths	docs/research/re/combat.md:274
@@ -32,6 +35,7 @@ item_record	0xfd	u8	level	the base item level	docs/research/re/items.md:48
 item_record	0x10f	u8	field_10f	the first byte returned by FUN_006286c0	docs/research/re/items.md:47
 item_record	0x110	u8	field_110	the second byte returned by FUN_006286c0	docs/research/re/items.md:47
 item_type	0x10	u8	field_10	the byte returned by FUN_00628860	docs/research/re/items.md:53
+monster_data	0x28	ptr	ai_control	AI control pointer	docs/research/re/ai-control.md:3
 levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowed)	tools/emu/sk_tele_spot.py:124
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
