@@ -56,6 +56,7 @@ levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowe
 minion_node	0x00	u32	unit_id	minion unit ID	docs/research/re/ai-control.md:81
 minion_node	0x04	ptr	next	next minion ID node	docs/research/re/ai-control.md:60
 monster_data	0x28	ptr	ai_control	AI control pointer	docs/research/re/ai-control.md:3
+monster_data	0x30	ptr	state_gate	pointer passed to FUN_00572dc0	docs/research/re/ai-control.md:185
 monstats_spawn	0x56	u16	count	spawn count for normal difficulty	docs/research/re/ai-control.md:37
 monstats_spawn	0x5c	u16	range	activation range for normal difficulty	docs/research/re/ai-control.md:38
 monstats_spawn	0x62	u16	delay	spawn delay for normal difficulty	docs/research/re/ai-control.md:43
