@@ -744,6 +744,7 @@ address	name	evidence
 005b30e0	quest_callback_pack	pack registers and seven stack arguments into callback record for FUN_005b2a00
 005b3750	act4_opening_alert	NPC 0x16f and word 0x18 bit 0 gate the low-byte result
 005b43f0	izual_search_gate	quest 0x16 data gate and player iteration
+005b4da0	diablo_act4_share_gate	quest bit, room and act gate player share callback
 005b4ff0	quest_activate_waypoint_6d	level 0x6d index sets current difficulty player waypoint buffer
 005b5210	quest17_data13_get	quest 0x17 data byte +0x13 or zero
 005b5810	quest17_game_gate	game +0x70 zero and absent quest 0x17 or data byte +0x14 nonzero

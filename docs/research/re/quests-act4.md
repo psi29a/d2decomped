@@ -163,6 +163,13 @@ deaths.
 - **Join** (`FUN_005b5080`): LoD bit 9 without word 0x1c bit 0 → bit 9
   cleared (again on `LAB_005b5030`); bits 4 / 3 / 2 → states as a4q1.
 
+The player callback `FUN_005b4da0` reads word 0x1a bit 0 at the game's
+difficulty. Unless the flag helper returns exactly 1, it gets the player's
+room and level and calls `FUN_005b4d20` when the act helper's low byte is 3.
+No room skips the call. `tools/emu/quest_diablo_act_share.py` checks 72 cases
+with all helpers hooked, including non-boolean flag and act return values;
+it does not verify the helpers, the share operation or d2d parity.
+
 Object initializer `FUN_005b5840` looks up quest record 0x17. With a record,
 if data +0x40 is already 2 it sets the supplied object to mode 2; otherwise
 it writes 2 there and sets mode 1. With no record it does nothing.
