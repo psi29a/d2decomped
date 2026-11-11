@@ -27,7 +27,7 @@
 #include <filesystem>
 #include <functional>
 
-namespace fs = std::filesystem;
+namespace filesystem = std::filesystem;
 using namespace d2d::game;
 using d2d::rules::quest_timer_steps;
 
@@ -54,10 +54,10 @@ void runs_after(World& world, std::uint32_t& now_ms, int steps, const char* what
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
-    const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
-    if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
+    const filesystem::path data_dir = mpq_dir ? filesystem::path(mpq_dir) : filesystem::path(home ? home : "") / "Workspace/private/diablo2";
+    if (!filesystem::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    auto data = load_game_data(data_dir, patch ? filesystem::path(patch) : filesystem::path{}, 0x1234);
     assert(data && data->town.id == 1);
 
     d2d::rules::Rng rng(7);
