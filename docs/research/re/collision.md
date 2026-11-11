@@ -1066,6 +1066,23 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_00480e70`** (`UNITMODE_SetAnimMode`, fastcall unit ECX / mode EDX) has two
+  siblings sharing its shape: clear unit flag 0x40 (`+0xc4 &= ~0x40`), call
+  `FUN_00624690` (`SetupUpdateFlag`); a true answer loads the cof
+  (`FUN_00470610`, unit, 0) and (`FUN_00480e70` only) shows the hit overlay
+  and plays the mode sound (`FUN_00480d20`, `FUN_004cc5b0(unit, mode, 0)`); a
+  false answer skips the cof load. `FUN_00480e30` (`UNITMODE_SetModeAndLoadCof`,
+  mode on the stack, unit in ESI) is the same two calls without the overlay or
+  sound, and has no caller anywhere in game.exe (0 xrefs; `stubs.md`).
+  `FUN_00480ec0` (`UNITMODE_SetAnimModeSilent`, same fastcall shape as
+  `FUN_00480e70`) is also the silent pair, and has exactly one caller:
+  `MonsterMessage`'s unique-death case (monster base id 0xbe) when the
+  monster is already in mode `Skill2`, so its death doesn't replay the
+  overlay/sound a second time. **Verified**: `tools/emu/unitmode_setanim.py`
+  runs all three for real, hooking `SetupUpdateFlag` to answer both 0 and 1
+  and the three downstream calls to record whether they ran, over a null and
+  a real unit — 36 cases, no disagreement
+  (`uv run python unitmode_setanim.py`).
 - **`FUN_00463260`** (unit in EAX, no stack arguments; only caller `FUN_00463390`, which calls it
   for a unit whose mode `+0x10` is 3, RN): the client's run stop. Nothing happens unless the
   unit is `FUN_00463de0()`, the local player, and `FUN_00625480(unit, 10, 0)`, stat 10
