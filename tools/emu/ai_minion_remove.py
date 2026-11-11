@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check FUN_0058f160 minion unlinking against game.exe 1.14d.
+"""Check FUN_0058f160 unlinking and FUN_0058f260 disbanding in 1.14d.
 
     uv run python ai_minion_remove.py --exe /path/to/game.exe
 
@@ -44,13 +44,15 @@ def main():
     leader_control.game = game_address
     nodes = [machine.alloc(8) for _ in range(3)]
     calls = []
-    scripted = {"find_minion": True}
+    scripted = {"find_minion": True, "disband": False, "self_owner": True, "members": {}}
 
     def lookup(current):
         record = (current.mu.reg_read(UC_X86_REG_ECX), current.mu.reg_read(UC_X86_REG_EDX), current.arg(0))
         calls.append(("lookup", *record))
         if record == (game_address, 1, 222):
-            return leader_address
+            return leader_address if scripted["self_owner"] else minion_address
+        if scripted["disband"]:
+            return scripted["members"].get(record[2], 0)
         if record == (game_address, 1, minion.id) and scripted["find_minion"]:
             return minion_address
         return 0
@@ -90,7 +92,43 @@ def main():
         require((minion_control.owner_id, minion_control.owner_type) == expected_owner,
                 "minion ownership differs")
         require(minion_control.game == game_address, "minion game differs")
-    print("ok: minion removal at head, middle, tail, missing ID and failed lookup")
+
+    member_controls = []
+    for identifier in (101, 103):
+        member_address, member_data, member_control_address = machine.alloc(0x100), machine.alloc(0x80), machine.alloc(0x40)
+        member = machine.view("unit", member_address)
+        member.type, member.data, member.id = 1, member_data, identifier
+        machine.view("monster_data", member_data).ai_control = member_control_address
+        member_control = machine.view("ai_control", member_control_address)
+        member_control.game, member_control.owner_id, member_control.owner_type = game_address, 222, 1
+        scripted["members"][identifier] = member_address
+        member_controls.append(member_control)
+
+    scripted["disband"] = True
+    leader_control.owner_id, leader_control.owner_type = 222, 1
+    for address, identifier, following in zip(nodes, (101, 102, 103), nodes[1:] + [0]):
+        node = machine.view("minion_node", address)
+        node.unit_id, node.next = identifier, following
+    leader_control.minions = nodes[0]
+    scripted["self_owner"] = False
+    calls.clear()
+    machine.call(0x58F260, ecx=leader_address, limit=10000)
+    require(machine.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, "non-owner disband did not return")
+    require(leader_control.minions == nodes[0] and calls == [("lookup", game_address, 1, 222)],
+            "non-owner disband changed list")
+    scripted["self_owner"] = True
+    calls.clear()
+    machine.call(0x58F260, ecx=leader_address, limit=10000)
+    require(machine.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, "disband did not return")
+    expected = [("lookup", game_address, 1, 222)]
+    for address, identifier in zip(nodes, (101, 102, 103)):
+        expected.extend([("lookup", game_address, 1, identifier), ("free", pool, address, source, 0x237, 0)])
+    require(calls == expected, f"disband calls differ: {calls!r}")
+    require(leader_control.minions == 0, "disband did not clear head")
+    for control in member_controls:
+        require((control.game, control.owner_id, control.owner_type) == (game_address, 0xFFFFFFFF, 1),
+                "disband member ownership differs")
+    print("ok: minion unlinking and list disbanding")
 
 
 if __name__ == "__main__":

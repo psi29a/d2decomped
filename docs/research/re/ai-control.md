@@ -86,3 +86,11 @@ leaves the list alone. The function assumes resolved monster data and control
 exist when it accesses them; the oracle does not test malformed records.
 `tools/emu/ai_minion_remove.py` scripts both lookups and the allocator, and
 tests removal at each list position, a missing ID and a missing second lookup.
+
+`FUN_0058f260` disbands a leader's minion list. It takes the prospective
+leader ECX, resolves its control's owner, and proceeds only when the result
+is the same unit. Each node is resolved as a monster; a found monster's control
+gets owner ID -1, owner type 1 and the leader's game pointer. Each node is
+freed, including one whose lookup failed, and the list head becomes null.
+`tools/emu/ai_minion_remove.py` checks this with two resolved members, one
+missing member and the owner-not-self no-op; lookups and free are hooked.
