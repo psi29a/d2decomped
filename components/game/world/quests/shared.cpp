@@ -281,13 +281,17 @@ auto World::transmute(std::uint32_t now_ms) -> void {
     }
 
 // The way down to Duriel (FUN_0059d870): object 100 13 subtiles left of the
-// orifice and 3 down (FUN_00555230), in the true tomb.
+// orifice and 3 down (FUN_00555230), in the true tomb. Mode 1, its opening
+// (FUN_00624690(unit, 1), 0x59d986), unless the staff went in in an earlier
+// game (data +0xc, 0x59d976): then mode 2, open already, so its born time
+// goes back by the opening's length.
 auto World::durielportal_open(std::uint32_t now_ms) -> void {
         const Level* tomb = game_data->level(tombs.true_tomb);
         if (!tomb) return;
         const auto orifice = std::ranges::find(tomb->npcs, d2d::rules::operate_fn::kOrifice, &Npc::operate_fn);
         if (orifice == tomb->npcs.end()) return;
-        portal[6] = { tomb, orifice->x - 13.f / 5, orifice->y + 3.f / 5, now_ms };
+        const std::uint32_t opened_ms = tombs.later ? std::uint32_t(std::max(object_op_ticks(game_data->duriel_portal), 0)) * kTickMs : 0;
+        portal[6] = { tomb, orifice->x - 13.f / 5, orifice->y + 3.f / 5, now_ms - opened_ms };
         d2d::log::info("The Seven Tombs: the way down to Duriel opens");
     }
 
