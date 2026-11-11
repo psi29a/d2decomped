@@ -544,11 +544,12 @@ and the object-type special case mean are not ported, no disagreement
 found (no d2d code to compare the bypass against).
 
 **`FUN_00461ac0`** (fastcall `(ECX skill node, EDX target)` plus two stack
-out-pointers for range and distance, `RET 8`; only caller `FUN_00480c80`):
+out-pointers for range and distance, `RET 8`; callers `FUN_00480c80` and
+`FUN_00461b40` at `LAB_00461bac`):
 a null local player, node or target answers false. Otherwise
 `FUN_00644140(node)` (the node's current skill record) null also answers
 false; else `FUN_006442a0(local player, node, 1)` and
-`FUN_00646ca0(local player, record+0x32, record[0], that)` fill the range
+`FUN_00646ca0(local player, dword record+0x64, record[0], that)` fill the range
 out-param, `FUN_006416d0(local player, target)` fills the distance one,
 and the answer is distance <= range. Not traced: `FUN_006442a0`,
 `FUN_00646ca0` and `FUN_006416d0`'s own bodies, so what the range and
