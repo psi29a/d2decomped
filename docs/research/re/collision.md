@@ -462,6 +462,54 @@ That is why an item or a warp is sent once and cannot wait for range, as
 for the NPC walk (target gone, retry through the walk code), no disagreement
 found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
+#### The three target-type gates (`FUN_00481400`, `FUN_004814a0`, `FUN_004815a0`)
+
+Read from the decompile and disassembly (cited, no oracle run). All three
+share the shape FUN_00481600 calls them with: the resolved target arrives
+in EAX (kept in EDI for the rest of the function — its selectable bit is
+read off this register below) and the acting player stays in ESI from the
+caller; the stack carries the queue's action, target type and id, in that
+order (`[ebp+8]`, `[ebp+0xc]`, `[ebp+0x10]`).
+
+- **`FUN_004815a0`** (object target, type 2, 94 bytes): a null target, or
+  one whose `+0xc4` bit 1 (selectable) is clear, is `FUN_00467a70`
+  (abandon), return 0. Otherwise `FUN_00480c80(EAX = action, EBX = ESI the
+  player, EDI = the target)`: false (not yet in position) returns 1 so
+  `FUN_00481600`'s caller tries again; true sends the engage,
+  `FUN_004812e0(EAX = ESI, stack = id, action)`, return 0.
+- **`FUN_00481400`** (player target, type 0, 89 bytes): first asks
+  `FUN_00464820(ECX = the target)`. A **zero** answer takes the same
+  selectable-bit-then-`FUN_00480c80` gate as `FUN_004815a0`. A **nonzero**
+  answer skips `FUN_00480c80` entirely: `ECX` becomes the target's `+0xc`
+  field when ESI (a second, apparently unrelated register read in this
+  branch only) is non-null, else -1; `FUN_0047a4f0(ECX, EDX = id)` gates a
+  direct send — nonzero sends `FUN_00481030(ECX = action, EDX = the
+  target, stack = id, 0, 0)` and returns 0, zero is `FUN_00467a70` and
+  returns 0. Which case `FUN_00464820` answers (town vs. elsewhere, a
+  player vs. a merc) isn't traced; its own body wasn't read here.
+- **`FUN_004814a0`** (monster target, type 1, 227 bytes): the same
+  `FUN_00464820(target)` split. A **zero** answer: the same selectable-bit
+  + `FUN_00480c80` gate as the other two. A **nonzero** answer instead
+  switches on the action (`[ebp+8]`, the jump table at 0x481584, byte
+  index 0x48158c): 5-0xb calls `d2d_left_skill(ESI)` (`FUN_00620190`),
+  0xc-0x12 `d2d_right_skill(ESI)` (`FUN_006201d0`); any other action is
+  `FUN_00467a70`, return 0. A null skill record, or its node id
+  (`FUN_00643ce0`, asserting `.\UNIT\UnitMode.cpp` line 0x44f) negative or
+  past the Skills.txt row count (`PTR_DAT_00744304+0xba0`), is also
+  `FUN_00467a70`; otherwise the row (`0x23c` bytes, `PTR_DAT_00744304
+  +0xb98`) byte `+7` is read and masked by `DAT_006ce268` — a clear bit is
+  `FUN_00467a70` too. Only a set bit falls through to `FUN_00480c80` (same
+  gate, no skill-record check this time) and the same send/retry split as
+  `FUN_004815a0`.
+
+So all three only ever reach `FUN_00480c80`'s range-and-line test for a
+player target through `FUN_00464820`'s zero branch, and skip it for a
+monster target whose cast skill passes the Skills.txt row's `+7` bit;
+`FUN_00481030` is reached from inside these three, not after them as the
+summary above shortens it to. Not traced: `FUN_00464820`'s own body, the
+`+7` bit's name, and the ESI/-1 branch inside `FUN_00481400`'s nonzero
+case.
+
 ### The action send (`FUN_00481030`, 0x481030, 601 bytes)
 
 Read from the decompile and disassembly (cited, no oracle run). ECX is the
@@ -1062,6 +1110,21 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   | 0x17 | `FUN_004804a0(unit, a, b)` | 3 (RN) |
   | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
   | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
+
+  **`FUN_00480ef0`** (fastcall unit ECX / x EDX, then y and a result flag on
+  the stack — command 7's record fields `a`, `b`, `result`): compares `x`,
+  `y` against the unit's current path position (its path struct `+0xc` /
+  `+0x10` directly for type 2 or 4/5, else `d2d_path_get_x` / `_get_y`, or
+  0 with no path) and sets a "moved" flag when either delta is over 1.
+  Nothing happens (`FUN_00648750(path, 0)`, a stop) unless that flag is
+  set and, for a monster (type 1), `FUN_0046c140()` also answers nonzero.
+  Moved: a player (type 0) that isn't `FUN_00463de0()` (the local player)
+  with a nonzero `result` instead sends `FUN_004804e0(y, 2, 0, 0)` and
+  returns (no recompute); a monster (type 1) tags the record's third field
+  1; every other case leaves it 0. All of those (and the local player's
+  own case) end in `FUN_00480c10(&{x, y, tag}, 0)`, the same path-recompute
+  call commands 0 and 1 use. `FUN_0046c140`'s own body and what `result`
+  means for a player aren't traced.
 
   The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
   ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
