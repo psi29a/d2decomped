@@ -527,7 +527,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // out of their sight: Fight::enter keeps them through a town.
             if (!in_moor) {
                 auto elsewhere = std::exchange(monsters, {});
-                pets_turn(now_ms, elapsed, crowd);
+                try { pets_turn(now_ms, elapsed, crowd); } catch (...) { monsters = std::move(elsewhere); throw; }
                 monsters = std::move(elsewhere);
             }
             if (actor->merc && actor->merc_npc) merc_turn(now_ms, elapsed, crowd, !in_moor);
