@@ -89,6 +89,18 @@ def integration(exe):
     m.hook(0x5182b0, lambda current: 0, 0)  # Realms.bin load
     m.hook(0x518c70, lambda current: 0, 0)
     m.hook(0x518d40, lambda current: 0, 0)
+
+    # GetGatewayList (0x518190) read directly, not just through Load (0x5186d0):
+    # the registry value's size lands at +0x14, its raw bytes are copied to +0x10,
+    # and the leading digits of the value are parsed into +0x18 via strtoul.
+    gw_obj = m.alloc(36)
+    records["Gateway Key"] = b"1002\0east.example\0-5\0East\0\0"
+    call(m, 0x518190, m.put(b"Gateway Key\0"), ecx=gw_obj)
+    require(m.r32(gw_obj + 0x18) == 1002, "GetGatewayList parses the version prefix")
+    require(m.r32(gw_obj + 0x14) == len(records["Gateway Key"]), "GetGatewayList records the value size")
+    require(m.cstr(m.r32(gw_obj + 0x10)) == "1002", "GetGatewayList copies the registry value")
+    del records["Gateway Key"]
+
     obj = m.alloc(36)
     packed = b"1000\0" + b"01\0" + b"old.example\0-5\0Old\0\0"
     original = m.put(packed)
@@ -147,7 +159,7 @@ def integration(exe):
     before = len(writes)
     call(m, 0x517ed0, save_obj)
     require(len(writes) == before and save_data in frees, "clean unload frees without writing")
-    return 16
+    return 19
 
 
 def main():
