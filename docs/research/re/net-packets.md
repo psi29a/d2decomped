@@ -286,7 +286,7 @@ Builders `0x53d530` / `0x53d4d0` (from `FUN_00548090` for players,
 `FUN_00597d70` for monsters). With the builder's last argument set
 (caller `0x571cd0`) the ids become 0x99 / 0x9a with the same layout,
 handled by `FUN_004ca200` / `FUN_004ca230` (0x99 below: the effect
-without a mode).
+without a mode). `0x571cd0` is `SERVER_UnitQueuePacketSend`, below.
 
 **0x73 missile** (32; `0x45e6d0` → `FUN_004cd540`): fills a missile
 create struct (flags 0x40000001, or 0x40000021 when +0xf and +0x13 are
@@ -299,6 +299,53 @@ Most missiles don't cross at all: the client plays a cast from 0x4c /
 0x4d and makes the skill's missiles itself (Skills.txt's client
 functions). Known D2 behaviour (D2MOO); in game.exe only the entry
 point was read **(?)**.
+
+### The server's per-unit outbound queue (SUnitMsg.cpp)
+
+Several of the opcodes above are not sent straight away: each unit
+(`D2UnitStrc`) keeps a singly linked list (`pMsgFirst` / `pMsgLast`) of
+small `D2SUnitMsgStrc` records, allocated from the unit's own memory
+pool (`pUnit->pMemory`, `Fog::Memory::AllocServerMemory`,
+`.\UNIT\SUnitMsg.cpp`) and freed all at once by
+`SERVER_UnitQueuePacketFree` (`FUN_00571f40`). Queuing a message also
+calls `ROOM_LinkUnitToUpdateList` to mark the unit dirty for the next
+network flush.
+
+| Builder | Opcode queued | Record size | Fields |
+|---|---|---|---|
+| `FUN_00571c60` | 0x23 set skill | 0x10 | skill slot, skill id, owner GUID |
+| `FUN_005717c0` | 0x99 skill on a unit | 0x14 | skill id, skill level, target type, target GUID, a byte |
+| `FUN_00571840` | 0x9a skill at x, y | 0x14 | skill id, skill level, x, y, a byte |
+| `FUN_005718c0` | 0x9e unit stat set | 0x14 | unit GUID, stat id (asserts ≤ 0xfe), value |
+| `FUN_00571960` | 0xa1 unit stat delta | 0x18 | unit GUID, stat id (asserts ≤ 0xfe), old value, new value — queued only when old != new |
+| `FUN_00571aa0` | 0xa3 progressive-skill overlay | 0x28 | wArg1/wArg2/byParam, source unit type+GUID, target unit type+GUID (or -1 with no target), dwParam1/dwParam2 |
+| `FUN_00571a10` | 0xab health update | 0x14 | unit type, unit GUID, hp % 128 |
+| `FUN_00571b70` | 0xa5 force-stop skill | 0x14 | unit type, unit GUID, skill id; also clears `STATE_skill_move` on the unit immediately (`D2Common::DATATBLS::ItemStats::SetState`), not only when the queued packet is later sent |
+
+`SERVER_UnitQueuePacketSend` (`FUN_00571cd0`, 443 bytes) drains the list
+per client and dispatches on `nOpcode` to the real S→C builders:
+`NET_D2GS_SERVER_Send_0x23_SetSkill`,
+`..._0x4C_UnitCastSkill_Target_0x4D_UnitCastSkill_XY` for 0x99,
+`..._0x4D_SKILL_XY` for 0x9a (its `nCastDirection` argument, hardcoded 1
+here, is the "last argument set" flag of line 287 above that turns 0x4c
+/ 0x4d into 0x99 / 0x9a), `..._0x9E_0x9F_0xA0_MercAttribute`,
+`..._0xA1_0xA2_0xA0_MercExperience`, `..._0xA3_PROGRESSIVE_SKILL`,
+`..._0xA4_PRELOAD_MONSTER` (0xa4 is queued elsewhere, not in this
+batch), `..._0xA5_FORCESTOPSKILL`, `..._0xAB_HEALTH_UPDATE`.
+
+Call site `0x571dab` (inside this function) is the second caller of
+`FUN_0053bfd0`'s wrapper named in bugs.md #94: it passes (stat id, old
+value, new value) in the same order as the other caller
+(`FUN_0057e860`, merc experience), so the argument order is not the
+source of that bug.
+
+**0xab is gated again at send time, per client:** it only goes out when
+the unit does not have `UNITFLAG_UPGRLIFENHITCLASS` set, the client has
+a control unit, and that control unit can still legally attack the
+target (`D2Game::UNIT::SUnit::UNITS_CheckIfCanAttackTarget`) — rechecked
+on every drain, not only when the 0xab message was queued. Not ported
+(d2d has no server-side per-client attack-legality gate for this
+packet).
 
 ### Life, mana, stamina and the own player's position
 

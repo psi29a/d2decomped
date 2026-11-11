@@ -709,7 +709,7 @@ address	name	evidence
 0058ec90	ai_command_push	pushes command node onto AI control queue; AiGeneral.cpp
 0058ed80	ai_command_free_ring	frees the circular command list at AI control +0x20 / +0x24; AiGeneral.cpp line 0xc4
 0058eea0	ai_command_advance	steps command head +0x20 forward (or backward if negative); AiGeneral.cpp
-0058f000	ai_control_get_leader	reads leader unit id from +0x2c; AiGeneral.cpp
+0058f000	ai_control_field_38_address	returns control +0x38, or 0x38 for invalid unit/data or null control; AiGeneral.cpp; tools/emu/ai_control_access.py
 0058f030	ai_minion_attach	links minion to owner (+0x28, +0x2c) and group list; AiGeneral.cpp
 0058f0d0	monster_owner_unit	ECX unit: a monster whose AI control (data +0x28) has +0x28 set gives FUN_00552f60(game ctl +0x28, type ctl +0x30, id ctl +0x2c), else 0 (drops.md "A monster's owner")
 0058f100	ai_minion_group_update	notifies minion group (+0x34) of update; AiGeneral.cpp
@@ -775,7 +775,7 @@ address	name	evidence
 005e0040	superunique_fangskin	Fangskin superunique init; AI/?
 005e0060	superunique_fire_eye	Fire Eye superunique init; AI/?
 005e0070	uber_tristram_death	Hellfire Torch / Standard of Heroes drop on uber death; AI/?
-005e0160	ai_skill_apply	applies skill cast at target; AI/?
+005e0160	ai_limited_spawn_think	initializes a remaining count and spawns while in range and due; static trace, ai-control.md
 005e0260	sarcophagus_spawn_think	mummy spawner think with aip1 limit and aip2 cooldown; AI/?
 005e0390	sarcophagus_spawn_init	mummy spawner init; AI/?
 005e0400	high_priest_other_think	HighPriest other think: wait 0 until frame +0x14, then stand 15
@@ -810,7 +810,7 @@ address	name	evidence
 005e8eb0	diablo_prime_firewall	Diablo Prime Firewall/Lightning think; AiThink4.cpp
 005e9750	diablo_player_search	Diablo player room area search; AiThink4.cpp
 005e9dd0	uber_diablo_toggle	Uber Diablo AI toggle; AiThink4.cpp
-005ea080	pet_target_search	pet target search; AiThink4.cpp
+005ea080	ai_move_left_once	one action at x minus 10, then unit flag 0x20000 and mode 0; AiThink4.cpp; tools/emu/ai_move_left.py
 005ea290	ai_stamp_frame	stamps frame into +0x14 and sets +0x18 = -1
 005ea510	summon_unassign	unassigns summon from master; AiThink4.cpp
 005ea7a0	pet_follow_pace	pet follow distance and pace; AiThink4.cpp
