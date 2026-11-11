@@ -254,16 +254,18 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             const int calc4 = d2d::rules::eval_calc(game_data->skills, skill.calc[3], env, skill.id, lvl);
             pet.shots = calc4 > 0 ? calc4 : std::max(skill.par[0], 1);
         }
-        // The AI control a traced think starts from (the AIs' inits,
-        // FUN_005ea510 / FUN_005eaf50; the Hydra's last frame, the Raven's
-        // hits, a trap's shots as d2d counts them).
+        // The AI control a traced think starts from (the AIs' inits, the
+        // MonAI rows' second word at 0x73ca18; the Hydra's last frame, the
+        // Raven's hits, a trap's shots as d2d counts them).
         if (const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name; ai_name == "Hydra") pet.ctrl[0] = int(pet.until / 40);
         else if (ai_name == "Raven") pet.ctrl[0] = pet.hits;
-        // The sentries' init (FUN_005ea290, MonAI 101 / 104): +0x18 -1, the
-        // shots their first think takes from Skill1's calc (FUN_005ea2b0),
-        // here at once. Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
-        // ponytail: +0x14 starts at the game frame there, -1 here: a DeathSentry's last corpse, which no unit id should match.
-        else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { -1, pet.shots, lvl };
+        // The sentries' init (FUN_005ea290, MonAI 101 / 104, run as the pet
+        // is made: FUN_0056d940 -> FUN_005b0e00): +0x14 the game frame (the
+        // DeathSentry's last corpse, so a corpse whose id is that frame is
+        // passed over once), +0x18 -1, the shots their first think takes
+        // from Skill1's calc (FUN_005ea2b0), here at once; +0x1c stays 0.
+        // Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
+        else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { int(now_ms / 40), pet.shots, 0 };
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
         // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Warrior's
         // init (FUN_005eb490: Attack, the owner's class skills it may have)
