@@ -595,6 +595,10 @@ void fenris_think(PetBrain<World>& brain) {
     brain.wait(brain.aip(0));
 }
 
+// The Raven's init (FUN_005ecb70, row 107): +0x14 -1, +0x18 aip3 + 1, +0x1c
+// a seed step's low bit (the side it circles the owner first).
+inline std::array<int, 3> raven_init(int aip3, Rng& seed) { return { -1, aip3 + 1, int(seed.next() & 1) }; }
+
 // MonAI 107 Raven (FUN_005ecc10). +0x14: hits left (Skill1's calc at the
 // first think, 3 without a Skill1); none left, it dies. Over 50 from the
 // owner a teleport, over 28 after it. The driver's target, past the +0x18

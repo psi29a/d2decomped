@@ -2,8 +2,9 @@
 
 Every hireling row in MonStats (roguehire 0x10f, act2hire 0x152, act3hire
 0x167, act5hire1 / 2 0x230 / 0x231) has AI `Hireable`, MonAI row 61: AI
-table `0x73ca20 + 61*16` = `{think 0x5e52d0, init 0x5e5280, 1, 0}`. The init
-clears state 0xc, sets the AI mode and stands 1 frame.
+table `0x73ca18 + 61*16` = `{0, no init, think 0x5e52d0, other think
+0x5e5280}`. The other think (Diablo's, monster-ai.md "Curse thinks and
+other thinks") clears state 0xc, toggles the AI back and stands 1 frame.
 
 Port: `components/rules/merc.hpp` (`hireable_think`), run by
 `Fight::merc_turn`. Checked: `tools/emu/merc.py` runs FUN_005e52d0 natively
