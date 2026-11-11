@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check FUN_0058f440 ownership/list detachment in stock game.exe 1.14d.
+"""Check FUN_0058f440 detachment and FUN_0058f4d0 list replacement in 1.14d.
 
     uv run python ai_minion_detach.py --exe /path/to/game.exe
 
-The flag reader is hooked; no MPQs are read.
+The flag reader, attach helper and allocator are hooked; no MPQs are read.
 """
 import argparse
 import hashlib
@@ -56,7 +56,39 @@ def main():
         else:
             require(values == [0xFFFFFFFF] + [0xCCCCCCCC] * 4 and not calls, "invalid-unit output differs")
             require((control.owner_id, control.minions) == (123, 0x12345678), "early return mutated control")
-    print("ok: minion-list detachment and invalid owner paths")
+    game_address, pool = machine.alloc(0x100), machine.alloc(0x10)
+    machine.view("game", game_address).pool = pool
+    nodes = [machine.alloc(8) for _ in range(2)]
+    machine.view("minion_node", nodes[0]).next = nodes[1]
+    machine.view("minion_node", nodes[1]).next = 0
+    replacement = machine.alloc(8)
+    calls.clear()
+
+    def free(current):
+        calls.append(("free", current.mu.reg_read(UC_X86_REG_ECX), current.mu.reg_read(UC_X86_REG_EDX),
+                      current.cstr(current.arg(0)), current.arg(1), current.arg(2)))
+        return 0
+
+    def attach(current):
+        calls.append(("attach", current.mu.reg_read(UC_X86_REG_ECX), current.mu.reg_read(UC_X86_REG_EDX),
+                      *(current.arg(index) for index in range(4))))
+        return 0
+
+    machine.hook(0x40B480, free, 3)
+    machine.hook(0x58F030, attach, 4)
+    for pointer, kind, success in ((0, 1, False), (unit_address, 0, False), (unit_address, 1, True)):
+        unit.type, control.minions = kind, nodes[0]
+        calls.clear()
+        machine.call(0x58F4D0, 11, 22, 33, 44, replacement, ecx=game_address, edx=pointer, limit=10000)
+        require(machine.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, "list replacement did not return")
+        if success:
+            expected = [("free", pool, node, ".\\Ai\\AiGeneral.cpp", 0x246, 0) for node in nodes]
+            expected.append(("attach", game_address, unit_address, 11, 22, 33, 44))
+            require(calls == expected, f"list replacement calls differ: {calls!r}")
+            require(control.minions == replacement, "replacement head not installed")
+        else:
+            require(not calls and control.minions == nodes[0], "invalid unit changed list")
+    print("ok: minion-list detachment, replacement and invalid owner paths")
 
 
 if __name__ == "__main__":
