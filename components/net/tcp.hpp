@@ -6,6 +6,7 @@
 
 #include <d2gs/wire.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -25,16 +26,33 @@ public:
     auto operator=(const TcpConnection&) -> TcpConnection& = delete;
     ~TcpConnection();
 
-    // All of `bytes`, or the error.
+    // All of `bytes` sent, or what the socket wouldn't take yet kept to go
+    // first thing on the next send or receive: never a wait. The error once
+    // the socket failed, or when a peer that isn't reading has kMaxPending
+    // bytes waiting (the connection is failed from then on).
     auto send(std::span<const std::uint8_t> bytes) -> std::expected<void, std::string>;
     // What arrived within `timeout_ms` (0: only what's there now); empty
     // when nothing did. An error once the host closed or the socket failed.
     auto receive(int timeout_ms) -> std::expected<d2gs::Bytes, std::string>;
+    // Closes after a last send: what's waiting goes (within a moment), the
+    // other side gets it and a close, not a reset (a close with unread data
+    // resets on Winsock and drops what was sent).
+    auto finish() -> void;
+    // finish() a step at a time, never a wait (the host's game loop): what's
+    // waiting goes as the socket takes it, then the close; true once it's
+    // closed (the other side closed too, or the connection failed).
+    auto finish_step() -> bool;
+    static constexpr std::size_t kMaxPending = 8u << 20;
 
 private:
     friend class TcpListener;
     explicit TcpConnection(std::intptr_t socket) : socket_(socket) {}
+    // Sends what's pending while the socket takes it; false once the connection has failed.
+    auto flush() -> bool;
     std::intptr_t socket_ = -1;
+    d2gs::Bytes pending_;
+    std::string failed_;
+    bool shut_ = false;    // our side's close sent (finish_step)   // why the connection is over (the error every call returns from then on)
 };
 
 // A listening socket (SO_REUSEADDR, like game.exe's host), on one IPv4

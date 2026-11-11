@@ -159,12 +159,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
-        monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its own level (FUN_005b2f20)
+        monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its MonStats Level (FUN_005b2f20 -> FUN_005b2a00; the stat init FUN_00573cb0)
         // Its life and damage straight from MonStats' columns (a Raise
         // Skeleton skeleton: 21 life, 1-2 damage in Normal; 30 / 42 in
-        // Nightmare / Hell), not scaled by MonLvl.
-        // ponytail: FUN_005b2f20's pet branch isn't traced; the published
-        // pet values are the raw columns.
+        // Nightmare / Hell), not scaled by MonLvl: every player summon's row
+        // is noRatio (+0xc & 4), which the stat init (FUN_00573cb0 ->
+        // FUN_006538a0) and the per-mode damage (FUN_005a4f50) take as
+        // written, and Align 1 (row +0x4c) skips the players' life bonus
+        // (FUN_00573930).
+        // ponytail: the life roll takes d2d's rng, not the pet's unit seed (+0x20).
         // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
         // stats at its level, life and level brought down to the owner's
         // when it's above it.
@@ -177,7 +180,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // The Druid's and Raven's hit with the skill's physical damage (their
         // MonStats rows have none).
         // ponytail: where game.exe hands the skill's damage to the pet isn't
-        // traced.
+        // traced: not the summon (FUN_005c6910 / FUN_005c7390, FUN_005c49e0,
+        // FUN_005c4470) nor the per-mode damage (FUN_005a4f50); the hit's next.
         if (monster.stats.a1_max == 0 && skill.maxdam > 0) {
             const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
             monster.stats.a1_min = damage.phys_lo >> 8; monster.stats.a1_max = std::max(damage.phys_hi >> 8, monster.stats.a1_min);
@@ -254,35 +258,41 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             const int calc4 = d2d::rules::eval_calc(game_data->skills, skill.calc[3], env, skill.id, lvl);
             pet.shots = calc4 > 0 ? calc4 : std::max(skill.par[0], 1);
         }
-        // The AI control a traced think starts from (the AIs' inits,
-        // FUN_005ea510 / FUN_005eaf50; the Hydra's last frame, the Raven's
-        // hits, a trap's shots as d2d counts them).
+        // The AI control a traced think starts from (the AIs' inits, the
+        // MonAI rows' second word at 0x73ca18; the Hydra's last frame, the
+        // Raven's hits, a trap's shots as d2d counts them).
         if (const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name; ai_name == "Hydra") pet.ctrl[0] = int(pet.until / 40);
-        else if (ai_name == "Raven") pet.ctrl[0] = pet.hits;
-        // The sentries' init (FUN_005ea290, MonAI 101 / 104): +0x18 -1, the
-        // shots their first think takes from Skill1's calc (FUN_005ea2b0),
-        // here at once. Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
-        // ponytail: +0x14 starts at the game frame there, -1 here: a DeathSentry's last corpse, which no unit id should match.
-        else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { -1, pet.shots, lvl };
+        else if (ai_name == "Raven") {
+            pet.ctrl = d2d::rules::raven_init(type_info.diff[std::size_t(monster.difficulty)].aip[2], monster.seed);
+            pet.ctrl[0] = pet.hits;                                        // its first think's hits, here at once
+        }
+        // The sentries' init (FUN_005ea290, MonAI 101 / 104, run as the pet
+        // is made: FUN_0056d940 -> FUN_005b0e00): +0x14 the game frame (the
+        // DeathSentry's last corpse, so a corpse whose id is that frame is
+        // passed over once), +0x18 -1, the shots their first think takes
+        // from Skill1's calc (FUN_005ea2b0), here at once; +0x1c stays 0.
+        // Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
+        else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { int(now_ms / 40), pet.shots, 0 };
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
-        // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Warrior's
+        // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Master's
         // init (FUN_005eb490: Attack, the owner's class skills it may have)
-        // or the Master's (FUN_005ecb70, no skills).
+        // or the Warrior's (FUN_005eaf50: its level only; it takes the
+        // owner's hands each think).
         if (skill.srvdofunc == ServerDoFunction::kMirrorImage) {
             for (std::size_t slot = 0; slot < type_info.skill.size(); ++slot)
                 if (const auto* listed = skill_named(type_info.skill[slot]); listed && type_info.sk_lvl[slot] > 0) {
                     shadow_give(pet, listed->id, d2d::rules::monster_skill_level(type_info.sk_lvl[slot], monster.difficulty));
                     std::ranges::find(pet.skill_list, listed->id, &d2d::rules::ShadowListed::id)->mode = monster_mode(type_info.sk_mode[slot]);
                 }
-            if (type_info.ai_name == "ShadowWarrior") {
+            if (type_info.ai_name == "ShadowMaster") {
                 const auto& class_ids = game_data->skills.class_ids[std::size_t(std::clamp(actor->character.character_class, 0, 6))];
                 const bool has_attack = std::ranges::contains(pet.skill_list, 0, &d2d::rules::ShadowListed::id);
-                const auto gifts = d2d::rules::shadow_warrior_init(
+                const auto gifts = d2d::rules::shadow_master_init(
                     pet.ctrl, true, lvl, has_attack, class_ids, [&](int id) { return shadow_may_have(game_data->skills.get(id), type_info, skill); },
                     [&](int id) { return skill_base ? skill_base(id) : 0; });
                 for (const auto& gift : gifts) shadow_give(pet, gift.skill, gift.level);
                 pet.left_skill = 0;
-            } else pet.ctrl = d2d::rules::shadow_master_init(type_info.diff[std::size_t(monster.difficulty)].aip[2], monster.seed);
+            } else pet.ctrl = d2d::rules::shadow_warrior_init(true, lvl);
         }
         // FUN_005c4470 (0x5c4934): its skill's sumumod, 1..0x2a, through
         // FUN_005a4850(sumumod, 1): a trap's 32, a Shadow's 42.
@@ -291,28 +301,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         pet.monster.id = next_id++;                              // a unit id as a monster's (a guided missile's hold on it)
         actor->pets.push_back(std::move(pet));
         return actor->pets.back().monster.id;
-    }
-
-auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
-        auto& monster = pet.monster;
-        if (now_ms < monster.next_act) return;
-        const auto& per_difficulty = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(monster.difficulty)];
-        monster.next_act = now_ms + std::uint32_t(std::max(per_difficulty.aidel, 1)) * 40;
-        const float range = float(per_difficulty.aip[3] > 0 ? per_difficulty.aip[3] : 25) / 5;
-        int best = -1; float best_distance = range;
-        for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const float distance = std::hypot(monsters[i].unit.x - monster.unit.x, monsters[i].unit.y - monster.unit.y); monsters[i].targetable() && distance <= best_distance) { best_distance = distance; best = int(i); }
-        // Death Sentry's other skill, 'mon death sentry' (do 55): a corpse in
-        // its reach goes up.
-        if (const auto* pet_skill = game_data->skills.get(pet.skill))
-            for (std::size_t summon_index = 0; summon_index < 5; ++summon_index)
-                if (const auto* bone_skill = skill_named(pet_skill->sumskill[summon_index]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion) {
-                    const int corpse = corpse_near(monster.unit.x, monster.unit.y);
-                    if (corpse >= 0) { corpse_blast(*bone_skill, pet.shot_level, std::size_t(corpse), now_ms); break; }
-                }
-        if (best < 0) return;
-        trap_fire(pet, std::size_t(best), now_ms);
-        if (--pet.shots <= 0) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }
     }
 
 // A trap's shot (its shot skill's missile) at monster `target`.

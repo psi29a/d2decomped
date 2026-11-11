@@ -54,6 +54,7 @@ namespace d2d::client {
 // NPC talk and trade stay local (the host's gold and items don't follow);
 // belt, item moves, stat and skill points aren't sent: net-join-plan.md M9.
 auto Town::send(const Command& command) -> void {
+        if (lan_client) { if (!lan_client->send_command(d2d::game::encode(command))) lan_lost = "the host stopped answering"; return; }
         if (!net_game || !level) { net.send(command); return; }
         // No D2GS form. Applying it here would equip on this machine while the host kept the old gear.
         if (std::holds_alternative<cmd::EquipFromBag>(command)) return;
