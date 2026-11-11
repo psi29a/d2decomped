@@ -176,13 +176,14 @@ a monster, so `FUN_005dd510` takes the primary (no path test).
   life (stat 6 < `FUN_00625d10`) or mana (stat 8 < `FUN_00625d60`) short,
   Skill1 in mode 8 every aip1 frames. Else hit by the target, rand(100)
   under 25 aip4 away from it; no corpse stand aip3; else a walk at it.
-- **AssassinSentry** (`0x5ea3d0`, init `0x5ea510`: -1, 1, 0) and the trap
+- **AssassinSentry** (`0x5ea3d0`, init `0x5ea290`: +0x14 the frame,
+  +0x18 -1, run as the pet is made: `FUN_0056d940` -> `FUN_005b0e00`) and the trap
   shots `FUN_005ea2b0`: no owner, the owner in town, or +0x18 shots spent
   (Skill1's calc when below 0) and it dies. `FUN_005ddc30`'s foe under aip4:
   rand(100) under aip1 a shot (Skill1 in its skill's mode,
   `FUN_00644360`), a shot spent; else stand aip2; no foe stand aip3.
-- **DeathSentry** (`0x5ea980`, init `0x5eaf50`: +0x1c the owner's skill
-  level): no skill level, nothing. A corpse (`FUN_0056e390`) not blown last
+- **DeathSentry** (`0x5ea980`, init `0x5ea290` as AssassinSentry's, so its
+  last corpse (+0x14) starts as the frame it was made): no skill level, nothing. A corpse (`FUN_0056e390`) not blown last
   (+0x14) within half the radius (`FUN_004cc7c0`) of the foe: Skill1 in
   mode 9. The foe under aip4, rand(100) under aip3: Skill2 in mode 0xe.
   Else stand aip2.
