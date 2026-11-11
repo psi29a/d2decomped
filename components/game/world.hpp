@@ -480,7 +480,8 @@ struct World {
     int ubers_dead = 0;                    // the Tristram ubers dead (FUN_005e0070: game +0x1df0 / +0x1dec / +0x1de8), a bit each
     void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
-    std::uint32_t statues_back_at = 0;     // a5q5: the statues' return timer's next tick (FUN_0058bd50, every 2 frames)
+    int statues_back_in = 0;               // quest steps to a5q5's statues' return timer: 2 ticks (0x58c9da -> FUN_0058bd50), 0 none
+    bool statues_back_due = false;         // that timer has run
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_0058d560)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     void rite_put_back(std::uint32_t now_ms);

@@ -102,6 +102,11 @@ int main() try {
     world.betrayal_log_in = quest_timer_steps(8);
     runs_after(world, now_ms, 9, "Nihlathak's log", [&] { return world.betrayal.log == 4; });
 
+    // An Ancient fallen: a5q5's statues' return timer, 2 ticks (0x58c9da -> FUN_0058bd50).
+    world.statues_back_in = quest_timer_steps(2);
+    runs_after(world, now_ms, 3, "the statues' return timer", [&] { return world.statues_back_due; });
+    world.statues_back_due = false;
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {
