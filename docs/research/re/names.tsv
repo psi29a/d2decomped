@@ -992,7 +992,7 @@ address	name	evidence
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
 00620210	unit_set_skill_node	stdcall (unit, node): FUN_00643990 stores node at the skill list header's +0x10; null unit asserts (id 0x653) and exits -1; act1-end.md:335
-00620250	unit_skill_list	fastcall (unit) -> unit +0x10 skill-list header via FUN_006439a0 (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
+00620250	unit_skill_list	stdcall (unit), RET 4: FUN_006439a0(ECX = unit +0xa8 skill-list header) -> the header's +0x10, the selected skill node (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
 00620300	unit_free	FUN_00626d10, FUN_00643a60, type 6, id -1 (Units.cpp 0x69a, 0x6a4)
 00620360	tile_path_set4	type 5 static path +0xc..+0x18 (Units.cpp 0x6af, 0x6b1)
 006203b0	unit_precise_x	static x << 16 or FUN_00648940 (Units.cpp 0x6c4)
@@ -1277,7 +1277,7 @@ address	name	evidence
 00643a60	skill_list_free	stdcall (unit): frees each skill of the unit's +0xa8 list from FUN_004dc0b0's pool (the free call gets line 0x505), then the list from the unit's pool +8 (0x508), and clears +0xa8; no unit or list does nothing; skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_table_rows.py
 00643b00	skill_node_item_info	(node, *out_item_id, *out_skill_id, *out_+0x28, *out_+0x38) -> 0 when node +0x34 is -1 (a base entry), else 1 and each non-null out filled from +0x34, *record, +0x28, +0x38; null node asserts (Skills.cpp line 0x641); skills.md "Skill list accessors and the hotkey sweep"
 00643b70	skill_set_charges	stdcall (skill, value): a skill with owner (+0x34) -1 answers 0; else +0x3c = 1, +0x38 = value, answers 1; a null skill asserts (line 0x657); skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_accessors.py
-00643ce0	skill_node_id	(node) -> *(short *)node[0], the skill id from the node's record; 0 for a null node; skills.md "Skill accessors"
+00643ce0	skill_node_id	stdcall (node, file, line), RET 0xc; file and line unread -> *(short *)node[0], the skill id from the node's record; 0 for a null node; skills.md "Skill accessors"
 00643d00	skill_sequence	fastcall (unit, skill): 0 for no unit or skill; a player gets the record's seqnum (byte +0x13); any other unit type gets MonStats aSkSeq (+0x188) of the slot whose aSkill (+0x170) equals the skill id, 0 for skill 0xc7 or no slot; skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_table_rows.py
 00644140	skill_record	a skill entry's +0: its Skills.txt record, 0 for no entry (cast_mana.py:86 hook; char-panel.md)
 006442a0	skill_level	(unit, skill entry, with_items): +0x28, plus FUN_00644180 when +0x34 == -1 and with_items; >= 0, capped by FUN_00611830(0)
