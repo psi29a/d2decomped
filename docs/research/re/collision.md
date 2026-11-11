@@ -1203,3 +1203,54 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
   agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
   the rest of the step is not ported as a function.
+
+### The per-type dispatch targets (monster, object, missile, item)
+
+`FUN_00463390` above is the client's per-frame step for a player (unit type 0). The
+client's own per-unit-per-frame dispatcher that picks it, and the three siblings
+below for the other unit types, is `FUN_00480810` (traced separately, batch 6, not
+in this file as of this writing); its own write-up names these four as its
+"every other type" targets without reading them. Traced here, each fastcall ECX
+unit, no stack arguments, in the order `FUN_00480810` calls them:
+
+- **`FUN_004b13a0`** (573 bytes, `004b13a0`..`004b15dd`, plain `RET`): the
+  monster's per-frame step. A null unit, a non-monster (`*unit != 1`), a unit
+  with state 1 active (`FUN_00639df0(unit, 1)`) unless `FUN_00464820()` is
+  zero, or a mode (`+0x10`) of 0x10 or over, each return with nothing done.
+  Otherwise `piVar2 = FUN_004af400()` (no visible argument; a global, not a
+  per-unit table row) gates the rest: a null result returns. `FUN_004af4c0()`
+  runs next, then, only when `*piVar2 == 1`, `local_8 = FUN_004807c0(unit)`
+  (the frame-step helper `FUN_00480810`'s own write-up names, shared with
+  the player's class-1/2 step) is called and its result kept.
+  Mode 1 (`+0x10`) additionally gates on `FUN_00649210` not running something,
+  then adjusts a target lookup through `FUN_00648bf0` / `FUN_00648bb0` /
+  `FUN_00463990` / `FUN_00648b90` (the same clear-stale-target pattern
+  `FUN_004648f0`/`FUN_00480420` already read above, lines 1071-1084) or calls
+  `FUN_00649210(unit)` when there's no usable target. The rest, gated on
+  `FUN_00451f80(unit[1])` (a monster-class lookup; a null result skips to the
+  end) being non-null, is a block that: for a monster whose MonStats row
+  flag 2 is set, that isn't flagged by `FUN_004638a0`, in mode 1, passing
+  `FUN_00451f30`, not class 0x219/0x21a/0x21b, not the local player
+  (`FUN_00463dd0`), within 7 of the local player
+  (`d2d_monsters_unit_distance`) and some further gates
+  (`FUN_0045c390() < 10`, a path present) — plays something through
+  `FUN_00649ef0` with two values from `FUN_0045ae20`/`FUN_0045adf0`,
+  `0`. After that: `FUN_004b1280()` and a second switch on `piVar2[2]`
+  (1: keep the earlier `FUN_004807c0` result, 2/3: this new result, 4: 1
+  only when both are non-zero and `FUN_006217c0(unit)` is also non-zero),
+  then `FUN_004af2e0()`, `FUN_004ade60()`, `FUN_00648640(path)` when there's
+  a path, and, when that switch's result was non-zero, `FUN_004af6a0()`.
+  A monster of class 0x210 with MonStats2 flag `+0x31` bit 0 set and
+  `FUN_00451f30()` non-zero clears that bit and plays another sound-like
+  call (`FUN_0045ae20(2, 0)`, `FUN_0045adf0`, `FUN_00466730`). Finally
+  `FUN_0063a340(unit)` non-zero calls `FUN_004c72f0()`, then
+  `FUN_004cb460(unit)` and `FUN_004caf60(unit)` (both already verified
+  elsewhere: `object_sounds.hpp`, `fight/setup.cpp`, `world/tick.cpp`,
+  `world.hpp`; `FUN_004bdff0` below ends the same way, the shared
+  object/unique-boss "ambient sound" tail; the missile and item steps
+  below do not call either). **Not traced**: `FUN_004af400`'s own
+  global and what `piVar2[0]`/`piVar2[1]`/`piVar2[2]` mean beyond the two
+  switches read here; `FUN_00649ef0`'s own effect; the MonStats flag 2 /
+  flag 9 (`FUN_004638a0`) semantics (also unresolved at line 1054 above).
+  d2d: not ported as a function; no disagreement found, nothing here was
+  compared against a d2d equivalent.
