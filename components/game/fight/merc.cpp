@@ -215,7 +215,7 @@ bool room_teleport(const GameData& game_data, const Level& level, const Crowd& c
     return false;
 }
 
-auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town) -> void {
+auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
@@ -303,7 +303,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         if (actor->merc->mode == "WL" || actor->merc->mode == "RN") {                    // velocitypercent: the move's pace
             // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk %, at least 25 (FUN_00623f50).
             const int velocity = type_info ? type_info->velocity : 6;
-            if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(100 + actor->merc->move_pct, 25)) / 100 * elapsed, crowd)) return;
+            if (walk_on(*level, unit, path_velocity(velocity, std::max(100 + actor->merc->move_pct, 25)), crowd)) return;
             set("NU");
             actor->merc_chase = false;
             actor->merc->next_act = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)

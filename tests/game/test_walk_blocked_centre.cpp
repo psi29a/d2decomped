@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A blocked step ends the walk on the centre of the subtile the unit is on
-// (FUN_00650150, FUN_006507b0) and says so; a step that arrives doesn't.
+// A step onto a blocked subtile ends the walk on the centre of the subtile the
+// unit is on (FUN_00650150, FUN_006507b0) and says so; one inside its own
+// subtile tests nothing (only a new subtile is tested, LAB_006501c0).
 // test_walk_stop.cpp has the stop and the centre through the World's tick.
 
 #include <ai.hpp>
@@ -26,7 +27,7 @@ int main() try {
     unit.x = 21.0f; unit.y = 13.4f;                   // on a corner of subtile (105, 67)
     unit.path = { { 20.9f, 13.7f } };
     bool blocked = false;
-    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(!follow_path(walled, unit, 2048, {}, &blocked));
     assert(blocked && unit.path.empty());
     assert(near_value(unit.x, 21.1f) && near_value(unit.y, 13.5f));
 
@@ -34,26 +35,26 @@ int main() try {
     const float centre_x = unit.x, centre_y = unit.y;
     unit.path = { { 20.9f, 13.7f } };
     blocked = false;
-    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(!follow_path(walled, unit, 4096, {}, &blocked));   // a subtile a frame: off its own
     assert(blocked && unit.x == centre_x && unit.y == centre_y);
 
-    // A leg that arrives tests nothing, and isn't a block.
-    unit.x = 21.0f; unit.y = 13.4f;
-    unit.path = { { 21.05f, 13.4f } };
+    // A leg that stays on its subtile tests nothing, and isn't a block.
+    unit.x = 21.02f; unit.y = 13.42f;
+    unit.path = { { 21.1f, 13.5f } };
     blocked = false;
-    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
-    assert(!blocked && near_value(unit.x, 21.05f));
+    assert(!follow_path(walled, unit, 4096, {}, &blocked));
+    assert(!blocked && near_value(unit.x, 21.1f) && near_value(unit.y, 13.5f));
 
     // No route (LAB_006508ff): the same centre, and it counts as a block.
     unit.x = 21.0f; unit.y = 13.4f;
     unit.path.clear();
     blocked = false;
-    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(!follow_path(walled, unit, 4096, {}, &blocked));
     assert(blocked && unit.path.empty());
     assert(near_value(unit.x, 21.1f) && near_value(unit.y, 13.5f));
     const float stayed_x = unit.x, stayed_y = unit.y;
     blocked = false;
-    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(!follow_path(walled, unit, 4096, {}, &blocked));
     assert(blocked && unit.x == stayed_x && unit.y == stayed_y);
     return 0;
 } catch (const std::exception& error) {

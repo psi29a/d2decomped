@@ -584,10 +584,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 // FUN_00623f50: the walk velocity x a % (at least 25) of 100 (run: run x 100 / walk),
                 // faster run/walk's effective % (150 x v / (150 + v)) and chill's -50.
                 const int walk = std::max(game_data->walk_velocity[save_class], 1);
-                const float vel = float(walk * walk_percent(*actor, now_ms)) / 100.f;
                 const float before_x = actor->player.x, before_y = actor->player.y;
                 bool blocked = false;
-                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd, &blocked);
+                actor->player.walking = follow_path(*level, actor->player, path_velocity(walk, walk_percent(*actor, now_ms)), walk_crowd, &blocked);
                 // The merc's think reads the player's footsteps (FUN_00580c20): walking or
                 // running, 25 ms on from the last, over 45 (squared) from it.
                 if (const int step_x = int(std::floor(actor->player.x * 5)), step_y = int(std::floor(actor->player.y * 5)); now_ms > actor->footstep_ms + 25) {

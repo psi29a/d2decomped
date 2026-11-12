@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -260,5 +261,31 @@ private:
         return true;
     }
 };
+
+// A walker's frame (FUN_00650840 past its chase check, FUN_006503f0): from
+// 16.16 subtiles (x, y) toward points[point]'s centre at `velocity` (path
+// +0x7c: velocity / 4096 subtiles a frame). The aim is taken anew each frame
+// and points it stands on are passed (FUN_0064fe40, so a point given twice
+// costs no frame); one within the step is landed on and ends the frame
+// (FUN_00650090). A new subtile that `blocked(x, y)` (FUN_0064ff90) ends the
+// walk on the centre of the last free one (FUN_00650150), `hit` set. False
+// when the walk is over: on its subtile's centre (FUN_006507b0), `point`
+// past the last. tools/emu/walk_step.py; tests/test_walk_step.cpp.
+template <class Blocked>
+bool walk_frame(std::uint32_t& x, std::uint32_t& y, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
+                Blocked&& blocked, bool* hit = nullptr) {
+    MissileFlight flight;
+    flight.x = x; flight.y = y; flight.velocity = velocity;
+    flight.points.assign(points.begin(), points.end());
+    flight.point = point;
+    bool stopped = false;
+    flight.retarget();
+    bool going = flight.point < points.size() ? flight.step([&](int at_x, int at_y) { return stopped = blocked(at_x, at_y); }) : flight.stop();
+    if (going) { flight.retarget(); going = flight.point < points.size() || flight.stop(); }
+    x = flight.x; y = flight.y;
+    point = going ? flight.point : points.size();
+    if (hit) *hit = stopped;
+    return going;
+}
 
 }  // namespace d2d::rules

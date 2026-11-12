@@ -180,8 +180,16 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   all equal).
 - FUN_00650660 moves a unit one step a frame. FUN_00650090 tests the next
   point: within the step on both axes, the unit lands on it and the frame
-  ends there, with the rest of the step unused. So a repeated point (the
-  toward pather's cut-short subtile) costs a frame (`follow_path`).
+  ends there, with the rest of the step unused. FUN_00650840 then runs
+  FUN_0064fe40 (LAB_006508dd), which passes every point whose centre the unit
+  stands on, so a repeated point (the toward pather's cut-short subtile)
+  costs no frame. The step is the unit vector (FUN_0064fc60, taken anew each
+  frame) x the velocity (path +0x7c) >> 8, in 16.16 subtiles (FUN_006502d0).
+  **Verified**: `tools/emu/walk_step.py` runs FUN_00650840 frame by frame on
+  random positions, points, velocities and blocked subtiles; `rules::walk_frame`
+  gives the same return, position and point index every frame (3,000 walks;
+  250 frozen in `tests/walk_step_cases.inc`). An earlier note here had the
+  repeated point cost a frame: game.exe's run says not.
 - ponytail: A target that moves re-paths at
   0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
   FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
@@ -305,14 +313,17 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   pending interact, a monster's walk update (LAB_005a84c4) thinks at
   once (FUN_005a8030). Only a client-side monster re-paths from the stop
   (monster-ai.md).
-- **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
-  stops for a wall and the crowd alike, as game.exe does, on a step that stops
-  short of its next point; one that reaches a point tests nothing. A stop puts the
-  unit on the centre of the subtile it stands on and clears its path, as game.exe's
-  does (#226). A walk with no route snaps the same way and ends
-  (LAB_006508ff): `follow_path` on an empty path, and that snap counts as
-  a block so the walk does not start again off it. A
-  hostile monster walks by `move_frame`, which snaps already.
+- **d2d.** `follow_path` (ai.cpp: the player, merc, pets and town NPCs) and
+  `move_frame` (a hostile monster) step through `rules::walk_frame`, game.exe's
+  frame in 16.16 subtiles (`UnitState::fine_x` / `fine_y`): each new subtile
+  crossed is tested, a wall and the crowd alike, and none inside its own; a stop
+  puts the unit on the centre of the last free subtile and clears its path
+  (#226), with no route or no velocity too (LAB_006508ff); `follow_path`'s
+  no-route snap counts as a block, so the walk does not start again off it.
+  The velocity is
+  FUN_00623f50's (`path_velocity`: Velocity << 8 x the walk % / 100, truncated;
+  `tools/emu/walk_velocity.py`). Left: positions set by anything but a walk are
+  floats in cells, and the facing isn't FUN_006485f0's turn.
 
 ### What keeps a walk to a unit going: the client
 

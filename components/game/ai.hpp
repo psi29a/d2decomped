@@ -40,6 +40,7 @@ inline constexpr int kMonsterVelocityPct = 75;
 // patrolling NPCs walk their DS1 path, pausing at each point.
 struct UnitState {
     float x = 0, y = 0;
+    std::uint32_t fine_x = 0, fine_y = 0;   // where a walk's frame left it, 16.16 subtiles (path +0 / +4); x / y are these in cells
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
     int dir = 0;
     bool walking = false;
@@ -135,13 +136,16 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
 // end, it paths again while the budget lasts, the points walked coming off
 // it (FUN_006503f0 -> FUN_00650350). Blocked, it ends (FUN_00650150).
 // False once it's over.
-bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
+bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {});
 
-// Moves u along its path by `step` cells, dropping reached points and
-// turning it to face the way; blocked by a wall or another unit, it
-// drops the route and stands on its subtile's centre (FUN_00650150), and
-// `blocked`, if given, is set. False once there (or stuck).
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {}, bool* blocked = nullptr);
+// A frame of u's walk along its path at `velocity` (path_velocity)
+// (rules::walk_frame: FUN_00650840 in 16.16 subtiles), dropping reached
+// points and turning it to face the way; a new subtile blocked by a wall or
+// another unit ends it on the centre of the last free one (FUN_00650150),
+// and `blocked`, if given, is set. False once it's over: no path left, and
+// the unit on its subtile's centre (FUN_006507b0; with no path or no step
+// too).
+bool follow_path(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, bool* blocked = nullptr);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;

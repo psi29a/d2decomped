@@ -895,6 +895,10 @@ constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, k
 // subtiles per 40 ms tick (arrival time (dist << 16) / ((v >> 8) << 12),
 // 0x4c86a3) — velocity / 16 subtiles a tick. Walk 6: 1.875 cells/s.
 constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 5.f; }
+// A walker's path velocity (path +0x7c) as FUN_00623f50 sets it: the
+// Velocity << 8 x its walk % / 100, truncated (tools/emu/walk_velocity.py).
+// A frame moves it velocity / 4096 subtiles (FUN_006502d0).
+constexpr int path_velocity(int velocity, int pct = 100) { return (velocity << 8) * pct / 100; }
 
 // Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
 // cells. Directions are screen-space: project to screen, take the angle
