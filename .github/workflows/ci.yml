@@ -240,7 +240,11 @@ jobs:
           restore-keys: ffmpeg-${{ runner.os }}-
 
       # Sentry Native and Crashpad are built through FetchContent. Keep their
-      # isolated source/build trees so unchanged vendor code needn't compile.
+      # isolated source/build trees so unchanged vendor code needn't compile,
+      # and Ninja's log and deps beside them: without those Ninja takes every
+      # restored object for stale and compiles all ~265 again. The runner
+      # image is in the key because a new one can bring newer system headers,
+      # which Ninja would rebuild for on every run of an older cache.
       - name: Sentry cache key
         id: sentry-key
         shell: bash
@@ -253,14 +257,17 @@ jobs:
           key=$({
             sed -n -e '/^    set(SENTRY_BACKEND /,/^    set(SENTRY_SCREENSHOT /p' \
               -e '/^    FetchContent_Declare(/,/^    )/p' apps/d2d/CMakeLists.txt
-            printf '%s\n' "$compiler_version"
+            printf '%s\n' "$compiler_version" "${ImageVersion:-}" ninja-state
           } | git hash-object --stdin)
           echo "key=${key:0:16}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Sentry (all platforms)
         uses: actions/cache@v4
         with:
-          path: build/_deps/sentry_native-*
+          path: |
+            build/_deps/sentry_native-*
+            build/.ninja_log
+            build/.ninja_deps
           key: sentry-${{ runner.os }}-${{ steps.sentry-key.outputs.key }}
 
       - name: Configure (Linux/macOS)
