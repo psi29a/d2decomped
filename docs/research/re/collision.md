@@ -1466,3 +1466,43 @@ Re-check: `python3 tools/ghidra/fn.py 004cd310 004d2d70 0064a3e0`;
 disassemble `004cd310`..`004cd374` to confirm the ESI-implicit, no-args
 convention above.
 
+### A generic client-missile spawn helper: `FUN_004cdc30` (batch 10)
+
+`FUN_004cdc30` (0xdd bytes, `004cdc30`..`004cdd0d`, `RET 0x1c`): fastcall
+**ECX** a unit, **EDX** a Missiles.txt row id, seven stack words
+(confirmed in disassembly — `RET 0x1c` pops exactly the seven stack
+dwords, register args aren't counted). A null ECX returns 0. When the
+unit's own type (`*ECX`) is neither 0 nor 1 (player or NPC), it is
+replaced with `FUN_004639d0()` — **the owner unit**, the same accessor
+`gfx.md:189` already names — and a null result also returns 0. The next
+two stack words (`param_5`/`param_6`, an x/y offset) are both required
+non-zero, or `FUN_004c52e0(unit, &param_5, &param_6)` must fill them (not
+traced further; a default offset the caller didn't supply). With the
+offset resolved it zeroes a 0x5c-byte block and fills the same indices the
+already-documented client-missile-spawn blocks use (`missiles.md:880`
+"Client missile spawn" family): `[0]` flag **0x521**, `[1]` the unit,
+`[4]` the row id (EDX), `[5]`/`[6]` the unit's own position
+(`FUN_0045adf0`/`FUN_0045ae20`) plus the x/y offset, `[7]`/`[8]` the next
+two stack words, `[0xb]`/`[0xc]` the last two stack words, and `[9]` the
+seventh stack word or **0x1e** (30) when it's 0 — a field not seen in any
+of the zeroed-block callers `missiles.md:880`-`995` already documents.
+`FUN_004cd540` (**make missile**, cited throughout `missiles.md`) does the
+actual spawn; its result is returned directly, untagged. Not traced:
+`FUN_004c52e0`'s own default-offset logic, and index `[9]`'s meaning
+(no caller here uses a non-zero seventh stack word).
+
+Its many callers (12 call sites, mostly `UNIT/?` and `UNIT/Monster.cpp`
+code not otherwise identified here) pass a constant row id and offset, or
+all zeros — not read further to say what each spawns; one caller
+(`FUN_004af2e0`) calls it with a null unit (`FUN_004cdc30(0,0,0,0,0,1,0)`),
+which is a no-op per the null check above.
+
+d2d: not ported as a function; `missiles.md`'s already-ported client
+missile makers (`FUN_0046b680`, `FUN_0046b9a0`, etc.) are the parametrized
+instances of the same zeroed-block pattern this function generalizes; no
+disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004cdc30 004c52e0 004cd540`;
+disassemble `004cdc30`..`004cdd0d` to confirm the ECX/EDX + seven-stack-word
+convention and the `RET 0x1c` cleanup.
+
