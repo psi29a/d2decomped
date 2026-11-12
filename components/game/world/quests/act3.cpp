@@ -222,8 +222,10 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
         // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0).
         // One look: every path returns 1, so with no player there they
-        // never come (#394).
-        if (std::exchange(gidbinn_due, false) && !blade.spawned && level == gidbinn_level && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
+        // never come (#394). It's taken on the altar's level's turn (split
+        // levels: the quest step runs on the first turn), and World::tick
+        // drops it at the tick's end if that level had no turn.
+        if (gidbinn_due && level == gidbinn_level && std::exchange(gidbinn_due, false) && !blade.spawned && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
             const auto& altar = level->npcs[std::size_t(gidbinn_altar)];
             const auto rooms = near_rooms(*game_data, *level, altar.x, altar.y);
             const bool by_altar = std::ranges::any_of(players, [&](const auto& player) {

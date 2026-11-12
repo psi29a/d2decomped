@@ -237,6 +237,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         first_turn = true;
         if (!split_levels) {
             tick_level(orders, now_ms, last_ms);
+            gidbinn_due = false;                             // a3q3's one look (FUN_005b9a30): this tick's turns only
             hand_out_announced();
             if (turn_done) turn_done();
             return;
@@ -270,6 +271,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             first_turn = false;
         }
         elsewhere.clear();
+        gidbinn_due = false;                                 // a3q3's one look (FUN_005b9a30): on the altar's level's turn, or none
         players = std::move(everyone);
         fight.heroes = std::move(all_heroes);
         act_as(lead());

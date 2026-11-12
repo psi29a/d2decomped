@@ -27,6 +27,7 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <tuple>
 #include <variant>
 
 namespace filesystem = std::filesystem;
@@ -181,6 +182,30 @@ int main() try {
     world.statues_back_in = quest_timer_steps(2);
     runs_after(world, now_ms, 3, "the statues' return timer", [&] { return world.statues_back_due; });
     world.statues_back_due = false;
+
+    // Split levels: the quest step runs on the first turn (a second player's,
+    // on Blood Moor), and the Gidbinn's look waits for the altar's level's
+    // turn (the lead's, last), where the lead stands by "the altar".
+    const Level* town = world.level;
+    const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(moor && !world.blade.spawned);
+    auto wanderer = character;
+    wanderer.name = "Wanderer";
+    auto& second = world.join(wanderer);
+    second.on_level = moor;
+    std::tie(second.player.x, second.player.y) = moor->nearest_free(float(moor->ds1.width()) / 2, float(moor->ds1.height()) / 2);
+    world.lead().on_level = town;
+    world.split_levels = true;
+    world.gidbinn_altar = 0;
+    world.gidbinn_level = town;
+    world.actor->player.x = town->npcs[0].x;
+    world.actor->player.y = town->npcs[0].y;
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer, split levels", [&] { return world.gidbinn_in == 0; });
+    assert(world.blade.spawned && !world.gidbinn_due);
+    world.split_levels = false;
+    world.gidbinn_altar = -1;
+    world.gidbinn_level = nullptr;
 
     // A new game on the same World (World::new_game): its frame and quest
     // count start over (a game's own +0xa8 and +0x10f4 +0x14), so its first
