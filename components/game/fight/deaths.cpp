@@ -192,9 +192,11 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
 // own room when the square of the radius lies inside it; otherwise the
 // near list, and FUN_0065a710 lets every room of that list through
 // (bugs.md #23). A unit in none of those rooms is missed, however close.
-// ponytail: the draws go in monsters order, not each room's newest first
-// (FUN_0065ac70); the two death missiles (client do 26 / 32: Mephisto's
-// fire walls and rocks, Radament's) aren't made, d2d has neither do.
+// FUN_0065ac70 walks each room's unit list from its head (room +0x74, next
+// at +0xe8). FUN_0064c2c0 inserts at the head, so each room's draws run
+// newest first. monsters is oldest first.
+// ponytail: the two death missiles (client do 26 / 32: Mephisto's fire
+// walls and rocks, Radament's) aren't made, d2d has neither do.
 auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
         const auto row = [&](int bin_row) { return std::size_t(bin_row) < game_data->mon_bin.size() ? int(game_data->mon_bin[std::size_t(bin_row)]) : -1; };
         const auto radament = game_data->missiles.find("radamentdeath");
@@ -212,11 +214,18 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
                 for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, boss.unit.x, boss.unit.y))
                     if (room_level == level) rooms.push_back(near_room);
             }
-            for (auto& other : monsters) {
+            std::vector<d2d::rules::RoomUnit> units;
+            units.reserve(monsters.size());
+            for (const auto& other : monsters) {
                 const int off_x = subtile(other.unit.x) - from_x, off_y = subtile(other.unit.y) - from_y;
-                if (!std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) continue;
-                if (!other.targetable() || other.align != 0 || other.type == row(0x14d) || off_x * off_x + off_y * off_y > hook.radius * hook.radius) continue;
-                if (hook.undead_only && !(other.type >= 0 && std::size_t(other.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(other.type)].undead)) continue;
+                const int other_room = room_of(*level, other.unit.x, other.unit.y);
+                const bool undead = other.type >= 0 && std::size_t(other.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(other.type)].undead;
+                const bool take = std::ranges::contains(rooms, other_room) && other.targetable() && other.align == 0 && other.type != row(0x14d)
+                    && off_x * off_x + off_y * off_y <= hook.radius * hook.radius && (!hook.undead_only || undead);
+                units.push_back({ other_room, take });
+            }
+            for (const int index : d2d::rules::room_order(units, rooms)) {
+                auto& other = monsters[std::size_t(index)];
                 const std::uint32_t due = now_ms + std::uint32_t(hook.first + boss.seed(hook.end - hook.first)) * 40;
                 if (!other.killself_at || due < other.killself_at) other.killself_at = due;
             }

@@ -4,8 +4,11 @@
 // takes monsters in the unit finder's rooms: the boss's own room when the
 // square of the radius lies inside it (FUN_0065a6b0), otherwise the near
 // list. FUN_0065a710 lets every near room through (bugs.md #23). A monster
-// in no such room is missed, however close. Andariel's hook
-// (FUN_005dfe00) is radius 35. No game data: the rooms are built here.
+// in no such room is missed, however close. Within one room the draws
+// run newest first: FUN_0065ac70 walks the room's unit list from its head
+// (room +0x74, next at +0xe8), and FUN_0064c2c0 inserts there. Andariel's
+// hook (FUN_005dfe00) is radius 35, and each draw takes the next roll of
+// her seed. No game data: the rooms are built here.
 
 #include <ai.hpp>
 #include <cassert>
@@ -13,6 +16,7 @@
 #include <ds1.hpp>
 #include <exception>
 #include <gamedata.hpp>
+#include <rules.hpp>
 #include <world.hpp>
 
 using namespace d2d::game;
@@ -58,17 +62,29 @@ int main() try {
     fight.monsters.push_back(foe_at(20, 45));    // no room, 6 off
     fight.monsters.push_back(foe_at(20, 70));    // room 2, 31 off
     fight.monsters.push_back(foe_at(79, 39));    // room 1, 59 off
+    fight.monsters.push_back(foe_at(18, 30));    // room 0, older of the two
+    fight.monsters.push_back(foe_at(22, 30));    // room 0, newest
     Monster andariel;
     andariel.type = 0;
     andariel.unit.x = centre(20);
     andariel.unit.y = centre(39);
+    // Room 0, then room 1. In room 0 the newest monster is drawn first, so
+    // it takes the first seed roll (Andariel: 1 + rand(50)).
+    d2d::rules::Rng rolls = andariel.seed;
+    const auto due = [&] { return std::uint32_t(1 + rolls(50)) * 40; };
+    const auto newest_due = due();
+    const auto older_due = due();
+    const auto first_due = due();
+    const auto side_due = due();
     fight.quest_death(andariel, 0);
-    assert(fight.monsters[0].killself_at != 0);
-    assert(fight.monsters[1].killself_at != 0);
+    assert(fight.monsters[0].killself_at == first_due);
+    assert(fight.monsters[1].killself_at == side_due);
     assert(fight.monsters[2].killself_at == 0);
     assert(fight.monsters[3].killself_at == 0);
     assert(fight.monsters[4].killself_at == 0);
-    std::printf("quest death rooms: the near rooms, not the one in none or past them\n");
+    assert(fight.monsters[5].killself_at == older_due);
+    assert(fight.monsters[6].killself_at == newest_due);
+    std::printf("quest death rooms: the near rooms, newest in a room first\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_quest_death_rooms: %s\n", error.what());
