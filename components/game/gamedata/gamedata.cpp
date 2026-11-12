@@ -84,8 +84,11 @@ CofAnim player_cof(const d2d::mpq::Stack& mpqs, const std::vector<d2d::compcode:
 }
 // An NPC's or object's: <root>\<code>\COF\<code><mode><weapon class>, the
 // class from cof_weapon_class (BaseW, or hth for a monster's death).
+// A monster's mode draws with MonMode.txt's token: knockback (code KB) is
+// GH's COF, as no monster has a KB one.
 CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& npc, std::string_view mode) {
-    return open_cof(mpqs, std::format(R"(data\global\{}\{}\COF\{}{}{}.cof)", npc.root, npc.code, npc.code, mode, cof_weapon_class(npc, mode)));
+    const std::string_view token = npc.root == "monsters" && mode == "KB" ? std::string_view("GH") : mode;
+    return open_cof(mpqs, std::format(R"(data\global\{}\{}\COF\{}{}{}.cof)", npc.root, npc.code, npc.code, token, cof_weapon_class(npc, token)));
 }
 // The timing lookups: the COF and animdata only (the World's).
 template <class Key, class Load>

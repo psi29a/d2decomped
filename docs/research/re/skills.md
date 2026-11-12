@@ -418,13 +418,17 @@ lines (missile names aren't passed in). What it does:
   on from the attacker (FUN_00648cf0 / FUN_00648e40); no path, NU
   (FUN_0057f020). On a monster with no KB mode (MonStats2 bit 13) it's
   turned into a get-hit (flag 4); else mode 13 (FUN_005a7e60 /
-  FUN_005a7c20; start FUN_005a77d0: GH and KB modes, alive): path type 8,
-  5 subtiles, 10 for class 0x4e (sandleaper1); each frame along the path
-  (FUN_005a8630 -> FUN_00554ca0) till the mode ends, then FUN_005a8520:
-  GH (mode 3), a Sand Leaper instead thinking 15 frames on (45 stunned).
+  FUN_005a7c20; start LAB_005a77d0: FUN_0046c140 bits 3 and 13, MonStats2
+  mGH and mKB, alive): path type 8, 5 subtiles, 10 for class 0x4e
+  (sandleaper1); each frame along the path (FUN_005a8630 -> FUN_00554ca0)
+  till the mode ends, then FUN_005a8520: GH (mode 3), a Sand Leaper instead
+  thinking 15 frames on (45 stunned).
+  A monster's KB draws its GH COF: MonMode.txt's row is `knockback GH KB`
+  (token GH), and no monster has a KB COF.
   The player's KB is drawn as GH (PlrMode.txt). d2d: `Fight::land` and
-  `monster_update`'s KB (a monster), `Fight::knock` (the player), an even
-  slide over the mode (path type 8 adds no pace, 0x6eb648[8] = 0).
+  `monster_update`'s KB (a monster; gate `can_get_hit`, `can_knock_back`,
+  `npc_cof`'s KB token), `Fight::knock` (the player), an even slide over
+  the mode (path type 8 adds no pace, 0x6eb648[8] = 0).
 - Record flags seen: 1 = the physical is built (FUN_0057b7d0 doesn't roll
   the weapon), 2 = don't run FUN_0057b7d0 at all, 0x1000 = self damage;
   FUN_0057b7d0 marks 0x20.

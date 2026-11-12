@@ -547,8 +547,9 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
     }
 
 auto Fight::knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms) -> void {
-        if (game_data->npc_timing(target.npc, "KB").directions <= 0 || game_data->npc_timing(target.npc, "GH").directions <= 0) return;
-        const float reach = game_data->monsters.types[std::size_t(target.type)].base == 0x4e ? 2.f : 1.f;
+        const auto& type_info = game_data->monsters.types[std::size_t(target.type)];
+        if (!type_info.can_get_hit || !type_info.can_knock_back) return;   // LAB_005a77d0: FUN_0046c140 bits 3 and 13
+        const float reach = type_info.base == 0x4e ? 2.f : 1.f;
         const float dx = target.unit.x - from_x, dy = target.unit.y - from_y, distance = std::max(std::hypot(dx, dy), 0.01f);
         const float next_x = target.unit.x + dx / distance * reach, next_y = target.unit.y + dy / distance * reach;
         if (!level->unit_blocked(next_x, next_y, target.unit.shape)) {
