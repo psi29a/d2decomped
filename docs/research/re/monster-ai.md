@@ -657,6 +657,15 @@ build/ai-baal-blocked/cases > build/ai-baal-blocked/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_baal_choice_dispatch.py` uses those same cases to check the
+blocked-line route through FUN_005fc630 and FUN_005fc300. Proximity, line,
+life and spell lookups are hooked. Pending actions, no target, melee and the
+clear-line route are outside this dispatcher comparison:
+
+```sh
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_choice_dispatch.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
+```
+
 `tools/emu/ai_baal_clear_choice.py` checks FUN_005fc450's clear-line branch
 over 1,536 cases, reusing the blocked-line generator. It hooks life, distance,
 and the target's spell predicate, compares choices 2 and 6 as one action,
