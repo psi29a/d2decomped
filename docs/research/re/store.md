@@ -71,6 +71,13 @@ Vendor index by NPC hcIdx (`FUN_00536f80`):
   once, or at the next trade when someone is at the NPC. `FUN_00536580`
   also frees any gamble lists left at the vendor (+8, "Gambling"
   below).
+- "Everything goes" above is `FUN_00536510(unit, pool)`: EAX the unit
+  (fastcall-style, no ECX/EDX), stack `pool`. It walks the unit's
+  inventory list (`FUN_0063b2c0` the head, `FUN_0063dfa0` each next),
+  checking each node is really an item (`FUN_0063dfd0`; 0 there is fatal,
+  `FUN_00408090(0x1c6)`) and reading its `+0x69` flag byte
+  (`FUN_0063e020`, result unused), then destroys it
+  (`FUN_00555600(pool, item)`). `ret 4`.
 - The fill is FUN_00576980 (SUNITNPC.CPP), from the trade deal
   (FUN_00579430: when the NPC's proxy record +0x27 says restock, the old
   stock goes (FUN_00536d10) and it fills; Kashya, Greiz and Larzuk's
