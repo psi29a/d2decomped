@@ -1432,6 +1432,131 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
 
+### The unit's sound-timer scalars (batch 8)
+
+Four small UNIT-module functions clustered right after `FUN_004ca380`/
+`FUN_004ca320`/`FUN_004ca2c0` (the mode/class/type reads `FUN_004cb460`
+and `FUN_004caf60` above already call). `FUN_004cb460` itself calls
+`FUN_004cab90` directly (`iVar4 = FUN_004cab90(), iVar4 == 0`; confirmed
+by decompiling `FUN_004cb460` itself, not detailed again here — its d2d
+port is cited at lines 1455-1456 below); the other three sit beside it
+in address order and share its fatal-check shape. The getters here use **EAX**, not ECX, as the implicit
+unit pointer — a register-parameter order (EAX, EDX, EBX, ECX for up to
+four arguments) this binary uses throughout, confirmed against raw
+disassembly, not just the decompiler's guess (which shows it as an
+unnamed `in_EAX`):
+
+- **`FUN_004cab30`** (0x27 bytes, `004cab30`..`004cab57`, plain `RET`, no
+  stack args): a null unit (EAX) is fatal (`FUN_00408090(0xcbb)` message,
+  `FUN_00408a60`, `FUN_00681e09(-1)`, no return); otherwise returns the
+  dword at unit `+0x7c` — `structs.tsv`'s `sound_time` row.
+- **`FUN_004cab60`** (0x30 bytes, `004cab60`..`004cab90`, `RET 0x4`): same
+  null-unit fatal check (message id `0xcc6`); otherwise writes its one
+  stack argument to unit `+0x7c` (`sound_time`'s setter).
+- **`FUN_004cab90`** (0x2a bytes, `004cab90`..`004cabba`, plain `RET`):
+  same fatal check (id `0xcd1`); returns the dword at unit `+0x80`
+  (`neutral_time`).
+- **`FUN_004cac30`** (0x33 bytes, `004cac30`..`004cac63`, `RET 0x4`): same
+  fatal check (id `0xcf2`); writes its stack argument to unit `+0x84`
+  (`step_time`'s setter). `structs.tsv` has no row yet for `neutral_time`'s
+  setter or `step_time`'s getter; neither was found at this address range
+  (not traced further).
+
+d2d: not ported as a function; no disagreement found, nothing here was
+compared against a d2d equivalent — the already-verified caller
+`FUN_004cb460` (`object_sounds.hpp`, `fight/setup.cpp`,
+`gamedata.hpp:729`) is the one with a d2d port.
+
+Re-check: `python3 tools/ghidra/fn.py 004cab30 004cab60 004cab90
+004cac30`; disassemble `004cab30`..`004cac63` to confirm the
+EAX-implicit, no-ECX calling convention above.
+
+### The unit's own list of playing sounds: `FUN_004ca900` / `FUN_004caa10` (batch 8)
+
+Two more UNIT-module functions right after the timer scalars above, both
+called from the same already-verified ambient-sound sequencer
+`FUN_004cb460` (confirmed by decompiling `FUN_004cb460` itself, not
+detailed again here — its d2d port is cited at lines 1455-1456 above:
+`FUN_004ca900` to decide whether to re-trigger, `FUN_004caa10` to stop
+the old sound first) — unlike the
+EAX-implicit accessors above, both use the ordinary fastcall ECX/EDX
+convention (confirmed in disassembly):
+
+- **`FUN_004ca900`** (0x8f bytes, `004ca900`..`004ca98f`, plain `RET`;
+  ECX the unit, EDX a sound-category index — `MOV ESI,ECX` / `MOV
+  EDI,EDX` in the disassembly): a null unit is fatal (id `0xc47`); then
+  `FUN_004df880()` (cited at `menu.md:132`, the "sound enabled" global)
+  zero returns 0 (sound off: never "already playing"). Otherwise
+  `FUN_00481890(EDX)` and `FUN_004818c0(EDX)` read a Sounds.txt-shaped
+  table row (0x8e-byte stride, fields `+0x60` and `+0x3d`) for a
+  channel-count value, then the function walks the unit's own list head
+  at `+0x78` (a linked list, next pointer at node `+4`, data at node
+  `+0`): for each node it resolves the node's data through
+  `FUN_004b9ca0` (walks the global playing-sound list `DAT_007c5458`,
+  matching each entry's `+8` field, returning its `+4` field — the active
+  sound's resolved index/slot) and returns that node's data the first
+  time the resolved value falls in `[EDX, EDX + count)`; an empty or
+  exhausted list returns 0. So `FUN_004ca900(unit, soundIndex)` answers
+  "is a sound in this category already playing on this unit", returning
+  the matching node data (not traced further) or 0.
+- **`FUN_004caa10`** (0x5c bytes, `004caa10`..`004caa6c`, plain `RET`;
+  ECX the unit only, no EDX): same null-unit fatal check (id `0xc2c`) as
+  `FUN_004ca900`. With a unit it walks the same `+0x78` node list; for
+  each node, `FUN_004b9ca0` resolves it the same way, then
+  `FUN_004818f0(resolved)` reads the Sounds.txt-shaped row's `+0x3e` byte
+  and, when set, calls `FUN_004ba790(node_data, unit, 0)` — the
+  stop-sound entry point (matches by the same `DAT_007c5458` list, then
+  gates on a `d2d_sound_row` field before calling `FUN_004ba760`). So
+  the stop applies to each currently-playing sound this unit owns that is
+  flagged `+0x3e` and passes that gate. The gate's false path is not
+  traced. `structs.tsv` has no row yet for unit `+0x78`; from
+  this pair it is the head of the unit's own linked list of active-sound
+  nodes, distinct from the `+0x7c`/`+0x80`/`+0x84` cooldown scalars
+  above — added here as `sound_nodes`.
+
+Not traced: `FUN_004b9ca0`'s and `FUN_004ba790`'s own global sound-node
+format (`DAT_007c5458`'s `+4`/`+8` fields beyond "an id" and "a resolved
+index"), the Sounds.txt-shaped table's own identity and the rest of its
+0x8e-byte row, and `FUN_004ba760`/`FUN_004ca8d0`/`d2d_sound_row`'s own
+bodies. d2d: not ported as a function; no disagreement found, nothing
+here was compared against a d2d equivalent — the already-verified caller
+`FUN_004cb460` is the one with a d2d port.
+
+Re-check: `python3 tools/ghidra/fn.py 004ca900 004caa10 004b9ca0
+004ba790`; disassemble `004ca900`..`004ca98f` and `004caa10`..`004caa6c`
+to confirm the ECX/EDX argument order above.
+
+### A room's floor-tile lookup by subtile: `FUN_004cace0` (batch 8)
+
+`FUN_004cace0` (0x74 bytes, `004cace0`..`004cad54`, plain `RET`, no stack
+args) sits right after the sound cluster above and is the only caller's
+dependency of `FUN_004cadb0` (already `d2d verified`:
+`fight.hpp:469`, `sound_ids.hpp:118,122`, `unit-sounds.md:252,256`), which
+calls it in a loop over near rooms when its own room lookup misses. Its
+three arguments are register-passed in the same EAX/EDX/ECX order as the
+getters above (confirmed in disassembly): **EAX** a y subtile, **EDX** the
+room, **ECX** an x subtile. It calls `FUN_00619730(room, &rect)` (the
+room's rect, already cited above at line 8, "The grid") to get the room's
+origin, subtracts it from the x and y arguments, divides each by 5 (the
+tile-to-subtile ratio the grid section already gives: 5x5 subtiles per
+tile), then calls `FUN_00619660(room, &count)` (also already cited above
+at line 10) to get the room's floor-tile list and count. It walks that
+list's 0x30-byte-stride records (the same record size "The grid" section
+names) comparing each record's `+8` field against the x-in-tiles value
+and `+0xc` against the y-in-tiles value; the first match returns a
+pointer to that record's start, and an empty or exhausted list returns 0.
+So `FUN_004cace0(y, room, x)` finds the floor-tile record under a given
+subtile position within one room — a lookup helper for the same
+DT1-tile-record layout "The grid" section already describes, not a new
+one. Not traced: what a caller does with the returned record beyond the
+match/no-match the two outer functions above use it for. d2d: not ported
+as a function; `Level::walk`/`set_level_tiles` (already cited at "The
+grid" above) build d2d's own per-subtile flags without a one-to-one
+per-tile-record lookup, so there is nothing here to disagree with.
+
+Re-check: `python3 tools/ghidra/fn.py 004cace0 004cadb0 00619660
+00619730`; disassemble `004cace0`..`004cad54` to confirm the
+EAX=y/EDX=room/ECX=x argument order.
 ### The swing sound's id alone: `FUN_004ca4c0` (batch 9)
 
 `FUN_004ca4c0` (0x3a bytes, `004ca4c0`..`004ca4fa`, plain `RET`, no stack
