@@ -350,12 +350,26 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     // (18) past them, not game.exe's 48 round the player (bugs.md #11;
     // --toggle light_grid=off for that).
     const int half = (g_view_width / 2 / (kIsoW / 2) + (int(kScreenHeight) / 2 + kIsoH) / (kIsoH / 2)) * 5 / 2 + 18 + 1;
+    const int event_light = ambient;
     if (ambient < 0) ambient = view.level->light >= 0 ? view.level->light : view.day.intensity();
     const auto [player_x, player_y] = player_at ? *player_at : std::pair{ cam_x, cam_y };
     lighting.ambient = ambient;
     lighting.environment = view.day.environment;
     if (g_light_grid) lighting.grid.reset(int(cam_x * 5), int(cam_y * 5), ambient, half * 2);
     else lighting.grid.reset(int(player_x * 5), int(player_y * 5), ambient);
+    // The whole grid is the player's room. Each other near room of another
+    // level keeps that level's ambient (FUN_00474610, FUN_00619730).
+    const int player_id = view.level->id;
+    const bool player_release = d2d::rules::release_light(player_id, view.diablo_red) >= 0;
+    const bool den_flash = event_light >= 0 && player_id == d2d::rules::level_ids::kDenOfEvil && !player_release;
+    const int dip_light = event_light >= 0 && !den_flash && !player_release ? event_light : -1;
+    std::vector<d2d::rules::BorderRoom> border_rooms;
+    for (const auto& near_room : d2d::game::automap_rooms(scene, *view.level, player_x, player_y)) {
+        if (near_room.level == nullptr || near_room.level == view.level) continue;
+        border_rooms.push_back({ near_room.x, near_room.y, near_room.width, near_room.height,
+                                  d2d::rules::border_room_light(near_room.level->id, near_room.level->light, view.day.intensity(), dip_light, view.diablo_red) });
+    }
+    lighting.grid.paint_border_rooms(view.level->world_x, view.level->world_y, border_rooms);
     for (int j = 0; j < lighting.grid.grid_size; ++j)                            // what walls light (FUN_004756d0)
         for (int i = 0; i < lighting.grid.grid_size; ++i)
             lighting.grid.blocked[std::size_t(j * lighting.grid.grid_size + i)] =

@@ -158,6 +158,29 @@ int main() try {
     static_assert(release_light(107, true) == 160 && release_light(108, true) == 160);
     static_assert(release_light(107, false) == -1 && release_light(108, false) == -1);
     static_assert(release_light(103, true) == -1 && release_light(2, true) == -1 && release_light(8, true) == -1);
+    // A near room of another level keeps that level's ambient (FUN_00474610).
+    // The grid starts as the player's room. A later room overwrites a shared cell.
+    assert(border_room_light(104, 120, 128, -1, false) == 120);
+    assert(border_room_light(2, -1, 128, -1, false) == 128);
+    assert(border_room_light(107, 120, 128, -1, true) == 160);
+    assert(border_room_light(106, 40, 128, -1, true) == 40);
+    assert(border_room_light(104, 120, 128, 0, false) == 0);
+    assert(border_room_light(8, 80, 128, 0, false) == 80);
+    assert(border_room_light(108, 80, 128, 0, false) == 80);
+    assert(border_room_light(107, 120, 128, 0, true) == 160);
+    LightGrid border_grid;
+    border_grid.reset(5, 5, 140, 10);
+    const BorderRoom city{ 1, 0, 1, 1, 120 };
+    border_grid.paint_border_rooms(0, 0, std::array{ city });
+    assert(border_grid.at(4, 0) == 140 && border_grid.at(5, 0) == 120 && border_grid.at(9, 4) == 120 && border_grid.at(5, 5) == 140);
+    border_grid.reset(5, 5, 140, 10);
+    const BorderRoom plains{ 1, 0, 1, 1, 80 };
+    border_grid.paint_border_rooms(0, 0, std::array{ city, plains });
+    assert(border_grid.at(5, 0) == 80 && border_grid.at(4, 4) == 140);
+    border_grid.reset(3, 5, 40, 10);
+    const BorderRoom across{ 9, 0, 1, 1, 80 };
+    border_grid.paint_border_rooms(10, 0, std::array{ across });
+    assert(border_grid.at(-2, 0) == 80 && border_grid.at(-1, 4) == 80 && border_grid.at(0, 0) == 40);
     std::puts("test_light: ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_light: %s\n", error.what());

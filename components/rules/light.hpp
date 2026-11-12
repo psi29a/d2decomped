@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <span>
 #include <vector>
 
 namespace d2d::rules {
@@ -107,6 +108,21 @@ constexpr int release_light(int level_id, bool released) {
     return released && (level_id == level_ids::kRiverOfFlame || level_id == level_ids::kChaosSanctuary) ? kReleaseLight : -1;
 }
 
+// The light a near room of another level paints (FUN_00474610, after
+// FUN_0046bdd0). Release wins. A dip (`dip_light` >= 0) covers every level
+// but the Den, River of Flame and the Chaos Sanctuary. Otherwise the
+// level's Intensity, or the day's when it has none (`level_light` < 0).
+constexpr int border_room_light(int level_id, int level_light, int day_light, int dip_light, bool diablo_red) {
+    if (const int released = release_light(level_id, diablo_red); released >= 0) return released;
+    if (dip_light >= 0 && level_id != level_ids::kDenOfEvil && level_id != level_ids::kRiverOfFlame && level_id != level_ids::kChaosSanctuary)
+        return dip_light;
+    if (level_light >= 0) return level_light;
+    return day_light;
+}
+
+// One near room, in act tiles, and the light its subtiles take.
+struct BorderRoom { int x = 0, y = 0, width = 0, height = 0, light = 0; };
+
 // The client's light grid (0x7b0e68): subtiles around the player
 // (FUN_00475800), an intensity each. Positions are in eighths of a
 // subtile, the way lights hold them (unit position >> 13, + 4).
@@ -130,6 +146,28 @@ struct LightGrid {
         origin_x = player_x - grid_size / 2; origin_y = player_y - grid_size / 2;
         values.assign(std::size_t(grid_size * grid_size), std::uint8_t(std::clamp(ambient, 0, 255)));
         blocked.assign(std::size_t(grid_size * grid_size), 0);
+    }
+    // Cells under each room take that room's light (FUN_00474610, then each
+    // other room of FUN_00619730). A tile is 5 subtiles. The grid starts as
+    // the player's room, so same-level rooms are not passed in.
+    void paint_border_rooms(int world_x, int world_y, std::span<const BorderRoom> rooms) {
+        auto act_tile = [](int subtile) {
+            const int tile = subtile / 5;
+            const int remainder = subtile % 5;
+            return remainder != 0 && subtile < 0 ? tile - 1 : tile;
+        };
+        for (const BorderRoom& room : rooms) {
+            if (room.width <= 0 || room.height <= 0) continue;
+            const auto room_light = std::uint8_t(std::clamp(room.light, 0, 255));
+            for (int row = 0; row < grid_size; ++row) {
+                for (int column = 0; column < grid_size; ++column) {
+                    const int tile_x = world_x + act_tile(origin_x + column);
+                    const int tile_y = world_y + act_tile(origin_y + row);
+                    if (tile_x < room.x || tile_y < room.y || tile_x >= room.x + room.width || tile_y >= room.y + room.height) continue;
+                    values[std::size_t(row * grid_size + column)] = room_light;
+                }
+            }
+        }
     }
     // FUN_00475aa0: the entry for subtile (sx, sy), clamped to the edge.
     [[nodiscard]] int at(int subtile_x, int subtile_y) const {
