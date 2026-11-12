@@ -502,6 +502,20 @@ build/ai-imp-teleport/cases > build/ai-imp-teleport/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_teleport_point.py --cases build/ai-imp-teleport/cases.txt --exe "$GAME_EXE"
 ```
 
+The Countess firewall-path helper FUN_005e5b70 is compared with d2d's
+`countess_think` by `tools/emu/ai_countess_firewall.py` on 64 path-index and
+frame combinations. The fixture supplies valid synthetic table entries and
+intercepts the skill action; invalid records and the resulting spell are not
+checked. From the worktree root, with `GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-countess-firewall
+uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cpp > build/ai-countess-firewall/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-countess-firewall/cases.cpp -o build/ai-countess-firewall/cases
+build/ai-countess-firewall/cases > build/ai-countess-firewall/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cases build/ai-countess-firewall/cases.txt --exe "$GAME_EXE"
+```
+
 ## Act 5's monster skills (traced 2026-10-24)
 
 The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e
