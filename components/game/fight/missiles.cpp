@@ -627,10 +627,43 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // 48 (Meteor, Fist of the Heavens, Frozen Orb, Molten Boulder rising)
         // pass over units and act where they come down.
         if (missile_info.hit_func == 36 || missile_info.hit_func == 14 || missile_info.hit_func == 22 || missile_info.hit_func == 29 || missile_info.hit_func == 48) return false;
-        // 7 (FUN_005a9fb0: Holy Bolt, the Fist's bolts): sHitPar2 1 strikes
-        // the undead only (FUN_0063e990), 2 demons (FUN_0063e940); the rest
-        // it passes (4). ponytail: it doesn't heal the player's side (calc1).
+        // 7 (FUN_005a9fb0: Holy Bolt, the Fist's bolts): sHitPar1 (+0x4c) non-zero
+        // and an owner, then TargetPet (flag bit 0x19, FUN_005542c0) or
+        // TargetAlly (bit 0x1a, FUN_00554d20). TargetPet is a monster whose
+        // owner is that player: here, one of the caster's pets. TargetAlly
+        // needs the same party (FUN_00540710 is -1 with no party, and that
+        // fails), so a solo caster is not healed. The amount is calc1 whole
+        // points (skill +0x138) in 256ths plus a draw below (calc2 - calc1)
+        // x 256 (FUN_00646ca0, FUN_0045c3e0), capped at max life. At 0 or
+        // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
+        // not on the missile, so that roll is 0. Returns 1: it ends and does
+        // not strike. ponytail: the draw is the fight rng. The missile seed
+        // (+0x20) and ProgOverlay (+0x36) are not kept.
         if (missile_info.hit_func == 7) {
+            const bool players_bolt = missile.friendly && !missile.by_merc;
+            const int struck_id = monsters[monster_index].id;
+            const bool owned_pet = players_bolt && struck_id >= 0 && skill->target_pet && std::ranges::any_of(actor->pets, [&](const Pet& pet) {
+                return pet.monster.alive() && pet.monster.id == struck_id;
+            });
+            if (missile_info.hit_par1 != 0 && owned_pet) {
+                const int low_points = calc(*skill, skill->calc[0], missile.level);
+                const int high_points = calc(*skill, skill->calc[1], missile.level);
+                const int span = (high_points << 8) - (low_points << 8);
+                const int amount = (span > 0 ? int(rng(span)) : 0) + (low_points << 8);
+                const auto mend = [](Monster& monster, int added) {
+                    if (added <= 0) return;
+                    int life = monster.life_fine() + added;
+                    const int cap = monster.max_life_fine();
+                    if (life > cap) life = cap;
+                    monster.set_life_fine(life);
+                };
+                if (amount > 0) {
+                    mend(monsters[monster_index], amount);
+                    for (auto& pet : actor->pets)
+                        if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
+                }
+                return true;
+            }
             const auto& type_info = game_data->monsters.types[std::size_t(monsters[monster_index].type)];
             if ((missile_info.hit_par2 == 1 && !type_info.undead) || (missile_info.hit_par2 == 2 && !type_info.demon)) return false;
         }
