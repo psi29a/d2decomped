@@ -811,7 +811,12 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
             case 1: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->calc[0]), now_ms, 0, true); break;
             case 3: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms); break;
             case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen), true); break;
-            case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 4: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 26:
+                // Grim Ward's start (FUN_005ab8d0): one sub-missile on the spot, flags 0x8001, its
+                // Range sHitPar1, else calc1 at least 5 (tools/emu/hit_grim_ward.py).
+                if (sub) sub_at(missile.x, missile.y, 0, 0, missile_info.hit_par1 > 0 ? missile_info.hit_par1 : std::max(calc(*skill, skill->calc[0], missile.level), 5));
+                break;
             case 2: {
                 // FUN_005a9d80 -> FUN_005a9370, from the unit struck (else the missile): HitSubMissile1 every
                 // sHitPar2'th of the 16 ways (at least 1) at its Param1 << 7, then with sHitPar1 every

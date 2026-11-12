@@ -718,11 +718,13 @@ least 5** (the floor applies only on the calc path). The return paths I read in 
 Re-check: `python3 tools/ghidra/fn.py 005ab8d0`; the flag 0x8000 branch is
 in `python3 tools/ghidra/fn.py 0059fa30` (range = param [0x13]).
 
-d2d: **DISAGREES.** `Fight::burst` case 26 (fight/missiles.cpp:788) shares
-the 2 / 4 / 36 / 51 arm: `sub_at(x, y, 0, 0)` with the sub row's own
-`range + lev_range * level` frames. game.exe overrides the range with
-sHitPar1, else calc1 (at least 5). Confidence: medium; the d2d side is read
-from the code, with no oracle run.
+Proven: `tools/emu/hit_grim_ward.py` runs FUN_005ab8d0 for each row with
+pSrvHitFunc 26 (Missiles.txt rows 249, 252, 255), sHitPar1 -1, 0, 1, 3, 9
+and calc1 -3 .. 8: flags 0x8001 and that range each time.
+
+d2d: matches. `Fight::burst` case 26 (fight/missiles.cpp) sets the
+sub-missile's range to sHitPar1, else calc1 at least 5;
+`test_grim_ward_start` checks it against the oracle's cases.
 
 ## Server hit function 28 — FUN_005aba10
 
