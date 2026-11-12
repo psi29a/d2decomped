@@ -1944,7 +1944,7 @@ inline void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain
 // its animation still to play (bit 12 clear), 1 done, 2 hidden, 3 shown.
 // The Den's states 3 / 4 add the count ("Monsters remaining: " N, 3739 for
 // one or none).
-inline constexpr std::array<std::array<std::uint16_t, 29>, 12> kQuestLogRecords = { {
+inline constexpr std::array<std::array<std::uint16_t, 29>, 18> kQuestLogRecords = { {
     { 3714, 76, 4, 3735, 64, 3736, 64, 3737, 64, 3738, 64, 3740, 64, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
       3740, 64, 3728, 3725, 3727, 3725, 3726, 64 },
     { 3715, 92, 2, 3741, 81, 3742, 81, 3743, 81, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
@@ -1970,6 +1970,19 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 12> kQuestLogRecords 
       959, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
     { 928, 442, 4, 960, 430, 962, 431, 11030, 431, 964, 431, 965, 302, 966, 442, 961, 396, 3729, 3725, 3730, 3725,
       965, 3725, 3728, 3725, 3727, 3725, 3726, 442 },
+    // Act 3, quests 17..22 (0x723ae4).
+    { 930, 564, 0xffff, 968, 549, 969, 549, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3730, 3725, 3729, 3725,
+      3725, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
+    { 931, 548, 0xffff, 970, 543, 971, 543, 972, 543, 973, 543, 974, 543, 975, 548, 976, 3725, 3725, 3725, 3725, 3725,
+      3725, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
+    { 932, 587, 0xffff, 993, 3725, 977, 571, 978, 571, 979, 571, 980, 587, 981, 587, 3730, 3725, 3729, 3725, 3725, 3725,
+      3725, 3725, 3725, 3725, 3728, 3725, 3727, 3725 },
+    { 933, 3725, 4, 982, 3725, 983, 527, 984, 529, 985, 531, 986, 534, 3729, 3725, 3730, 3725, 3725, 3725, 3725, 3725,
+      986, 534, 3728, 3725, 3727, 3725, 3726, 3725 },
+    { 934, 3725, 3, 994, 3725, 987, 594, 988, 594, 989, 594, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      989, 594, 3728, 626, 3727, 3725, 3726, 626 },
+    { 935, 3725, 4, 995, 3725, 990, 628, 991, 628, 992, 628, 935, 628, 3729, 3725, 3730, 3725, 3725, 3725, 3725, 3725,
+      3728, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
 } };
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
@@ -1982,8 +1995,8 @@ struct QuestState {
     bool multiplayer = false;              // DAT_007a0610 != 0: any game type but single player's (a joined game)
 };
 inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
-    if (quest < 1 || quest > 14 || quest == 7 || quest == 8) return {};
-    const auto& rec = kQuestLogRecords[std::size_t(quest < 7 ? quest - 1 : quest - 3)];
+    if (quest < 1 || quest > 22 || quest == 7 || quest == 8 || quest == 15 || quest == 16) return {};
+    const auto& rec = kQuestLogRecords[std::size_t(quest - (quest < 7 ? 1 : quest < 15 ? 3 : 5))];
     auto flag = [&](int bit) { return d2d::rules::quest::bit(quest_bits, quest, bit); };
     auto game = [&](int bit) { return (quest_state.game[std::size_t(quest)] >> bit & 1) != 0; };
     auto entry = [&](int string, int speech, int shown, int state, bool marks) {
