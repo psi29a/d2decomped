@@ -740,6 +740,19 @@ FUN_0054dc40's spot test is the nearest free spot.
 
 ## AncientStatue and the ubers' MonAIs
 
+`tools/emu/ai_korlic_no_skill.py` compares the no-Skill1 branch of
+FUN_005ef010 with d2d's Ancient think over 1,024 cases. Search, distance and
+actions are hooked. Sleeping, missing targets and Skill1 are outside this
+comparison. From the worktree root with `GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-korlic
+uv run --no-sync --project tools/emu python tools/emu/ai_korlic_no_skill.py --cpp > build/ai-korlic/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-korlic/cases.cpp -o build/ai-korlic/cases
+build/ai-korlic/cases > build/ai-korlic/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_korlic_no_skill.py --cases build/ai-korlic/cases.txt --exe "$GAME_EXE"
+```
+
 MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 
 | ai | name | think | other |
