@@ -595,9 +595,12 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 }
                 if (!actor->player.walking) {
                     actor->player.path.clear();
-                    // Short of the target with a step made and nothing in the way: it paths
-                    // again from here. A block ends the walk (the snap isn't a step).
-                    actor->player.walking = !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
+                    // A walk to a unit short of it, with a step made and nothing in the way,
+                    // paths again from here: the client's queued action keeps it going
+                    // (FUN_00481600). One to a spot ends where its path does: a ground click
+                    // queues nothing (FUN_00650840's stop, LAB_006508ff). A block ends either
+                    // (the snap isn't a step).
+                    actor->player.walking = to_unit && !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
                                      && (actor->player.x != before_x || actor->player.y != before_y);
                 }
             }

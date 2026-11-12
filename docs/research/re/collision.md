@@ -835,9 +835,9 @@ Before #231 it also drops a queued interact: `walk_to` clears `interact_npc` bef
 play, and with real X button events on Warriv: held 120 ms, 2 of 8 talked; 0 ms, 8 of 8.
 #231 sends no held walk while the press's interact is queued.
 
-d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
-target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
-does. A blocked one ends there since #226.
+d2d's walk to a spot ends where its path does, run out or blocked (`tick.cpp`,
+`tests/game/test_walk_spot_ends.cpp`); only a walk to a unit paths again from a
+path run out short.
 
 ### The mouse-button state words (FUN_0044da40 clears them)
 
