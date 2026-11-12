@@ -20,6 +20,7 @@
 #include <object_ids.hpp>
 #include <outdoor_data.hpp>
 #include <rules.hpp>
+#include <shatter.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -338,13 +339,15 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || name == "cairnstones"                                                    // the Cairn Stones' dip frames (0x46aee0)
                  || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
-                 || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
+                 || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
+                 || std::ranges::contains(d2d::rules::kShatterRows, std::string_view(name));   // a shattered death's ice (FUN_004afc10)
         for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
         if (pass == 1) used = explosions.contains(name) && !game_data.missiles.contains(name);
         if (!used) continue;
         if (pass == 0) if (const std::string explosion(missiles_table.get(row_index, "ExplosionMissile")); !explosion.empty()) explosions.insert(explosion);
         GameData::MissileInfo missile_info;
         missile_info.name = name;
+        missile_info.id = number("Id");
         missile_info.size = number("Size");
         missile_info.vel_lev = number("VelLev"); missile_info.max_vel = number("MaxVel"); missile_info.accel = number("Accel"); missile_info.activate = number("Activate");
         missile_info.vel = number("Vel"); missile_info.range = number("Range"); missile_info.src_damage = number("SrcDamage"); missile_info.min = number("MinDamage"); missile_info.max = number("MaxDamage");
@@ -547,7 +550,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
-        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_corpse = text("TargetCorpse") == "1";
+        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
             skill_row.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");

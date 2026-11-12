@@ -20,9 +20,10 @@ std::vector<std::string_view> game_menu_images();
 // The menus (FUN_0047e3d0 draws, the input table at 0x6d6034 drives):
 // 0 main, 1 options, 2 sound, 3 video, 4 automap. Opening one selects its
 // last item (FUN_0047e090).
-// ponytail: video and automap
-// options are kept, not applied; 3D sound, EAX, 3D bias and perspective
-// are off as on a machine without a 3D provider or Glide.
+// ponytail: resolution, light quality, blend shadows and the automap
+// options are kept, not applied. Gamma and Contrast drive the DirectDraw
+// ramp. 3D sound, EAX, 3D bias and perspective are off as on a machine
+// without a 3D provider or Glide.
 struct GameMenu {
     enum Action { kNone, kClose, kExit, kControls };
     bool open = false;
@@ -35,6 +36,7 @@ struct GameMenu {
     std::array<std::array<int, 8>, 5> value{};   // each row's value, by its LoD row
     bool restore_automap = false, restore_mini = false;   // reopened after it (0x713058 b = 1)
     bool volume_changed = false;           // the sound sliders moved: the caller keeps them
+    bool video_changed = false;            // Gamma / Contrast moved: the caller keeps them in d2d.cfg
 
     GameMenu();
     void show(int which);

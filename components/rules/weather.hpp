@@ -57,6 +57,9 @@ struct Rain {
     // A Mud level's bubbles (bubble1..4, kind 2 made: bubble3), as splashes.
     std::vector<Splash> bubbles;
     std::array<int, 4> bubble_frames{};
+    // FUN_00472320's pools (FUN_006bca10, EDX at 0x472342 / 0x472365): 512
+    // splashes, 128 bubbles. A full pool takes none and rolls nothing more.
+    static constexpr std::size_t kSplashPool = 0x200, kBubblePool = 0x80;
     // The floor pass's gates (FUN_004de730): the client frame (0x7a0498),
     // the frames of the last splash and bubble passes, this pass's.
     int clock = 0, splash_at = 0, bubble_at = 0, threshold = 0;
@@ -252,13 +255,14 @@ struct Rain {
     // corner at (x, y), y where the tile is drawn (FUN_004de410 passes its
     // draw point; a tile taller than 80 rises above its cell): rand(1000), under the threshold a
     // splash in it (FUN_00472da0), under 100 a bubble (FUN_00472ec0, 30
-    // higher). game.exe bug (bugs.md #10): the spot runs from the top corner
+    // higher), each only when its pool has a slot (FUN_006bcb40 at 0x472dde /
+    // 0x472efe answers -1 when full). game.exe bug (bugs.md #10): the spot runs from the top corner
     // rightward by the row's width, so they sit half a tile right; `centre`
     // (deviations.md #14) takes half the width back, the same draws.
     bool centre = false;
     void floor(Rng& roll, int x, int y) {
         const int chance = roll(1000);
-        if (splash_pass && chance < threshold) {
+        if (splash_pass && chance < threshold && splashes.size() < kSplashPool) {
             const int row = roll(80), half = row < 40 ? 40 - row : row - 40, width = (80 - 2 * half) * 2;
             Splash splash;
             splash.x = roll(width) + x - (centre ? width / 2 : 0);
@@ -266,7 +270,7 @@ struct Rain {
             splash.kind = int(roll.next() & 1) + 2;
             splashes.push_back(splash);
         }
-        if (bubble_pass && chance < 100) {
+        if (bubble_pass && chance < 100 && bubbles.size() < kBubblePool) {
             const int row = roll(80), half = row < 40 ? 40 - row : row - 40, width = (80 - 2 * half) * 2;
             Splash bubble;
             bubble.x = roll(width) + x - (centre ? width / 2 : 0);

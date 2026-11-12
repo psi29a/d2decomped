@@ -26,6 +26,7 @@
 
 // Exercise the real roof dispatch and pixel blitters with distinct light sources.
 int main() try {
+    d2d::palette::Palette::set_ramp(100, 100);   // file colours, not the shipped gamma
     using namespace d2d::client;
     Scene scene;
     std::array<d2d::palette::Palette, 32> palettes;
