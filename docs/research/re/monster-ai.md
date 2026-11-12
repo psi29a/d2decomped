@@ -753,6 +753,19 @@ build/ai-korlic/cases > build/ai-korlic/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_korlic_no_skill.py --cases build/ai-korlic/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_madawc_no_skill.py` compares FUN_005eeda0 with d2d's Ancient
+think over 1,152 out-of-reach, no-Skill1 cases. Search, distance and
+successful action boundaries are hooked; the in-reach, Skill1 and failed
+approach branches are not checked.
+
+```sh
+mkdir -p build/ai-madawc
+uv run --no-sync --project tools/emu python tools/emu/ai_madawc_no_skill.py --cpp > build/ai-madawc/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-madawc/cases.cpp -o build/ai-madawc/cases
+build/ai-madawc/cases > build/ai-madawc/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_madawc_no_skill.py --cases build/ai-madawc/cases.txt --exe "$GAME_EXE"
+```
+
 MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 
 | ai | name | think | other |
