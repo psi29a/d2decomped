@@ -8,6 +8,7 @@
 #include <skills.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <exception>
 #include <utility>
 #include <vector>
