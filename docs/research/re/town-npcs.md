@@ -133,6 +133,20 @@ AI control +0x20 is a circular list of commands, found by type
    It returns what the action did: 0 when already there.
 6. Nothing done: stand 8.
 
+`tools/emu/ai_town_path_actions.py` compares these five path actions with
+`npc_think` over 170 cases, holding point selection fixed and hooking movement,
+mode availability and command allocation. It compares movement and command
+fields, not pathfinding or the action return value. From the worktree root,
+with `GAME_EXE` pointing to stock 1.14d:
+
+```sh
+mkdir -p build/ai-town-path
+uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --cpp > build/ai-town-path/cases.cpp
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-path/cases.cpp -o build/ai-town-path/cases
+build/ai-town-path/cases > build/ai-town-path/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --cases build/ai-town-path/cases.txt --exe "$GAME_EXE"
+```
+
 So an NPC picks a random point of its path two thinks in three, walks
 there and lingers 12 (or 20) thinks of 10 frames, walking back when pushed
 over 3 off; a point with action 4 / 5 ends with S1 / S2 there, facing its
