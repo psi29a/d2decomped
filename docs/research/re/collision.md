@@ -195,6 +195,13 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   gives the same return, position and point index every frame (3,000 walks;
   250 frozen in `tests/walk_step_cases.inc`). An earlier note here had the
   repeated point cost a frame: game.exe's run says not.
+- Path flag 0x10 marks a client unit's path: FUN_00649d00 (the path's
+  set-up) ors it in when its last argument is 1, which only the client's
+  callers pass (FUN_00460bf0, FUN_004ae8d0, FUN_004cd0a0); the server's
+  (FUN_00554850, FUN_00554a30) pass 0. With it, a monster's blocked step
+  paths again (FUN_00650660 → FUN_00650350, which then skips the budget).
+  A server walk never does: blocked, it ends (idx = count). d2d runs the
+  server's rules, so `game::walk_on` and `move_frame` end there.
 - A walk at a unit runs FUN_006503f0's check (`rules::chase_check`,
   `tools/emu/moves.py`) at each frame's start: the player's (World's
   tick), a hostile monster's (`move_frame`), the merc's at its foe and a
