@@ -1432,6 +1432,179 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
 
+### The client's own pierce check: `FUN_004cd310` (batch 10)
+
+`FUN_004cd310` (0x64 bytes, `004cd310`..`004cd374`, plain `RET`, no stack
+args) is the only caller's dependency of the already-verified
+`FUN_004d2d70` (**the client's hit and explosion**, `missiles.md:117`); it
+sits right before batch 8's sound-timer cluster. It takes no stack
+arguments and no register arguments either — confirmed in disassembly: it
+never sets ESI itself, only pushes and pops it around the body, so
+whatever the caller's **ESI** held (the missile) is what it reads,
+including on the forwarded call to `FUN_0064a3e0(ESI)`. At the one call
+site (`FUN_004d2d70`, `004d2e76`), ESI is that function's own ECX
+parameter — the missile. This is the same register-implicit convention
+batches 8/9 found on EAX; here it's ESI instead, confirmed the same way
+(raw disassembly, not the decompiler's `unaff_ESI` label alone).
+
+`FUN_0064a3e0(missile)` re-derives the missile's Missiles.txt row (same
+bounds check and `* 0x1a4 + PTR_DAT_00744304+0xb64` lookup `FUN_004d2d70`
+already did); a result that is `< 0` or past the table's count resets the
+row pointer to 0 rather than failing. It then tests the row's own `+4`
+byte against the global mask `DAT_006ce270` — the same byte and mask
+`missiles.md:1030` already names **Pierce** (`FUN_00661b20`'s column list,
+mask `0x04`) and `monsters.md:26` already cites for `DAT_006ce270`. Set:
+`FUN_00625480(ESI, 0x148, 0)` (`GetStat`, `stats.md:34`) reads the
+missile's own stat `0x148` — the same **pierce_idx** counter
+`missiles.md:550` already names on the *server* side
+(`FUN_005ada80`/`FUN_0059f940`); nonzero: `FUN_00627260(ESI, 0x148, n-1, 0)`
+(`SetStat`) decrements it and the function returns **2**; otherwise, or
+when the Pierce flag is clear, it returns the default **3**. `FUN_004d2d70`
+treats these the same way `FUN_005ada80`'s caller `FUN_005adf10` treats its
+own 2/3: 2 keeps the missile flying (its hit function still runs), 3 ends
+it.
+
+So `FUN_004cd310` is the **client**-side mirror of the already-documented
+server pierce check `FUN_005ada80` (`missiles.md:1030`), decrementing the
+same server-seeded `pierce_idx` stat on the client's own copy of the
+missile so its locally-predicted flight/explosion agrees with the
+server's. d2d: not ported as a function; no disagreement found —
+`rules::missile_blow` and the pierce chance roll are the parts of this
+system already ported, and the client-side mirror itself is not mentioned
+there either way.
+
+Re-check: `python3 tools/ghidra/fn.py 004cd310 004d2d70 0064a3e0`;
+disassemble `004cd310`..`004cd374` to confirm the ESI-implicit, no-args
+convention above.
+
+### A generic client-missile spawn helper: `FUN_004cdc30` (batch 10)
+
+`FUN_004cdc30` (0xdd bytes, `004cdc30`..`004cdd0d`, `RET 0x1c`): fastcall
+**ECX** a unit, **EDX** a Missiles.txt row id, seven stack words
+(confirmed in disassembly — `RET 0x1c` pops exactly the seven stack
+dwords, register args aren't counted). A null ECX returns 0. When the
+unit's own type (`*ECX`) is neither 0 nor 1 (player or NPC), it is
+replaced with `FUN_004639d0()` — **the owner unit**, the same accessor
+`gfx.md:189` already names — and a null result also returns 0. The next
+two stack words (`param_5`/`param_6`, an x/y offset) are both required
+non-zero, or `FUN_004c52e0(unit, &param_5, &param_6)` must fill them (not
+traced further; a default offset the caller didn't supply). With the
+offset resolved it zeroes a 0x5c-byte block and fills the same indices the
+already-documented client-missile-spawn blocks use (`missiles.md:880`
+"Client missile spawn" family): `[0]` flag **0x521**, `[1]` the unit,
+`[4]` the row id (EDX), `[5]`/`[6]` the unit's own position
+(`FUN_0045adf0`/`FUN_0045ae20`) plus the x/y offset, `[7]`/`[8]` the next
+two stack words, `[0xb]`/`[0xc]` the last two stack words, and `[9]` the
+seventh stack word or **0x1e** (30) when it's 0 — a field not seen in any
+of the zeroed-block callers `missiles.md:880`-`995` already documents.
+`FUN_004cd540` (**make missile**, cited throughout `missiles.md`) does the
+actual spawn; its result is returned directly, untagged. Not traced:
+`FUN_004c52e0`'s own default-offset logic, and index `[9]`'s meaning
+(no caller here uses a non-zero seventh stack word).
+
+Its many callers (12 call sites, mostly `UNIT/?` and `UNIT/Monster.cpp`
+code not otherwise identified here) pass a constant row id and offset, or
+all zeros — not read further to say what each spawns; one caller
+(`FUN_004af2e0`) calls it with a null unit (`FUN_004cdc30(0,0,0,0,0,1,0)`),
+which is a no-op per the null check above.
+
+d2d: not ported as a function; `missiles.md`'s already-ported client
+missile makers (`FUN_0046b680`, `FUN_0046b9a0`, etc.) are the parametrized
+instances of the same zeroed-block pattern this function generalizes; no
+disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004cdc30 004c52e0 004cd540`;
+disassemble `004cdc30`..`004cdd0d` to confirm the ECX/EDX + seven-stack-word
+convention and the `RET 0x1c` cleanup.
+
+### Andariel's quake-debris spawn helpers: `FUN_004ce530`, `FUN_004ce850`, `FUN_004cecc0` (batch 10)
+
+Three UNIT functions clustered right after the client missile spawn
+helper above, all three called only from the already-`d2d verified`
+`FUN_004d5310` (**andycontrol0**, `shake.hpp:63`, `unit-sounds.md:479`) or
+its untraced sibling `FUN_004d4f20` — both of which read a Missiles.txt
+row's own `+0x1e`/`+0x20`/`+0x58`/`+0x5c` fields the same way
+`FUN_004cc950`'s write-up (batch 9) already describes for `andycontrol0`.
+
+- **`FUN_004ce530`** (0x119 bytes, `004ce530`..`004ce649`, `RET 0xc`): no
+  register args — **EAX** is implicit (confirmed in disassembly: `MOV
+  EDI,EAX` is the first real instruction, the same EAX-implicit convention
+  batch 8 found, here mixed with three ordinary stack words that `RET 0xc`
+  pops). At its two call sites (`FUN_004d4f20`, `FUN_004d5310`) EAX is the
+  caller's own missile (`MOV EAX,ESI` right before the call in both). The
+  three stack words are, in order: the missile's **owner**
+  (`FUN_004639d0(missile)`, `gfx.md:189`), the row's `+0x1e` short field
+  (cast to int), and the row's `+0x60` dword field. It zeroes a 0x5c-byte
+  block (flag **2**; row id, index `[4]`, is left 0 — the one block here
+  that doesn't set it), `[1]` the owner, `[0xb]`/`[0xc]` the missile's own
+  skill/level (`FUN_0064a280`/`FUN_0064a210`, cited throughout
+  `missiles.md`). It then draws two independent values from the missile's
+  own 64-bit seed (`+0x20`/`+0x24`, the `× 0x6ac690c5` step already
+  documented at `drops.md:73` and elsewhere) in `[0, 2×radius]` (`radius`
+  the `+0x60` dword) and subtracts `radius` from each, giving an x/y jitter
+  in `[-radius, radius]`; a `(0, 0)` jitter is nudged by one more draw
+  (`FUN_0045c390`, `rand(n)`) so the x offset is never exactly 0. The
+  jittered offsets go into the new missile's own `+0x28`/`+0x2c` words
+  (`FUN_0064a710`/`FUN_0064a760`, the general-purpose missile data setters
+  `missiles.md:995` already names) after `FUN_004cd540` spawns it.
+- **`FUN_004ce850`** (0x1a6 bytes, `004ce850`..`004ce9f6`, `RET 0xc`):
+  fastcall **ECX** a unit (the owner, forwarded straight into the spawn
+  block), **EDX** the missile, three stack words — confirmed in
+  disassembly at the one call site (`FUN_004d5310`): `MOV EDX,ESI` (the
+  missile) and three pushes for the stack words, in order the caller's own
+  row's `+0x1e` short field (a *different* row's field than
+  `FUN_004ce530` reads — here it is itself used as another Missiles.txt
+  row id, bounds-checked the same way), the missile's own age
+  (`FUN_0064a3b0`, named "total minus remaining" at `unit-sounds.md:577`
+  for this exact caller), and `FUN_004cc950`'s frame/intensity result
+  (batch 9, `unit-sounds.md:570`). With a valid row: its own `+0x1e`
+  (yet another row's field, same offset, different row) above 0 calls
+  `FUN_004ce650` (not traced further) with it and the frame value; its
+  `+0x34` above 0 and the age stack word equal to `0x13b` calls
+  `FUN_004b9a00(0, 0, 0)` (queue-a-sound, `missiles.md:1034` already names
+  it, here with all-zero arguments — not examined further). Then, only on
+  an even age (and, when the frame value is under 3, only every 16th age
+  too), it buckets the frame value into a magnitude 1/2/3/4 (under 3/6/9,
+  else 4), draws two jitter values on the **global** seed
+  (`d2d_seed_rand_below`, not the missile's own `+0x20`/`+0x24` seed
+  `FUN_004ce530` uses) centered on 0 and scaled by that magnitude, and
+  spawns a zeroed-block missile (flag **1**, `[1]` the owner, `[4]` the
+  row id, `[0xb]`/`[0xc]` the EDX missile's own skill/level) at the EDX
+  missile's position (read the same way `collision.md:1163`/`1384`
+  already describe: data block `+0xc`/`+0x10` directly for types 2/4/5,
+  else `d2d_path_get_x`/`_get_y`) plus the jitter, via `FUN_004cd540`
+  (untagged, result discarded).
+- **`FUN_004cecc0`** (0x5b bytes, `004cecc0`..`004ced1b`, `RET 0x8`): the
+  decompiler shows only two stack parameters, but **ECX** and **EDX** are
+  real inputs too — confirmed in disassembly: the function never reads
+  either register itself, only forwards them unchanged into its sole
+  callee, `FUN_004cea00` (its own `param_1`/EDX-as-unit, not traced
+  further), alongside its first stack word (a row id, also forwarded
+  unchanged) and a second value per branch. Its own gate is on the second
+  stack word alone: a value in `[0xc9, 0xe1)` (201..224) calls
+  `FUN_004cea00` twice with `6`; otherwise, when that value is a multiple
+  of 4, it calls `FUN_004cea00` once with `0x14` (20); any other value is
+  a no-op.
+
+Its one caller, `FUN_004d5310` (andycontrol0), passes the row's `+0x22`
+short field as the row id and the missile's age as the gating value, only
+when the age is in `[0x74, 0x137)` (199 ticks) — the third and last of the
+three row fields (`+0x1e`, `+0x20`, `+0x22`) `andycontrol0`'s own write-up
+(batch 9) reads but does not use. Not traced: `FUN_004ce650`,
+`FUN_004cea00` and `FUN_004b9a00`'s own bodies beyond what's cited above,
+and what the `6`/`0x14` second argument means to `FUN_004cea00`.
+
+d2d: not ported as a function; `shake.hpp`'s screen-shake and quake-loop
+volume are the parts of `andycontrol0` already ported, and `FUN_004cc950`
+said this decal-frame computation and its caller's use of the result were
+listed there under "Not done" (the control missiles' fire/debris
+visuals) — this completes that trace; no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004ce530 004ce850 004cecc0
+004d5310 004d4f20`; disassemble `004ce530`..`004ce649`,
+`004ce850`..`004ce9f6` and `004cecc0`..`004ced1b` to confirm the
+EAX-implicit, ECX/EDX-plus-stack and the forwarded-ECX/EDX conventions
+above.
 ### The unit's sound-timer scalars (batch 8)
 
 Four small UNIT-module functions clustered right after `FUN_004ca380`/
