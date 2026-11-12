@@ -3195,6 +3195,94 @@ Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
 `0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
 `0057d8a0`..`0057d8c0` (stat 0x73 on EBX).
 
+### The pending-interact helpers: `FUN_00461a70`, `FUN_00461d60`, `FUN_00462920` (batch 23)
+
+- `FUN_00461a70` (**ECX** target unit, no stack): 0x20-byte local record.
+  Reads the local player with `FUN_00463dd0`, stores player at record
+  `+4`, target at `+8` and the constant 2 at `+0x18`; the other fields
+  (`+0`, `+0xc`..`+0x14`, `+0x1c`) are not written in this function. It then calls
+  `FUN_004619e0` with **ESI** = the record and **EDI** = the target's
+  unit id, or ESI/EDI = 0xffffffff when the target is null (`0x461a8e`).
+  Hidden register arguments: ECX is the only visible one.
+- `FUN_00461d60` (stack type, stack id, `RET 8`): confirmed in disassembly.
+  The player from `FUN_00463dd0` must be non-null with unit type 0 and a
+  player-data pointer (`+0x14`) whose `+0x154` equals 0x13; then `+0x158`
+  must equal the first argument and `+0x15c` the second. The unit-type 0
+  test is also what gates the two reads, so the decompile's `if (false)`
+  branch is an artefact. Only caller `FUN_00461dc0`.
+- `FUN_00462920`: stores 0 to the word at `0x7a5264`; caller `0044efa0`.
+
+d2d: `git grep` for these addresses in `components/` and `apps/` finds
+nothing. Not traced: what `FUN_004619e0` does with the unwritten record
+fields; the name of `0x7a5264` (the decompiler's `bRecursionClick`).
+
+Re-check: disassemble `00461a70`..`00461aa2` (ESI/EDI set at `0x461a90`..`0x461a98`) and `00461d60`..`00461db4`.
+
+### Skills-row flag getters: `FUN_00462560`, `FUN_00464ec0`, `FUN_00464f70` (batch 23)
+
+The three functions read a byte of the 0x23c-byte Skills row (`id * 0x23c + [tables + 0xb98]`, count at `[tables + 0xba0]`, `tables` = `[0x744304]`) against a mask loaded from the dword array at `0x6ce268`. `read_memory` at `0x6ce268` gives the dwords 1, 2, 4, 8, so `0x6ce268` = 1, `0x6ce26c` = 2, `0x6ce270` = 4.
+
+- `FUN_00462560` (**EAX** skill node, plain `RET`): 0 for a null node; skill id from `FUN_00643ce0(node, "UNIT\Player.cpp", 0x75a)`; row byte `+5` and mask 1 (`0x6ce268`). Out-of-range id leaves the row pointer 0 and the following `TEST [EAX+5]` dereferences null (no row null check; `0x462594`..`0x46259c`). Only caller `FUN_004625b0`.
+- `FUN_00464ec0` (**ECX** unit, **EDX** params pointer, plain `RET`): 0 if either is null, or if the unit's type is nonzero and `params[0]` is not 1. Takes the left skill (`FUN_00620190`) and the right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`0x6ce26c`). If either hand has it, returns `FUN_00479150(params[3]) == unit[+0xc]` (the id owner of that roster entry equals the unit's id); else 0.
+- `FUN_00464f70` (same registers): same guards but the unit-type test is "nonzero type and `params[0]` not 0 and not 1 gives 0". Row byte `+7` & mask 4 (`0x6ce270`), the skill row is bounds-checked inline here (`0x464fbc`..`0x464fc8`). If neither hand has the flag, 0. Target id = `params[3]`; when `params[0] == 1` it is replaced by `FUN_00479150(params[3])` and 0xffffffff gives 0 (`0x465035`..). Returns the result of the call after `0x46503f` (not read past that point; the decompiler names it a same-party roster check, a lead).
+- Names of the two Skills columns at `+7` bit 1 and bit 2: not traced.
+
+d2d: no match for these addresses in `components/` or `apps/`. Not traced: the end of `FUN_00464f70` past `0x46503f`; callers of the two cursor-exception functions beyond `cursor-units.md`.
+
+Re-check: disassemble `00462560`..`004625a9` and `00464ec0`..`0046503f`; `read_memory 006ce268 16`.
+
+### Inventory presence walks: `FUN_00464d20`, `FUN_00464d90` (batch 23)
+
+- `FUN_00464d20` (**EAX** container unit, **EDI** item, stack excluded unit, `RET 4`): 0 at once when the stack unit equals the container. Otherwise walks the container's inventory (`+0x60`) with `FUN_0063b2c0` (first) and `FUN_0063dfa0` (next); each entry goes through `FUN_0063dfd0` to its carried item. A null result is fatal (assert line 0xa5b); a match with EDI returns 1, none returns 0.
+- `FUN_00464d90` (**EAX** item, stack excluded unit, `RET 4`): moves EAX to EDI and calls `FUN_00464d20` for each unit in two bucket arrays of 0x80 pointers, `0x7a5e70` then `0x7a6070`, following the chain word at unit `+0xe4`. 1 on the first hit, else 0. Only caller `FUN_00466cb0`.
+
+d2d: no match for either address in `components/` or `apps/`. Not traced: what the two arrays hold in type terms (the decompiler calls them the server-side tables; `FUN_00465aa0` below walks the same two addresses).
+
+Re-check: disassemble `00464d20`..`00464d89` and `00464d90`..`00464e0f`.
+
+### Unit overlay: `FUN_00464e50` (batch 23)
+
+**ECX** unit, **EDX** overlay id, stack duration, `RET 4`. A null unit does nothing. Calls `FUN_00470390` with (type, duration, ...) = (1, duration) when the duration is positive, else (2, 0); ECX/EDX are not reloaded, so the unit and overlay id pass through. Then overlay id 0x97 calls `FUN_004b9a00(unit, sound 0x18c)` and id 0x98 calls it with 0x18d (the decompiler's overlay names steallife / stealmana are leads; the ids and sound numbers are from the disassembly at `0x464e7c`..`0x464eab`). Caller `FUN_004aff60`; opcode 0x11 handler is listed in `net-packets.md`.
+
+d2d: no match in `components/` or `apps/`. Not traced: `FUN_004b9a00`'s argument meanings and the overlay table rows 0x97 and 0x98.
+
+Re-check: disassemble `00464e50`..`00464eb3`.
+
+### Preset-unit spawners and object creation: `FUN_004667f0`, `FUN_00466820`, `FUN_00466300` (batch 23)
+
+- `FUN_004667f0` (**ECX** room, **ESI** preset-unit record, plain `RET`): room coordinates from `FUN_00619730` (x start at local `-0x20`, y start at `-0x1c`), then `FUN_00466730(ECX = record[+4], EDX = record[+8] + xstart, stack: record[+0x18] + ystart, record[+0x14], record[+0])`.
+- `FUN_00466820` (**ECX** room): `FUN_00619fd0` gives the first preset record, chain at `+0xc`; only records with bit 0 of `+0x1c` set are spawned, through the same `FUN_00466730` call with the same field mapping.
+- `FUN_00466300` (**ECX** unit id, **EDX** class id, stack x, y, type, unused, state, byte, `RET 0x18`): `FUN_00620290(0, type)` allocates; null returns 0. `FUN_00465fd0` initialises it (EBX = x, stack: id, class, y, type, unused, state). Stores the last stack byte at unit-data (`+0x14`) `+4`, then if `FUN_00621b00(unit)` is nonzero calls `FUN_004bd6b0` with ECX = unit. The decompiler's `nShrineId` and `IsShrine` names are leads; only the byte store and the two calls were read.
+
+d2d: no match for these addresses in `components/` or `apps/`. Not traced: callers of `FUN_00466300` and `FUN_004667f0` (game-calls.tsv lists none; probably indirect), the meaning of `+0x1c` bit 0.
+
+Re-check: disassemble `004667f0`..`0046681f`, `00466820`..`0046686e`, `00466300`..`0046635d`.
+
+### Click inside an object's sprite rectangle: `FUN_00463fe0` (batch 23)
+
+**EAX** unit, **EDI** Objects row, **EBX** click x, stack click y, `RET 4`. The unit's map x and y come from the static path (`+0x2c` then `+0xc` / `+0x10`) for unit types 2, 4 and 5 (`0x463feb`..`0x464000`), otherwise `FUN_006488c0` / `FUN_00648900` on the dynamic path (0 when the path is null). `FUN_00643260` turns the pair into screen coordinates. The row's `+0x1a0` and `+0x1a4` are added as left and top, `+0x1a8` and `+0x1ac` are width and height; returns 1 when `left <= x <= left + width` and `top <= y <= top + height` (inclusive).
+
+d2d: no match in `components/` or `apps/`. Not traced: column names of Objects at those four offsets, callers.
+
+Re-check: disassemble `00463fe0`..`00464096`.
+
+### Per-frame unit update pass and the single-player sync: `FUN_00465aa0`, `FUN_00465070` (batch 23)
+
+`FUN_00465aa0` (no arguments) in call order, tables named by address (each is 0x80 bucket pointers, 0x200 bytes): `FUN_00463c90` with callback `0x480810` (EBX) over `0x7a6470`; `FUN_00463cc0` (batch 22) over `0x7a5870` and `0x7a5670`; `FUN_00463c90`/`0x480810` over `0x7a5e70`, `0x7a6070`, `0x7a6270`, `0x7a6670`; `FUN_00463cc0` over `0x7a5470`. Four loops then walk `0x7a5470..0x7a5670`, `0x7a6670..0x7a6870`, `0x7a5e70..0x7a6070` and `0x7a6070..0x7a6270` along the `+0xe4` chain with no body (they have no effect). Next `FUN_00463c90` with callback `0x463d80` over `0x7a5470`, `0x7a6670`, `0x7a5e70`. Finally, when the dword at `0x7a0610` is 0, callback `0x465070` runs over `0x7a5e70` and `0x7a6070`. Caller (game-calls.tsv): `0044c790`.
+
+`FUN_00465070` (**ECX** unit, the iterated one, `RET` plain): when `[0x7a0610]` is nonzero it logs and halts (line 0xbaa). It looks up a second unit by (type, id) with `FUN_00534650`; null, a null room (`FUN_00620bb0`) or a failed room fix-up (`FUN_00463740` then `FUN_00650c20`, only when the subtile x or y differ) returns. Then it copies the path fields from the looked-up unit's path (ESI) into the iterated unit's path (EDI) from `0x465125` on (the stores at `0x465127` onward write the first dwords `+0`..`+0xc`, `+0x24`, `+0x28`, `+0x38`, `+0x10`... of EDI from ESI), then reconciles the animation mode and skill flags and clears path flag 0x2000. The copy direction is the reverse of what the decompiler's description says. Rest of the body (mode reconciliation, `0x4652e8`..`0x4653bb`) read from the decompile only.
+
+d2d: no match in `components/` or `apps/`. Not traced: the type behind each table address; the mode reconciliation in disassembly; the value of `[0x7a0610]` for each game type.
+
+Re-check: disassemble `00465aa0`..`00465be0` and `00465070`..`00465160`.
+
+### Select-proc cursor check: `FUN_00464310` (batch 23)
+
+**ESI** target unit, **EDI** player, plain `RET`. 0 for a null target or a target whose unit type is not 1. The left skill (`FUN_00620190`) goes through `FUN_00643ce0(skill, "UNIT\CUnit.cpp", 0x68a)` and `FUN_004642b0` (batch 22; EDX = target, stack EDI, EAX still the skill id); a nonzero result returns 1. Otherwise the right skill (`FUN_006201d0`, line 0x68e) goes through the same call and its result decides (continuation after `0x46435d` not read to the end).
+
+d2d: no match in `components/` or `apps/`. Not traced: the tail after `0x46435d`.
+
+Re-check: disassemble `00464310`..`0046435d` and onward to the `RET`.
 ### The two appearance-array getters: `FUN_004630e0`, `FUN_00463130` (batch 22)
 
 `UNIT\Player.cpp` region. Both are 0x46-byte fastcall functions, plain `RET`,
