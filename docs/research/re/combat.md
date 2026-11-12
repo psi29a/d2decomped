@@ -736,3 +736,14 @@ this list's result.
 Re-check: `python3 tools/ghidra/fn.py 0057d690 0057c9f0 0057c980 0057e240
 0044be50 00451f50 0056f1f0 005d3140`.
 
+## A unit's +0xdc field — FUN_00553980 (SUnit.cpp)
+
+`__fastcall`, ECX the unit: null-safe getter, `unit[0xdc / 4]` (byte
++0xdc) or 0 for a null unit. No caller outside `.\UNIT\SUnit.cpp`'s own
+sequence/overlay helpers (`00540df0`, `00540e60`, `00540ea0`, `00540ee0`,
+`00540f30`, `005415a0`); the field itself isn't named here, not traced
+further. d2d: no function of its own; not flagged as a difference, since
+nothing was found reading or writing this field outside that same
+cluster.
+Re-check: `python3 tools/ghidra/fn.py 00553980`.
+
