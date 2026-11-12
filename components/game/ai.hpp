@@ -238,6 +238,7 @@ struct Monster {
     bool fleeing = false, flee_sound = false;  // Fallen's flee event while a nearby monster dies
     bool first_sight = false, taunt_sound = false;   // AI flag 0x10: its first-sight taunt (unit event 0x10) is sent
     bool help_sound = false;                  // a caged prisoner's cry (RescueQuest::kHelpMe)
+    int skill_sound = -1;                     // the skill it just started (its start sounds, FUN_004c6140: Fight::monster_sounds), -1 none
     // In a game target list (+0xd0 not 0xb): an evil monster's search takes a
     // good one only from list 8. A prisoner (FUN_00588600's) is in none till its
     // think finds its door broken (FUN_005ee3c0 -> FUN_005b1990(8)).

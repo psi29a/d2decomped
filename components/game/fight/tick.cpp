@@ -511,7 +511,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             pending.clear();
             for (auto& monster : monsters) {
                 if (near_players(monster.unit.x, monster.unit.y)) monster_sounds(monster, now_ms);
-                else monster.seq_sounds = 0;             // a far Jab's event-3 rows go unheard, not saved for later
+                else { monster.seq_sounds = 0; monster.skill_sound = -1; }   // a far Jab's event-3 rows and skill start go unheard, not saved for later
             }
             for (const auto& side : sides) {
                 act_as(*side.hero);

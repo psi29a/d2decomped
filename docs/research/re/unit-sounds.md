@@ -160,8 +160,26 @@ weaponsnd.
   `Fight::strike` (`Hero::seq_sounded`), a monster's through
   `Monster::seq_sounds` (ai.cpp's sequence rows) in `Fight::monster_sounds`,
   dropped for a monster that is dead or away from the players.
-- Not ported: prgsound (charge-ups, Hurricane), monsters' own stsound, a
-  monster's Charge start sound (FUN_004f4f40).
+- **A monster's start.** The server's skill start sends S→C 0x4c / 0x4d
+  for monsters too (builder `FUN_00597d70`); the client's unit commands
+  0x16 / 0x15 (`FUN_004c6eb0` / `FUN_004c6f40`) call FUN_004c6140, whose
+  sounds (0x4c64a4..0x4c65d3) test the unit type only for the class sound
+  (type 0, at 0x4c6581): a monster plays the stsound as a player does, with
+  the weaponsnd swing and stsounddelay timed by its MonStats2 HitClass
+  (+0x14, `FUN_00623c20`) and its rate (+0x4c), and no class sound. A
+  cltstfunc that gives 0 silences a stsuccessonly skill (flag bit 12,
+  0x4c649e). Oracle `tools/emu/skill_start_sound.py` (unit types 0, 1, 2;
+  item casts; the three flags; a cltstfunc giving 1, 0 or none).
+  d2d: `rules::sound_ids::skill_start`; `Monster::skill_sound` set where
+  the AI starts a skill (`ThinkCtx::use`, teleport, Charge's start,
+  DiabRun), played in `Fight::monster_sounds`. Mephisto's, Diablo's, the
+  Council's and the Summoner's casts, Zakarum priests, Fallen Shaman's
+  resurrect and the sand maggots' burrow / emerge are the classic ones.
+  ponytail: a stsuccessonly monster start (Hydra's cltstfunc 17
+  `FUN_004e39a0`, Charge's 25 `FUN_004c9b40`) always sounds; d2d doesn't
+  run the client's cltstfunc.
+- Not ported: prgsound (charge-ups, Hurricane), a monster's Charge start
+  sound (FUN_004f4f40).
 
 ## Missiles
 
@@ -544,7 +562,7 @@ already dead as it comes waits), Neutral and footsteps. A monster the host
 removes is dropped, so one that comes back plays its Init again.
 The host's hit class isn't read, so a joined game's monsters play no impact
 on GH / KB / DT.
-Left: the player's quest lines, monsters' own skill stsound,
+Left: the player's quest lines,
 prgsound, ProgSound, state 0x92, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
 point-drop and convert) are cued at their successful actions; only the

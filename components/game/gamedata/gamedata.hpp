@@ -153,6 +153,7 @@ struct Npc {
     std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
     int colour = 0;                      // the colour it's drawn in (FUN_00466360; the client's Scene::monster_map), 0/1 none
     int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
+    int hit_class = 0;                   // MonStats2 HitClass (+0x14, FUN_00623c20): the swing a weaponsnd / stsounddelay skill start times
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
 
