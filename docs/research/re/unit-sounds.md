@@ -198,7 +198,10 @@ state comes on (FUN_004d9b20, S→C state packets), +0x28 offsound as it goes
 Per class (0x72a008 → 11 dwords): hit, death, impossible, needmana, needkey,
 cantcarry, cantuseyet, not_in_town, chat_a, the first quest line
 (act1_complete_andariel), the first footstep (light / medium / heavy walk
-dirt). FUN_004cc410 plays hit on GH / KB and death on DT, after the impact;
+dirt). The row pointer FUN_004ca3e0 (`UNITSND_GetBaseSoundId`) returns for
+each class, and the row's hit / death / step dwords, match `kPlayerVoice`
+for all 7 classes (oracle `tools/emu/unit_snd_tables.py`). FUN_004cc410
+plays hit on GH / KB and death on DT, after the impact;
 the hit (modes 4 / 0x13) not while one of the player's speech lines plays
 (FUN_004b9e90 → FUN_004b9700: a playing instance, state 1, rows 0xb76..0x1230,
 the unit in its list +0x28). FUN_004cb9c0's 0x13..0x18 (below) take the same
@@ -404,6 +407,18 @@ a mode (8 any; FUN_004cb3e0), replayed while it's in sight and in that mode.
 Object 0x3d's loops are by mode at 0x728338. The 13 objects sharing record
 0x729328 play only going to a later mode. Dumped whole into
 `components/rules/object_sounds.hpp`.
+
+FUN_004cb380 (`UNITSND_GetModeChangeSound`) and FUN_004cb3e0
+(`UNITSND_GetSpecialSoundByMode`) are each driven over every row of
+0x7295f8 (`GetSndUnitClassId` hooked to hand back the row's own id) and
+checked, mode by mode, against a model of their branches alone (the row's
+own data, not a transcribed copy): a null row returns 0; the shared record
+blocks on `prevMode > newMode`; the special-sound slots (row + 0x20..0x2c)
+fall back from the first pair to the second, 8 meaning "any mode", and
+class 0x3d reads 0x728338 instead. `--mutation-check` plants four defects
+(swapped special-sound slots, the shared check dropped, the "any mode"
+sentinel changed, class 0x3d treated like any other) and requires each to
+be caught. Oracle `tools/emu/unit_snd_tables.py`.
 
 One object calls on its own: the Gibbet (26, Cain caged in Tristram). FUN_004cb460's
 object branch plays 0xe57 `cain_act1_help` on it while it's in mode 0, when the
