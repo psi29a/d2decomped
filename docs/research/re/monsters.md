@@ -860,6 +860,7 @@ Read statically, not against an oracle: `FUN_00579130` (ECX game, EDX
 talker, stack npc, `ret 4`) resets the talker (`FUN_00554190`: `+100` =
 -1, `+0x68` = 6, `+0x6c` = 0), then calls `FUN_00572e00` to unlink it,
 passing `npc`'s data `+0x30` as the cell only when `npc` is non-null,
-type 1 (mode 1 at `+0`) and has data (`+0x14`, index 5); otherwise it
+unit type 1 (monster, at `+0`; not mode — mode is `+0x10`) and has data
+(`+0x14`, index 5); otherwise it
 passes a null cell, so `FUN_00572e00` does nothing and only the reset
 happens. Not traced: what its two callers (`005350f0`, `005351c0`) are.

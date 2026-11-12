@@ -739,22 +739,28 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Item elemental damage takes its mastery as a % (FUN_0057b7d0 →
   FUN_0057a8e0): fire 48/49 + 329, lightning 50/51 + 330, cold 54/55 +
   331, magic 52/53 + 357, poison 57/58 + 332.
-  - FUN_0057a8e0 reads the primary stat (EAX, hidden register arg) via
-    `FUN_00625480` (`unit_stat_value`); under 0x800 (8 << 8) it clamps
-    the base % (param_5) to 0 or itself and stops. Otherwise it reads
-    that stat again plus, when a second stat id (param_2) isn't -1, that
-    one too (added to param_4), and calls FUN_0057a880 with both <<8.
-  - **FUN_0057a880** (ECX `a` = primary stat<<8, EAX `b` = base %, stack
-    `unit`, `c` = secondary stat<<8, `d` = param_4): `a<=0` skips the
-    rolls and returns `max(b+c+d, 0)`. Otherwise it rolls two
-    `FUN_00483360(..,100)` percentages, one of `c` (ECX) one of `a`
-    (ECX again, reusing the register), adds the first to `c` and the
-    second to `a`; if the rolled `a` now exceeds the rolled `c` it adds
-    `d2d_seed_rand_below(unit+0x20, a-c)` (`FUN_0045c3e0`, already
-    ported) too. The sum (`b` + rolled `c` + that extra) is clamped to
-    0. So a fractional mastery % (the <<8 remainder) is turned into a
-    chance of one extra point, on the unit's own RNG stream
-    (`unit+0x20`).
+  - **FUN_0057a8e0** (EAX the mastery stat, stack `minDamageStat`,
+    `bonusStat`, `minPctBonus`, `rangePctBonus`, `accum`; EDI `unit`):
+    reads the mastery stat (`FUN_00625480`, `unit_stat_value`); under
+    0x800 (8 << 8) it returns `accum` unchanged (clamped to 0 or itself)
+    — the base damage isn't rolled at all below that mastery floor.
+    Otherwise it reads `minDamageStat` (the base min damage, already
+    `<<8` by the caller) and, when `bonusStat` isn't `~STR` (-1), adds
+    its value to both `minPctBonus` and `rangePctBonus`. Then it calls
+    `FUN_0057a880(mastery<<8, minPctBonus, unit, minDamageStat<<8,
+    rangePctBonus, accum)`.
+  - **FUN_0057a880** (ECX `range`, EDX `minPctBonus`, stack `unit`,
+    `min`, `rangePctBonus`; EAX `accum`): `range<=0` returns `accum`
+    unchanged (clamped to 0 or itself). Otherwise it rolls two
+    `FUN_00483360(value, pct, 100)` MulDiv percentages (`value*pct/100`):
+    `FUN_00483360(min, minPctBonus, 100)` added to `min` for the rolled
+    floor, and `FUN_00483360(range, rangePctBonus, 100)` added to
+    `range` for the rolled ceiling. `accum` gains the rolled floor; when
+    that floor is under the rolled ceiling, `RANDOM_RandomNumberSelector`
+    on the unit's own seed (`+0x20`) rolls the gap and adds it too. The
+    sum is clamped to 0. So the mastery % (plus any bonus stat) widens
+    both ends of the damage's own min/range roll, not a separate
+    "extra point" chance.
 - Built: `rules::passive_stats` (skills.hpp), `Fight::player_fighter`
   (the layer check, best value), `make_fighter` (342..344, 348, the
   elemental masteries), `monster_blow` (Weapon Block), `panel_stats` (Iron
@@ -1213,8 +1219,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   allies by calc1. The heal gate is `FUN_005542c0(target, caster,
   skill) || FUN_00554d20(target, caster, skill)`: `FUN_005542c0` (EDX
   `target`, stack `caster`, `skill`; fastcall ECX unused) requires both
-  non-null, then `target`'s mode 0 (player) or `caster`'s mode 1
-  (monster), and bounds `skill` against the Skills.txt count
+  non-null, then `target`'s type 0 (player) or `caster`'s type 1
+  (monster, not mode — mode is a separate field), and bounds `skill`
+  against the Skills.txt count
   (`[0x744304]+0xba0`), its record's `+7` bit 1 (`gadwBitMasks[1]`,
   `0x6ce26c`). It then calls `FUN_0058f090(caster, &skill_slot,
   &caster_slot)`: for a monster `caster` with a resolved pet-owner chain
