@@ -385,6 +385,20 @@ build/ai-boss-range/cases > build/ai-boss-range/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_boss_player_range.py --cases build/ai-boss-range/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_diablo_melee_choice.py` compares the melee branch of
+FUN_005e8810 with d2d's Diablo think over 1,536 cases. Search, state, life,
+resistances and line-of-sight are hooked. It compares the action and seed;
+other chooser branches and action execution are outside the comparison.
+From the worktree root with `GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-diablo-melee
+uv run --no-sync --project tools/emu python tools/emu/ai_diablo_melee_choice.py --cpp > build/ai-diablo-melee/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-diablo-melee/cases.cpp -o build/ai-diablo-melee/cases
+build/ai-diablo-melee/cases > build/ai-diablo-melee/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_diablo_melee_choice.py --cases build/ai-diablo-melee/cases.txt --exe "$GAME_EXE"
+```
+
 His target (FUN_005e8f20, 2026-10-16; lists 2026-10-17): over the unit
 lists at game +0x10f8, the best scored (FUN_005e8530, above 0, the first
 on a tie). Lists 0..7: a player passing FUN_005e8eb0 (same act byte +0x18,
