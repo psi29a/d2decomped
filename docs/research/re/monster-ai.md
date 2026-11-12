@@ -476,6 +476,19 @@ only a riding imp casts Skill5, and imp6..8's levels have nothing to ride
 (stubs.md). `act5_search.py` checks the claim's mode-1 order and filters
 against game.exe; d2d uses `rules::room_order`.
 
+`tools/emu/ai_imp_ride_init.py` compares the skill-slot choice and updated
+seed of FUN_005e2cd0 with `imp_ride_pick` over 1,024 cases. Skill lookup is
+hooked and the other control word is not compared. From the worktree root,
+with the emulator set up and `GAME_EXE` pointing to stock 1.14d:
+
+```sh
+mkdir -p build/ai-imp-ride
+uv run --no-sync --project tools/emu python tools/emu/ai_imp_ride_init.py --cpp > build/ai-imp-ride/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-imp-ride/cases.cpp -o build/ai-imp-ride/cases
+build/ai-imp-ride/cases > build/ai-imp-ride/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_imp_ride_init.py --cases build/ai-imp-ride/cases.txt --exe "$GAME_EXE"
+```
+
 ## Act 5's monster skills (traced 2026-10-24)
 
 The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e
