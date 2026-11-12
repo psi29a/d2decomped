@@ -7,13 +7,15 @@
 // are not in the walk grid. Another level's drop does not see this crowd.
 // ponytail: one level is searched, no neighbours'.
 
+#include <ai.hpp>
+#include <cues.hpp>
 #include <ds1.hpp>
+#include <gamedata.hpp>
 #include <loot.hpp>
 #include <rules.hpp>
 
 #include <cassert>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <utility>
