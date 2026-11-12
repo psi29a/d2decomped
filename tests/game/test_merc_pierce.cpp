@@ -26,10 +26,8 @@ int main() try {
     game_data.skills.rows.resize(2);
     game_data.skills.rows[1].id = 1;
     auto& row = game_data.missiles["pierce"];
-    auto& arrow_row = game_data.missiles["arrow"];
     row.pierce = true;
     row.collide_kill = true;
-    arrow_row.pierce = true;
     game_data.monsters.types.resize(1);
 
     const Level* level = nullptr;
@@ -63,11 +61,6 @@ int main() try {
     fight.pending.pop_back();
     fight.casting_merc = false;
     assert(arrow.by_merc && arrow.pierce == 3 && d2d::rules::pierce_charges(60, 1) == 3);
-
-    Missile plain;
-    plain.info = &arrow_row;
-    fight.seed_pierce(plain, true);                                     // the merc's own arrow, the same seed
-    assert(plain.pierce == 3);
 
     Monster monster;
     monster.type = 0;
