@@ -1188,6 +1188,9 @@ struct Fight {
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // The owner's other pets, the merc among them, within 2 of this one
+    // (FUN_00574de0 with FUN_005e3900): a think's mode 4 crowd.
+    [[nodiscard]] int pet_crowd(const Pet& pet) const;
     // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
     // trap's (32 firespike_explode, FUN_005a3d20), 4 frames after it dies.
     [[nodiscard]] bool blast_due(const Monster& golem) const;
