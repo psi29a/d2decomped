@@ -468,7 +468,7 @@ def act2():
     # a2q3: The Tainted Sun. The Lost City's dark; the altar in the Claw
     # Viper Temple (61) brings the sun back and gives the Viper Amulet.
     go(44)
-    until("the sun goes dark", lambda: "dark=true" in cmd("debug quest 11 show"), 10)
+    until("the sun goes dark", lambda: "dark=true" in cmd("debug quest 11 show"), 20)   # rand(17) ticks: up to 18 quest steps, 14.4 s
     go(61)
     altar = [o for o in presets()[0] if o[1] == 149]
     assert altar, "no Tainted Sun altar"
@@ -529,6 +529,7 @@ def act2():
     cmd("debug kill")
     operate(chest_room[0][0])
     assert bits(10) & 1 and "[hst " not in cmd("items"), f"the orifice didn't take the staff: {bits(10):#x}"
+    until("the way down to Duriel", lambda: any(line.startswith("6\t") for line in cmd("debug portals").splitlines()), 20)   # its timer: 18 ticks, 19 quest steps (15.2 s)
     take_portal(6, 73)
     cmd("debug kill")
     until("Duriel's death counts", lambda: show(14, "tombs") == 3, 10)

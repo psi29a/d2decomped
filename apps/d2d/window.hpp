@@ -123,14 +123,18 @@ struct Window {
         const float density = SDL_GetWindowPixelDensity(window);
         const float pixels = drawn.h / float(kScreenHeight);
         if (!(pixels > 0) || !(density > 0)) return false;
-        auto image = cursor_image(frame, pal, pixels / density);
+        // Pixel art and nearest both take one source pixel. Linear filters.
+        const auto cursor_scale = scale_mode == SDL_SCALEMODE_LINEAR ? CursorScaleMode::linear
+                                : scale_mode == SDL_SCALEMODE_NEAREST ? CursorScaleMode::nearest
+                                                                      : CursorScaleMode::pixelart;
+        auto image = cursor_image(frame, pal, pixels / density, cursor_scale);
         if (!cursor || image != cursor_points) {
             const auto surface_of = [](CursorImage& made) {
                 return SDL_CreateSurfaceFrom(made.width, made.height, SDL_PIXELFORMAT_RGBA32, made.rgba.data(), made.width * 4);
             };
             SDL_Surface* base = surface_of(image);
             if (!base) return false;
-            auto dense = density > 1 ? cursor_image(frame, pal, pixels) : CursorImage{};
+            auto dense = density > 1 ? cursor_image(frame, pal, pixels, cursor_scale) : CursorImage{};
             if (SDL_Surface* sharp = dense.width > 0 ? surface_of(dense) : nullptr) {
                 SDL_AddSurfaceAlternateImage(base, sharp);
                 SDL_DestroySurface(sharp);   // base holds its own reference

@@ -707,6 +707,7 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
         if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
         if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
         monster.skill = teleport;
+        monster.skill_sound = teleport;
         monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
         monster.unit.walking = false;
         set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
@@ -750,6 +751,7 @@ auto ThinkCtx::use(std::string_view mode, int skill) -> void {     // FUN_005dea
     monster.chase = targeted ? int(target - foes.data()) : -1;
     unit.dir = direction16(dx, dy);
     monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
+    monster.skill_sound = skill;
     set_mode(game_data, monster, mode, now_ms);
     monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
     monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
@@ -1264,6 +1266,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 unit.dir = direction16(dx, dy);
                 set_mode(game_data, monster, "RN", now_ms);
                 monster.skill = id; monster.skill_x = target_x; monster.skill_y = target_y; monster.wandering = false;
+                monster.skill_sound = id;
                 monster.diab_run = 1; monster.diab_run_ms = now_ms;
                 monster.seq_mode = "RN"; monster.seq_frame = 0;
                 return true;
@@ -1271,8 +1274,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (seq && seq->front().mode == "WL") {
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
-                    if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); return true; }
-                    if (ctx.set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; return true; }
+                    if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); monster.skill_sound = id; return true; }
+                    if (ctx.set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
                 }
                 ctx.idle(0);
                 return true;

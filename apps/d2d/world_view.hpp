@@ -157,11 +157,12 @@ inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& anim, std::uint
 // composite draw (FUN_00470ec0) passes the effect as the draw mode, and
 // FUN_006c8250 picks the PL2 table: 0..2 alpha tables 2, 1, 0, a quarter,
 // half, three quarters of the layer over the screen; 3 additive, 4
-// multiply (like Missiles.txt Trans 1 / 2); 5 opaque (cof-draw-order.md
-// "Draw effects", tests/test_cof_effects.cpp).
-// ponytail: effect 6 (the max-component table, PL2 +0x5b500) draws opaque.
+// multiply (like Missiles.txt Trans 1 / 2); 5 opaque; 6 the greater of each
+// RGB channel (cof-draw-order.md "Draw effects", tests/test_cof_effects.cpp).
+// ponytail: effect 6 is per-channel max in RGB. The PL2 max-component table
+// (+0x5b500, FUN_006c8250) is still unread.
 inline int draw_mode(int effect) {
-    switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
+    switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; case 6: return 6; default: return 0; }
 }
 inline int layer_trans(const d2d::cof::Layer* layer) { return layer && layer->transparent ? draw_mode(layer->draw_effect) : 0; }
 template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms, Fn&& visit) {
