@@ -319,7 +319,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             const auto counts = town.npc_menu.list_lines();
             const int first = town.npc_menu.scroll;
             int top = 0;
-            for (int row = first; row < first + d2d::rules::list_rows_shown(list->box, counts, first); ++row) {
+            const int shown = d2d::rules::list_rows_shown(list->box, counts, first);   // all fitting: the whole count, not the count from `first`
+            for (int row = first; row < first + shown && row < int(list->rows.size()); ++row) {
                 const int tall = counts[std::size_t(row)] * list->box.line_height;
                 out += list->rows[std::size_t(row)].lines[0] + "\t" + std::to_string(list->box.x + 0x20) + "\t" + std::to_string(list->box.y + 0xc + top + tall / 2) + "\n";
                 top += tall + list->box.row_gap;

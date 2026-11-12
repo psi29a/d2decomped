@@ -833,7 +833,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 const int row = d2d::rules::list_row_at(list.box, lines, npc_menu.scroll, mouse.x, mouse.y);
                 const int pressed = std::exchange(list.pressed, -1);
                 list.hover = row;
-                if (row == pressed && list.rows[std::size_t(row)].arg >= 0) {
+                if (row >= 0 && row == pressed && list.rows[std::size_t(row)].arg >= 0) {   // -1 both: a press and release in one frame over no row
                     net.send(cmd::Hire{ list.rows[std::size_t(row)].arg });
                     npc_menu = {};
                 }
