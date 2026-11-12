@@ -118,6 +118,12 @@ We promise:
    or waiting for that one to merge. Two pull requests in one function
    means one of them gets rebased by hand.
 
+   **If the open pull request is their own, add to it.** Push the new work
+   as another commit on that branch and add its row to the body; don't open
+   a second one. Two pull requests that add to the same file conflict the
+   moment the first merges, a docs file included: both add at the same
+   line.
+
    **Nothing fits? Say so and stop.** If `gaps.py` ends with `DONE`, or
    nothing listed fits the kind they picked, tell them, and offer play and
    report, which doesn't depend on the map. Don't invent a gap, a missing
@@ -169,8 +175,11 @@ The same bar for everyone, people and agents alike.
   code change's commit carries its test and cites its game.exe address. A
   row per commit in the body: what it says, its evidence, the command that
   re-checks it. Each commit stands alone, so a reviewer can drop one and
-  merge the rest. Keep one batch open at a time; add to it rather than
-  opening another.
+  merge the rest.
+- **One open pull request per file.** While a pull request of theirs is
+  open, more work in the same subsystem or the same file goes into it as
+  new commits, never into a second pull request. Start another only for
+  files the open one doesn't touch.
 - **A match with game.exe needs an oracle:** `tools/emu` runs game.exe's own
   code on the same inputs as d2d, then diffs the two. CI has no game.exe, so
   a maintainer runs it before merging. **The oracle goes in the same pull
