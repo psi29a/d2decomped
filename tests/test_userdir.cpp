@@ -76,6 +76,12 @@ int main() try {
     const auto forced = fs::temp_directory_path() / "d2d_forced_user";
     set_env("D2D_USER_DIR", forced.string().c_str());
     assert(d2d::userdir::user_dir("d2d") == forced);
+#if defined(_WIN32)
+    // Outside the code page (u-umlaut, two CJK characters): read wide, the path stays whole.
+    const auto unicode = fs::temp_directory_path() / L"d2d_\u00fc_\u7528\u6237";
+    (void)::_wputenv_s(L"D2D_USER_DIR", unicode.c_str());
+    assert(d2d::userdir::user_dir("d2d") == unicode);
+#endif
     set_env("D2D_USER_DIR", "");
     assert(d2d::userdir::user_dir("d2d") == user);
     std::printf("user dir: %s\nOK\n", user.string().c_str());
