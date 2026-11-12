@@ -393,7 +393,25 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
 
 auto Fight::floor_material_at(float x, float y) const -> int {
         const int cell_x = int(std::floor(x)), cell_y = int(std::floor(y));
-        return d2d::rules::sound_ids::first_floor_material(level->room_floors, cell_x, cell_y, level->material);
+        // FUN_004cadb0: the unit's room (FUN_004cace0), then each room of its
+        // near list (FUN_00619790) when that room has no floor at the cell.
+        // A neighbour level's tiles sit on its own origin.
+        const int here = room_of(*level, x, y);
+        struct Step {
+            const std::vector<Level::Floor>* tiles = nullptr;
+            int shift_x = 0;
+            int shift_y = 0;
+        };
+        std::vector<Step> steps;
+        auto add = [&](const Level* holder, int room) {
+            if (!holder || room < 0 || std::size_t(room) >= holder->room_floors.size()) return;
+            steps.push_back({ &holder->room_floors[std::size_t(room)], level->world_x - holder->world_x, level->world_y - holder->world_y });
+        };
+        if (here >= 0) add(level, here);
+        if (game_data)
+            for (const auto& [holder, room] : near_rooms(*game_data, *level, x, y))
+                if (holder != level || room != here) add(holder, room);
+        return d2d::rules::sound_ids::floor_material_near(steps, cell_x, cell_y, level->material);
     }
 
 auto Fight::gfx() const -> const GameData::Appearance& {

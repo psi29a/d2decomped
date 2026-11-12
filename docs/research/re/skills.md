@@ -2586,3 +2586,24 @@ closed the picker, selected Attack and pressed F1. The saved pre-fix executable
 reported the binding lost; the changed executable selected Fire Bolt. The
 committed keyboard test additionally reassigns a duplicate to F3 and reloads
 the actual saved character. These are d2d regression tests, not retail oracles.
+
+## `UNIT/PlrSkills.cpp`: skill-state maintenance helpers (static trace)
+
+The functions below are the remaining untouched entries assigned to this
+source file by `game-srcfiles.tsv`. These are static readings of the 1.14d
+binary; the table-data semantics are unresolved where noted, and no runtime
+parity is claimed. Recheck the bodies with
+`python3 tools/ghidra/fn.py 004d8a60 004d8b90 004d8d60 004d8d90 004d8e60 004d90f0 004d93b0 004d9480 004d9630 004d96b0`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004d8a60` | Bounds-checks a skill-tree index against the global tree-row count, reads five signed 16-bit values from the row at stride `0x3c`, and calls `FUN_004d8660` three times for nonnegative fields at offsets `+0x0a`, `+2`, and `+4`, then once for nonnegative fields at `+6` and `+8`. The helper removes overlay rows; exact meaning of the five fields is not established here. |
+| `FUN_004d8b90` | Looks up the unit's stat list, reads stats `0x84` and `0x85`, computes a value from their ratio in thirds (1–3), and stores it as stat `0x163`. When that value rises, it clears old overlay ranges with `FUN_004d8a60` and emits stat events for newly reached row fields; when it falls, it calls `FUN_004d8660` twice per removed tier. The row fields are signed shorts at offsets `+2..+10`. |
+| `FUN_004d8d60` | Computes the same three-tier result from two values: starts at 3, drops to 2 when the second value is below one third of the first, and drops again below two thirds. The decompiler's register recovery leaves one input in ESI, so its full calling convention needs disassembly before reuse. |
+| `FUN_004d8d90` | For a validated skill-tree row, invokes overlay cleanup twice for each nonnegative field at offsets `+2`, `+4`, and `+6`. |
+| `FUN_004d8e60` | Recomputes stat `0x163` from stats `0x84` / `0x85`. On an increase, clears prior overlays and emits stat events for newly enabled signed-short fields; on a decrease, removes the paired overlay rows for the fields whose thresholds are no longer reached. |
+| `FUN_004d90f0` | Reads stat `0x15e` from the unit's stat list, validates it as a skill-row index, checks the row's signed field at `+0x10e`, then calls `FUN_004ba790(1)` only if `FUN_004ca900` also succeeds. The purpose of that row field and gate is not identified by this trace. |
+| `FUN_004d93b0` | Selects a unit's path coordinates (for path types 2 and 4–5, the stored target at path `+0xc/+0x10`; otherwise the path's current x/y), passes them to `FUN_00480c10`, then calls `d2d_ai_facing16` on the unit's path. |
+| `FUN_004d9480` | Validates a skill-tree row and skill index, calculates the effective skill level, then walks the row's two signed-short overlay intervals. In each interval it keeps a regular stride of rows based on the skill level and stat `0xa9`, adding a missing overlay or removing the others. |
+| `FUN_004d9630` | Removes every overlay row in the two inclusive intervals stored at skill-tree row offsets `+2..+4` and `+6..+8`. |
+| `FUN_004d96b0` | Validates the row's skill index and initializes a zeroed `0x5c`-byte argument record for `FUN_004cd540`, storing that skill index at local offset `+0x10`, the row's `+0x38` value (or 0 if negative) at `+0x2c`, and flag 1 at `+0x30`. The consumer's record semantics are not established here. |

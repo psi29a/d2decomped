@@ -369,7 +369,10 @@ FUN_004cadb0, FUN_004cace0 and FUN_004cad60 for real (20,000 cases, none
 differ). The Rogue Encampment's floors never name a material: none of the
 floor tiles in its DT1s (LvlTypes 1 by LvlPrest 1's Dt1Mask, FUN_0066f240)
 has one of those flags, so every step there takes SoundEnviron 1's
-Material 1, dirt, as d2d's do (`test_camp_floors`). A monster's
+Material 1, dirt, as d2d's do (`test_camp_floors`). `Fight::floor_material_at`
+asks `floor_material_near` for the unit's room (`room_of`), then each room
+of `near_rooms`, and a neighbour level's tiles are shifted by the two world
+origins (`test_floor_material`). A monster's
 FootstepLayer plays with it at FsPrb %.
 
 ## Monsters (MonSounds.txt, 0x96bc5c)
