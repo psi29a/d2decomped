@@ -51,7 +51,7 @@ name order. A new sub-verb goes in its area's file where its name sorts.
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>\t<index>\t<cell x>\t<cell y>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu; index for `cmd interact`. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>\t<boss>\t<mods>\tlvl<n>\t<name>\t#<unit>\t<row>` per monster of the current outdoor level, then `ok` | Cells, feet on screen (while there), life, animation mode; champion / unique / superunique / minion (or -), MonUMod ids, level, name, unit id (what `cmd skill` takes), the skill sequence row drawn (`<mode>:<frame>`, `-` none). |
 | `ground`                    | `<code>\t<label>\t<sx>\t<sy>\t#<unit>` per item on the level's ground, then `ok` | Loot: gold is `gld`; feet on screen; unit id (what `cmd pickup` takes). |
-| `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
+| `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first; then the hire list's rows shown (each row's first line). |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap; `err rooms not ready` while a preset level's rooms can't be made yet. |
 | `debug statpts <n>` / `debug skillpts <n>` | `ok`    | Set the in-game character's unspent stat / skill points. |
