@@ -15,6 +15,7 @@
 #include <ds1.hpp>
 #include <exception>
 #include <gamedata.hpp>
+#include <utility>
 #include <world.hpp>
 
 using namespace d2d::game;
