@@ -2629,6 +2629,322 @@ Re-check: `python3 tools/ghidra/fn.py 004cc950 004d5310`; disassemble
 `004cc950`..`004cc998` to confirm the EAX=progress/ECX=record order and
 that EDX is unused.
 
+### The client's monster-modifier table and its five slots: `FUN_004add90`, `FUN_004ad020`, `FUN_004ade80` (batch 21)
+
+`monsters.md` ("Mod 26's client mirror") and batch 13 (`FUN_004ade80`)
+named this client table without reading it. Read in disassembly:
+
+- **`FUN_004add90`** (`004add90`..`004ade34`, stdcall `RET 0xc`, stack
+  `unit`, `unit2`, `slot`): a null unit, a non-monster (`*unit != 1`), a
+  null monster data (`+0x14`) or a null mod list (data `+0x1c`, the 9-byte
+  list) returns at once. The flag it forwards is `(data[+0x16] >> 3) & 1`
+  (the unique bit, `monsters.md` "flag 8"). For each of the 9 list bytes
+  `m` it reads the pointer at `0x724e28 + (m * 5 + slot) * 4` and, when
+  non-null, calls it **fastcall**: ECX the unit, EDX the mod id `m`,
+  stack the flag, `RET 4`. For slot 4 the unit passed is `unit2` (the
+  other unit, a missile) and the table index is `m * 5 + 4`.
+- **`FUN_004ad020`** (the apply pass; call sites `004aeb96` in
+  `FUN_004ae8d0`, `0045e47a` in `FUN_0045e400`, `004af05f` in `FUN_004aedd0`): the same gate, then the 4 fixed mod
+  ids at `0x6da4c8..0x6da4d8` and the 9 list bytes each go through the
+  **separate** 44-entry table at `0x724d78` (`mod id * 4`), with
+  `ECX` the unit, `EDX` the mod id and stack the same unique-bit flag.
+  That table holds only `FUN_004ac870` (mods 1, 12, 16, 36..39),
+  `FUN_004acc70` (3), the function at `004acd50` (11), `FUN_004acd70` (26) and
+  `FUN_004acdb0` (8, 9, 17, 18, 23, 25, 27, 28); the rest are null.
+- The five slots of `0x724e28` are filled by the callers of
+  `FUN_004ade40` (slot 0, one call, `004b001b`, right after the new
+  unit's `FUN_00620210(unit, 0)` in the monster-message handler),
+  `FUN_004ade50` (slot 1, `004b0d81`), `FUN_004ade60` (slot 2,
+  `004b1556`, right after `FUN_004af2e0` in a per-unit update), `FUN_004ade70` (slot 3, `004b03ed` after
+  a mode set of 3 and `004b0475` after a mode set of 0xd) and
+  `FUN_004ade80` (slot 4, one call, `004cdb2b` inside the missile
+  sequencer `FUN_004cd540`). Nothing was traced about when each of those
+  call sites runs beyond that.
+
+Entries of `0x724e28` read here (from the data xrefs of the handlers
+below; the rest of the table is not enumerated): mod 10 slot 2
+`FUN_004ad510`, mod 11 slot 2 `FUN_004ad5f0`, mod 17 slots 2 / 3
+`FUN_004ad890` / `FUN_004ad8e0`, mod 18 slot 2 `FUN_004ad510`, mod 20
+slot 2 `FUN_004ad920`, mod 23 slot 0 `FUN_004ad890`, mod 29 slot 4
+`FUN_004ad970`, mod 31 slot 2 `FUN_004ad0c0`, mod 32 slot 2
+`FUN_004adb20`, mod 33 slot 2 `FUN_004adbc0`, mod 40 slot 2
+the function at `004add80`, mod 42 slot 2 `FUN_004ad510`. Mod ids are the same ones
+`monsters.md` lists for the server hooks.
+
+**Decompiler traps** in this cluster: Ghidra's player mode enum names
+(`Death`, `Run`, `Kick`) are shown for monster modes. The constants in
+the disassembly are monster modes: 0 death, 3 get-hit, 0xc (12) the
+`dead` mode; no player meaning applies. Its names `Griswold`,
+`TheSmith`, `Nihlathak`, `Duriel...` are leads only: the handlers below
+are the client halves of `monsters.md`'s mods 17 / 20 / 29 / 11.
+
+d2d: the server rules these mirror are ported (`Fight::boss_events`, see
+below); the client dispatch table itself is not (d2d renders its own
+effects). No disagreement found.
+
+Not traced: the other table entries; when slots 0, 1 and 3 run in play;
+what gating, if any, limits slot 2 on a dead unit per tick.
+
+Re-check: `python3 tools/ghidra/fn.py 004add90 004ad020 004ade80`; disassemble
+`004add90`..`004ade34` (index `m * 5 + slot`, `RET 0xc`, slot-4 branch at
+`004ade10`) and read dwords at `0x724e28 + 4 * (m * 5 + slot)`.
+
+### The resistance mods' client apply: `FUN_004acdb0` (batch 21)
+
+`FUN_004acdb0` (0x26f bytes, `004acdb0`..`004ad018`, fastcall ECX unit /
+EDX mod id, stack `apply` flag, `RET 4`, confirmed in disassembly). It
+is the `FUN_004ad020` handler for mods 8, 9, 17, 18, 23, 25, 27, 28
+(the `0x724d78` entries above). With `apply == 0` it returns. Otherwise
+(stat ids as pushed to `FUN_00625480` get / `FUN_00627260` set, layer 0):
+
+1. mod 0x1c (28): armorclass (stat 0x1f) is doubled.
+2. It reads fire 0x27, lightning 0x29, cold 0x2b, poison 0x2d, damage
+   resist 0x24 and magic resist 0x25, and counts how many are `>= 100`.
+   With **2 or more** it stops (no mod below applies). The doubled AC of
+   step 1 stays.
+3. mod 9: fire `+75`; mod 0x12: cold `+75`; mod 0x11: lightning `+75`;
+   mod 0x17: poison `+75` (no cap test, one stat, return); mod 0x19:
+   magic resist `+20`.
+4. mod 8: cold, then fire, then lightning, each `+40` only if it was
+   under 100, adding 1 to the count when the new value reaches 100 and
+   stopping once the count is 2.
+5. mod 0x1b: the same order (cold, fire, lightning) with `+20`, each
+   only if it was under 75 (`0x4b`), same count and stop.
+6. mod 0x1c: damage resist `+50`, no cap.
+
+The server counterparts are `monsters.md`'s mod rows; the client numbers
+were read here only, no server value was compared.
+
+d2d: not ported as a function; d2d has no client/server stat split.
+No comparison made.
+
+Not traced: which MonUMod names ids 8, 0x1b and 0x19 carry (the table
+rows were not read).
+
+Re-check: `python3 tools/ghidra/fn.py 004acdb0`; disassemble `004acdb0`..`004ad018`
+(the compares against `0x64`, `0x4b` and the `ADD ..., 0x28 / 0x4b / 0x14 /
+0x32` immediates).
+
+### Four death-timed client effects of the modifier table: `FUN_004ad0c0`, `FUN_004ad510`, `FUN_004adb20`, `FUN_004adbc0` (batch 21)
+
+The four below are table-`0x724e28` slot 2 handlers (per-unit update), fastcall
+ECX unit / EDX mod id / stack unique flag, `RET 4`. Each calls
+`FUN_00621810(unit, &frame, &total)` for the current frame and acts only
+when the unit is null **or** its mode (`+0x10`) is 0 (dead), on frame 4.
+Missile makers: `FUN_004cdb40` / `FUN_004cdba0` (ECX unit, EDX missile id,
+stack x, y, skill, level); the difference between the two was not traced.
+
+- **`FUN_004ad0c0`** (mod 31, 0xd7 bytes): five missile id `0x52` at
+  `(x, y)`, `(x+1, y+1)`, `(x+1, y-1)`, `(x-1, y+1)`, `(x-1, y-1)`, skill
+  0, level 1, then `FUN_004b9a00(ECX 0x99a, EDX unit, 0, 0, 0)` (a sound
+  row). It needs the stack flag nonzero; the decompiler dropped the EDX
+  mod id from its signature.
+- **`FUN_004ad510`** (mods 10, 18, 42, 0xd4 bytes): returns at once for
+  mod 18 **without** the unique flag. Mod 42, in mode 0 and with **no
+  frame test**: missile 0x5a (nova) ring through `FUN_004c70d0(ECX unit,
+  EDX unit, missile 0x5a, skill -1, 0, level, 0, velocity)`, level =
+  unit stat 0xc (level) unchanged, velocity `FUN_00663270(0x5a, 0)`. Frame
+  4: mod 10 makes missile 0x9b (`corpsepoisoncloud`) at the unit's spot,
+  skill 0, level = stat 0xc; mod 18 makes the same ring with missile 0xc2
+  (`coldunique`), level stat 0xc, velocity `FUN_00663270(0x77, 0)`. Against
+  `monsters.md`: the server's coldunique level is mlvl / 2 and its mod 42
+  nova level is the owner's Shadow Warrior level / 2 + 1; the client
+  passes its own unit level straight through in both, and does not floor
+  mod 10's level at 1.
+- **`FUN_004adb20`** (mod 32, 0x98 bytes): missile 0x2a at the unit's
+  spot, skill 0, level 1, on frame 4.
+- **`FUN_004adbc0`** (mod 33, 0x11b bytes): reads the unit's MonStats row
+  (class `+0x4`, stride 0x1a8, `[0x744304]+0xa78`, count `+0xa80`) and the
+  signed word at row `+0x56 + 2 * difficulty` (`FUN_0044dcd0` the
+  difficulty byte; `monsters.md` calls it aip1). On frame 4: value 1
+  makes missile 0x1ab (`suicidefireexplode`) at level 1, value 2 or more
+  makes 0x1ac (`suicideiceexplode`) at level 1, and also, whatever the value
+  (0 or less included), missile 0x1aa (`suicidecorpseexplode`) is made at
+  its spot. The server (`monsters.md`, `deaths.cpp:234`) picks only one of
+  the three; the client adds the corpse one in addition. A visual-only
+  difference between halves, nothing for d2d to change.
+
+d2d: the server rules are ported (`Fight::golem_blast`, `shadow_nova`,
+`suicide_blast`, `boss_events`, `test_on_death_mods`); the client looks
+are d2d's own. No disagreement in a rule found.
+
+Not traced: how often slot 2 runs on a dead unit (mod 42's nova has no
+frame gate); what `FUN_004cdb40` does differently from `FUN_004cdba0`;
+the sound row 0x99a.
+
+Re-check: `python3 tools/ghidra/fn.py 004ad0c0 004ad510 004adb20 004adbc0`;
+disassemble each and read the mode compare (`CMP [ESI+0x10], 0`), the frame
+compare (`CMP ..., 4`) and the `MOV EDX, imm` missile ids.
+
+### Duriel's death overlays and spawns: `FUN_004ad5f0` (batch 21)
+
+`FUN_004ad5f0` (0xe9 bytes, `004ad5f0`..`004ad6d6`, table slot 2 of mod
+11, fastcall ECX unit, `RET 4`; Ghidra calls it `DurielDeathAndSpawn`, a
+lead). Needs a non-null monster unit with monster data (`+0x14`):
+
+- mode 0 (dead), frame 13: `FUN_0046f170(unit)` (`gfx_overlays_remove_all`,
+  `names.tsv`), then `FUN_00470390(unit, id, 5, 0, 0, 0, 0, 0)` twice with
+  ids `0x34` and `0x9c`, then the byte at unit `+0x4e` is cleared. The
+  two ids are what the decompiler calls the `durieldead` overlays.
+- mode 0xc (12): the unit's seed (`+0x20` low, `+0x24` high) advances by
+  the usual `low * 0x6ac690c5 + high` step; when the new low word is a
+  multiple of 100 **and** monster data `+0x18` is under 100,
+  `FUN_0046c320(unit, 0xe3, 4)` runs (spawn four monsters of class 0xe3
+  around the unit, per the decompiler's name; the callee was not read
+  here) and data `+0x18` grows by 4.
+- other modes do nothing.
+
+Against `monsters.md` ("13 rage, 11 durieldead | none"): that row is the
+**server** hooks. The client has a handler for mod 11.
+
+d2d: not ported; no comparison made.
+
+Not traced: class 0xe3's identity; `FUN_0046c320`'s body; what mode 0xc is
+on a Duriel unit in play.
+
+Re-check: `python3 tools/ghidra/fn.py 004ad5f0`; disassemble `004ad5f0`..`004ad6d6`
+(the `0xd` frame compare at `004ad62b`, the `0x6ac690c5` and `0x51eb851f`
+(divide by 100) at `004ad680` / `004ad696`).
+
+### The client's ring of directional missiles and its three callers: `FUN_004ad6e0`, `FUN_004ad890`, `FUN_004ad8e0`, `FUN_004ad920` (batch 21)
+
+- **`FUN_004ad6e0`** (0x19a bytes, `004ad6e0`..`004ad881`): a **custom
+  convention** the decompiler lists as stack-only: stack `unit`
+  (`[EBP+8]`), `missile id` (`[EBP+0xc]`), and **EAX** the level (0 is
+  replaced by 1), `RET 8`. Missile 0xc3 (`lightunique`) only for a
+  monster whose data word `+0x16` has bit `0x100` set; other ids have no
+  gate. It zeroes a 0x5c-byte record and fills: `+0x00` flags `0x21`,
+  `+0x04` the unit, `+0x10` the missile id, `+0x14` / `+0x18` the unit's
+  x / y (`FUN_006488c0` / `FUN_00648900` on its path, or the static
+  path words at `+0xc` / `+0x10` for unit types 2, 4 and 5), `+0x1c` /
+  `+0x20` the same plus a direction, `+0x2c` skill 0, `+0x30` the level,
+  `+0x54` the function pointer `0x4e2ed0` (not set for missile 0x141,
+  `queenpoisoncloud`) and `+0x58` the copy index. The same 0x5c-byte
+  shape `FUN_004cd540` takes (batch 13). It loops 4 directions
+  `(0,-1)`, `(1,0)`, `(0,1)`, `(-1,0)`, two copies each (copy index 0, 1),
+  calling `FUN_004cd540(record)`: 8 missiles, as `monsters.md` row 17
+  says for the server ("N, E, S, W x 2").
+- **`FUN_004ad890`** (mod 17 slot 2 and mod 23 slot 0): with the flag
+  nonzero, mode 3 and frame 2, calls the ring with 0xc3 and level =
+  unit stat 0xc >> 1 (arithmetic shift; no floor at 1, unlike the
+  server's "at least 1").
+- **`FUN_004ad8e0`** (mod 17 slot 3): with the flag nonzero and the unit
+  null or **not** in mode 3: the same ring, same level. Unlike the
+  server, it keeps no 10-frame limit that was visible in this function.
+- **`FUN_004ad920`** (mod 20 slot 2): in mode 0, 3 or a null unit and
+  frame 2: ring of missile 0xe1 (`buglightning`) at level = stat 0xc
+  (no flag test, no `0x100` gate).
+
+Mod 23's slot 0 entry points at `FUN_004ad890`, a function that tests mode 3
+and frame 2 (the mod 17 slot 2 entry is the same address). `monsters.md` lists mod 23 as the poison
+hit with only an init hook. Whether that table slot is a copy mistake in
+the original or does something at slot 0's call site was not traced.
+
+d2d: server halves ported (`deaths.cpp` `charged_bolts("lightunique" ..)`
+and `"buglightning"`); the client ring is not. No disagreement found.
+
+Not traced: the meaning of the `0x100` bit in monster data `+0x16`;
+`FUN_004cd540`'s use of `+0x1c` / `+0x20`; `0x4e2ed0`'s body.
+
+Re-check: `python3 tools/ghidra/fn.py 004ad6e0 004ad890 004ad8e0 004ad920`;
+disassemble `004ad6e0`..`004ad881` (the `CMP [EBP+0xc], 0xc3` gate at
+`004ad6f4`) and the three callers' `PUSH 0xc3` / `0xe1` at `004ad8c5`,
+`004ad900`, `004ad957`.
+
+### The client mirror of multishot: `FUN_004ad970` (batch 21)
+
+`FUN_004ad970` (0x1aa bytes, `004ad970`..`004adb10`, mod 29 slot 4,
+fastcall ECX the **missile** (slot 4 passes `unit2`), stack flag, `RET 4`;
+Ghidra's name `Nihlathak` is a lead and is wrong for mod 29). With the
+unique flag set and a type-3 unit, it takes the missile's owner
+(`FUN_004639d0`, ECX the missile), requires: the missile's class in range
+of `[0x744304]+0xb6c` (rows of 0x1a4 from `+0xb64`), the row byte `+5`
+**without** the bit `0x10` (the byte at `0x6ce278` holds `0x10`), and the
+owner not already flagged `0x80` (`FUN_004ac7e0(owner, 0x80)` is zero).
+Then the target is the owner's confirmed target unit's position
+(`FUN_004648f0`), else the missile's path words (`FUN_00648a00` /
+`FUN_00648a10`). Sign of `(owner - target)` in x and y gives `sx`, `sy`
+(both zeroed for missile classes `0x3f..0x42`). It sets monster data
+word `+0x16 |= 0x80`, makes the same missile class (`FUN_004cdba0`, with
+the original missile's `FUN_0064a210` / `FUN_0064a280` values as the last
+two stack arguments) at `(tx - sy, ty + sx)` and `(tx + sy, ty - sx)`,
+then clears `0x80` (`AND 0xff7f`). The two spots are one subtile either
+side of the target across the owner's line, as `monsters.md` row 29
+describes. The seed block it builds (`0x53454953`, the owner GUID)
+is not read afterwards.
+
+d2d: server half described in `monsters.md`; client mirror not ported.
+
+Not traced: the meaning of `FUN_0064a210` / `FUN_0064a280` beyond their use
+as the level and skill the decompiler names.
+
+Re-check: `python3 tools/ghidra/fn.py 004ad970`; disassemble `004ad970`..`004adb10`.
+
+### Two more UNIT leaf effects: `FUN_004adce0` and `FUN_004ae3c0` (batch 21)
+
+- **`FUN_004adce0`** (0x97 bytes, `004adce0`..`004add76`, plain `RET`,
+  fastcall ECX unit): the unit's x / y (path words, as above), then
+  `FUN_004cdb40` with missile `0x75` (`monstercorpseexplode`) and again
+  with `0x221` at `(x, y)` skill 0 level 1, then the sound row `0x99a`
+  (`FUN_004b9a00(0x99a, unit, 0, 0, 0)`). Callers: the function at `004add80` (a
+  `CALL`/`RET 4` stub, table mod 40 slot 2, the "worms on death" mod
+  `monsters.md` marks as unreachable on the server) and the function at `004d93a0`
+  (a state-removal function; not read here).
+- **`FUN_004ae3c0`** (0x39 bytes, `004ae3c0`..`004ae3f8`, fastcall ECX
+  unit, plain `RET`): `FUN_004639d0(unit)` (the owner); null returns. A
+  non-missile owner (`*owner != 3`) raises the internal-error path with
+  line `0x161` (the `FUN_00408090` / `FUN_00408a60` / exit sequence; the
+  string argument at `0x6cc837` is an empty string, so no file name is
+  given). Otherwise `FUN_004d2d70(owner, 0, 0)`, the client's
+  hit and explosion (`missiles.md`). Callers: inside `FUN_004af2e0`
+  (`004af3ac`) and `FUN_004af6a0` (`004af7f0`).
+
+d2d: not ported as functions; no comparison made.
+
+Not traced: what the owner of a monster-skill missile is in the two
+callers; the function at `004d93a0`'s state.
+
+Re-check: `python3 tools/ghidra/fn.py 004adce0 004add80 004ae3c0`; disassemble
+`004adce0`..`004add76` and `004ae3c0`..`004ae3f8`.
+
+### A catapult-search callback and the monster free: `FUN_004ae7b0`, `FUN_004aed30` (batch 21)
+
+- **`FUN_004ae7b0`** (0x111 bytes, `004ae7b0`..`004ae8b3`): a callback for
+  `FUN_0046c570` (the room-neighbour unit walk: ECX the centre unit, EDX
+  a parameter, stack callback; it calls the callback with ECX centre, EDX
+  each unit of the neighbouring rooms' lists (`+0x74`, next at `+0xe8`),
+  two stack words, `RET 8`; the first nonzero result stops it). Its only
+  reference is `004aecca` in `FUN_004ae8d0`: for a monster of class
+  `0x12d` the result is stored as that unit's direction byte (class
+  `0x60` stores the fixed 7 instead). The callback returns 0 unless the
+  candidate (EDX) is a monster whose MonStats row word `+0x2` is `0x12a`,
+  `FUN_006416d0(centre, candidate)` is at most 1, and the centre's
+  x / y equal the candidate's x / y plus 3 times the composite offsets
+  from `FUN_0063e7e0` of the direction after `FUN_0063e7a0` remaps it
+  through the byte table `6,7,0,1,2,3,4,5`. It returns the candidate's
+  **original** direction (`FUN_006487f0` on its path) as a byte.
+  Ghidra's `CheckCatapultFiringPosition` is a lead; the class numbers
+  are as read.
+- **`FUN_004aed30`** (0x97 bytes, `004aed30`..`004aedc6`, fastcall ECX
+  unit, plain `RET`): null returns. In order: `FUN_0046ec10` (ECX the
+  unit), `FUN_00466cb0(unit, 1)`, free the inventory (`FUN_0063ac40` on
+  `+0x60`, then `+0x60 = 0`); when the global act pointer `0x7a0634` is set:
+  `FUN_00649f50`, `FUN_0064c370` (path collision and room removal) and
+  `FUN_00464930(unit)`; free the path (`FUN_00648460(0, +0x2c)`, `+0x2c =
+  0`); swap the light map (`FUN_00643a00(unit, 0)`) and free a returned
+  one with `FUN_004743d0`; for a monster with monster data whose `+0x2c`
+  pointer is set, free that block (`FUN_0040b3c0` with the string at
+  `0x6da5c8`, `".\UNIT\Monster.cpp"`, line `0x66`) and zero it. Single
+  caller `FUN_00465870` (`FreeAny`) at `00465903`.
+
+d2d: not ported; d2d has no client unit pool.
+
+Not traced: the bodies of `FUN_0046ec10`, `FUN_00466cb0`, `FUN_0064c370`;
+what class `0x12d` / `0x12a` are by name.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae7b0 004aed30 0046c570`; disassemble
+`004ae7b0`..`004ae8b3` (the `CMP ECX, 0x12a` at `004ae809`) and read
+`004aecb7`..`004aecda`.
 ### Bleeding monsters' blood-trail missiles: `FUN_004af890` (batch 20)
 
 `FUN_004af890` (0x2ce bytes, `004af890`..`004afb5b`, `RET 4`): fastcall
