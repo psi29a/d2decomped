@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -24,7 +25,7 @@ int main() try {
     umods.rows.push_back(thief);
     UMod strong;
     strong.id = umod::strong; strong.enabled = true; strong.upick = { 1, 1, 1 };
-    umods.rows.push_back(strong);
+    umods.rows.push_back(std::move(strong));
     const MonType type;
     assert(!unique_detail::can_take(thief, type));
     Rng seed{ 1 };
