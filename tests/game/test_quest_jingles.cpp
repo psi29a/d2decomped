@@ -161,7 +161,7 @@ int main() try {
     Monster orb_monster;
     orb_monster.type = int(data->mon_bin[0x16e]);
     orb_monster.unit.x = orb.x; orb_monster.unit.y = orb.y;
-    world.fight.monsters.push_back(orb_monster);
+    world.fight.monsters.push_back(std::move(orb_monster));
     stand(orb.x, orb.y);
     give(first, d2d::rules::KhalimQuest::kWillCode, true);
     world.operate(orb_index, 8000);

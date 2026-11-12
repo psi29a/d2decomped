@@ -391,7 +391,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_hud_hovers(framebuffer, *scene, hud_hovers);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
         if (pad_playing && pad_config.skill_buttons) {
-            const auto label = [&](pad::Action action) {
+            const auto label = [&](pad::Action action) -> std::string {
                 const auto& pair = pad_config.bindings[action];
                 const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
                 return button == pad::Bindings::kNone ? std::string("-") : std::string(pad::label(pad_family, button));

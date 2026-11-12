@@ -95,16 +95,16 @@ void gear_blow() {
     Item plate;
     plate.code = "ful"; plate.slot = body_location::kTorso; plate.defense = 150;
     plate.props = { { kArmorPercent, 0, 50 }, { kFireResist, 0, 20 } };
-    const std::vector<Item> two_handed{ spear, plate };
+    const std::vector<Item> two_handed{ std::move(spear), plate };
     const auto gear = d2d::rules::gear_sum(tables, two_handed);
     assert(gear.weapon && gear.two_handed && gear.min == 6 && gear.max == 30);
     assert(gear.defense == 225 && gear.sum[kFireResist] == 20);
     assert(d2d::rules::gear_damage(gear, 9, 24) == std::pair(6, 30));          // the mode's damage goes unread
     Item scimitar;
     scimitar.code = "scm"; scimitar.slot = body_location::kRightArm;
-    const std::vector<Item> one_handed{ scimitar };
+    const std::vector<Item> one_handed{ std::move(scimitar) };
     assert(d2d::rules::gear_damage(d2d::rules::gear_sum(tables, one_handed), 38, 113) == std::pair(40, 119));
-    assert(d2d::rules::gear_damage(d2d::rules::gear_sum(tables, std::vector<Item>{ plate }), 9, 24) == std::pair(9, 24));
+    assert(d2d::rules::gear_damage(d2d::rules::gear_sum(tables, std::vector<Item>{ std::move(plate) }), 9, 24) == std::pair(9, 24));
 }
 
 }   // namespace

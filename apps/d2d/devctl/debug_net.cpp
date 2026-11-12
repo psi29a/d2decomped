@@ -111,7 +111,7 @@ void DebugVerbs::add_net() {
         double spread = 0;                                     // where the monsters are, summed: it changes as they move
         for (const auto& monster : view.monsters) spread += monster.unit.x + monster.unit.y;
         const auto nearest = std::ranges::min_element(view.monsters, {}, [&](const auto& monster) { return std::hypot(monster.unit.x - view.player.x, monster.unit.y - view.player.y); });
-        const auto closest = nearest == view.monsters.end() ? std::string("-") : std::format("{:.1f},{:.1f}", nearest->unit.x, nearest->unit.y);
+        const std::string closest = nearest == view.monsters.end() ? std::string("-") : std::format("{:.1f},{:.1f}", nearest->unit.x, nearest->unit.y);
         std::string ids;                                       // the monsters' unit ids: which ones they are
         for (const auto& monster : view.monsters) ids += (ids.empty() ? "" : ",") + std::to_string(monster.id);
         return std::format("ok level={} monsters={} others={} ground={} where={:.1f} near={} ids={}\n", view.level ? view.level->id : -1, view.monsters.size(), others.empty() ? "-" : others, view.ground.size(), spread, closest, ids.empty() ? "-" : ids);
