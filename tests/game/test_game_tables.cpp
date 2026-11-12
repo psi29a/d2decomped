@@ -165,7 +165,7 @@ int main() try {
     if (data->mon_npc.size() > 0x10f) {                  // MonStats: the patch's
         const auto rogue = data->mon_npc[0x10f].shape, akara = data->mon_npc[std::size_t(d2d::rules::monster_ids::kAkara)].shape;
         assert(rogue.bit() == 0x2000 && rogue.mask == 0x3401 && akara.bit() == 0x1000);
-        UnitState player{ .x = 10.1f, .y = 10.1f }, merc{ .x = 10.3f, .y = 10.1f, .shape = rogue };
+        UnitState player{ .x = Fine(10.1f), .y = Fine(10.1f) }, merc{ .x = Fine(10.3f), .y = Fine(10.1f), .shape = rogue };
         const Crowd crowd{ { &player, &merc } };
         assert(!crowd.at(player.x, player.y, &player) && crowd.at(merc.x, merc.y, &merc));
         assert(!crowd.at(10.5f, 10.1f, &merc));          // two subtiles off: clear of the player's subtile
@@ -173,7 +173,7 @@ int main() try {
         const auto chicken_row = std::ranges::find(data->monsters.types, std::string("chicken"), &d2d::rules::MonType::id) - data->monsters.types.begin();
         const auto chicken = data->mon_npc[std::size_t(chicken_row)].shape;
         assert(chicken.pattern == 0 && !chicken.stamps() && akara.owned().bit() == 0x2000);
-        UnitState bird{ .x = 10.1f, .y = 10.3f, .shape = chicken };
+        UnitState bird{ .x = Fine(10.1f), .y = Fine(10.3f), .shape = chicken };
         const Crowd yard{ { &player, &bird } };
         assert(!yard.at(player.x, player.y, &player) && yard.at(bird.x, 10.1f, &bird) && !yard.at(bird.x, bird.y, &bird));
     }

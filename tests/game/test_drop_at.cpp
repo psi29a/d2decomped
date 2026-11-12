@@ -73,7 +73,7 @@ int main() try {
     // refused and the next free subtile (one step left) is taken.
     {
         Bench bench;
-        UnitState body{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 1, 1, 0x3c01 } };
+        UnitState body{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 1, 1, 0x3c01 } };
         const Crowd crowd{ { &body } };
         bench.loot.standing = &crowd;
         assert(body.shape.bit() == 0x1000);
@@ -82,7 +82,7 @@ int main() try {
     // Pattern 3 (the merc, the cow, a pet) stamps 0x2000 on its subtile.
     {
         Bench bench;
-        UnitState merc{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 3, 1, 0x3401 } };
+        UnitState merc{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 3, 1, 0x3401 } };
         const Crowd crowd{ { &merc } };
         bench.loot.standing = &crowd;
         assert(merc.shape.bit() == 0x2000);
@@ -93,7 +93,7 @@ int main() try {
     // the first of those, (11, 12).
     {
         Bench bench;
-        UnitState large{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 2, 3, 0x3c01 } };
+        UnitState large{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 2, 3, 0x3c01 } };
         const Crowd crowd{ { &large } };
         bench.loot.standing = &crowd;
         assert(large.shape.box() && large.shape.bit() == 0x1000);
@@ -102,7 +102,7 @@ int main() try {
     // Pattern 4 stamps 0x2000 on the plus, the same shape.
     {
         Bench bench;
-        UnitState large{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 4, 3, 0x3c01 } };
+        UnitState large{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 4, 3, 0x3c01 } };
         const Crowd crowd{ { &large } };
         bench.loot.standing = &crowd;
         assert(large.shape.box() && large.shape.bit() == 0x2000);
@@ -111,8 +111,8 @@ int main() try {
     // Pattern 0 and 5 stamp nothing (SizeX 0, a vulture aloft).
     {
         Bench bench;
-        UnitState chicken{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 0, 0, 0x3c01 } };
-        UnitState aloft{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 5, 1, 0 } };
+        UnitState chicken{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 0, 0, 0x3c01 } };
+        UnitState aloft{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 5, 1, 0 } };
         const Crowd crowd{ { &chicken, &aloft } };
         bench.loot.standing = &crowd;
         assert(!chicken.shape.stamps() && !aloft.shape.stamps());
@@ -133,7 +133,7 @@ int main() try {
     // A drop onto another level does not see this level's crowd.
     {
         Bench bench;
-        UnitState body{ .x = centre(12), .y = centre(13), .shape = UnitShape{ 1, 1, 0x3c01 } };
+        UnitState body{ .x = Fine::centre(12), .y = Fine::centre(13), .shape = UnitShape{ 1, 1, 0x3c01 } };
         const Crowd crowd{ { &body } };
         bench.loot.standing = &crowd;
         Level other = open_level();

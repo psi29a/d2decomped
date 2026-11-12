@@ -348,15 +348,19 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   (monster-ai.md).
 - **d2d.** `follow_path` (ai.cpp: the player, merc, pets and town NPCs) and
   `move_frame` (a hostile monster) step through `rules::walk_frame`, game.exe's
-  frame in 16.16 subtiles (`UnitState::fine_x` / `fine_y`): each new subtile
+  frame in 16.16 subtiles (`UnitState::x` / `y`, a `Fine`): each new subtile
   crossed is tested, a wall and the crowd alike, and none inside its own; a stop
   puts the unit on the centre of the last free subtile and clears its path
   (#226), with no route or no velocity too (LAB_006508ff); `follow_path`'s
   no-route snap counts as a block, so the walk does not start again off it.
   The velocity is
   FUN_00623f50's (`path_velocity`: Velocity << 8 x the walk % / 100, truncated;
-  `tools/emu/walk_velocity.py`). Left: positions set by anything but a walk are
-  floats in cells, and the facing isn't FUN_006485f0's turn.
+  `tools/emu/walk_velocity.py`). Every unit's place is held that way, as
+  path +0 / +4 are: it reads as cells, a centre is set exactly
+  (`Fine::centre`), cells written in round to the nearest 1/65536 subtile,
+  and LAN sends it as is (protocol 5). `tests/game/test_fine.cpp`. Left:
+  the facing isn't FUN_006485f0's turn, and d2d's own moves outside a walk
+  (knockback, leaps, a stand-in's step) are cells rounded in.
 
 ### What keeps a walk to a unit going: the client
 

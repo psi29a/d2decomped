@@ -85,41 +85,23 @@ bool on_door(const Level& level, const UnitState& unit) {
     return level.unit_blocked(unit.x, unit.y, door_test);
 }
 
-// 16.16 subtiles in cells, kept on the same subtile (a float holds 24 bits of the 27).
-float fine_cells(std::uint32_t fine) {
-    float cells = float(fine) / (65536.f * 5);
-    while (subtile(cells) > int(fine >> 16)) cells = std::nextafter(cells, 0.f);
-    while (subtile(cells) < int(fine >> 16)) cells = std::nextafter(cells, cells + 1);
-    return cells;
-}
-
 // A frame of a walk along `points` (subtiles) from points[point], at
 // `velocity` (path +0x7c): rules::walk_frame (FUN_00650840) on the unit's 16.16
 // position, a new subtile tested as the pathers test it (FUN_0064ff90 ->
 // FUN_0064eda0: the walls and the others' stamps under its mask, its own
 // off). It turns to its point first. False when the walk is over, the unit
 // on a subtile's centre and `point` past the last; `hit` when blocked.
-// ponytail: x / y moved by anything else are floats, so one within a
-// float's error of a subtile's centre is taken as on it, and the facing is
-// direction16's, not FUN_006485f0's turn. Upgrade: UnitState in 16.16
-// throughout.
+// ponytail: the facing is direction16's, set at once, not FUN_006485f0's
+// turn (64 directions, DIFFDIRECTIONS 0x6eb548). Upgrade: a 64-direction
+// facing on UnitState and the turn's frame function traced.
 bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
                 const Crowd& crowd, bool* hit = nullptr) {
-    auto fine = [](float cells) {
-        const auto exact = std::uint32_t(std::llround(double(cells) * 5 * 65536));
-        const std::uint32_t centre = (exact & 0xffff0000u) + 0x8000;
-        return exact - centre + 16 <= 32 ? centre : exact;
-    };
-    if (fine_cells(unit.fine_x) != unit.x) unit.fine_x = fine(unit.x);
-    if (fine_cells(unit.fine_y) != unit.y) unit.fine_y = fine(unit.y);
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
     if (point < points.size())
         if (const float dx = centre(points[point].first) - unit.x, dy = centre(points[point].second) - unit.y; std::hypot(dx, dy) > 0.05f)
             unit.dir = direction16(dx, dy);
-    const bool going = d2d::rules::walk_frame(unit.fine_x, unit.fine_y, points, point, velocity,
+    return d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity,
         [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); }, hit);
-    unit.x = fine_cells(unit.fine_x); unit.y = fine_cells(unit.fine_y);
-    return going;
 }
 
 }  // namespace
@@ -248,7 +230,7 @@ int mode_end_event(const GameData& game_data, const Monster& monster, std::strin
 
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
-    for (const auto& npc : level.npcs) out.push_back({ .x = npc.x, .y = npc.y, .shape = npc.shape });
+    for (const auto& npc : level.npcs) out.push_back({ .x = Fine(npc.x), .y = Fine(npc.y), .shape = npc.shape });
     return out;
 }
 
@@ -367,7 +349,7 @@ bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crow
     d2d::rules::SpawnRoom spawn_room{ rect->x * 5, rect->y * 5, rect->width * 5, rect->height * 5, rooms_in_play->room_seeds[index] };
     const auto& shape = game_data.mon_npc[std::size_t(type)].shape;
     const bool placed = d2d::rules::monster_detail::place(spawn_room, x, y, radius, [&](int at_x, int at_y) {
-        const UnitState probe{ .x = (float(at_x) + 0.5f) / 5, .y = (float(at_y) + 0.5f) / 5, .shape = shape };
+        const UnitState probe{ .x = Fine::centre(at_x), .y = Fine::centre(at_y), .shape = shape };
         return !level.unit_blocked(probe.x, probe.y, probe.shape) && !crowd.at(probe.x, probe.y, &probe);
     }, out_x, out_y);
     rooms_in_play->room_seeds[index] = spawn_room.seed;
@@ -446,7 +428,7 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
     }
     if (going) return true;
     const float centre_x = (float(subtile(unit.x)) + 0.5f) / 5, centre_y = (float(subtile(unit.y)) + 0.5f) / 5;
-    if (!level.unit_blocked(centre_x, centre_y, unit.shape)) { unit.x = centre_x; unit.y = centre_y; }
+    if (!level.unit_blocked(centre_x, centre_y, unit.shape)) { unit.x = Fine::centre(subtile(unit.x)); unit.y = Fine::centre(subtile(unit.y)); }
     monster.steps.clear();
     monster.step = 0;
     return false;
@@ -1339,7 +1321,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (const auto* start = game_data.skills.get(id); start && start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotUp && monster.buried) {
                 const auto spot = free_spot_near(level, crowd, &unit, x, y, unit.shape.size, 0x1c09);
                 if (!spot) { ctx.idle(0); return true; }
-                unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
+                unit.x = Fine::centre(spot->first); unit.y = Fine::centre(spot->second);
                 monster.buried = false;
             } else if (start && (start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotDown || start->srvstfunc == d2d::rules::ServerStartFunction::kSubmerge)) {
                 monster.buried = true;

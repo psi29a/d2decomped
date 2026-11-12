@@ -25,7 +25,7 @@ namespace d2d::net::lan {
 using Bytes = std::vector<std::uint8_t>;
 
 // Bumped whenever a frame or payload changes shape: a host refuses other versions.
-inline constexpr std::uint32_t kProtocolVersion = 4;   // 2: Save, the goodbye that waits for it; 3: Resync; 4: Say, Message (stage 9)
+inline constexpr std::uint32_t kProtocolVersion = 5;   // 2: Save, the goodbye that waits for it; 3: Resync; 4: Say, Message (stage 9); 5: a unit's place in 16.16
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players

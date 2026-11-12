@@ -190,7 +190,7 @@ auto move_route(const Level& level, const UnitState& unit, int from_x, int from_
 // FUN_0064e7b0, its size, mask 0x1c09); none: it stays.
 void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, float y) {
     if (const auto spot = free_spot_near(level, crowd, &unit, int(std::floor(x * 5)), int(std::floor(y * 5)), unit.shape.size, 0x1c09)) {
-        unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
+        unit.x = Fine::centre(spot->first); unit.y = Fine::centre(spot->second);
     }
 }
 

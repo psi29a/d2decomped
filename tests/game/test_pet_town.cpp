@@ -60,11 +60,12 @@ int main() try {
     pet.until = start + 250 * kTickMs;
     pet.ctrl[0] = int(pet.until / kTickMs);                       // its last frame (FUN_005e9e60's +0x14)
     set_mode(*data, pet.monster, "NU", start);
+    const Fine placed_x = pet.monster.unit.x, placed_y = pet.monster.unit.y;   // at_x / at_y in 16.16
     const Crowd crowd;
     for (std::uint32_t now = start + kTickMs; now <= start + 40 * kTickMs; now += kTickMs) world.fight.world(false, now, 0.04f, crowd);
     std::printf("Hydra in town: at %.2f, %.2f (was %.2f, %.2f), mode %s\n", double(pet.monster.unit.x), double(pet.monster.unit.y), double(at_x), double(at_y),
                 std::string(pet.monster.mode).c_str());
-    assert(pet.monster.alive() && pet.monster.unit.x == at_x && pet.monster.unit.y == at_y);
+    assert(pet.monster.alive() && pet.monster.unit.x.raw == placed_x.raw && pet.monster.unit.y.raw == placed_y.raw);
     std::puts("OK: a pet in town runs its own think (the Hydra stands)");
     return 0;
 } catch (const std::exception& error) {

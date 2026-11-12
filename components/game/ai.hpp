@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -36,11 +37,35 @@ namespace d2d::game {
 // A monster's velocitypercent (stat 0x43) as its stat initialiser sets it (FUN_00573cb0, SetStat(0x43, 0x4b) at 0x573f16).
 inline constexpr int kMonsterVelocityPct = 75;
 
+// A unit's coordinate as game.exe keeps it: 16.16 subtiles (path +0 / +4),
+// which a walk steps (rules::walk_frame). It reads as cells, kept on its
+// subtile (a float holds 24 bits of the 27); cells written in go to the
+// nearest 1/65536 subtile, and centre() is a subtile's centre exactly.
+struct Fine {
+    std::uint32_t raw = 0;
+    Fine() = default;
+    explicit Fine(float cells) : raw(std::uint32_t(std::llround(double(cells) * 5 * 65536))) {}
+    Fine& operator=(float cells) { return *this = Fine(cells); }
+    [[nodiscard]] static Fine centre(int subtile) {
+        Fine fine;
+        fine.raw = (std::uint32_t(subtile) << 16) + 0x8000;
+        return fine;
+    }
+    [[nodiscard]] int subtile() const { return std::int32_t(raw) >> 16; }
+    operator float() const {
+        float cells = float(std::int32_t(raw)) / (65536.f * 5);
+        while (int(std::floor(cells * 5)) > subtile()) cells = std::nextafter(cells, cells - 1);
+        while (int(std::floor(cells * 5)) < subtile()) cells = std::nextafter(cells, cells + 1);
+        return cells;
+    }
+    Fine& operator+=(float cells) { return *this = Fine(float(*this) + cells); }
+    Fine& operator-=(float cells) { return *this = Fine(float(*this) - cells); }
+};
+
 // Where each world NPC is right now (index-aligned with Level::npcs):
 // patrolling NPCs walk their DS1 path, pausing at each point.
 struct UnitState {
-    float x = 0, y = 0;
-    std::uint32_t fine_x = 0, fine_y = 0;   // where a walk's frame left it, 16.16 subtiles (path +0 / +4); x / y are these in cells
+    Fine x, y;                        // cells, held in 16.16 subtiles (Fine)
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
     int dir = 0;
     bool walking = false;
@@ -1305,3 +1330,9 @@ std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crow
 std::string merc_name(const GameData& game_data, const GameData::Merc& merc, int index);
 
 }  // namespace d2d::game
+
+// A Fine prints as its cells (the logs, devctl).
+template <>
+struct std::formatter<d2d::game::Fine> : std::formatter<float> {
+    auto format(d2d::game::Fine fine, std::format_context& context) const { return std::formatter<float>::format(float(fine), context); }
+};

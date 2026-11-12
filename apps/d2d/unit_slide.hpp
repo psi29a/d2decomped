@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -52,16 +53,23 @@ inline void remember_slides(View& view, SlideFrom& from) {
     });
 }
 
-// A unit moved to its blend, and where to put it back.
-struct Slid { float* x; float* y; float at_x, at_y; };
+// A unit moved to its blend, and where to put it back as it was: a unit's
+// 16.16 place (Fine: back through a float it could land a unit off) or a
+// missile's cells.
+template <class Coord>
+struct SlidAt { Coord* x; Coord* y; Coord at_x, at_y; };
+struct Slid {
+    std::vector<SlidAt<game::Fine>> units;
+    std::vector<SlidAt<float>> missiles;
+};
 
 // Moves each unit `from` knows to `blend` (0 its last place, 1 its new
 // one); a jump past its reach, or a unit `from` doesn't know, stays put.
-inline std::vector<Slid> slide_units(View& view, const SlideFrom& from, float blend) {
-    std::vector<Slid> slid;
+inline Slid slide_units(View& view, const SlideFrom& from, float blend) {
+    Slid slid;
     std::vector<bool> taken(from.loose.size());
     std::pair<float, float> loose_start;
-    for_each_slide(view, [&](int kind, std::uint32_t id, bool keyed, float& x, float& y, float reach) {
+    for_each_slide(view, [&](int kind, std::uint32_t id, bool keyed, auto& x, auto& y, float reach) {
         const std::pair<float, float>* start = nullptr;
         if (keyed) {
             const auto found = from.keyed.find(std::uint64_t(kind) << 32 | id);
@@ -80,23 +88,25 @@ inline std::vector<Slid> slide_units(View& view, const SlideFrom& from, float bl
             start = &loose_start;
         }
         if (!start) return;
-        slid.push_back({ &x, &y, x, y });
+        if constexpr (std::is_same_v<std::remove_reference_t<decltype(x)>, float>) slid.missiles.push_back({ &x, &y, x, y });
+        else slid.units.push_back({ &x, &y, x, y });
         x = start->first + (x - start->first) * blend;
         y = start->second + (y - start->second) * blend;
     });
     return slid;
 }
 
-inline void unslide(const std::vector<Slid>& slid) {
-    for (const auto& unit_at : slid) { *unit_at.x = unit_at.at_x; *unit_at.y = unit_at.at_y; }
+inline void unslide(const Slid& slid) {
+    for (const auto& unit_at : slid.units) { *unit_at.x = unit_at.at_x; *unit_at.y = unit_at.at_y; }
+    for (const auto& shot_at : slid.missiles) { *shot_at.x = shot_at.at_x; *shot_at.y = shot_at.at_y; }
 }
 
 // Puts the View's units back where the tick has them when it goes out of
 // scope: after everything the frame draws or lights from them.
 struct SlidGuard {
-    std::vector<Slid> slid;
+    Slid slid;
     SlidGuard() = default;
-    explicit SlidGuard(std::vector<Slid> moved) : slid(std::move(moved)) {}
+    explicit SlidGuard(Slid moved) : slid(std::move(moved)) {}
     SlidGuard(const SlidGuard&) = delete;
     SlidGuard& operator=(const SlidGuard&) = delete;
     ~SlidGuard() { unslide(slid); }

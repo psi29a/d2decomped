@@ -58,11 +58,11 @@ inline Npc npc(In& input) {
     return npc;
 }
 inline void unit(Out& out, const UnitState& unit_state) {
-    out.f32(unit_state.x).f32(unit_state.y).u8(unit_state.dir).u8(unit_state.walking).u8(unit_state.hidden).u8(unit_state.alert).u32(unit_state.mode_ms).str(unit_state.mode).u16(unit_state.says);
+    out.u32(unit_state.x.raw).u32(unit_state.y.raw).u8(unit_state.dir).u8(unit_state.walking).u8(unit_state.hidden).u8(unit_state.alert).u32(unit_state.mode_ms).str(unit_state.mode).u16(unit_state.says);
 }
 inline UnitState unit(In& input) {
     UnitState unit;
-    unit.x = input.get<float>(); unit.y = input.get<float>();
+    unit.x.raw = input.get<std::uint32_t>(); unit.y.raw = input.get<std::uint32_t>();   // 16.16 subtiles (Fine)
     unit.dir = input.get<std::uint8_t>(); unit.walking = input.get<std::uint8_t>(); unit.hidden = input.get<std::uint8_t>(); unit.alert = input.get<std::uint8_t>();
     unit.mode_ms = input.get<std::uint32_t>();
     unit.mode = intern(input.str());
