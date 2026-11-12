@@ -1587,3 +1587,42 @@ Re-check: `python3 tools/ghidra/fn.py 004d9ad0 0046f000 00480e70 00470610
 00624390 00620210`; disassemble `004d9ad0`..`004d9b1c` to confirm the
 implicit-ESI convention and that the decompiler drops every callee's
 ECX/EDX register arguments here.
+
+### A lighter event-list dispatch, no removal bookkeeping: `FUN_004dc210` (batch 11)
+
+`FUN_004dc210` (0x52 bytes, `004dc210`..`004dc262`, `RET 0x8`): fastcall
+**ECX** a match value, **EDX** the unit, two stack words forwarded
+unchanged into whatever handler matches (confirmed in disassembly: `MOV
+EDI,EDX` / `MOV EBX,ECX` at entry). With a null unit it returns 0. It
+walks the unit's own event list (`+0x90`, already in `structs.tsv`, the
+same list the already-`d2d verified` `FUN_005c0c30` — `ai.hpp:590` —
+walks): for each node whose own `+0` field equals the ECX match value, it
+calls the node's own callback (node `+0x14`, a function pointer) with
+**ECX** the original match value, **EDX** the unit, and the two stack
+words plus the node's own `+0xc`/`+0x10` fields as four stack arguments —
+the same node layout (`+0`, `+0xc`, `+0x10`, `+0x14` callback, `+0x1c`
+next) `FUN_005c0c30` already uses, minus that function's "in use"/removal
+bookkeeping (its node `+2` flags word and `+0x18` previous-pointer upkeep)
+entirely: this function only reads the list, it never marks or unlinks a
+node. The decompiled call shows `(**(code**)(piVar2+5))(param_3,param_4,
+piVar2[3],piVar2[4])`, omitting that the callback's own ECX/EDX are the
+match value and the unit again — confirmed in disassembly (`MOV
+ECX,EBX`/`MOV EDX,EDI` right before `CALL EAX`), the same
+hidden-register-argument the decompiler shows for a direct call now shown
+on an indirect one.
+
+Its one caller, the already-`d2d verified` `FUN_004d2d70` (the client's
+hit and explosion, `missiles.md:117`), calls `FUN_004dc210(unit, 0)` right
+after applying a hit's socket/state changes — dispatching event type 0 to
+any handler the unit's own event list carries for it.
+
+Not traced: what event type 0 means to a caller elsewhere, and whether any
+unit ever registers a handler for it (no handler-registration call was
+read here). d2d: not ported as a function; `FUN_005c0c30`'s own raise
+behaviour is the part of this system with a d2d equivalent
+(`components/game/ai.hpp:590`); no disagreement found with how
+`FUN_004d2d70` uses this lighter dispatch.
+
+Re-check: `python3 tools/ghidra/fn.py 004dc210 005c0c30 004d2d70`;
+disassemble `004dc210`..`004dc262` to confirm the ECX=match/EDX=unit
+fastcall and that the indirect call passes the callback its own ECX/EDX.
