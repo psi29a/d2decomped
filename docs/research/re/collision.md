@@ -3641,6 +3641,292 @@ server's own skill data (the flag could only matter for the client's copy).
 Re-check: `python3 tools/ghidra/fn.py 004acd70 004ad020`; disassemble
 `004acd70`..`004acda9` and `004ad05a`..`004ad080`.
 
+### NPC item-list repair pass: `FUN_00576c30` (batch 30)
+
+`00576c30`..`00576c8c` (93 bytes). Registers read in disassembly: **ECX**
+the owning unit (saved in EBX; `[EBX+0x60]` is its inventory), **EDX** the
+inventory to walk (pushed at once to `0063b2c0`, the first-item walker),
+plain `RET`. Ghidra names ECX "player"; both callers pass the NPC. Each item
+node is turned into its carried item with `0063dfd0` and the next node is
+fetched with `0063dfa0` before the body runs. For a non-null carried item it
+sets bit `0x4` of the `+0xc8` flag word. It then calls `0055f590(item,
+".\UNIT\SUNITNPC.CPP", 0x2da)` and, on a nonzero result, `006280d0(item, 1,
+1)`. Last it calls `0063cc70(unit +0x60, item)`, adding the item to the
+unit's update list. Callers: `FUN_00579430` at `005794dd` (EDX = the NPC's
+own inventory, `[ESI+0x60]`) and at `005794fe` (EDX = the proxy inventory
+from `00536c50`).
+
+d2d: no function carries this address. Not traced: what `0055f590` returns
+and whether it tolerates a null item (the `JZ` at `00576c53` skips only the
+flag write, not the two calls after it); what bit `0x4` of `+0xc8` and the
+`006280d0` flag mean.
+
+Re-check: disassemble `00576c30`..`00576c8c`; xrefs to `00576c30`.
+
+### Trade-list item roll: `FUN_00576c90` (batch 30)
+
+`00576c90`..`00576d85` (248 bytes). **ECX** game, **EDX** unit (both pass
+straight to `00535f10`, the NPC record lookup, which gets `&index` on the
+stack), stack args at `[EBP+8]` seed pointer, `[EBP+0xc]` (not read in the body),
+`[EBP+0x10]` out item code, `[EBP+0x14]` pointer to a word that is read at
+entry and written back; `RET 0x10` at `00576d42` and `00576d85`. The NPC
+record plus `0x20` is the trade block. A null record halts (line `0x389`), a
+null block halts (`0x383`) and a zero byte at block `+3` halts (`0x384`).
+With a list pointer at `+0xc` and a count at `+0x10`: both nonzero ->
+`0045c3e0(seed, count)` picks an index (ECX seed, EDX count). The function
+then **advances the seed a second time by hand**:
+`seed = seed.low * 0x6ac690c5 + seed.high` as a 64-bit step
+(`00576cea`..`00576cff`). It then converts the 12-byte entry's code (entry
+`+4`; stride from `LEA ESI,[ESI+ESI*2]; ADD ESI,ESI`) with `00633640` and
+looks the class up with `00629c80` (result unused), writes the code to the
+out slot, writes the saved word back, and returns 1. Zero count or a null
+list: `*out = 0`, return 0 (`00576d76`).
+
+Caller: `FUN_00579030`. d2d: no function carries this address. Not traced:
+whether `0045c3e0` already advances the seed itself (if it does, each roll
+steps the seed twice).
+
+Re-check: disassemble `00576c90`..`00576d85`; the `0x6ac690c5` multiply is at
+`00576cec`.
+
+### Gold forwarder: `FUN_00576f40` (batch 30)
+
+`00576f40`..`00576f48` (9 bytes): `PUSH EBP; MOV EBP,ESP; POP EBP; JMP
+0055b060`. It is a tail jump, so ECX, EDX and the stack arguments reach
+`0055b060` unchanged and the callee's `RET n` returns to the caller. No xref
+of any type in the database.
+
+d2d: not ported. Not traced: `0055b060`'s argument count (Ghidra shows ECX
+game, EDX unit and a gold amount).
+
+Re-check: disassemble `00576f40`.
+
+### First NPC inventory item of a class that is not flagged: `FUN_00577670` (batch 30)
+
+`00577670`..`005776d7` (104 bytes). **ECX** NPC unit (`[ECX+0x60]`
+inventory), **EDX** class id (saved to EBX), plain `RET`. A null inventory
+returns 0. Walks the inventory with `0063b2c0` / `0063dfd0` / `0063dfa0`;
+the class compared is the carried item's `+4` (or -1 for a null carried
+item). On a match it returns the item when bit `0x10` of `+0xc8` is clear;
+a set bit moves on to the next entry. Returns 0 when nothing matches. Bit
+`0x10` is the one `FUN_00576650` sets (next entries). The Ghidra name
+"GetBuyableStackSize" is a guess. No xref of any type in the database.
+
+d2d: not ported. Not traced: what bit `0x10` is named in the original.
+
+Re-check: disassemble `00577670`..`005776d7`; the `SHR ECX,4; AND ECX,1`
+at `005776b8`.
+
+### Clone with flag 1: `FUN_005776e0` (batch 30)
+
+`005776e0`..`005776ef` (18 bytes). ECX game and EDX unit pass through; the
+stack argument at `[EBP+8]` is pushed after a constant 1 to `0055a2a0`
+(Ghidra: `ITEM_CloneFromSerializedData`); `RET 4`. Ghidra's label "ReturnZero2"
+in the function comment is wrong, since it returns whatever `0055a2a0`
+leaves in EAX. No xref of any type in the database.
+
+d2d: not ported. Not traced: `0055a2a0`'s body.
+
+Re-check: disassemble `005776e0`.
+
+### Move an item off the NPC into the proxy inventory: `FUN_00576650` (batch 30)
+
+`00576650`..`005766c8` (123 bytes). **ECX** player, **EDX** NPC unit (kept
+in EDI), stack `[EBP+8]` item, `[EBP+0xc]` game, `[EBP+0x10]` flag; `RET
+0xc`. Null item or null NPC returns at once. It asks `00536c50(game, player,
+NPC)` for the proxy inventory (null returns). It then calls
+`00560420(item guid [item+0xc], &item, 0, 0, proxyInv, 0)`, with ECX game and
+EDX NPC. With the flag nonzero it ORs `0x10` into the item's `+0xc8`, calls
+`00621000(NPC, 1)`, `0063cc70(proxyInv, item)` and `00628170(item, 1, 1)`.
+With the flag zero it calls `00557fd0(game, item)` instead, which Ghidra
+names the item delete-and-free. Callers: `FUN_00537680` (per `store.md`).
+
+d2d: no function carries this address. Not traced: the meaning of the last
+two `1` arguments to `00628170` (Ghidra's `ITEMCMD_DELETE` is a lead only).
+
+Re-check: disassemble `00576650`..`005766c8`; xrefs to `00576650`.
+
+### Re-seat the player's hireling: `FUN_005773d0` (batch 30)
+
+`005773d0`..`00577462` (147 bytes). **ECX** game, **EDX** player, plain
+`RET`. It calls `00574ec0(game, player, 7, 0)` (the constant 7 is the pet type; its name is a lead); null returns. Then it calls `005754b0(game, player, x, y)`
+with the player's tile position: for player-unit type 2 or types 4..5
+(types 2, 4, 5; the unit-type enum is not re-read here) it reads the static path
+(`[unit+0x2c]`) at `+0xc` (X) and `+0x10` (Y); otherwise the dynamic path via
+`006488c0` (X) and `00648900` (Y), with 0 for a missing path. The X is the
+first stack argument and Y the second (EAX pushed after EDI). The Ghidra name
+"ValidateGambleItem" is wrong; `hireling.md` already calls it the
+repositioning helper, and this read agrees.
+
+d2d: the hireling follows its own logic; not ported by address. Not traced:
+`005754b0`'s body and its callers.
+
+Re-check: disassemble `005773d0`..`00577462`.
+
+### Re-apply item stat lists on a unit: `FUN_00577470` (batch 30)
+
+`00577470`..`005774e8` (121 bytes). **ECX** the unit, plain `RET`, returns 1
+(0 for a null unit or null inventory). Walks `[unit+0x60]` with `0063b2c0` /
+`0063dfa0` / `0063dfd0`. For each carried item whose unit type is 4 it calls
+`00625820(item, &out)` (Ghidra: owner lookup) and, when that returns nonzero,
+`006277f0(unit, item)` followed by `00627910(unit, item, out)`. So it
+re-applies each item's stat list to the unit. "ProcessGambleResult" is a
+guess with no support in the body.
+
+d2d: no function carries this address (`npc-menu.md` notes it as not ported).
+Not traced: the stat-list semantics of the three callees.
+
+Re-check: disassemble `00577470`..`005774e8`.
+
+### Create and hire a merc unit: `FUN_005774f0` (batch 30)
+
+`005774f0`..`00577667` (378 bytes). **ECX** game, **EDX** player (saved at
+`[EBP-8]`), stack `[EBP+8]` name id word, `+0xc` hire seed word, `+0x10`
+name-id override word (0xffff = none), `+0x14` class override, `+0x18` replace
+flag; `RET 0x14` at `00577563` and `00577667`. The merc's act is
+`00663750(game +0x70 (expansion), 0, name id)`. The player's act comes from
+`[player+0x18]` or, when `005531c0` (player, file, line `0x735`) returns a
+client, from `005382b0(client)` (line `0x737`). Without the expansion byte
+the merc act must be non-negative and equal the player's act, or 0 returns.
+The row is `006562f0(expansion, override, 1)` or, with no override,
+`00656580(expansion, merc act, [game+0x6d] (difficulty), 0)`; a null row
+halts (line `0x744`). Row fields read: `+0x8` class, `+0x14` seller class,
+`+0x114` / `+0x116` first / last name word. The name id is clamped to the
+first name when outside the range. The seller record comes from
+`00535ea0(game, &idx)`; if its slot array (`+0x10`, stride 16) entry
+`[name - first]` has `+0xc` zero, that entry's `+8` is set to 1. The unit is
+`00555230(type 1, class, 0, 0, game, 0, 1, mode, 0)` with mode `0xc` when the
+replace flag is set, else 1. Success calls `00573270(game, player, merc,
+override, &hire{name word, seed}, replace)` and returns the merc.
+
+d2d: not ported by address (`hireling.md`). Not traced: `00573270`'s body.
+
+Re-check: disassemble `005774f0`..`00577667`.
+
+### Buy relay with interaction check: `FUN_00577f30` (batch 30)
+
+`00577f30`..`00577fd5` (168 bytes). **ECX** game (null halts, line `0x944`),
+**EDX** player, six stack args `[EBP+8]`..`[EBP+0x1c]`, `RET 0x18`. It looks up
+the player's interacted NPC with `00554d00` and the unit named by the first
+stack arg (monster type 1) with `00552f60`. If the unit exists and equals the
+interacted NPC, it forwards game, player, NPC and the five remaining args to
+`FUN_00577830` and returns its result. Otherwise it sends opcode `0x2a` via
+`0053d740` (DL `0x2a`, ECX the client from `005531c0`, line `0x94c`) with
+result code 9, gold = stat `0xe`, unit id -1 and trade type 0, and returns 1.
+Net-packets maps this to client packet `0x32`.
+
+d2d: no function carries this address. Not traced: what code 9 shows on the
+client.
+
+Re-check: disassemble `00577f30`..`00577fd5`.
+
+### Merc hire relay with interaction check: `FUN_00577fe0` (batch 30)
+
+`00577fe0`..`0057804d` (112 bytes). **ECX** game, **EDX** player, stack
+`[EBP+8]` NPC guid, `[EBP+0xc]` merc name word; `RET 8`. Same check as
+`FUN_00577f30`: the interacted NPC (`00554d00`) must equal the unit found by
+`00552f60(game, 1, guid)`. Match forwards to `FUN_005770e0(game, player, npc,
+name)`; otherwise it sends opcode `0x2a` with result code 9, gold stat
+`0xe`, id -1, type 0 (line `0x9ad`).
+
+d2d: no function carries this address. Not traced: `FUN_005770e0` (750 bytes)
+was not read in this batch.
+
+Re-check: disassemble `00577fe0`..`0057804d`.
+
+### Trade-list discard rolls: `FUN_00579030` (batch 30)
+
+`00579030`..`00579086` (89 bytes). **ECX** game, **EDX** player, stack
+`[EBP+8]` queue field 0, `[EBP+0xc]` queue value; `RET 8`. It gets the NPC
+control seed from `00536b40(game)` and a level from `00576890(game, player,
+field 0)`. It then calls `FUN_00576c90(game, player, seed, level, &code,
+&value)` up to 5 times, stopping on the first zero, and returns 0 on every path
+(one `XOR EAX,EAX` at `00579080`). Only effect: it steps that seed. Caller:
+`FUN_005368f0` (`SUNITPROXY_ProcessNpcItemQueue`, `00536aa5`); the caller's
+nonzero branch cannot be taken.
+
+d2d: no function carries this address. Not traced: whether d2d's store
+refresh reproduces the seed advance.
+
+Re-check: disassemble `00579030`..`00579086`; the call at `00536aa5`.
+
+### Refill the last NPC's store: `FUN_00579090` (batch 30)
+
+`00579090`..`00579124` (149 bytes). **ECX** game (saved in ESI and
+`[EBP-8]`), **EDX** player (`[EBP-4]`), plain `RET`. It reads the global
+`0x88cac4`, which has one writer (`00578e85`, inside `FUN_00578e70`, storing
+the NPC unit id `[npc+0xc]`, or -1 for a null NPC) and this one reader. A zero
+global returns. Otherwise `00552f60(game, 1, id)` finds the unit, and if the
+monster's AI sub (`[[unit+0x14]+0x30]` through `00572dc0`) is not 1, the
+function takes its NPC record (`00535f10`), clears its inventory
+(`0063cb70`, `0063bd00`) and, when the record has `[trade+3]`, sets
+`[trade+0]` to 0, calls `FUN_00576980(game, player, npc, trade)` (store
+fill) and sets it back to 1. The Ghidra name "HandleResurrect" is unsupported:
+nothing in the body touches a merc or a resurrection. No xref of any type to
+this function.
+
+d2d: no function carries this address. Not traced: whether it is dead or
+reached through a table with no database reference.
+
+Re-check: xrefs to `0088cac4` (two); disassemble `00579090`..`00579124`.
+
+### End an NPC interaction: `FUN_00579130` (batch 30)
+
+`00579130`..`00579176` (71 bytes, verified up to the NPC type test).
+**ECX** game (EDI), **EDX** player (ESI), stack `[EBP+8]` NPC unit; `RET 4` is
+inferred from the caller pushing one stack argument. It calls `00554190(player)` (Ghidra: ClearInteractInfo).
+For a monster-type NPC (`[npc] == 1`) with a unit-data pointer per the decompiler only (disassembly read to `00579146`), it frees
+the specific AI for the player with the unit data's AI pointer; otherwise it
+does the same with null. Callers: `FUN_005350f0` at `00535138` and `FUN_005351c0` at
+`0053520f`. `monsters.md:859` already read this statically.
+
+d2d: no function carries this address. Not traced: the epilogue past the
+type test, which this batch read to `00579146` only; the `RET` count is
+inferred from the stack argument.
+
+Re-check: disassemble `00579130`..`00579176`.
+
+### Healer: pay and heal: `FUN_00578ed0` (batch 30)
+
+`00578ed0`..`0057902b` (350 bytes). **ECX** game (EDI), **EDX** player (ESI),
+stack `[EBP+8]` NPC guid; `RET 4`. It runs only if the unit from
+`00552f60(game, 1, guid)` is nonzero and equals the player's interacted NPC
+(`00554d00`). Needs-heal flag: stat 6 differs from `00625d10(player)` or stat
+8 differs from `00625d60(player)`. Cost: `00622de0(player)`, or 1 if zero.
+Branches: (a) stat `0xa` equals `00625db0(player)` and no flag: reply code
+`0xe`; (b) stat `0xe` plus stat `0xf` below the cost: code `0xc`; (c)
+`FUN_00576d90(game, player, cost)` returns 0: code 9; (d) otherwise
+`FUN_00578d30(game, player, npc)` heals and the reply code is 6. Each path
+sends `0053d740` (DL `0x2a`, ECX from `005531c0`) with the code, stat `0xe`,
+id -1 and 0. The pushed numbers `0xf08`, `0xf15`, `0xf1c`, `0xf22` are source
+line numbers for the client lookup, not message ids. Ghidra's
+"ExecutePrayUnused" is not backed by the body. No xref of any type to this
+function.
+
+d2d: heal pricing is already written up in `combat.md:550`; this entry adds
+the branch order. Not traced: the max getters `00625d10` / `00625d60` /
+`00625db0` and `00622de0`'s price formula.
+
+Re-check: disassemble `00578ed0`..`0057902b`.
+
+### Trade action and repair refresh: `FUN_00579430` (batch 30)
+
+`00579430`..`0057950a` (220 bytes). **ECX** game (EBX), **EDX** player
+(`[EBP-4]`), stack `[EBP+8]` NPC unit, `[EBP+0xc]` repair flag, `[EBP+0x10]`
+mode; `RET 0xc`. Null NPC or no NPC record (`00535f10`) returns. It sets the
+record's `+0x1c` to 1 and `+0x40` to the NPC guid, then calls
+`FUN_00578b30(game, player, npc, mode)`. NPC classes `0x96`, `0x203` and
+`0xc6` return there. With the repair flag set, mode 0 and the trade byte `+7`
+(record `+0x27`) set, it clears that byte, resets the proxy with `00536d10`,
+refills the store with `FUN_00576980` and sets the trade block's byte 0 to 1.
+Then `00621000(npc, 1)`. Mode 0 runs `FUN_00576c30` on the NPC's own
+inventory; any other mode fetches the proxy inventory with `00536c50` and, if
+present, runs it there.
+
+d2d: no function carries this address (store logic is in `rules.hpp`). Not
+traced: the meaning of the mode values and of the `+7` byte's name.
+
+Re-check: disassemble `00579430`..`0057950a`.
 ### Client missile hit callbacks that scan or fan out: `FUN_004cf150`, `FUN_004d04d0`, `FUN_004d05e0` (batch 27)
 
 Entries 64, 30 and 4 of the client hit table at `0x72a508` (entry `n` is the
