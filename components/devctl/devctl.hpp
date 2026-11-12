@@ -13,8 +13,8 @@
 // Local dev only. There is no auth and the socket is on the local
 // filesystem — never enable in shipped builds.
 //
-// POSIX only. On Windows, listen() is a warn-and-noop and pump() does
-// nothing, so callers stay portable.
+// POSIX and Windows 10 1803+ (Winsock's AF_UNIX, afunix.h): the same
+// socket, protocol and pump on both.
 #pragma once
 
 #include <functional>

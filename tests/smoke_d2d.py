@@ -10,8 +10,9 @@ copies every .d2s from $D2_SAVES_DIR when set — then clicks through
 CharSelect -> InGame and pans left (the old infinite-loop direction).
 Skips when the MPQ dir isn't reachable, like the other asset tests.
 """
-import os, platform, shutil, socket, struct, subprocess, sys, tempfile, time
-import re
+import os, re, shutil, struct, subprocess, sys, tempfile, time
+
+import devctl_client
 
 d2d = sys.argv[1]
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")
@@ -20,8 +21,7 @@ if not os.path.exists(os.path.join(data, "d2data.mpq")):
     sys.exit(77)   # ctest's SKIP_RETURN_CODE (tests/CMakeLists.txt)
 
 home = tempfile.mkdtemp(prefix="d2d_smoke_")
-user = os.path.join(home, "Library/Preferences/d2d" if platform.system() == "Darwin"
-                    else ".config/d2d")
+user, env = devctl_client.isolated(home)   # the user dir d2d uses, on every OS
 saves = os.path.join(user, "save")
 os.makedirs(saves)
 
@@ -58,7 +58,6 @@ else:
     patch = None
 
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_smoke_{os.getpid()}.sock")
-env = dict(os.environ, HOME=home)
 env.pop("D2_MPQ_DIR", None)   # --data wins anyway; keep the env honest
 # --scale 2: every click below is in 800x600 game pixels, so the whole run
 # also checks window<->game coordinate conversion.
@@ -67,9 +66,7 @@ proc = subprocess.Popen([d2d, "--headless", "--seed", "3", "--data", data, "--de
 
 def cmd(line):
     # Replies end with a line starting "ok" (maybe "ok <payload>") or "err".
-    with socket.socket(socket.AF_UNIX) as s:
-        s.settimeout(5)               # a stuck main loop fails fast
-        s.connect(sock_path)
+    with devctl_client.connect(sock_path, 5) as s:   # a stuck main loop fails fast
         s.sendall((line + "\n").encode())
         out = ""
         while not out.endswith("\n") or not out.rsplit("\n", 2)[-2].startswith(("ok", "err")):

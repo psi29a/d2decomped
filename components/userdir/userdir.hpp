@@ -36,6 +36,15 @@ namespace d2d::userdir {
 namespace fs = std::filesystem;
 
 inline fs::path user_dir(std::string_view app) {
+    // D2D_USER_DIR, set: the whole user dir. The headless test scripts keep
+    // each run apart from the real one with it (on Windows, d2d's dir doesn't
+    // follow HOME). Windows reads it wide: a path outside the code page
+    // stays whole.
+#if defined(_WIN32)
+    if (const wchar_t* forced = ::_wgetenv(L"D2D_USER_DIR"); forced && *forced) return fs::path(forced);
+#else
+    if (const char* forced = std::getenv("D2D_USER_DIR"); forced && *forced) return fs::path(forced);
+#endif
 #if defined(_WIN32)
     fs::path base(".");
     PWSTR docs = nullptr;

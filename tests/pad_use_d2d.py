@@ -9,7 +9,9 @@ town portal cast in the Blood Moor back to camp, A opens the camp's
 waypoint, the d-pad steps its rows from the first (the cursor lands
 there) and A travels to the Cold Plains. Skips without the MPQs.
 """
-import atexit, os, platform, socket, struct, subprocess, sys, tempfile, time
+import atexit, os, struct, subprocess, sys, tempfile, time
+
+import devctl_client
 
 d2d = sys.argv[1]
 identify_ux = "--identify-ux" in sys.argv[2:]
@@ -30,7 +32,7 @@ if (skill_buttons or seed_ux or keyboard_ux or identify_ux) and not os.path.isfi
     sys.exit(77)
 
 home = tempfile.mkdtemp(prefix="d2d_pad_use_")
-user = os.path.join(home, "Library/Preferences/d2d" if platform.system() == "Darwin" else ".config/d2d")
+user, env = devctl_client.isolated(home)   # the user dir d2d uses, on every OS
 saves = os.path.join(user, "save")
 os.makedirs(saves)
 for index, name in enumerate(["Alpha"]):   # expansion softcore, newest first: Alpha
@@ -58,13 +60,11 @@ if portal_ux:
 
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_pad_use_{os.getpid()}.sock")
 proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux or seed_ux or keyboard_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
-                        env=dict(os.environ, HOME=home))
+                        env=env)
 atexit.register(lambda: proc.poll() is None and proc.kill())
 
 def cmd(line):
-    with socket.socket(socket.AF_UNIX) as s:
-        s.settimeout(10)
-        s.connect(sock_path)
+    with devctl_client.connect(sock_path, 10) as s:
         s.sendall((line + "\n").encode())
         out = ""
         while not out.endswith("\n") or not out.rsplit("\n", 2)[-2].startswith(("ok", "err")):
@@ -224,7 +224,7 @@ if seed_ux:
         global proc
         if os.path.exists(sock_path):
             os.unlink(sock_path)
-        proc = subprocess.Popen(proc.args, env=dict(os.environ, HOME=home))
+        proc = subprocess.Popen(proc.args, env=env)
         for _attempt in range(400):
             if os.path.exists(sock_path):
                 break
