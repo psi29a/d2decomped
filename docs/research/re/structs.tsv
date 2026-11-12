@@ -102,6 +102,7 @@ missile_request	0x30	u32	level	missile level	docs/research/re/ai-control.md:220
 missile_row	0xdc	u32	delay	launcher retry timing in 256ths	docs/research/re/ai-control.md:220
 minion_node	0x00	u32	unit_id	minion unit ID	docs/research/re/ai-control.md:81
 minion_node	0x04	ptr	next	next minion ID node	docs/research/re/ai-control.md:60
+monster_data	0x00	ptr	monstats_row	cached MonStats row (class * 0x1a8 + table base), 0 out of range	docs/research/re/collision.md:1448
 monster_data	0x28	ptr	ai_control	AI control pointer	docs/research/re/ai-control.md:3
 monster_data	0x30	ptr	state_gate	pointer passed to FUN_00572dc0	docs/research/re/ai-control.md:185
 monstats_spawn	0x56	u16	count	spawn count for normal difficulty	docs/research/re/ai-control.md:37

@@ -1432,6 +1432,191 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
 
+### A fifth monster-mod dispatch slot: `FUN_004ade80` (batch 13)
+
+Right after the four mod-dispatch slots `names.tsv` already names
+(`monster_mod_dispatch_0`..`_3`, `004ade40`..`004ade7f`, each
+`FUN_004add90(unit, 0, N)`): `FUN_004ade80` (0x17 bytes,
+`004ade80`..`004ade97`, fastcall ECX unit / EDX a forwarded value,
+confirmed in disassembly) is a fifth slot with a different gate — a null
+unit **or a zero EDX** skips the call, where the first four pass a
+literal 0 unconditionally — plus the unit being a monster (`*unit == 1`):
+`FUN_004add90(unit, EDX, 4)`. Its one caller is `FUN_004cd540` (the
+client's generic missile/event sequencer, already cited
+`collision.md:1294`, `lighting.md:378`, `missiles.md:142`,
+`unit-sounds.md:322`, `ponytail:0515ee35`). `FUN_004add90` itself (cited,
+`names.tsv:235`-`238`, `unit-sounds.md:322`) is not re-read here: it runs
+the table at `0x724e28` by `mod * 5 + event`. Not traced: what value
+`FUN_004cd540` forwards as EDX, or whether it is itself a mod or an event
+index into that table.
+
+d2d: not ported as a function; no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004ade80`; disassemble
+`004ade80`..`004ade97` to confirm the ECX/EDX gate (the first four slots
+check only ECX).
+
+### Two more monster type-data accessors: `FUN_004ae0a0` and `FUN_004ae170` (batch 13)
+
+Two more accessors beside the monster-data cluster `units.md:236` already
+names (`FUN_004ae080`'s `+0x28` masked word to `FUN_004ae110`'s `+0x30`
+modifier list) — `structs.tsv`'s `monster_data` rows at `0x28`
+(`ai_control`, `ai-control.md:3`) and `0x30` (`state_gate`,
+`ai-control.md:185`) sit in the same span.
+
+- **`FUN_004ae170`** (0x17 bytes, `004ae170`..`004ae187`, fastcall ECX
+  unit, plain `RET`): a null unit, a non-monster unit, or a null
+  monster-data pointer (unit `+0x14`) returns 0; otherwise returns the
+  **address** monster-data `+0x34` (`LEA EAX,[ECX+0x34]`, confirmed in
+  disassembly — it hands back a pointer into the struct, not a
+  dereferenced value, the same shape `ai-control.md:8`'s `FUN_0058f000`
+  uses for control `+0x38`). Its two callers, `FUN_0046ce40` and
+  `FUN_0046d110` (both already ported, `apps/d2d/town/ambient.cpp:195` and
+  `:173`, `critters.md:47`-`48`), are outside the UNIT module; what either
+  does with the returned address is not traced here.
+- **`FUN_004ae0a0`** (0x40 bytes, `004ae0a0`..`004ae0e0`, fastcall ECX
+  unit / EDX a 16-bit value, confirmed in disassembly): the same
+  null/non-monster/null-monster-data gate, then two writes to the
+  monster-data record:
+  1. `*(uint16_t *)(monster_data + 0x28) = EDX` — the same offset
+     `structs.tsv` documents as the 4-byte `ai_control` pointer
+     (`ai-control.md:3`), here written as only its low 16 bits. The two
+     claims are not reconciled here: whether `ai_control` is still
+     unallocated at this call site, so the overwrite is harmless, was not
+     traced.
+  2. the unit's own `class` (`unit +0x4`, `structs.tsv`) is checked
+     against the MonStats row count (`[0x744304] +0xa80`); in range,
+     monster-data `+0x0` is set to the MonStats row address
+     (`[[0x744304] +0xa78] + class * 0x1a8` — `+0xa78` is a slot holding
+     the table's own base pointer, dereferenced before the class offset
+     is added, confirmed against `FUN_005735a0`'s identical form; the
+     same table `monsters.md:10` and `collision.md:947` already name,
+     both still with the single-bracket form); out of range, monster-data
+     `+0x0` is zeroed.
+
+  Callers: `FUN_00466360` (the client's monster-colour/creation step,
+  already cited `bugs.md:68`, `monsters.md:554`), `FUN_004ae8d0` and
+  `FUN_004aedd0` (both already cited `collision.md:936`/`:1063`,
+  `missiles.md:1018`). What each passes as the EDX word is not traced.
+
+d2d: not ported as a function for either; no disagreement found.
+`structs.tsv` gets a new `monster_data +0x0` row for the MonStats-row
+cache this commit adds.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae0a0 004ae170`; disassemble
+`004ae0a0`..`004ae187` to confirm the EDX word write at `+0x28` and the
+`LEA`-only getter at `+0x34`.
+
+### Replaying a path-target action: `FUN_004ae1d0` (batch 13)
+
+`FUN_004ae1d0` (0x37 bytes, `004ae1d0`..`004ae207`, no ECX/EDX move at
+entry at all — the unit arrives in **ESI** already, confirmed in
+disassembly, a naked convention like `FUN_004656c0`'s above): a null
+unit, a non-monster unit, or a mode (unit `+0x10`) that is 0, `0xc`, or at
+or past `0x10` skips everything and returns. Otherwise, in order:
+`FUN_00465bf0(unit, 0)` (untouched here; its own body was not read in
+this commit), `FUN_00480490(unit)` (0xa bytes, `00480490`..`0048049a`,
+fastcall ECX unit, plain `RET`: one call, `FUN_00650590(unit +0x2c)` — the
+unit's `path` pointer, `structs.tsv`; `FUN_00650590` is already cited
+`collision.md:1137` as part of `FUN_00461250`'s command-0x13 handling,
+not re-read here), then a tail call to `FUN_00480e70(unit, 1)`
+(`UNITMODE_SetAnimMode`, already described `collision.md:1194`). So for a
+monster in modes 1-0xb or 0xd-0xf it plays something at the unit's path
+target and sets mode 1 before returning through `SetAnimMode`'s own tail.
+Its one caller, `FUN_004aff60` (the client's monster unit-command
+handler, verified, already cited `collision.md:1077`/`:1104`,
+`net-packets.md:71`), was not re-read for which commands reach it.
+
+d2d: not ported as a function; `SetAnimMode` itself is already verified
+(`tools/emu/unitmode_setanim.py`); no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae1d0 00480490`; disassemble
+`004ae1d0`..`004ae207` to confirm the naked ESI convention and the two
+calls in order.
+
+### A per-mode MonStats2 flag test: `FUN_004afbc0` (batch 13)
+
+`FUN_004afbc0` (0x42 bytes, `004afbc0`..`004afc02`, fastcall ECX unit,
+plus a second, naked **EAX** struct pointer — confirmed in disassembly,
+not shown in the decompile's signature at all): a null unit or null EAX
+struct returns 0; otherwise reads the struct's `+4` field as a presence
+gate and its `+0` field as a bit index (`< 0x10`). With both set, it
+calls `FUN_00451fe0(unit's class, unit +0x4)` — the MonStats2 row lookup
+`unit_size.hpp` already names (MonStats row `+0x18` word → MonStats2
+index, bounded, `* 0x134 + [0x744304] +0xa90`) — and, with a row, tests
+the bit index of the row's own byte array starting at `+0x104`
+(`(bit >> 3) + 0x104`, masked by the same `DAT_006ce268` bit-mask table
+`FUN_004638a0` (`montypes.hpp:62`) uses for its own, different flag byte
+at `+4`). A missing row, or either gate failing, returns 0.
+
+Its two call sites (both in `FUN_004aff60`, confirmed in disassembly) sit
+right after `FUN_00480e70(unit, mode)`, with ECX the same unit and EAX
+the same struct pointer whose `+0` field supplied that mode — so the bit
+tested is the mode just set, and the struct's `+4` field is the same
+value `FUN_00480e70`'s own call there read. Which MonStats2 flag byte
+`+0x104` is (a Monstats2.txt column, if any) is not traced; `montypes.hpp`'s
+ported flag byte is `+4`, a different one.
+
+d2d: not ported as a function; no disagreement found (nothing in
+`montypes.hpp` reads `+0x104`).
+
+Re-check: `python3 tools/ghidra/fn.py 004afbc0 00451fe0 004638a0`;
+disassemble `004afbc0`..`004afc02` and `004b0280`..`004b02b0` (one call
+site) to confirm the EAX struct and the post-`FUN_00480e70` placement.
+
+### A per-event client hook: `FUN_004ae4f0` (batch 13)
+
+`FUN_004ae4f0` (0x13c bytes, `004ae4f0`..`004ae62c`, fastcall ECX unit,
+plus a naked **EAX** event code — confirmed in disassembly, the decompile
+hides it as `in_EAX`): two jump tables (`0x4ae62c` for codes up to
+`0x158`, `0x4ae6f4` for codes `0x159` and up) switch on the event code;
+out-of-range falls through to a bare `RET`. In call order:
+
+- `0x158`: reads the local player (`FUN_00463dd0`, already cited
+  `collision.md:1110`/`:1112`/`:1136`) and advances a 64-bit counter at
+  the **player's** own `+0x20`/`+0x24` fields — the same two `structs.tsv`
+  names `seed_low`/`seed_high` for a monster's drop seed (`drops.md:129`),
+  here advanced for the player by a different step (`low * 0x6ac690c5 +
+  high`, with the carry folded in, not `FUN_00552df0`'s step; not
+  reconciled with `drops.md`'s reading of those fields as fixed once at
+  creation). The new low dword's low byte, masked `& 0x3f`, becomes the
+  **unit's** own path direction via `FUN_006488a0(path, byte)`
+  (`path.md:68`, "direction and new direction both = argument & 0x3f"),
+  bracketed by `FUN_00649030(path, 1)` then `FUN_00649030(path, 0)`
+  (`path.md:93`, "a zero argument sets flag 0x40, non-zero clears it").
+- `0x96`: stores the unit pointer at global `0x7c0c5c`. What reads it
+  back is not traced.
+- `0x9d`, `0x9e`, `0x13f`: `FUN_00649190(unit, 5)` then `FUN_00648ce0(unit
+  +0x2c, 0)` (both already verified, `path.md:97`, `path.md:85`).
+- `0x14b`: with a local player (`FUN_00463dd0`), `FUN_00620c10(unit,
+  player)` (already verified, `ai-control.md:203`, `collision.md:758`,
+  `missiles.md:318`, `units.md:229`) then `FUN_00465bf0(unit, 0)`
+  (untouched here, not re-read).
+- `0x19d`, `0x23a` (two codes, one shared body): chains `FUN_0045ae20` →
+  `FUN_0045adf0` → `FUN_004cdb40(unit, 0x188, ...)` (the same pair used
+  elsewhere as a two-value input, `collision.md:1335`/`:1343`, their own
+  meaning not resolved there either; `FUN_004cdb40` already cited
+  `missiles.md:905`, `stubs.md:18`); the exact argument plumbing between
+  the three calls was not fully resolved from the disassembly here.
+  `0x19d` only, a non-null result also runs `FUN_00621ce0(result, unit)`
+  (already ported, `components/game/ai.cpp:1460`/`:2075`,
+  `monster-ai.md:426`).
+- `0x1f1`, `0x1f2`, `499`, `500` (four codes, one shared body): tail-calls
+  `FUN_004ae400` (untouched, 0xef bytes, not read in this commit).
+
+Not traced: the event-code numbering itself (whether these are net-packet
+opcodes, animation events, or another space), `FUN_004ae400`'s own body,
+and what `FUN_00463dd0`'s zero/nonzero split at `0x158` and `0x14b` means
+for a client with no local player yet. Its two callers (`FUN_004ae8d0`,
+`FUN_004aedd0`) are already cited (`collision.md:936`/`:1063`,
+`missiles.md:1018`) and were not re-read for which codes they pass.
+
+d2d: not ported as a function; no disagreement found — every callee
+above already has its own d2d comparison cited.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae4f0`; disassemble
+`004ae4f0`..`004ae62c` to confirm the EAX event code and the two jump
+tables.
 ### A monster's own `+0x2c` field, read for its name: `FUN_00463810` (batch 12)
 
 `FUN_00463810` (0x17 bytes, `00463810`..`00463827`, fastcall ECX the
