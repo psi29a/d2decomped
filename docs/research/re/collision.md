@@ -1420,3 +1420,75 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+## A mercenary's level-up skill install (`FUN_004b1090`, 1.14d)
+
+`FUN_004b1090` (fastcall ECX unit, EDX a struct pointer — ushort id at `+0`,
+dword at `+4`; 339 bytes per `game-functions.tsv`, `004b1090`..`004b11e9`,
+plain `RET`) has exactly two callers, both gating it the same way: unit
+creation (`FUN_00466360`, already verified — `components/game/gamedata/gamedata.hpp:151`,
+`components/game/world.hpp:641`/`:647`, `docs/research/re/bugs.md:68`,
+`docs/research/re/monsters.md:535`) and `FUN_00478bb0`, each calling it only
+when the new unit's class word is `7` and a further check (`FUN_00463990()`
+/ `FUN_00478e40()`) is non-zero — the mercenary/hireling unit class.
+
+A null unit or struct pointer returns with nothing done. Otherwise it sets
+the unit's `+0xc4` flags `0x202`, reads the struct's ushort id and the dword
+at `+4`, and — through `FUN_00663750` and two already-identified 0-argument
+global readers, `FUN_0044dcc0` (`is_expansion`, `DAT_007a04f4`,
+`docs/research/re/char-panel.md:190`) and `FUN_0044dcd0` (the difficulty
+byte, `DAT_007a060c`, `docs/research/re/quests.md:537`) — looks up the
+mercenary's current-level Hireling.txt row (`FUN_006562f0`, already cited
+`docs/research/re/merc-ai.md:106`). With a row: the level difference
+(`local_10`, row `+0x1c`, clamped to 0 or more) drives a 6-entry walk of the
+row's skill table at `+0x78`. Each valid skill id (bounds-checked against
+`PTR_DAT_00744304+0xba0`) gets a level from the row's per-entry bytes at
+`+0xc0`/`+0xc6`/`+0xcc` (`(byte[+0xcc] * local_10 >> 5) + byte[+0xc6]`,
+capped at `0x20`) and is installed with `FUN_00647280(unit, skill_id,
+level, 0, ".\UNIT\Monster.cpp", 0x9c8)` — the same `AddSkill`-shaped call
+already read at `docs/research/re/pet-ai.md:276`/`:290` and
+`docs/research/re/unit-player-trace.md:26` — followed by
+`FUN_006439f0`/`FUN_00644340` on the row's `+0xc0` byte, the same
+entry-lookup/level-set pair `docs/research/re/pet-ai.md:272` already names.
+After the loop, `FUN_00524a30`, `FUN_0063e810` (both already verified,
+`docs/research/re/datatbls.md:715`, `docs/research/re/monsters.md:312`) and
+`FUN_004c1c10` (already verified, `docs/research/re/net-packets.md:383`)
+run once more.
+
+**A decompiler artifact, resolved from raw disassembly, not the
+pseudocode:** Ghidra's decompile shows the call to `FUN_00463dd0` taking
+four arguments (`FUN_00463dd0(uVar5,uVar3,uVar2,puVar8)`), but
+`FUN_00463dd0` itself decompiles as a bare global read with no parameters
+(`undefined4 FUN_00463dd0(void) { return DAT_007a6a70; }`), and its own
+disassembly confirms that: two instructions, `MOV EAX,[0x007a6a70]` then a
+plain `RET` — no `RET n`, and neither instruction reads or writes the
+stack. (It is already cited
+elsewhere as the local-player accessor: `apps/whisper/whisper.cpp:45`,
+`docs/research/re/char-panel.md:257`, `docs/research/re/skills.md:1793`/
+`:1841`.) Reading `FUN_004b1090`'s own disassembly at `004b10dc`-`004b10e3`
+shows the four values are pushed once, immediately *before* the call to
+`FUN_00463dd0`, and nothing pops them across that call or the next one
+(`CALL 0x0044dcd0`, also a bare-`RET` 0-argument leaf) — they sit on the
+stack untouched until `FUN_006637f0`'s own call three instructions later.
+`FUN_006637f0`'s prologue (`006637fb`-`00663814`) reads exactly four stack
+words, at `EBP+0x8`/`+0xc`/`+0x10` and a fourth further in for its
+`param_6` output pointer, on top of its two fastcall register args — six
+total, matching its own decompiled signature
+(`undefined4 __fastcall FUN_006637f0(p1,p2,p3,p4,p5,p6)`). So the
+pseudocode's `FUN_00463dd0(uVar5,uVar3,uVar2,puVar8)` is Ghidra visually
+attaching `FUN_006637f0`'s already-staged stack arguments to the wrong,
+argument-less, intervening call; `FUN_00463dd0` reads its global and
+returns, consuming none of them. Its actual return value (the local-player
+pointer) is what becomes `FUN_006637f0`'s own second fastcall register
+argument (`EDX`), after passing through `FUN_0044dcd0`.
+
+Not traced: `FUN_00663750`'s own body; the Hireling.txt row layout beyond
+the `+0x1c`/`+0x78`/`+0xc0`/`+0xc6`/`+0xcc` fields read here; `FUN_006637f0`'s
+own stat-roll formulas past the two register arguments resolved above
+(its own file already shows `d2d_merc_hireling_row`'s output consumed by
+name elsewhere — not re-read here).
+
+d2d: not ported as a function; no disagreement found. The row lookup
+(`FUN_006562f0`) and the skill-install call (`FUN_00647280`) are already
+cited as ported/verified at the locations above; the level formula and the
+6-entry loop itself have no d2d equivalent found.
