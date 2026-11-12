@@ -4,8 +4,10 @@
 // FUN_0065ac70): the near rooms, or the unit's own room when the square of
 // the radius lies inside it (FUN_0065a6b0). FUN_0065a710 lets every near
 // room through (bugs.md #23). A monster in no such room is missed. The
-// Fire Golem's blast (FUN_005a2840) is 100 physical and 100 fire within 6
-// subtiles. No game data: the rooms are built here.
+// hits in one room run newest first: FUN_0065ac70 walks the room's unit
+// list from its head (room +0x74, next at +0xe8), and FUN_0064c2c0 inserts
+// there. The Fire Golem's blast (FUN_005a2840) is 100 physical and 100
+// fire within 6 subtiles. No game data: the rooms are built here.
 
 #include <ai.hpp>
 #include <cassert>
@@ -56,6 +58,18 @@ int main() try {
     fight.monsters.push_back(foe_at(29, 35));   // room 0, 6 off
     fight.monsters.push_back(foe_at(40, 35));   // room 1, 5 off
     fight.monsters.push_back(foe_at(35, 41));   // no room, 6 off
+    // Two more in room 0, pushed oldest first. One point each, so the kill
+    // list is the hit order. The newer one (id 40) dies first.
+    auto older = foe_at(34, 35);
+    older.id = 30;
+    older.hit_points = older.stats.hit_points = 1;
+    older.no_drop = true;
+    auto newer = foe_at(36, 35);
+    newer.id = 40;
+    newer.hit_points = newer.stats.hit_points = 1;
+    newer.no_drop = true;
+    fight.monsters.push_back(std::move(older));
+    fight.monsters.push_back(std::move(newer));
     auto& pet = world.actor->pets.emplace_back();
     pet.where = world.level;
     pet.monster.type = 0;
@@ -69,7 +83,10 @@ int main() try {
     assert(fight.monsters[0].hit_points == kLife - 200);
     assert(fight.monsters[1].hit_points == kLife - 200);
     assert(fight.monsters[2].hit_points == kLife);
-    std::printf("death blast rooms: the near rooms, not the one in none\n");
+    assert(fight.kills.size() == 2);
+    assert(fight.kills[0].id == 40);
+    assert(fight.kills[1].id == 30);
+    std::printf("death blast rooms: the near rooms, newest in a room first\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_death_blast_rooms: %s\n", error.what());
