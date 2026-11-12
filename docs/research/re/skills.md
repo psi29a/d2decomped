@@ -1005,7 +1005,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   prgcalc n subtiles of the target, a missile at each that lands on the
   map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
   stands the count's missile at the target (`Fight::prg`). **41**
-  (FUN_005d5080) still rolls `rng(41) - 20`, not `seed % 0x28 - 0x14`.
+  (FUN_005d5080) aims each one at `seed % 0x28 - 0x14` on each axis
+  (`rules::release_spread_offset`; a (0, 0) pair is stored as x = 0x14).
 - A missile row with no Skill carries its own element by level
   (FUN_0064b100 / 0064b1d0 / 0064b2a0: EMin + MinELev brackets <<
   HitShift, ELen + ELevLen brackets): `rules::row_damage`.
@@ -1533,7 +1534,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   d2d: `Fight::prg` aims the row's own velocity straight at the offset.
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
-  roll is stored as x = 0x14. d2d still rolls `rng(41) - 20`.
+  roll is stored as x = 0x14. d2d: `rules::release_spread_offset`
+  (`Fight::prg`, `test_release_spread`).
 - Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
   srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
   With P the first piece's spot (where FUN_0056d940 put it) and (dx, dy)
