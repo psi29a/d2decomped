@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
+// The quest timers step on the quest clock through World::tick: a step
+// every 20th frame (FUN_0052d870 -> FUN_00543e10), and a timer of n ticks
+// runs on the (n + 1)th step (issue #383). Each case sets one timer as its
+// quest would, then counts the frames and steps till it runs.
+
+#include <character.hpp>
+#include <character_store.hpp>
+#include <gamedata.hpp>
+#include <gamedata_load.hpp>
+#include <level_ids.hpp>
+#include <quest_clock.hpp>
+#include <quests.hpp>
+#include <quests_act3.hpp>
+#include <quests_act4.hpp>
+#include <rules.hpp>
+#include <world.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+#include <functional>
+
+namespace filesystem = std::filesystem;
+using namespace d2d::game;
+using d2d::rules::quest_timer_steps;
+
+namespace {
+
+// The frames and quest steps World::tick takes till `done`; the steps must
+// be `steps` exactly, the last on a step's frame.
+void runs_after(World& world, std::uint32_t& now_ms, int steps, const char* what, const std::function<bool()>& done) {
+    const std::uint32_t count_at = world.quest_clock.count;
+    int frames = 0;
+    while (!done() && frames < 4000) {
+        world.tick({}, now_ms + kTickMs, now_ms);
+        now_ms += kTickMs;
+        ++frames;
+    }
+    const auto taken = int(world.quest_clock.count - count_at);
+    std::printf("%s: %d frames, %d quest steps\n", what, frames, taken);
+    assert(done() && taken == steps && world.quest_clock.frame % d2d::rules::QuestClock::kFrames == 0);
+    assert(frames > (steps - 1) * 20 && frames <= steps * 20);
+}
+
+}  // namespace
+
+int main() try {
+    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
+    const char* home = std::getenv("HOME");
+    const filesystem::path data_dir = mpq_dir ? filesystem::path(mpq_dir) : filesystem::path(home ? home : "") / "Workspace/private/diablo2";
+    if (!filesystem::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
+    const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    auto data = load_game_data(data_dir, patch ? filesystem::path(patch) : filesystem::path{}, 0x1234);
+    assert(data && data->town.id == 1);
+
+    d2d::rules::Rng rng(7);
+    constexpr int kSorceress = 1;
+    auto made = new_character(*data, kSorceress, "Clock", false, true, rng);
+    Character character;
+    character.character_class = kSorceress;
+    character.name = "Clock";
+    character.header = made.header;
+    character.stats = made.stats;
+    character.items = made.items;
+    character.panel = panel_stats(*data, character.header, character.items, character.stats);
+
+    World world(&*data, -1, -1);
+    world.enter(character);
+    std::uint32_t now_ms = 60 * kTickMs;
+    for (int warm = 0; warm < 7; ++warm, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
+
+    // Sisters' Burial Grounds: Blood Raven's 0xf-tick log (LAB_00590bf0).
+    world.burial.state = 4;
+    world.burial.log = 2;
+    world.burial.log_in = quest_timer_steps(0xf);
+    runs_after(world, now_ms, 16, "Blood Raven's log", [&] { return world.burial.log == 3; });
+
+    // The Den of Evil cleared: "Return to Akara" 8 ticks on (0x5903d9 -> LAB_00590230),
+    // only while it's still cleared, state 4 (0x590232): Akara's reward first keeps 0xd.
+    world.den.state = 4;
+    world.den.log = 2;
+    world.den_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "the Den's log", [&] { return world.den.log == 5; });
+    world.den.state = 5;
+    world.den.log = 0xd;
+    world.den_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "the Den's log after the reward", [&] { return world.den_log_in == 0; });
+    assert(world.den.log == 0xd);
+
+    // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
+    // Its guardians come at the altar's level only (FUN_005b9a30: Act 3's map at the
+    // altar's spot), not by whatever object has the altar's index where the player is.
+    world.gidbinn_altar = 0;
+    world.gidbinn_level = data->level(d2d::rules::BladeQuest::kFlayerJungle);
+    world.actor->player.x = world.level->npcs[0].x;
+    world.actor->player.y = world.level->npcs[0].y;
+    for (int frame = 0; frame < 5; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
+    assert(world.gidbinn_due && !world.blade.spawned);
+    world.gidbinn_due = false;
+    world.gidbinn_altar = -1;
+    world.gidbinn_level = nullptr;
+
+    // The Dark Wanderer gone: a3q7's afterglow 2 ticks on (0x5bd4ce -> FUN_005bd390).
+    world.afterglow_made = true;                                  // nothing to make here: only the timer
+    world.afterglow_in = quest_timer_steps(2);
+    runs_after(world, now_ms, 3, "the afterglow's timer", [&] { return world.afterglow_due; });
+
+    // Izual dead: a4q1's 3-tick timer, his ghost (0x5b4126 -> 0x5b3e60).
+    world.izual_ghost_in = quest_timer_steps(3);
+    // He died on the Plains of Despair and the player went to town: the ghost goes
+    // where he died (0x5b3eaf: Act 4's map at his spot), not where the player is.
+    const auto* plains = data->level(d2d::rules::level_ids::kPlainsOfDespair);
+    assert(plains);
+    const auto ghost_code = data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)].code;
+    const auto ghosts = [&](const Level& where) { return std::ranges::count(where.npcs, ghost_code, &Npc::code); };
+    const auto on_plains = ghosts(*plains), in_town = ghosts(*world.level);
+    world.izual.state = 4;
+    world.izual.ghost_due = true;
+    world.izual.spot_x = float(plains->ds1.width()) / 2;
+    world.izual.spot_y = float(plains->ds1.height()) / 2;
+    world.izual_level = plains;
+    world.izual_ghost_in = quest_timer_steps(3);
+    runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
+    for (int frame = 0; frame < 2; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
+    assert(ghosts(*plains) == on_plains + 1 && ghosts(*world.level) == in_town && world.izual.log == 3);
+
+    // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
+    world.betrayal.log = 2;
+    world.betrayal_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "Nihlathak's log", [&] { return world.betrayal.log == 4; });
+
+    // An Ancient fallen: a5q5's statues' return timer, 2 ticks (0x58c9da -> FUN_0058bd50).
+    world.statues_back_in = quest_timer_steps(2);
+    runs_after(world, now_ms, 3, "the statues' return timer", [&] { return world.statues_back_due; });
+    world.statues_back_due = false;
+
+    // A new game on the same World (World::new_game): its frame and quest
+    // count start over (a game's own +0xa8 and +0x10f4 +0x14), so its first
+    // step is a full 20 frames in.
+    assert(world.quest_clock.frame > 0 && world.quest_clock.count > 0);
+    world.enter(character);
+    assert(world.quest_clock.frame == 0 && world.quest_clock.count == 0);
+
+    std::printf("OK: the quest timers step every 20 frames\n");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quest_clock_world: %s\n", error.what());
+    return 1;
+}

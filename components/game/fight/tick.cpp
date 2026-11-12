@@ -476,7 +476,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (std::ranges::contains(*missile.struck, int(i))) continue;
                         if (skill_missile_hits(missile, i, now_ms)) return true;
                         // FUN_005ae1f0: one unit a frame, its hit ends the missile's frame.
-                        if (missile.info && missile.info->next_hit && missile.last_hit_ms == now_ms) return false;
+                        if (missile.info && (missile.info->next_hit || missile.info->last_unit_rule()) && missile.last_hit_ms == now_ms) return false;
                         continue;
                     }
                     auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(i), missile.level, rng);
@@ -511,7 +511,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             pending.clear();
             for (auto& monster : monsters) {
                 if (near_players(monster.unit.x, monster.unit.y)) monster_sounds(monster, now_ms);
-                else monster.seq_sounds = 0;             // a far Jab's event-3 rows go unheard, not saved for later
+                else { monster.seq_sounds = 0; monster.skill_sound = -1; }   // a far Jab's event-3 rows and skill start go unheard, not saved for later
             }
             for (const auto& side : sides) {
                 act_as(*side.hero);

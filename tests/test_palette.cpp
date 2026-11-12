@@ -18,6 +18,9 @@
 namespace fs = std::filesystem;
 
 int main() try {
+    // This file checks file colours. The lookup ramp defaults to DirectDraw's
+    // gamma 155 (test_gamma.cpp); 100 leaves them alone.
+    d2d::palette::Palette::set_ramp(100, 100);
     const char* env = std::getenv("D2_MPQ_DIR");
     const fs::path dir = env ? fs::path(env)
         : fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")

@@ -807,8 +807,8 @@ struct RiteQuest {
         return kSuperuniques[std::size_t(which)];
     }
     // An Ancient fell while they're up (FUN_0058c9a0, before the count):
-    // its statue's due back, the return timer on (FUN_00543f10, every 2
-    // frames). True: its death missile goes to that statue.
+    // its statue's due back, the return timer on (0x58c9da: FUN_00543f10,
+    // 2 ticks). True: its death missile goes to that statue.
     // None counts while a town portal is open there (data +0xc).
     bool ancient_fell(int statue) {
         if (!heard || !awake || portals != 0) return false;

@@ -513,13 +513,13 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // at the target (FUN_0056ede0: its meteor). 41 (FUN_005d5080, its
         // third): prgcalc of them from the target toward random points
         // round it. 37 / 143 (FUN_005d4e70 -> FUN_005d4150, FUN_005d4f40 ->
-        // FUN_005d4870: Claws of Thunder's third, Royal Strike's second):
-        // a scan of 64 directions (0x100 / 4) for the units within prgcalc
-        // (else aurarange) subtiles, a missile at each carrying
-        // FUN_004efc20 + 1 hops.
-        // ponytail: the scan's pick (FUN_005d40f0 / FUN_005d4680) and the
-        // hop count read as: every monster in reach, the level's hops; 41's
-        // spread as ±20 subtiles.
+        // FUN_005d4870): the count's missile on kReleaseRing, stepping prgcalc
+        // entries (else aurarange) while the byte offset stays under 0x100.
+        // Flags 3: start at the target, aim relative. Hops are skill 0x118's
+        // Param2 + 1 (FUN_004efc20); 143 writes them only for missile row 0x238.
+        // ponytail: FUN_005d40f0 caps the flight at 77 frames and sets velocity
+        // 10; FUN_005d4680 wobbles that route. d2d flies the row's own velocity
+        // straight at the offset. 41's spread is still rng(41) - 20.
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
@@ -530,10 +530,16 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             return;
         }
         if (func == ServerDoFunction::kReleaseMissileAtUnits || func == ServerDoFunction::kReleaseMissileAtUnitsSecondScan) {
-            const int reach = radius > 0 ? radius : d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl);
-            for (std::size_t i = 0; i < monsters.size(); ++i)
-                if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - target_x, monsters[i].unit.y - target_y) * 5 <= float(std::max(reach, 1)))
-                    launch(*missile_info, skill, lvl, target_x, target_y, monsters[i].unit.x - target_x + 0.01f, monsters[i].unit.y - target_y, missile_info->range + missile_info->lev_range * lvl, now_ms).hops = lvl + 1;
+            int step = radius > 0 ? radius : d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl);
+            if (step < 1) step = 1;
+            const bool second = func == ServerDoFunction::kReleaseMissileAtUnitsSecondScan;
+            const auto* hop_skill = game_data->skills.get(d2d::rules::kReleaseHopSkill);
+            const int hops = d2d::rules::release_ring_hops(hop_skill ? hop_skill->par[1] : 0, missile_info->id, second);
+            const int range = missile_info->range + missile_info->lev_range * lvl;
+            d2d::rules::visit_release_ring(step, [&](std::pair<int, int> offset) {
+                auto& missile = launch(*missile_info, skill, lvl, target_x, target_y, float(offset.first) / 5, float(offset.second) / 5, range, now_ms);
+                if (!second || missile_info->id == d2d::rules::kReleaseHopMissile) missile.hops = hops;
+            });
             return;
         }
         if (std::ranges::find(told, -1000 - int(func)) != told.end()) return;

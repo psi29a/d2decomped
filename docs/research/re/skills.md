@@ -861,6 +861,21 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   with the aurastats (Conviction's resistances and defense) and a hit of
   the skill's element (FUN_0056e0c0 with the mastery; flags 0xd,
   HitClass +0x134, ResultFlags / HitFlags). **82** Redemption.
+- An aura's mana (FUN_00644b10, skill and level on the stack): Skills.txt
+  +0x18a mana plus +0x18c lvlmana x (lvl - 1), shifted by +0x188
+  manashift, in 256ths; no minmana floor (`rules::mana_formula`). In 1.14d
+  only Prayer (16, 3, shift 4) and Sanctuary (1, 0, shift 8) have one.
+  65 and 66 read it against stat 8 (mana, FUN_00625480). On a player
+  caster with less mana than that (0x5cf0b9..0x5cf0c4), 65 builds no
+  aurastats: they stay 0, so Prayer heals no one. After FUN_0056b7e0,
+  with the cost above 0 and a player caster (0x5cf229..0x5cf24d):
+  FUN_005cedc0's count (context +0x40: a unit whose stat it changed, for
+  hitpoints one not at its max) above 0 sets state 0x55 (nomanaregen,
+  FUN_00639db0) and calls FUN_0056c110(ECX caster, EDX cost), which takes
+  the cost off stat 8 (state 0x72: FUN_005d2b60 instead); a count of 0
+  clears 0x55. So a Paladin's Prayer draws its cost only on a pulse that
+  heals someone, and a merc's Prayer (not a player) costs nothing. d2d:
+  `Fight::prayer_pulse`; 0x55 and Sanctuary's (66) side aren't built.
 - FUN_00646d60 holds an aura's passive state off while the aura's state
   (+0x80) is on, so the passive stats hold either way.
 - Operands 49..53 (enma, exma, edma, enms, exms) are the elemental damage
@@ -872,7 +887,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
   (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
   the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
-  slow (its cold chills), mana (FUN_00644b10), the aura overlays.
+  slow (its cold chills), Sanctuary's mana and state 0x55 (above), the
+  aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
   (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
   a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).
@@ -955,9 +971,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   count's missile round the target (FUN_0056d400), range FUN_00663270 +
   calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
-  map. **37** (FUN_005d4e70 → FUN_005d4150), **143** (FUN_005d4f40 →
-  FUN_005d4870), **40** (FUN_005d5010 → FUN_0056ede0), **41**
-  (FUN_005d5080: random offsets ±20) aren't built.
+  map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
+  stands the count's missile at the target (`Fight::prg`). **41**
+  (FUN_005d5080) still rolls `rng(41) - 20`, not `seed % 0x28 - 0x14`.
 - A missile row with no Skill carries its own element by level
   (FUN_0064b100 / 0064b1d0 / 0064b2a0: EMin + MinELev brackets <<
   HitShift, ELen + ELevLen brackets): `rules::row_damage`.
@@ -1193,8 +1209,16 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   air: passes units, lands at its target), **51** (volcano debris):
   HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
-  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
-  allies by calc1. **9** (FUN_005aa250, Immolation Arrow): the damage
+  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 (+0x4c)
+  non-zero and an owner (FUN_00552fd0) it heals. TargetPet (flag bit 0x19,
+  FUN_005542c0) is a monster owned by that player. TargetAlly (bit 0x1a,
+  FUN_00554d20) is a player, or a monster owned by a player, in the owner's
+  party: FUN_00540710 is -1 with no party, and that fails, so a solo caster
+  is not healed. The amount is calc1 whole points (skill +0x138, FUN_00646ca0)
+  in 256ths plus FUN_0045c3e0 below (calc2 - calc1) x 256 on the missile seed
+  (+0x20). At 0 or less, FUN_005a8910 of missile stats 0x16 and 0x15. Added
+  to life (stat 6), capped at max life. Returns 1 (ends, no damage).
+  ProgOverlay (+0x36) plays when above 0 (holybolt: healing). **9** (FUN_005aa250, Immolation Arrow): the damage
   within sHitPar1 (else calc1), fire over that ground (FUN_005a9530) for
   the arrow row's SHitCalc1 (+0x88) frames (0x8000), burning its own row
   (immolationfire: + Fire Arrow x 5 %).
@@ -1254,7 +1278,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Built: `Fight::burst / strike / area / spot / spot_skill /
   strike_bolts / land_range`, `Missile::ox / oy / turn / hit_at`,
   MonType undead / demon. Not traced / not built: Blessed Hammer's path
-  (a spiral out at a fifth of its speed), Holy Bolt's healing, Static
+  (a spiral out at a fifth of its speed), Holy Bolt's party heal and its
+  ProgOverlay (the pet heal is built; the draw uses the fight rng, not the
+  missile seed), Static
   Field's floor, Mind Blast's conversion, Volcano's frame window,
   Double Throw (the throwing weapons' missiles). Hit 2's ring
   (FUN_005a9370: Plague Javelin 23 clouds of 87 frames, `test_plague_ring`
@@ -1440,12 +1466,22 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 
 ### The rest (phase 6, part 5)
 - Royal Strike's releases: **40** (FUN_005d5010: the count's missile
-  standing at the target, its meteor), **143** (FUN_005d4f40 ->
-  FUN_005d4870) and **37** (FUN_005d4e70 -> FUN_005d4150, Claws of
-  Thunder's third): a 64-direction scan (FUN_005d4680 / FUN_005d40f0) for
-  units within prgcalc (else aurarange), a missile at each with
-  FUN_004efc20 + 1 hops; **41** (FUN_005d5080): prgcalc of them toward
-  random points round the target.
+  standing at the target, its meteor). **37** (FUN_005d4e70 ->
+  FUN_005d4150, Claws of Thunder's third) and **143** (FUN_005d4f40 ->
+  FUN_005d4870) are not a unit scan. Each calls FUN_0059fa30 with flags 3
+  (start at the target, aim relative) once per ring entry, stepping
+  prgcalc entries (FUN_005d3da0; 0 falls through to aurarange at skill
+  +0x64) while the byte offset stays under 0x100. The 64 offsets are the
+  same list in both functions (radius about 30 subtiles), `kReleaseRing`.
+  After each create, FUN_004efc20(0x118) reads that skill's Param2
+  (+0x14c) and FUN_0064a710 stores it plus 1. 37 does that for every
+  missile. 143 does it only when the missile row is 0x238. The path
+  callback is FUN_005d40f0 for 37 (range capped at 77, velocity 10, then
+  a straight route) and FUN_005d4680 for 143 (the same cap, then a wobble).
+  d2d: `Fight::prg` aims the row's own velocity straight at the offset.
+  **41** (FUN_005d5080): prgcalc of them toward random points round the
+  target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
+  roll is stored as x = 0x14. d2d still rolls `rng(41) - 20`.
 - Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
   srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
   With P the first piece's spot (where FUN_0056d940 put it) and (dx, dy)
