@@ -769,7 +769,7 @@ struct GameData {
     // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
     // its first hit; else flies through), Pierce (may fly on, stat 328 %),
     // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
-    struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+    struct MissileInfo { std::string name, cel_file; int id = -1; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound

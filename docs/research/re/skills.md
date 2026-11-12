@@ -955,9 +955,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   count's missile round the target (FUN_0056d400), range FUN_00663270 +
   calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
-  map. **37** (FUN_005d4e70 → FUN_005d4150), **143** (FUN_005d4f40 →
-  FUN_005d4870), **40** (FUN_005d5010 → FUN_0056ede0), **41**
-  (FUN_005d5080: random offsets ±20) aren't built.
+  map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
+  stands the count's missile at the target (`Fight::prg`). **41**
+  (FUN_005d5080) still rolls `rng(41) - 20`, not `seed % 0x28 - 0x14`.
 - A missile row with no Skill carries its own element by level
   (FUN_0064b100 / 0064b1d0 / 0064b2a0: EMin + MinELev brackets <<
   HitShift, ELen + ELevLen brackets): `rules::row_damage`.
@@ -1450,12 +1450,22 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 
 ### The rest (phase 6, part 5)
 - Royal Strike's releases: **40** (FUN_005d5010: the count's missile
-  standing at the target, its meteor), **143** (FUN_005d4f40 ->
-  FUN_005d4870) and **37** (FUN_005d4e70 -> FUN_005d4150, Claws of
-  Thunder's third): a 64-direction scan (FUN_005d4680 / FUN_005d40f0) for
-  units within prgcalc (else aurarange), a missile at each with
-  FUN_004efc20 + 1 hops; **41** (FUN_005d5080): prgcalc of them toward
-  random points round the target.
+  standing at the target, its meteor). **37** (FUN_005d4e70 ->
+  FUN_005d4150, Claws of Thunder's third) and **143** (FUN_005d4f40 ->
+  FUN_005d4870) are not a unit scan. Each calls FUN_0059fa30 with flags 3
+  (start at the target, aim relative) once per ring entry, stepping
+  prgcalc entries (FUN_005d3da0; 0 falls through to aurarange at skill
+  +0x64) while the byte offset stays under 0x100. The 64 offsets are the
+  same list in both functions (radius about 30 subtiles), `kReleaseRing`.
+  After each create, FUN_004efc20(0x118) reads that skill's Param2
+  (+0x14c) and FUN_0064a710 stores it plus 1. 37 does that for every
+  missile. 143 does it only when the missile row is 0x238. The path
+  callback is FUN_005d40f0 for 37 (range capped at 77, velocity 10, then
+  a straight route) and FUN_005d4680 for 143 (the same cap, then a wobble).
+  d2d: `Fight::prg` aims the row's own velocity straight at the offset.
+  **41** (FUN_005d5080): prgcalc of them toward random points round the
+  target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
+  roll is stored as x = 0x14. d2d still rolls `rng(41) - 20`.
 - Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
   srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
   With P the first piece's spot (where FUN_0056d940 put it) and (dx, dy)
