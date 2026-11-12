@@ -361,6 +361,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             loot.standing = nullptr;
         });
         spring_traps(now_ms);
+        drop_wirt_gold(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt Reset x 1200 + 1 frames;
         // 0 never).

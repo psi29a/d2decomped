@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -50,6 +51,20 @@ static void take_blast(std::int64_t& life, int taken) {
     if (taken <= 0) return;
     life -= taken;
     if (life < 256) life = 0;
+}
+
+auto World::drop_wirt_gold(std::uint32_t now_ms) -> void {
+    // FUN_00594630: one pile every ten frames, on the corpse's level.
+    for (auto entry = wirt_gold.begin(); entry != wirt_gold.end();) {
+        auto& [key, drop] = *entry;
+        if (now_ms < drop.next_ms) { ++entry; continue; }
+        const auto& [where, npc_index] = key;
+        const auto& corpse = where->npcs[std::size_t(npc_index)];
+        if (drop.left == 0) drop.left = 10 + fight.spawning.quests(10);
+        loot.put({ .code = "gld" }, corpse.x, corpse.y, drop.item_level, fight.spawning.game, now_ms, false, 0, where);
+        drop.next_ms = now_ms + 10 * kTickMs;
+        entry = --drop.left == 0 ? wirt_gold.erase(entry) : std::next(entry);
+    }
 }
 
 auto World::wall_to(const Npc& object, int x, int y, int size) const -> bool {
@@ -96,6 +111,14 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (Town::object_sounds)
             set_footprint(*level, object, object.collision >> mode & 1);
         };
+        // Wirt's body (FUN_00583e70) drops the leg once and starts event 7.
+        if (object.operate_fn == d2d::rules::operate_fn::kWirtBody) {
+            if (object.preoperated || fight.remote_monsters || !operated.try_emplace({ level, npc_index }, now_ms).second) return;
+            loot.put({ .code = "leg" }, object.x, object.y, here, fight.spawning.game, now_ms);
+            to_mode(1);
+            wirt_gold.emplace(std::pair{ level, npc_index }, WirtGold{ now_ms + 10 * kTickMs, 0, here });
+            return;
+        }
         // A trap object (30: "a trap", the exploding chest; FUN_00581cd0), in
         // mode 0: a physical then a fire blast on its opener (FUN_005dfa00
         // types 0, 1: blast), then mode 1; its event 1 (FUN_005417d0,
