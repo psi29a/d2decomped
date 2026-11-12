@@ -651,10 +651,14 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //     damred: FUN_004e86f0, then again after the elements in FUN_004e89a0)
 //     and the attack rating (attblue / attred, FUN_004e9040 / FUN_004e8ec0);
 //     red wins.
+//   The panel draws the damage and the attack rating only when the usable
+//     status (FUN_004d9fc0) is 0, 1, 6 or 8. `usable` defaults to 0, so a
+//     caller that omits it still fills the line. The server's status is
+//     FUN_00647960 (Fight::skill_status). FUN_004d9fc0 may turn a 0 into 8
+//     for the client player's own cast delay, and both still draw.
 // ponytail: descdam 2..4, 6, 8..24 and descatt 3 / 4 (kicks, throws,
-// dual wield: the second value, FUN_004e93a0) show no line; stat 325, the
-// usability check (FUN_004d9fc0) and barehanded strength % (FUN_004e86f0)
-// are left out.
+// dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
+// barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
 // armblue 0x13 / armred 0x19, rfblue 0x14 / rfred 0x1a, rcblue 0x15 /
@@ -670,9 +674,11 @@ struct AttackLine {
     int attack_rating = 0, ar_colour = 0;
 };
 inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
-                              const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0) {
+                              const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,
+                              int usable = 0) {
     AttackLine line;
     line.skill = skill.id;
+    if (usable != 0 && usable != 1 && usable != 6 && usable != 8) return line;   // FUN_004d9fc0
     constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
     const auto weapon = [&](int pct, int flat) {
