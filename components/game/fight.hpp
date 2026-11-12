@@ -1101,11 +1101,18 @@ struct Fight {
     // ponytail: perdelay taken as ticks (its reader isn't traced); the
     // aurafilter's unit-flag, town and sight bits aren't read
     // (aura_filter.hpp); Sanctuary and Redemption's own callbacks aren't
-    // built; no mana is drawn (FUN_00644b10).
+    // built; Sanctuary's mana (FUN_005cf3a0, FUN_00644b10) isn't asked or
+    // drawn.
     void aura_pulse(std::uint32_t now_ms);
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
-    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
+    // Cast by the player (FUN_005cf010 on a player unit), it needs its
+    // FUN_00644b10 cost in mana (Prayer: (16 + 3 x (lvl - 1)) << 4, 256ths)
+    // or heals nothing, and takes the cost off it (FUN_0056c110) when it
+    // healed someone; the merc's costs nothing.
+    // ponytail: the state it sets then (0x55 nomanaregen, FUN_00639db0) and
+    // clears on a pulse that heals no one isn't kept, so mana still regens.
+    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast = false);
     // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
     // monster here is no side of the player's, so a friendly aura's never
     // does (0x12003 needs an ally: FUN_00554de0).

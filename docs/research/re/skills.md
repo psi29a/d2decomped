@@ -861,6 +861,21 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   with the aurastats (Conviction's resistances and defense) and a hit of
   the skill's element (FUN_0056e0c0 with the mastery; flags 0xd,
   HitClass +0x134, ResultFlags / HitFlags). **82** Redemption.
+- An aura's mana (FUN_00644b10, skill and level on the stack): Skills.txt
+  +0x18a mana plus +0x18c lvlmana x (lvl - 1), shifted by +0x188
+  manashift, in 256ths; no minmana floor (`rules::mana_formula`). In 1.14d
+  only Prayer (16, 3, shift 4) and Sanctuary (1, 0, shift 8) have one.
+  65 and 66 read it against stat 8 (mana, FUN_00625480). On a player
+  caster with less mana than that (0x5cf0b9..0x5cf0c4), 65 builds no
+  aurastats: they stay 0, so Prayer heals no one. After FUN_0056b7e0,
+  with the cost above 0 and a player caster (0x5cf229..0x5cf24d):
+  FUN_005cedc0's count (context +0x40: a unit whose stat it changed, for
+  hitpoints one not at its max) above 0 sets state 0x55 (nomanaregen,
+  FUN_00639db0) and calls FUN_0056c110(ECX caster, EDX cost), which takes
+  the cost off stat 8 (state 0x72: FUN_005d2b60 instead); a count of 0
+  clears 0x55. So a Paladin's Prayer draws its cost only on a pulse that
+  heals someone, and a merc's Prayer (not a player) costs nothing. d2d:
+  `Fight::prayer_pulse`; 0x55 and Sanctuary's (66) side aren't built.
 - FUN_00646d60 holds an aura's passive state off while the aura's state
   (+0x80) is on, so the passive stats hold either way.
 - Operands 49..53 (enma, exma, edma, enms, exms) are the elemental damage
@@ -872,7 +887,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
   (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
   the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
-  slow (its cold chills), mana (FUN_00644b10), the aura overlays.
+  slow (its cold chills), Sanctuary's mana and state 0x55 (above), the
+  aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
   (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
   a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).
