@@ -10,9 +10,24 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <stdlib.h>   // setenv / unsetenv (POSIX), _putenv_s (MSVC)
 #include <string>
 
 namespace fs = std::filesystem;
+
+namespace {
+
+// An empty value unsets it (user_dir treats empty as not set either way).
+void set_env(const char* name, const char* value) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, value);
+#else
+    if (*value) (void)::setenv(name, value, 1);
+    else (void)::unsetenv(name);
+#endif
+}
+
+}  // namespace
 
 int main() try {
     const auto dir = fs::temp_directory_path() / "d2d_test_userdir";
@@ -49,6 +64,7 @@ int main() try {
     }
     fs::remove_all(dir);
 
+    set_env("D2D_USER_DIR", "");                       // empty: not set
     const auto user = d2d::userdir::user_dir("d2d");
     assert(user.filename() == "d2d");
 #if defined(__APPLE__)
@@ -56,6 +72,12 @@ int main() try {
 #elif !defined(_WIN32)
     assert(user.parent_path().filename() == ".config");
 #endif
+    // D2D_USER_DIR overrides the whole dir (the test scripts' throwaway one).
+    const auto forced = fs::temp_directory_path() / "d2d_forced_user";
+    set_env("D2D_USER_DIR", forced.string().c_str());
+    assert(d2d::userdir::user_dir("d2d") == forced);
+    set_env("D2D_USER_DIR", "");
+    assert(d2d::userdir::user_dir("d2d") == user);
     std::printf("user dir: %s\nOK\n", user.string().c_str());
     return 0;
 } catch (const std::exception& error) {
