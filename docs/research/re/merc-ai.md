@@ -53,13 +53,15 @@ is rand(n) (`FUN_0045c3e0`); two more steps flip x, then y.
 pace, [18] reach)`. A move's ctx is set by `FUN_005de190(unit, EDX type,
 pace, steps)` → `FUN_005a6260`: path type, pace % (velocitypercent for the
 next mode) and steps (cap 0x4d), each only when not 0; the next
-`FUN_005a7c20` uses and clears them. (`FUN_005de190`'s fetch is
-`FUN_005a6190`/`GetAiParamFromUnit(unit)`: the unit's
-`pUnitDataMonster->pPathParamOrName.pPathParam`, null unless the unit is
-`UNIT_MONSTER` with monster data — mode 1's "once" extra call below
-fetches it itself and calls `FUN_005a6260`/`SetCombatAndMonStats`
-directly, skipping the refetch. The same getter backs the pet's
-`FUN_005e3ea0` follow, `pet-ai.md` "FUN_005e3ea0 (after the owner)".)
+`FUN_005a7c20` uses and clears them. (`FUN_005de190` inlines the same
+lookup `FUN_005a6190`/`GetAiParamFromUnit(unit)` does — not a call to
+it: the unit's `pUnitDataMonster->pPathParamOrName.pPathParam`, null
+unless the unit is `UNIT_MONSTER` with monster data. Mode 1's "once"
+extra call below calls `GetAiParamFromUnit` itself and feeds
+`FUN_005a6260`/`SetCombatAndMonStats` directly, skipping `FUN_005de190`.
+`GetAiParamFromUnit` has exactly two callers in game.exe: here (mode 1's
+extra call) and the pet's `FUN_005e3ea0` follow, `pet-ai.md`
+"FUN_005e3ea0 (after the owner)".)
 
 - **Mode 0.** The owner's heading: `direction64` from him to his path end
   (path +0x18 / +0x1a), into 8 (`DAT_00745600`). Round the compass from
