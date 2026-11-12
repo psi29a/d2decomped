@@ -1512,7 +1512,7 @@ int main(int argc, char** argv) try {
         d2d::rules::Wearer paladin{ d2d::d2s::kPaladin, 30, 20, 30 };
         d2d::d2s::Item buckler{ .code = "buc" };
         buckler.identified = true;
-        auto line_starting = [&](const d2d::rules::Wearer& who, std::string_view prefix) {
+        auto line_starting = [&](const d2d::rules::Wearer& who, std::string_view prefix) -> std::string {
             for (const auto& hover_line : item_lines(*data, buckler, who.lvl, &who))
                 if (hover_line.text.starts_with(prefix)) return hover_line.text;
             return std::string{};
@@ -1537,7 +1537,7 @@ int main(int argc, char** argv) try {
         d2d::d2s::Item boots{ .code = boots_code };
         boots.identified = true;
         d2d::rules::Wearer assassin{ d2d::d2s::kAssassin, 20, 20, 30 };
-        auto kick_of = [&](const d2d::rules::Wearer& who) {
+        auto kick_of = [&](const d2d::rules::Wearer& who) -> std::string {
             for (const auto& hover_line : item_lines(*data, boots, who.lvl, &who))
                 if (hover_line.text.starts_with("Kick Damage:")) return hover_line.text;
             return std::string{};

@@ -249,7 +249,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         turns.push_back(lead().on_level);
         const Level* const lead_level = lead().on_level;
         auto everyone = std::move(players);
-        const auto all_heroes = fight.heroes;
+        std::vector<Fight::Hero*> all_heroes = fight.heroes;
         auto between = std::exchange(fight.kills, {});           // kills since the last tick (a debug kill): the lead's level's, for its turn
         std::vector<bool> ticked(everyone.size(), false);
         for (const Level* turn : turns) {
@@ -271,7 +271,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         }
         elsewhere.clear();
         players = std::move(everyone);
-        fight.heroes = all_heroes;
+        fight.heroes = std::move(all_heroes);
         act_as(lead());
         swap_to(lead().on_level);                                  // the host's screen: where its player is now
         hand_out_announced();                                // the joiners have them in their next View
