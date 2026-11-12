@@ -879,8 +879,12 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (!sub) break;
                 const int burst_radius = radius(missile_info.hit_par1, skill->aurarange);
                 int count = radius(missile_info.hit_par2, skill->calc[0]);
+                // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk skips only the owner, so the unit
+                // struck gets one too; its filter is the aurafilter, else 0xa783 (tools/emu/hit_fury.py).
+                // ponytail: the walk's skip of MonStats flag 0x1b (FUN_00457490) isn't read.
+                const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (int(j) != missile.target && monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
+                    if (monsters[j].targetable() && filter_takes(filter, monsters[j]) && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }
@@ -982,10 +986,12 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
             }
     }
 
-auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool {
+auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool { return filter_takes(skill.aura_filter, monster); }
+
+auto Fight::filter_takes(std::uint32_t filter, const Monster& monster) const -> bool {
         if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-        return d2d::rules::aura_filter_takes(skill.aura_filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
+        return d2d::rules::aura_filter_takes(filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
                                                                   .prime_evil = type_info.prime_evil, .ally = false });
     }
 
