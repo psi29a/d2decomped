@@ -274,7 +274,8 @@ quarters. The shares are from the data, not from `FUN_00605880`'s weights.
 In the 1,064 COFs of the listfile, transparent layers use effect 1
 (monster tokens LG and E9, layer 1), 3 (239 layers) and 6 (layer 8 of
 monster token EG's COFs and object token PY's). d2d's `draw_mode`
-(world_view.hpp) matches 0..5; it draws effect 6 opaque (deviations.md
+(world_view.hpp) matches 0..5; effect 6 is the greater of each RGB channel,
+and the PL2 table at +0x5b500 is still unread (deviations.md
 approximation 9).
 
 Re-check:

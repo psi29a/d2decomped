@@ -29,9 +29,10 @@ d2d copies the software drivers, onto an RGBA framebuffer:
   panels at the centre), borderless fullscreen, the window's scale filter
   (`scalemode`), cinematics in a window (game.exe's GDI driver has no
   cutscene mode, so a plain `-w` skips them).
-- Not there: Gamma and Contrast (the rows move, nothing applies them),
-  Light Quality (always high), the 640×480 resolution, and everything 3D
-  below.
+- Gamma and Contrast (Video Options) run DirectDraw's ramp, default
+  gamma 155 and contrast 100, saved in d2d.cfg. Gamma 100 is the flat ramp.
+- Not there: Light Quality (always high), the 640×480 resolution, and
+  everything 3D below.
 
 ## Features we want, eventually
 
@@ -39,20 +40,13 @@ Wanted, not scheduled (2026-11-11; PLAN.md "Later research"). Ranked by
 what a player sees for the work. All but the last fit the CPU path d2d
 has now.
 
-1. **Gamma and Contrast that work.** game.exe's DirectDraw driver runs the
-   palette through one ramp (`FUN_006be190`; at contrast 100, entry i =
-   min(255, i × gamma / 100)), and its default gamma is 155: a default
-   install shows every colour at 1.55 times, the top third clipped. d2d
-   converts palette to RGB at each blit, so this is one 256-entry table
-   rebuilt when a slider moves. Start the rows where game.exe does
-   (Gamma at 10 of 0..20, Contrast at 99), save them in d2d.cfg, and freeze
-   the oracle's ramps (`tools/emu/video_drivers.py gamma`) as a test.
-   - **Open, decided when it's picked up:** the default. 155 is the default fullscreen look
-     (DirectDraw); 100 is `-w`'s, which is what every live check so far
-     compared against (`make run og` runs `-w`). Suggested: 155 as
-     game.exe ships, the checks pinned to 100. First take one live
-     DirectDraw screenshot to confirm the brightening on screen.
-   - Cost: half a day with the test.
+1. **Gamma and Contrast.** Done. Palette lookup runs DirectDraw's ramp
+   (`FUN_006be190`; at contrast 100, entry i = min(255, i × gamma / 100),
+   and a lower contrast blends in the power curve, video-drivers.md).
+   Default gamma 155, contrast 100, saved as `gamma` and `contrast` in
+   d2d.cfg. Gamma 100 stays a valid saved value: the flat `-w` look the
+   live checks were taken against. The rows start where game.exe does
+   (Gamma at 10 of 0..20, Contrast at 99). `tests/test_gamma.cpp`.
 2. **The hit silhouette** (Glide / Direct3D only). A monster that's hit
    or blocks gets its sprite drawn in its life colour (green, yellow, red,
    or blue for some) for 3 draws, offset a pixel, behind it

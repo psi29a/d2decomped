@@ -18,6 +18,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -719,7 +720,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
                 music_cue("music_quest_den");
-                den_log_at = now_ms + 8 * kTickMs;     // the log's "Return to Akara" 8 ticks on (LAB_00590230)
+                den_log_in = d2d::rules::quest_timer_steps(8);   // the log's "Return to Akara" 8 ticks on (0x5903d9 -> LAB_00590230)
                 // FUN_00590260 at 0x590387..0x5903bd, as Blood Raven's (kill_credit):
                 // the participants (FUN_005455f0); each player with bit 13 brings
                 // their party in Act 1 (LAB_00590190 → FUN_00540510 → LAB_00590120;

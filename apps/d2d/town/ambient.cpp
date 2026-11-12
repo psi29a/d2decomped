@@ -9,6 +9,7 @@
 #include "scene.hpp"
 
 #include <ambient_dip.hpp>
+#include <critters.hpp>
 #include <cues.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -136,12 +137,13 @@ auto Town::critter_tick(std::uint32_t frame_ms) -> void {
             if (critter.walking) critter.mode_ms = frame_ms;
             critter.walking = false;
         };
-        // FUN_0046c600: the nearest player, or monster other than a chicken or bunny (the town's NPCs too).
+        // FUN_0046c600: the nearest player, or monster other than a chicken or bunny (the town's NPCs too),
+        // dead or alive (critter_neighbour). d2d's critters don't die.
         auto nearest_other = [&](const Critter& critter) {
             int best = apart(critter.x, critter.y, player_x, player_y);
             for (const auto& other : view.others) best = std::min(best, apart(critter.x, critter.y, other.unit.x, other.unit.y));
             for (const auto& monster : view.monsters)
-                if (monster.alive()) best = std::min(best, apart(critter.x, critter.y, monster.unit.x, monster.unit.y));
+                if (d2d::rules::critter_neighbour(false, d2d::rules::kCritterMonster, monster.type)) best = std::min(best, apart(critter.x, critter.y, monster.unit.x, monster.unit.y));
             for (std::size_t i = 0; i < view.npc_states.size() && i < level->npcs.size(); ++i)
                 if (level->npcs[i].root != "objects" && !view.npc_states[i].hidden) best = std::min(best, apart(critter.x, critter.y, view.npc_states[i].x, view.npc_states[i].y));
             return best;

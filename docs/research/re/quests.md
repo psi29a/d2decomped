@@ -219,6 +219,41 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
   is set, bit 1 cleared, quest 41 opened and bits 2..11 cleared.
   `FUN_006272b0(player, 5, 1)` gives +1 new skill point.
 
+## The quest clock
+
+A quest's timers count quest ticks, not frames:
+
+- `FUN_00543f10(record, fn, ticks)` (`QUESTS.CPP` line 0x41a) queues a
+  timer {fn, record, due, ticks} on the list at game +0x10f4, +0x10, due
+  at the list's count (+0x14) + `ticks`. Called inside a timer's own run
+  (+4 set), it's fatal (line 0x417).
+- `FUN_00543e10(game)` counts +0x14 on by one (a wrap to -1 turns every
+  due round), then runs each timer whose due is below the count (unsigned):
+  `fn` returning 1 frees it; anything else makes it due again at the
+  count + `ticks`. So a timer of n ticks runs on the (n + 1)th step, and
+  one that goes on, every n + 1 steps (Andariel's 1-tick 0x596500: every
+  2).
+- Its only caller is the game's frame, `FUN_0052d870`: game +0xa8 counted
+  on, and `FUN_00543e10` only when +0xa8 % 0x14 is 0: **a step every 20
+  frames** (0.8 s).
+
+d2d: `rules::QuestClock` (`World::quest_clock`, stepped in the day's frame
+loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
+`act2_quest_step`):
+
+| Timer | Set at | Ticks |
+|---|---|---|
+| Nihlathak's log (`World::betrayal_log_in`, `act5_quest_step`) | 0x58b84a | 8 |
+| The Ancients' statues' return (`World::statues_back_in`; again 2 on while a statue isn't found) | 0x58c9da | 2 |
+| The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
+| Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
+| The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
+| The Dark Wanderer's afterglow (`World::afterglow_in`) | 0x5bd4ce | 2 |
+| The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
+
+Not yet, kept as ticks x 40 ms:
+Diablo's release (#383).
+
 ## Messages
 
 `FUN_0058ff90` picks a block of messages:

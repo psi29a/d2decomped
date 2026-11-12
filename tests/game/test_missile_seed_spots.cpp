@@ -2,14 +2,16 @@
 // test-links: game
 // Two missile picks that reseed the missile's own seed (+0x20) to {its subtile x, 666} and draw
 // nothing from the update's: Baal Taunt's control (do 34, FUN_005b04a0, 0x5b0561) picks its
-// submissile so each frame, and the lightning control's end (hit 58, FUN_005acdf0, 0x5ace5f) its
-// HitSubMissile1's subtile, x then y.
+// submissile so each frame, the lightning control's end (hit 58, FUN_005acdf0, 0x5ace5f) its
+// HitSubMissile1's subtile, x then y, and the poison ring (hit 59, FUN_005a9370) aims each
+// spoke at its own offset.
 
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -89,6 +91,29 @@ int main() try {
     update(open, missiles, 400);
     assert(missiles.size() == 1 && missiles[0].to);
     assert(std::abs(missiles[0].to->first - 7.5f / 5) < 0.001f && std::abs(missiles[0].to->second - 10.5f / 5) < 0.001f);
+
+    // hit 59: each spoke aims at its ring offset from the start (FUN_005a9370 flag 2), not (+1, +1).
+    GameData::MissileInfo poison;
+    poison.hit_func = 59;
+    poison.hit_par1 = 16;                        // one odd spoke, way 1
+    poison.hit_sub_info = &bolt;
+    bolt.param1 = bolt.param2 = 1;
+    Missile burst;
+    burst.info = &poison;
+    burst.x = 4.1f; burst.y = 4.3f;              // subtile (20, 21)
+    burst.born = 0; burst.dies = 400;
+    missiles = { std::move(burst) };
+    update(open, missiles, 400);
+    assert(missiles.size() == 9);
+    const int at_x = 20, at_y = 21;
+    for (int way = 0; way < 16; way += 2) {
+        const float want_x = (float(at_x + kRingWayX[std::size_t(way)]) + 0.5f) / 5.f;
+        const float want_y = (float(at_y + kRingWayY[std::size_t(way)]) + 0.5f) / 5.f;
+        const auto spoke = std::ranges::find_if(missiles, [&](const Missile& laid) {
+            return laid.to && std::abs(laid.to->first - want_x) < 0.001f && std::abs(laid.to->second - want_y) < 0.001f;
+        });
+        assert(spoke != missiles.end());
+    }
     std::puts("OK: do 34 and hit 58 pick on {subtile x, 666}; a spot on its own subtile goes to (+1, +1)");
     return 0;
 } catch (const std::exception& error) {

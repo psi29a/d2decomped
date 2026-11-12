@@ -369,7 +369,8 @@ struct Act3Thinks : Thinker {
     // count restarts (state2 0). 3: under hurt + 80 %, under 80 - hurt % A1,
     // else Skill3; else circles 3 (can't: wanders 12). 4: about the target 6.
     // ponytail: about the target always sets off, so its fallback
-    // (FUN_00540e60, keep 12 / 6) isn't taken.
+    // (FUN_00540e60, keep 12 / 6) isn't taken. The ask trace has no away(6)
+    // on this path, so calling it fails test_monster_ai.
     Think mephisto() {
         const int hurt = std::max((100 - input.life_pct) / 5, 0);
         int& phase = *input.state3;
