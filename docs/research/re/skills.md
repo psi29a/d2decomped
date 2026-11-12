@@ -739,6 +739,22 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Item elemental damage takes its mastery as a % (FUN_0057b7d0 →
   FUN_0057a8e0): fire 48/49 + 329, lightning 50/51 + 330, cold 54/55 +
   331, magic 52/53 + 357, poison 57/58 + 332.
+  - FUN_0057a8e0 reads the primary stat (EAX, hidden register arg) via
+    `FUN_00625480` (`unit_stat_value`); under 0x800 (8 << 8) it clamps
+    the base % (param_5) to 0 or itself and stops. Otherwise it reads
+    that stat again plus, when a second stat id (param_2) isn't -1, that
+    one too (added to param_4), and calls FUN_0057a880 with both <<8.
+  - **FUN_0057a880** (ECX `a` = primary stat<<8, EAX `b` = base %, stack
+    `unit`, `c` = secondary stat<<8, `d` = param_4): `a<=0` skips the
+    rolls and returns `max(b+c+d, 0)`. Otherwise it rolls two
+    `FUN_00483360(..,100)` percentages, one of `c` (ECX) one of `a`
+    (ECX again, reusing the register), adds the first to `c` and the
+    second to `a`; if the rolled `a` now exceeds the rolled `c` it adds
+    `d2d_seed_rand_below(unit+0x20, a-c)` (`FUN_0045c3e0`, already
+    ported) too. The sum (`b` + rolled `c` + that extra) is clamped to
+    0. So a fractional mastery % (the <<8 remainder) is turned into a
+    chance of one extra point, on the unit's own RNG stream
+    (`unit+0x20`).
 - Built: `rules::passive_stats` (skills.hpp), `Fight::player_fighter`
   (the layer check, best value), `make_fighter` (342..344, 348, the
   elemental masteries), `monster_blow` (Weapon Block), `panel_stats` (Iron
