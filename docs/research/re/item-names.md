@@ -56,6 +56,7 @@ below it, so the call order is bottom to top. Top line first (d2d
 | Chance to Block: N% | `FUN_00485be0` | 11018, `"%d%%"` 0x6d9bec | shields: block column + stat 20 + class BlockFactor; Holy Shield (state 0x65, skill 0x75) adds dm56 (`FUN_00645c10`, Param5/Param6) before the cap of 75; blue over the column |
 | Smite / Kick Damage: a to b | `FUN_00485d40` | 3468 / 21782, "to" 3464 | Paladin + shield (no other class's) / Assassin + boots; armor.txt mindam/maxdam. A shield adds Holy Shield's MinDam..MaxDam (`FUN_00647bc0` / `FUN_00647d00` >> 8) while state 0x65 is on. Boots do not |
 | Throw / One-Hand / Two-Hand Damage: a to b | `FUN_00485410`, `FUN_00485240` | 3467 / 3465 / 3466 | weapons: stats 21-24/159-160 (`LAB_0062d300`: low quality ×3/4 floor 1/2, ethereal ×3/2), min ×(100+18)%, max ×(100+17+219·clvl/8)% + 218·clvl/8; throw line for ItemTypes Throwable; Barbarian + 1-or-2-handed gets both; numbers blue when raised |
+| Throw Damage: a to b (potions) | `FUN_00485410` | 3467, "to" 3464 | type tpot (`FUN_00629bb0` 0x26), in place of every other damage line: the thrown missile (`FUN_006288a0`) at level 1, element (`FUN_0064b100` / `FUN_0064b1d0`; poison / max(ELen (`FUN_0064b2a0`) / 25, 1)) + physical (`FUN_0064af20` / `FUN_0064aff0`), >> 8, max ≥ min; label white, numbers by EType (table 0x485bc4: fire 1, lightning 4, cold 3, poison 2, else 0); one number when equal. Oracle `tools/emu/throw_potion_text.py` |
 | Quantity: N | `FUN_00486100` | 3462 | identified, not socketed, stacks |
 | spelldesc | `FUN_00486370` | misc.txt spelldescstr | replaces quantity; mode 2 scales potions by class (`FUN_0062a5d0` life, `FUN_0062a620` mana: ×1.5 Ama/Pal/Asn, ×2 Barb life / Sor/Nec/Dru mana) |
 | Keep in Inventory to Gain Bonus | — | 20438 | charms |
@@ -70,8 +71,7 @@ below it, so the call order is bottom to top. Top line first (d2d
 | Ethereal (Cannot be Repaired), Socketed (N) | `FUN_00484b10` | 22745, 3453 | blue |
 
 Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
-line (`FUN_00486670`), time-of-day stats 268-273, throwing potions'
-missile damage, charged skill details.
+line (`FUN_00486670`), time-of-day stats 268-273, charged skill details.
 
 ## Sockets
 
