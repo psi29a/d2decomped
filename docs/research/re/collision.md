@@ -1420,3 +1420,52 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### Toggling a skill's render effect on a mode gate: `FUN_004d8520` / `FUN_004d85c0` (batch 11)
+
+Two near-identical UNIT/PlrSkills.cpp functions, each with its own 5-byte
+jump thunk right after it (`004d85b0` jumps to `004d8520`, `004d8650` jumps
+to `004d85c0` — plain near `JMP`, confirmed in disassembly, not a second
+body). Both are fastcall **ECX** the unit, **EDX** a value (confirmed in
+disassembly: `MOV EDI,ECX` / `MOV EBX,EDX` at entry), plain `RET`, no stack
+args:
+
+- **`FUN_004d8520`** (0x83 bytes, `004d8520`..`004d85a3`) and its thunk
+  **`FUN_004d85b0`** (5 bytes, `004d85b0`..`004d85b5`).
+- **`FUN_004d85c0`** (0x83 bytes, `004d85c0`..`004d8643`) and its thunk
+  **`FUN_004d8650`** (5 bytes, `004d8650`..`004d8655`).
+
+Both call `d2d_unit_skill_list` (`00620250`, `names.tsv:995`) for the
+unit's selected skill node; a null one is a no-op. Otherwise
+**`FUN_004d84c0`** (0x52 bytes, `004d84c0`..`004d8512`, no stack args, no
+register args — confirmed in disassembly: it is called with `MOV EAX,EDI`
+right before it, EDI being this function's own unit, so **EAX** is
+implicit) must return true: true when the unit's own `type` (`+0`) is 0
+and `mode` (`+0x10`, both already in `structs.tsv`) is 0x12, or `type` is 1
+and `mode` is 0xe; false for any other type/mode pair, including a null
+unit (the decompiler's default `in_EAX==null -> 6` forces both branches
+false). With that gate passed, `d2d_skill_node_id` (`00643ce0`,
+`names.tsv:1280`) reads the skill node's id, bound-checked against the
+Skills.txt row count/table (`0x744304+0xba0`/`+0xb98`, stride 0x23c,
+`skills.md`'s Skills.txt row reader convention) — the two functions differ
+here only in the debug line constant they pass through unread
+(`0x26`/38 for `004d8520`, `0x4f`/79 for `004d85c0`; the file string is the
+same `.\UNIT\PlrSkills.cpp` for both). The row's own `+0x2e` short field
+then picks one of two calls, each with the unit and the original EDX value
+forwarded and a literal third argument: `0x43` ('C') gates on
+`skill_get_flags` (`FUN_006446a0`, `names.tsv:1299`) bit 0 before calling
+**`FUN_004c9060`**; `0x4c` ('L') calls **`FUN_004c9990`** unconditionally.
+The literal third argument is the only other difference between the pair:
+`FUN_004d8520` passes 1, `FUN_004d85c0` passes 0.
+
+Not traced: `FUN_004c9060`/`FUN_004c9990`'s own bodies — both are SKILLS
+module, already cited but not traced (`collision.md:974`,
+`video-drivers.md:178`) — and the Skills.txt row's own `+0x2e` field
+identity beyond "a type byte with values 'C'/'L' seen here". d2d: not
+ported as a function; nothing here has a d2d counterpart to disagree with.
+
+Re-check: `python3 tools/ghidra/fn.py 004d8520 004d85b0 004d85c0 004d8650
+004d84c0`; disassemble `004d8520`..`004d85a3`, `004d85c0`..`004d8643` and
+`004d84c0`..`004d8512` to confirm the ECX=unit/EDX=value fastcall, the
+5-byte `JMP` thunks, and the implicit-EAX=unit convention on
+`FUN_004d84c0`.
