@@ -99,3 +99,49 @@ the "jf" "kf" it was made with after a merc was hired, which game.exe
 refused. `d2s::write_save` now writes "jf" + "JM" whenever
 `header.merc_seed` is set (`World::save` passes `merc_items`), and a save
 saved again mends.
+
+## Spawning the merc (FUN_005774f0, 0x17a bytes)
+
+Both readers of a merc record end up here: `FUN_00533c70`'s header parse
+(above) calls `FUN_005774f0(level, header, id, row+8, expansion)` once it
+has `d2d_merc_hireling_row`'s row; so does `FUN_005394a0` (the per-client
+join walk over `+0x18`'s pending list, SUNITNPC.CPP), which calls
+`FUN_005774f0(name, id, 0xffff, 0, 0)` for each entry whose flag word
+(`FUN_0063d670`) is 0 — so a joining client's own saved merc is recreated
+the same way a load restores one. `__fastcall`, `ECX` the player (`+0x70`
+the game, `+0x6d` class, read from raw disassembly since the decompile
+shows a bare `FUN_005774f0();`), `EDX` a second record whose byte `+0x18`
+is the fallback class when the expansion check below doesn't apply;
+three stack words follow: the level (clamped below), a word at
+`record+6` (unread here), the merc name id (`ushort`, `0xffff` from the
+client-join caller means "no particular level"), the hireling row's `+8`
+dword, and the expansion flag:
+
+- `FUN_00663750(name id)` gets the id's act; `FUN_005531c0(0x735)` /
+  `(0x737)` is a quest-bit style check (not traced further this batch)
+  that picks the class byte from `EDX+0x18` or, when it's set, from
+  `FUN_005382b0() & 0xff` instead.
+- With the player's game (`+0x70`) or a resolved act: the row is either
+  `d2d_merc_hireling_row(game, name id & 0xffff, 1)` (an exact id — the
+  save/join path) or, when the level word is `-1` (`(short)param_5`, no
+  id given), a fresh `FUN_00656580(game, act, class, 0)` pick. No row:
+  the fatal path (`FUN_00408090(0x744)`, `FUN_00408a60`,
+  `FUN_00681e09(-1)`).
+- The level clamps to the row's name range (`+0x114`..`+0x116`, as the
+  hire list's entries, npc-menu.md "The list"): below `+0x114` or above
+  `+0x116`, it's set to `+0x114`.
+- The sunitproxy name-list entry for that (clamped level, class) pair
+  (`FUN_00535ea0`'s `+0x10` table, `+0x10` sized stride) is marked
+  "hired" (`+8 = 1`) when it wasn't already (`+0xc == 0`) — the same
+  entries the hire list rolls from (npc-menu.md "The list").
+- The unit itself comes from `FUN_00555230(0,0,player,0,1,mode,0)`, mode
+  1 or 0xc depending on the expansion flag; nonzero, `FUN_00573270(unit,
+  name id, {level, (unread word)}, expansion)` applies it (stats/skills,
+  MonsterAI.cpp) and the unit is returned.
+
+Not traced this batch: `FUN_005531c0`'s 0x735/0x737 codes, and exactly
+what the unread word (`record+6`) and the hireling row's `+8` dword feed
+into `FUN_00573270`. d2d: not ported; `cmd::MercItem` / `World::hire_list`
+(npc-menu.md) cover the item and hire-list side only. No oracle run this
+batch — read from the decompile and raw disassembly, cited, not matched
+against game.exe with `tools/emu`.
