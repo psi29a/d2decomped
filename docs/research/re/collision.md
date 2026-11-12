@@ -1562,3 +1562,37 @@ Re-check: `python3 tools/ghidra/fn.py 004656c0 00466360`; disassemble
 `004656c0`..`00465855` to confirm the EAX-code/ESI-unit naked convention
 and the jump table at `0x465858`.
 
+### Playing something at a unit's path target: `FUN_00465bf0` (batch 12)
+
+`FUN_00465bf0` (0x6b bytes, `00465bf0`..`00465c5b`, fastcall ECX
+`param_1` the unit, EDX `param_2` a value forwarded unchanged, confirmed
+in disassembly: `MOV EBX,EDX` / `MOV ESI,ECX` at entry): calls
+`FUN_00480420` on `param_1` first — unchanged ECX at the call site, so
+the already-cited `FUN_00480420(unit)` (line 1119 above, "a unit without
+a path" clears its stale target). Fatal (assert id `0x946`) if
+`param_1`'s own path is null. Then `FUN_00648bf0(param_1's path)` (the
+path's target pointer, already cited line 1124 above) — nothing happens
+when there's no target, or the target is `param_1` itself. Otherwise:
+re-reads `param_1`'s path (fatal `0x7e2` if it's gone by now — the same
+double-check pattern `FUN_00465f20` below shows), then calls
+`FUN_0045ae20(param_2)` and `FUN_0045adf0(that result)` — the same pair
+already cited at line 1335 above — and finally `FUN_00649ef0(target,
+y-ish value, x-ish value, param_2)`. So it plays or triggers something
+at a position derived from `param_2`, aimed at `param_1`'s current path
+target, when that target isn't `param_1` itself. Its nine call sites
+span several already-documented systems: `FUN_004aff60` (the client's
+post-move-packet stat/mode hook, `net-packets.md:258,769`,
+`video-drivers.md:219`, two call sites), `FUN_004af6a0` (already cited
+line 1340 above), `FUN_004c6eb0` (already cited line 1155 above), plus
+`FUN_004ae1d0`, `FUN_004ae4f0`, `FUN_004c8ed0`, `FUN_004c9b40` (the
+skill picker, `skills.md:577,1849` etc.) and `FUN_004efdf0`, none of
+which were opened here. Not traced: `FUN_0045ae20`/`FUN_0045adf0`'s own
+unit-to-value mapping beyond what line 1335 above already reads,
+`FUN_00649ef0`'s own effect (not traced, line 1351), and what each of
+the nine callers passes as `param_2`. d2d: not ported as a function; no
+d2d equivalent was checked against this helper.
+
+Re-check: `python3 tools/ghidra/fn.py 00465bf0 00480420 00648bf0`;
+disassemble `00465bf0`..`00465c5b` to confirm the ECX/EDX fastcall and
+the "target != self" gate.
+
