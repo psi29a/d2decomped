@@ -74,7 +74,7 @@ AI control +0x20 is a circular list of commands, found by type
      there; else `Q04_SetTristramActiveFlag`.
    - 0x200 (A5Q4): `Q34_NpcSpawnPortalInAct5`, then falls through to the
      commands below either way.
-   - 0xff (the Act 3 serpent cage, A3Q3): `Q20_GetSerpentLocation`; over 3
+   - 0xff (Ormus, the A3Q3 serpent cage): `Q20_GetSerpentLocation`; over 3
      off, walk there; else Skill1 (8) at it and `Q20_ActivateSerpentObject`,
      then returns (no commands this think). No location: falls through.
    - 0xc9 (Jerhyn, A2Q4/A2Q7): `QUEST_ShouldBlockJerhyn` (`FUN_0059f570`, a
@@ -101,7 +101,7 @@ AI control +0x20 is a circular list of commands, found by type
      open, with the Jerhyn-gateway command (kind 10) already up, sets its
      `nCmdArg[1]`/`[2]` to the unit's own X + 9 / Y and reschedules at 0x32
      (50); closed, or no such command, falls through to the commands below.
-   - 0xfe (the golden bird, A3Q5): while `Q22_IsGoldenBirdQuestActive`,
+   - 0xfe (Alkor, the A3Q5 golden bird): while `Q22_IsGoldenBirdQuestActive`,
      Skill1 (8) at it, then `Q22_ClearGoldenBirdQuestFlag`, and returns;
      else falls through.
 3. FUN_005e68f0, the visitor (below): returns 0 with no player to heed
