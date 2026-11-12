@@ -3200,7 +3200,7 @@ Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
 - `FUN_00461a70` (**ECX** target unit, no stack): 0x20-byte local record.
   Reads the local player with `FUN_00463dd0`, stores player at record
   `+4`, target at `+8` and the constant 2 at `+0x18`; the other fields
-  (`+0`, `+0xc`..`+0x14`, `+0x1c`) are never written. It then calls
+  (`+0`, `+0xc`..`+0x14`, `+0x1c`) are not written in this function. It then calls
   `FUN_004619e0` with **ESI** = the record and **EDI** = the target's
   unit id, or ESI/EDI = 0xffffffff when the target is null (`0x461a8e`).
   Hidden register arguments: ECX is the only visible one.
@@ -3220,7 +3220,7 @@ Re-check: disassemble `00461a70`..`00461aa2` (ESI/EDI set at `0x461a90`..`0x461a
 
 ### Skills-row flag getters: `FUN_00462560`, `FUN_00464ec0`, `FUN_00464f70` (batch 23)
 
-All three read a byte of the 0x23c-byte Skills row (`id * 0x23c + [tables + 0xb98]`, count at `[tables + 0xba0]`, `tables` = `[0x744304]`) against a mask loaded from the dword array at `0x6ce268`. `read_memory` at `0x6ce268` gives the dwords 1, 2, 4, 8, so `0x6ce268` = 1, `0x6ce26c` = 2, `0x6ce270` = 4.
+The three functions read a byte of the 0x23c-byte Skills row (`id * 0x23c + [tables + 0xb98]`, count at `[tables + 0xba0]`, `tables` = `[0x744304]`) against a mask loaded from the dword array at `0x6ce268`. `read_memory` at `0x6ce268` gives the dwords 1, 2, 4, 8, so `0x6ce268` = 1, `0x6ce26c` = 2, `0x6ce270` = 4.
 
 - `FUN_00462560` (**EAX** skill node, plain `RET`): 0 for a null node; skill id from `FUN_00643ce0(node, "UNIT\Player.cpp", 0x75a)`; row byte `+5` and mask 1 (`0x6ce268`). Out-of-range id leaves the row pointer 0 and the following `TEST [EAX+5]` dereferences null (no row null check; `0x462594`..`0x46259c`). Only caller `FUN_004625b0`.
 - `FUN_00464ec0` (**ECX** unit, **EDX** params pointer, plain `RET`): 0 if either is null, or if the unit's type is nonzero and `params[0]` is not 1. Takes the left skill (`FUN_00620190`) and the right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`0x6ce26c`). If either hand has it, returns `FUN_00479150(params[3]) == unit[+0xc]` (the id owner of that roster entry equals the unit's id); else 0.
@@ -3234,7 +3234,7 @@ Re-check: disassemble `00462560`..`004625a9` and `00464ec0`..`0046503f`; `read_m
 ### Inventory presence walks: `FUN_00464d20`, `FUN_00464d90` (batch 23)
 
 - `FUN_00464d20` (**EAX** container unit, **EDI** item, stack excluded unit, `RET 4`): 0 at once when the stack unit equals the container. Otherwise walks the container's inventory (`+0x60`) with `FUN_0063b2c0` (first) and `FUN_0063dfa0` (next); each entry goes through `FUN_0063dfd0` to its carried item. A null result is fatal (assert line 0xa5b); a match with EDI returns 1, none returns 0.
-- `FUN_00464d90` (**EAX** item, stack excluded unit, `RET 4`): moves EAX to EDI and calls `FUN_00464d20` for every unit in two bucket arrays of 0x80 pointers, `0x7a5e70` then `0x7a6070`, following the chain word at unit `+0xe4`. 1 on the first hit, else 0. Only caller `FUN_00466cb0`.
+- `FUN_00464d90` (**EAX** item, stack excluded unit, `RET 4`): moves EAX to EDI and calls `FUN_00464d20` for each unit in two bucket arrays of 0x80 pointers, `0x7a5e70` then `0x7a6070`, following the chain word at unit `+0xe4`. 1 on the first hit, else 0. Only caller `FUN_00466cb0`.
 
 d2d: no match for either address in `components/` or `apps/`. Not traced: what the two arrays hold in type terms (the decompiler calls them the server-side tables; `FUN_00465aa0` below walks the same two addresses).
 
