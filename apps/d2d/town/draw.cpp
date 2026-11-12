@@ -267,6 +267,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             belt_names = { name(pad::Action::Belt1), name(pad::Action::Belt2), name(pad::Action::Belt3), name(pad::Action::Belt4) };
         }
         std::vector<HudHover> hud_hovers;   // the bars' hover texts, drawn after the mini-panel as FUN_00503000 does
+        int holy_shield = 0;
+        if (const auto skill = scene->skills.by_name.find("Holy Shield"); skill != scene->skills.by_name.end() && std::ranges::contains(view.buffs, skill->second))
+            holy_shield = d2d::game::skill_level(*scene, character, skill->second, {});
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,
@@ -280,7 +283,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;

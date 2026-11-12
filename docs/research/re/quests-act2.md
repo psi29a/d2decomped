@@ -422,9 +422,10 @@ d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`,
 2026-10-11, quests 8..13 done by `debug quest`): into the Lair → state
 2, log 2 (bit 2); Duriel's death → 3 / 3 (bit 5); Tyrael → 4 / 4, bits
 3 and 13, his portal; Jerhyn → 5 / 6 (bit 4); Meshif → done (bits 0, 2,
-5, 13). Gaps: the orifice's panel (using it with the staff places it);
-the way down is drawn as a town portal, not object 100's SJ opening
-(view.cpp); its timer is 1 frame, not 18 quest ticks;
+5, 13). The way down is drawn as object 100 (SJ): OP for 20 ticks (the
+client's counter, `object_op_ticks`), then ON; from an earlier game ON at
+once (0x59d976). Gaps: the orifice's panel (using it with the staff places
+it); its timer is 1 frame, not 18 quest ticks;
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
 +0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
 

@@ -25,8 +25,6 @@ Ranked by Seen, then by how much play it touches.
 | # | What | Kind | Seen | Where / notes |
 |---|---|---|---|---|
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
-| 5 | MonEquip.txt is hardcoded to Blood Raven's bow; the Valkyrie's gear by skill level (rows by `level`) isn't rolled. Traced: `FUN_005d6b60` (skills.md), called by `FUN_005c4470` with the skill level | build | maybe | objgroups.cpp:552; pets.hpp |
-| 6 | MonItemPercent.txt (TreasureClassPercent 20: a monster's own gear dropping) isn't read | check | maybe | Matters once #5 gives monsters gear |
 | 7 | Council S1: compare built d2d timing, including speed modifiers. The original event is traced; the current source already waits for the action frame. | check | maybe | [council-s1.md](council-s1.md): stock original scheduler/dispatch checked; no built-d2d differential yet |
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
 | 9 | Unique monster mods still untraced: the act bosses' deaths (the thief is traced: never applied, monsters.md) | trace | maybe | PLAN.md phase 6, monster-ai.md |
@@ -55,8 +53,6 @@ to 70% and the menu's fade-out.
 
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
-| 16 | The hero's quest lines: each quest's "find" and "complete" voice, five classes | 70 | build | yes | Triggers include Cain rescue, Diablo (0x4b, with the quest music's delays: unit-sounds.md "Quest music"), Seven Tombs, Act 3 completions and prior Act 1 / 2 cues. 14 remaining per classic class (70 sounds: act 2's begin_tainted, complete_tightspot and four find lines, events 0x31, 0x35, 0x39..0x3c) have no server dispatch in stock 1.14d (unit-sounds.md). |
-| 17 | The classic quest music jingles (Andariel, Blood Raven, Den, Forge, Horadric …) | 10 | trace | yes | Built and timed by FUN_004dcd40's arguments (unit-sounds.md "Quest music"); the four objects' start points are d2d's own |
 | 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues, Andariel's quake, Diablo's arrival taunt and Diablo's death schwing / hit are wired. The monster cast / skeleton cast / Izual taunt_2 rows are never played (unit-sounds.md). |
 | 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | 21 | build | yes | Cain's act 1 help is wired (the Gibbet's call). As traced, stock 1.14d plays none of the rest: not in the speech table, no client code plays them, and the rogue confirm's C→S 0x46 is never sent (unit-sounds.md). |
 | 20 | Skills' prgsound; monsters' own skill stsound | — | build | yes | unit-sounds.md; dosound a / b are in (only Jab's is ever played); the player's block and kick sounds are in |

@@ -13,6 +13,7 @@
 #include <dt1.hpp>
 #include <install.hpp>
 #include <level_ids.hpp>
+#include <mon_equip.hpp>
 #include <monster_ids.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
@@ -452,17 +453,33 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) game_data.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
-    game_data.mon_equip_oninit.assign(monstats.size(), {});
+    // FUN_00659e60: a row's monster by Id (-1 unknown), a blank code "    ",
+    // the slots by BodyLocs code, a slot whose code isn't an item cleared;
+    // MonStats +0x2a its monster's first row.
+    game_data.mon_equip.clear();
+    game_data.mon_equip_first.assign(monstats.size(), -1);
     if (const auto equip = txt("MonEquip"); equip.size() > 0)
         for (std::size_t row_index = 0; row_index < equip.size(); ++row_index) {
-            if (equip.get(row_index, "oninit") != "1") continue;
+            d2d::rules::MonEquipRow equip_row;
             const auto found = game_data.monsters.by_id.find(std::string(equip.get(row_index, "monster")));
-            if (found == game_data.monsters.by_id.end()) continue;
-            int items = 0;
-            for (const char* column : { "item1", "item2", "item3" }) items += equip.get(row_index, column).empty() ? 0 : 1;
-            if (items > 0) game_data.mon_equip_oninit[std::size_t(found->second)].push_back(items);
+            equip_row.monster = found == game_data.monsters.by_id.end() ? -1 : found->second;
+            equip_row.level = std::atoi(std::string(equip.get(row_index, "level")).c_str());
+            equip_row.oninit = std::atoi(std::string(equip.get(row_index, "oninit")).c_str()) != 0;
+            for (std::size_t slot = 0; slot < 3; ++slot) {
+                const std::string number = std::to_string(slot + 1);
+                if (const auto code = equip.get(row_index, "item" + number); !code.empty()) equip_row.item[slot] = (std::string(code) + "    ").substr(0, 4);
+                equip_row.loc[slot] = d2d::rules::body_slot(equip.get(row_index, "loc" + number));
+                equip_row.quality[slot] = std::atoi(std::string(equip.get(row_index, "mod" + number)).c_str());
+                if (const auto code = equip.get(row_index, "item" + number); !code.empty() && !game_data.rules.item_info.contains(std::string(code.substr(0, code.find_last_not_of(' ') + 1)))) {
+                    equip_row.item[slot] = std::string(d2d::rules::kOwnersItem);
+                    equip_row.loc[slot] = 0;
+                }
+            }
+            if (equip_row.monster >= 0 && std::size_t(equip_row.monster) < game_data.mon_equip_first.size() && game_data.mon_equip_first[std::size_t(equip_row.monster)] < 0)
+                game_data.mon_equip_first[std::size_t(equip_row.monster)] = int(game_data.mon_equip.size());
+            game_data.mon_equip.push_back(std::move(equip_row));
         }
-    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 21, 34, 35, 40-42 (none random; 24 is never applied)");
+    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 34 (none random; 24, 40 and 41 are never applied)");
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
@@ -719,6 +736,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto portal = [&](int oid, Npc& look) { Level one; add(one, oid, 0, 0); if (!one.npcs.empty()) look = std::move(one.npcs[0]); };
         portal(59, game_data.town_portal);                    // the town portal
         portal(60, game_data.red_portal);                     // the permanent (red) one
+        portal(100, game_data.duriel_portal);                 // the true tomb's way down (FUN_0059d870)
         portal(189, game_data.cain_portal);                   // Cain's
     }
     for (const auto& object : game_data.town.ds1.objects())
@@ -738,18 +756,33 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     stamp_footprints(game_data.town);
 
     // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify
-    // items"), in camp once Act 1 quest 4 is done. On the rescue itself
-    // a1q4.cpp (FUN_00596de0 -> FUN_00592960) spawns him where the player
-    // came back through the portal.
-    // ponytail: where a game with the quest already done places him isn't
-    // located; he stands 3 subtiles off the town start, like the
-    // Tristram spawn's offset (FUN_00593290).
+    // items"), in camp once Act 1 quest 4 is done. Every way he comes (the
+    // rescue, FUN_005944f0; a join with the quest done, FUN_00597030; the
+    // way into town, FUN_00596de0) makes him at the camp's "cain start
+    // position" (object 385, DS1 preset 110: its InitFn 54, FUN_005940e0,
+    // keeps its x / y at +0x84 / +0x88). FUN_00592960 finds a size-2 spot
+    // there (FUN_00545340(2, 0x100, .., 100) at 0x5929fe), then makes him
+    // within 5 of it (FUN_005b2f20 at 0x592a2e).
+    // ponytail: the radius-5 placement (FUN_005b2f20 -> FUN_005b2a00, on the
+    // room's seed) and its retries are taken as the spot itself. A camp
+    // without the object keeps the town start + 3 subtiles (game.exe makes none).
+    const auto cain_start = std::ranges::find_if(game_data.town.ds1.objects(), [](const auto& object) {
+        return object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150
+            && kObjPreset[0][std::size_t(object.id)] == d2d::rules::object_ids::kCainStart;
+    });
     for (std::size_t row_index = 0; row_index < monstats.size() && game_data.town.start.first >= 0; ++row_index) {
         if (monstats.get(row_index, "hcIdx") != std::to_string(d2d::rules::monster_ids::kCampCain)) continue;
         auto npc = monster(row_index);
         if (npc.code.empty()) break;
         npc.quest = 4;
-        std::tie(npc.x, npc.y) = game_data.town.nearest_free(game_data.town.start.first + 0.6f, game_data.town.start.second + 0.6f);
+        if (cain_start != game_data.town.ds1.objects().end()) {
+            int spot_x = cain_start->x, spot_y = cain_start->y;
+            if (const auto spot = game_data.town.free_area(spot_x, spot_y, 2, 0x100, 100)) std::tie(spot_x, spot_y) = *spot;
+            npc.x = (float(spot_x) + 0.5f) / 5;
+            npc.y = (float(spot_y) + 0.5f) / 5;
+        } else {
+            std::tie(npc.x, npc.y) = game_data.town.nearest_free(game_data.town.start.first + 0.6f, game_data.town.start.second + 0.6f);
+        }
         game_data.town.npcs.push_back(std::move(npc));
         break;
     }
@@ -1022,9 +1055,12 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {},
                                                       number("group"), number("level"), {} };
             for (int i = 1; i <= 10; ++i) {
-                auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
-                std::erase(item, '"');
-                if (!item.empty() && number("Prob" + std::to_string(i)) >= 1) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
+                const auto entry = d2d::rules::treasure_entry(std::string(tcx.get(row, "Item" + std::to_string(i))));
+                if (!entry.code.empty() && number("Prob" + std::to_string(i)) >= 1) {
+                    treasure_class.items.emplace_back(entry.code, number("Prob" + std::to_string(i)));
+                    treasure_class.entry_flags.push_back(entry.flags);
+                    treasure_class.entry_index.push_back(entry.index);
+                }
             }
             std::string name(tcx.get(row, "Treasure Class"));
             if (last_group != 0 && treasure_class.group == last_group) game_data.rules.treasure[last_name].next = name;

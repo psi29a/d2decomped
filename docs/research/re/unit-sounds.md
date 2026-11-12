@@ -266,7 +266,9 @@ FUN_004cb9c0 are the refusals, the mana check and this table. See
 stubs.md. The same holds for two completions, act2_complete_tightspot
 (0x35) and act3_complete_beneath (0x3f), and for act2_begin_tainted
 (0x31), act2_near_tightspot (0x3d) and act2_trigger_field (0x3e):
-no site passes them, constant or computed (checked again 2026-10-25;
+no site passes them, constant or computed (checked again 2026-10-25,
+and 2026-11-11: the 99 calls to FUN_00553380 in the code, each one's EDX
+read back to its `mov` or `lea`;
 the pass-through helpers FUN_00595420 / FUN_005455f0 / FUN_0055c9a0
 only get 0x25, 0 and 0x13 / 0x17).
 
@@ -285,10 +287,10 @@ The clock is `FUN_0044db00` (DAT_007a0498), 25 a second. In address order:
 
 | Address | Trigger | Jingle | EDX | Back | Line at | Speaks | From block |
 |---|---|---|---|---|---|---|---|
-| `0046b146` | Horadric Staff (object mode, `FUN_004ad1a0`) | music_quest_horadric | 0 | 725 | 0 | no | yes |
-| `0046b33e` | the Hellforge | music_quest_forge | 0 | 350 | 0 | no | no |
-| `0046b883` | the Compelling Orb | music_quest_compelling | 0 | 350 | 0 | no | no |
-| `0046bc28` | Izual | music_quest_izual | 0 | 250 | 0 | no | no |
+| `0046b146` | S→C 0x89 event 3, the staff placed (`FUN_0059dd80`) | music_quest_horadric | 0 | 725 | 0 | no | yes |
+| `0046b33e` | 0x89 event 14, the forge's third blow (0x5b5dfc) | music_quest_forge | 0 | 350 | 0 | no | no |
+| `0046b883` | the orb monster (0x16e) dies | music_quest_compelling | 0 | 350 | 0 | no | no |
+| `0046bc28` | Izual (0x100) dies | music_quest_izual | 0 | 250 | 0 | no | no |
 | `004cba72` | unit event 0x23, the Den | music_quest_den | 0 | 300 | 250 | yes | yes |
 | `004cba9c` | 0x22, Blood Raven | music_quest_bloodraven | 475 | 800 | 525 | yes | yes |
 | `004cbac0` | 0x25, the Tower | none | 0 | 1500 | 0 | no | no |
@@ -302,8 +304,31 @@ LoD's 0x50 (Shenk), 0x52 (Nihlathak) and 0x53 (Baal) follow at 0x4cbbaa..0x4cbbf
 The server sends 0x4b from `FUN_005b49c0` to each player with Terror's End
 bit 13 (0x5b4a20). d2d: `rules::QuestMusic`, `World::music_cue` and
 `rules::quest_line_due` (the line's delay), `Audio::quest_music`
-(`test_quest_music`). Not done: the four objects' jingles start where d2d
-already had them, not at the object's client mode (`FUN_004ad1a0`).
+(`test_quest_music`).
+
+**The four the client starts itself.** Two come from S→C 0x89 (handler
+0x4b9330 → 0x46b630, the table at 0x7129d8): event 3's entry
+(0x46b100) and event 14's (0x46b300). Each looks for its object (152 the
+orifice, 376 the Hellforge) among the units of the local player's room's
+near list (`FUN_00463de0`, `FUN_00620bb0`, `FUN_0065a620` over
+`FUN_00619790`'s rooms) and plays the jingle only when it's there; event 14
+also plays quest_hellforge_smash (0x23) on the forge. The server sends 3
+from `FUN_0059dd80` (the staff placed in the orifice) and 14 from the
+Hellforge's third blow (`FUN_005b5c10`, 0x5b5dfc), each to the whole game
+(`FUN_00545760`). Nothing plays music_quest_horadric when the staff is
+made: these four `mov ecx` sites are the only immediates of 0x124f,
+0x1251..0x1253 in the code. The other two are the questcomplete mod's (22)
+client hook for event 1, after a mode change: `FUN_004aff60` (the monster's
+unit command) ends with `FUN_004ade50` → `FUN_004add90`, which runs the
+table at 0x724e28 by mod × 5 + event; mod 22's entry is 0x4ad2f0. In mode 0
+(death) it switches on the class: 0x100 Izual → 0x46bc10, the jingle; 0x16e
+the compelling orb → 0x46b850, the jingle when object 386 is in the orb's
+near list (the server's `FUN_005dfee0` asserts it is). The orb dies by
+`FUN_005ddfc0` (mode 0) on the second hit with Khalim's Will
+(`FUN_005bb980`). d2d: `World::music_cue_near`, for each player whose
+room's near list holds the unit (`test_quest_jingles`). For the two deaths
+that is d2d's reading of "a client that has the unit": which rooms' units
+the server sends a client isn't traced here.
 
 ## Footsteps (FUN_004caf60 → FUN_004caeb0)
 

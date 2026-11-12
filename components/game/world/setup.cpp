@@ -136,8 +136,8 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
     const auto spread = [&](std::size_t moved_back) {
         float least_x = 1e9f, most_x = -1e9f, least_y = 1e9f, most_y = -1e9f;
         for (const std::size_t slot : party) {
-            const auto [x, y] = slot == moved_back ? before[slot] : std::pair{ players[slot]->player.x, players[slot]->player.y };
-            const float screen_x = (x - y) * 80, screen_y = (x + y) * 40;
+            const auto [tile_x, tile_y] = slot == moved_back ? before[slot] : std::pair{ players[slot]->player.x, players[slot]->player.y };
+            const float screen_x = (tile_x - tile_y) * 80, screen_y = (tile_x + tile_y) * 40;
             least_x = std::min(least_x, screen_x); most_x = std::max(most_x, screen_x);
             least_y = std::min(least_y, screen_y); most_y = std::max(most_y, screen_y);
         }

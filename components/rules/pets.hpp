@@ -142,16 +142,16 @@ public:
             bool tried = false;
             for (int looked = 0, cursor = view_.cursor;;) {
                 cursor = cursor == 0 ? 0x13 : cursor - 1;
-                const auto [x, y] = view_.ring[std::size_t(cursor)];
-                if (x != 0 && y != 0 && npc_distance(pet_x, pet_y, x, y) > 5) {
+                const auto [step_x, step_y] = view_.ring[std::size_t(cursor)];
+                if (step_x != 0 && step_y != 0 && npc_distance(pet_x, pet_y, step_x, step_y) > 5) {
                     pace(0, pct, 100);
-                    if (set_out(x, y, move_mode)) return true;
+                    if (set_out(step_x, step_y, move_mode)) return true;
                     pace(0xf, pct, 100);
-                    if (set_out(x, y, move_mode)) return true;
+                    if (set_out(step_x, step_y, move_mode)) return true;
                     if (!tried) {
                         tried = true;
                         pace(1, pct, 100);
-                        if (set_out(x, y, move_mode)) return true;
+                        if (set_out(step_x, step_y, move_mode)) return true;
                     }
                 }
                 if (++looked > 0x13) {

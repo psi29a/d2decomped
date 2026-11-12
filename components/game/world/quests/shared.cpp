@@ -261,8 +261,7 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         std::erase_if(actor->character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kCube; });
         const auto& layout = game_data->cube_layout;
         for (auto& item : made.items) {
-            if (item.code == "hst") {             // FUN_0059e5c0 -> FUN_0059b660
-                music_cue("music_quest_horadric");
+            if (item.code == "hst") {             // FUN_0059e5c0 -> FUN_0059b660 (its jingle is the orifice's)
                 d2d::rules::quest::set(quests(), d2d::rules::HoradricStaffQuest::kQuest, 11);
                 staff.staff_made = true;
                 arcane.staff_made(quests());
@@ -281,13 +280,17 @@ auto World::transmute(std::uint32_t now_ms) -> void {
     }
 
 // The way down to Duriel (FUN_0059d870): object 100 13 subtiles left of the
-// orifice and 3 down (FUN_00555230), in the true tomb.
+// orifice and 3 down (FUN_00555230), in the true tomb. Mode 1, its opening
+// (FUN_00624690(unit, 1), 0x59d986), unless the staff went in in an earlier
+// game (data +0xc, 0x59d976): then mode 2, open already, so its born time
+// goes back by the opening's length.
 auto World::durielportal_open(std::uint32_t now_ms) -> void {
         const Level* tomb = game_data->level(tombs.true_tomb);
         if (!tomb) return;
         const auto orifice = std::ranges::find(tomb->npcs, d2d::rules::operate_fn::kOrifice, &Npc::operate_fn);
         if (orifice == tomb->npcs.end()) return;
-        portal[6] = { tomb, orifice->x - 13.f / 5, orifice->y + 3.f / 5, now_ms };
+        const std::uint32_t opened_ms = tombs.later ? std::uint32_t(std::max(object_op_ticks(game_data->duriel_portal), 0)) * kTickMs : 0;
+        portal[6] = { tomb, orifice->x - 13.f / 5, orifice->y + 3.f / 5, now_ms - opened_ms };
         d2d::log::info("The Seven Tombs: the way down to Duriel opens");
     }
 
@@ -582,7 +585,7 @@ auto World::find_voice(std::uint32_t tick_ms) -> void {
         namespace q = d2d::rules::quest;
         if (closed_at_join[quest] || game_quest_done(quest) || q::bit(bits, row->quest, 0) || q::bit(bits, row->quest, 1) || q::bit(bits, row->quest, 14)) return;
         if (row->quest == d2d::rules::DenQuest::kQuest && den.log_state(bits) >= 5) return;
-        if (actor->voice_at && tick_ms - actor->voice_at < kWait) return;
+        if (actor->voice_at && (tick_ms < actor->voice_at || tick_ms - actor->voice_at < kWait)) return;   // a line still due counts
         class_cue(row->line, tick_ms);
     }
 
@@ -601,6 +604,13 @@ auto World::music_cue(std::string_view sound) -> void {
             music.jingle_ms = row->jingle_at * 40; music.back_ms = row->back * 40; music.from_block = row->from_block;
         }
         actor->events.push_back(music);
+    }
+
+// The four client-side jingles (rules::QuestMusic's object rows): the
+// client plays one only when the unit it looks for is in its player's
+// room's near list (FUN_00620bb0 -> FUN_0065a620 walks FUN_00619790's).
+auto World::music_cue_near(std::string_view sound, float x, float y) -> void {
+        each_player([&](Player& player) { if (near_room(player.player.x, player.player.y, x, y)) music_cue(sound); });
     }
 
 // FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").

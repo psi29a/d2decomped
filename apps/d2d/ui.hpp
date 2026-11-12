@@ -262,8 +262,9 @@ int talk_topic(const NpcTalk& talk, bool intro, int cls, d2d::rules::Rng& rng,
 // pre-wrapped. A half-dark 325x122 box at ((W-325)/2, 12-5); FontFormal11
 // lines at x+16, 18 px apart, entering at the bottom (baseline top+112)
 // and rising by (ms/4)*rate/1024 px. Done once the offset passes
-// (lines-1)*18 + 112. ponytail: whole lines clipped to the box instead of
-// FUN_00501df0's partial-line reveal; no voice.
+// (lines-1)*18 + 112. A line that meets the box is drawn for the glyph
+// rows inside it (FUN_00501df0); one clear of the box is not drawn.
+// ponytail: no voice.
 struct Speech {
     int npc = -1;
     std::vector<std::string> lines;
@@ -276,6 +277,18 @@ struct Speech {
         return offset_px(now_ms) > std::max(int(lines.size()) - 1, 1) * 18 + 0x70;
     }
 };
+
+// The speech box (FUN_0046efd0): half-dark 325x122 at y = 12 - 5.
+inline constexpr int kSpeechBoxTop = 12 - 5;
+inline constexpr int kSpeechBoxBottom = kSpeechBoxTop + 0x7a;
+
+// FUN_0049d5a0 draws a line whole while it sits in the box, and FUN_00501df0
+// draws one that only partly sits there. The glyph is the cell ending on
+// the baseline. False: the line is clear of the box.
+inline bool speech_line_visible(int baseline, int cell) {
+    const int glyph_top = baseline - cell + 1;
+    return glyph_top < kSpeechBoxBottom && baseline >= kSpeechBoxTop;
+}
 
 Speech start_speech(const Scene& scene, int npc, std::uint16_t string, std::uint32_t now_ms);
 

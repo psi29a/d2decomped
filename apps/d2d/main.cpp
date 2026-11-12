@@ -1091,7 +1091,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     else if (csu.pick_difficulty) buttons({ &csu.difficulty_btn[0], &csu.difficulty_btn[1], &csu.difficulty_btn[2] });
                     else buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
                 } else if (screen == Screen::InGame && town.controls.open && scene) {
-                    for (const auto& [x, y] : town.controls.buttons(*scene)) points.push_back({ x, y });
+                    for (const auto& [point_x, point_y] : town.controls.buttons(*scene)) points.push_back({ point_x, point_y });
                 }
                 return points;
             };

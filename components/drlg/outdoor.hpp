@@ -1065,7 +1065,7 @@ struct Gen {
         };
         auto five = [&] {                                                                 // FUN_0067f5c0: a row of 0x6f2390
             const auto& row = kDesertRows[std::size_t(seed.next() & 7)];
-            for (const auto& [def, file, x, y] : row) place(x, y, def, file, false);
+            for (const auto& [def, file, place_x, place_y] : row) place(place_x, place_y, def, file, false);
         };
         switch (id) {
         case 41: {                                                                        // FUN_0067f560: by Lut Gholein
@@ -1103,7 +1103,7 @@ struct Gen {
             shrines(5);
             break;
         case 46:                                                                          // FUN_0067f8d0: the canyon's rows (0x6f2610), the tombs' gate
-            for (const auto& [def, file, x, y] : kCanyonRows) place(x, y, def, file, false);
+            for (const auto& [def, file, place_x, place_y] : kCanyonRows) place(place_x, place_y, def, file, false);
             place(4, 4, 0x18a, -1, false);
             subs(); shrines(5);
             desert_list({ 0x191, 0x192, 0x196, 0x197, 0x193 }, false);
