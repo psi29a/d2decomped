@@ -65,8 +65,11 @@ class _WinsockUnix:
         if self._handle == ctypes.c_size_t(-1).value:
             raise self._error("socket")
         millis = ctypes.c_uint32(int(timeout * 1000))
-        for option in (self._SO_SNDTIMEO, self._SO_RCVTIMEO):
-            ws2.setsockopt(self._handle, self._SOL_SOCKET, option, ctypes.byref(millis), ctypes.sizeof(millis))
+        for option in (self._SO_SNDTIMEO, self._SO_RCVTIMEO):   # without them a stuck d2d hangs recv
+            if ws2.setsockopt(self._handle, self._SOL_SOCKET, option, ctypes.byref(millis), ctypes.sizeof(millis)) != 0:
+                error = self._error(f"setsockopt {option:#x}")
+                self.close()
+                raise error
         address = _SockaddrUn(self._AF_UNIX, os.fsencode(path))
         if ws2.connect(self._handle, ctypes.byref(address), ctypes.sizeof(address)) != 0:
             error = self._error(f"connect {path}")

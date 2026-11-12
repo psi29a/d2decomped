@@ -26,6 +26,7 @@
 #include <process.h>
 #else
 #include <cerrno>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -43,6 +44,7 @@ long long send_text(Native socket, std::string_view text) { return ::send(socket
 long long recv_some(Native socket, char* data, std::size_t size) { return ::recv(socket, data, int(size), 0); }
 void shut_write(Native socket) { ::shutdown(socket, SD_SEND); }
 int process_id() { return ::_getpid(); }
+bool set_nonblocking(Native socket) { u_long enabled = 1; return ::ioctlsocket(socket, FIONBIO, &enabled) == 0; }
 #else
 using Native = int;
 constexpr Native kNone = -1;
@@ -52,6 +54,7 @@ long long send_text(Native socket, std::string_view text) { return ::send(socket
 long long recv_some(Native socket, char* data, std::size_t size) { return ::recv(socket, data, size, 0); }
 void shut_write(Native socket) { ::shutdown(socket, SHUT_WR); }
 int process_id() { return int(::getpid()); }
+bool set_nonblocking(Native socket) { const int flags = ::fcntl(socket, F_GETFL, 0); return flags >= 0 && ::fcntl(socket, F_SETFL, flags | O_NONBLOCK) == 0; }
 #endif
 
 }  // namespace
@@ -96,6 +99,9 @@ int main() try {
         std::strncpy(address.sun_path, sock_path.c_str(), sizeof(address.sun_path) - 1);
         const int result = ::connect(client, reinterpret_cast<sockaddr*>(&address), sizeof(address));
         assert(result == 0);
+        // Non-blocking: read_reply's retries bound the wait (~1 s) if a reply never comes.
+        const bool nonblocking = set_nonblocking(client);
+        assert(nonblocking);
         return client;
     };
 
