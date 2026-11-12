@@ -12,6 +12,7 @@
 
 #include <ai.hpp>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <ds1.hpp>
 #include <exception>
