@@ -430,6 +430,23 @@ chooser's casting test (Fire Wall over 3, 0x1b over 7) reads them.
 `rules::diablo_score`, proven on 400 cases (tools/emu/diablo_score.py,
 tests/diablo_score_cases.inc).
 
+`tools/emu/ai_wisp_candidate.py` compares FUN_005f3960 with d2d's candidate
+predicate for nine combinations of base ID and live/death mode. It uses a
+live d2d monster with positive life and synthetic MonStats records; null,
+non-monster and invalid-table cases are not covered. From the worktree root,
+with `GAME_EXE` set to stock 1.14d and `STORM_SRC` to an existing StormLib
+source `src` directory:
+
+```sh
+mkdir -p build/ai-wisp-candidate
+uv run --no-sync --project tools/emu python tools/emu/ai_wisp_candidate.py --cpp > build/ai-wisp-candidate/cases.cpp
+include_flags=()
+for component_dir in components/* components/game/*; do if [ -d "$component_dir" ]; then include_flags+=("-I$component_dir"); fi; done
+c++ -std=c++23 -DSTORMLIB_NO_AUTO_LINK -include cmake/no_near_far.hpp -Icomponents -I"$STORM_SRC" "${include_flags[@]}" build/ai-wisp-candidate/cases.cpp -o build/ai-wisp-candidate/cases
+build/ai-wisp-candidate/cases > build/ai-wisp-candidate/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_wisp_candidate.py --cases build/ai-wisp-candidate/cases.txt --exe "$GAME_EXE"
+```
+
 `tools/emu/ai_mephisto_target_choice.py` compares FUN_005f77c0 with the
 target chosen by d2d's Mephisto think over 4,608 cases. Nearby-unit search
 is hooked; the original selection draws run for real. This includes the
