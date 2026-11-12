@@ -1110,6 +1110,8 @@ struct Fight {
     // monster here is no side of the player's, so a friendly aura's never
     // does (0x12003 needs an ally: FUN_00554de0).
     [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const;
+    // Whether a FUN_0056b3e0 filter takes the monster (aura_filter.hpp).
+    [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
     [[nodiscard]] bool in_aura(const Monster& monster);

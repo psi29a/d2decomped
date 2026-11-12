@@ -625,14 +625,14 @@ row, [7] / [8] the unit's subtile x / y (`FUN_006488c0` / `FUN_00648900`
 for monsters and players and missiles; the data block's +0xc / +0x10 for
 objects, items and tiles: types 2, 4, 5), [0xb] skill, [0xc] level. It
 makes the missile and returns 1. The result is not tested, and it does
-not skip the unit that the missile struck.
+not skip the unit that the missile struck (proven: `tools/emu/hit_fury.py`).
 
 Re-check: `python3 tools/ghidra/fn.py 005ab2a0`,
 `python3 tools/ghidra/fn.py 0059fa30` (param [2] is the start unit when
 flag 1 is clear: `FUN_0045adf0` / `FUN_0045ae20` of it).
 
 d2d: not ported on its own; `Fight::burst` case 20 (fight/missiles.cpp)
-inlines it (see the next section for what differs).
+inlines it (see the next section).
 
 ## Server hit function 20 — FUN_005ab370 (Lightning Fury)
 
@@ -652,22 +652,25 @@ reference to it that I found). ECX game, EDX the missile unit.
   ".\MISSILES\MissMode.cpp", 0xec3)` walks the units in range and makes one
   sub-missile each (FUN_005ab2a0) until the count is served. Returns **3**
   (damage, end).
-- The walker skips only the missile unit itself (a pointer comparison with the missile); the
-  callback has no test for the unit the missile struck. That is only how
-  the code reads, cited from the decompile, no oracle run.
+- The walker skips only the unit handed to it in EDX, which here is the
+  owner (a pointer comparison at 0x56b8e0); the callback has no test for
+  the unit the missile struck. FUN_005ab370's stack argument (the unit
+  struck, `ret 4`) is never read. The walk's flag 1 also skips a monster
+  whose MonStats flag 0x1b is set (`FUN_00457490`).
 
-Re-check: `python3 tools/ghidra/fn.py 005ab370`, `python3 tools/ghidra/fn.py 0056b7e0`.
+Proven: `tools/emu/hit_fury.py` runs FUN_005ab370, the walk FUN_0056b7e0
+and the callback FUN_005ab2a0 for real over a room of the owner, the unit
+struck, another monster and one out of reach (row 206, sHitPar1 0 / 4,
+sHitPar2 0..3, aurafilter 0 / 0xa583, four calc pairs): the struck unit
+gets the first sub-missile, the owner none, the filter handed on is the
+aurafilter, else 0xa783.
 
-d2d: **DISAGREES** on two points. First, `Fight::burst` case 20 skips
-`missile.target` (`int(j) != missile.target`), the monster the bolt struck;
-game.exe's walk and callback have no such exclusion, so the struck unit gets
-a sub-missile too when it passes the filter (a difference in d2d only; the
-sub-missile on the struck unit may well be intended in game.exe, so this is
-not claimed as a defect of game.exe). Radius and
-count (sHitPar1 / sHitPar2 else aurarange / calc1, count at least 1) read the
-same, cited from the decompile, no oracle run. Second, d2d ignores the
-skill's aurafilter. Confidence: medium (read from the code, no oracle; the walker's counter at
-state +8 is not shown incrementing in the decompile).
+Re-check (in tools/emu): `uv run python hit_fury.py`, `uv run python disasm.py 56b7e0`.
+
+d2d: matches. `Fight::burst` case 20 no longer skips `missile.target`
+and tests each monster with the aurafilter, else 0xa783 (`filter_takes`,
+aura_filter.hpp); `test_lightning_fury` checks it against the oracle's
+cases. ponytail: the MonStats flag 0x1b skip isn't read.
 
 ## Server hit function 21 — FUN_005ab500 (Battle Cry)
 
@@ -742,11 +745,13 @@ least 5** (the floor applies only on the calc path). The return paths I read in 
 Re-check: `python3 tools/ghidra/fn.py 005ab8d0`; the flag 0x8000 branch is
 in `python3 tools/ghidra/fn.py 0059fa30` (range = param [0x13]).
 
-d2d: **DISAGREES.** `Fight::burst` case 26 (fight/missiles.cpp:788) shares
-the 2 / 4 / 36 / 51 arm: `sub_at(x, y, 0, 0)` with the sub row's own
-`range + lev_range * level` frames. game.exe overrides the range with
-sHitPar1, else calc1 (at least 5). Confidence: medium; the d2d side is read
-from the code, with no oracle run.
+Proven: `tools/emu/hit_grim_ward.py` runs FUN_005ab8d0 for each row with
+pSrvHitFunc 26 (Missiles.txt rows 249, 252, 255), sHitPar1 -1, 0, 1, 3, 9
+and calc1 -3 .. 8: flags 0x8001 and that range each time.
+
+d2d: matches. `Fight::burst` case 26 (fight/missiles.cpp) sets the
+sub-missile's range to sHitPar1, else calc1 at least 5;
+`test_grim_ward_start` checks it against the oracle's cases.
 
 ## Server hit function 28 — FUN_005aba10
 
