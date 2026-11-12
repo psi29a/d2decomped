@@ -1596,3 +1596,34 @@ Re-check: `python3 tools/ghidra/fn.py 00465bf0 00480420 00648bf0`;
 disassemble `00465bf0`..`00465c5b` to confirm the ECX/EDX fastcall and
 the "target != self" gate.
 
+### The unit-table re-register check on creation: `FUN_00465f20` (batch 12)
+
+`FUN_00465f20` (0xa1 bytes, `00465f20`..`00465fc1`, no visible
+parameters at all — confirmed in disassembly, `MOV ESI,EAX` at entry
+with no preceding ECX/EDX move: the unit arrives in **EAX**, like
+`FUN_004656c0` above, but with its own stack frame here (`PUSH
+EBP`/`MOV EBP,ESP`)): calls `FUN_00463a50()` first (no visible
+argument either; not traced). When that returns 0, it looks up the
+unit's own type/id in the client's hash table A (`0x7a5e70`, already
+described in `units.md`'s "Client-side units" section): **EAX** the
+bucket (`id & 0x7f`), **EDX** the table (`0x7a5e70 + type * 0x200`),
+**ECX** the id, stack the type — the exact signature `units.md:223`
+already gives for `FUN_00463940`, confirmed again here in disassembly.
+If the table's existing entry for that type/id *is this same unit*
+(pointer-equal), that's fatal (assert id `0x1c6`). If a different entry
+is found, it's unlinked (`FUN_00465e80`, already read in `units.md:234`)
+and `FUN_00463a50()` is checked again: non-zero keeps this unit and
+returns it unchanged; zero frees it (`FUN_00465870`, already "hooked and
+logged, not run" per `units.md:240`) and returns null instead. When the
+first `FUN_00463a50()` check was already non-zero, none of this runs and
+the unit is returned as given. Its three callers are the same
+unit-creation/assignment cluster `FUN_00465420` above is reached from:
+`FUN_00465fd0` (`units.md:235`), `FUN_00466360` (`monsters.md:554`) and
+`FUN_00466200` (`net-packets.md:122`). Not traced: `FUN_00463a50`'s own
+condition (a global gate called twice here with no visible per-unit
+argument, not a per-unit lookup). d2d: not ported as a function; no d2d
+equivalent was checked against this re-register check.
+
+Re-check: `python3 tools/ghidra/fn.py 00465f20 00463940 00465e80
+00463a50`; disassemble `00465f20`..`00465fc1` to confirm the
+EAX-implicit unit argument and the `FUN_00463940` register setup.
