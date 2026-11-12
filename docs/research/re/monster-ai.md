@@ -631,6 +631,19 @@ MonAI 135 `{FUN_005fcfe0, FUN_005fcf30, 1}`, 140 (baalclone) `{FUN_005fd210,
 FUN_005fcf30, 1}`. Proven on game.exe: `tools/emu/mon_ais.py
 BaalCrab,BaalCrabClone --dump tests/mon_ais_baal_cases.inc` (2026-10-24).
 
+`tools/emu/ai_baal_melee_choice.py` compares FUN_005fc1c0's chosen action and
+seed with d2d's Baal think over 2,048 melee cases. Life and target-state
+lookups are hooked; it does not execute the chosen action. From the worktree
+root, with `GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-baal-melee
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_melee_choice.py --cpp > build/ai-baal-melee/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-melee/cases.cpp -o build/ai-baal-melee/cases
+build/ai-baal-melee/cases > build/ai-baal-melee/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_melee_choice.py --cases build/ai-baal-melee/cases.txt --exe "$GAME_EXE"
+```
+
 - Pick: FUN_005fbdd0 is Diablo's FUN_005e8f20 (filter FUN_005fc000 = same
   act, under 0x3fc), the score FUN_005fbb00 Diablo's with the point bonus at
   0x4b instead of 0x55.
