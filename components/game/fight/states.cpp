@@ -519,13 +519,13 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // Param2 + 1 (FUN_004efc20); 143 writes them only for missile row 0x238.
         // ponytail: FUN_005d40f0 caps the flight at 77 frames and sets velocity
         // 10; FUN_005d4680 wobbles that route. d2d flies the row's own velocity
-        // straight at the offset. 41's spread is still rng(41) - 20.
+        // straight at the offset.
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
             for (int k = 0; k < std::max(radius, 1); ++k) {
-                const float dx = float(int(rng(41)) - 20) / 5, dy = float(int(rng(41)) - 20) / 5;
-                launch(*missile_info, skill, lvl, target_x, target_y, dx, dy, missile_info->range + missile_info->lev_range * lvl, now_ms);
+                const auto [offset_x, offset_y] = d2d::rules::release_spread_offset(rng);
+                launch(*missile_info, skill, lvl, target_x, target_y, float(offset_x) / 5, float(offset_y) / 5, missile_info->range + missile_info->lev_range * lvl, now_ms);
             }
             return;
         }

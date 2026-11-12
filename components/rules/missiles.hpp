@@ -103,6 +103,16 @@ inline std::pair<int, int> missile_aim_along(float dx, float dy) {
     return { dx < 0 ? -aim_x : aim_x, dy < 0 ? -aim_y : aim_y };
 }
 
+// Royal Strike's third release (FUN_005d5080): one missile's aim, in
+// subtiles, off the target. Each axis is a step of `seed` modulo 0x28,
+// then less 0x14, so -20..19. A (0, 0) pair is stored as x = 0x14.
+inline std::pair<int, int> release_spread_offset(Rng& seed) {
+    const int offset_x = seed(0x28) - 0x14;
+    const int offset_y = seed(0x28) - 0x14;
+    if (offset_x == 0 && offset_y == 0) return { 0x14, 0 };
+    return { offset_x, offset_y };
+}
+
 // Charged Bolt's path (FUN_005c9290 -> path type 10, FUN_0067a240): from
 // subtile (x, y), steps / 2 hops of two subtiles, each the 8-way way
 // toward (to_x, to_y) (FUN_00678c10 -> DAT_006f1518's first) turned -1, 0
