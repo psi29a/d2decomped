@@ -94,9 +94,10 @@ always takes `FUN_005e4830`.
 
 The merc's `FUN_005e3930` grown: `(ECX game, EDX owner; pet, mode, run,
 pct, reach)`. A walk is `FUN_005dee50`, a run `FUN_005deeb0` (a walk in
-state 0x3c). Returns 1 when a move set off. Every "pace" below goes
-through the same `FUN_005a6190`/`GetAiParamFromUnit` getter as the merc's
-(`merc-ai.md` "Following").
+state 0x3c). Returns 1 when a move set off. Mode 1's "once" extra call
+below (`SetCombatAndMonStats`'s ctx) goes through the same
+`FUN_005a6190`/`GetAiParamFromUnit` getter as the merc's (`merc-ai.md`
+"Following"); the other modes' pace is a plain argument.
 
 - **0**: as the merc's (8 off the owner's path end ahead of it, round the
   compass on the owner's level, pace (pct, 0x28)), each spot then the
