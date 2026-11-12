@@ -200,7 +200,12 @@ auto World::use_warp() -> void {
                 if (it->destination == level->id && (back == destination->warps.end() || it->slot < back->slot)) back = it;
         const float arrive_x = back == destination->warps.end() ? float(destination->ds1.width()) / 2 : back->unit_x;
         const float arrive_y = back == destination->warps.end() ? float(destination->ds1.height()) / 2 : back->unit_y;
-        arrive(destination, arrive_x, arrive_y, "a warp");
+        const auto landing = warp_arrival(*destination, arrive_x, arrive_y);
+        if (!landing) {
+            d2d::log::info("no free spot within 49 subtiles of the warp unit in level {}: the warp is not taken", destination->id);
+            return;
+        }
+        arrive(destination, landing->first, landing->second, "a warp");
         if (back != destination->warps.end()) {
             actor->target_x = actor->player.x + back->exit_x; actor->target_y = actor->player.y + back->exit_y;
             actor->player.walking = true;

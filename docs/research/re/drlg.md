@@ -1620,7 +1620,7 @@ Conditions those results hold under, so they aren't overstated:
 | Logical areas (FUN_0066ccb0 / FUN_0066d110; room_tiles.hpp `logic_areas`) | diffed bit-exact on every Logicals room of act 1, seeds 1-3; ids as game.exe gives them, merged across rooms (FUN_0066d040; monsters.md "Area ids"), `area_ids.py` at every tile |
 | Room collision, automap | collision: every level vs jaenster/libd2's live-engine checksums (`libd2_crc.py`, 2026-10-25), 100/131 levels match on all 200 seeds at all 3 difficulties. Of the 31 left, every sampled class (26, 28, 31, 52, 66, 92, 125) matches game.exe under the emulator: theirs differs by one tile or a few cells (0x05 vs 0x07, 0 vs 0x01 / 0x25 / 0x05), likely a capture taken later than ours (neighbour levels up?), unresolved. 111 / 112 were ours: a LvlSub stamp's shadow (FUN_0066e060 -> FUN_0066df40) lost its word, so FUN_0066db20's 0x20000 -> 0x40 (walk block) never landed; fixed, exact on all 600. Automap not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
-| The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival traced, not diffed |
+| The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival diffed (`tools/emu/sk_tele_spot.py warp`) |
 | What the server does with units: superunique mods and stat bonuses, minion placement, MonPlace units; objects' behaviour (shrines, chests); monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | partly built, not diffed |
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
@@ -1633,14 +1633,26 @@ The server's warp: FUN_006195a0(the tile unit's room, its class) finds
 the room on the other side through the room's tile links (FUN_0066ab00,
 room +0x4c, made by FUN_0066be10 with the other side's LvlWarp record)
 and in its unit list (+0x74, next +0xe8) the tile unit (type 5) of the
-linked class, with that record. The player is put at the free spot
-nearest that unit (FUN_0064e7b0, collision 0x1c09, FUN_00554ea0), then
+linked class, with that record. The free spot is searched twice. First
+FUN_005550b0 calls FUN_0064e7b0(room, &xy, size 2, 0x1c09, flag 1)
+(0x555144 to 0x555157): with the flag set, no spot returns the unit's own
+subtile; this is the spot the player lands on. Then FUN_00554ea0 searches
+from that spot (0x5551bc, flag 0), finds it free, and places the player;
+when it finds none (flag 0 returns 0) the warp is not taken (0x5551c3).
+FUN_0064dea0 does both: the start subtile when it is in a room and free,
+else rings 1 to 49 (it goes on while ring + 1 < 50), in a ring the free
+subtile of least |dx| + |dy|, a tie to the first in scan order (columns
+x - r and x + r row by row, left first, corners included; then rows
+y - r and y + r column by column, top first; a later one only when
+strictly nearer). The player is then
 told to walk (FUN_005809d0(0, 2, ..)) to that spot + the record's
 ExitWalkX / ExitWalkY (subtiles, +0x14 / +0x18). The tile unit stands at
 its tile's cell × 5 + LvlWarp OffsetX / OffsetY (FUN_0066e1c0). The
 record comes by id and direction (FUN_0061f310: 'b', or 'l' / 'r' for
 wall orientations 10 / 11, FUN_0066e160); act 1's are all 'b'. d2d:
-`Level::Warp::unit_x/unit_y`, `World::use_warp`.
+`Level::Warp::unit_x/unit_y`, `World::use_warp`, `World::warp_arrival`
+(`Level::warp_spot`; none, the warp is not taken). Differential:
+`tools/emu/sk_tele_spot.py warp` (README), `tests/game/test_warp_arrival.cpp`.
 
 When: C->S 0x13 on the tile unit (`FUN_00548b00` case 5):
 `FUN_00641530(player, tile unit)` (`rules::unit_distance`; the player's
