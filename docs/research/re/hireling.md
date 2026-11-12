@@ -145,3 +145,22 @@ into `FUN_00573270`. d2d: not ported; `cmd::MercItem` / `World::hire_list`
 (npc-menu.md) cover the item and hire-list side only. No oracle run this
 batch — read from the decompile and raw disassembly, cited, not matched
 against game.exe with `tools/emu`.
+
+## Repositioning it (FUN_005773d0, 0x93 bytes)
+
+`FUN_005394a0` calls this once, right after its spawn loop above, with no
+visible arguments in the decompile; raw disassembly shows `__fastcall`,
+`ECX` the unit to move, `EDX` a "mover" record whose `+0` is a path/
+command mode and `+0x2c` a path pointer. It only acts when the player has
+a live hireling (`FUN_00574ec0(7, 0)`, the same call this file and
+npc-menu.md already cite with a 1 for "include dead"). It reads the
+mover's x/y — `+0x2c`'s `+0xc`/`+0x10` dwords for mode 2 or 4/5, else
+`d2d_path_get_x`/`_y(+0x2c)`, else 0 with no `+0x2c` — then calls
+`FUN_005754b0(ECX unit, EDX mover, x, y)` to snap the unit there. This is
+the same x/y lookup `FUN_00579aa0` (npc-menu.md "Resurrect") inlines
+rather than calling, right before it clears the merc's states; here it's
+a standalone helper, run once after a joining client's merc is recreated
+so it starts beside the player instead of at the map's origin.
+
+d2d: not ported. No oracle run this batch — read from the decompile and
+raw disassembly, cited, not matched against game.exe with `tools/emu`.
