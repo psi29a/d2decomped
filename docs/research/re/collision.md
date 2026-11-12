@@ -1469,3 +1469,44 @@ Re-check: `python3 tools/ghidra/fn.py 004d8520 004d85b0 004d85c0 004d8650
 `004d84c0`..`004d8512` to confirm the ECX=unit/EDX=value fastcall, the
 5-byte `JMP` thunks, and the implicit-EAX=unit convention on
 `FUN_004d84c0`.
+
+### A skill-id's overlay-row cleanup loop: `FUN_004d8660` (batch 11)
+
+`FUN_004d8660` (0x33 bytes, `004d8660`..`004d8693`, `RET 0x4`) takes a
+single stack argument (a unit) and an implicit register input — confirmed
+in disassembly: the function never sets **EBX** itself, only reads it
+(`CMP EBX,-0x1` is its first real instruction), so whatever the caller's
+EBX holds (an Overlay.txt row id) is what it uses, the same
+register-implicit convention batches 8/9/10 found on EAX/ESI, here on EBX.
+EBX of -1 is a no-op; otherwise `FUN_00664740(EBX)` (0x52 bytes,
+untouched: an Overlay.txt row lookup, stride 0x84 at
+`0x744304+0xbbc`/`+0xbc0` — the same table and stride `gfx.md`'s
+"Overlays" section already names for `FUN_0046e1b0` — returning that row's
+own `+0x4c` field as a count) bounds a loop that calls the
+already-verified overlay-remove entry point `FUN_0046f0c0` (`gfx.md:100`,
+with a committed oracle `tools/emu/engine_overlay_remove.py`) once per
+index from EBX through EBX + count - 1. The decompiled call reads
+`FUN_0046f0c0(iVar2 + unaff_EBX)`, showing only that stack word; in
+disassembly `FUN_0046f0c0` is actually called with **ECX** the unit (the
+stack argument this function itself received) and **EDX** 0 as well — the
+decompiler drops both, the same hidden-register-argument pattern batch 10
+found.
+
+Its two call sites are both inside the already-`d2d ported`
+`FUN_004d9c30` (StateRemove dispatch, `gamedata.hpp:482`,
+`net-packets.md:366`), passing the removed State row's own `+0x2` and
+`+0x4` signed 16-bit fields (sign-extended into EBX) whenever each is
+non-negative. So `FUN_004d8660` removes every Overlay.txt row in a range a
+State can carry (one range from its own `+0x2` field, a second from
+`+0x4`) off the unit when that State ends.
+
+Not traced: `FUN_00664740`'s own `+0x4c` field identity beyond "a count"
+and the Overlay.txt row's own identity (`gfx.md`'s "Overlays" section
+already names the table). d2d: not ported as a function; `FUN_0046f0c0` is
+already verified with a committed oracle; no disagreement found with how
+this caller drives it.
+
+Re-check: `python3 tools/ghidra/fn.py 004d8660 00664740 0046f0c0
+004d9c30`; disassemble `004d8660`..`004d8693` and the two call sites
+around `004d9d1b`..`004d9d39` in `FUN_004d9c30` to confirm the
+implicit-EBX convention and the dropped ECX/EDX on `FUN_0046f0c0`.
