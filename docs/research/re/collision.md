@@ -773,8 +773,17 @@ walking for a player or monster only at FUN_00622c40: within melee range + 1 (+ 
 (LAB_00480cde). The click sends at once only for an NPC within 2. So the
 server's reach of 6 (FUN_00548b00) isn't what ends a client's walk to an NPC.
 
-d2d's `tick.cpp` talks at the server's reach, `unit_distance` under 7, with no
-line test: sooner than game.exe's client, and through a wall.
+FUN_00622c40(unit, target, extra): a target monster of BaseId 0x102 / 0x105
+(FUN_00463860) in reach under FUN_00622870's range + 8; else a distance
+(FUN_00641530) of 0 or less, or within range + extra + 1 with FUN_00622aa0
+(mask 0x804) clear. The extra is FUN_00622dc0 (FUN_00622d00): a player in
+mode 2, 3 or 6, a monster in 2 or 0xf, a vulture (BaseId 0x6e) in 8 or 9; an
+object 0, a missile asserts. **Verified**: `tools/emu/melee_reach.py` runs
+both for real (7,767 cases, none differ).
+
+d2d's `tick.cpp` walks on to an NPC till `rules::melee_reach` (the player's
+weapon range, + 1 while the NPC walks) and still needs the server's reach,
+`unit_distance` under 7.
 
 ### A walk to a spot just ends
 
