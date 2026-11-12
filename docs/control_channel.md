@@ -173,8 +173,9 @@ The differences are:
 - Reply framing enforced by the pump (auto-appends `\n` if missing).
 - No auto-release ticks (mouse-button state is engine-side when we get there).
 
-## POSIX only
+## Windows
 
-Windows path is a warn-once stub. Call sites stay portable — the header
-compiles everywhere; `listen()` on Windows just prints a warning and
-`pump()` becomes a no-op.
+The same AF_UNIX socket, through Winsock (Windows 10 1803 and later,
+`afunix.h`): the protocol and the pump are the same on every OS. The path is
+a file path (`%TEMP%\d2d.sock`), at most 107 bytes.
+
