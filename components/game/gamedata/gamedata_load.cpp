@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -870,17 +871,34 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.
+    // A blank cell (CD experience.txt has no ExpRatio) must not abort the
+    // rest of the load: finish_scene would skip the world, and the first
+    // save then indexes an empty monster table.
+    auto whole_number = [](std::string_view text) -> std::optional<long long> {
+        if (text.empty()) return std::nullopt;
+        long long value = 0;
+        const auto* const end = text.data() + text.size();
+        const auto parsed = std::from_chars(text.data(), end, value);
+        if (parsed.ec != std::errc{} || parsed.ptr != end) return std::nullopt;
+        return value;
+    };
     if (const auto experience_table = txt("experience"); experience_table.size() > 0) {
         for (std::size_t row = 0; row < experience_table.size(); ++row) {
             if (const auto level_text = experience_table.get(row, "Level"); !level_text.empty() && level_text[0] >= '0' && level_text[0] <= '9') {
-                const auto level = std::size_t(std::stoi(std::string(level_text)));
+                const auto level_number = whole_number(level_text);
+                const auto amazon = whole_number(experience_table.get(row, "Amazon"));
+                if (!level_number || !amazon || *level_number < 0) continue;
+                const auto level = std::size_t(*level_number);
                 if (level >= game_data.exp_next.size()) game_data.exp_next.resize(level + 1, -1);
-                game_data.exp_next[level] = std::stoll(std::string(experience_table.get(row, "Amazon")));
+                game_data.exp_next[level] = *amazon;
                 if (level >= game_data.exp_ratio.size()) game_data.exp_ratio.resize(level + 1, 0);
-                game_data.exp_ratio[level] = std::stoi(std::string(experience_table.get(row, "ExpRatio")));
+                if (const auto ratio = whole_number(experience_table.get(row, "ExpRatio")))
+                    game_data.exp_ratio[level] = int(*ratio);
             } else if (level_text == "MaxLvl") {
-                game_data.exp_ratio_shift = std::stoi(std::string(experience_table.get(row, "ExpRatio")));
-                game_data.max_level = std::stoi(std::string(experience_table.get(row, "Amazon")));
+                if (const auto shift = whole_number(experience_table.get(row, "ExpRatio")))
+                    game_data.exp_ratio_shift = int(*shift);
+                if (const auto max_level = whole_number(experience_table.get(row, "Amazon")))
+                    game_data.max_level = int(*max_level);
             }
         }
     }
@@ -901,7 +919,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
     if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
         for (std::size_t row = 0; row < 3; ++row) {
-            game_data.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));
+            if (const auto penalty = whole_number(difficulty_table.get(row, "ResistPenalty")))
+                game_data.resist_penalty[row] = *penalty;
             game_data.cold_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterColdDivisor")).c_str());
             game_data.static_field_min[row] = std::atoi(std::string(difficulty_table.get(row, "StaticFieldMin")).c_str());
             game_data.curse_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "AiCurseDivisor")).c_str());
