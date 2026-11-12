@@ -371,6 +371,20 @@ words) fills {?, ?, DifficultyLevels MonsterSkillBonus (0 / 3 / 7), the
 difficulty, ?}; Diablo reads +8 (d2d once read it as the players about him,
 set to 1), Baal +0xc.
 
+`tools/emu/ai_boss_player_range.py` checks the same-act distance filter in
+FUN_005e8eb0 and FUN_005fc000 against the d2d chooser's `ai_distance` and
+threshold, on 162 cases around 0x3fc. The fixture uses static paths; null
+units and differing acts are not part of the d2d comparison. From the
+worktree root, with `GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-boss-range
+uv run --no-sync --project tools/emu python tools/emu/ai_boss_player_range.py --cpp > build/ai-boss-range/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-boss-range/cases.cpp -o build/ai-boss-range/cases
+build/ai-boss-range/cases > build/ai-boss-range/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_boss_player_range.py --cases build/ai-boss-range/cases.txt --exe "$GAME_EXE"
+```
+
 His target (FUN_005e8f20, 2026-10-16; lists 2026-10-17): over the unit
 lists at game +0x10f8, the best scored (FUN_005e8530, above 0, the first
 on a tie). Lists 0..7: a player passing FUN_005e8eb0 (same act byte +0x18,
