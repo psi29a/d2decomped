@@ -132,6 +132,28 @@ starts from the seed as the monster's life left it. Find Item
 left the corpse's seed. A monster's unit seed is a step of the game seed
 (`game+0xd0`) when it is made (FUN_00555230 → FUN_00552df0: {low, 666}).
 
+A barricade door's death also clears its object (FUN_0057ccb0, `__fastcall`,
+ECX a context pointer passed on to `FUN_005a4ef0` and not traced further
+here, EDX the dying unit, param_3 its spot, param_4 whether to drop):
+MonStats class 0x1b0 → `FUN_0057cc30(0x23b)`, 0x1b1 →
+`FUN_0057cc30(0x23c)` (monsters.md "Preset swaps": the barricade doors
+0x1b0 / 0x1b1 make object 571 / 572, 0x23b / 0x23c, on their own spot).
+`FUN_0057cc30(undefined4 param_1, unaff_EBX unit)`: EBX is a register
+argument the decompile drops (confirmed from the raw disassembly — `PUSH
+EBX; CALL FUN_00620bb0` passes it as the stack argument, and EBX is
+unmodified since `FUN_0057ccb0`'s own entry `MOV EBX,EDX`, so it is that
+same dying unit). Walks the dying unit's room (`FUN_00620bb0`) object list
+(room +0x74, next +0xe8); an object of class `param_1` whose x/y
+(`FUN_00620870`) match the dying unit's own exactly, state 2 is set on it
+(`FUN_00624690`) and it's removed (`FUN_00623830`): the barricade panel
+vanishes with the door monster that stood on it. d2d: no object-removal
+call found from a monster's death handling; `object` state 2 and
+`FUN_00623830`'s removal aren't matched elsewhere either, so this is a
+real, unflagged gap, not a difference to call out (d2d has no barricade
+door monster to begin with, so it may be moot — not checked against
+MonStats/Objects.txt rows here).
+Re-check: `python3 tools/ghidra/fn.py 0057ccb0 0057cc30 00620bb0 00620870`.
+
 ## Making the item — FUN_0055a550, FUN_00558d90, FUN_00557ab0
 
 What the decompile of FUN_0055a550 shows by itself (cited, decompile only;
@@ -469,9 +491,12 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   7 / 5 in `roll_drops`, with no quality draw. Flag modifiers (bin +0x30 /
   +0x32) are 0, so those draws do not run. Forced picks (struct +0x40, the
   entry's unique / set index) are stored and not applied when the item is made.
-- `Loot::drop_at` reads the live walk grid (& 0x01) and the items lying
-  there, not the rooms' full flags: units (0x1000 / 0x2000) don't block,
-  and its walk stays on one level.
+- `Loot::drop_at` reads the live walk grid (& 0x01), the items lying
+  there (0x200), and on this level the Crowd's unit footprints
+  (0x1000 / 0x2000, FUN_00555da0's mask 0x3e01). Those bits are not in
+  the walk grid. `World::tick` points `Loot::standing` at that crowd
+  before `Fight::update_fighters`, which is where the drop runs, and
+  again for the rest of the tick. Its walk stays on one level, no neighbours'.
 - An assassin opens a locked chest without a key (player +4 == 6) isn't
   modeled; the events aren't either. A player opening a barrel kicks it
   (FUN_005868a0: skill 1, Kick, KK at the barrel; World::operate).

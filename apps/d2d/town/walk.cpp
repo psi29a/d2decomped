@@ -217,10 +217,12 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
                                           vendor->second.y + (net_game->host_y - vendor->second.y) / apart * 2.f, view.running);
                     }
                 } else if (!net_trade_asked && net_game->steady_now() - net_game->walked_ms >= 500) {
-                    // A walking player is busy: the host drops all but chat,
-                    // skill picks, 0x43, 0x66 (FUN_0054d750, FUN_0057eec0). As a
-                    // real client (recorded through d2proxy): where we see the
-                    // NPC (0x59), then 0x13; the host answers with NPC info.
+                    // Asked once we've stopped, as a recorded host dropped it
+                    // from a walking player. The cause isn't traced: the
+                    // dispatcher's gate (FUN_0054d750 -> FUN_0057eec0) lets a
+                    // walking player through (network.md). As a real client
+                    // (recorded through d2proxy): where we see the NPC (0x59),
+                    // then 0x13; the host answers with NPC info.
                     namespace c2s = d2d::net::d2gs::c2s;
                     net_game->npc_info = 0;
                     net_game->send_items({ c2s::unit_position(1, std::uint32_t(net_trade_pending), std::uint32_t(vendor->second.x), std::uint32_t(vendor->second.y)),

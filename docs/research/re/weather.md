@@ -124,15 +124,18 @@ EDX the capacity, stack the record size): drops `DAT_007a8a04` 0x100 × 0x28,
 free, `FUN_006bccd0`, lowers) for a slot whose first word is 0 and returns
 −1 when it reaches the capacity.
 
-d2d: **DISAGREES** on the cap. `Rain::floor` (weather.hpp) pushes each
-splash and bubble it spawns onto an unbounded vector and makes no pool check;
-game.exe holds at most 512 splashes and 128 bubbles, and a spawn into a full
-pool also skips its rolls. On the spawn itself d2d reads the same, cited from
-the decompile, no oracle run (the same row, width, y and kind rolls, in the same
-order; the x matches only with `--toggle splash_centre=off`, as the bubble's
-below, deviations.md improvement 14). Whether a real scene reaches 512 live splashes
-was not measured: it needs many water tiles under full rain.
-Cited.
+d2d: `Rain::floor` (weather.hpp) caps them the same way: a splash or
+bubble only while there are fewer than `Rain::kSplashPool` (512) or
+`kBubblePool` (128), and a spawn into a full pool rolls nothing past the
+floor's rand(1000). `tools/emu/weather_pools.py` runs `FUN_00472320`, then
+`FUN_00472da0` and `FUN_00472ec0` past capacity on a fake player's seed:
+512 and 128 move the seed, the rest don't, and one freed slot takes one
+more. On the spawn itself d2d reads the same, cited from the decompile (the
+same row, width, y and kind rolls, in the same order; the x matches only
+with `--toggle splash_centre=off`, as the bubble's below, deviations.md
+improvement 14). Whether a real scene reaches 512 live splashes was not
+measured: it needs many water tiles under full rain. The cap: verified
+(oracle); the spawn rolls: cited.
 
 ### Spawning a bubble (`FUN_00472ec0`)
 
@@ -149,9 +152,8 @@ decompile and `tools/emu/disasm.py 472ec0`:
 
 d2d reads the same on the software-mode placement, cited from the decompile, no
 oracle run (`Rain::floor`'s bubble branch: the row, width, x, y and kind 2);
-it has no perspective placement (always the row-and-width formula), and the
-128-slot cap differs, as for the splash above: **DISAGREES**
-(its `bubbles` vector is unbounded). The x also matches only with
+it has no perspective placement (always the row-and-width formula). The
+128-slot cap matches, as for the splash above (`weather_pools.py`). The x also matches only with
 `--toggle splash_centre=off`: by default (`centre` on, world_view.cpp) d2d
 subtracts half the row's width, deviations.md improvement 14. Cited.
 

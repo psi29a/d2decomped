@@ -10,12 +10,12 @@
 // rows are ListRow 4: the identify and town-portal scrolls and tomes
 // (books.txt +8 / +0xc: isc/ibk, tsc/tbk). usable() already keeps a scroll
 // off the left list (leftskill is clear). The count is their quantity
-// (stat 0x46, FUN_0055c110) while carried.
+// (stat 0x46, FUN_0055c110) while carried. A scroll whose quantity stat
+// reads 0 adds nothing. A book (Book of Identify, Book of Townportal)
+// whose quantity stat reads 0 adds 1.
 // ponytail: FUN_006446a0 (+0xc) bit 8 skips the node. FUN_004c6140 sets it
 // when the client grants a skill the local player didn't have. d2d keeps
 // no skill-node flags, so that grant still lists.
-// ponytail: FUN_0055c110 adds 1 for a book whose quantity stat reads 0.
-// A stored 0 here is none left, so the skill stays off.
 #pragma once
 
 #include <d2s_items.hpp>
@@ -26,16 +26,20 @@
 namespace d2d::client {
 
 [[nodiscard]] inline int scroll_count(const d2d::rules::Skill& skill, const std::vector<d2d::d2s::Item>& items) {
+    const bool book = skill.name == "Book of Townportal" || skill.name == "Book of Identify";
     const char* code = skill.name == "Scroll of Townportal" ? "tsc" : skill.name == "Book of Townportal" ? "tbk"
         : skill.name == "Scroll of Identify" ? "isc" : skill.name == "Book of Identify" ? "ibk" : nullptr;
     if (!code) return 0;
     int count = 0;
     for (const auto& item : items) {
-        if (item.code != code || item.quantity <= 0) continue;
+        if (item.code != code) continue;
+        int quantity = item.quantity;
+        if (quantity == 0 && book) quantity = 1;
+        if (quantity <= 0) continue;
         const int where = item.location;
         if (where == d2d::d2s::item_location::kStored || where == d2d::d2s::item_location::kBelt
             || where == d2d::d2s::item_location::kCursor || where == d2d::d2s::item_location::kEquipped)
-            count += item.quantity;
+            count += quantity;
     }
     return count;
 }

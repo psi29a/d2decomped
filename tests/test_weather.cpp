@@ -71,6 +71,17 @@ int main() try {
     for (const auto& bubble : rain.bubbles) assert(bubble.kind == 2 && bubble.y >= 70 && bubble.y < 150);
     for (int tick = 0; tick < 17; ++tick) rain.tick_bubbles(0, 0);
     assert(rain.bubbles.empty());
+    // The pools (FUN_00472320): 512 splashes and 128 bubbles. A full pool
+    // takes no more and rolls only the floor's rand(1000) (tools/emu/weather_pools.py).
+    auto full = rain;
+    full.splash_pass = full.bubble_pass = true;
+    full.threshold = 1000;
+    for (int k = 0; k < 3000; ++k) full.floor(rng, 100, 100);
+    assert(full.splashes.size() == Rain::kSplashPool && full.bubbles.size() == Rain::kBubblePool);
+    auto after = rng, expect = rng;
+    full.floor(after, 100, 100);
+    expect(1000);
+    assert(full.splashes.size() == Rain::kSplashPool && after.low == expect.low && after.high == expect.high);
 
     // Act 5's snow (FUN_004726f0 / FUN_00472400): joined in the Ancients'
     // Way (120) it snows held full (256 flakes at first), a size bigger, the wind

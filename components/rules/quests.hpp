@@ -6,6 +6,7 @@
 #include "level_ids.hpp"
 #include "monster_ids.hpp"
 #include "object_ids.hpp"
+#include "quest_clock.hpp"
 
 #include <algorithm>
 #include <array>
@@ -186,7 +187,7 @@ struct BurialQuest {
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
     int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
     int log = 0;        // +0xb
-    int log_in = 0;     // ticks to the kill's "return to Kashya" (timer 0xf, LAB_00590bf0), 0 not running
+    int log_in = 0;     // quest steps to the kill's "return to Kashya" (timer 0xf, LAB_00590bf0), 0 not running
     bool pending = false;    // data+3: Kashya gave it, the log waits for the talk to close
     quest::Players rewarded;   // in the +0x1c list: took the reward, still in town
 
@@ -212,7 +213,7 @@ struct BurialQuest {
     }
     // The quest log's state (+0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
-    // A tick (40 ms).
+    // A quest-clock step (QuestClock).
     void tick() {
         if (log_in > 0 && --log_in == 0) log = 3;
     }
@@ -281,7 +282,7 @@ struct BurialQuest {
         const bool first = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (first && nearby) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1); }
         else if (first) quest::set(quest_bits, kQuest, 14);             // LAB_00590dd0
-        log_in = 15;
+        log_in = quest_timer_steps(0xf);
         pending = false;                          // +0xa8 = 0
         return first && nearby;
     }
@@ -295,9 +296,10 @@ struct AndyQuest {
                          kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel;
     int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
     int log = 0;        // +0xb
-    int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
+    int start_in = 0;   // quest steps to the start timer (0x14, then 0x596580), 0 not running
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
-    int after_kill = 0; // +0x192: ticks since Andariel died (timer 0x596500), 0 not running
+    int after_kill = 0; // +0x192: 1 at Andariel's death, +1 each time her timer (0x596500, 1 tick) runs; 0 not running
+    int after_kill_steps = 0;   // quest steps since that timer last ran
     quest::Players cain, akara, kashya;   // data +0x000 / +0x084 / +0x108: players with her death's news for them (FUN_00596260)
     quest::Players rewarded;              // rec+0x1c
     bool cain_pending = false;   // +0x195: Cain gave it, the log waits for the talk to close
@@ -317,14 +319,16 @@ struct AndyQuest {
     }
     // The chain reached it (+0xf0, FUN_005968e0): the start timer runs. It
     // passes on no further (+0x10 is 0x25, the next act's).
-    void chain() { if (state == 0 && active) start_in = 20; }
+    void chain() { if (state == 0 && active) start_in = quest_timer_steps(0x14); }
     // The quest log's state (+0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
-    // A tick (40 ms). 1: the kill's town portal is due at the player, if
-    // they're in Andariel's lair (tick 10, FUN_00596490).
+    // A quest-clock step (QuestClock). 1: the kill's town portal is due at
+    // the player, if they're in Andariel's lair (her timer's 10, FUN_00596490).
     int tick() {
         if (start_in > 0 && --start_in == 0 && state == 0) state = 1;
-        if (after_kill == 0) return 0;
+        if (after_kill == 0) { after_kill_steps = 0; return 0; }
+        if (++after_kill_steps < quest_timer_steps(1)) return 0;
+        after_kill_steps = 0;
         ++after_kill;
         if (after_kill == 12) {
             if (log != 3 && log != 0xd) log = 3;
@@ -484,7 +488,7 @@ struct RadamentQuest {
     bool open = true;   // +9
     int state = 1;      // +0xc: 1 given out, 2 Atma spoke, 3 out of town, 4 Radament dead, 5 done
     int log = 0;        // +0xb
-    int log_in = 0;     // ticks to the kill's "return to Atma" (timer 0xc, LAB_00598f70)
+    int log_in = 0;     // quest steps to the kill's "return to Atma" (timer 0xc, LAB_00598f70)
     bool pending = false;          // data+8: Atma spoke, the log waits for the talk to close
     quest::Players rewarded;         // in the +0x1c list
     bool reward_closed = false;    // data+0x10: joined closed with the reward due
@@ -511,6 +515,7 @@ struct RadamentQuest {
         else if (quest::bit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
     }
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
+    // A quest-clock step (QuestClock).
     void tick() {
         if (log_in > 0 && --log_in == 0 && state == 4) log = 3;
     }
@@ -582,7 +587,7 @@ struct RadamentQuest {
         const bool first = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (first && nearby) for (const int bit : { 13, 1, 5 }) quest::set(quest_bits, kQuest, bit);
         else if (first) quest::set(quest_bits, kQuest, 14);   // LAB_00598dc0
-        if (log_in == 0) log_in = 12;
+        if (log_in == 0) log_in = quest_timer_steps(0xc);
         return { quest::bit(quest_bits, kQuest, 5) && !has_book ? 1 : 0, quest::bit(quest_bits, kQuest, 13) };
     }
     // The Book of Skill read (0x55cd31 / 0x55e3d0): only while bit 5 is set;
@@ -907,7 +912,8 @@ struct SummonerQuest {
     int state = 0;             // +0xc: 1 under way, 2 he's dead, 3 done
     int log = 0;
     bool started = false;      // data+1
-    int log_in = 0;            // data+8: the death's 3-tick timer (LAB_0059bfd0)
+    int log_in = 0;            // data+8: the death's 3-tick timer (LAB_0059bfd0), in quest steps
+    bool voiced = false;       // data+9: its first run, the voice, done; the next sets the log
     quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {   // LAB_0059bd10
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && state == 1) quest::set(quest_bits, kQuest, 2);
@@ -929,18 +935,22 @@ struct SummonerQuest {
     bool killed(QuestBits& quest_bits, bool nearby) {
         if (!open) return false;
         state = 2;
-        if (log_in == 0) log_in = 3;
+        if (log_in == 0) log_in = quest_timer_steps(3);
         const bool first = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (first && nearby) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1); return true; }
         if (first) quest::set(quest_bits, kQuest, 14);
         return false;
     }
-    // A tick. True: the timer's end, when a player with bit 13 in the
-    // Sanctuary says act2_complete_summoner (voice 0x33, LAB_0059bf80).
+    // A quest-clock step. The timer (LAB_0059bfd0) runs twice: first (data+9
+    // clear) each player with bit 13 in the Sanctuary says act2_complete_summoner
+    // (voice 0x33, LAB_0059bf80) and it goes again 3 ticks on (returns 0, at
+    // 0x59bfee); then log 4 (FUN_00544300 at 0x59c006) and it's done. True: the
+    // voice.
     bool tick() {
         if (log_in == 0 || --log_in > 0) return false;
+        if (!voiced) { voiced = true; log_in = quest_timer_steps(3); return true; }
         if (open) log = 4;
-        return true;
+        return false;
     }
     struct E { int npc, string; bool greet; };
     static inline const std::vector<E> kBlocks[3] = {
@@ -1010,7 +1020,7 @@ struct SevenTombsQuest {
     bool later = false;        // data+0xc: placed in an earlier game
     bool timer_started = false;   // data+3
     int open_in = -1;          // the orifice's timer (FUN_0059d870)
-    int log_in = 0;            // Duriel's death's 8-tick timer (LAB_0059cee0)
+    int log_in = 0;            // Duriel's death's 8-tick timer (LAB_0059cee0), in quest steps
     quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {    // FUN_0059c6c0
         if (!quest::bit(quest_bits, kQuest, 0) && state > 1) quest::set(quest_bits, kQuest, 2);
@@ -1159,19 +1169,23 @@ struct SevenTombsQuest {
     // Duriel died (FUN_0059d050). `by_him`: the player at his death without
     // bit 0 / 3 / 4 / 5 gets bit 5 (FUN_0059cfb0: in the Lair).
     void duriel_died(QuestBits& quest_bits, bool by_him) {
-        if (open) { state = 3; if (log_in == 0) log_in = 8; }
+        if (open) { state = 3; if (log_in == 0) log_in = quest_timer_steps(8); }
         if (by_him && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 3) && !quest::bit(quest_bits, kQuest, 4)) quest::set(quest_bits, kQuest, 5);
         duriel_dead = true;
         tyrael_talks = true;
     }
+    // The way down's timer (FUN_0059dd80): (Range - 75) / 20 ticks of
+    // Missiles.txt row 338 horadricstaff (+0x96; Range 440: 18), so the
+    // hole opens some 75 frames before the staff's missile is done.
+    static constexpr int staff_ticks(int horadricstaff_range) { return (horadricstaff_range - 75) / 20; }
     // The staff into the orifice (FUN_0059dd80). The Horadric Staff done
     // (quest 10 bits 0, 13; the staff and its parts taken), the timer to the
-    // way down (FUN_0059d870) once.
-    void staff_in(QuestBits& quest_bits) {
+    // way down (FUN_0059d870) once, of `ticks` (staff_ticks).
+    void staff_in(QuestBits& quest_bits, int ticks) {
         quest::set(quest_bits, 10, 0);
         quest::set(quest_bits, 10, 13);
         staff_placed = true;
-        if (!timer_started) { timer_started = true; open_in = 1; }
+        if (!timer_started) { timer_started = true; open_in = ticks; }
     }
     // The orifice's room comes up (InitFn 21, FUN_0059db50). True: it's
     // open (mode 2): the staff went in, in this game or an earlier one.
@@ -1179,7 +1193,7 @@ struct SevenTombsQuest {
         if (later && !timer_started && !lair_open) { timer_started = true; open_in = 1; return true; }
         return lair_open;
     }
-    // A tick. True: the way down opens (object 100 by the orifice).
+    // A quest-clock step. True: the way down opens (object 100 by the orifice).
     bool tick() {
         if (log_in > 0 && --log_in == 0 && log != 3 && log != 4 && log != 5) log = 3;
         if (open_in < 0 || open_in-- > 0) return false;
@@ -1208,7 +1222,7 @@ struct TaintedSunQuest {
     int dark_in = -1;   // data+1: ticks to the darkness (rand(17) on the quest seed), -1 not running
     bool dark = false;  // data+2: the sun's out (FUN_0061c450 .. FUN_0061c4d0)
     bool used = false;  // data+4: the altar's been used (data+8 its mode 2)
-    int log_in = 0;     // the altar's timer (10 ticks, LAB_0059a700): log 3
+    int log_in = 0;     // the altar's timer (10 ticks, LAB_0059a700): log 3; in quest steps
     quest::Players rewarded;
 
     // A player's bits for the state (LAB_0059a4f0).
@@ -1247,7 +1261,8 @@ struct TaintedSunQuest {
         }
         return starts;
     }
-    // A tick (40 ms).
+    // A quest-clock step (QuestClock). The darkness's dark_in counts ticks:
+    // it goes on the (dark_in + 1)th step.
     void tick(QuestBits& quest_bits) {
         if (dark_in >= 0 && dark_in-- == 0 && !dark) { darken(); mark(quest_bits); }   // LAB_0059ed80
         if (log_in > 0 && --log_in == 0 && state == 4) log = 3;
@@ -1329,7 +1344,7 @@ struct TaintedSunQuest {
         state = 4;
         out.took_part = credit(quest_bits);       // LAB_0059a730: voice 0x34
         quest::set(game_bits, kQuest, 13);
-        log_in = 10;
+        log_in = quest_timer_steps(10);
         return out;
     }
     // A player's share of the altar (the operator's, one in its room or
@@ -1624,7 +1639,7 @@ struct TowerQuest {
     static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5, kTreasureLife = kTreasureFrames + 1;
     int state = 0;      // +0xc: 0 init, 2 started, 3 cellar / out of town, 5 Countess dead (1 and 4 unused)
     int log = 0;        // +0xb
-    int log_in = 0;     // ticks to the kill's timer (0x5954c0, 7), 0 not running
+    int log_in = 0;     // quest steps to the kill's timer (0x5954c0, 7), 0 not running
     quest::Players told;   // list A (data+0x00): had their success talk
     quest::Players due;    // list B (data+0x34): killed her in cellar 5, the success talk due
     bool dead = false;  // d+0x118: rec+0xc0 is gone
@@ -1653,7 +1668,7 @@ struct TowerQuest {
     [[nodiscard]] bool chain() const { return state == 5; }
     // The quest log's state (+0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
-    // A tick (40 ms): the kill's timer sets the log to 13.
+    // A quest-clock step (QuestClock): the kill's timer sets the log to 13.
     void tick() {
         if (log_in > 0 && --log_in == 0 && state == 5) log = 13;
     }
@@ -1742,7 +1757,7 @@ struct TowerQuest {
             dead = true;
             state = 5;
             first_talk = true;
-            log_in = 7;
+            log_in = quest_timer_steps(7);
         }
         if (quest::bit(quest_bits, kQuest, 0)) return false;
         if (!in_cellar) { quest::set(quest_bits, kQuest, 14); return false; }

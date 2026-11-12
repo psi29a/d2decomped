@@ -146,7 +146,7 @@ struct Scene : GameData {
     [[nodiscard]] static d2d::palette::Palette mapped(const d2d::palette::Palette& base, const std::uint8_t* map) {
         if (!map) return base;
         std::array<d2d::palette::Rgba, 256> entries;
-        for (std::size_t i = 0; i < 256; ++i) entries[i] = base[i == 0 ? 0 : map[i]];
+        for (std::size_t i = 0; i < 256; ++i) entries[i] = base.entries()[i == 0 ? 0 : map[i]];
         return d2d::palette::Palette(entries);
     }
     [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& item, const d2d::palette::Palette& base) const {

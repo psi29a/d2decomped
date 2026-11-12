@@ -189,15 +189,20 @@ private:
 // adds no width. 0xff, 'c', and '0'..'6' add no width when three count
 // slots remain (the measure's EBX starts at 3). A prefix fits when its
 // width is less than or equal to `box_width`. The walk back stops where
-// FUN_00526d30's Latin branch returns 1: the unit at the index is not
-// _isspace (00687006; DAT_0096dfe4 is 0, ctype bit 8, codes 9..13 and 32)
-// and the previous unit is. That space stays on the line. FUN_005028e0
-// with flag 1 then drops one leading space. No such break: the line is
-// the longest prefix that fits, and one glyph if even that is over.
-// ponytail: language ids 6, 8 and 9 (FUN_00525150) use the other break
-// in FUN_00526d30, not this one.
+// FUN_00526d30 returns 1. `language_id` is FUN_00525150 (0 when the caller
+// leaves it unset). Ids other than 6, 8 and 9, including 7: the unit at
+// the index is not _isspace (00687006; DAT_0096dfe4 is 0, ctype bit 8,
+// codes 9..13 and 32) and the previous unit is. That space stays on the
+// line. Ids 6, 8 and 9 read only the unit at the index: return 0 for an
+// ASCII letter or digit, and 1 for any other byte. FUN_005028e0 with
+// flag 1 then drops one leading space. No such break: the line is the
+// longest prefix that fits, and one glyph if even that is over.
+// ponytail: those ids also return 0 for the 16-bit units 0x2026, 0x3001,
+// 0x3002, 0xff01, 0xff0c, 0xff0e, 0xff1f, 0xff61, 0xff64, and for
+// 0xff10..0xff19, 0xff21..0xff3a and 0xff41..0xff5a. A byte unit never
+// holds them.
 template <class GlyphWidth>
-auto wrap_edit_box(std::string_view text, int box_width, GlyphWidth glyph_width) -> std::vector<std::string> {
+auto wrap_edit_box(std::string_view text, int box_width, GlyphWidth glyph_width, int language_id = 0) -> std::vector<std::string> {
     auto space_unit = [](unsigned char code) {
         return code == ' ' || (code >= 9 && code <= 13);
     };
@@ -235,9 +240,16 @@ auto wrap_edit_box(std::string_view text, int box_width, GlyphWidth glyph_width)
         }
         return total;
     };
+    const bool other_break = language_id == 6 || language_id == 8 || language_id == 9;
     auto kept_break = [&](int origin, int index) {
         if (index == 0) return true;
-        if (space_unit(unit_at(origin + index))) return false;
+        const auto unit = unit_at(origin + index);
+        if (other_break) {
+            const bool letter = (unit >= 'A' && unit <= 'Z') || (unit >= 'a' && unit <= 'z');
+            const bool digit = unit >= '0' && unit <= '9';
+            return !letter && !digit;
+        }
+        if (space_unit(unit)) return false;
         return space_unit(unit_at(origin + index - 1));
     };
     auto copy_line = [&](int origin, int count) {
