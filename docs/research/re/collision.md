@@ -1518,3 +1518,47 @@ Re-check: `python3 tools/ghidra/fn.py 00465420 00463740 00619da0
 00465fd0 00466360`; disassemble `00465420`..`004654bc` to confirm the
 ECX=x/EDX=y fastcall and the `FUN_00463740(room, x, y)` register setup.
 
+### A per-class finishing step after a monster is made: `FUN_004656c0` (batch 12)
+
+`FUN_004656c0` (0x195 bytes, `004656c0`..`00465855`, no ECX/EDX move at
+entry at all — confirmed in disassembly, the first instruction is `CMP
+EAX,0x14d` — a naked dispatch target like `FUN_004dc210`'s callees in
+PR #437, reached with **EAX** a class-like code and **ESI** the new unit
+already in place, no stack arguments, plain `RET`): its one caller is
+`FUN_00466360` (the client's monster-colour/creation step, already
+cited `monsters.md:554`, `superuniques.md:19,28`, `bugs.md:49`), which
+sets EAX/ESI before the call (confirmed in disassembly, `MOV
+ECX,ESI`/`MOV EAX,...` just before `CALL 004656c0` at `004665b2`). It
+switches on the code:
+
+- `0x14d`, `0xf2`/`0x2c0` (shared tail) and `0x21f` each call the
+  already-identified `FUN_00470390` (`GFX_AddOverlayToUnit`, ported
+  `components/rules/overlays.hpp`, first cited line 1416 above) on the
+  new unit with a different overlay id and kind each time (`0xba`/kind
+  2; `0x7a`/kind 3; `0x113`/kind 3).
+- `0x154`..`0x157` (a 4-entry jump table) each call `FUN_004da000(unit)`
+  then `FUN_004da1d0(unit, dx, dy, 0)` with one of the four diagonal
+  offsets `(-0x20,-0x20)`, `(-0x20,0x20)`, `(0x20,0x20)`, `(0x20,-0x20)`
+  — a diamond of four positions around the new unit.
+- `0x15f`..`0x161` call `FUN_00470390(unit, 0, kind=4, class-0xb0, 0,
+  0)` — the class code itself, offset by `-0xb0`, is passed through as
+  one of the overlay call's own arguments.
+- `0x196` calls `FUN_004da000`/`FUN_004da1d0`/`FUN_004da200`/
+  `FUN_004da2a0`/`FUN_004da6e0` in sequence (a fuller per-unit setup than
+  the diamond above).
+- `0x1a1`/`0x1a2` (with ESI non-null) and `0x209` each tail-call
+  `FUN_00470390`/`FUN_0046bff0` with no extra class-specific values.
+- any other code returns with nothing done.
+
+Not traced: `FUN_004da000`/`FUN_004da1d0`/`FUN_004da200`/`FUN_004da2a0`/
+`FUN_004da6e0`/`FUN_0046bff0`'s own bodies, and what each class code and
+overlay id/kind pair means for the monster class it's reached for (not
+resolved to specific Monstats rows here). d2d: the overlay call itself
+is already ported (`overlays.hpp`); the per-class dispatch and the
+diamond-offset spawns have no d2d equivalent found (not ported as a
+function).
+
+Re-check: `python3 tools/ghidra/fn.py 004656c0 00466360`; disassemble
+`004656c0`..`00465855` to confirm the EAX-code/ESI-unit naked convention
+and the jump table at `0x465858`.
+
