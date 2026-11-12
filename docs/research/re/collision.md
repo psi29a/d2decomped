@@ -1550,3 +1550,40 @@ Re-check: `python3 tools/ghidra/fn.py 004d97f0 00639df0 00463dd0 004f51c0
 00474390`; disassemble `004d97f0`..`004d9917` to confirm the stdcall,
 single-stack-argument convention (`RET 0x4`) despite the bare decompiled
 signature.
+
+### A state-edge reset of mode, overlays and frame rate: `FUN_004d9ad0` (batch 11)
+
+`FUN_004d9ad0` (0x4c bytes, `004d9ad0`..`004d9b1c`, plain `RET`, no stack
+args, no register args — confirmed in disassembly: the function never
+sets **ESI** itself, only reads it, the same implicit convention as
+`FUN_004d8660` above, here on ESI instead of EBX): it calls
+`FUN_0046f000` (already verified, `gfx.md:70`/`75`: clears the unit's 16
+overlay flags and frees its COF list) — the decompiled call shows no
+argument, but disassembly has `MOV ECX,ESI` right before it, so the unit
+is passed and simply dropped by the decompiler. Then, only when the
+unit's own `type` (`+0`) is 1 (monster), or `type` is 0 (player) and
+`mode` (`+0x10`) is not 0x12, it calls `FUN_00480e70` (`UNITMODE_SetAnimMode`,
+already documented, `collision.md:1194`) with the unit and mode 1 — again
+hidden by the decompiler, which shows a bare `FUN_00480e70()`; disassembly
+has `MOV EDX,1` / `MOV ECX,ESI` right before the call. Every path then
+runs the same tail: `FUN_00470610(unit, 1)` (already verified,
+`gfx.md:239`, also shown argument-less by the decompiler but
+register-fed in disassembly the same way), `FUN_00624390` — `names.tsv:1074`'s
+`set_mode_rate`, already named — on the unit, zeroing the unit's `+0x44`
+field (`unaff_ESI[0x11]`), then `FUN_00620210(unit, 0)` (already verified,
+the mode/skill setter `collision.md:1103`).
+
+Its two callers are the same already-`d2d ported` StateSet/StateRemove
+dispatchers the two sections above cite, each calling it only when the
+state row's own `+0x10` byte has bit 3 (mask 8) set — so this is their
+shared "the state's own end/start also resets the unit's base animation,
+overlays and frame-rate counter" step.
+
+d2d: not ported as a function; `FUN_0046f000`, `FUN_00480e70`,
+`FUN_00470610` and `FUN_00620210` are already verified/ported pieces this
+caller sequences in a fixed order; no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004d9ad0 0046f000 00480e70 00470610
+00624390 00620210`; disassemble `004d9ad0`..`004d9b1c` to confirm the
+implicit-ESI convention and that the decompiler drops every callee's
+ECX/EDX register arguments here.
