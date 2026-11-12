@@ -811,30 +811,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 d2d::rules::list_step(moved, d2d::rules::list_rows_whole(list.box, lines, moved.first), int(lines.size()), list.part == d2d::rules::ListPart::kDown);
                 npc_menu.set_list_scroll(moved);
             }
-        if (speech.npc >= 0 && (speech.done(frame_ms) || mouse.press_this_frame)) {
-            menu_click = mouse.press_this_frame;          // a click skips the speech
-            speech = {};
-            if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
-            menu_after_speech = -1;
-        } else if (npc_menu.list && mouse.wheel != 0) {   // a wheel notch (FUN_004be860): the selection steps, the list follows
-            for (int notch = 0; notch < std::abs(mouse.wheel); ++notch) {
-                auto moved = npc_menu.list_scroll();
-                const auto lines = npc_menu.list_lines();
-                d2d::rules::list_wheel(moved, d2d::rules::list_rows_whole(npc_menu.list->box, lines, moved.first), int(lines.size()), mouse.wheel < 0);
-                npc_menu.set_list_scroll(moved);
-            }
-        } else if (npc_menu.list && mouse.press_this_frame && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y)) {
-            menu_click = true;                            // a press in the list box (FUN_004bf430): an arrow, the track or a row, kept; nothing yet
-            menu_press = true;
-            auto& list = *npc_menu.list;
-            list.part = d2d::rules::list_part_at(list.box, mouse.x, mouse.y);
-            list.held = 0;
-            list.held_ms = frame_ms;
-            if (list.part == d2d::rules::ListPart::kNone) list.pressed = list.hover = d2d::rules::list_row_at(list.box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
-        } else if (npc_menu.list && mouse.release_this_frame && (npc_menu.list->pressed >= 0 || npc_menu.list->part != d2d::rules::ListPart::kNone)) {
-            // The release (FUN_004bf530): on the arrow pressed, a step; on the
-            // track, a page (rules::list_page); over the row pressed, that offer
-            // is hired (the window's callback, 0x4b3660).
+        // The release (FUN_004bf530): on the arrow pressed, a step; on the
+        // track, a page (rules::list_page); over the row pressed, that offer
+        // is hired (the window's callback, 0x4b3660).
+        const auto list_release = [&] {
             auto& list = *npc_menu.list;
             const auto lines = npc_menu.list_lines();
             const auto part = std::exchange(list.part, d2d::rules::ListPart::kNone);
@@ -858,6 +838,30 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     npc_menu = {};
                 }
             }
+        };
+        if (speech.npc >= 0 && (speech.done(frame_ms) || mouse.press_this_frame)) {
+            menu_click = mouse.press_this_frame;          // a click skips the speech
+            speech = {};
+            if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
+            menu_after_speech = -1;
+        } else if (npc_menu.list && mouse.wheel != 0) {   // a wheel notch (FUN_004be860): the selection steps, the list follows
+            for (int notch = 0; notch < std::abs(mouse.wheel); ++notch) {
+                auto moved = npc_menu.list_scroll();
+                const auto lines = npc_menu.list_lines();
+                d2d::rules::list_wheel(moved, d2d::rules::list_rows_whole(npc_menu.list->box, lines, moved.first), int(lines.size()), mouse.wheel < 0);
+                npc_menu.set_list_scroll(moved);
+            }
+        } else if (npc_menu.list && mouse.press_this_frame && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y)) {
+            menu_click = true;                            // a press in the list box (FUN_004bf430): an arrow, the track or a row, kept; nothing yet
+            menu_press = true;
+            auto& list = *npc_menu.list;
+            list.part = d2d::rules::list_part_at(list.box, mouse.x, mouse.y);
+            list.held = 0;
+            list.held_ms = frame_ms;
+            if (list.part == d2d::rules::ListPart::kNone) list.pressed = list.hover = d2d::rules::list_row_at(list.box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+            if (mouse.release_this_frame) list_release();   // let go in the same frame: game.exe takes its messages in order
+        } else if (npc_menu.list && mouse.release_this_frame && (npc_menu.list->pressed >= 0 || npc_menu.list->part != d2d::rules::ListPart::kNone)) {
+            list_release();
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk
             menu_press = true;                            // ... and its release (a store button under it)
