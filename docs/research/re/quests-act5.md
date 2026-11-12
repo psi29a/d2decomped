@@ -218,7 +218,9 @@ those helpers are not established by this check.
 - BaalThrone (MonAI 134, `FUN_005ef320`): +0x14 waves, +0x18 flags, +0x1c
   next frame. No other monster within 64: flag 1 → the next wave
   (`FUN_005ef210`: skill 286 in S3 at y + 13, superunique 61..65 via
-  0x6e3528 / [0x744304]+0xae0; 100 frames), or after five baalcrabstairs
+  0x6e3528 / [0x744304]+0xae0 — `FUN_00586b30`/`TXT_SuperUniquesHardcoded_GetSuperUniqueIndex(idx)`:
+  `(u16)aTxtSuperUniquesHardcoded[idx]` under the table's own bound 0x42,
+  else the sentinel 0xffffffff; 100 frames), or after five baalcrabstairs
   (0x22f, `FUN_00574370`); flag 1 unset → skill 285 in S3, 250 frames,
   unit event 0x10 (his Taunt), after S->C 0xa4 (`FUN_00571c00`) with the
   next wave's class (superunique +4; then 0x17 after class 0x3e, 0x17d
