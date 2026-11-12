@@ -739,6 +739,28 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Item elemental damage takes its mastery as a % (FUN_0057b7d0 →
   FUN_0057a8e0): fire 48/49 + 329, lightning 50/51 + 330, cold 54/55 +
   331, magic 52/53 + 357, poison 57/58 + 332.
+  - **FUN_0057a8e0** (EAX the mastery stat, stack `minDamageStat`,
+    `bonusStat`, `minPctBonus`, `rangePctBonus`, `accum`; EDI `unit`):
+    reads the mastery stat (`FUN_00625480`, `unit_stat_value`); under
+    0x800 (8 << 8) it returns `accum` unchanged (clamped to 0 or itself)
+    — the base damage isn't rolled at all below that mastery floor.
+    Otherwise it reads `minDamageStat` (the base min damage, already
+    `<<8` by the caller) and, when `bonusStat` isn't `~STR` (-1), adds
+    its value to both `minPctBonus` and `rangePctBonus`. Then it calls
+    `FUN_0057a880(mastery<<8, minPctBonus, unit, minDamageStat<<8,
+    rangePctBonus, accum)`.
+  - **FUN_0057a880** (ECX `range`, EDX `minPctBonus`, stack `unit`,
+    `min`, `rangePctBonus`; EAX `accum`): `range<=0` returns `accum`
+    unchanged (clamped to 0 or itself). Otherwise it rolls two
+    `FUN_00483360(value, pct, 100)` MulDiv percentages (`value*pct/100`):
+    `FUN_00483360(min, minPctBonus, 100)` added to `min` for the rolled
+    floor, and `FUN_00483360(range, rangePctBonus, 100)` added to
+    `range` for the rolled ceiling. `accum` gains the rolled floor; when
+    that floor is under the rolled ceiling, `RANDOM_RandomNumberSelector`
+    on the unit's own seed (`+0x20`) rolls the gap and adds it too. The
+    sum is clamped to 0. So the mastery % (plus any bonus stat) widens
+    both ends of the damage's own min/range roll, not a separate
+    "extra point" chance.
 - Built: `rules::passive_stats` (skills.hpp), `Fight::player_fighter`
   (the layer check, best value), `make_fighter` (342..344, 348, the
   elemental masteries), `monster_blow` (Weapon Block), `panel_stats` (Iron
@@ -1209,6 +1231,25 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   air: passes units, lands at its target), **51** (volcano debris):
   HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
+  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
+  allies by calc1. The heal gate is `FUN_005542c0(target, caster,
+  skill) || FUN_00554d20(target, caster, skill)`: `FUN_005542c0` (EDX
+  `target`, stack `caster`, `skill`; fastcall ECX unused) requires both
+  non-null, then `target`'s type 0 (player) or `caster`'s type 1
+  (monster, not mode — mode is a separate field), and bounds `skill`
+  against the Skills.txt count
+  (`[0x744304]+0xba0`), its record's `+7` bit 1 (`gadwBitMasks[1]`,
+  `0x6ce26c`). It then calls `FUN_0058f090(caster, &skill_slot,
+  &caster_slot)`: for a monster `caster` with a resolved pet-owner chain
+  (`+0x28`), it overwrites `caster_slot` with the owner's `+0x30` and
+  `skill_slot` with the owner's `+0x2c`; otherwise it only sets
+  `skill_slot` to -1 and leaves `caster_slot` (still the original,
+  non-null `caster` pointer) alone. `FUN_005542c0` passes only when
+  `caster_slot` came back 0 (so only the pet-owner branch can pass) and
+  `skill_slot` equals `target`'s `+0xc`. Not traced: `FUN_00554d20`, the
+  other half of the gate, and what `target`'s `+0xc` and the owner's
+  `+0x2c` / `+0x30` fields hold by name.
+  **9** (FUN_005aa250, Immolation Arrow): the damage
   undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 (+0x4c)
   non-zero and an owner (FUN_00552fd0) it heals. TargetPet (flag bit 0x19,
   FUN_005542c0) is a monster owned by that player. TargetAlly (bit 0x1a,
