@@ -1420,3 +1420,165 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### The swing sound's id alone: `FUN_004ca4c0` (batch 9)
+
+`FUN_004ca4c0` (0x3a bytes, `004ca4c0`..`004ca4fa`, plain `RET`, no stack
+args) sits right before the sound-timer cluster batch 8 traced. Plain
+fastcall, confirmed in disassembly: **ECX** the unit, **EDX** a weapon hit
+class. A null unit (ECX) is fatal (`FUN_00408090(0xb5c)` message,
+`FUN_00408a60`, `FUN_00681e09(-1)`, no return) — ECX is only ever used for
+this check, never dereferenced. Otherwise it masks EDX to its low nibble,
+and a value under 0xe (14) returns the dword at `DAT_00727ed8 + (EDX &
+0xf) * 8`; 0xe or above is fatal too (message `0xb60`). `0x727ed8` is the
+8-byte `{sound, frames}` table "The swing, FUN_004cb6a0" already names
+(`unit-sounds.md:51`, ported whole as `kSwing` in
+`components/rules/sound_ids.hpp:52`) — this function returns only the
+`sound` half of the pair, given the hit class directly rather than
+computing it. Its three callers (`FUN_004c6140` Skills.cpp's skill-start
+dispatcher, ported; `FUN_004c7d50`, `FUN_004c8ed0`, `FUN_004f4c20`, all
+`SKILLS` module) each call `FUN_00623c20` (the weapon's hit class,
+`sound_ids.hpp:51`) immediately before, then feed this function's result
+as the sound id into `FUN_004b9a00` (queue a Sounds.txt row,
+`unit-sounds.md:17`) — the `weaponsnd` swing play `unit-sounds.md:138`
+already describes as reading "the 0x727ed8 table".
+
+d2d: the `0x727ed8` table itself is already ported as `kSwing`
+(`sound_ids.hpp:52`); this accessor (an index into the table's `sound`
+field alone, with a redundant unit-null check) has no separate d2d
+function and nothing here disagrees with `kSwing`'s contents.
+
+Re-check: `python3 tools/ghidra/fn.py 004ca4c0 004c6140`; disassemble
+`004ca4c0`..`004ca4fa` to confirm the ECX=unit/EDX=hit-class order above.
+
+### Starting and stopping a boss unique's ambient sound (batch 9)
+
+Two UNIT functions a short distance after batch 8's sound-node pair,
+both gated on `FUN_004ca320` (**GetSndUnitType**, `unit-sounds.md:38`)
+returning 1 (monster) and then `d2d_uniques_boss_sound(unit)`
+(`components/rules/uniques.hpp:196`, already ported) returning a non-null
+MonSounds.txt row pointer (0x94-byte stride, confirmed via that function's
+own tail calls `FUN_00656f90`/`FUN_00656fc0`, which compute `row * 0x94 +
+DAT_0096c6b4`):
+
+- **`FUN_004cb190`** (0x90 bytes, `004cb190`..`004cb220`, plain `RET`, no
+  stack args): fastcall **ECX** the unit only (confirmed in
+  disassembly — EDX is never read). When the unit's type is 1 and it has
+  a boss-sound row, a null unit is fatal (id `0xc2c`, same shape as the
+  other checks here); otherwise it walks the unit's `sound_nodes` list
+  (`+0x78`, batch 8) exactly as `FUN_004caa10` does — `FUN_004b9ca0`
+  resolves each node, and when the resolved value matches any of the
+  boss-sound row's `+0x44`/`+0x48`/`+0x4c`/`+0x50` dwords (four of its own
+  sound-id fields, not otherwise identified), it calls
+  `FUN_004ba790(node_data, unit, 1)` — the same stop-sound entry point
+  `FUN_004caa10` calls with a flag of 0 (batch 8); here the flag is 1.
+- **`FUN_004cb950`** (0x61 bytes, `004cb950`..`004cb9b1`, plain `RET`, no
+  stack args): **EAX**-implicit unit (confirmed in disassembly: the first
+  instruction is `MOV ESI,EAX`), no stack args — the same implicit-EAX
+  convention batch 8 found on the sound-timer scalars. Same type/boss-row
+  gate as above; then, only once at least 4 ticks (`FUN_0044db00`, a tick
+  counter) have passed since the global `DAT_007c88bc`, it calls
+  `FUN_004e40a0(3, 0, 0)` for a sound-category base, adds 6, and queues it
+  with `FUN_004b9a00(category, unit, boss_row->+0x78 + 6)` — the row's
+  `+0x78` field (batch 8 named this `sound_nodes` on the *unit*; here
+  `+0x78` is a different field of the MonSounds-shaped boss row, not the
+  unit). It then sets the unit's `sound_time` (`FUN_004cab60`, batch 8,
+  EAX-implicit) to the current tick and updates `DAT_007c88bc` to it too.
+  So this is "play the boss unique's ambient sound, throttled to once
+  every 4+ ticks globally", with `FUN_004cb190` above as its stop
+  counterpart.
+
+Not traced: the MonSounds.txt row's own field layout beyond the `0x94`
+stride and the five fields read here (`+0x44`, `+0x48`, `+0x4c`, `+0x50`,
+`+0x78`); `FUN_004e40a0`'s own category table. d2d: not ported as a
+function; no disagreement found — `d2d_uniques_boss_sound` is the only
+piece of this pair with a d2d equivalent.
+
+Re-check: `python3 tools/ghidra/fn.py 004cb190 004cb950 004ca410`;
+disassemble `004cb190`..`004cb220` and `004cb950`..`004cb9b1` to confirm
+the ECX-only and EAX-implicit conventions above.
+
+### Reserving a unit's ambient sounds on an edge-triggered flag: `FUN_004cc160` (batch 9)
+
+`FUN_004cc160` (0xe6 bytes, `004cc160`..`004cc246`, plain `RET`, no stack
+args) is fastcall **ECX** the unit, **EDX** a signed value (confirmed in
+disassembly: `MOV ESI,ECX`/`MOV EDI,EDX` at entry). A null unit is fatal
+(id `0xcfd`). It reads the unit's own flag at `+0x88`; when it's 0 and
+EDX is negative, or it's already set and EDX is positive, the call is a
+no-op (the flag only changes on a sign transition of EDX). Otherwise it
+sets `+0x88` to `(0 < EDX)` and dispatches on `FUN_004ca320`'s result
+(**GetSndUnitType**, the same call batch 8's `FUN_004cb460` and the pair
+above also make):
+
+- type 1 (monster): `d2d_uniques_boss_sound(unit)`; if it returns a row,
+  call `FUN_004822b0(id, EDX)` — "Group reference counts"
+  (`sound.md:61`, already ported) — once for each of six of the row's own
+  sound-id fields, at `+4`, `+0x1c`, `+0x34`, `+0x3c`, `+0x78`, `+0x58`
+  (the same `+0x78` the pair above reads).
+- type 2 (object): `FUN_004ca2c0()` (**GetSndUnitClassId**,
+  `unit-sounds.md:38`) as an objects.txt id, bound-checked under 0x23d
+  (else fatal, id `0x1213`); if `DAT_007295f8[id]` (the per-object sound
+  record "Objects (0x7295f8)" names, `unit-sounds.md:369`, dumped whole
+  as `kObjectSounds` in `components/rules/object_sounds.hpp`) is set, call
+  `FUN_004822b0(record->modes[i], EDX)` for all eight of its `modes`
+  entries.
+
+So `FUN_004cc160(unit, value)` bumps (`EDX` > 0) or drops (`EDX` < 0) the
+group reference count of a boss unique's six listed sounds, or an
+object's eight per-mode sounds, once each time the sign of `value`
+changes — reserving or releasing their Sounds.txt group slots, most
+likely while the unit is moused over or otherwise highlighted (not
+confirmed here; no caller context ties it to a specific UI action). Its
+three callers (`FUN_00465870` `CUnit.cpp`, `FUN_00463a50`,
+`FUN_004cc410` struck-sound dispatcher, all already cited) were not read
+further to confirm that.
+
+Not traced: what sets `EDX`'s sign at any of the three call sites, and
+the MonSounds row's six named fields' own identity beyond "a sound id".
+d2d: not ported as a function; `FUN_004822b0`'s group-reference-count
+behaviour is already ported and verified (`sound.md:61`); no disagreement
+found with how this caller uses it.
+
+Re-check: `python3 tools/ghidra/fn.py 004cc160 004822b0`; disassemble
+`004cc160`..`004cc246` to confirm the ECX=unit/EDX=value order and the
+sign-transition gate on `+0x88`.
+
+### A missile's progress-to-frame mapper: `FUN_004cc950` (batch 9)
+
+`FUN_004cc950` (0x48 bytes, `004cc950`..`004cc998`, plain `RET`, no stack
+args, no calls) takes **EAX** a progress value and **ECX** a record
+pointer (confirmed in disassembly — EDX is never read; ECX is read only
+on the branch that needs it, at `+0x96`, a signed 16-bit field):
+
+- EAX under 0x1e (30): returns 1.
+- EAX in `[0x1e, 0x55)` (30..84): returns `(EAX - 0xf) >> 2` (arithmetic
+  shift, so integer division by 4 for these positive values).
+- EAX at or above 0x55, with `record->+0x96` (signed 16-bit) as `max`: let
+  `low = max - 0x32`. EAX under `low` returns 0xc (12, the ramp's
+  apparent ceiling — note the branch above can already return above 12
+  for EAX near 84, so 12 is not a hard cap on the whole function, only on
+  this branch). EAX at or above `low` but under `max` returns `0xc -
+  ((EAX - low) >> 2)`. EAX at or above `max` falls through to the same
+  default: 1.
+
+Its only caller, `FUN_004d5310` (`andycontrol0`, client function 29,
+already `d2d verified`: `components/rules/shake.hpp:63`,
+`unit-sounds.md:570`, with a committed oracle,
+`tools/emu/shake.py`/`tests/quake_control_cases.inc`), passes the
+MissileTypeTxt-shaped record it already holds (stride `0x1a4`,
+`PTR_DAT_00744304+0xb64`/`+0xb6c`) as `ECX` and `FUN_0064a3b0`'s result
+("reads total minus remaining", `unit-sounds.md:573`) as `EAX`, then
+feeds this function's return value into `FUN_004ce850` alongside the
+record's `+0x1e` field and the same progress value — a frame or intensity
+pick for Andariel's death-effect decal, not traced further.
+
+Not traced: `record->+0x96`'s own meaning beyond "a bound used past
+EAX == 0x55", and `FUN_004ce850`'s own use of the returned index. d2d:
+not ported as a function; `shake.hpp`'s screen-shake and quake-loop
+volume are the parts of `andycontrol0` already ported, and this
+particular decal-frame computation is listed there under "Not done"
+(the control missiles' fire/debris visuals) rather than disagreed with.
+
+Re-check: `python3 tools/ghidra/fn.py 004cc950 004d5310`; disassemble
+`004cc950`..`004cc998` to confirm the EAX=progress/ECX=record order and
+that EDX is unused.
