@@ -678,6 +678,9 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //   damage, descdam 9 (FUN_004eb390, Fire Wall): MinDam / MaxDam << HitShift
 //     (no level brackets) plus EMin / EMax with mastery, x 75 >> 8, then
 //     the weapon's share as 5.
+//   damage, descdam 8 (FUN_004eb290, Inferno): EMin / EMax with mastery x
+//     ddam calc1 x 25 / ddam calc2 >> 8, a calc of 0 taken as 1; EType's
+//     colour, no weapon.
 //   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
 //     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
 //     adds the weapon mastery (342) to the %. No floor at 1.
@@ -690,7 +693,7 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //     caller that omits it still fills the line. The server's status is
 //     FUN_00647960 (Fight::skill_status). FUN_004d9fc0 may turn a 0 into 8
 //     for the client player's own cast delay, and both still draw.
-// ponytail: descdam 2..4, 6, 8, 10..23 and descatt 3 / 4 (kicks, throws,
+// ponytail: descdam 2..4, 6, 10..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -760,6 +763,13 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
         line.max = ((skill.maxdam << shift) + elem_damage(skill_tables, skill, env, lvl, true, 0, true)) * 75 >> 8;
         line.damage_colour = etype_colour;
         weapon_share();
+    } else if (skill.descdam == 8) {                          // FUN_004eb290 (Inferno, Arctic Blast, Inferno Sentry)
+        line.damage = true;
+        const int scale = calc_of(skill.ddam_calc1), over = calc_of(skill.ddam_calc2);
+        const int times = scale != 0 ? scale : 1, per = over != 0 ? over : 1;
+        line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
+        line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
+        line.damage_colour = etype_colour;
     }
     if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
         const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);

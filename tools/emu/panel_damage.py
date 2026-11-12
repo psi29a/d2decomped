@@ -5,13 +5,15 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
-(FUN_004ead60), 9 (FUN_004eb390), 24 (FUN_004eae70), FUN_004e9660 (the SrcDam share of the
-weapon) and FUN_004e6fb0 (EType's colour). Hooked: FUN_00647bc0 /
-FUN_00647d00 (the skill's MinDam / MaxDam), FUN_00644d50 / FUN_00644e40
-(EMin / EMax with mastery), FUN_00644f20 (ELen), FUN_004e86f0 (the
-weapon's physical damage) and FUN_004e89a0 (its elements, its clamp and
-damblue / damred at its end, as 004e8b25 and 004e8d58 read). FUN_004e96e0
-(the draw) records min, max and colour. d2d's rules::attack_line
+(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 24 (FUN_004eae70),
+FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
+colour). Hooked: FUN_00647bc0 / FUN_00647d00 (the skill's MinDam /
+MaxDam), FUN_00644d50 / FUN_00644e40 (EMin / EMax with mastery),
+FUN_00644f20 (ELen), FUN_004e86f0 (the weapon's physical damage),
+FUN_004e89a0 (its elements, its clamp and damblue / damred at its end, as
+004e8b25 and 004e8d58 read), FUN_004a89d0 (the SkillDesc row),
+FUN_00643ce0 and FUN_00646d00 (its ddam calc1 / calc2). FUN_004e96e0 (the
+draw) records min, max and colour. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
 differ.
 """
@@ -25,9 +27,10 @@ from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX
 TABLE = 0x72D768                  # descdam -> handler
 PHYS_MIN, PHYS_MAX, ELEM_MIN, ELEM_MAX, ELEM_LEN = 0x647BC0, 0x647D00, 0x644D50, 0x644E40, 0x644F20
 WEAPON, WEAPON_ELEMENTS, DRAW = 0x4E86F0, 0x4E89A0, 0x4E96E0
+SKILL_DESC, SKILL_ID, CALC = 0x4A89D0, 0x643CE0, 0x646D00
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 9, 24)
+HANDLERS = (5, 8, 9, 24)
 
 
 def d2d_line(descdam, case):
@@ -61,6 +64,10 @@ def d2d_line(descdam, case):
         low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
         high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
         weapon_share()
+    elif descdam == 8:
+        times, per = case["calc1"] or 1, case["calc2"] or 1
+        low = trunc_div(case["emin"] * times * 25, per) >> 8
+        high = trunc_div(case["emax"] * times * 25, per) >> 8
     return low, high, colour
 
 
@@ -98,7 +105,11 @@ def main():
     e.hook(WEAPON, weapon, 8)
     e.hook(WEAPON_ELEMENTS, weapon_elements, 5)
     e.hook(DRAW, draw, 2)
-    unit, node, row = e.alloc(0x100), e.alloc(0x100), e.alloc(0x23C)
+    unit, node, row, desc = e.alloc(0x100), e.alloc(0x100), e.alloc(0x23C), e.alloc(0x120)
+    e.w32(desc + 0x18, 1); e.w32(desc + 0x1C, 2)                  # ddam calc1 / calc2: calc ids 1 and 2
+    e.hook(SKILL_DESC, lambda _e: desc, 0)
+    e.hook(SKILL_ID, lambda _e: 77, 3)
+    e.hook(CALC, lambda em: case["calc1"] if em.arg(1) == 1 else case["calc2"], 4)
     rng = random.Random(1114)
     bad = runs = 0
     for descdam, trial in itertools.product(HANDLERS, range(4000)):
@@ -108,7 +119,8 @@ def main():
             phys_min=rng.randrange(-2000, 40000), phys_max=rng.randrange(-2000, 60000),
             emin=rng.randrange(-3000, 80000), emax=rng.randrange(-3000, 120000), elen=rng.choice((0, 1, 25, 75, 200)),
             w_low=rng.randrange(-20, 300), w_high=rng.randrange(-20, 500),
-            we_low=0, we_high=0, we_colour=rng.choice((1, 2, 3, 9)), blue=rng.random() < 0.2, red=rng.random() < 0.2)
+            we_low=0, we_high=0, we_colour=rng.choice((1, 2, 3, 9)), blue=rng.random() < 0.2, red=rng.random() < 0.2,
+            calc1=rng.choice((0, 0, 1, 2, 3, -2, 40)), calc2=rng.choice((0, 0, 1, 3, 7, -3)))
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)
         e.mu.mem_write(row, bytes(0x23C))
@@ -126,6 +138,11 @@ def main():
                 print(f"descdam {descdam}: game {drawn} d2d {want} {case}")
     print(f"{bad} of {runs} differ")
     return 1 if bad else 0
+
+
+def trunc_div(dividend, divisor):
+    quotient = abs(dividend) // abs(divisor)
+    return quotient if (dividend < 0) == (divisor < 0) else -quotient
 
 
 def signed(value):

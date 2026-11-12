@@ -280,6 +280,12 @@ int main() try {
         line = attack_line(skill_tables, wall, env, 5, fighter, 5);
         assert(line.damage && line.min == ((2 << 4) + (10 << 4)) * 75 / 256 && line.max == ((3 << 4) + (20 << 4)) * 75 / 256);
         assert(line.damage_colour == 3);
+        // descdam 8 (Inferno, FUN_004eb290): EMin / EMax x ddam calc1 x 25 /
+        // ddam calc2 >> 8, a calc of 0 taken as 1; no weapon share.
+        Skill inferno = wall;
+        inferno.descdam = 8; inferno.srcdam_raw = 128; inferno.hitshift = 8; inferno.ddam_calc1 = {}; inferno.ddam_calc2 = compile("3");
+        line = attack_line(skill_tables, inferno, env, 5, fighter, 5);
+        assert(line.damage && line.min == (10 << 8) * 25 / 3 >> 8 && line.max == (20 << 8) * 25 / 3 >> 8 && line.damage_colour == 3);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
