@@ -883,6 +883,17 @@ struct World {
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
     // comes along; the automap and monsters are the new level's.
     void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
+    // Where a warp puts the player: the free spot nearest the other side's warp unit, as
+    // FUN_005550b0 -> FUN_0064e7b0 -> FUN_0064dea0 find it (0x555144 to 0x555157; FUN_00554ea0
+    // searches again from that spot and finds it free): Level::warp_spot, the subtile itself
+    // when free, else the least |dx| + |dy| in the first ring that has one, rings 1 to 49.
+    // Level::nearest_free scans each ring in another order and goes out to ring 199, so it lands
+    // on another subtile. No spot: nullopt, the warp is not taken (FUN_00554ea0 returns 0).
+    [[nodiscard]] static std::optional<std::pair<float, float>> warp_arrival(const Level& level, float unit_x, float unit_y) {
+        const auto spot = level.warp_spot(int(std::floor(unit_x * 5)), int(std::floor(unit_y * 5)));
+        if (!spot) return std::nullopt;
+        return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
+    }
     std::vector<d2d::rules::QuestMsg> quest_talk(int hc_idx, bool fresh = true);   // every quest's messages from that NPC (fresh: rolls the guard's line)
     void andariel_died(const Fight::Kill& kill, std::uint32_t now_ms);
     void mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms);
