@@ -91,8 +91,8 @@ d2d: `Fight::quest_death` (fight/deaths.cpp, `rules::killself_hooks`) asks
 the unit finder. The boss's own room is used when the square of the
 radius lies inside it (`FUN_0065a6b0`); otherwise the near rooms, and
 `FUN_0065a710` lets the rooms of that list through (bugs.md #23). A monster in none of
-those rooms is missed. The draws still go in monsters order, not each
-room's newest first. Checked by `test_quest_death_rooms` and
+those rooms is missed. Within one room the draws run newest first
+(`FUN_0065ac70` walks that room's unit list from its head). Checked by `test_quest_death_rooms` and
 `test_game_missiles` (Andariel's, Blood Raven's) and in game.exe by
 `tools/emu/boss_deaths.py`.
 
