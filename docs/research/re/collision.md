@@ -2628,3 +2628,253 @@ particular decal-frame computation is listed there under "Not done"
 Re-check: `python3 tools/ghidra/fn.py 004cc950 004d5310`; disassemble
 `004cc950`..`004cc998` to confirm the EAX=progress/ECX=record order and
 that EDX is unused.
+
+### Bleeding monsters' blood-trail missiles: `FUN_004af890` (batch 20)
+
+`FUN_004af890` (0x2ce bytes, `004af890`..`004afb5b`, `RET 4`): fastcall
+**ECX** unit, **EDX** default count, one **stack** flag (the decompile's
+third parameter, confirmed at the seven call sites: `PUSH 0` or `PUSH 1`
+before the call). It drops blood missiles round a bleeding monster:
+
+1. **Throttle.** With the stack flag nonzero the unit's seed (`+0x20` low,
+   `+0x24` high) advances once (`low' = lo32(low * 0x6ac690c5 + high)`,
+   `high' = carry`, the usual game LCG) and the function returns unless
+   `low' % 25 == 0`.
+2. **Hit-stagger gate.** For a monster (`unit +0` = 1) whose mode (`unit
+   +0x10`) is **3** the seed advances again and the function returns unless
+   `low' % 3 == 0`. The decompile calls mode 3 "Run" (the *player* enum);
+   `004af8dc` is a bare `CMP [ESI+0x10],3`, and for a monster that value is
+   the get-hit mode, which is where `FUN_004aff60`'s case 6 puts the unit
+   just before the call (see the burrow entry below for the dispatcher).
+3. **Count.** `FUN_00625500(unit, 0x8c, 0)` (stat 0x8c, the decompile calls
+   it `item_extrablood`) replaces the passed default when nonzero.
+4. **Gate on the row.** MonStats row (`+4` class id, bounds `[0x744304]+0xa80`,
+   table `+0xa78`, stride `0x1a8`) → word `+0x18` → MonStats2 row (bounds
+   `+0xa98`, table `+0xa90`, stride `0x134`); the drops happen only if the
+   MonStats2 byte `+0x11d` (unsigned) is above 0.
+5. **Per drop** (count times): if the unit has a path (`FUN_006486c0` true)
+   and a direction byte (`FUN_00620100`), slot =
+   `(low' + low'/7 + (dir >> 3) - 3) & 7` (the `/7` is the usual
+   `0x24924925` multiply-high with the add fix-up, i.e. floor division on
+   the unsigned seed); otherwise slot = `low' & 7`. Either way the seed has
+   advanced once for it. The 8 offsets are two int tables, **x** at
+   `006da610` = `0,-1,-2,-1,0,1,2,1` and **y** at `006da5f0` =
+   `2,1,0,-1,-2,-1,0,1` (read with `read_memory`). From the slot upward
+   (wrapping `& 7`) the first cell for which `FUN_0064cb30(room, x+dx, y+dy,
+   1)` returns 0 in `AX` (the collision mask 1 test; only the low 16 bits
+   are tested) is used. The scan stops *before* it reaches `(slot - 1) & 7`,
+   so only 7 of the 8 cells are ever tried, and if all are blocked the
+   function returns, abandoning the remaining drops too.
+6. **Missile.** `FUN_004cdba0(unit, 0x12 + roll, x+dx, y+dy, 0, 1)` (ECX
+   unit, EDX id, stack x, y, skill 0, level 1). `roll` = 0 if `byBleed` is
+   0 (cannot happen past the gate), else a seed draw below `2 * byBleed`
+   (`& (n-1)` when `n` is a power of two, `% n` otherwise; both advance the
+   seed the same way). Missile id 0x12 is the decompile's `MISSILE_Blood1`.
+
+Call sites (all read in disassembly): `004c7cd4` and `004c7f34` (count 5,
+flag 0), `004ca051` (1, 0), `004d9753` (5, 0), `004f118b` (3, 0),
+`004b03df` (1, 0) and `004b044d` (1, **1**), the last two in
+`FUN_004aff60`: case 6 (the plain hit; skipped when the message carries a nonzero life
+value equal to the unit's current life; the unit is already in mode 3, so
+the 1/3 gate always applies) and case 0x13 (the second hit message, the
+only throttled caller).
+
+Not traced: which MonStats2 column `+0x11d` is, stat 0x8c's row in
+ItemStatCost, missile 0x12's row. d2d: no equivalent (`git grep` finds no
+blood-trail code); not ported. Cited, not oracle-checked: the function
+needs rooms, collision and the missile allocator.
+
+Re-check: `python3 tools/ghidra/fn.py 004af890`; disassemble `004af890`..
+`004afb5b`; read 32 bytes at `006da610` and `006da5f0`.
+
+### The burrow / emerge hook of one monster class: `FUN_004afce0` (batch 20)
+
+`FUN_004afce0` (0x27b bytes, `004afce0`..`004aff58`, plain `RET`): **EAX**
+message type, **ESI** unit (naked, confirmed: `004afce3` onward reads
+`[ESI+...]` with no load). Its two callers are in `FUN_004aff60`:
+`004b0213` (the group that handles messages 5, 0xa, 0xd, 0xf, 0x10, 0x1b,
+0x1d, after `UNITMODE_SetAnimMode`) and `004b0347` (4, 0xb, 0xc, 0xe, 0x11,
+0x1a, 0x1c); both are gated by `cmp base-id, 0x6e` (`004b020b`, `004b033b`),
+where the base id is `TXT_MonStats_GetBaseId`'s result. (`collision.md`
+earlier calls base id 0x6e a vulture; the same dispatcher gives it a vulture
+death overlay; no MonStats name was read here.)
+
+- **Message 0xc, the dive:** unit flags (`+0xc4`) `&= ~0xe`; removes
+  collision flags `0x1000` then `0x100` at the unit's cell
+  (`FUN_0064cbe0(room, x, y, flags)`; the room is `FUN_00620bb0(unit)`);
+  `FUN_00649190(unit, 5)` (width 5), `FUN_00648ce0(path, 0)` (collision
+  pattern 0). If `FUN_004da0f0(unit)` is 0 (no particle yet) it allocates
+  one (`FUN_004da000`), sets fade-stop (`004da690`), reverse = 1
+  (`004da6e0`, EDX 1), offset vector `(0, 0, 2, 1)` (`004da200`) and bounds
+  `(0, 0, 0xa0, 0)` (`004da2a0`); if one already exists it returns.
+- **Messages 0xe and 0xa, the surfacing:** flags `|= 0xe`; adds `0x1000`
+  then `0x100` back (`FUN_0064cb90`); width 1; pattern **0x3c01**; and only
+  if a particle exists: fade-stop, reverse = 0, offset `(0, 0, -8, 1)`,
+  bounds `(0, 0, 0, 0)`.
+- Any other message type returns without doing anything.
+- Position is read per unit type: types 2, 4, 5 from the static path
+  (`+0xc` x, `+0x10` y), others through `FUN_006488c0` / `FUN_00648900`
+  (0 when no path).
+
+d2d: not ported; the burrowing animation exists (`world_view.hpp:81`, a
+reverse-playing animation) but no collision swap on dive/surface was
+checked. Not traced: which flag bits `0xe` at `+0xc4` are (the decompile
+names them valid-target / can-be-attacked / targetable), the particle
+setters' fields.
+
+Re-check: `python3 tools/ghidra/fn.py 004afce0 004aff60`; disassemble
+`004afce0`..`004aff58` and the two call sites.
+
+### The server's NPC trade-table setup and teardown: `FUN_00535fb0`, `FUN_00536640`, `FUN_00536850` (batch 20)
+
+All three are in `UNIT\sunitproxy.cpp` (the file-name literal is read at
+`00535ff8`, `0053603f`, `00536684`.., `00536899`). Server only; d2d has no
+server component, so documented, not ported.
+
+- `FUN_00535fb0` (`InitNpcTradeItems`; custom registers **EAX** table
+  index, **EBX** game, **EDI** destination): index above 0x10 raises the
+  internal error with line 0xa4. Otherwise copies the table row's trade
+  count, allocates `count * 0xc` bytes from the game's pool (line 0xa8) and
+  copies that many bytes of the row's trade array; then the same for the
+  quest list at 4 bytes a record (line 0xab). The 17-row table is the
+  decompile's `gaNpcItemTables`, its address not read here.
+- `FUN_00536640` (`FreeNpcControl`, fastcall ECX game): for each of
+  `nNpcCount` NPC entries (stride `0x44`) frees the interaction list (line
+  0x21e), the proxy data (`SUNITPROXY_FreeNpcProxyData`), two further
+  blocks (0x227, 0x22c) and a fourth (0x237), nulling the pointers; then
+  frees the entry array (0x242) and the control block (0x243) and nulls
+  `pGame->pNpcControl`.
+- `FUN_00536850` (`RefreshGambleForAllNpcs`; ECX game, stack tick, `RET 4`):
+  for each NPC entry whose three state bytes/words (`+0x1c` == 1, `+0x20`
+  == 1, `+0x23` == 1) all hold, pushes a 0x14-byte node (line 0x263)
+  `{tick, 4, 1, 0, next}` onto the head of the list at entry `+0x14`.
+  `GetTickCount()` is called and its result unused.
+
+Not traced: what the three state fields are, what event kind 4 is.
+
+### A server unit's inactive-list bookkeeping: `FUN_005418c0`, `FUN_00541ac0`, `FUN_005429b0`, `FUN_00543080` (batch 20)
+
+`UNIT\SUnitInactive.cpp`. The game keeps one list per act
+(`pGame->pInactiveUnitList[5]`) of nodes keyed by a room's tile
+x/y holding that room's despawned units, items and monsters.
+
+- `FUN_005418c0` (`FindAndRemoveInactiveUnitsByRoom`; stack out-pointers
+  ×2, **EAX** room, **EBX** game, `RET 8`): clears both out-pointers, takes
+  the room's level → act and its coordinates, walks the act's list while
+  `room.xStart <= node.x` (so the list is sorted by x descending: an
+  inference from the exit condition) and on an exact x and y match unlinks
+  the node, returns its unit and item chains, and frees the node (line
+  0xb6). No match leaves both null.
+- `FUN_00541ac0` (`RestoreInactiveItemList`; **EBX** game, stack room,
+  **EAX** chain, `RET 4`): per record, restores the item unless its
+  despawn timer is nonzero and already passed (`timer != 0 && frame >
+  timer` skips), then frees the record either way (line 0x126).
+- `FUN_005429b0` (`CheckDeadMonsterAtCoords`; fastcall ECX game, EDX room,
+  stack x, y, class): null game, null room or a zero x/y raises the
+  internal error with lines 0x6da / 0x6db / 0x6dc. Finds the live room at
+  (x, y) (nearby-room lookup, else by subtile in the act) and returns 1 for
+  a monster of that class there with the mode-zero-death test true;
+  otherwise looks up the inactive node for (act, x, y) and returns 1 for a
+  monster record of that class with type-flag bit 4; else 0. The act comes
+  from the *argument* room's level, not the found room.
+- `FUN_00543080` (`FreeAllInactiveLists`; fastcall ECX game): for each of
+  the 5 acts frees every node's unit chain (line 0x29a), item chain
+  (0x2a4), monster list (`FreeInactiveMonsterList`) and the node (0x2ab).
+
+Not traced: the record layouts beyond the offsets the decompile uses, the
+callers of `FUN_005429b0`.
+
+### Server unit lifecycle helpers: `FUN_00553590`, `FUN_00553c70`, `FUN_00553f00`, `FUN_005545c0`, `FUN_00555580` (batch 20)
+
+`UNIT\SUnit.cpp`; server only, documented, not ported.
+
+- `FUN_00553590` (`LinkPortalCoords`; fastcall ECX unit, EDX unit2): null
+  unit / unit2 raise lines 0x753 / 0x755. Each portal's object data stores
+  the other's x and y; each then stores the room tile-rect top-left of the
+  other's room (when it has one) into two of its own fields. The decompile
+  labels one of them as a monster-data field on an object, so the field
+  names are unreliable; the offsets were not re-read.
+- `FUN_00553c70` (`SetupAnimTimerEventsWithDelay`; fastcall ECX game, EDX
+  unit, stack delay): does nothing for `delay <= 0`. Otherwise removes the
+  unit's mode-change and end-anim timers, rewinds `nGfxCurrentFrame` by the
+  delay and re-schedules events 1..4 at their frames (frame-flag table or
+  the sequence's `ANIM_GetEventFrame`), then the end-of-animation event
+  (kind 1) one frame after the last. Speed 0 schedules only that event, one
+  frame ahead. Callers (4): `005c8ca0`, `005c8e30`, `005d68a0`, `005d69d0`.
+- `FUN_00553f00` (`ClearAnimAndTriggerEndAnim`, 0x21 bytes): removes the
+  mode-change timers, then fires the mode-change event at once.
+- `FUN_005545c0` (`GetTargetRoom`): the path's next room if it is still one
+  of the act's rooms (list walk), else resets the next room and returns 0.
+- `FUN_00555580` (`UnlinkUnitFromRoom`; ECX unit, EDX game, stack flag): null
+  unit / type >= 6 raise 0x3ac / 0x3ad. A player first clears its
+  interaction; players, monsters, objects and missiles remove their path
+  collision; all types then leave the room (skipped when the flag is set)
+  and the clients are notified.
+
+Not traced: the event kinds' consumers, `FUN_00553c70`'s callers' reasons.
+
+### Server NPC inventory, hire list and scrolls: `FUN_005762c0`, `FUN_005766d0`, `FUN_00576770`, `FUN_00576e40` (batch 20)
+
+`UNIT\SUNITNPC.CPP`; server only.
+
+- `FUN_005762c0` (`SetItemForNpc`): marks the item identified; for a
+  vendor item also sets the vendor flag, sets the reload flag if it has
+  sockets, refreshes the NPC's inventory and queues the item for update.
+  A non-vendor item is only identified.
+- `FUN_005766d0` (`FillNpcInventory`; fastcall): null game / unit / item
+  raise lines 0x1a7 / 0x1a8 / 0x1a9. Takes the item to the NPC's cursor;
+  with `bDeleteItem` it flags it, refreshes, queues it and sets the
+  delete command; otherwise frees it.
+- `FUN_00576770` (`SendMercForHireList`; fastcall, game, client, NPC,
+  first-interaction flag): only for NPC classes **0x96, 0xc6, 0x203,
+  0xfc**: sends state command 0x4f, finds the NPC's game record, builds its
+  hireling slots on first use, then for the hireling table row
+  `(expansion, class)` sends one **0x4E** packet `{name string id, seed}`
+  for each of the `nameLast - nameFirst + 1` slots whose field at `+0xc` is
+  set and field at `+8` is clear. A missing row asserts line 0x1fb; a
+  count of -1 asserts 0x60. The decompile's `_DAT_00000000 = 0` there was
+  not read in the disassembly.
+- `FUN_00576e40` (`ApplyScrollSkill`; fastcall ECX unit, EDX skill, stack
+  quantity used): for a valid skill the unit has, subtracts the quantity; at
+  zero or below it clamps to 0 and, if it was the right-hand skill,
+  reselects the default attack; stores the quantity and sends packet 0x22
+  to the owner (client lookup with line 0x40b).
+
+Not traced: the callers' item flag meanings, which NPC each class id is.
+
+### Damage helpers: monster-type equivalence and the item AC rules: `FUN_0057a830`, `FUN_0057b6a0`, `FUN_0057d8a0` (batch 20)
+
+`UNIT\SUnitDmg.cpp`; the combat core, relevant to d2d's `fight` rules.
+
+- `FUN_0057a830` (fastcall ECX type A, EDX type B): both must be 1..
+  `nTxtMonTypeSize-1` and positive; returns bit A of row B of the MonType
+  equivalence matrix (`dwords per row` field × B dwords, bit mask table
+  `gadwBitMasks`), else 0.
+- `FUN_0057b6a0` (**EAX** target, stack attacker, stack damage struct; the
+  attacker's 0x400-byte stat list on the stack): for a monster target
+  whose MonStats `MonType` word (`+0x1c`, stride `0x1a8`) is positive,
+  reads the attacker's list of stat 0xb4 values (up to 0x80 entries,
+  subindex = a MonType id) and, for each entry whose subindex is
+  equivalent to the target's type by the same matrix bit as above (row =
+  target's type), adds its value to the damage struct's `dwEnDmgPct`.
+- `FUN_0057d8a0` (**EBX** attacker, **EDI** defender, stack to-hit pointer,
+  stack AC pointer): (1) stat 0x73 (`item_ignoretargetac`) nonzero and the
+  defender a monster that is not monster-type 10, not a boss and not a
+  merc: AC = 0. (2) stat `item_fractionaltargetac` percent `p > 0`: halved
+  (integer) against players, bosses, monster-type 2 and mercs, forced
+  to 0 if below 1, capped at 100, then AC -= `D2ApplyPercent(AC, p, 100)`.
+  (3) `item_demon_tohit` added to the to-hit if the defender is a demon;
+  `item_undead_tohit` likewise for undead. The three stat ids other than
+  0x73 are the decompile's names; their numbers were not read.
+- Callers: `FUN_0057a830` ← `0057d9b0`, `005a89a0`; `FUN_0057d8a0` ←
+  `0057d9b0`; `FUN_0057b6a0` ← `0057b7d0`.
+
+d2d: `git grep` finds no `ignoretargetac`, `fractionaltargetac`,
+`demon_tohit` or `undead_tohit` in `components/` or `apps/`, so item
+ignore-target-AC / to-hit-vs-demon items have no d2d rule; **not checked
+whether d2d reads those stats under another name**. Not traced: monster
+type codes 2 and 10, the 0xb4 stat's row.
+
+Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
+`0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
+`0057d8a0`..`0057d8c0` (stat 0x73 on EBX).
