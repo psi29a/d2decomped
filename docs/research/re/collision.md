@@ -1432,6 +1432,212 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
 
+### Toggling a skill's render effect on a mode gate: `FUN_004d8520` / `FUN_004d85c0` (batch 11)
+
+Two near-identical UNIT/PlrSkills.cpp functions, each with its own 5-byte
+jump thunk right after it (`004d85b0` jumps to `004d8520`, `004d8650` jumps
+to `004d85c0` — plain near `JMP`, confirmed in disassembly, not a second
+body). Both are fastcall **ECX** the unit, **EDX** a value (confirmed in
+disassembly: `MOV EDI,ECX` / `MOV EBX,EDX` at entry), plain `RET`, no stack
+args:
+
+- **`FUN_004d8520`** (0x83 bytes, `004d8520`..`004d85a3`) and its thunk
+  **`FUN_004d85b0`** (5 bytes, `004d85b0`..`004d85b5`).
+- **`FUN_004d85c0`** (0x83 bytes, `004d85c0`..`004d8643`) and its thunk
+  **`FUN_004d8650`** (5 bytes, `004d8650`..`004d8655`).
+
+Both call `d2d_unit_skill_list` (`00620250`, `names.tsv:995`) for the
+unit's selected skill node; a null one is a no-op. Otherwise
+**`FUN_004d84c0`** (0x52 bytes, `004d84c0`..`004d8512`, no stack args, no
+register args — confirmed in disassembly: it is called with `MOV EAX,EDI`
+right before it, EDI being this function's own unit, so **EAX** is
+implicit) must return true: true when the unit's own `type` (`+0`) is 0
+and `mode` (`+0x10`, both already in `structs.tsv`) is 0x12, or `type` is 1
+and `mode` is 0xe; false for any other type/mode pair, including a null
+unit (the decompiler's default `in_EAX==null -> 6` forces both branches
+false). With that gate passed, `d2d_skill_node_id` (`00643ce0`,
+`names.tsv:1280`) reads the skill node's id, bound-checked against the
+Skills.txt row count/table (`0x744304+0xba0`/`+0xb98`, stride 0x23c,
+`skills.md`'s Skills.txt row reader convention) — the two functions differ
+here only in the debug line constant they pass through unread
+(`0x26`/38 for `004d8520`, `0x4f`/79 for `004d85c0`; the file string is the
+same `.\UNIT\PlrSkills.cpp` for both). The row's own `+0x2e` short field
+then picks one of two calls, each with the unit and the original EDX value
+forwarded and a literal third argument: `0x43` ('C') gates on
+`skill_get_flags` (`FUN_006446a0`, `names.tsv:1299`) bit 0 before calling
+**`FUN_004c9060`**; `0x4c` ('L') calls **`FUN_004c9990`** unconditionally.
+The literal third argument is the only other difference between the pair:
+`FUN_004d8520` passes 1, `FUN_004d85c0` passes 0.
+
+Not traced: `FUN_004c9060`/`FUN_004c9990`'s own bodies — both are SKILLS
+module, already cited but not traced (`collision.md:974`,
+`video-drivers.md:178`) — and the Skills.txt row's own `+0x2e` field
+identity beyond "a type byte with values 'C'/'L' seen here". d2d: not
+ported as a function; nothing here has a d2d counterpart to disagree with.
+
+Re-check: `python3 tools/ghidra/fn.py 004d8520 004d85b0 004d85c0 004d8650
+004d84c0`; disassemble `004d8520`..`004d85a3`, `004d85c0`..`004d8643` and
+`004d84c0`..`004d8512` to confirm the ECX=unit/EDX=value fastcall, the
+5-byte `JMP` thunks, and the implicit-EAX=unit convention on
+`FUN_004d84c0`.
+
+### A skill-id's overlay-row cleanup loop: `FUN_004d8660` (batch 11)
+
+`FUN_004d8660` (0x33 bytes, `004d8660`..`004d8693`, `RET 0x4`) takes a
+single stack argument (a unit) and an implicit register input — confirmed
+in disassembly: the function never sets **EBX** itself, only reads it
+(`CMP EBX,-0x1` is its first real instruction), so whatever the caller's
+EBX holds (an Overlay.txt row id) is what it uses, the same
+register-implicit convention batches 8/9/10 found on EAX/ESI, here on EBX.
+EBX of -1 is a no-op; otherwise `FUN_00664740(EBX)` (0x52 bytes,
+untouched: an Overlay.txt row lookup, stride 0x84 at
+`0x744304+0xbbc`/`+0xbc0` — the same table and stride `gfx.md`'s
+"Overlays" section already names for `FUN_0046e1b0` — returning that row's
+own `+0x4c` field as a count) bounds a loop that calls the
+already-verified overlay-remove entry point `FUN_0046f0c0` (`gfx.md:100`,
+with a committed oracle `tools/emu/engine_overlay_remove.py`) once per
+index from EBX through EBX + count - 1. The decompiled call reads
+`FUN_0046f0c0(iVar2 + unaff_EBX)`, showing only that stack word; in
+disassembly `FUN_0046f0c0` is actually called with **ECX** the unit (the
+stack argument this function itself received) and **EDX** 0 as well — the
+decompiler drops both, the same hidden-register-argument pattern batch 10
+found.
+
+Its two call sites are both inside the already-`d2d ported`
+`FUN_004d9c30` (StateRemove dispatch, `gamedata.hpp:482`,
+`net-packets.md:366`), passing the removed State row's own `+0x2` and
+`+0x4` signed 16-bit fields (sign-extended into EBX) whenever each is
+non-negative. So `FUN_004d8660` removes every Overlay.txt row in a range a
+State can carry (one range from its own `+0x2` field, a second from
+`+0x4`) off the unit when that State ends.
+
+Not traced: `FUN_00664740`'s own `+0x4c` field identity beyond "a count"
+and the Overlay.txt row's own identity (`gfx.md`'s "Overlays" section
+already names the table). d2d: not ported as a function; `FUN_0046f0c0` is
+already verified with a committed oracle; no disagreement found with how
+this caller drives it.
+
+Re-check: `python3 tools/ghidra/fn.py 004d8660 00664740 0046f0c0
+004d9c30`; disassemble `004d8660`..`004d8693` and the two call sites
+around `004d9d1b`..`004d9d39` in `FUN_004d9c30` to confirm the
+implicit-EBX convention and the dropped ECX/EDX on `FUN_0046f0c0`.
+
+### Picking the active state's screen overlay byte: `FUN_004d97f0` (batch 11)
+
+`FUN_004d97f0` (0x127 bytes, `004d97f0`..`004d9917`, `RET 0x4`): one stack
+argument (the unit), not fastcall despite the bare decompiled signature —
+confirmed in disassembly by the `RET 0x4` and a fallback path that reads
+the unit straight from `[EBP+8]` rather than any register. It loops over
+every States.txt-shaped row (count at `0x744304+0xc4`, rows at `+0xbc`,
+stride 0x3c) that's active on the unit (`FUN_00639df0`, already verified,
+`ai.cpp:993`), keeping the one whose own `+0x20` byte (a priority) is
+strictly the highest seen. With a winner: its `+0x21` byte becomes the
+unit's `+0x6c` field — unless that byte is the ASCII char `h` (0x68) and
+the unit is the local player (`FUN_00463dd0`, already verified) and
+`FUN_004f51c0` (0xd bytes, untouched, not traced) is non-zero, in which
+case `+0x6c` is forced to 0 instead. Only when the unit is also the local
+player with a non-zero `+0x64` (the light-record pointer
+`unit-player-trace.md:27` already describes `FUN_00460bf0` setting), it
+then calls `FUN_00474390` (0x39 bytes, untouched, not traced: `+0x23`/
+`+0x24` from the winning row) with that row's own `+0x23`/`+0x24` bytes.
+With no winning row, or when the only candidate index is out of bounds,
+`+0x6c` resets to 0 and, for the local player with a non-zero `+0x64`,
+`FUN_00474390(0xff, 0xff)` runs instead — clearing whatever the winning
+path sets. `structs.tsv` has no row yet for unit `+0x6c`; from this it is
+the byte a State's own `+0x21` field drives (a per-state overlay/tint
+selector), added here as `state_overlay_byte`.
+
+Its two callers, the already-`d2d ported` StateSet (`FUN_004d9b20`,
+`gamedata.hpp:482`, `net-packets.md:357`) and StateRemove (`FUN_004d9c30`,
+above) dispatchers, call it only when the state row's own `+0x21` byte is
+non-zero.
+
+Not traced: `FUN_004f51c0` and `FUN_00474390`'s own bodies, and the
+States.txt row's `+0x20`/`+0x21`/`+0x23`/`+0x24` fields' identity beyond
+what's read here. d2d: not ported as a function; no disagreement found —
+nothing here was compared against a d2d equivalent.
+
+Re-check: `python3 tools/ghidra/fn.py 004d97f0 00639df0 00463dd0 004f51c0
+00474390`; disassemble `004d97f0`..`004d9917` to confirm the stdcall,
+single-stack-argument convention (`RET 0x4`) despite the bare decompiled
+signature.
+
+### A state-edge reset of mode, overlays and frame rate: `FUN_004d9ad0` (batch 11)
+
+`FUN_004d9ad0` (0x4c bytes, `004d9ad0`..`004d9b1c`, plain `RET`, no stack
+args, no register args — confirmed in disassembly: the function never
+sets **ESI** itself, only reads it, the same implicit convention as
+`FUN_004d8660` above, here on ESI instead of EBX): it calls
+`FUN_0046f000` (already verified, `gfx.md:70`/`75`: clears the unit's 16
+overlay flags and frees its COF list) — the decompiled call shows no
+argument, but disassembly has `MOV ECX,ESI` right before it, so the unit
+is passed and simply dropped by the decompiler. Then, only when the
+unit's own `type` (`+0`) is 1 (monster), or `type` is 0 (player) and
+`mode` (`+0x10`) is not 0x12, it calls `FUN_00480e70` (`UNITMODE_SetAnimMode`,
+already documented, `collision.md:1194`) with the unit and mode 1 — again
+hidden by the decompiler, which shows a bare `FUN_00480e70()`; disassembly
+has `MOV EDX,1` / `MOV ECX,ESI` right before the call. Every path then
+runs the same tail: `FUN_00470610(unit, 1)` (already verified,
+`gfx.md:239`, also shown argument-less by the decompiler but
+register-fed in disassembly the same way), `FUN_00624390` — `names.tsv:1074`'s
+`set_mode_rate`, already named — on the unit, zeroing the unit's `+0x44`
+field (`unaff_ESI[0x11]`), then `FUN_00620210(unit, 0)` (already verified,
+the mode/skill setter `collision.md:1103`).
+
+Its two callers are the same already-`d2d ported` StateSet/StateRemove
+dispatchers the two sections above cite, each calling it only when the
+state row's own `+0x10` byte has bit 3 (mask 8) set — so this is their
+shared "the state's own end/start also resets the unit's base animation,
+overlays and frame-rate counter" step.
+
+d2d: not ported as a function; `FUN_0046f000`, `FUN_00480e70`,
+`FUN_00470610` and `FUN_00620210` are already verified/ported pieces this
+caller sequences in a fixed order; no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004d9ad0 0046f000 00480e70 00470610
+00624390 00620210`; disassemble `004d9ad0`..`004d9b1c` to confirm the
+implicit-ESI convention and that the decompiler drops every callee's
+ECX/EDX register arguments here.
+
+### A lighter event-list dispatch, no removal bookkeeping: `FUN_004dc210` (batch 11)
+
+`FUN_004dc210` (0x52 bytes, `004dc210`..`004dc262`, `RET 0x8`): fastcall
+**ECX** a match value, **EDX** the unit, two stack words forwarded
+unchanged into whatever handler matches (confirmed in disassembly: `MOV
+EDI,EDX` / `MOV EBX,ECX` at entry). With a null unit it returns 0. It
+walks the unit's own event list (`+0x90`, already in `structs.tsv`, the
+same list the already-`d2d verified` `FUN_005c0c30` — `ai.hpp:590` —
+walks): for each node whose own `+0` field equals the ECX match value, it
+calls the node's own callback (node `+0x14`, a function pointer) with
+**ECX** the original match value, **EDX** the unit, and the two stack
+words plus the node's own `+0xc`/`+0x10` fields as four stack arguments —
+the same node layout (`+0`, `+0xc`, `+0x10`, `+0x14` callback, `+0x1c`
+next) `FUN_005c0c30` already uses, minus that function's "in use"/removal
+bookkeeping (its node `+2` flags word and `+0x18` previous-pointer upkeep)
+entirely: this function only reads the list, it never marks or unlinks a
+node. The decompiled call shows `(**(code**)(piVar2+5))(param_3,param_4,
+piVar2[3],piVar2[4])`, omitting that the callback's own ECX/EDX are the
+match value and the unit again — confirmed in disassembly (`MOV
+ECX,EBX`/`MOV EDX,EDI` right before `CALL EAX`), the same
+hidden-register-argument the decompiler shows for a direct call now shown
+on an indirect one.
+
+Its one caller, the already-`d2d verified` `FUN_004d2d70` (the client's
+hit and explosion, `missiles.md:117`), calls `FUN_004dc210(unit, 0)` right
+after applying a hit's socket/state changes — dispatching event type 0 to
+any handler the unit's own event list carries for it.
+
+Not traced: what event type 0 means to a caller elsewhere, and whether any
+unit ever registers a handler for it (no handler-registration call was
+read here). d2d: not ported as a function; `FUN_005c0c30`'s own raise
+behaviour is the part of this system with a d2d equivalent
+(`components/game/ai.hpp:590`); no disagreement found with how
+`FUN_004d2d70` uses this lighter dispatch.
+
+Re-check: `python3 tools/ghidra/fn.py 004dc210 005c0c30 004d2d70`;
+disassemble `004dc210`..`004dc262` to confirm the ECX=match/EDX=unit
+fastcall and that the indirect call passes the callback its own ECX/EDX.
+
 ### The client's own pierce check: `FUN_004cd310` (batch 10)
 
 `FUN_004cd310` (0x64 bytes, `004cd310`..`004cd374`, plain `RET`, no stack
