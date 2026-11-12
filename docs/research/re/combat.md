@@ -337,6 +337,16 @@ on each record the state cast last takes first: Energy Shield cast after Bone /
 Cyclone Armor takes its percent before the armor's pool sees the field; the
 armor cast after the shield goes first (as d2d always did).
 
+FUN_005c0b50 (`SUNITEVENT_RemoveEventsByQueueAndOwner`, game, unit,
+queueNo, ownerKey) is driven directly over random event lists: a node
+whose queue and owner both match is unlinked and freed through
+`FreeServerMemory` when it isn't mid-execution (flag bit 0), or left
+linked with "free pending" (bit 1) set when it is; a non-matching node
+is untouched. 3000 cases plus `--mutation-check` (3 ways: keeping an
+executing match linked and unmarked, ignoring the owner key, freeing a
+non-matching node) pass against game.exe 1.14d. Oracle
+`tools/emu/unit_event_remove.py`.
+
 The same `+0x90` list is a general queued-event list, not only absorb
 events (its nodes carry a queue number, an owner key and a skill, read by
 the two functions below), and two more server functions (SUnitEvent.cpp)
