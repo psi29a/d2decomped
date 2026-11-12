@@ -954,17 +954,30 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
         }
     }
 
-auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y) -> void {
+auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast) -> void {
         using namespace d2d::d2s;
+        auto& values = actor->character.stats.values;
+        // FUN_005cf010: a player's aura costs FUN_00644b10 (mana_formula, no
+        // minmana floor); with less mana its stats stay 0.
+        const int cost = player_cast ? d2d::rules::mana_formula(skill, lvl) : 0;
+        if (values[kMana] < cost) return;
         const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        int changed = 0;   // FUN_005cedc0's count (+0x40): a unit whose life it moved
         for (std::size_t i = 0; i < skill.aurastat.size(); ++i) {
             if (skill.aurastat[i] != kLife) continue;
             const std::int64_t heal = d2d::rules::eval_calc(game_data->skills, skill.aura_calc[i], env, skill.id, lvl);   // 256ths
-            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach)
-                actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
-            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach)
-                actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach) {
+                const auto life = std::min(values[kMaxLife], values[kLife] + heal);
+                if (life != values[kLife]) { values[kLife] = life; ++changed; }
+            }
+            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach) {
+                const int hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+                if (hit_points != actor->merc->hit_points) { actor->merc->hit_points = hit_points; ++changed; }
+            }
         }
+        // Something healed: FUN_0056c110(caster, cost) takes the cost off its
+        // mana (there's enough: checked above).
+        if (cost > 0 && changed > 0) values[kMana] -= cost;
     }
 
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
@@ -986,7 +999,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
-            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y);
+            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y, true);
             return;
         }
         // Redemption (do 82, FUN_005d0e90): FUN_0056b7e0 runs FUN_005d0d70 on
