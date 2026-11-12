@@ -1426,9 +1426,10 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
 Four small UNIT-module functions clustered right after `FUN_004ca380`/
 `FUN_004ca320`/`FUN_004ca2c0` (the mode/class/type reads `FUN_004cb460`
 and `FUN_004caf60` above already call). `FUN_004cb460` itself calls
-`FUN_004cab90` directly (`iVar4 = FUN_004cab90(), iVar4 == 0`, line
-1346 above); the other three sit beside it in address order and share its
-fatal-check shape. The getters here use **EAX**, not ECX, as the implicit
+`FUN_004cab90` directly (`iVar4 = FUN_004cab90(), iVar4 == 0`; confirmed
+by decompiling `FUN_004cb460` itself, not detailed again here — its d2d
+port is cited at lines 1455-1456 below); the other three sit beside it
+in address order and share its fatal-check shape. The getters here use **EAX**, not ECX, as the implicit
 unit pointer — a register-parameter order (EAX, EDX, EBX, ECX for up to
 four arguments) this binary uses throughout, confirmed against raw
 disassembly, not just the decompiler's guess (which shows it as an
@@ -1463,8 +1464,10 @@ EAX-implicit, no-ECX calling convention above.
 
 Two more UNIT-module functions right after the timer scalars above, both
 called from the same already-verified ambient-sound sequencer
-`FUN_004cb460` (lines 1331-1332 above: `FUN_004ca900` to decide whether
-to re-trigger, `FUN_004caa10` to stop the old sound first) — unlike the
+`FUN_004cb460` (confirmed by decompiling `FUN_004cb460` itself, not
+detailed again here — its d2d port is cited at lines 1455-1456 above:
+`FUN_004ca900` to decide whether to re-trigger, `FUN_004caa10` to stop
+the old sound first) — unlike the
 EAX-implicit accessors above, both use the ordinary fastcall ECX/EDX
 convention (confirmed in disassembly):
 
@@ -1493,8 +1496,9 @@ convention (confirmed in disassembly):
   and, when set, calls `FUN_004ba790(node_data, unit, 0)` — the
   stop-sound entry point (matches by the same `DAT_007c5458` list, then
   gates on a `d2d_sound_row` field before calling `FUN_004ba760`). So
-  this is "stop every currently-playing sound this unit owns that's
-  flagged `+0x3e`". `structs.tsv` has no row yet for unit `+0x78`; from
+  the stop applies to each currently-playing sound this unit owns that is
+  flagged `+0x3e` and passes that gate. The gate's false path is not
+  traced. `structs.tsv` has no row yet for unit `+0x78`; from
   this pair it is the head of the unit's own linked list of active-sound
   nodes, distinct from the `+0x7c`/`+0x80`/`+0x84` cooldown scalars
   above — added here as `sound_nodes`.
