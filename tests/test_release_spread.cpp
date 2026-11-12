@@ -26,7 +26,7 @@ int main() try {
     assert(d2d::rules::release_spread_offset(both) == std::pair(0x14, 0));
 
     d2d::rules::Rng walk{ 7 };
-    for (int k = 0; k < 64; ++k) {
+    for (int sample_index = 0; sample_index < 64; ++sample_index) {
         const auto [offset_x, offset_y] = d2d::rules::release_spread_offset(walk);
         assert(offset_x >= -20 && offset_x <= 20);
         assert(offset_y >= -20 && offset_y <= 19);
