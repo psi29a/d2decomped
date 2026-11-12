@@ -657,6 +657,19 @@ build/ai-baal-blocked/cases > build/ai-baal-blocked/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_baal_clear_choice.py` checks FUN_005fc450's clear-line branch
+over 1,536 cases, reusing the blocked-line generator. It hooks life, distance,
+and the target's spell predicate, compares choices 2 and 6 as one action,
+and does not compare the seed after the action.
+
+```sh
+mkdir -p build/ai-baal-clear
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --cpp > build/ai-baal-clear/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-clear/cases.cpp -o build/ai-baal-clear/cases
+build/ai-baal-clear/cases > build/ai-baal-clear/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --cases build/ai-baal-clear/cases.txt --exe "$GAME_EXE"
+```
+
 - Pick: FUN_005fbdd0 is Diablo's FUN_005e8f20 (filter FUN_005fc000 = same
   act, under 0x3fc), the score FUN_005fbb00 Diablo's with the point bonus at
   0x4b instead of 0x55.
