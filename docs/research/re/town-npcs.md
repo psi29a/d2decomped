@@ -148,7 +148,7 @@ uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --
 ```
 
 `tools/emu/ai_town_path_dispatch.py` uses the same cases to run FUN_005e7080
-and its selected actions. All cases have one path point and use the same
+and its selected actions. The cases have one path point and use the same
 seed, which selects that point; paths with no point and the no-selection
 branch are not checked. After generating the cases above:
 

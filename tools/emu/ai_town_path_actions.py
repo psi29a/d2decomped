@@ -10,7 +10,7 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_EIP
+from unicorn.x86_const import UC_X86_REG_EIP
 
 import emu
 
