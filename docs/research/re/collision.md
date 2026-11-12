@@ -195,11 +195,14 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   gives the same return, position and point index every frame (3,000 walks;
   250 frozen in `tests/walk_step_cases.inc`). An earlier note here had the
   repeated point cost a frame: game.exe's run says not.
-- ponytail: A target that moves re-paths at
-  0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
-  FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
-  to a spot, not a unit. The merc's moves carry their own type, pace and
-  steps (merc-ai.md).
+- A walk at a unit runs FUN_006503f0's check (`rules::chase_check`,
+  `tools/emu/moves.py`) at each frame's start: the player's (World's
+  tick), a hostile monster's (`move_frame`), the merc's at its foe and a
+  pet's at its foe or owner (`game::walk_on`).
+- ponytail: a revived monster's stand-in think (pets.cpp, `pet_follow`)
+  re-paths at 1 cell with a fresh budget, not 5 subtiles off SP2. Town
+  NPCs walking up to the player go to a spot, not a unit. The merc's moves
+  carry their own type, pace and steps (merc-ai.md).
 - ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.

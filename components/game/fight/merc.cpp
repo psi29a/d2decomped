@@ -303,7 +303,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         if (actor->merc->mode == "WL" || actor->merc->mode == "RN") {                    // velocitypercent: the move's pace
             // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk %, at least 25 (FUN_00623f50).
             const int velocity = type_info ? type_info->velocity : 6;
-            if (walk_on(*level, unit, path_velocity(velocity, std::max(100 + actor->merc->move_pct, 25)), crowd)) return;
+            const UnitState* foe = actor->merc_chase && actor->merc_target >= 0 ? &monsters[std::size_t(actor->merc_target)].unit : nullptr;
+            if (walk_on(*level, unit, path_velocity(velocity, std::max(100 + actor->merc->move_pct, 25)), crowd, foe)) return;
             set("NU");
             actor->merc_chase = false;
             actor->merc->next_act = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)

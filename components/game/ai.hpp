@@ -136,7 +136,10 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
 // over: at its last point or blocked (FUN_00650150), short of the goal or
 // not; FUN_006507b0 zeroes the path's count then, so FUN_006503f0 (the
 // re-path) doesn't run again. Further on is the next think's walk.
-bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {});
+// With a `target` (a walk at a unit) its check comes first
+// (rules::chase_check): within 0 of it (+0x93), over; more than 5 subtiles
+// off the goal on either axis, a new path to it while the budget lasts.
+bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, const UnitState* target = nullptr);
 
 // A frame of u's walk along its path at `velocity` (path_velocity)
 // (rules::walk_frame: FUN_00650840 in 16.16 subtiles), dropping reached

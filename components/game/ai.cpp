@@ -131,8 +131,21 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
     return !unit.path.empty();
 }
 
-bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd) {
-    return !unit.path.empty() && follow_path(level, unit, velocity, crowd);
+bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd, const UnitState* target) {
+    if (unit.path.empty()) return false;
+    if (target) {
+        const int x = subtile(unit.x), y = subtile(unit.y), at_x = subtile(target->x), at_y = subtile(target->y);
+        const int distance = d2d::rules::unit_distance(at_x - x, at_y - y, unit.shape.size, target->shape.size);
+        const int check = d2d::rules::chase_check(true, distance, 0, true, subtile(unit.goal_x) - at_x, subtile(unit.goal_y) - at_y,
+                                                  unit.path_points - int(unit.path.size()), unit.path_points, false, unit.budget);
+        if (check == 0) unit.path.clear();                     // at it, or the budget spent: over (FUN_006507b0)
+        if (check == 2) {                                      // FUN_00650350: type 0xd, then 0xf, to where it is now
+            unit.goal_x = target->x; unit.goal_y = target->y;
+            unit.path = monster_walk(level, unit, crowd);
+            unit.path_points = int(unit.path.size());
+        }
+    }
+    return follow_path(level, unit, velocity, crowd);
 }
 
 std::string unique_name(const GameData& game_data, int name_seed) {

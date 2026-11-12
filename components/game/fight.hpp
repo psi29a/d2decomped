@@ -304,6 +304,7 @@ struct Fight {
             int hits = 0;                              // a Raven's attacks left (0: no count)
             bool idle = false, mirror = false;         // Decoy stands; a Shadow Warrior swings the owner's blow
             bool chase = false;                        // walking at its target (FUN_005ded40)
+            bool to_owner = false;                     // walking at its owner (PetFollow)
             std::array<int, 3> ctrl{};                 // its AI control's +0x14 / +0x18 / +0x1c (rules::PetBrain)
             int cast = -1;                             // the skill its attack mode does (a traced think's), -1 a swing
             float cast_x = 0, cast_y = 0;              // a skill at a spot (a wolf's Teleport)
