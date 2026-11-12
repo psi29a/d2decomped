@@ -241,6 +241,35 @@ int main() try {
         writer.align();
         assert(std::ranges::equal(writer.out, std::span(bytes).subspan(0x2FD + 4, writer.out.size())));
     }
+    // A potion's quantity is not the save's 9-bit field unless the code is
+    // stackable (d2s_write.hpp). hp1 is not, so a pile count adds no bits.
+    // Marking it stackable inserts those 9 bits. No game files.
+    {
+        auto written = [](int quantity, bool stackable) {
+            d2d::d2s::Item potion;
+            potion.code = "hp1";
+            potion.quality = 2;
+            potion.quantity = quantity;
+            d2d::d2s::ItemTables tables;
+            if (stackable) tables.stackable.insert("hp1");
+            d2d::d2s::detail::BitWriter writer;
+            d2d::d2s::detail::write_item(writer, potion, tables);
+            return writer;
+        };
+        // The property list ends in 0x1ff, so the last set bit is the end of
+        // the item. Alignment zeros after that are not part of the field.
+        auto payload_bits = [](const d2d::d2s::detail::BitWriter& writer) {
+            std::size_t last = 0;
+            for (std::size_t index = 0; index < writer.pos; ++index)
+                if ((std::uint8_t(writer.out[index >> 3]) >> (index & 7)) & 1) last = index;
+            return last + 1;
+        };
+        const auto plain = written(-1, false);
+        const auto counted = written(50, false);
+        assert(plain.out == counted.out);
+        const auto stacked = written(50, true);
+        assert(payload_bits(stacked) == payload_bits(plain) + 9);
+    }
     {
         const char* saves_env = std::getenv("D2_SAVES_DIR");
         const char* mpq_env = std::getenv("D2_MPQ_DIR");
