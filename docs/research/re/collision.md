@@ -1476,8 +1476,11 @@ modifier list) — `structs.tsv`'s `monster_data` rows at `0x28`
   2. the unit's own `class` (`unit +0x4`, `structs.tsv`) is checked
      against the MonStats row count (`[0x744304] +0xa80`); in range,
      monster-data `+0x0` is set to the MonStats row address
-     (`[0x744304] +0xa78 + class * 0x1a8`, the same table `monsters.md:10`
-     and `collision.md:947` already name); out of range, monster-data
+     (`[[0x744304] +0xa78] + class * 0x1a8` — `+0xa78` is a slot holding
+     the table's own base pointer, dereferenced before the class offset
+     is added, confirmed against `FUN_005735a0`'s identical form; the
+     same table `monsters.md:10` and `collision.md:947` already name,
+     both still with the single-bracket form); out of range, monster-data
      `+0x0` is zeroed.
 
   Callers: `FUN_00466360` (the client's monster-colour/creation step,

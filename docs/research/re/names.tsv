@@ -218,6 +218,7 @@ address	name	evidence
 004802e0	warden_packet	S->C 0xAE: 0x45f5f0 JMPs here (ECX packet + 3, EDX u16 +1); module +8, then FUN_00480230
 00480320	warden_tick	FUN_0044efa0 per frame: module +0xc, then FUN_00480230
 004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
+00480490	unit_path_ptr_touch	ECX unit, plain RET: FUN_00650590(unit+0x2c); sole caller FUN_004ae1d0; collision.md "Replaying a path-target action"
 00481860	sound_row	ECX id: id*0x8e + DAT_007bc9a0, 0 when id < 0 or >= DAT_007bc9a4 (Sounds.txt's records, music.md)
 004833e0	char_stats_row	ECX class: class*0xc4 + tables+0xbc4, 0 past tables+0xbc8 (the 0xc4-byte class record FUN_005706d0 reads)
 00483410	sets_row	ECX id: id*0x128 + tables+0xc0c, 0 past tables+0xc10: 32 rows loaded, Sets.txt's count
@@ -236,13 +237,19 @@ address	name	evidence
 004ade50	monster_mod_dispatch_1	ECX unit: FUN_004add90(unit, 0, 1); verified by unit_client.py
 004ade60	monster_mod_dispatch_2	ECX unit: FUN_004add90(unit, 0, 2); verified by unit_client.py
 004ade70	monster_mod_dispatch_3	ECX unit: FUN_004add90(unit, 0, 3); verified by unit_client.py
+004ade80	monster_mod_dispatch_4	ECX unit, EDX forwarded value: FUN_004add90(unit, EDX, 4), a fifth slot beside monster_mod_dispatch_0..3; sole caller FUN_004cd540; collision.md "A fifth monster-mod dispatch slot"
 004ae080	monster_flags_masked	ECX unit, DX mask: a monster's data +0x28 word & mask; 0 for a non-monster or no data; verified by unit_client.py
+004ae0a0	monster_data_set_monstats_row	ECX unit, EDX AI-control word: writes monster data +0x28's low 16 bits, then sets monster data +0x0 to the class's MonStats row address (0 out of range); callers FUN_00466360, FUN_004ae8d0, FUN_004aedd0; collision.md "Two more monster type-data accessors"
 004ae110	monster_data_list	ECX unit: monster data + 0x30 (the modifier list); 0 for a non-monster or no data; verified by unit_client.py
+004ae170	monster_data_state_gate_addr	ECX unit: returns the address of monster data +0x34, not dereferenced; callers FUN_0046ce40, FUN_0046d110; collision.md "Two more monster type-data accessors"
+004ae1d0	monster_replay_path_target	naked ESI unit: in mode 1-0xb/0xd-0xf, FUN_00465bf0(unit, 0), FUN_00480490(unit), tail-calls FUN_00480e70(unit, 1); sole caller FUN_004aff60; collision.md "Replaying a path-target action"
 004ae320	monster_type_test_04	ECX unit: a monster gives FUN_004ac7e0(unit, 4), else 0; verified by unit_client.py
 004ae340	monster_type_test_40	ECX unit: a monster gives FUN_004ac7e0(unit, 0x40), else 0; verified by unit_client.py
 004ae360	monster_type_test_08	ECX unit: a monster gives FUN_004ac7e0(unit, 8), else 0; verified by unit_client.py
 004ae380	monster_type_test_10	ECX unit: a monster gives FUN_004ac7e0(unit, 0x10), else 0; verified by unit_client.py
 004ae3a0	monster_type_test_02	ECX unit: a monster gives FUN_004ac7e0(unit, 2), else 0; verified by unit_client.py
+004ae4f0	unit_client_event_hook	ECX unit, naked EAX event code: two jump tables dispatching client-side event codes; callers FUN_004ae8d0, FUN_004aedd0; collision.md "A per-event client hook"
+004afbc0	monstats2_mode_flag_test	ECX unit, naked EAX struct {+0 bit index, +4 gate}: tests a MonStats2 row's +0x104 byte array via FUN_00451fe0; two call sites in FUN_004aff60; collision.md "A per-mode MonStats2 flag test"
 004c6ac0	skill_client_start	fastcall (unit, ...), caller FUN_0045d5e0: state list + stat set to the level, start-function table 0x727ba8 per level; skills.md "Stat-list helpers and skill starts" (table meaning not read)
 004c7630	unit_command_on_target	fastcall (unit, target): builds the unit command {0, -1, target type, target id, 1, 0, 0} (type 6 / id -1 for none) and runs FUN_00480c10 with 1; returns 1; caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
