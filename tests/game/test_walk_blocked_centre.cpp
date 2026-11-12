@@ -43,6 +43,18 @@ int main() try {
     blocked = false;
     assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
     assert(!blocked && near_value(unit.x, 21.05f));
+
+    // No route (LAB_006508ff): the same centre, and it counts as a block.
+    unit.x = 21.0f; unit.y = 13.4f;
+    unit.path.clear();
+    blocked = false;
+    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(blocked && unit.path.empty());
+    assert(near_value(unit.x, 21.1f) && near_value(unit.y, 13.5f));
+    const float stayed_x = unit.x, stayed_y = unit.y;
+    blocked = false;
+    assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
+    assert(blocked && unit.x == stayed_x && unit.y == stayed_y);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_walk_blocked_centre: %s\n", error.what());
