@@ -666,6 +666,20 @@ clear-line route are outside this dispatcher comparison:
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_choice_dispatch.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_baal_hand_predicate.py` checks the FUN_005fc070 and
+FUN_005fc0c0 hand-skill predicates indirectly through the blocked-line
+choice, over 3,840 cases. One hand is populated per case; skill lookup,
+IDs and levels are hooked. It compares action outcomes, with choices 2 and
+6 combined, rather than the predicates' return values.
+
+```sh
+mkdir -p build/ai-baal-hands
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_hand_predicate.py --cpp > build/ai-baal-hands/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-hands/cases.cpp -o build/ai-baal-hands/cases
+build/ai-baal-hands/cases > build/ai-baal-hands/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_hand_predicate.py --cases build/ai-baal-hands/cases.txt --exe "$GAME_EXE"
+```
+
 `tools/emu/ai_baal_clear_choice.py` checks FUN_005fc450's clear-line branch
 over 1,536 cases, reusing the blocked-line generator. It hooks life, distance,
 and the target's spell predicate, compares choices 2 and 6 as one action,
