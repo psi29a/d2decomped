@@ -1549,3 +1549,57 @@ d2d: not ported as a function; no disagreement found (nothing in
 Re-check: `python3 tools/ghidra/fn.py 004afbc0 00451fe0 004638a0`;
 disassemble `004afbc0`..`004afc02` and `004b0280`..`004b02b0` (one call
 site) to confirm the EAX struct and the post-`FUN_00480e70` placement.
+
+### A per-event client hook: `FUN_004ae4f0` (batch 13)
+
+`FUN_004ae4f0` (0x13c bytes, `004ae4f0`..`004ae62c`, fastcall ECX unit,
+plus a naked **EAX** event code — confirmed in disassembly, the decompile
+hides it as `in_EAX`): two jump tables (`0x4ae62c` for codes up to
+`0x158`, `0x4ae6f4` for codes `0x159` and up) switch on the event code;
+out-of-range falls through to a bare `RET`. In call order:
+
+- `0x158`: reads the local player (`FUN_00463dd0`, already cited
+  `collision.md:1110`/`:1112`/`:1136`) and advances a 64-bit counter at
+  the **player's** own `+0x20`/`+0x24` fields — the same two `structs.tsv`
+  names `seed_low`/`seed_high` for a monster's drop seed (`drops.md:129`),
+  here advanced for the player by a different step (`low * 0x6ac690c5 +
+  high`, with the carry folded in, not `FUN_00552df0`'s step; not
+  reconciled with `drops.md`'s reading of those fields as fixed once at
+  creation). The new low dword's low byte, masked `& 0x3f`, becomes the
+  **unit's** own path direction via `FUN_006488a0(path, byte)`
+  (`path.md:68`, "direction and new direction both = argument & 0x3f"),
+  bracketed by `FUN_00649030(path, 1)` then `FUN_00649030(path, 0)`
+  (`path.md:93`, "a zero argument sets flag 0x40, non-zero clears it").
+- `0x96`: stores the unit pointer at global `0x7c0c5c`. What reads it
+  back is not traced.
+- `0x9d`, `0x9e`, `0x13f`: `FUN_00649190(unit, 5)` then `FUN_00648ce0(unit
+  +0x2c, 0)` (both already verified, `path.md:97`, `path.md:85`).
+- `0x14b`: with a local player (`FUN_00463dd0`), `FUN_00620c10(unit,
+  player)` (already verified, `ai-control.md:203`, `collision.md:758`,
+  `missiles.md:318`, `units.md:229`) then `FUN_00465bf0(unit, 0)`
+  (untouched here, not re-read).
+- `0x19d`, `0x23a` (two codes, one shared body): chains `FUN_0045ae20` →
+  `FUN_0045adf0` → `FUN_004cdb40(unit, 0x188, ...)` (the same pair used
+  elsewhere as a two-value input, `collision.md:1335`/`:1343`, their own
+  meaning not resolved there either; `FUN_004cdb40` already cited
+  `missiles.md:905`, `stubs.md:18`); the exact argument plumbing between
+  the three calls was not fully resolved from the disassembly here.
+  `0x19d` only, a non-null result also runs `FUN_00621ce0(result, unit)`
+  (already ported, `components/game/ai.cpp:1460`/`:2075`,
+  `monster-ai.md:426`).
+- `0x1f1`, `0x1f2`, `499`, `500` (four codes, one shared body): tail-calls
+  `FUN_004ae400` (untouched, 0xef bytes, not read in this commit).
+
+Not traced: the event-code numbering itself (whether these are net-packet
+opcodes, animation events, or another space), `FUN_004ae400`'s own body,
+and what `FUN_00463dd0`'s zero/nonzero split at `0x158` and `0x14b` means
+for a client with no local player yet. Its two callers (`FUN_004ae8d0`,
+`FUN_004aedd0`) are already cited (`collision.md:936`/`:1063`,
+`missiles.md:1018`) and were not re-read for which codes they pass.
+
+d2d: not ported as a function; no disagreement found — every callee
+above already has its own d2d comparison cited.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae4f0`; disassemble
+`004ae4f0`..`004ae62c` to confirm the EAX event code and the two jump
+tables.
