@@ -29,7 +29,7 @@ namespace {
 
 // Polls the host and every client until `done` says so, or about 3 s pass.
 template <class Done>
-auto pump(net::lan::Host& host, std::vector<net::lan::Client*> clients, std::vector<net::lan::Host::Event>& host_events,
+auto pump(net::lan::Host& host, const std::vector<net::lan::Client*>& clients, std::vector<net::lan::Host::Event>& host_events,
           std::vector<std::vector<net::lan::Client::Event>>& client_events, Done done) -> bool {
     client_events.resize(clients.size());
     for (int round = 0; round < 600; ++round) {
