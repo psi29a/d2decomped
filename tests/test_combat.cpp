@@ -250,6 +250,7 @@ int main(int argc, char** argv) try {
         assert(snd::first_floor_material(sand_then_wood, 1, 2, 3) == 4);
         assert(snd::first_floor_material(blank_then_sand, 1, 2, 3) == 3);
         assert(snd::first_floor_material(other_cell, 1, 2, 3) == 3);
+        assert(snd::first_floor_material(other_cell, 1, 2, 0) == 1 && snd::first_floor_material(other_cell, 1, 2, 7) == 1);   // Material 1 outside 1..6
         tables.item_base["hax"].hit_class = 0;
     }
     sum[17] = sum[18] = 100;                                          // enhanced damage off the weapon: no effect (op 13)

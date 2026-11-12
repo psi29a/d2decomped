@@ -111,7 +111,15 @@ state 0x3c). Returns 1 when a move set off.
 - **3**: `FUN_0054dc40` finds a spot in the owner's room
   (`FUN_00554ea0`), the pet stands 5.
 - **4**: the owner's pets within 2 of this one (`FUN_00574de0` with
-  `FUN_005e3900`): any, reach away from the owner on each axis
+  `FUN_005e3900`): `FUN_00574de0` (owner in EDX, 0x5e3d92 / 0x5e44c9)
+  walks every PetType row from 1 of player data +0x44, a node's unit
+  found by id (`FUN_00552f60`), skipping a node with bit 0 set;
+  `FUN_005e3900` counts each but the pet itself (the context's +0, ESI)
+  with `FUN_005dc380(pet, unit)` under 2 (+8) and keeps the last (+4),
+  which no caller reads: only `count >= 1` is tested (0x5e3da5 /
+  0x5e44dc). The merc is row 7 ("hireable"): `FUN_00573270` binds it with
+  `FUN_00575e90(merc, 7, ..)`, so it crowds a pet too
+  (`Fight::pet_crowd`). Any: reach away from the owner on each axis
   (`FUN_005defe0`, pace steps reach when over 5), else wander reach. Then
   stand 15.
 - **5**: path type 7 (`FUN_005de190` maps type 1 to 7), reach about the

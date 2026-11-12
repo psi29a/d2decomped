@@ -40,6 +40,9 @@ struct Loot {
     Cues& cues;
     Character* character = nullptr;        // the acting player's (World::act_as)
     UnitState* player = nullptr;
+    // Who stands on this level (the Crowd). Their 0x1000 / 0x2000 are not
+    // in Level::walk. Null: no unit footprints (a level the player isn't on).
+    const Crowd* standing = nullptr;
     // The picker's party alive on the level besides them (World's): they
     // share the gold picked up.
     std::function<std::vector<Character*>()> gold_sharers;
@@ -152,17 +155,35 @@ struct Loot {
         }
     }
     // FUN_00555da0 on the level's walk grid: walls and object footprints
-    // (0x01) block, as do items already lying there (0x200).
-    // ponytail: units (0x1000/0x2000) don't block; one level, no neighbours'.
+    // (0x01) block, as do items already lying there (0x200). On this level,
+    // a unit's footprint blocks too (FUN_0064ea90, UnitShape::bit): 0x1000
+    // for pattern 1 / 2, 0x2000 for pattern 3 / 4, on the subtile, or the
+    // plus for pattern 2 / 4. The walk grid does not hold those bits.
+    // ponytail: one level is searched, no neighbours'.
     [[nodiscard]] std::pair<float, float> drop_at(float x, float y, const Level* onto = nullptr) const {
         const Level* where = onto ? onto : level;
         const int width = where->ds1.width() * 5, height = where->ds1.height() * 5;
         if (where->walk.empty()) return { x, y };
+        const bool this_level = where == level;
         const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
             if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
-            return (where->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01) | items_at(where, at_x, at_y);
+            const int flags = (where->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01) | items_at(where, at_x, at_y);
+            return this_level ? flags | units_at(at_x, at_y) : flags;
         });
         return { (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5 };
+    }
+    // 0x1000 / 0x2000 where `standing` stamps them on subtile (at_x, at_y).
+    // Pattern 0 and 5 stamp nothing (UnitShape::stamps). A pattern 0 probe
+    // asks Crowd for that one subtile, including a pattern 2 / 4 plus.
+    [[nodiscard]] int units_at(int at_x, int at_y) const {
+        if (!standing) return 0;
+        const float cell_x = (float(at_x) + 0.5f) / 5, cell_y = (float(at_y) + 0.5f) / 5;
+        static constexpr UnitShape kBit1000{ 0, 0, 0x1000 };
+        static constexpr UnitShape kBit2000{ 0, 0, 0x2000 };
+        int bits = 0;
+        if (standing->at(cell_x, cell_y, kBit1000, nullptr)) bits |= 0x1000;
+        if (standing->at(cell_x, cell_y, kBit2000, nullptr)) bits |= 0x2000;
+        return bits;
     }
     // 0x200 when an item lies on subtile (at_x, at_y) of `where`, else 0.
     [[nodiscard]] int items_at(const Level* where, int at_x, int at_y) const {

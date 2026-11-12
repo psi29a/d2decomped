@@ -77,8 +77,11 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
         const int y_begin = std::max(0, rows.begin - screen_y), y_end = std::min(std::abs(tile.height), std::min(int(kScreenHeight), rows.end) - screen_y);
         if (x_begin >= x_end) return;
         std::array<std::uint32_t, 256> lut{};
-        const auto entries = pal.entries();
-        for (std::size_t i = 0; i < 256; ++i) { std::memcpy(&lut[i], &entries[i], 4); lut[i] |= 0xFF000000u; }
+        for (std::size_t i = 0; i < 256; ++i) {
+            const auto colour = pal[std::uint8_t(i)];
+            std::memcpy(&lut[i], &colour, 4);
+            lut[i] |= 0xFF000000u;
+        }
         for (int y = y_begin; y < y_end; ++y) {
             const auto* row = tile.pixels.data() + std::size_t(y) * std::size_t(tile.width);
             auto* line = framebuffer.data() + (std::size_t(screen_y + y) * std::size_t(screen_w) + std::size_t(screen_x)) * 4;
