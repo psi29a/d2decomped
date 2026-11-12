@@ -733,7 +733,22 @@ ids).
 - **0x7f party member** (10): +1 u8 is player, +2 u16 life %, +4 u32 id,
   +8 u16 area.
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
-- **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags.
+- **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags. One
+  sender is `FUN_0053de20` (ECX unused, EDX the first id, stack the
+  second id and the u16, `ret 8`): builds `{0x8c, id1, id2, flags}` and
+  passes it to `FUN_005538d0` (UNIT/PlayerList.cpp). Its caller
+  `FUN_0055b4c0(param_1, player, record)` (ECX `param_1`, passed through
+  unused; EDX `player`; stack `record`; `ret 4`) resolves `player`'s data
+  (`FUN_006221a0`, fatal on a bad `player`) and does nothing when `player`
+  and `record` are the same pointer. Otherwise it looks up the relation
+  list at `player`'s data `+0x38` for the node whose id (`+0`) is
+  `record`'s id (`+0xc`, or -1 when `record` is null); a match's word
+  (`+4`) sends `FUN_0053de20(param_1, player's own id (`+0xc`), that key,
+  that word)` — `{0x8c, player's id, record's id (or -1), the node's
+  word}`. No match, no send. One branch on `player`'s own nullness is
+  unreachable (`FUN_006221a0` already faults on that). Not traced:
+  `FUN_0055b4c0`'s own callers, `param_1`, or what the id/word pair mean
+  (friend, ignore, hostile).
 - **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22).
 - **Party portraits** (`FUN_00494020`): the other players in our party
   (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets by PetType.txt
