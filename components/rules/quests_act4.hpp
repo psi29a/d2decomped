@@ -256,19 +256,25 @@ struct HellforgeQuest {
 // Chaos Sanctuary. The five seals (objects 392..396) each open once; three
 // make their superunique (0x24 Infector of Souls, 0x25 Lord De Seis, 0x26
 // Grand Vizier of Chaos); all five open and those three dead release Diablo:
-// the sanctuary's other monsters die, Diablo comes 10 ticks on at his start
+// the sanctuary's other monsters die, Diablo comes on the release timer's 10th run at his start
 // point (object 255). His death: bits 13 and 0; classic bits 6 / 7 (Cain's
 // and Tyrael's last words) and the next difficulty; LoD Tyrael's portal.
 struct TerrorQuest {
     static constexpr int kQuest = 0x1a, kTyrael = act4_detail::kTyrael, kCain = act4_detail::kCain, kDiablo = 0xf3;
     static constexpr int kTold = 681, kTyraelLast = 684, kCainLast = 685, kTyraelPortal = 20000, kCainPortal = 20001;
     static constexpr std::array<int, 3> kSealBosses{ 0x24, 0x25, 0x26 };   // [0x744304]+0xb28.., by seal op 54 / 55 / 56
-    static constexpr int kStartPoint = 255, kRelease = 10;                 // object 255; ticks
+    static constexpr int kStartPoint = 255;   // object 255
+    // The release's timer (FUN_005b4be0): 1 tick, run again till Diablo
+    // comes; he comes once its run count (+0x18) is past 9.
+    static constexpr int kReleaseTicks = 1, kReleaseRuns = 10;
     bool open = true;
     int state = 0, log = 0;
     std::array<bool, 5> seals{};   // data +0xc..+0x10 (objects 392..396)
     int bosses_dead = 0;           // data +0x48
     bool released = false;         // data +0x13
+    bool armed = false;            // data +2: the release's timer runs
+    int release_runs = 0;          // data +0x18: its runs
+    int release_steps = 0;         // quest steps since it last ran
     bool diablo_due = false, diablo_made = false, dead = false;
     bool portal_due = false, portal_made = false;   // data +0x44 / +0x45
     quest::Players rewarded;
@@ -321,6 +327,17 @@ struct TerrorQuest {
         for (const bool open_seal : seals) if (!open_seal) return false;
         return bosses_dead >= 3 && !released;
     }
+    // Released (FUN_005b52e0 / FUN_005b5630): +0x18 0, +2 1, the 1-tick timer.
+    void arm() { armed = true; release_runs = 0; release_steps = 0; }
+    // A quest-clock step. True: the timer runs (every kReleaseTicks + 1
+    // steps) with its count past 9, so Diablo comes now if he can; if he
+    // can't, it runs again (returns 0) and tries on its next run.
+    bool release_step() {
+        if (!armed || ++release_steps < quest_timer_steps(kReleaseTicks)) return false;
+        release_steps = 0;
+        return ++release_runs >= kReleaseRuns;
+    }
+    void diablo_came() { armed = false; diablo_made = true; }   // +2 0, returns 1
     // Diablo died (FUN_005b52e0 class 0xf3 -> FUN_005b4d20 for the player):
     // whether the classic ending (bits 6 / 7 and the next difficulty) applies.
     void diablo_died(QuestBits& quest_bits, bool expansion, int player) {

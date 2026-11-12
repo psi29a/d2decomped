@@ -45,6 +45,7 @@ void runs_after(World& world, std::uint32_t& now_ms, int steps, const char* what
     }
     const auto taken = int(world.quest_clock.count - count_at);
     std::printf("%s: %d frames, %d quest steps\n", what, frames, taken);
+    std::fflush(stdout);   // seen before an assert fails
     assert(done() && taken == steps && world.quest_clock.frame % d2d::rules::QuestClock::kFrames == 0);
     assert(frames > (steps - 1) * 20 && frames <= steps * 20);
 }
@@ -132,6 +133,13 @@ int main() try {
     runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
     for (int frame = 0; frame < 2; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
     assert(ghosts(*plains) == on_plains + 1 && ghosts(*world.level) == in_town && world.izual.log == 3);
+
+    // The seals broken: a4q2's release timer (1 tick, again till Diablo:
+    // FUN_005b4be0), its 10th run 20 steps on.
+    world.terror.arm();
+    runs_after(world, now_ms, 20, "Diablo's release", [&] { return world.terror.release_runs == d2d::rules::TerrorQuest::kReleaseRuns; });
+    world.terror.armed = false;
+    world.terror.diablo_made = false;
 
     // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
     world.betrayal.log = 2;

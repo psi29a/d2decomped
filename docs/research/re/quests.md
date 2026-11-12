@@ -247,12 +247,13 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 | The Ancients' statues' return (`World::statues_back_in`; again 2 on while a statue isn't found) | 0x58c9da | 2 |
 | The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
+| Diablo's release (`TerrorQuest::release_step`; again every 2 steps, Diablo on the 10th run; also 0x5b55ef, 0x5b56f7) | 0x5b5338 | 1 |
 | The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
 | The Dark Wanderer's afterglow (`World::afterglow_in`) | 0x5bd4ce | 2 |
 | The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
 
-Not yet, kept as ticks x 40 ms:
-Diablo's release (#383).
+Diablo's afterglow (75 s, 90 s, 95 s, the same `FUN_005b4be0` once he's
+dead) is wall-clock time (`GetTickCount`), not the quest clock.
 
 ## Messages
 

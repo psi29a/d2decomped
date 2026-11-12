@@ -532,7 +532,6 @@ struct World {
     int izual_ghost_in = 0;                // quest steps to a4q1's 3-tick timer (0x5b4126 -> 0x5b3e60): his ghost, 0 none
     bool izual_ghost_due = false;          // that timer has run
     const Level* izual_level = nullptr;    // where he died: the ghost goes there (0x5b3eaf: Act 4's map, game +0xc8)
-    std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
     // S->C 0x61 (FUN_0053d940): the cinematic the client plays now (its

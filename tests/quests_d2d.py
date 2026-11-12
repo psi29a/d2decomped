@@ -785,7 +785,7 @@ def act4():
         cmd(f"debug operate {seal[0]}")
         kill_until("its boss dead", lambda: True, 1)
     kill_until("the seals broken", lambda: "the seals are broken" in log_text())
-    until("Diablo comes", lambda: "Terror's End: Diablo" in log_text(), 10)
+    until("Diablo comes", lambda: "Terror's End: Diablo" in log_text(), 25)   # the release's 10th run: 20 quest steps, up to 16 s
     # Only players in his room or one next to it take part (FUN_005b5140): by him first.
     until("Diablo made", lambda: any(l.startswith("diablo\t") for l in cmd("monsters").splitlines()), 30)
     diablo = [l.split("\t") for l in cmd("monsters").splitlines() if l.startswith("diablo\t")][0]
