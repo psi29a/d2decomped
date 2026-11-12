@@ -193,15 +193,20 @@ and event 1 don't start one.
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under
-that room, with that room's level. So across an edge each level keeps its own
-ambient, where d2d's single fill gives the player's level's (todo.md #45). In
+that room, with that room's level. Across an edge each level keeps its own
+ambient. d2d does that in `frame_light` (`rules::paint_border_rooms`, the near
+list from `automap_rooms`): the grid starts as the player's level, including
+the Den's flash, Diablo's release and the dip, then each near room of another
+level is painted with `rules::border_room_light` (that level's Intensity, or
+the day's when it has none; release and the dip still win, and levels 8, 107
+and 108 keep their own light through a dip). In
 Act 4, whose list from `FUN_006194a0` holds five of its six levels (not 107,
 River of Flame), three pairs touch and differ: 103 / 104 (140, 120), 104 / 105
 (120, 80), 105 / 106 (80, 40). River of Flame (120) between 106 (40) and 108
 (80) likely makes two more.
 `level_ambient.py borders` lists these; the other acts' lists hold only some of
-their levels, so they aren't counted. Read from the code, the fill by room
-not run; a border's cells only.
+their levels, so they aren't counted. The cell test is `test_light`. The fill
+by room was read from the code; a border's cells only.
 
 ### Who reads the intensity
 
