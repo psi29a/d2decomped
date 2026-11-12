@@ -1,5 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.28)
+# SDL 3.4.16 documents iOS 11.0. Xcode 27.2 rejects a deployment target below 15.0
+# ("the range of supported deployment target versions is 15.0 to 27.2.x").
+# std::format's to_chars is unavailable below the iOS 16.3 simulator, so 16.3
+# is the floor that actually compiles. Set it before project().
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND
+   (NOT CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 16.3))
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "16.3" CACHE STRING
+        "Minimum iOS version. SDL 3.4.16 documents 11.0; Xcode 27.2's floor is 15.0; std::format needs 16.3." FORCE)
+endif()
+# The project force-includes cmake/no_near_far.hpp. That include is not the
+# first -include, so Xcode drops SDL's precompiled header and the build stops.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON CACHE BOOL "" FORCE)
+endif()
 project(D2Decomp LANGUAGES C CXX) # Bundled StormLib contains both C and C++ sources.
 
 # C++23: nothing here uses C++26, and 23 is what MSVC (/std:c++latest) and
@@ -83,6 +97,11 @@ endif()
 
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# The iOS prototype compiles d2d itself. Header-check objects double that
+# build and are a desktop check. Desktop keeps the option's default.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(D2D_CHECK_HEADERS OFF CACHE BOOL "Compile each d2d/game header on its own" FORCE)
+endif()
 include(HeaderCheck)
 
 option(D2D_FLATPAK "Install apps using Flatpak's runtime and filesystem layout" OFF)
@@ -108,7 +127,8 @@ include(CTest)
 enable_testing()
 
 option(D2D_BUILD_APPS  "Build end-user apps under apps/"  ON)
-if(D2D_FLATPAK)
+# iOS builds the d2d shell only: no launcher, tools, tests, or packaging.
+if(D2D_FLATPAK OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(_d2d_tools_default OFF)
     set(_d2d_tests_default OFF)
 else()

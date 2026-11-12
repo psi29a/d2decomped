@@ -5,7 +5,8 @@
 # StormLib 9.22, Debian stable's. -DD2D_BUNDLED_STORMLIB=ON forces the
 # source build. The packages ship no CMake config or pkg-config file
 # (Debian: StormLib.h and libstorm.so only), so it's found by name.
-if(D2D_FLATPAK)
+# The iOS SDK has no StormLib. Use the same source build as a forced bundle.
+if(D2D_FLATPAK OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(_d2d_stormlib_default ON)
 else()
     set(_d2d_stormlib_default OFF)

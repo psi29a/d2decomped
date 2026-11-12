@@ -4,9 +4,11 @@
 // Same layout as thirdeye's components/files (OpenMW lineage), so both
 // engines put their files in the same places:
 //   user dir    macOS    ~/Library/Preferences/<app>/
+//               iOS      <sandbox>/Documents/<app>/
 //               Linux    $XDG_CONFIG_HOME/<app>/ (normally ~/.config/<app>/)
 //               Windows  Documents\My Games\<app>
 //   global dir  macOS    /Library/Preferences/<app>/
+//               iOS      <sandbox>/Library/Preferences/<app>/
 //               Linux    /etc/<app>/
 //               Windows  Program Files\<app>
 // A few free functions, not thirdeye's FixedPath template: d2d's cfgs use
@@ -30,6 +32,9 @@
 #  include <pwd.h>
 #  include <unistd.h>
 #endif
+#if defined(__APPLE__)
+#  include <TargetConditionals.h>
+#endif
 
 namespace d2d::userdir {
 
@@ -48,7 +53,10 @@ inline fs::path user_dir(std::string_view app) {
     if (!home || !*home)
         if (const passwd* home_entry = getpwuid(getuid())) home = home_entry->pw_dir;
     const fs::path base = home ? fs::path(home) : fs::path(".");
-#  if defined(__APPLE__)
+#  if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    // HOME is the app container. Documents holds cfg, saves, and the log.
+    return base / "Documents" / app;
+#  elif defined(__APPLE__)
     return base / "Library" / "Preferences" / app;
 #  else
     if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
@@ -64,6 +72,10 @@ inline fs::path global_dir(std::string_view app) {
 #if defined(_WIN32)
     const char* program_files = std::getenv("ProgramFiles");
     return fs::path(program_files ? program_files : ".") / app;
+#elif defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    const char* home = std::getenv("HOME");
+    const fs::path base = home && *home ? fs::path(home) : fs::path(".");
+    return base / "Library" / "Preferences" / app;
 #elif defined(__APPLE__)
     return fs::path("/Library/Preferences") / app;
 #else
