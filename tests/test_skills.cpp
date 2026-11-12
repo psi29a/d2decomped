@@ -247,6 +247,30 @@ int main() try {
         line = attack_line(skill_tables, spell, env, 5, fighter, 5);
         assert(line.damage && line.min == elem_damage(skill_tables, spell, env, 5, false, 0, true) >> 8 && line.damage_colour == 1);
         assert(line.attack_rating == 0);
+        // descdam 24 (Blade Fury, FUN_004eae70) sums as 5. With SrcDam the
+        // weapon's share (FUN_004e9660) takes its fire's colour over the
+        // skill's cold, and damred over both.
+        Skill blades = skill_tables.rows[0];
+        blades.descdam = 24; blades.etype = 2; blades.srcdam_raw = 64;
+        blades.mindam = blades.maxdam = 0; blades.mindam_lev = blades.maxdam_lev = {};
+        blades.emin = blades.emax = 0; blades.emin_lev = blades.emax_lev = {}; blades.edmg_sym = {};
+        line = attack_line(skill_tables, blades, env, 5, fighter, 5);
+        // (3 x 130 % + 2) x 64 / 128, (7 x 130 % + 4) x 64 / 128.
+        assert(line.damage && line.min == 2 && line.max == 6 && line.damage_colour == 1);
+        assert(attack_line(skill_tables, blades, env, 5, fighter, 5, 0, kPanelDamage).damage_colour == 1);
+        fighter.elem[0] = {};
+        assert(attack_line(skill_tables, blades, env, 5, fighter, 5).damage_colour == 3);
+        assert(attack_line(skill_tables, blades, env, 5, fighter, 5, kPanelDamage).damage_colour == 3);
+        fighter.elem[0] = { 2, 4 };
+        // Poison x ELen (FUN_00644f20), a length of 0 too: no floor at 1.
+        Skill venom = blades;
+        venom.descdam = 5; venom.etype = 3; venom.srcdam_raw = 0; venom.emin = venom.emax = 40; venom.hitshift = 8; venom.elen = 0; venom.elen_lev = {};
+        venom.elen_sym = {};
+        line = attack_line(skill_tables, venom, env, 1, fighter, 5);
+        assert(line.damage && line.min == 0 && line.max == 0 && line.damage_colour == 2);
+        venom.elen = 25;
+        line = attack_line(skill_tables, venom, env, 1, fighter, 5);
+        assert(line.min == 40 * 25 && line.max == 40 * 25);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
