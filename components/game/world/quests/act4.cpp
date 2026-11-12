@@ -167,7 +167,7 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             // class 0x100): the jingle for each client seeing him.
             music_cue_near("music_quest_izual", kill.x, kill.y);
             izual_ghost_in = d2d::rules::quest_timer_steps(3);
-            izual_level = game_data->level(kill.level);
+            izual_level = level;                       // the kill's turn is its level's (kill.level is the monster's level, not an area)
             d2d::log::info("The Fallen Angel: Izual is dead");
         }
         if (kill.type == d2d::rules::HellforgeQuest::kHephasto) {         // FUN_005b65d0: the Hellforge Hammer
