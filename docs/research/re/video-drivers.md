@@ -126,8 +126,15 @@ Video Options' two sliders, both kept in the registry under "Diablo II".
   it is linear, entry i = min(255, i × gamma / 100). So **gamma 155 shows
   every colour at 1.55 times** (128 → 198, and everything from 165 up is
   255); 100 leaves the palette alone. A lower contrast bends the ramp up
-  (gamma 155, contrast 0: 128 → 163, 192 → 212). Run, `video_drivers.py
-  gamma`, through game.exe's own code.
+  (gamma 155, contrast 0: 128 → 163, 192 → 212). With 256 entries and a
+  top of 255, entry i is the truncation of
+  (linear x contrast + powered x (100 - contrast)) / 100, where linear is
+  min(i x gamma / 100, 255) and powered is (i / 255) ^ (100 / gamma) x 255.
+  At contrast 100 the power term is zero and the truncation is the integer
+  line above. The converter is `FUN_00682fd0`, which truncates when the
+  CRT's SSE2 flag is set. Run, `video_drivers.py gamma`, through game.exe's
+  own code. d2d applies this on palette lookup (palette.hpp), default 155
+  and 100, keys `gamma` and `contrast` in d2d.cfg. Index 0 stays transparent.
 - **Who applies it.** DirectDraw: `+0x58` (`0x510300`) keeps the gamma and
   rebuilds the palette through the ramp (`FUN_00510160`, contrast from
   option 11), and its present (`FUN_00511870`) loads entries 1..255 into

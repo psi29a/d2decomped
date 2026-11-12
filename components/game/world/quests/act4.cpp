@@ -11,6 +11,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act4.hpp>
@@ -75,7 +76,10 @@ auto World::act4_join() -> void {
         if (!actor->character.fresh) hellforge.join(quests(), carries(d2d::rules::HellforgeQuest::kStone));   // fresh: no +0xd4
         terror = {};
         terror.join(quests(), actor->character.header.expansion());
-        izual_ghost_at = diablo_at = diablo_dead_at = gems_at = 0;
+        diablo_at = diablo_dead_at = gems_at = 0;
+        izual_ghost_in = 0;
+        izual_ghost_due = false;
+        izual_level = nullptr;
         gem_rounds = 0;
         forge_inited = false;
         seal_bosses.clear();
@@ -162,7 +166,8 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             // His death (mode 0) runs his questcomplete mod's client hook (0x4ad2f0,
             // class 0x100): the jingle for each client seeing him.
             music_cue_near("music_quest_izual", kill.x, kill.y);
-            izual_ghost_at = now_ms + 3 * kTickMs;
+            izual_ghost_in = d2d::rules::quest_timer_steps(3);
+            izual_level = game_data->level(kill.level);
             d2d::log::info("The Fallen Angel: Izual is dead");
         }
         if (kill.type == d2d::rules::HellforgeQuest::kHephasto) {         // FUN_005b65d0: the Hellforge Hammer
@@ -225,6 +230,11 @@ auto World::diablo_release(std::uint32_t now_ms) -> void {
         d2d::log::info("Terror's End: the seals are broken, Diablo comes");
     }
 
+// A quest-clock step: a4q1's timer (3 ticks, 0x5b3e60) runs.
+auto World::act4_quest_step() -> void {
+        if (izual_ghost_in > 0 && --izual_ghost_in == 0) izual_ghost_due = true;
+    }
+
 auto World::act4_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         // Izual's first think (FUN_005b4390): the Fallen Angel's log sent again.
@@ -235,17 +245,17 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             }
         // a4q1's timer (FUN_005b3e60): the log 3, then Izual's ghost (0x196)
         // where he fell, an NPC.
-        if (izual_ghost_at && now_ms >= izual_ghost_at) izual.ghost_timer();
-        if (izual_ghost_at && now_ms >= izual_ghost_at && izual.ghost_due) {
-            izual_ghost_at = 0; izual.ghost_due = false;
-            if (const auto& ghost = game_data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)]; !ghost.code.empty()) {
-                auto npc = ghost;
-                std::tie(npc.x, npc.y) = level->nearest_free(izual.spot_x, izual.spot_y);
-                const_cast<Level&>(*level).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
-                d2d::log::info("The Fallen Angel: Izual's ghost");
-            }
+        if (std::exchange(izual_ghost_due, false)) {
+            izual.ghost_timer();
+            if (std::exchange(izual.ghost_due, false))
+                if (const auto& ghost = game_data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)]; !ghost.code.empty()) {
+                    const Level& died = izual_level ? *izual_level : *level;
+                    auto npc = ghost;
+                    std::tie(npc.x, npc.y) = died.nearest_free(izual.spot_x, izual.spot_y);
+                    const_cast<Level&>(died).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
+                    d2d::log::info("The Fallen Angel: Izual's ghost");
+                }
         }
-        if (izual_ghost_at && now_ms >= izual_ghost_at) izual_ghost_at = 0;
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act4_detail::told).
         for (auto [news, quest] : { std::pair{ &izual.news, d2d::rules::IzualQuest::kQuest }, { &hellforge.news, d2d::rules::HellforgeQuest::kQuest },

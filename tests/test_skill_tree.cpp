@@ -100,6 +100,9 @@ void expect_clear(const std::vector<std::uint8_t>& framebuffer, int column, int 
 }  // namespace
 
 int main() try {
+    // This file checks file colours. The lookup ramp defaults to DirectDraw's
+    // gamma 155 (test_gamma.cpp); 100 leaves them alone.
+    d2d::palette::Palette::set_ramp(100, 100);
     d2d::client::Scene scene;
     scene.act_pal = paint({
         { kIconIndex, 0, 200, 0 },

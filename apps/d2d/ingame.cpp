@@ -271,11 +271,15 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             std::array<std::uint8_t, 3> hover_blue{};
-            for (int best = 1 << 30, index = 0; index < 256 && std::size_t(index) < pal.entries().size(); ++index) {
-                const auto colour = pal[std::uint8_t(index)];
+            const auto source = pal.entries();
+            std::uint8_t found = 0;
+            for (int best = 1 << 30, index = 0; index < 256 && std::size_t(index) < source.size(); ++index) {
+                const auto& colour = source[std::size_t(index)];
                 const int distance = colour.r * colour.r + (colour.g - 64) * (colour.g - 64) + (colour.b - 128) * (colour.b - 128);
-                if (distance < best) { best = distance; hover_blue = { colour.r, colour.g, colour.b }; }
+                if (distance < best) { best = distance; found = std::uint8_t(index); }
             }
+            const auto chosen = pal[found];
+            hover_blue = { chosen.r, chosen.g, chosen.b };
             std::erase_if(items, [](const auto& entry) { return entry.first->label_rank < 0 || !entry.first->name || entry.first->name->empty(); });
             std::ranges::sort(items, {}, [](const auto& entry) { return entry.first->label_rank; });
             const int line_height = scene.font.line_height();

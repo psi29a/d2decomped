@@ -150,9 +150,11 @@ struct Npc {
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
     bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
     bool dead_col = false;               // MonStats2 deadCol (flag 19): its corpse keeps collision, never shatters
+    int height = 0;                      // MonStats2 Height (+0xb): its shattered death's ice (rules::shatter_rows)
     std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
     int colour = 0;                      // the colour it's drawn in (FUN_00466360; the client's Scene::monster_map), 0/1 none
     int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
+    int hit_class = 0;                   // MonStats2 HitClass (+0x14, FUN_00623c20): the swing a weaponsnd / stsounddelay skill start times
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
 
@@ -769,7 +771,7 @@ struct GameData {
     // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
     // its first hit; else flies through), Pierce (may fly on, stat 328 %),
     // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
-    struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+    struct MissileInfo { std::string name, cel_file; int id = -1; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound
@@ -795,6 +797,9 @@ struct GameData {
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
+                         // The one-unit-a-frame, skip-the-last-unit rule (FUN_005ae1f0, FUN_005a8730) for a srvdofunc 1 row with LastCollide and neither NextHit
+                         // nor Pierce. srvdofunc 3 rows (standing clouds) and Pierce rows keep the struck list.
+                         bool last_unit_rule() const { return last_collide && !next_hit && !pierce && srv_do == 1; }
                          std::string sub, sub2, hit_sub;
                          std::array<const MissileInfo*, 2> subs{}; const MissileInfo* hit_sub_info = nullptr;   // those rows, loaded
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,
