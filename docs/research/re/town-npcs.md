@@ -147,6 +147,15 @@ build/ai-town-path/cases > build/ai-town-path/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --cases build/ai-town-path/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_town_path_dispatch.py` uses the same cases to run FUN_005e7080
+and its selected actions. All cases have one path point and use the same
+seed, which selects that point; paths with no point and the no-selection
+branch are not checked. After generating the cases above:
+
+```sh
+uv run --no-sync --project tools/emu python tools/emu/ai_town_path_dispatch.py --cases build/ai-town-path/cases.txt --exe "$GAME_EXE"
+```
+
 So an NPC picks a random point of its path two thinks in three, walks
 there and lingers 12 (or 20) thinks of 10 frames, walking back when pushed
 over 3 off; a point with action 4 / 5 ends with S1 / S2 there, facing its
