@@ -154,6 +154,18 @@ struct Audio {
         d2d::log::info("  OpenAL {} ({}, {})", alGetString(AL_VERSION), alGetString(AL_RENDERER), alGetString(AL_VENDOR));
         direct_channels = alIsExtensionPresent("AL_SOFT_direct_channels") == AL_TRUE;
     }
+    // Background: stop the device without closing it. No new save.
+    void suspend() {
+        if (!ok || !ctx || suspended) return;
+        alcSuspendContext(ctx);
+        suspended = true;
+    }
+    void resume() {
+        if (!ok || !ctx || !suspended) return;
+        alcProcessContext(ctx);
+        suspended = false;
+    }
+    bool suspended = false;
     ~Audio() {
         video_stop();
         for (auto* channel : { &voice, &music, &music_old, &ambience, &ambience_old, &ui_sounds, &rain, &quake_loop }) stop(*channel);

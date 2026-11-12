@@ -1,6 +1,74 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # d2d — the game binary. SDL3 windowing + streaming framebuffer texture;
 # devctl + screenshot still wired to the same in-memory buffer.
+# iOS (CMAKE_SYSTEM_NAME=iOS) is a development shell. Desktop still uses the
+# SDL, OpenAL, Sentry, and FFmpeg found or built below. This is not a claim
+# that iOS is supported.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    enable_language(OBJC OBJCXX)
+    # iOS will not link a bare executable during CMake's feature checks.
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+    # The floor is set before project(). SDL 3.4.16 documents iOS 11.0.
+    # Xcode 27.2 will not compile a target below 15.0, and std::format needs 16.3.
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+    include(FetchContent)
+    FetchContent_Declare(
+        SDL
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+        GIT_TAG        release-3.4.16
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(SDL)
+    # Vendor sources are not ours to fail the build over.
+    function(d2d_ios_allow_vendor_warnings directory)
+        get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+        foreach(target IN LISTS targets)
+            get_target_property(target_type ${target} TYPE)
+            if(NOT target_type STREQUAL "INTERFACE_LIBRARY")
+                target_compile_options(${target} PRIVATE
+                    "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wno-error>")
+            endif()
+        endforeach()
+        get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+        foreach(subdirectory IN LISTS subdirectories)
+            d2d_ios_allow_vendor_warnings("${subdirectory}")
+        endforeach()
+    endfunction()
+    d2d_ios_allow_vendor_warnings("${sdl_BINARY_DIR}")
+
+    # The iOS SDK's OpenAL. Fetch openal-soft (same tag as CI) only if it is missing.
+    find_library(OPENAL_LIBRARY OpenAL)
+    if(OPENAL_LIBRARY)
+        message(STATUS "OpenAL: ${OPENAL_LIBRARY} (iOS SDK)")
+        # find_library records one SDK's absolute path. -framework tracks the SDK xcodebuild selects.
+        set(OPENAL_LIBRARY "-framework OpenAL")
+    else()
+        message(STATUS "OpenAL: iOS SDK framework not found; fetching openal-soft 1.25.2")
+        set(D2D_OPENAL_SOFT_TAG "1.25.2" CACHE STRING "openal-soft tag used when the iOS SDK has no OpenAL")
+        set(ALSOFT_UTILS OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_INSTALL OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_INSTALL_CONFIG OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_INSTALL_UTILS OFF CACHE BOOL "" FORCE)
+        set(LIBTYPE "STATIC" CACHE STRING "" FORCE)
+        FetchContent_Declare(
+            openal-soft
+            GIT_REPOSITORY https://github.com/kcat/openal-soft.git
+            GIT_TAG        ${D2D_OPENAL_SOFT_TAG}
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(openal-soft)
+        d2d_ios_allow_vendor_warnings("${openal-soft_BINARY_DIR}")
+        set(OPENAL_LIBRARY OpenAL)
+        set(OPENAL_INCLUDE_DIR "${openal-soft_SOURCE_DIR}/include")
+    endif()
+    set(ffmpeg_target "")
+else()
 find_package(SDL3 CONFIG REQUIRED)
 # Sound: OpenAL (openal-soft), like ../thirdeye. cmake/FindOpenAL.cmake.
 find_package(OpenAL REQUIRED)
@@ -185,6 +253,7 @@ else()
     pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
     set(ffmpeg_target PkgConfig::FFMPEG)
 endif()
+endif()
 
 # The window/dock icon, as bytes SDL_LoadBMP_IO reads (any SDL3; PNG needs 3.4).
 set(icon_bmp "${PROJECT_SOURCE_DIR}/assets/icon/d2d.bmp")
@@ -252,6 +321,8 @@ add_executable(d2d
     help.cpp
     hireling.cpp
     ingame.cpp
+    $<$<STREQUAL:${CMAKE_SYSTEM_NAME},iOS>:ios/import.mm>
+    $<$<STREQUAL:${CMAKE_SYSTEM_NAME},iOS>:ios/keyboard.mm>
     items.cpp
     load.cpp
     lobby.cpp
@@ -288,12 +359,38 @@ add_executable(d2d
 target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 # The version reaches main.cpp through build_info.hpp, not a define: a
 # define changes every commit and misses ccache for all of d2d's sources.
-target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
-target_link_libraries(d2d PRIVATE
-    ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
-    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
-    SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} sentry)
-target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    target_compile_definitions(d2d PRIVATE D2D_NO_SENTRY D2D_NO_VIDEO)
+    # The SDK OpenAL framework is deprecated. The prototype still links it.
+    target_compile_options(d2d PRIVATE "-Wno-deprecated-declarations")
+    target_link_libraries(d2d PRIVATE
+        game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
+        SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
+    set_target_properties(d2d PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist"
+        MACOSX_BUNDLE_BUNDLE_NAME "d2d"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.psi29a.d2d"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "io.github.psi29a.d2d"
+        XCODE_ATTRIBUTE_PRODUCT_NAME "d2d"
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}"
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO")
+    set_source_files_properties(ios/import.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    set_source_files_properties(ios/keyboard.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_link_libraries(d2d PRIVATE "-framework UIKit")
+else()
+    target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
+    target_link_libraries(d2d PRIVATE
+        ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
+        game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
+        SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} sentry)
+endif()
+if(OPENAL_INCLUDE_DIR)
+    target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+endif()
 # start_sentry looks for the handler beside d2d; the packages put it there,
 # this does for the build tree (sentry_init fails without it).
 if(TARGET crashpad_handler)
@@ -301,10 +398,12 @@ if(TARGET crashpad_handler)
     add_custom_command(TARGET d2d POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "$<TARGET_FILE:crashpad_handler>" "$<TARGET_FILE_DIR:d2d>")
 endif()
-d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
-    ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
-    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
-    SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
-if(TARGET d2d_headers)
-    target_include_directories(d2d_headers SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
+        ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
+        game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
+        SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
+    if(TARGET d2d_headers)
+        target_include_directories(d2d_headers SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+    endif()
 endif()

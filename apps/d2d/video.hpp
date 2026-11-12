@@ -14,9 +14,35 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <utility>
+#include <vector>
 
+#if defined(D2D_NO_VIDEO)
+namespace d2d::video {
+// Bink stays out of this build. open() fails and the caller skips the cinematic.
+class Player {
+public:
+    Player() = default;
+    Player(const Player&) = delete;
+    Player& operator=(const Player&) = delete;
+    bool open(mpq::File, int, int) { return false; }
+    void close() {}
+    [[nodiscard]] int width() const noexcept { return 0; }
+    [[nodiscard]] int height() const noexcept { return 0; }
+    [[nodiscard]] int sample_rate() const noexcept { return 0; }
+    [[nodiscard]] const std::vector<std::uint8_t>& rgba() const noexcept { return rgba_; }
+    std::vector<std::int16_t>& audio() noexcept { return audio_; }
+    bool advance(double) { return false; }
+
+private:
+    std::vector<std::uint8_t> rgba_;
+    std::vector<std::int16_t> audio_;
+};
+}  // namespace d2d::video
+#else
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -25,10 +51,6 @@ extern "C" {
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 }
-
-#include <cstdint>
-#include <memory>
-#include <vector>
 
 namespace d2d::video {
 
@@ -181,3 +203,4 @@ private:
 };
 
 }  // namespace d2d::video
+#endif

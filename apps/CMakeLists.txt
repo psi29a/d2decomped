@@ -1,4 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# iOS is a development shell for d2d. It is not a supported platform: no
+# launcher, proxy, install rules, or package.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_subdirectory(d2d)
+    return()
+endif()
+
 # Off macOS the binaries sit flat in the package root, and on Linux their
 # DT_RPATH (below) finds the bundled Qt for its plugins too, so Qt's deploy
 # needn't give each plugin an rpath (that wants patchelf). Qt's deploy reads

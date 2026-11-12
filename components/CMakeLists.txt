@@ -1,4 +1,30 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# CMake's iOS sysroot at configure time is the device SDK. Linking that libz
+# into a simulator build fails. -lz as an imported location also drops later
+# header paths. Use the simulator SDK's tbd files; both simulator destinations
+# share that SDK. A device build is not part of this prototype.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    execute_process(COMMAND xcrun --sdk iphonesimulator --show-sdk-path
+        OUTPUT_VARIABLE _d2d_sim_sdk OUTPUT_STRIP_TRAILING_WHITESPACE)
+    # A -I of the SDK usr/include hides libc++'s C headers. Point at just the
+    # two zlib headers (and bzlib.h) instead.
+    set(_d2d_zinc "${CMAKE_BINARY_DIR}/ios-system-includes")
+    file(MAKE_DIRECTORY "${_d2d_zinc}")
+    foreach(_d2d_header zlib.h zconf.h bzlib.h)
+        file(REMOVE "${_d2d_zinc}/${_d2d_header}")
+        file(CREATE_LINK "${_d2d_sim_sdk}/usr/include/${_d2d_header}" "${_d2d_zinc}/${_d2d_header}" SYMBOLIC)
+    endforeach()
+    set(ZLIB_INCLUDE_DIR "${_d2d_zinc}" CACHE PATH "" FORCE)
+    set(ZLIB_LIBRARY "${_d2d_sim_sdk}/usr/lib/libz.tbd" CACHE FILEPATH "" FORCE)
+    set(ZLIB_LIBRARY_RELEASE "${_d2d_sim_sdk}/usr/lib/libz.tbd" CACHE FILEPATH "" FORCE)
+    set(ZLIB_LIBRARY_DEBUG "${_d2d_sim_sdk}/usr/lib/libz.tbd" CACHE FILEPATH "" FORCE)
+    unset(ZLIB_LIBRARIES CACHE)
+    set(BZIP2_INCLUDE_DIR "${_d2d_zinc}" CACHE PATH "" FORCE)
+    set(BZIP2_LIBRARY "${_d2d_sim_sdk}/usr/lib/libbz2.tbd" CACHE FILEPATH "" FORCE)
+    set(BZIP2_LIBRARY_RELEASE "${_d2d_sim_sdk}/usr/lib/libbz2.tbd" CACHE FILEPATH "" FORCE)
+    set(BZIP2_LIBRARY_DEBUG "${_d2d_sim_sdk}/usr/lib/libbz2.tbd" CACHE FILEPATH "" FORCE)
+    unset(BZIP2_LIBRARIES CACHE)
+endif()
 add_subdirectory(iso9660)
 add_subdirectory(mpq)
 add_subdirectory(tbl)

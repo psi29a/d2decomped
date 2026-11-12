@@ -228,7 +228,10 @@ auto World::saved_corpse() -> const std::vector<d2d::d2s::Item>* {
         std::vector<const std::vector<d2d::d2s::Item>*> corpses;
         for (const auto& corpse : actor->corpses) corpses.push_back(&corpse.items);
         constexpr int kMalah = 0x201;
-        const int kept = d2d::rules::corpse_to_save(game_data->rules, corpses, game_data->mon_npc[std::size_t(game_data->mon_bin[kMalah])].id, actor->character.header, reduced_prices());
+        if (game_data->mon_bin.size() <= std::size_t(kMalah)) return &no_corpse;
+        const auto malah = game_data->mon_bin[std::size_t(kMalah)];
+        if (malah >= game_data->mon_npc.size()) return &no_corpse;
+        const int kept = d2d::rules::corpse_to_save(game_data->rules, corpses, game_data->mon_npc[malah].id, actor->character.header, reduced_prices());
         return kept < 0 ? &no_corpse : corpses[std::size_t(kept)];
     }
 

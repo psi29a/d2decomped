@@ -22,6 +22,18 @@ inline constexpr Box kMove{ 12, 330, 270, 260 }, kAttack{ 680, 438, 108, 100 }, 
     kCancel{ 540, 180, 240, 65 }, kMenu{ 12, 12, 95, 48 }, kDone{ 650, 12, 138, 48 };
 inline constexpr Box kSkills[4] = { { 540, 445, 112, 75 }, { 550, 350, 112, 75 }, { 675, 350, 112, 75 }, { 415, 445, 112, 75 } };
 inline constexpr Box kBelts[4] = { { 12, 260, 62, 55 }, { 80, 260, 62, 55 }, { 148, 260, 62, 55 }, { 216, 260, 62, 55 } };
+// Extra inset, in logical pixels, past the 12px margin the boxes already have.
+// Zero leaves every box where it is. main.cpp fills this from SDL_GetWindowSafeArea.
+struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
+inline SafeInset safe_inset;
+inline Box placed(Box box) {
+    constexpr float kEdge = 24.f;
+    if (box.x < kEdge) box.x += safe_inset.left;
+    if (box.y < kEdge) box.y += safe_inset.top;
+    if (box.x + box.width > 800.f - kEdge) box.x -= safe_inset.right;
+    if (box.y + box.height > 600.f - kEdge) box.y -= safe_inset.bottom;
+    return box;
+}
 struct Target { int skill = -1, unit = -1; float x = 0, y = 0; bool left = false, valid = false; };
 
 class Input {
@@ -67,21 +79,21 @@ public:
             return;
         }
         if (phase == Phase::Down) {
-            if (kDone.contains(x, y)) { done = true; return; }
-            if (kPage.contains(x, y)) { alternate = !alternate; return; }
+            if (placed(kDone).contains(x, y)) { done = true; return; }
+            if (placed(kPage).contains(x, y)) { alternate = !alternate; return; }
             if (editor) {
                 for (int index = 0; index < 4; ++index)
-                    if (kSkills[index].contains(x, y)) { destination = index; return; }
+                    if (placed(kSkills[index]).contains(x, y)) { destination = index; return; }
                 return;
             }
-            if (kMenu.contains(x, y)) { menu = true; return; }
+            if (placed(kMenu).contains(x, y)) { menu = true; return; }
             for (int index = 0; index < 4; ++index)
-                if (kBelts[index].contains(x, y)) { belt = index; return; }
-            if (kMove.contains(x, y) && movement_ < 0) { movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; }
-            else if (kAttack.contains(x, y) && attack_ < 0) { attack_ = finger; attack_press = attack_down = true; }
+                if (placed(kBelts[index]).contains(x, y)) { belt = index; return; }
+            if (placed(kMove).contains(x, y) && movement_ < 0) { movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; }
+            else if (placed(kAttack).contains(x, y) && attack_ < 0) { attack_ = finger; attack_press = attack_down = true; }
             else if (skill_ < 0)
                 for (const auto& box : kSkills)
-                    if (box.contains(x, y)) {
+                    if (placed(box).contains(x, y)) {
                         stationary = immediate;
                         skill_ = finger; aiming = true; dragged = false;
                         origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
@@ -102,7 +114,7 @@ public:
             aim_x = x; aim_y = y;
             dragged = dragged || (!stationary && std::hypot(x - origin_x, y - origin_y) > 10);
             if (phase == Phase::Up) {
-                if (!kCancel.contains(x, y) && x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid) casts.push_back(preview);
+                if (!placed(kCancel).contains(x, y) && x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid) casts.push_back(preview);
                 skill_ = -1; aiming = false;
             }
         }
