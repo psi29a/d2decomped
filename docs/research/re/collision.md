@@ -1510,3 +1510,43 @@ Re-check: `python3 tools/ghidra/fn.py 004d8660 00664740 0046f0c0
 004d9c30`; disassemble `004d8660`..`004d8693` and the two call sites
 around `004d9d1b`..`004d9d39` in `FUN_004d9c30` to confirm the
 implicit-EBX convention and the dropped ECX/EDX on `FUN_0046f0c0`.
+
+### Picking the active state's screen overlay byte: `FUN_004d97f0` (batch 11)
+
+`FUN_004d97f0` (0x127 bytes, `004d97f0`..`004d9917`, `RET 0x4`): one stack
+argument (the unit), not fastcall despite the bare decompiled signature —
+confirmed in disassembly by the `RET 0x4` and a fallback path that reads
+the unit straight from `[EBP+8]` rather than any register. It loops over
+every States.txt-shaped row (count at `0x744304+0xc4`, rows at `+0xbc`,
+stride 0x3c) that's active on the unit (`FUN_00639df0`, already verified,
+`ai.cpp:993`), keeping the one whose own `+0x20` byte (a priority) is
+strictly the highest seen. With a winner: its `+0x21` byte becomes the
+unit's `+0x6c` field — unless that byte is the ASCII char `h` (0x68) and
+the unit is the local player (`FUN_00463dd0`, already verified) and
+`FUN_004f51c0` (0xd bytes, untouched, not traced) is non-zero, in which
+case `+0x6c` is forced to 0 instead. Only when the unit is also the local
+player with a non-zero `+0x64` (the light-record pointer
+`unit-player-trace.md:27` already describes `FUN_00460bf0` setting), it
+then calls `FUN_00474390` (0x39 bytes, untouched, not traced: `+0x23`/
+`+0x24` from the winning row) with that row's own `+0x23`/`+0x24` bytes.
+With no winning row, or when the only candidate index is out of bounds,
+`+0x6c` resets to 0 and, for the local player with a non-zero `+0x64`,
+`FUN_00474390(0xff, 0xff)` runs instead — clearing whatever the winning
+path sets. `structs.tsv` has no row yet for unit `+0x6c`; from this it is
+the byte a State's own `+0x21` field drives (a per-state overlay/tint
+selector), added here as `state_overlay_byte`.
+
+Its two callers, the already-`d2d ported` StateSet (`FUN_004d9b20`,
+`gamedata.hpp:482`, `net-packets.md:357`) and StateRemove (`FUN_004d9c30`,
+above) dispatchers, call it only when the state row's own `+0x21` byte is
+non-zero.
+
+Not traced: `FUN_004f51c0` and `FUN_00474390`'s own bodies, and the
+States.txt row's `+0x20`/`+0x21`/`+0x23`/`+0x24` fields' identity beyond
+what's read here. d2d: not ported as a function; no disagreement found —
+nothing here was compared against a d2d equivalent.
+
+Re-check: `python3 tools/ghidra/fn.py 004d97f0 00639df0 00463dd0 004f51c0
+00474390`; disassemble `004d97f0`..`004d9917` to confirm the stdcall,
+single-stack-argument convention (`RET 0x4`) despite the bare decompiled
+signature.

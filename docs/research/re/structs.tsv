@@ -165,6 +165,7 @@ unit	0x44	u32	anim_pos	animation position, 256ths of a frame	docs/research/re/un
 unit	0x48	u32	anim_length	animation length	docs/research/re/unit-sounds.md:231
 unit	0x4c	u32	anim_rate	256 = a frame a tick; IAS in it	docs/research/re/unit-sounds.md:45
 unit	0x60	ptr	inventory	inventory (FUN_00647640's equipment gate)	docs/research/re/throw.md:32
+unit	0x6c	u8	state_overlay_byte	the highest-priority active state's own +0x21 byte (FUN_004d97f0)	docs/research/re/collision.md:1537
 unit	0x7c	u32	sound_time	its last sound	components/game/ai.hpp:187
 unit	0x80	u32	neutral_time	its last Neutral	components/game/ai.hpp:187
 unit	0x84	u32	step_time	its last footstep	components/game/ai.hpp:187
