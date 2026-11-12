@@ -627,10 +627,43 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // 48 (Meteor, Fist of the Heavens, Frozen Orb, Molten Boulder rising)
         // pass over units and act where they come down.
         if (missile_info.hit_func == 36 || missile_info.hit_func == 14 || missile_info.hit_func == 22 || missile_info.hit_func == 29 || missile_info.hit_func == 48) return false;
-        // 7 (FUN_005a9fb0: Holy Bolt, the Fist's bolts): sHitPar2 1 strikes
-        // the undead only (FUN_0063e990), 2 demons (FUN_0063e940); the rest
-        // it passes (4). ponytail: it doesn't heal the player's side (calc1).
+        // 7 (FUN_005a9fb0: Holy Bolt, the Fist's bolts): sHitPar1 (+0x4c) non-zero
+        // and an owner, then TargetPet (flag bit 0x19, FUN_005542c0) or
+        // TargetAlly (bit 0x1a, FUN_00554d20). TargetPet is a monster whose
+        // owner is that player: here, one of the caster's pets. TargetAlly
+        // needs the same party (FUN_00540710 is -1 with no party, and that
+        // fails), so a solo caster is not healed. The amount is calc1 whole
+        // points (skill +0x138) in 256ths plus a draw below (calc2 - calc1)
+        // x 256 (FUN_00646ca0, FUN_0045c3e0), capped at max life. At 0 or
+        // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
+        // not on the missile, so that roll is 0. Returns 1: it ends and does
+        // not strike. ponytail: the draw is the fight rng. The missile seed
+        // (+0x20) and ProgOverlay (+0x36) are not kept.
         if (missile_info.hit_func == 7) {
+            const bool players_bolt = missile.friendly && !missile.by_merc;
+            const int struck_id = monsters[monster_index].id;
+            const bool owned_pet = players_bolt && struck_id >= 0 && skill->target_pet && std::ranges::any_of(actor->pets, [&](const Pet& pet) {
+                return pet.monster.alive() && pet.monster.id == struck_id;
+            });
+            if (missile_info.hit_par1 != 0 && owned_pet) {
+                const int low_points = calc(*skill, skill->calc[0], missile.level);
+                const int high_points = calc(*skill, skill->calc[1], missile.level);
+                const int span = (high_points << 8) - (low_points << 8);
+                const int amount = (span > 0 ? int(rng(span)) : 0) + (low_points << 8);
+                const auto mend = [](Monster& monster, int added) {
+                    if (added <= 0) return;
+                    int life = monster.life_fine() + added;
+                    const int cap = monster.max_life_fine();
+                    if (life > cap) life = cap;
+                    monster.set_life_fine(life);
+                };
+                if (amount > 0) {
+                    mend(monsters[monster_index], amount);
+                    for (auto& pet : actor->pets)
+                        if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
+                }
+                return true;
+            }
             const auto& type_info = game_data->monsters.types[std::size_t(monsters[monster_index].type)];
             if ((missile_info.hit_par2 == 1 && !type_info.undead) || (missile_info.hit_par2 == 2 && !type_info.demon)) return false;
         }
@@ -678,11 +711,18 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             struck_unit.just_hit_until = now_ms + std::uint32_t(std::max(missile_info.next_delay, 1)) * 40;
             missile.last_hit = int(monster_index);
             missile.last_hit_ms = now_ms;
+        } else if (missile_info.last_unit_rule()) {
+            // Not NextHit but LastCollide (Lightning): FUN_005a8730 passes every unit but the one the missile
+            // struck last (FUN_0064a470), and FUN_005adf10 makes it the last (FUN_0064a400, 0x5adfae).
+            // ponytail: a Pierce row (arrows, javelins, Blessed Hammer) and a srvdofunc 3 row (standing clouds) keep the struck list.
+            if (missile.last_hit == int(monster_index)) return false;
+            missile.last_hit = int(monster_index);
+            missile.last_hit_ms = now_ms;
         }
         // 1 (FUN_005a9a70) and 13 (FUN_005aa8b0) go off here, the area taking in the unit.
         if (missile_info.hit_func == 1 || missile_info.hit_func == 13) { burst(missile, now_ms); return true; }
         strike(missile, monster_index, now_ms);
-        if (!missile_info.next_hit) missile.struck->push_back(int(monster_index));
+        if (!missile_info.next_hit && !missile_info.last_unit_rule()) missile.struck->push_back(int(monster_index));
         // Hit function 12 (FUN_005aa730, Chain Lightning): with hops left, on
         // from here at another monster within sHitPar1 (else aurarange)
         // subtiles, a hop fewer. FUN_0056bd10 (flags 0x8a783) over the units
@@ -811,7 +851,12 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
             case 1: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->calc[0]), now_ms, 0, true); break;
             case 3: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms); break;
             case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen), true); break;
-            case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 4: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 26:
+                // Grim Ward's start (FUN_005ab8d0): one sub-missile on the spot, flags 0x8001, its
+                // Range sHitPar1, else calc1 at least 5 (tools/emu/hit_grim_ward.py).
+                if (sub) sub_at(missile.x, missile.y, 0, 0, missile_info.hit_par1 > 0 ? missile_info.hit_par1 : std::max(calc(*skill, skill->calc[0], missile.level), 5));
+                break;
             case 2: {
                 // FUN_005a9d80 -> FUN_005a9370, from the unit struck (else the missile): HitSubMissile1 every
                 // sHitPar2'th of the 16 ways (at least 1) at its Param1 << 7, then with sHitPar1 every
@@ -874,8 +919,12 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (!sub) break;
                 const int burst_radius = radius(missile_info.hit_par1, skill->aurarange);
                 int count = radius(missile_info.hit_par2, skill->calc[0]);
+                // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk skips only the owner, so the unit
+                // struck gets one too; its filter is the aurafilter, else 0xa783 (tools/emu/hit_fury.py).
+                // ponytail: the walk's skip of MonStats flag 0x1b (FUN_00457490) isn't read.
+                const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (int(j) != missile.target && monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
+                    if (monsters[j].targetable() && filter_takes(filter, monsters[j]) && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }
@@ -905,17 +954,30 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
         }
     }
 
-auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y) -> void {
+auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast) -> void {
         using namespace d2d::d2s;
+        auto& values = actor->character.stats.values;
+        // FUN_005cf010: a player's aura costs FUN_00644b10 (mana_formula, no
+        // minmana floor); with less mana its stats stay 0.
+        const int cost = player_cast ? d2d::rules::mana_formula(skill, lvl) : 0;
+        if (values[kMana] < cost) return;
         const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        int changed = 0;   // FUN_005cedc0's count (+0x40): a unit whose life it moved
         for (std::size_t i = 0; i < skill.aurastat.size(); ++i) {
             if (skill.aurastat[i] != kLife) continue;
             const std::int64_t heal = d2d::rules::eval_calc(game_data->skills, skill.aura_calc[i], env, skill.id, lvl);   // 256ths
-            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach)
-                actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
-            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach)
-                actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach) {
+                const auto life = std::min(values[kMaxLife], values[kLife] + heal);
+                if (life != values[kLife]) { values[kLife] = life; ++changed; }
+            }
+            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach) {
+                const int hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+                if (hit_points != actor->merc->hit_points) { actor->merc->hit_points = hit_points; ++changed; }
+            }
         }
+        // Something healed: FUN_0056c110(caster, cost) takes the cost off its
+        // mana (there's enough: checked above).
+        if (cost > 0 && changed > 0) values[kMana] -= cost;
     }
 
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
@@ -937,7 +999,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
-            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y);
+            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y, true);
             return;
         }
         // Redemption (do 82, FUN_005d0e90): FUN_0056b7e0 runs FUN_005d0d70 on
@@ -977,10 +1039,12 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
             }
     }
 
-auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool {
+auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool { return filter_takes(skill.aura_filter, monster); }
+
+auto Fight::filter_takes(std::uint32_t filter, const Monster& monster) const -> bool {
         if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-        return d2d::rules::aura_filter_takes(skill.aura_filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
+        return d2d::rules::aura_filter_takes(filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
                                                                   .prime_evil = type_info.prime_evil, .ally = false });
     }
 

@@ -22,7 +22,8 @@ int main() {
         case 1: assert(trans == 1); break;
         case 2: assert(trans == 2); break;
         case 3: assert(trans == 2 + sample.percent / 25); break;   // blit_dcc_frame: trans 3..5 draw a quarter, half, three quarters of the sprite
-        default: assert(trans == 0); break;                        // ponytail: max-component (effect 6) draws opaque, see draw_mode
+        case 4: assert(trans == 6); break;                         // blit_dcc_frame: trans 6 is the greater of each RGB channel
+        default: assert(trans == 0); break;
         }
     }
     return 0;

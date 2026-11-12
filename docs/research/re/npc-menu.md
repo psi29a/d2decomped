@@ -204,10 +204,30 @@ identical, the game seed after too.
 - Pay (FUN_00576d90): carried gold (stat 0xe), then the stash (0xf);
   refused when both together fall short.
 - Done: flag 0x10000 off at merc +0xc4, full life (stat 6 = max), and
-  FUN_00579aa0 puts it by the player with its states cleared.
+  FUN_00579aa0 puts it by the player with its states cleared. "Cleared"
+  is `FUN_00577470` (0x79 bytes, `__thiscall` ECX the merc; no EDX or
+  stack args — confirmed from raw disassembly, since the decompile shows
+  a bare `FUN_00577470();`): with the merc and its inventory (`+0x60`)
+  both nonzero, it walks that inventory (`FUN_0063b2c0`/`FUN_0063dfa0`/
+  `FUN_0063dfd0`, as `FUN_0063aaf0` and `FUN_0055f500` do, inventory.md
+  and items-mode-late.md), and for each child unit of type 4 (an item)
+  whose `FUN_00625820(item, &layer)` finds an attached stat list,
+  detaches it from the merc (`FUN_006277f0(merc, item)`) and reattaches
+  it at that same layer (`FUN_00627910(merc, item, layer)`) — the same
+  detach/relink idiom `FUN_0055f500` uses for a unit's whole inventory,
+  here run once over the resurrected merc's own gear so its item stats
+  are current. Returns 1 if it ran, 0 for a null merc or inventory.
+  Right after this call `FUN_00579aa0` inlines the same x/y lookup
+  hireling.md's "Repositioning it" (`FUN_005773d0`) factors into a
+  standalone helper elsewhere, to put the merc beside the player; see
+  also hireling.md "Spawning the merc" (`FUN_005774f0`), which creates
+  the unit a dead-merc resurrect here is reviving.
 - d2d: `rules::merc_resurrect_cost` / `resurrect_merc`, `cmd::ResurrectMerc`,
   `ui.cpp resurrect_line`. ponytail: the refusal / done messages back to the
-  client aren't sent; a joined game doesn't send 0x62.
+  client aren't sent; a joined game doesn't send 0x62. The stat relink
+  (`FUN_00577470`) and the spawn/reposition helpers aren't ported; d2d's
+  stats presumably stay attached since nothing detaches them, so no
+  disagreement is expected, just unported.
 
 ## Identify (FUN_004b2020)
 

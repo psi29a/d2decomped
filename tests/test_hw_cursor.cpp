@@ -14,6 +14,7 @@
 #include <exception>
 
 int main() try {
+    d2d::palette::Palette::set_ramp(100, 100);   // file colours, not the shipped gamma
     std::array<d2d::palette::Rgba, 256> colours{};
     colours[7] = { 10, 20, 30, 255 };
     const d2d::palette::Palette pal{ colours };
@@ -33,6 +34,24 @@ int main() try {
     assert(two.width == 6 && two.height == 4);
     assert(two.hot_x == 2 && two.hot_y == 2);
     assert(two.rgba[(3 * 6 + 5) * 4 + 3] == 0 && two.rgba[(3 * 6 + 3) * 4 + 3] == 255);   // nearest: bottom row ends clear
+    // Pixel art samples like nearest. The default argument is that sample too.
+    const auto pixelart = d2d::client::cursor_image(frame, pal, 2.f, d2d::client::CursorScaleMode::pixelart);
+    const auto nearest = d2d::client::cursor_image(frame, pal, 2.f, d2d::client::CursorScaleMode::nearest);
+    assert(pixelart == two && nearest == two);
+    // Linear blends pixel centres. Column 1 of the top row is a quarter of
+    // the way from the clear pixel to palette 7: (3, 5, 8, 64). Nearest
+    // leaves that pixel clear. Column 3 of the bottom row blends palette 7
+    // toward the clear corner: (8, 15, 23, 191), where nearest copies it.
+    const auto linear = d2d::client::cursor_image(frame, pal, 2.f, d2d::client::CursorScaleMode::linear);
+    assert(linear.width == 6 && linear.height == 4);
+    assert(linear.hot_x == 2 && linear.hot_y == 2);
+    assert(linear.rgba[(0 * 6 + 0) * 4 + 3] == 0 && linear.rgba[(3 * 6 + 5) * 4 + 3] == 0);
+    assert(linear.rgba[(0 * 6 + 1) * 4 + 0] == 3 && linear.rgba[(0 * 6 + 1) * 4 + 1] == 5);
+    assert(linear.rgba[(0 * 6 + 1) * 4 + 2] == 8 && linear.rgba[(0 * 6 + 1) * 4 + 3] == 64);
+    assert(two.rgba[(0 * 6 + 1) * 4 + 3] == 0);
+    assert(linear.rgba[(3 * 6 + 3) * 4 + 0] == 8 && linear.rgba[(3 * 6 + 3) * 4 + 1] == 15);
+    assert(linear.rgba[(3 * 6 + 3) * 4 + 2] == 23 && linear.rgba[(3 * 6 + 3) * 4 + 3] == 191);
+    assert(d2d::client::cursor_image(frame, pal, 1.f, d2d::client::CursorScaleMode::linear) == one);
     // A hot spot outside the frame is clamped into it, as SDL needs.
     frame.offset_x = 2;
     assert(d2d::client::cursor_image(frame, pal, 1.f).hot_x == 0);

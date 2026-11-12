@@ -307,6 +307,19 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                 neutral_gap = 30 + sound_rng(90);
             }
         }
+        // A skill it starts (S→C 0x4c / 0x4d, unit command 0x15 / 0x16 -> FUN_004c6140):
+        // the start sounds as a player's, on a monster (unit type 1, never a class sound).
+        // ponytail: a stsuccessonly start's cltstfunc (Hydra's FUN_004e39a0, Charge's
+        // FUN_004c9b40) isn't run here, so it always sounds.
+        if (const int started = std::exchange(monster.skill_sound, -1); started >= 0 && monster.alive())
+            if (const auto* skill = game_data->skills.get(started)) {
+                const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
+                const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
+                const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
+                                                              .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
+                for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
+                    if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
+            }
         if (monster.mode != monster.last_mode) {
             monster.last_mode = monster.mode;
             monster.sound_ms = now_ms;                  // a mode's sound (unit +0x7c: FUN_004cb6a0, FUN_004cc410, FUN_004cb890)

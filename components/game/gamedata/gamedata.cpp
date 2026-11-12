@@ -4,6 +4,7 @@
 // of its own; load.hpp fills GameData at start.
 #include "gamedata.hpp"
 
+#include "ai.hpp"
 #include "log.hpp"
 
 #include <compcode.hpp>
@@ -157,9 +158,11 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
                                    monstats.get(row, "flying") == "1", monstats.get(row, "opendoors") == "1");
     npc.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
     npc.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
+    npc.hit_class = std::atoi(std::string(ms2.get(row2, "HitClass")).c_str());
     npc.trans_lvl = std::atoi(std::string(monstats.get(row, "TransLvl")).c_str());
     npc.no_unique_shift = ms2.get(row2, "noUniqueShift") == "1";
     npc.dead_col = ms2.get(row2, "deadCol") == "1";
+    npc.height = std::atoi(std::string(ms2.get(row2, "Height")).c_str());
     npc.automap = std::atoi(std::string(ms2.get(row2, "automapCel")).c_str());   // MonStats2 +0x118 (FUN_00458dc0's unit type 1)
     npc.utrans = { std::atoi(std::string(ms2.get(row2, "Utrans")).c_str()), std::atoi(std::string(ms2.get(row2, "Utrans(N)")).c_str()),
                  std::atoi(std::string(ms2.get(row2, "Utrans(H)")).c_str()) };
@@ -1292,8 +1295,12 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // size 2 by object 121 (FUN_0059f380), size 3 in the palace (FUN_0059ef70),
     // mask 0x100, 100 rings; FUN_005b2f20 then makes him on that subtile
     // (mode 1, radius -1); no spot found keeps the one asked.
-    // ponytail: the guard's spot is FUN_005b3090 -> FUN_005b2a00's (spawn_spot,
-    // on the room's seed as it comes up); the nearest free one here.
+    // The guard (object 122, FUN_0059f440): FUN_005b3090(x + 1, y, 0x14b, 1, 0)
+    // -> FUN_005b2a00 (spawn_spot, radius -1: the spot alone). A miss keeps
+    // the one asked.
+    // ponytail: that search runs as the room comes up and steps the room seed
+    // after room_objects' first step. Here it tries the room1 seed while the
+    // level is built, with no crowd.
     for (const auto& unit : level->units) {
         if (id != d2d::rules::level_ids::kLutGholein || unit.type != d2d::rules::unit_type::kObject || (unit.id != 121 && unit.id != 122)) continue;
         auto add = [&](int hc_idx, int at_x, int at_y, int palace, int size) {
@@ -1305,7 +1312,25 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
                 npc.x = (float(at_x) + 0.5f) / 5;
                 npc.y = (float(at_y) + 0.5f) / 5;
             } else {
-                std::tie(npc.x, npc.y) = level->nearest_free((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5);
+                const int guard_row = int(game_data.mon_bin[std::size_t(hc_idx)]);
+                const int guard_room = room_of(*level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5);
+                if (guard_room >= 0 && std::size_t(guard_room) < level->rooms.size()) {
+                    Spawning::LevelState rooms_in_play;
+                    rooms_in_play.up.assign(level->rooms.size(), false);
+                    rooms_in_play.up[std::size_t(guard_room)] = true;
+                    rooms_in_play.room_seeds.assign(level->rooms.size(), d2d::rules::Rng{});
+                    const std::uint32_t room_seed = std::size_t(guard_room) < level->room1_seeds.size() ? level->room1_seeds[std::size_t(guard_room)]
+                                                                                                        : level->rooms[std::size_t(guard_room)].seed;
+                    rooms_in_play.room_seeds[std::size_t(guard_room)] = d2d::rules::Rng{ room_seed };
+                    const Crowd crowd;
+                    int spot_x = at_x, spot_y = at_y;
+                    if (spawn_spot(game_data, *level, crowd, &rooms_in_play, guard_row, at_x, at_y, -1, guard_room, spot_x, spot_y)) {
+                        at_x = spot_x;
+                        at_y = spot_y;
+                    }
+                }
+                npc.x = (float(at_x) + 0.5f) / 5;
+                npc.y = (float(at_y) + 0.5f) / 5;
             }
             npc.palace = palace;
             level->npcs.push_back(std::move(npc));

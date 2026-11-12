@@ -19,7 +19,8 @@ namespace d2d::rules {
 // (where it's at on its path), `end` its end (+0x18). `arrive`: where the
 // owner last arrived through a warp or teleport (player data +0x148,
 // FUN_00554ea0). `pets`: how many pets the owner has (FUN_00574f40);
-// `crowd`: how many of them stand within 2 of this one (FUN_005e3900).
+// `crowd`: how many of them, the merc too, stand within 2 of this one
+// (FUN_005e3900; Fight::pet_crowd).
 // `velocity` / `run`: MonStats. The foe (FUN_005dd7f0): its spot, the
 // search's distance and whether it's in melee (FUN_00622c40), `ignored`
 // its +0xc4 bit 30; `clear` a line to it (FUN_005dc640).

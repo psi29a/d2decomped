@@ -696,12 +696,18 @@ ids).
   (`FUN_00525150`; 7 stays on this path): return 0 when the unit at the
   index is `_isspace` (`00687006`, `DAT_0096dfe4` is 0, ctype bit 8, so
   9..13 and 32), and 1 when the previous unit is. The space stays on the
-  line. `FUN_005028e0` flag 1 drops one leading space. No break in the
-  prefix: cut on the last glyph that fits, one glyph if it is over. A
-  line that ends on the last unit (the index walks to the length) is
-  followed by an empty line; a remainder that fits, including the early
-  whole-string return, is not. d2d's box does this for bytes. Ids 6, 8
-  and 9 are not ported. The shrink at `0x502b60` repeats that search
+  line. Ids 6, 8 and 9 read only that 16-bit unit: return 0 for 0x2026,
+  0x3001, 0x3002, 0xff01, 0xff0c, 0xff0e, 0xff1f, 0xff61, 0xff64, for
+  0x30..0x39, 0x41..0x5a, 0x61..0x7a, and for 0xff10..0xff19,
+  0xff21..0xff3a, 0xff41..0xff5a, and 1 for any other unit. `FUN_005028e0`
+  flag 1 drops one leading space. No break in the prefix: cut on the last
+  glyph that fits, one glyph if it is over. A line that ends on the last
+  unit (the index walks to the length) is followed by an empty line; a
+  remainder that fits, including the early whole-string return, is not.
+  d2d's box does this for bytes and takes the language id (0 when the
+  caller leaves it unset). A byte is below 256, so ids 6, 8 and 9 apply
+  the ASCII letter and digit tests only. The code points above 255 are
+  not applied. The shrink at `0x502b60` repeats that search
   when the saved width is still over the limit; the first search stores
   a width that already fits before the walk back, so that path is not
   taken.

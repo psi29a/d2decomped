@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -374,8 +375,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             operated[{ level, npc_index }] = now_ms;
             if (!blade.use_altar(quests())) return;
             to_mode(1);
-            gidbinn_timer = now_ms + d2d::rules::BladeQuest::kTimerTicks * kTickMs;
+            gidbinn_in = d2d::rules::quest_timer_steps(d2d::rules::BladeQuest::kTimerTicks);
             gidbinn_altar = npc_index;
+            gidbinn_level = level;
             d2d::log::info("The Blade of the Old Religion: the altar used");
             return;
         }
@@ -420,7 +422,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 if (const auto part = std::ranges::find(actor->character.items, std::string(code), &d2d::d2s::Item::code); part != actor->character.items.end()) actor->character.items.erase(part);
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
-            tombs.staff_in(quests());
+            const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
+            tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
             // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
             const int placer = actor->id;
             each_player([&](Player& player) {
