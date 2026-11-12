@@ -795,6 +795,9 @@ struct GameData {
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
+                         // The one-unit-a-frame, skip-the-last-unit rule (FUN_005ae1f0, FUN_005a8730) for a srvdofunc 1 row with LastCollide and neither NextHit
+                         // nor Pierce. srvdofunc 3 rows (standing clouds) and Pierce rows keep the struck list.
+                         bool last_unit_rule() const { return last_collide && !next_hit && !pierce && srv_do == 1; }
                          std::string sub, sub2, hit_sub;
                          std::array<const MissileInfo*, 2> subs{}; const MissileInfo* hit_sub_info = nullptr;   // those rows, loaded
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,
