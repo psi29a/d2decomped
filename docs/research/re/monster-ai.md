@@ -644,6 +644,19 @@ build/ai-baal-melee/cases > build/ai-baal-melee/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_melee_choice.py --cases build/ai-baal-melee/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_baal_blocked_choice.py` compares FUN_005fc300 with the d2d
+blocked-line branch over 1,536 cases. Life and the target's spell predicate
+are hooked; choices 2 and 6 are compared as the same d2d action, and the
+post-action seed is not compared because some d2d actions draw again.
+
+```sh
+mkdir -p build/ai-baal-blocked
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cpp > build/ai-baal-blocked/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-blocked/cases.cpp -o build/ai-baal-blocked/cases
+build/ai-baal-blocked/cases > build/ai-baal-blocked/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
+```
+
 - Pick: FUN_005fbdd0 is Diablo's FUN_005e8f20 (filter FUN_005fc000 = same
   act, under 0x3fc), the score FUN_005fbb00 Diablo's with the point bonus at
   0x4b instead of 0x55.
