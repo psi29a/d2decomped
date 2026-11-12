@@ -68,7 +68,8 @@ auto World::act5_join() -> void {
         ubers_dead = 0;
         cages_seen = 0;
         cage_portal = {};
-        fana_at = thaw_at = 0;
+        fana_at = 0;
+        thaw_due = false;
         fana = { nullptr, -1 };
         nihlathak_made = false;
         act5_chain();
@@ -434,8 +435,7 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
                 d2d::log::info("Prison of Ice: frozen Anya");
             }
         }
-        if (prison.thawing && fana.first && now_ms >= thaw_at) {
-            thaw_at = now_ms + kTickMs;
+        if (std::exchange(thaw_due, false) && prison.thawing && fana.first) {
             if (const int step = prison.thaw_tick(); step == 1) doors[fana] = Door{ 2, now_ms };
             else if (step == 2) {
                 const auto& ice = fana.first->npcs[std::size_t(fana.second)];
@@ -625,15 +625,16 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
                 constexpr int quest = d2d::rules::PrisonQuest::kQuest;
                 if (!d2d::rules::quest::bit(bits, quest, 0) && !d2d::rules::quest::bit(bits, quest, 1) && !d2d::rules::quest::bit(bits, quest, 13)) d2d::rules::quest::set(bits, quest, 14);
             });
-            thaw_at = now_ms + kTickMs;
             d2d::log::info("Prison of Ice: the potion poured");
         } else d2d::log::info("Prison of Ice: no potion (20131)");
         return true;
     }
 
-// A quest-clock step: a5q4's timer (8 ticks, 0x58b770) and a5q5's
-// statues' return (2 ticks, FUN_0058bd50) run.
+// A quest-clock step: a5q3's thaw (1 tick, every 2 steps: FUN_0058aab0),
+// a5q4's timer (8 ticks, 0x58b770) and a5q5's statues' return (2 ticks,
+// FUN_0058bd50) run.
 auto World::act5_quest_step() -> void {
+        if (prison.thaw_quest_step()) thaw_due = true;
         if (betrayal_log_in > 0 && --betrayal_log_in == 0) betrayal.log_timer();
         if (statues_back_in > 0 && --statues_back_in == 0) statues_back_due = true;
     }

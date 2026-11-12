@@ -526,7 +526,7 @@ struct World {
     void act5_hide();                                     // who's gone: town Nihlathak, fana, drehyaiced (a5q3)
     bool act5_operate(int npc_index, std::uint32_t now_ms);   // frozen Anya (OperateFn 67)
     std::uint32_t fana_at = 0;             // a5q3: the Frozen River marker's event 7 (FUN_0058a500), 25 frames on
-    std::uint32_t thaw_at = 0;             // a5q3's thaw timer (FUN_0058aab0), a tick a step
+    bool thaw_due = false;                 // a5q3's thaw timer (FUN_0058aab0) runs: every 2 quest steps
     std::pair<const Level*, int> fana{ nullptr, -1 };     // the fana object made (Level::npcs index)
     bool nihlathak_made = false;           // a5q3 +0x92: InitFn 69's Nihlathak (superunique 60)
     int izual_ghost_in = 0;                // quest steps to a4q1's 3-tick timer (0x5b4126 -> 0x5b3e60): his ghost, 0 none

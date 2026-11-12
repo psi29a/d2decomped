@@ -7,6 +7,7 @@
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
+#include <quests_act5.hpp>
 
 #include <cassert>
 #include <cstdio>
@@ -54,6 +55,16 @@ int main() try {
     assert(!GuardianQuest::told(bits));
     quest::set(bits, GuardianQuest::kQuest, 13);
     assert(GuardianQuest::told(bits));
+
+    // Prison of Ice: the thaw's 1-tick timer returns 0 at its first run, so
+    // fana's mode 2 comes on step 2 and Anya on step 4 (FUN_0058aab0).
+    PrisonQuest prison;
+    QuestBits prison_bits{};
+    assert(prison.thaw(prison_bits, true) && prison.thawing);
+    std::vector<int> thaws;
+    for (int step = 1; step <= 6; ++step)
+        if (prison.thaw_quest_step()) thaws.push_back(step * 10 + prison.thaw_tick());
+    assert((thaws == std::vector{ 21, 42 }) && !prison.thawing);
 
     std::puts("quest_timers: ok");
     return 0;

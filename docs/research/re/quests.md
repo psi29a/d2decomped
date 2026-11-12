@@ -243,6 +243,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 
 | Timer | Set at | Ticks |
 |---|---|---|
+| Anya's thaw (`PrisonQuest::thaw_quest_step`; runs twice, every 2 steps: fana's mode 2, then Anya) | 0x58ad52 | 1 |
 | Nihlathak's log (`World::betrayal_log_in`, `act5_quest_step`) | 0x58b84a | 8 |
 | The Ancients' statues' return (`World::statues_back_in`; again 2 on while a statue isn't found) | 0x58c9da | 2 |
 | The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
