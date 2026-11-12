@@ -1606,6 +1606,7 @@ int main(int argc, char** argv) try {
         world.swap_npcs(&one_frame_moor);
         world.operated.erase({ &one_frame_moor, shrine_index });
         world.other_npcs.erase(&one_frame_moor);
+        world.fight.spawning.levels.erase(&one_frame_moor);     // its rooms' state points at this copy: gone with it
     }
     {   // A converted monster is no target: game.exe's cursor drops a unit the player can't
         // interact with (HitTestScreen: CanInteractWith is !IsAllyOf), so an attack names it only
