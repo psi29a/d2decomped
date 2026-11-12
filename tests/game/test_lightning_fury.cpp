@@ -14,6 +14,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <world.hpp>
 
 #include <array>
@@ -27,6 +28,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 
 using namespace d2d::game;
 
