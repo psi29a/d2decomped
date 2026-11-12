@@ -108,6 +108,7 @@ int main(int argc, char** argv) try {
         d2d::rules::Rng spawn_rng{ 5 };
         for (const auto& one : placed) {
             Monster monster = make_monster(*data, kind[std::size_t(one.size)], (float(at_x + one.dx) + 0.5f) / 5, (float(at_y + one.dy) + 0.5f) / 5, spawn_rng, 0);
+            assert(monster.targetable());
             monster.stats.hit_points = monster.hit_points = 1000000;
             monster.life_frac = 0;
             monster.next_act = ~0u;
