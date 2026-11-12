@@ -535,13 +535,12 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (hurt(*game_data, target, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.elemental || blow.deadly)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
-        // KB (FUN_005a77d0): path type 8, 5 subtiles on from the attacker,
+        // KB (LAB_005a77d0): path type 8, 5 subtiles on from the attacker,
         // a Sand Leaper (class 0x4e) 10.
-        // It slides there over the KB mode (FUN_005a8630: along the path till
-        // the mode's end), then plays GH (FUN_005a8520; a Sand Leaper thinks 15
-        // frames on, 45 stunned): monster_update.
-        // ponytail: an even slide over KB's length; the path's own pace
-        // (FUN_00554ca0) isn't traced.
+        // It slides there a subtile a frame (knock_slide: FUN_00623f50's KB
+        // velocity 0x1000) till the path's end or the KB mode's (LAB_005a8630),
+        // then plays GH (FUN_005a8520; a Sand Leaper thinks 15 frames on, 45
+        // stunned): monster_update.
         if (blow.knockback) knock_back(target, actor->player.x, actor->player.y, now_ms);
         return true;
     }

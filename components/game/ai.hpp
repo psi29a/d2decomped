@@ -599,12 +599,25 @@ struct Foe {
     }
 };
 
+// A knockback's pace: FUN_00623f50 gives a player in KB (mode 0x13) or a
+// monster in KB (0xd) path velocity 0x1000 (FUN_00648690), whatever its
+// speed, and FUN_00554ca0 -> FUN_00650840 steps it velocity x dir >> 8 a
+// frame (FUN_006502d0): one subtile, 0.2 cells. The last step snaps onto
+// the path's end once it's within a step on both axes (FUN_00650090), so
+// `length` cells take ceil(5 x length) frames.
+inline constexpr float kKnockCellsPerFrame = 0.2f;
+inline float knock_moved(std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * kKnockCellsPerFrame / 40.f, length); }
+inline std::uint32_t knock_ms(float length) { return std::uint32_t(std::ceil(length / kKnockCellsPerFrame - 1e-4f)) * 40; }
+
 // A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
-// pet or the merc): along to its leap_to over the mode. True while it lasts.
+// pet or the merc): at the knockback's pace to its leap_to, then it stands
+// till the mode ends (LAB_005a8630 steps the path each frame and leaves
+// only at the mode's end, FUN_006217c0). True while the mode lasts.
 inline bool knock_slide(Monster& monster, std::uint32_t now_ms) {
-    const float done = std::clamp(float(now_ms - monster.unit.mode_ms) / float(std::max<std::uint32_t>(monster.mode_until - monster.unit.mode_ms, 1)), 0.f, 1.f);
-    monster.unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
-    monster.unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
+    const float dx = monster.leap_to_x - monster.leap_from_x, dy = monster.leap_to_y - monster.leap_from_y, length = std::hypot(dx, dy);
+    const float done = length > 0 ? knock_moved(now_ms - monster.unit.mode_ms, length) / length : 1.f;
+    monster.unit.x = monster.leap_from_x + dx * done;
+    monster.unit.y = monster.leap_from_y + dy * done;
     return now_ms < monster.mode_until;
 }
 
