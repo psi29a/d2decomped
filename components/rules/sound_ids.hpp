@@ -120,9 +120,14 @@ inline int floor_material(unsigned flags) {
     return flags & 0x20 ? 1 : flags & 0x08 ? 2 : flags & 0x10 ? 3 : flags & 0x40 ? 4 : flags & 0x80 ? 6 : flags & 0x400 ? 5 : 0;
 }
 // The first floor tile at a cell (FUN_004cadb0): its flags, or the level
-// default when they name none. A later tile on that cell is not read.
+// default (SoundEnviron Material 1, 1 unless 1..6) when they name none. A
+// later tile on that cell is not read. tools/emu/floor_material.py.
+// ponytail: game.exe looks in the unit's room, then its near list
+// (FUN_00619790); d2d in every room in list order, the same unless two
+// rooms list a floor at one cell.
 template <class Rooms>
 int first_floor_material(const Rooms& rooms, int cell_x, int cell_y, int level_material) {
+    if (level_material < 1 || level_material > 6) level_material = 1;
     for (const auto& floors : rooms)
         for (const auto& floor : floors)
             if (floor.x == cell_x && floor.y == cell_y) {
