@@ -301,6 +301,9 @@ int main() try {
     int trapped = 0;
     for (int i = 0; i < 1000; ++i) { Rng trap_rng{ std::uint32_t(i) }; trapped += roll_trap(40, trap_rng) > 0; }   // 10 % at MonLvl1 40
     assert(trapped > 60 && trapped < 140);
+    // FUN_00558200: the player's own level, at least 1. The +4 past 5 is
+    // Charsi's imbue (FUN_00579d60), not the scroll's ilvl.
+    assert(player_ilvl(0) == 1 && player_ilvl(5) == 5 && player_ilvl(6) == 6 && player_ilvl(8) == 8);
     // Charsi's imbue (FUN_00579d60): a normal / superior / low item of a
     // base with bitfield1 & 1 comes back rare, ilvl clvl + 4 past 5.
     tables.item_base["hax"].bitfield1 = 1;
@@ -308,6 +311,8 @@ int main() try {
     assert(imbuable(tables, axe));
     const auto imbued = imbue_item(tables, axe, 8, rng);
     assert(imbued.code == "hax" && imbued.quality == 6 && imbued.ilvl == 12 && !imbuable(tables, imbued));
+    Rng imbue_low{ 1 };
+    assert(imbue_item(tables, axe, 5, imbue_low).ilvl == 5);
     axe.quality = 4;
     assert(!imbuable(tables, axe));
     // FUN_0062c590: flag 0x1000 refused; a throwable type only in a classic game.

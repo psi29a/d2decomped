@@ -45,11 +45,10 @@ Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
   in it**: the "+4 past level 5" belongs to Charsi's imbue caller
   (`FUN_00579d60`, which adds 4 to the result when it is above 5), not to
   `FUN_00558200`. `FUN_005466b0` (a quest item given with ilvl 0) uses it
-  plain. d2d: `rules::player_ilvl` (rules.hpp, "FUN_00558200") adds the 4,
-  and `quests/act1.cpp:144` gives Akara's deciphered scroll that ilvl:
-  DISAGREES for a player past level 5 (the scroll is a quest item, so the
-  effect is its stored ilvl only; the imbue use is right). d2d has no
-  monster / area branches of this function as one routine.
+  plain. d2d: `rules::player_ilvl` (rules.hpp) is that base level, at
+  least 1, with no +4. Akara's deciphered scroll takes it
+  (`quests/act1.cpp`). `imbue_item` adds 4 when the result is past 5.
+  d2d has no monster / area branches of this function as one routine.
 - Class: superunique SuperUniques TC (`+0x2c + diff*2`), unique
   TreasureClass3, champion TreasureClass2, else TreasureClass1 (MonStats
   `+0x86 + diff*8`, one u16 each).
