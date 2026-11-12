@@ -173,6 +173,7 @@ auto World::act1_quest_step() -> void {
         burial.tick();
         tower.tick();
         if (den_log_in > 0 && --den_log_in == 0 && den.state == 4) den.log = 5;   // LAB_00590230: "Return to Akara", only still cleared (0x590232)
+        if (stones_portal_in > 0 && --stones_portal_in == 0) stones_portal();      // 0x59366e -> FUN_00592d50
     }
 
 auto World::act1_alert(int hc_idx) -> bool {

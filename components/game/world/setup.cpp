@@ -18,6 +18,7 @@
 #include <light.hpp>
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
@@ -344,6 +345,7 @@ auto World::new_game() -> void {
         act5_join();
         den_left = -1;
         den_log_in = 0;
+        stones_portal_in = 0;
         actor->voice_found.reset();               // FUN_004ca280: a new game's find lines
         actor->voice_checked = 0;
         operated.clear();
@@ -425,8 +427,9 @@ auto World::swap_npc_states(const Level* from) -> void {
     }
 
 // The stones as their room comes up (InitFn 6, FUN_005935e0, as each is
-// made): the portal again, the stones lit. A level's objects come with
-// their rooms, so it waits for StoneAlpha.
+// made): the stones lit and, at StoneAlpha with the portal not made
+// (+0x45) nor due (+0x44), the portal's 1-tick timer (0x59366e). A
+// level's objects come with their rooms, so it waits for StoneAlpha.
 auto World::stones_up() -> void {
         if (!stones_pending || level->id != d2d::rules::CainQuest::kStony) return;
         if (std::ranges::find(level->npcs, d2d::rules::object_ids::kStoneAlpha, &Npc::object_id) == level->npcs.end()) return;
@@ -436,11 +439,22 @@ auto World::stones_up() -> void {
             const auto& stone = level->npcs[i];
             if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
             operated.try_emplace({ level, int(i) }, 0u);
-            if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
-                const auto [spot_x, spot_y] = level->nearest_free(stone.x + 4, stone.y + 4);
-                portal[2] = { level, spot_x, spot_y, now };
-            }
+            if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level && stones_portal_in == 0)
+                stones_portal_in = d2d::rules::quest_timer_steps(1);
         }
+    }
+
+// The stones' timer (FUN_00592d50): the red portal to Tristram
+// (FUN_0056d130, object 0x3c) at StoneAlpha + 4 subtiles; +0x45 made.
+// No StoneAlpha (FUN_00552f60): +0x44 cleared, done.
+auto World::stones_portal() -> void {
+        const Level* stony = game_data->level(d2d::rules::CainQuest::kStony);
+        if (!stony || portal[2].level) return;
+        const auto alpha = std::ranges::find(stony->npcs, d2d::rules::object_ids::kStoneAlpha, &Npc::object_id);
+        if (alpha == stony->npcs.end()) return;
+        const auto [spot_x, spot_y] = stony->nearest_free(alpha->x + 4, alpha->y + 4);
+        portal[2] = { stony, spot_x, spot_y, now };
+        d2d::log::info("Search for Cain: the stones' portal");
     }
 
 // Lut Gholein's palace NPCs as the quests stand (rules::palace_spots).

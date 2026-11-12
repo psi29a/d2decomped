@@ -10,6 +10,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -26,6 +27,8 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <tuple>
+#include <variant>
 
 namespace filesystem = std::filesystem;
 using namespace d2d::game;
@@ -45,6 +48,7 @@ void runs_after(World& world, std::uint32_t& now_ms, int steps, const char* what
     }
     const auto taken = int(world.quest_clock.count - count_at);
     std::printf("%s: %d frames, %d quest steps\n", what, frames, taken);
+    std::fflush(stdout);   // seen before an assert fails
     assert(done() && taken == steps && world.quest_clock.frame % d2d::rules::QuestClock::kFrames == 0);
     assert(frames > (steps - 1) * 20 && frames <= steps * 20);
 }
@@ -95,17 +99,20 @@ int main() try {
     assert(world.den.log == 0xd);
 
     // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
-    world.gidbinn_in = quest_timer_steps(7);
-    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
     // Its guardians come at the altar's level only (FUN_005b9a30: Act 3's map at the
     // altar's spot), not by whatever object has the altar's index where the player is.
     world.gidbinn_altar = 0;
     world.gidbinn_level = data->level(d2d::rules::BladeQuest::kFlayerJungle);
     world.actor->player.x = world.level->npcs[0].x;
     world.actor->player.y = world.level->npcs[0].y;
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_in == 0; });
+    // One look (#394): every path of FUN_005b9a30 returns 1, so with no player
+    // there it's spent; a player by the altar later brings nothing.
+    assert(!world.gidbinn_due && !world.blade.spawned);
+    world.gidbinn_level = world.level;   // the player by "the altar" now
     for (int frame = 0; frame < 5; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
-    assert(world.gidbinn_due && !world.blade.spawned);
-    world.gidbinn_due = false;
+    assert(!world.blade.spawned);
     world.gidbinn_altar = -1;
     world.gidbinn_level = nullptr;
 
@@ -133,6 +140,39 @@ int main() try {
     for (int frame = 0; frame < 2; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
     assert(ghosts(*plains) == on_plains + 1 && ghosts(*world.level) == in_town && world.izual.log == 3);
 
+    // Mephisto dead: a3q6's 12-tick timer (0x5bc9d6 -> 0x5bc720), the log 4 sent again.
+    world.guardian.log = 2;
+    world.guardian.arm_log();
+    world.actor->events.clear();
+    runs_after(world, now_ms, 13, "Mephisto's log", [&] { return world.guardian.log == 4; });
+    assert(std::ranges::any_of(world.actor->events, [](const auto& event) {
+        const auto* news = std::get_if<ev::QuestNews>(&event);
+        return news && news->quest == d2d::rules::GuardianQuest::kQuest;
+    }));
+
+    // The seals broken: a4q2's release timer (1 tick, again till Diablo:
+    // FUN_005b4be0), its 10th run 20 steps on.
+    world.terror.arm();
+    runs_after(world, now_ms, 20, "Diablo's release", [&] { return world.terror.release_runs == d2d::rules::TerrorQuest::kReleaseRuns; });
+    world.terror.armed = false;
+    world.terror.diablo_made = false;
+
+    // The Cairn Stones up: their portal's 1-tick timer (0x59366e -> FUN_00592d50).
+    // Stony Field isn't built here: a StoneAlpha stands in for its preset.
+    auto* stony = const_cast<Level*>(data->level(d2d::rules::CainQuest::kStony));   // GameData owns its levels mutable
+    assert(stony);
+    Npc stone_alpha;
+    stone_alpha.object_id = d2d::rules::object_ids::kStoneAlpha;
+    stone_alpha.x = 20;
+    stone_alpha.y = 20;
+    stony->npcs.push_back(stone_alpha);
+    world.portal[2] = {};
+    world.stones_portal_in = quest_timer_steps(1);
+    runs_after(world, now_ms, 2, "the stones' portal", [&] { return world.stones_portal_in == 0; });
+    assert(world.portal[2].level == stony);   // FUN_0056d130 at StoneAlpha + 4 (its nearest free spot)
+    world.portal[2] = {};
+    stony->npcs.pop_back();
+
     // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
     world.betrayal.log = 2;
     world.betrayal_log_in = quest_timer_steps(8);
@@ -142,6 +182,30 @@ int main() try {
     world.statues_back_in = quest_timer_steps(2);
     runs_after(world, now_ms, 3, "the statues' return timer", [&] { return world.statues_back_due; });
     world.statues_back_due = false;
+
+    // Split levels: the quest step runs on the first turn (a second player's,
+    // on Blood Moor), and the Gidbinn's look waits for the altar's level's
+    // turn (the lead's, last), where the lead stands by "the altar".
+    const Level* town = world.level;
+    const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(moor && !world.blade.spawned);
+    auto wanderer = character;
+    wanderer.name = "Wanderer";
+    auto& second = world.join(wanderer);
+    second.on_level = moor;
+    std::tie(second.player.x, second.player.y) = moor->nearest_free(float(moor->ds1.width()) / 2, float(moor->ds1.height()) / 2);
+    world.lead().on_level = town;
+    world.split_levels = true;
+    world.gidbinn_altar = 0;
+    world.gidbinn_level = town;
+    world.actor->player.x = town->npcs[0].x;
+    world.actor->player.y = town->npcs[0].y;
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer, split levels", [&] { return world.gidbinn_in == 0; });
+    assert(world.blade.spawned && !world.gidbinn_due);
+    world.split_levels = false;
+    world.gidbinn_altar = -1;
+    world.gidbinn_level = nullptr;
 
     // A new game on the same World (World::new_game): its frame and quest
     // count start over (a game's own +0xa8 and +0x10f4 +0x14), so its first

@@ -76,7 +76,7 @@ auto World::act4_join() -> void {
         if (!actor->character.fresh) hellforge.join(quests(), carries(d2d::rules::HellforgeQuest::kStone));   // fresh: no +0xd4
         terror = {};
         terror.join(quests(), actor->character.header.expansion());
-        diablo_at = diablo_dead_at = gems_at = 0;
+        diablo_dead_at = gems_at = 0;
         izual_ghost_in = 0;
         izual_ghost_due = false;
         izual_level = nullptr;
@@ -226,13 +226,15 @@ auto World::diablo_release(std::uint32_t now_ms) -> void {
                     set_mode(*game_data, monster, "DT", now_ms);
                     fight.killed(i, now_ms, false);
                 }
-        diablo_at = now_ms + d2d::rules::TerrorQuest::kRelease * kTickMs;
+        terror.arm();
         d2d::log::info("Terror's End: the seals are broken, Diablo comes");
     }
 
-// A quest-clock step: a4q1's timer (3 ticks, 0x5b3e60) runs.
+// A quest-clock step: a4q1's timer (3 ticks, 0x5b3e60) and a4q2's
+// release (1 tick, again till Diablo comes: FUN_005b4be0) run.
 auto World::act4_quest_step() -> void {
         if (izual_ghost_in > 0 && --izual_ghost_in == 0) izual_ghost_due = true;
+        if (terror.release_step()) terror.diablo_due = true;
     }
 
 auto World::act4_update(std::uint32_t now_ms) -> void {
@@ -305,9 +307,10 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
                 }
             }
         }
-        // a4q2's timer (FUN_005b4be0): 10 ticks on, Diablo at his start
-        // point (object 255) in the sanctuary, wherever the player is.
-        if (diablo_at && now_ms >= diablo_at && sanctuary && !terror.diablo_made) {
+        // a4q2's timer (FUN_005b4be0), its 10th run on: Diablo at his start
+        // point (object 255) in the sanctuary, wherever the player is. Not
+        // there (+8 not found): it waits for its next run.
+        if (std::exchange(terror.diablo_due, false) && sanctuary && !terror.diablo_made) {
             const auto start = std::ranges::find(sanctuary->npcs, d2d::rules::object_ids::kDiabloStart, &Npc::object_id);
             if (start != sanctuary->npcs.end()) {
                 const int diff = actor->character.header.active_difficulty();
@@ -320,7 +323,7 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
                 }
                 diablo.aware = true;
                 fight.add_monster(std::move(diablo), sanctuary);
-                terror.diablo_made = true; diablo_at = 0;
+                terror.diablo_came();
                 d2d::log::info("Terror's End: Diablo");
             }
         }

@@ -136,7 +136,10 @@ deaths.
   once (+0x13): every monster in level 108 but Diablo, not dead, not a
   pet, set to mode 0 (dies: `FUN_005a7e60` / `FUN_005a7c20`); and if not
   armed: +2, +1, the 1-tick timer `FUN_005b4be0`.
-- **The timer** (`FUN_005b4be0`): with +2, +0x18 counts ticks; past 9 and
+- **The timer** (`FUN_005b4be0`): with +2, +0x18 counts its runs. It
+  returns 0 till Diablo comes, so the 1-tick timer runs every 2 quest
+  steps (quests.md "The quest clock"): the 10th run, 20 steps (about
+  16 s) after the release, is the first past 9. Past 9 and
   with the start point's object (+8, object 255 "diablo start point"),
   wherever the players are: Diablo (0xf3) at its
   spot, mode 1, within −1 / 5 / 10 (`FUN_005b4b60` → `FUN_005b2f20`), flags

@@ -135,7 +135,8 @@ second scroll.
   (121..124) at state < 5: state 6, Anya home, bit 14 unless 13.
 - Fana: InitFn 74 log 2; OperateFn 67 without the potion she says 20131
   (state 4, log 3); with it: taken, state 5, Anya 1, bits 13 and 1, log 5,
-  the thaw timer (`FUN_0058aab0`: tick 1 fana mode 2, tick 2 drehyaiced at
+  the thaw timer (1 tick at 0x58ad52, `FUN_0058aab0`, returning 0 after its
+  first run, so every 2 quest steps: run 1 fana mode 2, run 2 drehyaiced at
   her spot, fana removed, the chain). Bits 13 and 1 are the pourer's
   only; two passes (`FUN_005537d0`): `LAB_00589a50` resends a player
   with bit 13 their quest state, `LAB_00589aa0` gives bit 14 to the rest

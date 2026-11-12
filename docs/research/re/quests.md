@@ -243,16 +243,20 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 
 | Timer | Set at | Ticks |
 |---|---|---|
+| Anya's thaw (`PrisonQuest::thaw_quest_step`; runs twice, every 2 steps: fana's mode 2, then Anya) | 0x58ad52 | 1 |
 | Nihlathak's log (`World::betrayal_log_in`, `act5_quest_step`) | 0x58b84a | 8 |
 | The Ancients' statues' return (`World::statues_back_in`; again 2 on while a statue isn't found) | 0x58c9da | 2 |
 | The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
+| The Cairn Stones' portal at their room's InitFn 6 (`World::stones_portal_in`, `act1_quest_step`) | 0x59366e | 1 |
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
-| The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
+| Diablo's release (`TerrorQuest::release_step`; again every 2 steps, Diablo on the 10th run; also 0x5b55ef, 0x5b56f7) | 0x5b5338 | 1 |
+| The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`; one look, #394) | 0x5b9c22 | 7 |
+| Mephisto's log 4 (`GuardianQuest::log_in`) | 0x5bc9d6 | 12 |
 | The Dark Wanderer's afterglow (`World::afterglow_in`) | 0x5bd4ce | 2 |
 | The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
 
-Not yet, kept as ticks x 40 ms:
-Diablo's release (#383).
+Diablo's afterglow (75 s, 90 s, 95 s, the same `FUN_005b4be0` once he's
+dead) is wall-clock time (`GetTickCount`), not the quest clock.
 
 ## Messages
 
@@ -324,6 +328,7 @@ that one.)
 | `FUN_0059bcb0` | 0xd | 0xc |
 | `FUN_0059c650` | 0xe | 0xd |
 | `FUN_005b7340` | 0x11 | 0xf |
+| 0x5bc210 (no Ghidra function; a3q6's log timer 0x5bc720 passes it) | 0x16 | 0x14 |
 
 `FUN_00599510` is the same test for quest 0xa as a function (eax unit, game
 on the stack, `ret 4`; 1 = send). `FUN_00599570` has register arguments,

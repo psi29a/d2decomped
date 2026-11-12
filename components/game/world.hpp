@@ -526,13 +526,12 @@ struct World {
     void act5_hide();                                     // who's gone: town Nihlathak, fana, drehyaiced (a5q3)
     bool act5_operate(int npc_index, std::uint32_t now_ms);   // frozen Anya (OperateFn 67)
     std::uint32_t fana_at = 0;             // a5q3: the Frozen River marker's event 7 (FUN_0058a500), 25 frames on
-    std::uint32_t thaw_at = 0;             // a5q3's thaw timer (FUN_0058aab0), a tick a step
+    bool thaw_due = false;                 // a5q3's thaw timer (FUN_0058aab0) runs: every 2 quest steps
     std::pair<const Level*, int> fana{ nullptr, -1 };     // the fana object made (Level::npcs index)
     bool nihlathak_made = false;           // a5q3 +0x92: InitFn 69's Nihlathak (superunique 60)
     int izual_ghost_in = 0;                // quest steps to a4q1's 3-tick timer (0x5b4126 -> 0x5b3e60): his ghost, 0 none
     bool izual_ghost_due = false;          // that timer has run
     const Level* izual_level = nullptr;    // where he died: the ghost goes there (0x5b3eaf: Act 4's map, game +0xc8)
-    std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
     // S->C 0x61 (FUN_0053d940): the cinematic the client plays now (its
@@ -837,7 +836,9 @@ struct World {
     void leave_town(const Level* from);
     void swap_npc_states(const Level* from);         // swap_npcs without the players' level change hooks
     void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
+    void stones_portal();                  // their timer's run (FUN_00592d50): the portal to Tristram
     bool stones_pending = false;           // on Stony Field, the stones not up yet
+    int stones_portal_in = 0;              // quest steps to the stones' portal: 1 tick (0x59366e -> FUN_00592d50), 0 none
 
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::nearby), so the player

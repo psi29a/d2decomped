@@ -437,6 +437,7 @@ struct PrisonQuest {
     bool fana_made = false;        // data +0xa4
     bool thawing = false;          // data +0x100: the thaw's timer
     int thaw_step = 0;             // data +0x8c
+    int thaw_steps = 0;            // quest steps since the thaw's timer last ran
     bool news = false;
 
     // The player joins (FUN_0058a110).
@@ -494,10 +495,18 @@ struct PrisonQuest {
         state = 5; anya = 1;
         quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
         log = 5; news = true;
-        if (!thawing) { thawing = true; thaw_step = 0; }
+        if (!thawing) { thawing = true; thaw_step = 0; thaw_steps = 0; }
         return true;
     }
-    // The thaw's timer (FUN_0058aab0), a tick each: 1 fana's mode 2; 2 she's
+    // A quest-clock step. The thaw's timer (1 tick, queued by FUN_0058abc0
+    // at 0x58ad52) returns 0 at its first run, so it runs every 2 steps:
+    // true when it runs.
+    bool thaw_quest_step() {
+        if (!thawing || ++thaw_steps < quest_timer_steps(1)) return false;
+        thaw_steps = 0;
+        return true;
+    }
+    // The thaw's timer (FUN_0058aab0), a run each: 1 fana's mode 2; 2 she's
     // drehyaiced, the chain on. Returns the step done (0 none).
     int thaw_tick() {
         if (!thawing) return 0;

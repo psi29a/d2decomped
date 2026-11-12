@@ -392,7 +392,9 @@ no record: mode 2
 
 FUN_00592d50: `FUN_0056d130(room, x+4, y+4, 0x26, 0, 0x3c, 1)`, then +0x45 = 1 and +0x44 = 0.
 
-d2d: `World::stones_up` (`CainQuest::stones_init`). InitFn 6 runs as each
+d2d: `World::stones_up` (`CainQuest::stones_init`) queues the 1-tick timer
+(`World::stones_portal_in`), and its run, `World::stones_portal`, opens the
+portal 2 quest steps on (quests.md "The quest clock"). InitFn 6 runs as each
 stone is made, so with its room: d2d waits for StoneAlpha among the
 level's objects, which come with their rooms. Running it on arrival used
 up the rejoin before the stones existed, and a save with the stones lit
