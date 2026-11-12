@@ -602,6 +602,18 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     // (the snap isn't a step).
                     actor->player.walking = to_unit && !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
                                      && (actor->player.x != before_x || actor->player.y != before_y);
+                    // An item or a warp out of reach when the walk ends, blocked or not, gets
+                    // one more walk (FUN_00580c20 -> FUN_00548b00, LAB_00580e73, which clears
+                    // pending, LAB_00580e88); the second's end is plain idle. In reach, the
+                    // pick-up and use_warp take it this tick or the next.
+                    const int lying = actor->pick_item >= 0 ? loot.index_of(actor->pick_item) : -1;
+                    const bool item_far = lying >= 0 && std::hypot(loot.ground[std::size_t(lying)].x - actor->player.x, loot.ground[std::size_t(lying)].y - actor->player.y) > 1.f;
+                    const bool warp_far = actor->take_warp >= 0 && std::size_t(actor->take_warp) < level->warps.size()
+                                       && !warp_close(level->warps[std::size_t(actor->take_warp)], actor->player.x, actor->player.y);
+                    if (item_far || warp_far) {
+                        if (std::exchange(actor->walk_pending, false)) actor->player.walking = true;
+                        else actor->pick_item = actor->take_warp = -1;
+                    }
                 }
             }
             }

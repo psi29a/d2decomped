@@ -634,6 +634,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 return;
             }
             actor->player.path.clear();                                             // a click: a new path (FUN_006503f0 re-plans only a moved unit's)
+            actor->walk_pending = true;                                             // FUN_00548a50 sets it with the walk (LAB_00641f37)
             actor->attack_mon = actor->pick_item = -1;
             actor->take_warp = -1;                                                  // a click on a warp: go through it
             for (std::size_t i = 0; i < level->warps.size(); ++i)

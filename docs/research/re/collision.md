@@ -425,7 +425,8 @@ LAB_00480b11, through 0x4786d0), 0x13 for the rest, a warp too (LAB_00480a3d, th
 0x4786a0). The other 0x16 immediates in these functions aren't sends: LAB_004807db is a state
 test, and LAB_00481186 and LAB_004811f6 are FUN_00461250 command numbers.
 
-d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit.
+d2d's item walk (`tick.cpp`, `pick_item`, `walk_pending`) has the limit: out of reach at
+its end it walks once more, then drops the pick-up (`tests/game/test_walk_item_twice.cpp`).
 
 A warp's click, FUN_00461dc0's type 5 (LAB_00461fb7): refused until 0x7a04c8, the time
 FUN_0044dad0 sets 500 ms ahead (LAB_00462022, LAB_0048168f; FUN_00467000 uses it too).
@@ -439,9 +440,8 @@ after a stop, at most each 500 ms, and each click is two more walks.
 d2d (`World::use_warp`):
 
 - Same reach: `warp_close`, under 5 by `unit_distance`.
-- No two-walk limit here: "Short of the target with a step made" re-plans with no
-  count, and `take_warp` goes when the walk ends short of reach. Since #226 a block
-  ends it, as does a stop with no step, so a blocked walk is one walk where game.exe has two.
+- The two-walk limit as the item's (`walk_pending`, `tick.cpp`): out of reach when the
+  walk ends, blocked or not, it walks once more, and `take_warp` goes at the second's end.
 - It tests every tick, so it takes the warp on the way at reach 4; a single click in
   game.exe walks on to the path's end first. Up to 4 subtiles early.
 - A held button sets `take_warp` only on the press, so after a stop it's gone.
