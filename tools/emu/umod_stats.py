@@ -147,12 +147,15 @@ def main():
 def compare(game_path, d2d_path):
     """Per field: cases that differ, and the first few, keyed by (kind, mods)."""
     game = {l.split("\t")[0]: l.rstrip("\n").split("\t") for l in open(game_path) if not l.startswith("#")}
+    rows = [line.rstrip("\n").split("\t") for line in open(d2d_path) if not line.startswith("#")]
+    if not rows or {d[0] for d in rows} != set(game):
+        raise SystemExit(f"{d2d_path} has {len({d[0] for d in rows})} case ids, {game_path} has {len(game)}: the two files must hold the same nonempty set")
+    short = [d[0] for d in rows if len(d) != len(FIELDS) + 1]
+    if short:
+        raise SystemExit(f"{d2d_path}: {len(short)} rows do not have {len(FIELDS)} fields (first: case {short[0]})")
     bad, total, examples = {}, 0, {}
-    for line in open(d2d_path):
-        if line.startswith("#"): continue
-        d = line.rstrip("\n").split("\t")
-        gl = game.get(d[0])
-        if not gl: continue
+    for d in rows:
+        gl = game[d[0]]
         total += 1
         head, gv = gl[:5], gl[gl.index("|") + 1:]
         defence, armor = int(gv[12]), int(gv[13])
