@@ -1210,7 +1210,23 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
   undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
-  allies by calc1. **9** (FUN_005aa250, Immolation Arrow): the damage
+  allies by calc1. The heal gate is `FUN_005542c0(target, caster,
+  skill) || FUN_00554d20(target, caster, skill)`: `FUN_005542c0` (EDX
+  `target`, stack `caster`, `skill`; fastcall ECX unused) requires both
+  non-null, then `target`'s mode 0 (player) or `caster`'s mode 1
+  (monster), and bounds `skill` against the Skills.txt count
+  (`[0x744304]+0xba0`), its record's `+7` bit 1 (`gadwBitMasks[1]`,
+  `0x6ce26c`). It then calls `FUN_0058f090(caster, &skill_slot,
+  &caster_slot)`: for a monster `caster` with a resolved pet-owner chain
+  (`+0x28`), it overwrites `caster_slot` with the owner's `+0x30` and
+  `skill_slot` with the owner's `+0x2c`; otherwise it only sets
+  `skill_slot` to -1 and leaves `caster_slot` (still the original,
+  non-null `caster` pointer) alone. `FUN_005542c0` passes only when
+  `caster_slot` came back 0 (so only the pet-owner branch can pass) and
+  `skill_slot` equals `target`'s `+0xc`. Not traced: `FUN_00554d20`, the
+  other half of the gate, and what `target`'s `+0xc` and the owner's
+  `+0x2c` / `+0x30` fields hold by name.
+  **9** (FUN_005aa250, Immolation Arrow): the damage
   within sHitPar1 (else calc1), fire over that ground (FUN_005a9530) for
   the arrow row's SHitCalc1 (+0x88) frames (0x8000), burning its own row
   (immolationfire: + Fire Arrow x 5 %).
