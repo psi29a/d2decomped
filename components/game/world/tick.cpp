@@ -411,6 +411,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         const Level* tick_level = level;
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         loot.standing = &crowd;                // FUN_00555da0: this level's 0x1000 / 0x2000
+        drop_wirt_gold(now_ms);
         // Dead: the death plays out, then Resurrect respawns in camp; a
         // swing or a flinch holds the player in place until it ends, and
         // an attack goes on while the button's held (the left skill sent

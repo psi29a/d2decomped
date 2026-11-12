@@ -349,6 +349,7 @@ auto World::new_game() -> void {
         actor->voice_found.reset();               // FUN_004ca280: a new game's find lines
         actor->voice_checked = 0;
         operated.clear();
+        wirt_gold.clear();
         // The levels as built: no room populated (the units come again as
         // they do), doors back as they were made.
         for (const auto& [id, built] : game_data->levels) {

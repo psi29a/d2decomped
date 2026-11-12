@@ -421,6 +421,8 @@ struct World {
     Fight fight{ game_data, level, rng, loot, cues };   // the fight (fight.hpp)
     bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
+    struct WirtGold { std::uint32_t next_ms; int left, item_level; };
+    std::map<std::pair<const Level*, int>, WirtGold> wirt_gold;
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     // The fissures' eruptions (object 399, event 8 FUN_00581250): the next
     // one due, and when the one under way goes ON (event 1, FUN_00581490);
@@ -724,13 +726,14 @@ struct World {
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
     // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
+    void drop_wirt_gold(std::uint32_t now_ms);
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
     // containers, stands, wells, bookshelves, shrines, traps and doors.
     static bool operable(int operate_fn) {
         using namespace d2d::rules::operate_fn;
-        return std::ranges::contains(std::array{ kCasket, kShrine, kUrn, kChest, kBarrel, kExplodingBarrel, kCorpse, kArmorStand, kWeaponRack, kWell, kBookshelf, kTrapObject,
+        return std::ranges::contains(std::array{ kCasket, kShrine, kUrn, kChest, kBarrel, kExplodingBarrel, kCorpse, kArmorStand, kWeaponRack, kWell, kBookshelf, kTrapObject, kWirtBody,
                                                  kCubeChest, kScrollChest, kShaftChest, kTeleportPad, kLamTome, kHellgate, kGidbinnAltar, kKhalimHeart, kKhalimEye, kKhalimBrain,
                                                  kSewerLever, kSewerStairs, kCompellingOrb, kHellforge, kSeal, kSealInfector, kSealDeSeis, kSealVizier, kLastPortal }, operate_fn)
             || is_door(operate_fn);
