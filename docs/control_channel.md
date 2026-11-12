@@ -179,8 +179,11 @@ The same AF_UNIX socket, through Winsock (Windows 10 1803 and later,
 `afunix.h`): the protocol and the pump are the same on every OS. The path is
 a file path (`%TEMP%\d2d.sock`), at most 107 bytes.
 
-Python on Windows has no `socket.AF_UNIX`. The test scripts connect through
+Python on Windows has no `socket.AF_UNIX`. `smoke_d2d.py`, `coop_d2d.py`,
+`coop_lobby_d2d.py` and `pad_use_d2d.py` connect through
 `tests/devctl_client.py`, which calls Winsock with `ctypes` there.
+`quests_d2d.py` doesn't yet: it still opens `socket.AF_UNIX` itself, so the
+`quests_act*` tests don't run on Windows.
 `devctl_client.isolated(home)` also gives the user dir and the environment
 for a throwaway run: d2d's user dir on Windows is `Documents\My Games\d2d`
 whatever `HOME` says, so `D2D_USER_DIR` names it on every OS.

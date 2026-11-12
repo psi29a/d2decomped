@@ -58,9 +58,9 @@ Without `D2_PATCH_INSTALLER` the quest checks SKIP, so a green run may not
 include them. A quest check that fails on a run left overnight is usually
 the machine sleeping: look for a time gap in its `$TMPDIR/d2d_quests_*/d2d.log`
 (kept after the run) before blaming the code. A `--devctl` socket path must
-be short (AF_UNIX limit), so put it in `/tmp`. The headless scripts connect
-through `devctl_client.py`, Windows included (docs/control_channel.md
-"Windows").
+be short (AF_UNIX limit), so put it in `/tmp`. The smoke, co-op and pad
+scripts connect through `devctl_client.py`, Windows included
+(docs/control_channel.md "Windows"); `quests_d2d.py` doesn't yet.
 
 `test_shake` checks screen-shake envelopes and quake-loop instance volumes
 against 175 captured stock 1.14d cases, plus 26 control-missile frame cases,
