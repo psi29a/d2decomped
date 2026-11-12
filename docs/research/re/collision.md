@@ -4969,3 +4969,18 @@ pool (ECX = 0). Caller: `FUN_0052c030`. d2d: no port. Not traced: the NPC sub-bl
 and what the `action` values are.
 
 Re-check: `python3 tools/ghidra/fn.py 00536760 005367b0 00537120`; disassemble `00536763`..`0053679e` and `005367e0`..`00536816`.
+
+### A monster's local scatter spawn: `FUN_004af1b0` (batch 31)
+
+Static trace from the 1.14d function body (`tools/ghidra/fn.py 004af1b0`;
+no runtime replay). It accepts only a non-null record whose type word is 1,
+looks up the record's class index in the monster table, and continues only
+when that row's signed short at `+2` is `0x3f`. It reads the signed short
+array at row `+0x62`, indexed by the low byte of the global byte returned by
+`FUN_0044dcd0` (`DAT_007a060c`). For each positive count it makes one
+`FUN_004cdba0` call at an offset from the supplied x/y. The initial state is
+the record field at `+0xc`; two LCG updates using multiplier `0x6ac690c5`
+select the signs of fixed five-cell x and y offsets. This
+is not a random coordinate selection. The created unit type and final two
+spawn arguments are fixed at 0 and 1. The row field at `+2` and the table's
+gameplay role are not identified here.

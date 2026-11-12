@@ -1191,3 +1191,143 @@ Re-check: `python3 tools/ghidra/fn.py 005abd70`,
 
 d2d: **not ported**; no d2d code names it (`git grep -n 005abd70` finds only this
 note).
+
+## Other `UNIT/Missile.cpp` routines: creation and callback helpers (static trace)
+
+The following additional routines were untouched in the gap map. These notes
+are direct static readings of the stock 1.14d decompilation; they do not
+establish which Missiles.txt row selects a callback, nor do they claim a
+runtime match. The commands below recheck every listed function in its table.
+`FUN_004cd540` below is the client missile/unit
+constructor; record flags and fields are only assigned meaning where their
+uses in these bodies show it.
+
+### Shared creation and data helpers
+
+Recheck:
+`python3 tools/ghidra/fn.py 004cc800 004cc870 004cca00 004ccb50 004ccbe0 004ccd20 004cce40 004ccf40 004cd170 004cdd10 004ce050 004ce320 004ce420 004ce4b0 004ced20 004cefe0`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004cc800` | Rejects a null room and a radius smaller than the squared x/y offset, then tests the candidate rectangle against collision using `FUN_0064e260`. |
+| `FUN_004cc870` | Initializes a spawned missile's vertical position from a seed roll and row field `+0x5c`, copies the source missile's animation, sets its animation mode to 0, and chooses a random starting frame. |
+| `FUN_004cca00` | Computes missile range from row shorts `+0x96/+0x98` and the missile's frame; redirects its path either toward a supplied target or to a target point encoded in missile data, with a 25-cell route limit. |
+| `FUN_004ccb50` | A conditional callback: returns early for invalid row/state, otherwise uses the missile's target to derive a point, runs `FUN_004c5eb0`, and passes that result to `004cca00`; return is 0 only after this action. |
+| `FUN_004ccbe0` | Returns a Boolean eligibility result from the owner, room activity, missile flags, path/target state, and an optional caller-supplied target id. Several early exits return true, so this is not a simple “valid target” predicate. |
+| `FUN_004ccd20` | Creates a record of type 3 for row short `+0x24`, current owner and missile coordinates, sets callback `LAB_004cccc0`, then invokes `FUN_004c71f0`; when the computed quantity is below 1 it obtains an additional value from the skill row. |
+| `FUN_004cce40` | Creates a type-3 record from row short `+0x2c` and skill data, optionally selecting callback `FUN_004e2ed0` when row field `+0x70` is nonzero, then calls `FUN_004c71f0`. |
+| `FUN_004ccf40` | Filters a candidate unit using unit flag bits 2 and 3, an optional state-`0x56` exclusion, the missile's range predicate `FUN_0064a470`, and a final state/owner check. |
+| `FUN_004cd170` | Releases the missile stream, missile data, motion and graphics records; conditionally detaches additional state, releases the path, and clears the path pointer. |
+| `FUN_004cdd10` | General missile constructor wrapper. It rejects null source units and missing parameters, normalizes the source unit for types other than 0/1, fills a `0x5c`-byte creation record (including source, missile id, coordinates, skill, and flags), then calls `FUN_004cd540`. |
+| `FUN_004ce050` | On a path with flag 8, builds a type-5 creation record at the path endpoint, carrying the missile id, target id and owner; positive row parameters set record flag `0x8000` / flag 8. |
+| `FUN_004ce320` | On a positive frame period, spawns only when elapsed frames are divisible by that period; chooses two seeded offsets inside the row radius, requires a collision-free room position, and creates the row's missile there. |
+| `FUN_004ce420` | Sets a vertical launch profile from row fields `+0x58/+0x5c`: initializes z/velocity, sets duration to the larger value divided by the smaller, and applies that duration as both motion and missile range. Invalid missile data removes the unit. |
+| `FUN_004ce4b0` | Variant vertical launch profile using the row's stored height and positive speed; unlike `004ce420`, it does nothing when speed is nonpositive. |
+| `FUN_004ced20` | Creates a child missile at the parent's position and skill, then copies the parent's animation and palette/color data to the child. |
+| `FUN_004cefe0` | Repeatedly creates missiles from two static offset arrays around the parent position. The first loop steps the 16 offsets by row parameter `param_4`; the optional second loop uses another 15 offsets and a separate step. Row fields `+0x38/+0x3c` scale the two sets. |
+
+### Skill and pattern spawn callbacks
+
+Recheck:
+`python3 tools/ghidra/fn.py 004cf9b0 004d0380 004d06f0 004d07e0 004d0a80 004d0b90 004d0e00 004d0eb0 004d1040 004d1110 004d1240 004d1300 004d14a0 004d16c0 004d1890 004d19d0 004d1d70 004d1ec0`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004cf9b0` | Builds a type-`0x4001` creation record from the owner, skill, missile id, and current path position. It emits each configured row group at successive offsets from two static delta tables, then emits optional row `+0x2e` and `+0x30/+0x32` groups. |
+| `FUN_004d0380` | Creates the row's primary missile at the owner's position; quantity comes from the row or skill calc, with a floor of 5 when the row quantity is zero. It copies the owner's animation and palette to the created unit. |
+| `FUN_004d06f0` | Creates the row's primary missile and optional `FUN_004cef50` group, then calls `FUN_00470390` with event code 2 once or twice depending on its input flag and row short `+0x36`. |
+| `FUN_004d07e0` | Uses the missile seed for a bounded sequence of random offsets around its current path position and creates a type-`0x102` record for each. The count is the missile's current data value; each child receives a seeded data value. |
+| `FUN_004d0a80` | Computes a skill-scaled quantity from row fields / skill calc, calls `FUN_004c7700` with that quantity and its quarter, then optionally creates the row's secondary missile at a seeded offset. |
+| `FUN_004d0b90` | Generates a random set of candidate positions within a square around the missile, rejects positions whose collision query is at most 3, creates a type-`0x524` record at accepted points, and then creates children from a fixed 18-offset array when the second count is nonnegative. |
+| `FUN_004d0e00` | Optionally requires a target of unit type 1 and a successful helper check. If row short `+0x2c` is enabled, creates a missile toward the current owner/skill point; then delegates its row quantities and missile ids to `004d0b90`. |
+| `FUN_004d0eb0` | Builds a type-`0x21` record from row missile id, owner, current path location and target, plus path velocity/target values. After construction it writes the target and throw parameters to the new missile motion. |
+| `FUN_004d1040` | If the owner exists, creates one record for each enabled row short at `+0x2c`, `+0x2e`, and `+0x30`, using the row id and current owner/skill. |
+| `FUN_004d1110` | Creates the primary row missile at the current unit's position and copies the owner's animation state to it. |
+| `FUN_004d1240` | Creates the primary row missile and, when the secondary row field is enabled, creates a second missile and sets its vertical position from row `+0x6c`. |
+| `FUN_004d1300` | Uses two seed draws to choose signed x/y offsets within `[-param_1, param_1-1]`, then creates a type-`0x21` missile record at that point with the supplied missile id. |
+| `FUN_004d14a0` | Returns 0 for nonzero second argument. Otherwise queries `FUN_0064a3e0`, selects a local marker (`0x158` or `0x159` for two switch cases; default `-1`), obtains path target coordinates for path types 2 and 4–5 or current path coordinates otherwise, then calls `FUN_004639d0` and `FUN_004cdb40` with those coordinates, owner and skill. For a created missile it copies the source animation and sets flag `0x80`. The switch's semantic meaning is not established here. |
+| `FUN_004d16c0` | Finds a related client unit, computes the source-to-related-unit x/y delta, creates a missile from the source position, and sets the new missile's initial position, velocity, acceleration and two stored deltas. |
+| `FUN_004d1890` | Creates a type-`0x8005` missile with id `0x178` and a row-derived height; on success stores a row quantity and a seeded integer from 10 through 44 on the new missile (LCG result modulo 35, then +10). |
+| `FUN_004d19d0` | Runs fourteen creation attempts (`local_c` 0 through `0x34` by four) for type-`0x8102` records, assigns the passed missile id and stores a new seeded value (10–44, LCG result modulo 35 then +10) on each successful child. |
+| `FUN_004d1d70` | Only runs for mode 0 and when a related unit is found; creates type-`0xa021` using source and related-unit path coordinates, their missile id, skill and frame data, then stores the related unit's field `+0xc` on the child. |
+| `FUN_004d1ec0` | Advances the source seed and creates a child explosion only when the low seed bit is clear; copies animation and palette and sets child animation mode 0. |
+
+### Timed effects and trajectory callbacks
+
+Recheck:
+`python3 tools/ghidra/fn.py 004d1fa0 004d2190 004d2400 004d2520 004d2610 004d2990 004d2af0 004d3070 004d3630 004d37f0 004d38d0 004d3c40 004d3d30 004d3e00 004d3f10 004d4040 004d4180 004d43a0 004d44b0 004d4590 004d46d0 004d47f0 004d49f0`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004d1fa0` | Resolves a target coordinate, creates a record at a seed-selected offset of roughly 10 cells around the current path point, then validates that the row at `+0x96` equals `0x19`; it sets the new missile's position to height 400, velocity from the target vector, and applies `FUN_004da350`. Mismatch uses an assert at source line `0x1861`. |
+| `FUN_004d2190` | Creates a type-3 missile at one of four adjacent cells, choosing its row id from `0x25f`–`0x263` (the default is `0x25f`) and setting a random height modulo `0x7d`; it writes the source path coordinates into the created missile's data fields. |
+| `FUN_004d2400` | Creates missile id `0x11d` at two seeded offsets in `[-19,20]`; if both offsets are zero, another seed draw replaces the x offset with a value from 1 through 19. It stores the offsets and sets z to `-10`. |
+| `FUN_004d2520` | Checks a row-appropriate collision at the requested location, then creates missile id `0x27b`–`0x27d` with a random selector; initializes z 250, downward velocity 10, duration/range 25, and flag `0x80`. |
+| `FUN_004d2610` | Runs its unit-follow and frame-advance path only when the related unit is in a room whose level id is `0x83` or `0x84`. If owner data is zero or a seed's low six bits are zero, it calls `FUN_00476a80(3000,2000)` and sets missile data to 1. On another seed interval it calls `004d2520` at a seeded offset. Otherwise it removes the missile. |
+| `FUN_004d2990` | Tries up to four seeded candidate offsets around a supplied point, accepting a clear location according to `FUN_0064cb30`; then creates two missiles (ids `0x267` and `0x268`) at the chosen coordinates. |
+| `FUN_004d2af0` | Uses missile row data to choose a seeded point within the configured radius around the current position and emits one type-`0x20` record with the row's missile id, owner and skill. |
+| `FUN_004d3070` | Removes the missile if its owner is absent; for owner types below 2, an auxiliary predicate can dispatch the generic no-hit handler. Otherwise it applies the unit/missile update and advances the frame. |
+| `FUN_004d3630` | For a valid row and path flag 8, builds a type-`0x21` missile record using row `+0x1e`, target and skill. Optional row fields select the spawned unit id and flags; the new unit inherits precise x/y. Every path then calls the client missile step. |
+| `FUN_004d37f0` | If the room is active and the missile's row flags permit, periodically resolves a nearby candidate with `FUN_006416d0`, applies a movement route when the candidate passes range/state gates, and advances the ordinary missile step. Invalid room/row removes the missile. |
+| `FUN_004d38d0` | When the row timer byte at `+0x135` has elapsed and the missile has path flag 8, creates a type-1 missile toward the current unit/target coordinates, then runs the ordinary missile step. |
+| `FUN_004d3c40` | Selects a row id, optionally adding a seed-bounded value between row shorts `+0x1e` and `+0x20`; derives a spawn period from row speed/lifetime, emits the periodic child through `004ce320`, applies `004ce420` when successful, then advances the missile step. |
+| `FUN_004d3d30` | Reads row speed/lifetime. At frame 0 it initializes a vertical motion profile with `FUN_00476a80`; each tick advances the ordinary missile step. Invalid row values remove it. |
+| `FUN_004d3e00` | For each positive row threshold at `+0x1e`, `+0x20`, or `+0x22`, checks the corresponding frame at `+0x58`, `+0x5c`, or `+0x60`. At a matching frame it obtains the current path coordinates and calls `FUN_004639d0` and `FUN_004cdb40` with those coordinates, owner and skill; then it advances the ordinary missile step. The created record's semantic id is not identified here. |
+| `FUN_004d3f10` | Computes a seeded row id and skill-calc quantities; when both calculations are positive, creates the periodic child via `004ce320`, applies vertical motion via `004ce420`, and advances. Otherwise it removes the missile. |
+| `FUN_004d4040` | Periodically checks the target and range, moves the missile path one signed row `+0x68` step toward the target on each axis, and asks the movement system to recalculate the route before the ordinary missile step. |
+| `FUN_004d4180` | Continues a moving missile while its row-derived lifetime condition holds. It steers toward a valid target on a configured interval; can also spawn a type-5 child on another interval, then performs the standard step. |
+| `FUN_004d43a0` | On an active path, emits a type-`0x21` record for row id `+0x1e`; a seed check selects whether its flags include `0x4000`. Then advances the ordinary missile step. |
+| `FUN_004d44b0` | Chooses a missile id from the row or its missile data, checks remaining row lifetime and a positive count, and every third frame spawns the configured `FUN_004cef50` group. Quantity and step depend on whether count exceeds 4. |
+| `FUN_004d4590` | After the row timer byte elapses and path flag 8 is set, creates a type-1 missile at the owner's current position, copies path, precise x/y and z, and sets row count as child data; then executes the standard step. |
+| `FUN_004d46d0` | At row-period intervals creates a type-2 missile at the current position, selects its x/y offsets from static tables using masked missile data, writes a new masked value back to the missile, then advances the standard step. |
+| `FUN_004d47f0` | On its timer and period gates, steers the path toward an intermediate point between missile height/data and stored target, then writes both derived values back and advances the standard step. |
+| `FUN_004d49f0` | Creates the row's periodic path callback through `FUN_004cc870` and preserves the missile's z. On its row timer it uses a seed bit to sign-mix missile data and target-y into a new vector, recalculates the path route when the vector is nonzero, and stores the resulting components. |
+
+### Collision, burst and path maintenance callbacks
+
+Recheck:
+`python3 tools/ghidra/fn.py 004d4bb0 004d4dc0 004d5090 004d5200 004d5470 004d56b0 004d5710 004d5880 004d5950 004d59e0 004d5ba0 004d5c10 004d5dd0 004d5f80 004d6080 004d6130 004d62b0 004d63e0`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004d4bb0` | Uses row frame thresholds to set vertical motion and scans the room's unit list for units with type 2 and class id 17–21. Depending on configured row fields it either creates a child missile at the related unit or stores that unit's id; always resumes the standard step. |
+| `FUN_004d4dc0` | On a row-configured frame cadence, draws four independent seed offsets within the row's x/y ranges and creates a type-`0x21` missile from that randomized rectangle. |
+| `FUN_004d5090` | Emits a row missile at the current target point when path flag 8 is set, then on its interval redirects the path toward a seeded blend of current height and target data; writes the resulting x/y offsets to missile fields. |
+| `FUN_004d5200` | At its configured frame emits four type-`0x2001` children at offsets from the current position using two four-entry static arrays; then advances the ordinary missile step. |
+| `FUN_004d5470` | Stores 1 in missile data at the configured frame. If its target-data field is nonzero, periodically emits a type-`0x21` missile at a seeded offset within row range. |
+| `FUN_004d56b0` | Calls `FUN_004ce140` with row values at `+0x5c/+0x60` and missile id `+0x1e`, then performs the standard step. |
+| `FUN_004d5710` | Requires a live missile and path; during the first two frames stores the difference between the path target and current path coordinates in missile data. When path flag 8 is set it emits two type-`0xb` records with opposite signed x/y offsets, then advances the ordinary missile step. |
+| `FUN_004d5880` | When row short `+0x1e` is nonzero and path flag 8 is set, creates a type-9 record at the current position, passing the row missile id and row `+0x58` value. |
+| `FUN_004d5950` | Copies motion target-x into missile data when the row's `+0x34` is positive; if current data differs, triggers sound `FUN_004b9a00`, then routes through `004d3630`. |
+| `FUN_004d59e0` | At a skill-scaled interval, chooses a seeded collision-valid point near the owner, creates the row's primary missile there, and calls `d2d_unit_set_dead_flag` if creation succeeds; optionally creates a second row missile. The decompiler does not expose which object that no-argument helper mutates. |
+| `FUN_004d5ba0` | Calls `FUN_004ced20` on row-period intervals and then performs the ordinary missile step. |
+| `FUN_004d5c10` | Uses two skill calculations to choose count and period; between configured frame limits it makes a seeded child-spawn call to `FUN_004cdc30`, passing the owner, skill and row id, then advances the ordinary step. |
+| `FUN_004d5dd0` | At configured frames creates a type-`0x2001` row missile, then creates the row count of seeded nearby children. At a second configured frame it sets owner flag `0x40000`, creates another missile, and may play a sound. |
+| `FUN_004d5f80` | If path flag 8 is set, creates two type-2 records from missile data and the negated x/y vector, then advances the missile step. |
+| `FUN_004d6080` | Creates a row missile when path flag 8 is set, then calls `FUN_004d37f0` to perform target movement / ordinary missile update. |
+| `FUN_004d6130` | Counts enabled missile ids from three adjacent row fields, selects one with the missile seed, and at/after row threshold `+0x58` creates that child on a cadence stored beside its id; with no enabled ids it calls the generic end handler. |
+| `FUN_004d62b0` | Advances the client update, derives the missile's target vector, caps the stored target-y value to missile height, and creates a type-`0x20` child with a movement route. It then clears the source target-y field. |
+| `FUN_004d63e0` | At the positive row period, unpacks the target vector, advances the seed, and uses its low bit to select one of two signed component mixes. It routes to the resulting roughly quarter-scaled vector (replacing zero components with 1), stores a new seed value and packed vector, then advances the ordinary step. |
+
+### Remaining frame callbacks
+
+Recheck:
+`python3 tools/ghidra/fn.py 004d6590 004d65e0 004d6660 004d6680 004d66e0 004d6820 004d6c00 004d72c0 004d7400 004d7710 004d7880 004d7930 004d7fc0 004d8000 004d8400`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004d6590` | At frame 8 sets vertical acceleration to `0x100` and animation frame to half the missile's signed short at `+0x4c`; at frame `0x23` sets animation frame to twice that short. Both paths run the generic client missile step. |
+| `FUN_004d65e0` | When missile target-data is zero, finds the owner, invokes `004d16c0` to spawn the related missile, draws a new seed value and stores a derived value minus one; then runs the standard step. |
+| `FUN_004d6660` | If an owner unit resolves, resets the missile's frame field at `+0x44` to 0, then advances the standard missile step. |
+| `FUN_004d6680` | Requires a related unit; at frame 10 uses its data field to call `004d19d0` and initializes a vertical effect with `FUN_00476a80`; always advances the standard step. |
+| `FUN_004d66e0` | Calls the seeded offset helper `004d1300` with radius 10 and id `0x17c`; during the row's configured frame window creates a type-`0x20` missile id `0x17e` at a seeded offset, sets its vertical acceleration, and applies throw settings. |
+| `FUN_004d6820` | Walks a static frame-to-offset table and creates id `0x154` records when the missile frame matches one of its entries. Additional frame ranges emit repeated records; frame `0x96` calls `FUN_00476a80(4000,0)`. |
+| `FUN_004d6c00` | Chooses an entry in a static frame-period table, then on that period emits an id-`0x15c` child at the owner's path point and copies two selected row values into its data fields. |
+| `FUN_004d72c0` | Every fourth frame creates record id `0x162` at independently seeded offsets around the current path position, then advances the ordinary step. |
+| `FUN_004d7400` | Uses a frame-indexed table to emit two kinds of children: id `0x2a` at a seeded offset on one period, and id `0x16c` on another period with height, speed, range and flag `0x80` initialized. |
+| `FUN_004d7710` | Spawns two `004d2190` effects each frame, periodically calls `004d2400`, and at frame `0x19` creates two effects at `+2,+2` from the current path coordinate; then advances the ordinary step. |
+| `FUN_004d7880` | Computes a path endpoint from the current path coordinate, missile height and target-y data, asks the pathing helper to redirect to that endpoint, and advances the standard step. |
+| `FUN_004d7930` | Selects a frame-period row from a static table. On its cadence it creates id `0x272` at seeded offsets and stores its parent id; it also sets missile data based on whether frame is below `0xd2`, emits effects at selected frames `0x145`, `0x177`, `0x1a9`, or `0x1c2`, and may find a room unit of class `0x209` for an additional `004d2520` spawn. |
+| `FUN_004d7fc0` | Keeps the missile only while its z lies between negative missile height and target-y; otherwise calls the missile remove helper. |
+| `FUN_004d8000` | During the first `0x6e` frames emits type-1 id-`0x255` children at the current point plus `(2,2)`, with count 8 before frame `0x32`, 5 through frame `0x4f`, and 1 thereafter. At frame 5 it calls `FUN_00476a80(4000,3000)`; every seventh frame calls `004d2990` for two additional effects. |
+| `FUN_004d8400` | On every other frame, computes a point by combining path coordinates, missile height and target-y, redirects the route to it, then advances the standard step. |

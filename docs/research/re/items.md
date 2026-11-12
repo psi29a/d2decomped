@@ -640,3 +640,38 @@ no checks; callers `FUN_00470ec0`, `FUN_0048a990`, `FUN_00497e00`,
 Evidence: `python3 tools/ghidra/fn.py 00451f60`, `python3 tools/ghidra/calls.py 00451f60`.
 d2d: not ported as a function (a unit's class is a plain field); the pet-ai.md
 mention at line 285 uses it for the owner's class.
+
+## Remaining `UNIT/Item.cpp` routines (static trace)
+
+These functions were untouched in the current gap map. The descriptions below
+record the observed 1.14d control flow; they are not claims of packet replay
+or client-state parity. Recheck with
+`python3 tools/ghidra/fn.py 004c0d20 004c0f20 004c0ff0 004c1160 004c1a70 004c1f30 004c20b0 004c2340 004c23e0 004c2650 004c2810 004c2ad0 004c2c80 004c3380 004c3760 004c3920 004c3b30 004c3c00 004c3f60 004c40d0 004c4130 004c43e0 004c45c0 004c4620 004c4990`.
+
+| Address | Observed operation |
+| --- | --- |
+| `FUN_004c0d20` | Applies an item update: checks item types `0x14` / `0x4a`, validates a gem/rune target and gem-apply type before invoking `FUN_0065fec0`, then handles equip/stat recalculation unless an item flag or mode suppresses it. Its failure branches use `Item.cpp` assert lines `0x30`–`0x48`. |
+| `FUN_004c0f20` | Creates an item unit from packet data at `+8`; when no parsed header is supplied, parses the saved-item header first. Reads the item bitstream with a `0x60`-bit header, removes the unit from table A on read failure, and conditionally sets item flag 2 and checks flag `0x10`. |
+| `FUN_004c0ff0` | Parallel item-unit constructor using packet data at `+0xd`, with the same saved-header / bitstream flow and post-read identified / optional requirement handling as `004c0f20`. |
+| `FUN_004c1160` | Fills an output record with unit stats `6`, `8`, and `10`, plus left/right skill class and node IDs; absent skills use `-1` class and zero node ID. |
+| `FUN_004c1a70` | Frees graphics state and, when the unit has an inventory, its inventory object. If the global teardown flag is set, also detaches the unit from its room and releases associated room-side data. |
+| `FUN_004c1f30` | Handles a client stat update for a located unit. A special stat id `0xcc` updates a local item value; otherwise it applies the stat when flagged and refreshes the local player's derived state. Positive stat `0x46` clears two item flags when present. |
+| `FUN_004c20b0` | Parses a saved-item packet, requires the local player and inventory, creates an item with `004c0f20`, assigns it as the cursor item, updates inventory links, and refreshes the client. Missing required player/inventory state asserts at lines `0xb0c` / `0xb13`. |
+| `FUN_004c2340` | Parses the alternate saved-item packet form, removes a matching prior unit, creates the new item with `004c0ff0`, sets its mode to `0x46`, assigns it to the cursor, and updates the inventory/client. |
+| `FUN_004c23e0` | Walks an inventory list and processes entries whose inventory location is equipped or otherwise active. It detaches/reinserts accepted items, updates body location and wielded-weapon state, removes transient flags, and empties the inventory list when traversal finishes. |
+| `FUN_004c2650` | Handles an item packet only when its parsed mode byte is 4; if no matching unit exists, creates it, moves it to the cursor and refreshes the client. A duplicate unit or failed construction takes the assert path. |
+| `FUN_004c2810` | Removes the located item from its existing owner/equipment when applicable, recalculates equipment state, constructs the packet's replacement item, and refreshes the client. It asserts for owner type 0 and when owner type 1 has no client player; other owner types proceed to replacement construction without that equipment-removal path. |
+| `FUN_004c2ad0` | Processes an item update against the current player. Depending on item flags, updates an existing item or constructs a replacement, applies the packet's item location and coordinates, triggers an equip recalculation for a matching player item, then refreshes the client and inventory. |
+| `FUN_004c2c80` | Processes an item action for a player or other unit. If an item belongs to the player, updates its location/equipment and derived stats; branches on item flags to place a replacement on the cursor or remove the item, then refreshes inventory and local UI state. |
+| `FUN_004c3380` | Handles an equipment-location update. Selects the hand slot, removes the old equipped item, inserts the new item and recomputes equipped stats; for the local player it also updates cursor-item state and clears hand-specific globals for locations 4 and 5. |
+| `FUN_004c3760` | Applies a hand-slot equipment change to a player unit, recomputes its wielded weapon and equipped stats, then, for the local player, puts the replaced item on the cursor and refreshes the inventory. |
+| `FUN_004c3920` | Dispatches the packet to `004c35f0` when item flag `0x40` is set, or to the hand-equipment handler `004c3760` when flag `0x80` is set. |
+| `FUN_004c3b30` | Reads a bitstream item update into the located unit, then clears the player's cursor item when the item's flag mask test permits and refreshes inventory/client state. |
+| `FUN_004c3c00` | Handles item transfer between inventories. Removes from the old inventory, optionally constructs a new item, updates item location and destination coordinates, then performs the inventory transfer and refreshes the local player. A packet subtype with byte `+1 == 12` takes the direct trade/transfer branch. |
+| `FUN_004c3f60` | Moves a located item into the local player's inventory path: validates player, item, and inventory ownership, updates equipped stats when necessary, applies the packet's location/coordinates or constructs a replacement, then sets the cursor item and refreshes the client. |
+| `FUN_004c40d0` | Wrapper dispatch: a located unit in mode 0 goes to `004c3f60`; mode 4 goes to `004c3e00`. |
+| `FUN_004c4130` | Creates or updates a ground item from packet coordinates and mode, attempts to insert it into the player's inventory, and if accepted clears the cursor, updates the unit's world position/path, and refreshes world/client state. Packet flag `0x400` sets the corresponding unit flag. |
+| `FUN_004c43e0` | Updates a located ground item from packet coordinates and mode, removes it from the ground-item list when needed, reinserts it, and refreshes the client. It asserts when the player inventory is missing or reinsertion fails. |
+| `FUN_004c45c0` | Dispatches a ground-item packet by unit mode: mode 2 uses `004c44d0`; mode 4 uses `004c43e0`. |
+| `FUN_004c4620` | For packet field `+6 == -1`, either clears flag 4 on the located unit or scans the global byte list for a matching action byte and calls `FUN_00455f20`; other packet forms scan the same list and call `FUN_00468010` when a unit is found. The action/UI meaning is not established here. |
+| `FUN_004c4990` | Parses a saved-item record and inserts or creates it in the located unit's inventory. On successful insertion, clears the cursor when the item flag allows, updates inventory links, and invokes the `004c0d20` item/equipment refresh path. |
