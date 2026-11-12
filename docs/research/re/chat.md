@@ -42,15 +42,16 @@ first. It returns the destination. Nothing in it is specific to the game.
 text lengths from 1 to 300 characters at three `now` values and compares all 0x110 bytes
 (poisoned with 0xab) with the table above, then frees one and a null.
 
-**d2d:** the same formula. `apps/d2d/town/draw.cpp:148` and
-`components/game/world/tick.cpp:242` use "length x 8 + 125 frames" (a shrine's
-4-digit string id: 157 frames), which is this formula. d2d does not keep the
-language byte, the expiry frame or the list link. d2d also does not clamp the
-length: the original uses at most 254 characters (2157 frames), so a
-255-character message would get 2165 frames in d2d. Normal shrine messages
-carry a short decimal string id. The network path accepts all-digit strings
-whose numeric value is 1..65535, including longer strings with leading zeroes,
-so it does not itself enforce the original length clamp.
+**d2d:** the same stay, with the length clamped to 254
+(`overhead_frames`, FUN_00661110). The host's overheads
+(`apps/d2d/town/draw.cpp`) stay min(length, 254) x 8 + 125 frames, so a
+255-character all-digit string id stays 2157 frames, the same as 254.
+A shrine's own message is a 4-digit id, 157 frames
+(`components/game/world/tick.cpp`). d2d does not keep the language byte,
+the expiry frame or the list link, and it does not store the node's
+text: only a string id is shown. The network path still accepts an
+all-digit string whose numeric value is 1..65535, including leading
+zeroes.
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.

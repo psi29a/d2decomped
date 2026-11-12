@@ -10,6 +10,7 @@
 #include "internal.hpp"
 #include "items.hpp"
 #include "keyconfig.hpp"
+#include "overhead.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
@@ -176,16 +177,17 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 if (anim.length_ms() > 0) extra.push_back({ critter.x, critter.y, &anim, critter.dir, nullptr, critter.mode_ms, -3 });
             }
         // The host's overhead messages (0x26 type 5): a shrine's comes as
-        // its string id in decimal ("3684", ShrMsg1). Each stays (length x 8
-        // + 125) frames (FUN_00661110). An object's goes on d2d's object
-        // nearest the host's; a player's or monster's on theirs.
+        // its string id in decimal ("3684", ShrMsg1). Each stays
+        // min(length, 254) x 8 + 125 frames (FUN_00661110). An object's
+        // goes on d2d's object nearest the host's; a player's or monster's
+        // on theirs.
         // ponytail: text that isn't a string id isn't shown.
         std::vector<UnitState> said_npcs;                    // the NPC states drawn, with the host's objects' messages: a copy (the View's are replicated by change)
         if (net_game) {
             for (const auto& said : std::exchange(net_game->overheads, {})) {
                 const auto number = std::strtoul(said.text.c_str(), nullptr, 10);
                 if (said.text.empty() || said.text.find_first_not_of("0123456789") != std::string::npos || number == 0 || number > 0xffff) continue;
-                net_said[std::uint64_t(said.type) << 32 | said.id] = { std::uint16_t(number), frame_ms + std::uint32_t(said.text.size() * 8 + 125) * kTickMs };
+                net_said[std::uint64_t(said.type) << 32 | said.id] = { std::uint16_t(number), frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
             }
             std::erase_if(net_said, [&](const auto& entry) { return frame_ms >= entry.second.until; });
             for (const auto& [unit_key, said] : net_said) {
