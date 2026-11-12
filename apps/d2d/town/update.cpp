@@ -33,6 +33,7 @@
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
+#include <palette.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -391,6 +392,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                       { "music_volume", std::to_string(audio.music_volume) } }))
                 d2d::log::warn("d2d.cfg: the volume not saved");
             game_menu.volume_changed = false;
+            if (game_menu.video_changed && !cfg_file.empty()
+                && !d2d::userdir::save_cfg(cfg_file, { { "gamma", std::to_string(d2d::palette::Palette::gamma()) },
+                                                      { "contrast", std::to_string(d2d::palette::Palette::contrast()) } }))
+                d2d::log::warn("d2d.cfg: gamma and contrast not saved");
+            game_menu.video_changed = false;
             if (action != GameMenu::kNone) close_game_menu();
             if (action == GameMenu::kControls) {          // CfgOptions (0x47f400): UI 0xb
                 controls.family = pad_family;

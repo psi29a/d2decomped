@@ -19,15 +19,18 @@
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
 #include <light.hpp>
+#include <melee_reach.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <town_npcs.hpp>
+#include <unit_size.hpp>
 
 #include <algorithm>
 #include <array>
@@ -307,10 +310,10 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
-            if (afterglow_due == 0) afterglow_due = now_ms + 2 * kTickMs;
+            if (afterglow_in == 0 && !afterglow_due) afterglow_in = d2d::rules::quest_timer_steps(2);
         }
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
-            !afterglow_made && afterglow_due != 0 && now_ms >= afterglow_due && wanderer != fight.monsters.end()) {
+            !afterglow_made && afterglow_due && wanderer != fight.monsters.end()) {
             afterglow_made = true;
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
@@ -332,7 +335,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             day_at = frame_at;
             if (first_turn) {
                 day.step(act(), level->id);
-                credit_party([&] { act1_tick(); act2_tick(); });
+                const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
+                credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
             each_player([&](Player&) { stamina_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
@@ -342,7 +346,19 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 if (shrine_code(player.boost.shrine) == 14) player.character.stats.values[d2d::d2s::kStamina] = player.character.stats.values[d2d::d2s::kMaxStamina];
                 player.boost = {};
             }
+            // Deaths and Find Item drop inside update_fighters (deaths.cpp, strike.cpp).
+            // The walk's crowd is built later; this one is who stands as the drop lands.
+            Crowd drop_crowd;
+            for (const auto& one : players) {
+                drop_crowd.units.push_back(&one->player);
+                if (one->merc) drop_crowd.units.push_back(&one->merc->unit);
+            }
+            for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                if (level->npcs[i].root != "objects" && !npc_states[i].hidden) drop_crowd.units.push_back(&npc_states[i]);
+            if (!in_town(level)) fight.crowd(drop_crowd);
+            loot.standing = &drop_crowd;
             fight.update_fighters(now_ms);
+            loot.standing = nullptr;
         });
         spring_traps(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -392,6 +408,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         bool in_moor = !in_town(level);           // outside: this level's monsters are about
         const Level* tick_level = level;
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
+        loot.standing = &crowd;                // FUN_00555da0: this level's 0x1000 / 0x2000
         // Dead: the death plays out, then Resurrect respawns in camp; a
         // swing or a flinch holds the player in place until it ends, and
         // an attack goes on while the button's held (the left skill sent
@@ -450,15 +467,27 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall
             // between (FUN_00622b50, 0x804), an NPC under 7 (unit_distance).
+            // The client walks on to an NPC till FUN_00480c80 (LAB_00480d06)
+            // has it in melee reach (FUN_00622c40, + 1 while it walks:
+            // FUN_00622dc0), so that ends the walk first.
             if (actor->interact_npc >= 0) {
                 const auto& npc = level->npcs[std::size_t(actor->interact_npc)];
                 const auto& state = npc_states[std::size_t(actor->interact_npc)];
                 const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
                 const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
                 const int from_x = subtile(actor->player.x), from_y = subtile(actor->player.y), to_x = subtile(npc_x), to_y = subtile(npc_y);
+                const auto talk_reach = [&] {
+                    namespace rules = d2d::rules;
+                    const int apart = rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x);
+                    const auto wall = [this](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
+                    const int extra = rules::unit_moving(rules::UnitType::kMonster, state.walking ? 2 : 1, -1) ? 1 : 0;   // walking (WL) or standing
+                    return apart < 7 && rules::melee_reach(apart, fight.weapon_range(), false, extra, [&] {   // no NPC is a tentacle
+                        return rules::sight_blocked(from_x, from_y, 2, to_x, to_y, npc.size_x, wall);
+                    });
+                };
                 const bool in_reach = npc.root == "objects"
                     ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !wall_to(npc, from_x, from_y, 2)
-                    : d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x) < 7;
+                    : talk_reach();
                 if (in_reach && !state.hidden && !busy) {
                     if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || quest_object(npc.operate_fn)) {
                         credit_party([&] { operate(actor->interact_npc, now_ms); });
@@ -627,7 +656,6 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
-        if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
             if (std::exchange(player.storm_struck, false)) player.events.push_back(ev::Lightning{});
@@ -676,6 +704,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again
             each_player([&](Player& player) { if (player.ghost) revive(player, now_ms); });
+        loot.standing = nullptr;                                 // the crowd dies with this tick
     }
 
 // State 153 on a unit: each client's setfunc 2 (FUN_004d87e0) dips its

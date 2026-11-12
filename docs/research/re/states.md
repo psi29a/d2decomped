@@ -61,6 +61,32 @@ take that colour (`FUN_0062c100`'s first loop, over the state list at
 +0x18c): Enchant's weapons red, Venom Claws' green. It doesn't set the
 tint byte, so a save's tints leave it out.
 
+## A shattered death
+
+The States.txt loader (`FUN_00618100`) puts each flag's states in a list
+at data tables +0xcc + 4 x bit: `hide` is bit 2 (+0xd4, asked by
+`FUN_0063a320`), `shatter` bit 31 (+0x148, `FUN_0063a6f0`); both are set
+on freeze (1), shatter (107) and uberminion (184). The client's monster
+death (`FUN_004aff60`, unit command 8 from `LAB_004b053e`):
+
+- any hide state: +0xc4 loses 2 (not selectable) and gains 0x20, +0xc8
+  gains 0x40000, as Corpse Explosion's client hides its corpse
+  (`LAB_004d923a`);
+- any shatter state: `FUN_004afc10`, then the hit class's high nibble
+  becomes 0xa (`LAB_004b05be`).
+
+`FUN_004afc10` (ESI the unit) does nothing but for a monster: under
+uberminion without freeze it makes Missiles.txt rows 0x1ab and 0x1aa,
+else 0x10f + its MonStats2 Height (byte +0xb, the bin table's `Height`
+at `0x6571f4`) and then icebreaksmoke 0x113, each through `FUN_004cd540`
+with create flags 0x2020 and the unit as owner (+4, +8), +0x30 = 1.
+Heights 1..3 are icebreaksmall / medium / large, whose TravelSound is
+impact_shatter_1; Height 0 (townsfolk, critters) gives monglacialspike.
+Oracle `tools/emu/shatter_missiles.py`. d2d: `rules::shatter_rows`; in
+`Fight::boss_events` a monster going into DT with shatter (107) or a
+freeze still on is `corpse_used` (not drawn, not picked) and makes both
+rows as visual-only missiles on its corpse.
+
 ## Not yet
 
 - Kind 8's visible state group rotates after 50 update ticks

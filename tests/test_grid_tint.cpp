@@ -23,6 +23,7 @@
 #include <vector>
 
 int main() try {
+    d2d::palette::Palette::set_ramp(100, 100);   // file colours, not the shipped gamma
     d2d::client::Scene scene;
     std::array<d2d::palette::Rgba, 256> entries{};
     for (auto& entry : entries) entry = { 255, 0, 255, 255 };

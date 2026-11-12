@@ -14,13 +14,67 @@
 // scheme can override alpha post-construction.
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
 
 namespace d2d::palette {
+
+// DirectDraw's Video Options range (FUN_0047d230, FUN_0047d2f0). 155 and 100
+// are the shipped defaults (FUN_004f8ea0). Gamma 100 is the flat ramp.
+inline constexpr int kGammaSteps = 21, kGammaMin = 55, kGammaMax = 255, kDefaultGamma = 155;
+inline constexpr int kContrastSteps = 100, kContrastMin = 0, kContrastMax = 100, kDefaultContrast = 100;
+
+// FUN_0047cc90 / FUN_0047cd00, truncated. Contrast 100 is position 99 and
+// saves back as 99; gamma 155 is position 10 of 0..20.
+constexpr int slider_position(int steps, int lowest, int highest, int value) noexcept {
+    return (steps - 1) * (value - lowest + 1) / (highest - lowest);
+}
+constexpr int slider_value(int steps, int lowest, int highest, int position) noexcept {
+    return lowest + (highest - lowest) / (steps - 1) * position;
+}
+
+// FUN_006be190: 256 byte entries, top 255. At contrast 100 the power term
+// is zero and the converter's truncation is min(255, i * gamma / 100).
+// Below that it blends the line with pow(i / 255, 100 / gamma) * 255.
+inline std::array<std::uint8_t, 256> make_ramp(int gamma, int contrast) noexcept {
+    std::array<std::uint8_t, 256> level{};
+    const double gamma_scale = gamma / 100.0;
+    const double exponent = 100.0 / gamma;
+    for (int index = 0; index < 256; ++index) {
+        int out;
+        if (contrast == kContrastMax) {
+            out = std::min(255, index * gamma / 100);
+        } else {
+            const double linear = std::min(index * gamma_scale, 255.0);
+            const double powered = std::pow(index / 255.0, exponent) * 255.0;
+            const double mixed = (linear * contrast + powered * (kContrastMax - contrast)) / 100.0;
+            out = mixed > 0.0 ? static_cast<int>(mixed) : 0;
+            out = std::min(out, 255);
+        }
+        level[std::size_t(index)] = std::uint8_t(out);
+    }
+    return level;
+}
+
+struct VideoRamp {
+    std::array<std::uint8_t, 256> level{};
+    int gamma = kDefaultGamma;
+    int contrast = kDefaultContrast;
+};
+
+inline VideoRamp& video_ramp() {
+    static VideoRamp ramp = [] {
+        VideoRamp built;
+        built.level = make_ramp(kDefaultGamma, kDefaultContrast);
+        return built;
+    }();
+    return ramp;
+}
 
 struct Rgba {
     std::uint8_t r{}, g{}, b{}, a{};
@@ -67,10 +121,28 @@ public:
 
     explicit Palette(const std::array<Rgba, 256>& entries) : entries_(entries) {}
 
+    // File colour through the DirectDraw ramp (FUN_006be190). Index 0 stays
+    // transparent: alpha is the file's. entries() is the file palette.
     [[nodiscard]] Rgba operator[](std::uint8_t idx) const noexcept {
-        return entries_[idx];
+        Rgba colour = entries_[idx];
+        const auto& level = video_ramp().level;
+        colour.r = level[colour.r];
+        colour.g = level[colour.g];
+        colour.b = level[colour.b];
+        return colour;
     }
     [[nodiscard]] std::span<const Rgba> entries() const noexcept { return entries_; }
+    // Rebuild FUN_006be190. Every palette lookup sees it.
+    static void set_ramp(int gamma, int contrast) noexcept {
+        gamma = std::clamp(gamma, kGammaMin, kGammaMax);
+        contrast = std::clamp(contrast, kContrastMin, kContrastMax);
+        auto& ramp = video_ramp();
+        ramp.level = make_ramp(gamma, contrast);
+        ramp.gamma = gamma;
+        ramp.contrast = contrast;
+    }
+    [[nodiscard]] static int gamma() noexcept { return video_ramp().gamma; }
+    [[nodiscard]] static int contrast() noexcept { return video_ramp().contrast; }
     // The index whose colour is nearest (r, g, b) (FUN_004fb180 ->
     // FUN_00605210): the least squared distance, the first on a tie.
     [[nodiscard]] std::uint8_t nearest(int red, int green, int blue) const noexcept {
@@ -142,7 +214,7 @@ public:
     // `pal` as text colour `colour` (0..12) draws it: each index through its shift.
     [[nodiscard]] Palette text_palette(const Palette& pal, int colour) const {
         std::array<Rgba, 256> entries{};
-        for (std::size_t i = 0; i < 256; ++i) entries[i] = pal[text_shift_[std::size_t(colour % 13) * 256 + i]];
+        for (std::size_t i = 0; i < 256; ++i) entries[i] = pal.entries()[text_shift_[std::size_t(colour % 13) * 256 + i]];
         entries[0].a = 0;
         return Palette(entries);
     }

@@ -247,6 +247,20 @@ int main() try {
         line = attack_line(skill_tables, spell, env, 5, fighter, 5);
         assert(line.damage && line.min == elem_damage(skill_tables, spell, env, 5, false, 0, true) >> 8 && line.damage_colour == 1);
         assert(line.attack_rating == 0);
+        // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
+        // status keeps the skill id and leaves the numbers blank. Omitting
+        // the status is status 0.
+        const auto open = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5);
+        for (const int usable : { 0, 1, 6, 8 }) {
+            const auto shown = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5, 0, 0, usable);
+            assert(shown.skill == open.skill && shown.damage == open.damage && shown.min == open.min && shown.max == open.max);
+            assert(shown.damage_colour == open.damage_colour && shown.attack_rating == open.attack_rating && shown.ar_colour == open.ar_colour);
+        }
+        for (const int usable : { 2, 3, 4, 5, 7 }) {
+            const auto hidden = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5, 0, 0, usable);
+            assert(hidden.skill == weapon_skill.id && !hidden.damage && hidden.min == 0 && hidden.max == 0);
+            assert(hidden.damage_colour == 0 && hidden.attack_rating == 0 && hidden.ar_colour == 0);
+        }
     }
     std::puts("ok");
 } catch (const std::exception& error) {

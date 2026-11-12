@@ -1101,15 +1101,24 @@ struct Fight {
     // ponytail: perdelay taken as ticks (its reader isn't traced); the
     // aurafilter's unit-flag, town and sight bits aren't read
     // (aura_filter.hpp); Sanctuary and Redemption's own callbacks aren't
-    // built; no mana is drawn (FUN_00644b10).
+    // built; Sanctuary's mana (FUN_005cf3a0, FUN_00644b10) isn't asked or
+    // drawn.
     void aura_pulse(std::uint32_t now_ms);
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
-    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
+    // Cast by the player (FUN_005cf010 on a player unit), it needs its
+    // FUN_00644b10 cost in mana (Prayer: (16 + 3 x (lvl - 1)) << 4, 256ths)
+    // or heals nothing, and takes the cost off it (FUN_0056c110) when it
+    // healed someone; the merc's costs nothing.
+    // ponytail: the state it sets then (0x55 nomanaregen, FUN_00639db0) and
+    // clears on a pulse that heals no one isn't kept, so mana still regens.
+    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast = false);
     // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
     // monster here is no side of the player's, so a friendly aura's never
     // does (0x12003 needs an ally: FUN_00554de0).
     [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const;
+    // Whether a FUN_0056b3e0 filter takes the monster (aura_filter.hpp).
+    [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
     [[nodiscard]] bool in_aura(const Monster& monster);
@@ -1186,6 +1195,9 @@ struct Fight {
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // The owner's other pets, the merc among them, within 2 of this one
+    // (FUN_00574de0 with FUN_005e3900): a think's mode 4 crowd.
+    [[nodiscard]] int pet_crowd(const Pet& pet) const;
     // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
     // trap's (32 firespike_explode, FUN_005a3d20), 4 frames after it dies.
     [[nodiscard]] bool blast_due(const Monster& golem) const;

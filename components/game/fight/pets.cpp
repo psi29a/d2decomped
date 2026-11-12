@@ -363,6 +363,28 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
         return monster.mode != "NU" || now_ms < monster.next_act;
     }
 
+// FUN_00574de0 walks the owner's pet list (player data +0x44), every
+// PetType row from 1, and FUN_005e3900 counts each unit but this pet with
+// FUN_005dc380 (merc_gap from this pet's size) under 2. The merc is in it:
+// FUN_00573270 binds a hireling with FUN_00575e90(merc, 7, ..), PetType 7
+// "hireable". Only the count above 0 is read (FUN_005e3930 / FUN_005e3ea0
+// mode 4); the unit FUN_005e3900 keeps (+4) isn't, so the order doesn't
+// matter.
+// ponytail: a dead pet or merc doesn't count; when game.exe drops one from
+// the list isn't traced.
+auto Fight::pet_crowd(const Pet& pet) const -> int {
+        auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        const auto& unit = pet.monster.unit;
+        const int pet_x = sub(unit.x), pet_y = sub(unit.y);
+        const int size = std::max(game_data->monsters.types[std::size_t(pet.monster.type)].size, 1);
+        const auto close_by = [&](const UnitState& other) { return d2d::rules::merc_gap(pet_x, pet_y, size, sub(other.x), sub(other.y)) < 2; };
+        int crowd = int(std::ranges::count_if(actor->pets, [&](const Pet& other) {
+            return &other != &pet && other.monster.alive() && other.where == level && close_by(other.monster.unit);
+        }));
+        if (actor->merc && actor->merc->alive() && close_by(actor->merc->unit)) ++crowd;
+        return crowd;
+}
+
 // A NecroPet's frame outside an attack (the golems, the Valkyrie, the
 // skeletons and mages): a walk goes on (a walk at its foe ends in reach),
 // then at its think rules::necropet_think. The foe is FUN_005dd7f0's for a
@@ -371,10 +393,10 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
 // in a preset room that isn't Outdoors, or once after a walk at a foe found
 // no path (flag 0x40); its melee is MeleeRng + 1, its line FUN_005dc640.
 // A teleport is room_teleport (mode 3).
+// The crowd is pet_crowd's.
 // ponytail: the owner's path spot (+0x10) is the player's next path point;
-// the crowd counts by merc_gap from this pet's size
-// (FUN_005e3900's order of units isn't read); a good monster's own room
-// order isn't kept (the search runs over the monsters in fight order).
+// a good monster's own room order isn't kept (the search runs over the
+// monsters in fight order).
 auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         auto& monster = pet.monster;
         auto& unit = monster.unit;
@@ -418,10 +440,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
-        view.crowd = int(std::ranges::count_if(actor->pets, [&](const Pet& other) {
-            return &other != &pet && other.monster.alive() && other.where == level
-                && d2d::rules::merc_gap(pet_x, pet_y, size, sub(other.monster.unit.x), sub(other.monster.unit.y)) < 2;
-        }));
+        view.crowd = pet_crowd(pet);
         if (found >= 0) {
             const auto& foe = monsters[std::size_t(found)];
             const auto& foe_type = game_data->monsters.types[std::size_t(foe.type)];
@@ -628,10 +647,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
-        view.crowd = int(std::ranges::count_if(actor->pets, [&](const Pet& other) {
-            return &other != &pet && other.monster.alive() && other.where == level
-                && d2d::rules::merc_gap(pet_x, pet_y, size, sub(other.monster.unit.x), sub(other.monster.unit.y)) < 2;
-        }));
+        view.crowd = pet_crowd(pet);
         auto area_under = [&](int from_x, int from_y, int x, int y) { return int(area_id_at(*game_data, *level, centre(from_x), centre(from_y), centre(x), centre(y))); };   // FUN_0061b130
         std::vector<std::pair<float, float>> route;
         int chased = -1;

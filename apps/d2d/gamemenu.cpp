@@ -70,7 +70,7 @@ constexpr Row kVideo[] = {                         // LoD 0x71875c (classic 0x71
     { 1, false, "BlendShadow", 2, 1, false, { "SmallOff", "SmallOn" } },
     { 1, false, "Perspective", 2, 1, false, { "SmallOff", "SmallOn" } },
     { 2, false, "Gamma", 21, 10, true, {} },        // 155 on 55..255 (FUN_0047d230, FUN_0047cc90)
-    { 2, false, "Contrast", 100, 99, true, {} },    // 100 on 0..100 (FUN_0047d2f0); ponytail: neither slider applies yet (rendering.md)
+    { 2, false, "Contrast", 100, 99, true, {} },    // 100 on 0..100 (FUN_0047d2f0); both drive FUN_006be190
     { 0, false, "SPrevious", 0, 0, false, {} },
 };
 constexpr Row kAutomap[] = {                       // LoD 0x71d734 (classic 0x71d720: no AutoMapMode)
@@ -202,6 +202,16 @@ void GameMenu::changed(Audio& audio, int row) {
     // 47cda0 / 47cdf0: "Master Volume" / "Music Volume" = value * 100 / 20
     if (name == "Sound") audio.master_volume = value[std::size_t(menu)][std::size_t(row)] * 100 / 20;
     else if (name == "Music") audio.music_volume = value[std::size_t(menu)][std::size_t(row)] * 100 / 20;
+    else if (name == "Gamma" || name == "Contrast") {
+        const int steps = kMenus[menu].rows[std::size_t(row)].count;
+        const int position = value[std::size_t(menu)][std::size_t(row)];
+        if (name == "Gamma")
+            d2d::palette::Palette::set_ramp(d2d::palette::slider_value(steps, d2d::palette::kGammaMin, d2d::palette::kGammaMax, position), d2d::palette::Palette::contrast());
+        else
+            d2d::palette::Palette::set_ramp(d2d::palette::Palette::gamma(), d2d::palette::slider_value(steps, d2d::palette::kContrastMin, d2d::palette::kContrastMax, position));
+        video_changed = true;
+        return;
+    }
     else return;
     audio.apply_volume();
     volume_changed = true;
@@ -228,7 +238,18 @@ GameMenu::Action GameMenu::activate(const Scene& scene, Audio& audio) {
         value[2][2] = (audio.music_volume + 1) * 20 / 100;
         show(2);
     }
-    else if (row.name == "VideoOptions") show(3);
+    else if (row.name == "VideoOptions") {                // the sliders' init, as the sound rows do
+        constexpr std::size_t video = 3;
+        for (std::size_t video_row = 0; video_row < kMenus[video].rows.size(); ++video_row) {
+            const auto video_name = kMenus[video].rows[video_row].name;
+            const int steps = kMenus[video].rows[video_row].count;
+            if (video_name == "Gamma")
+                value[video][video_row] = d2d::palette::slider_position(steps, d2d::palette::kGammaMin, d2d::palette::kGammaMax, d2d::palette::Palette::gamma());
+            else if (video_name == "Contrast")
+                value[video][video_row] = d2d::palette::slider_position(steps, d2d::palette::kContrastMin, d2d::palette::kContrastMax, d2d::palette::Palette::contrast());
+        }
+        show(3);
+    }
     else if (row.name == "AutoMapOptions") show(4);
     else if (row.name == "CfgOptions") action = kControls;    // 0x47f400: UI 0xb
     else if (row.name == "Previous") show(0);                 // 0x47f430
