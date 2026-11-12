@@ -501,7 +501,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
         // 107 (shatter) on, else off; never on a deadCol monster (MonStats2 flag 19).
-        // ponytail: the shattered death (state 107's client look) isn't drawn.
+        // A death under it shatters (boss_events, rules::shatter_rows).
         if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
             const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
             const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);

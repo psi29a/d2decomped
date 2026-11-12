@@ -20,6 +20,7 @@
 #include <object_ids.hpp>
 #include <outdoor_data.hpp>
 #include <rules.hpp>
+#include <shatter.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -338,7 +339,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || name == "cairnstones"                                                    // the Cairn Stones' dip frames (0x46aee0)
                  || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
-                 || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
+                 || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
+                 || std::ranges::contains(d2d::rules::kShatterRows, std::string_view(name));   // a shattered death's ice (FUN_004afc10)
         for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
         if (pass == 1) used = explosions.contains(name) && !game_data.missiles.contains(name);
         if (!used) continue;
