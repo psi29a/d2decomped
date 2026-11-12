@@ -156,6 +156,19 @@ branch are not checked. After generating the cases above:
 uv run --no-sync --project tools/emu python tools/emu/ai_town_path_dispatch.py --cases build/ai-town-path/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_town_return_home.py` compares the existing-home branch of
+FUN_005e6860 with `npc_heed` at 65 horizontal distances, including the
+16-subtile boundary. The no-home branch and two-dimensional distances are
+not checked; distance and command allocation are hooked.
+
+```sh
+mkdir -p build/ai-town-home
+uv run --no-sync --project tools/emu python tools/emu/ai_town_return_home.py --cpp > build/ai-town-home/cases.cpp
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-home/cases.cpp -o build/ai-town-home/cases
+build/ai-town-home/cases > build/ai-town-home/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_town_return_home.py --cases build/ai-town-home/cases.txt --exe "$GAME_EXE"
+```
+
 So an NPC picks a random point of its path two thinks in three, walks
 there and lingers 12 (or 20) thinks of 10 frames, walking back when pushed
 over 3 off; a point with action 4 / 5 ends with S1 / S2 there, facing its
