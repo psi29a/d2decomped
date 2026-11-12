@@ -3930,3 +3930,161 @@ value 4 does after an invite.
 
 Re-check: `python3 tools/ghidra/fn.py 0055b540 0055b620 0055b650`;
 disassemble `0055b540`..`0055b6b4`.
+### Inactive item record and its owners: `FUN_00541b10` (batch 28)
+
+Server side, `UNIT\SUnitInactive.cpp` (source-file literal `0x6e0bc8`), `00541b10`..`00541c4c`. Convention
+read in disassembly: **EBX** game, **EDI** item unit, **ECX** out-pointer (or 0), one stack argument (the
+inactive list node, `[EBP+8]`), `RET 4`. The record it builds is `[+0]` next, `[+4]` despawn frame, `[+8]`
+the player GUID, `[+0xc]` word byte count, `[+0xe]` the item bytes, allocated as count + `0xf` (line
+`0x1e2`). In order: `FUN_00629f20(item)` (the GUID word at record `+8`),
+`FUN_006313e0(item, buf, 0x400, 1, 1, 0)` writes the item into a stack buffer (that call's result, a
+16-bit count, goes to `+0xc`), `FUN_00558a10` (ECX game, EDX item) gives the despawn frame (record `+4`),
+`FUN_0040b430` allocates from the pool at `game+0x1c`, `FUN_006829c0` copies the stack image into it. If
+`FUN_00629900(item)` is non-zero and the item has an inventory (`item+0x60`), each carried item is freed
+first (`FUN_0063b2c0`/`FUN_0063dfa0`/`FUN_0063dfd0`/`FUN_0063ad90` walk, then `FUN_00555600(game, unit)`),
+then the item itself is freed through `FUN_00555600`. With a non-null ECX the new record pointer is stored
+there and the list is untouched; otherwise the record is pushed at the head of the node's item list
+(`node+8`, record `+0` = old head).
+
+Callers: only the tail of `FUN_00542e10` (`00542e30`'s item branch, game-calls.tsv). d2d: no port (no
+inactive-unit list in d2d; `git grep` of `components/` `apps/` finds none). Not traced: the byte layout
+`FUN_006313e0` writes, the `FUN_00558a10` formula, and which caller passes a non-null ECX (none found).
+
+Re-check: `python3 tools/ghidra/fn.py 00541b10`; disassemble `00541b19`..`00541c4c`.
+
+### Inactive list node lookup and insert: `FUN_00541d20`, `FUN_00541de0` (batch 28)
+
+`FUN_00541d20` (`00541d20`..`00541dce`, stack `(game, act, y, create, )` with the **x in EBX**, `RET 0x10`,
+node pointer in EAX). The per-act list head is `game+0xd8+act*4`; a node is `0x18` bytes: `[+0]` x,
+`[+4]` y, `[+8]` item records, `[+0xc]` monster records, `[+0x10]` other unit records, `[+0x14]` next
+(allocation line `0x424`, pool `game+0x1c`). The walk compares `x == node.x` then `y == node.y` for an exact
+hit; otherwise it stops at the first node whose x is **less** than the wanted x (`JG` at `00541d50`), so the
+list is sorted by x in descending order, and nodes with equal x but another y are walked past. With
+`create == 0` it returns the exact node or 0 (`NEG/SBB/AND`, `00541d68`..`00541d6f`); with `create != 0` and no
+exact hit it zeroes the three sub-lists, links the new node before the stop node and either behind the
+previous node or as the new act head, and returns it.
+
+`FUN_00541de0` (`00541de0`..`00541e19`, **ESI** room, stack `(game, create)`, `RET 8`, no result used): reads
+the room coordinates (`FUN_00619730`; x start at `[EBP-0x20]` goes to EBX, y start at `[EBP-0x1c]`), the level
+(`FUN_0061a1b0`) and the act (`FUN_006427f0`), and tail-calls the lookup. No direct call to it is in
+game-calls.tsv.
+
+d2d: no port. Not traced: `FUN_006427f0`'s level to act table, and who reaches `FUN_00541de0` (no direct
+caller listed).
+
+Re-check: `python3 tools/ghidra/fn.py 00541d20 00541de0`; disassemble `00541d3a`..`00541d5d` for the order test.
+
+### Inactive monster list teardown: `FUN_00541c50`, `FUN_00541cd0` (batch 28)
+
+Server side, `00541c50`..`00541cca` and `00541cd0`..`00541d1a`; frees the monster records at `node+0xc` (record
+`0x5c` bytes: `[+8]` class id, `[+0x20]` minion list, `[+0x24]` spawn-point or map-AI list, `[+0x58]` next).
+`FUN_00541c50`: **AL** act, **EDI** game, **BX** class id, plain `RET`. Walks each node of the act's list
+(`game+0xd8+act*4`, `node+0x14` next) and in each node its monster chain; the **first** record whose `+8` equals
+the zero-extended `BX` is unlinked (head or previous `+0x58`), then `FUN_0058f350(game, rec[+0x20])`
+(minion list clear), `FUN_00666130(pool, rec[+0x24])` when non-zero, and `FUN_0040b480` frees the record (line
+`0x8c`). Only one record is removed per call. `FUN_00541cd0`: **EBX** game, **EAX** node, plain `RET`: the same
+three frees for each record in the node's chain, but this function does not write `node+0xc`, so the node's head pointer
+still holds the freed first record afterwards (nothing in the function clears it; the callers' follow-up was
+not read).
+
+Callers: `FUN_00541c50` from `FUN_00543140`; `FUN_00541cd0` from `FUN_00543080` (game-calls.tsv). d2d: no port.
+Not traced: whether `FUN_00543080` frees the node right after, which would make the stale head harmless.
+
+Re-check: `python3 tools/ghidra/fn.py 00541c50 00541cd0`; disassemble `00541cd0`..`00541d1a` (look for a store to
+`[EAX+0xc]`: there is none).
+
+### Despawn sweep of inactive items: `FUN_00542ac0` (batch 28)
+
+Server side, `00542ac0`..`00542b3b`, **ECX** game, **EDX** act, plain `RET`. For each node of the act's list it
+walks the item chain (`node+8`, record `+0` next) and frees each record whose despawn word at `+4` is non-zero and
+**less than** the game frame `game+0xa8` (`CMP [EBX+0xa8], EAX; JLE` skips otherwise, `00542af9`), unlinking it from
+the chain first and freeing it with line `0x723`. A zero timer is skipped. Caller: `FUN_0052d310`
+(game-calls.tsv). d2d: no port. Not traced: the frame at which `FUN_0052d310` calls it (cadence).
+
+Re-check: `python3 tools/ghidra/fn.py 00542ac0`; disassemble `00542af0`..`00542b25`.
+
+### Saving a unit when its room goes inactive: `FUN_00542e10` (batch 28)
+
+Server side, `00542e10`..`0054307a` (the Ghidra entry `00542e30` is the `JNZ` target at `00542e1c`, a branch
+inside this function, not a call). Convention: **EAX** unit, stack `game`, `RET 4`. A monster (type 1) goes to
+`FUN_005421a0(EAX = unit, game)` and returns. Any other type: room `FUN_00620bb0`, level `FUN_0061a1b0`, act
+`FUN_006427f0`, coordinates `FUN_00619730`; the node is looked up by the same descending-x scan as
+`FUN_00541d20` and allocated inline (`0x18` bytes, line `0x22e`) if missing. An **item** (type 4, from the decompile) is
+handed to `FUN_00541b10(unit, node)` and nothing else is stored. Other types allocate a `0x34`-byte unit record
+(line `0x244`), zeroed, and store x and y (static path for types 2, 4 and 5; dynamic path otherwise, 0 when the path
+is null), the type, the class id, and the game frame; for a player (type 0) also the GUID and mode; for an object
+(type 2) the mode (decompile only: a neutral object whose objects.txt flags say so is moved to mode 1 first), a shrine's timer (`EVENT_TimerTypeExistsOnUnit` split into two halves, decompile names), or for class
+`0x3b`, `0x3c`, `0x64` the unit GUID, else a chest's spark byte, plus the object's level and shrine id. The record
+ends with the unit flags words (`unit+0xc4`, `+0xc8`) and is pushed on `node+0x10`. Callers: `FUN_005431f0`,
+`FUN_005433f0`. d2d: no port.
+
+Not traced: the exact unit-record field offsets (read from the decompile structure only), the objects.txt byte
+tests, and the shrine timer packing.
+
+Re-check: `python3 tools/ghidra/fn.py 00542e10`; disassemble `00542e10`..`00542e94` for the scan and the type-1 dispatch.
+
+### Parking a monster: `FUN_005421a0`, `FUN_00541fe0`, `FUN_00541e20` (batch 28)
+
+Server side. `FUN_005421a0` (`005421a0`..`005424e7`): **EAX** unit, stack `game`, `RET 4`; returns at once when the
+unit or its room (`FUN_00620bb0`) is null. It (1) strips each state listed in the table at `[0x744304]+0x174` (count word
+`+0x178`): `FUN_00639df0(unit, state)` tests, `FUN_006256b0` finds the stat list, `FUN_006277e0` removes and
+`FUN_00626cd0` frees it; (2) `FUN_00540e60(game, unit, 2, 0)` (a timer-removal helper; the decompile names it an
+AI-think timer removal, a lead); (3) allocates a `0x5c`-byte record (line `0x528`), zeroes it, sets `+0x1c = -1`
+(no owner). Fields: `+0` x, `+4` y (path of the unit, as above), `+8` class id (`unit+4`), `+0xc` GUID,
+`+0x10`/`+0x14` unit flag words (`unit+0xc4`, `+0xc8`), `+0x18` type flags, `+0x1c` owner id, `+0x20` minion list,
+`+0x28` the AI function id (`FUN_005b0d60` of the monster data `+0x28`), `+0x2c` the result of
+`FUN_00573520(unit)` (not traced), `+0x30` word name seed (`FUN_005a0140`), `+0x32`..`+0x3a` the nine UMod bytes (`FUN_005a0120`),
+`+0x3c` boss number (`FUN_005a01e0`), `+0x40` stat `0xd`, `+0x44` `FUN_00625d10`, `+0x48` stat `6`, `+0x4c`/`+0x50`
+AI arguments, `+0x54` the game frame, `+0x58` next. Type flags (`+0x18`), from `FUN_005a0180(unit, mask)`:
+mask 4 gives `0x2`, mask 2 gives `0x800` and the boss number, mask 1 gives `0x1` (and calls `FUN_00544f20`),
+mask `0x10` gives `0x20`; `FUN_00573540(unit, 2)` gives `0x40`; alignment `FUN_006259b0` 2/0/1 gives
+`0x100`/`0x200`/`0x80`; `unit+0xd0 != 0xb` gives `0x400`; mode (`unit+0x10`) 0 or `0xc` gives `0x4`;
+`FUN_0058f440` minion linkage gives `0x8` (minion) and `0x10` (slave) and the owner id and list when the owner is a
+monster. A `unit+0xd0` below 8 raises the fatal-error path with line `0x56a` and an empty text (`005423a3`..
+`005423b8`). Finally the node comes from `FUN_00541d20(game, act, y, 1, x)` and the record is the new head of
+`node+0xc`. (Decompile reads the mode as a player enum; for a monster it is mode 0 and `0xc`.)
+
+`FUN_00541fe0` (`00541fe0`..`00542159`): **EAX** unit, **EDI** record, **EBX** game, plain `RET`. Unit flag
+`0x4000000` (`unit+0xc4`, tested as bit 0x1a) sets record `+0x4c` to the word at `[0x7314c0]` and ORs the word at
+`[0x7314c4]` into `+0x50`; flag `0x20000` (bit 0x11) sets `+0x4c` likewise and ORs `[0x7314c8]`. Memory read:
+`[0x7314c0] = 0xdeaddead`, `[0x7314c4] = 1`, `[0x7314c8] = 2`. If the monstats byte `+0xd` has any bit of the words
+`1`, `2`, `4` (`0x6ce268`/`0x6ce26c`/`0x6ce270`), it fetches AI command `10` (`FUN_0058efa0(game, unit, 10, 0)`) and
+copies its args `+0xc`/`+0x10` into `+0x4c`/`+0x50` when `+0xc` is non-zero, then moves the map-AI pointer
+(`FUN_0058f000`, `FUN_00666120`) into `+0x24`. For class `0x10b`, `0xf3`, or (`+0x18 & 0x800` and boss number 6) it
+copies command 10's args again. Base id `0x44` stores `FUN_0058ec50(unit, 3)` and base `0x21f`
+`FUN_0058ec50(unit, 1)` into `+0x4c`; class `0x138` (disassembly) and `0x137` (decompile) store the monster-data byte `+0xe`
+(or 0). **Finding:** its only caller, `FUN_005421a0`, calls it at `005422e5`, before the type flags (`+0x18`) and
+boss number (`+0x3c`) are written (`005422fa`..`0054231c`), so for this fresh record the super-unique leg
+(`+0x18 & 0x800` and boss 6) is not true on the one call path when `FUN_00541fe0` tests it; only the class `0x10b`/`0xf3` leg is
+live there. `FUN_00541e20` tests the same condition after the flags are set, so a boss-6 unique's command
+arguments are restored but not saved by this path.
+
+`FUN_00541e20` (`00541e20`..`00541fd3`): **ESI** unit, **EBX** record, stack `game`, `RET 4`, caller
+`FUN_005424f0`. Mirror of the save: the same monstats-mask test creates command 10 with `+0xc`/`+0x10` from the
+record's `+0x4c`/`+0x50` (and `+0x14 = 0`) and hands the record's map-AI list back (`FUN_0058f000`,
+`FUN_00666120`); the class `0x10b`/`0xf3`/boss-6 leg restores the args if either is non-zero; base `0x44`
+and `0x21f` call `FUN_0058ec00(unit, 3 or 1, +0x4c)`; class `0x138` writes the byte to monster data `+0xe` and
+`+0xf`, class `0x137` only `+0xe`; when `+0x4c == 0xdeaddead` the record's `+0x50` bit `1` sets unit flag
+`0x4000000` and bit `2` sets `0x20000` again.
+
+d2d: no port (it keeps no inactive-monster list). Not traced: the `FUN_005a0180` mask meanings (decompile names are
+leads), the AI command id `10` meaning, `FUN_00544f20`'s effect, and the `FUN_005424f0` caller context.
+
+Re-check: `python3 tools/ghidra/fn.py 005421a0 00541fe0 00541e20`; disassemble `005422e5`..`0054231c` for the call order.
+
+### NPC trade queue: `FUN_00536760`, `FUN_005367b0`, `FUN_00537120` (batch 28)
+
+Server side, `UNIT\sunitproxy.cpp` (literal `0x6e0a30`). `FUN_00536760` (`00536760`..`0053679e`): **EAX** game,
+**ESI** NPC record, stack `(unit, param, action)`, `RET 0xc`. Allocates a `0x14`-byte entry (line `0x263`) and
+pushes it on the NPC record's queue at `npc+0x14`: `[+0]` unit, `[+4]` action (third stack word), `[+8]` param,
+`[+0xc]` = 0, `[+0x10]` old head (LIFO). `FUN_005367b0` (`005367b0`..`0053681c`): **ECX** NPC unit, **EDX** game,
+stack `(unit, param, action)`, `RET 0xc`. Takes `GetTickCount` (`[0x6cc260]`), finds the NPC record with
+`FUN_00535ea0(ECX = game, EDX = NPC class id or -1, &index)`; only when the record exists, its sub-block at `npc+0x20`
+has bytes `+0 == 1` and `+3 == 1` and the word `npc+0x1c == 1` does it queue the entry and then store the tick at
+`sub-block+8`. No direct caller of `FUN_005367b0` is in game-calls.tsv. `FUN_00537120` (`00537120`..`00537186`,
+no arguments): for each of 17 NPC tables (stride `0x10` from `0x883d78`, built flags are bytes at `0x883e88+i`), if
+the flag is 1 it clears the flag and frees the two pointers (`+0` line `0x59d`, `+8` line `0x5a2`) with a **null**
+pool (ECX = 0). Caller: `FUN_0052c030`. d2d: no port. Not traced: the NPC sub-block field names, the queue's consumer,
+and what the `action` values are.
+
+Re-check: `python3 tools/ghidra/fn.py 00536760 005367b0 00537120`; disassemble `00536763`..`0053679e` and `005367e0`..`00536816`.

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <span>
+#include <string>
 #include <thread>
 #include <utility>
 #include <variant>
@@ -230,7 +231,7 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
                     handle(said, audio, frame_ms);
                 }
             } else if (event.type == Type::Save) {
-                const auto why = lan_store ? lan_store->save_bytes(character.name, std::as_bytes(std::span(event.view))) : std::string("no save folder");
+                const std::string why = lan_store ? lan_store->save_bytes(character.name, std::as_bytes(std::span(event.view))) : std::string("no save folder");
                 d2d::log::info("lan: the host's save of {}: {}", character.name, why.empty() ? "written" : why);
             } else if (event.type == Type::Refused || event.type == Type::Lost) {
                 lan_lost = event.reason;

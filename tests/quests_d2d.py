@@ -375,6 +375,8 @@ def act1():
     if os.environ.get("QUESTS_STOP") == "6":                # debugging: leave d2d up at this point
         print("STOP", sock_path, log_path, flush=True)
         time.sleep(1800)
+    # Its start timer (0x14) is quest steps: 21 of 20 frames, 16.8 s from the malus's return.
+    until("Sisters to the Slaughter available", lambda: re.search(r"states=(\d+,){5}1 ", cmd("debug quest 6 show")), 30)
     topic("Cain")
     assert bits(6) & 0x4, f"Cain didn't give quest 6: {cmd('debug quest 6 show')}"
     go(37)
