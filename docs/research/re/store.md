@@ -392,6 +392,16 @@ The list is the player's own, and it lasts one talk with the vendor:
   when no node holds the player's unit id.
 - Each node is 12 bytes, allocated in `FUN_00578790`: `{inventory, unit
   id, next}`.
+- `FUN_00536c50(pool, player, npc)` is the same lookup, generalised: ECX
+  the proxy pool (passed straight through, unread, to `FUN_00535ea0`),
+  EDX `player`, stack `npc`. It finds the NPC's 0x44-byte proxy record
+  by `npc`'s id (`FUN_00535ea0`, the 0x40-slot pool at `game+0x1d24`; -1
+  when `npc` is null) and, if it has a list (`+0xc` the count, `+8` the
+  head), walks it for the node whose id (`+4`) is `player`'s id (`+0xc`,
+  or -1 when `player` is null), returning its `+0`. 0 for no pool, no
+  list or no match. Called at `FUN_00537680`, `FUN_00576650`,
+  `FUN_00577830`, `FUN_00579430`, not `FUN_00578ae0` above, which inlines
+  the same walk.
 - Ending the talk (C->S 0x30, `54b9f0`) runs `FUN_00572f20`. It takes
   the player out of the NPC's list of talkers (the NPC's data +0x30).
   When that list is then empty, it frees the player's node
