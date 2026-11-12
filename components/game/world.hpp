@@ -1002,8 +1002,9 @@ struct World {
     // inventory or the floor (rules::spill_belt, FUN_005608c0).
     void spill_belt(std::uint32_t now_ms);
 
-    // A command from the player, checked and applied. A busy player's
-    // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).
+    // A command from the player, checked and applied. game.exe's dispatcher
+    // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state
+    // 0x36, or mode 0 / 0x11; walking passes (network.md).
     void apply(const Command& command, std::uint32_t now_ms);
 
     // One step of the game: the player's commands, then the world. The
