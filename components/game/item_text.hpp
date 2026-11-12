@@ -9,6 +9,7 @@
 
 #include <d2s_items.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 
 #include <algorithm>
 #include <array>
@@ -353,8 +354,7 @@ inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const
 // red requirements, class bonuses, speed or spelldesc lines, as game.exe
 // without a player unit. docs/research/re/item-names.md.
 // The socketed runes' letters (FUN_00486670) under the name.
-// ponytail: no set bonus lists, time-of-day damage (272/273) or
-// throwing-potion damage.
+// ponytail: no set bonus lists or time-of-day damage (272/273).
 inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
                                         const d2d::rules::Wearer* wearer = nullptr) {
     auto str = [&](std::string_view key) {
@@ -484,7 +484,34 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
     // the record (LAB_0062d300 sets them: low quality 3/4, ethereal 3/2),
     // the +% (18 min, 17 max) on that base, then the flat adds.
-    if (weapon) {
+    // A throwing potion (tpot, FUN_00485410's first branch; nothing else of
+    // it runs): its thrown missile (FUN_006288a0) at level 1, its own element
+    // (FUN_0064b100 / 0064b1d0; poison over ELen / 25 seconds, FUN_0064b2a0,
+    // at least 1) plus its physical part (FUN_0064af20 / 0064aff0), >> 8, the
+    // max at least the min. "Throw Damage:" white, the numbers in EType's
+    // colour (0x485bc4: fire red, lightning gold, cold blue, poison green,
+    // else white), one number when they're the same.
+    const auto thrown = is_type("tpot") ? game_data.thrown.find(item.code) : game_data.thrown.end();
+    const auto potion = thrown != game_data.thrown.end() ? game_data.missiles.find(thrown->second) : game_data.missiles.end();
+    if (thrown != game_data.thrown.end()) {
+        if (potion != game_data.missiles.end()) {
+            const auto& missile = potion->second;
+            const int shift = missile.hitshift & 31;
+            const auto element = d2d::rules::row_damage(missile.etype, missile.emin, missile.emax, missile.emin_lev, missile.emax_lev,
+                                                         missile.hitshift, missile.elen, missile.elen_lev, 1);
+            int low = element.elo, high = element.ehi;
+            if (missile.etype == 3) {
+                const int seconds = std::max(element.elen / 25, 1);
+                low /= seconds; high /= seconds;
+            }
+            low = (low + ((missile.min + d2d::rules::level_bonus(missile.min_lev, 1)) << shift)) >> 8;
+            high = std::max((high + ((missile.max + d2d::rules::level_bonus(missile.max_lev, 1)) << shift)) >> 8, low);
+            static constexpr std::array<std::array<std::uint8_t, 3>, 5> kElementColour{ { kTxtRed, kTxtGold, kTxtBlue, kTxtGreen, kTxtWhite } };
+            const std::string head = string_id(game_data, 3467) + space;
+            const std::string numbers = high != low ? std::to_string(low) + to_text + std::to_string(high) : std::to_string(low);
+            out.push_back({ head + numbers, kTxtWhite, head.size(), missile.etype >= 0 && missile.etype < 5 ? kElementColour[std::size_t(missile.etype)] : kTxtWhite });
+        }
+    } else if (weapon) {
         auto base_damage = [&](std::size_t index) {
             int value = desc.dam[index];
             if (item.quality == 1 && value) value = std::max(value * 3 / 4, index % 2 ? 2 : 1);
