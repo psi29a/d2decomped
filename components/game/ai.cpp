@@ -2755,8 +2755,17 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
     auto& x = unit.x;
     auto& y = unit.y;
     auto& dir = unit.dir;
+    // No route: the same stop as a blocked step (LAB_006508ff). The step
+    // loop never runs, so the snap is here. It counts as a block, so a
+    // walk to a spot does not path again off the snap.
+    if (path.empty()) {
+        x = (std::floor(x * 5) + 0.5f) / 5;
+        y = (std::floor(y * 5) + 0.5f) / 5;
+        if (blocked) *blocked = true;
+        return false;
+    }
     // FUN_00650660: one step a frame; landing on a point (FUN_00650090: within the step) ends the frame there.
-    if (!path.empty() && step > 0) {
+    if (step > 0) {
         const auto [target_x, target_y] = path.front();
         const float dx = target_x - x, dy = target_y - y, dist = std::hypot(dx, dy);
         if (dist > 0.05f) dir = direction16(dx, dy);

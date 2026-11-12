@@ -308,8 +308,9 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   stops for a wall and the crowd alike, as game.exe does, on a step that stops
   short of its next point; one that reaches a point tests nothing. A stop puts the
   unit on the centre of the subtile it stands on and clears its path, as game.exe's
-  does (#226). A walk with no route at all doesn't snap, though game.exe's does
-  (LAB_006508ff, the same stop): `follow_path`'s loop doesn't run on an empty path. A
+  does (#226). A walk with no route snaps the same way and ends
+  (LAB_006508ff): `follow_path` on an empty path, and that snap counts as
+  a block so the walk does not start again off it. A
   hostile monster walks by `move_frame`, which snaps already.
 
 ### What keeps a walk to a unit going: the client
