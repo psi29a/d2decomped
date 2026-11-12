@@ -48,6 +48,21 @@ always takes `FUN_005e4830`.
 
 ### FUN_005e4830
 
+`tools/emu/ai_necropet_owner_distance.py` compares the distant-owner follow
+and teleport branches against `necropet_think` over 72 cases, including the
+29 and 50 distance boundaries and three velocity pairs. Owner lookup,
+distance and the follow action are hooked; closer-owner and failed movement
+paths are not checked. From the worktree root with `GAME_EXE` set to stock
+1.14d:
+
+```sh
+mkdir -p build/ai-necropet-distance
+uv run --no-sync --project tools/emu python tools/emu/ai_necropet_owner_distance.py --cpp > build/ai-necropet-distance/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-necropet-distance/cases.cpp -o build/ai-necropet-distance/cases
+build/ai-necropet-distance/cases > build/ai-necropet-distance/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_necropet_owner_distance.py --cases build/ai-necropet-distance/cases.txt --exe "$GAME_EXE"
+```
+
 1. No owner: if the AI control's +0x1c (the owner's id, refreshed every
    think) still finds a unit, `FUN_005e3ea0` mode 3, else stand 10.
 2. Gap to the owner (`FUN_005dc380`, the pet's size) over 50: mode 3 (a
