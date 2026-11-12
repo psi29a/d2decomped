@@ -611,8 +611,27 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             || now_ms < actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) return;
         actor->pstruck = true;
         do_sounds(now_ms);
+        const int struck = actor->attack_mon;
         hit(now_ms);
         start_delay(now_ms);
+        if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->swing_skill != 0 && skill->srvdofunc == ServerDoFunction::kRepeatedHit) repeat_hit(struck, now_ms);
+    }
+
+auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
+        if (actor->kicks_left <= 0) return;
+        --actor->kicks_left;
+        actor->attack_mon = struck;
+        other_target();
+        if (actor->attack_mon < 0) { actor->kicks_left = 0; return; }
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        const auto played = (now_ms - actor->player.mode_ms) / 40;   // game frames into the swing
+        const auto frames_kept = played * std::uint32_t(std::clamp(100 - skill->par[1], 0, 100)) / 100;   // the animation's frames kept
+        set_pmode(swing_mode(), now_ms);
+        const auto& anim = player_anim(actor->pmode);
+        const auto back = anim.frames ? frames_kept * (actor->pmode_until - now_ms) / anim.frames : 0;
+        actor->player.mode_ms -= back;
+        actor->pmode_until -= back;
+        actor->pstruck = false;
     }
 
 auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
@@ -1000,7 +1019,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
             if (actor->smove.active) skill_step(now_ms, elapsed);
             if (now_ms >= actor->pmode_until) {
                 if (actor->kicks_left > 0 && next_target()) {
-                    --actor->kicks_left;                            // Talon's next kick (FUN_005d5a30), Zeal's next hit (FUN_005dbc60)
+                    --actor->kicks_left;                            // Talon's next kick (FUN_005d5a30); do 13's go on the action frame (repeat_hit)
                     set_pmode(swing_mode(), now_ms);
                     actor->pstruck = false;
                     return false;

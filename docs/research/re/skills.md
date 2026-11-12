@@ -382,6 +382,16 @@ lines (missile names aren't passed in). What it does:
   calc4 conversion, the element; SrcDam; FUN_0057dbf0; count − 1, and
   with hits left a new target from FUN_0056bd10 (handed the last one's id)
   and the next hit (FUN_0056e210). No ResultFlags.
+  The next hit comes on this action frame, not the swing's end:
+  FUN_0056e210 (ECX the unit, EDX = Param2, skill record +0x14c read by
+  FUN_004efc20) hands it to FUN_00553b10, which drops the unit's pending
+  mode events (FUN_00540e60 0 / 1) and starts the mode over from
+  (game frames played) × (100 − Param2) / 100 animation frames, then
+  queues its event 1..4 frames and its end (FUN_005417d0). Param2 is 100
+  for Zeal and Fury (from frame 0: calc1 − 1 action frames, then one whole
+  swing) and 60 for Fend. No target in reach: no FUN_0056e210, the swing
+  plays out and the hits left are lost. d2d: `Fight::repeat_hit`,
+  `test_zeal_chain`.
 - **Sacrifice**, start 29 (FUN_005ce790): hit check with toht; on a hit
   the physical from FUN_0057b420 with ED = **calc1**, calc4, the element,
   ResultFlags, flags | 1 (the physical is built: FUN_0057b7d0 skips its
