@@ -671,8 +671,16 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //     its elements (FUN_004e89a0), each colouring it (fire 1, lightning 9,
 //     cold / magic 3, poison 2 last), then min >= 1, max >= min + 1; plus
 //     the skill's own MinDam / EMin (with mastery) >> 8.
-//   damage, descdam 5 (FUN_004ead60): the skill's own, coloured by its
-//     EType, poison x its length; SrcDam / 128 of the weapon's on top.
+//   damage, descdam 5 (FUN_004ead60) and 24 (FUN_004eae70, Blade Fury): the
+//     skill's own, coloured by its EType, poison x its length; SrcDam / 128
+//     of the weapon's on top (FUN_004e9660), whose elements and damblue /
+//     damred then colour it.
+//   damage, descdam 9 (FUN_004eb390, Fire Wall): MinDam / MaxDam << HitShift
+//     (no level brackets) plus EMin / EMax with mastery, x 75 >> 8, then
+//     the weapon's share as 5.
+//   damage, descdam 8 (FUN_004eb290, Inferno): EMin / EMax with mastery x
+//     ddam calc1 x 25 / ddam calc2 >> 8, a calc of 0 taken as 1; EType's
+//     colour, no weapon.
 //   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
 //     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
 //     adds the weapon mastery (342) to the %. No floor at 1.
@@ -685,7 +693,7 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //     caller that omits it still fills the line. The server's status is
 //     FUN_00647960 (Fight::skill_status). FUN_004d9fc0 may turn a 0 into 8
 //     for the client player's own cast delay, and both still draw.
-// ponytail: descdam 2..4, 6, 8..24 and descatt 3 / 4 (kicks, throws,
+// ponytail: descdam 2..4, 6, 10..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -722,24 +730,46 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
         if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
     };
     const auto state_colour = [&](PanelColour bit, int colour) { return (red & bit) ? 1 : (blue & bit) ? 3 : colour; };
-    const int poison_len = skill.etype == 3 ? std::max(elem_length(skill_tables, skill, env, lvl), 1) : 1;
-    if (skill.descdam == 1 || skill.descdam == 7) {
-        line.damage = true;
-        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+    const int etype_colour = skill.etype >= 0 && skill.etype < 5 ? kElemColour[skill.etype] : 0;   // FUN_004e6fb0
+    // FUN_004e9660: SrcDam / 128 of the weapon's damage joins the line; the
+    // weapon's elements colour it, then damblue / damred (FUN_004e89a0's end).
+    const auto weapon_share = [&] {
+        if (skill.srcdam_raw == 0) return;
+        const int base_min = line.min, base_max = line.max;
+        weapon(0, 0);
+        line.min = base_min + line.min * skill.srcdam_raw / 128; line.max = base_max + line.max * skill.srcdam_raw / 128;
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
-    } else if (skill.descdam == 5) {
-        line.damage = true;
-        if (skill.srcdam_raw != 0) {
-            weapon(0, 0);
-            line.min = line.min * skill.srcdam_raw / 128; line.max = line.max * skill.srcdam_raw / 128;
-        }
-        line.damage_colour = skill.etype >= 0 && skill.etype < 5 ? kElemColour[skill.etype] : 0;
-    }
-    if (line.damage) {
+    };
+    const auto own_damage = [&](int poison_len) {
         line.min += skill_phys(skill_tables, skill, env, lvl, false) >> 8;
         line.max += skill_phys(skill_tables, skill, env, lvl, true) >> 8;
         line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * poison_len >> 8;
         line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * poison_len >> 8;
+    };
+    if (skill.descdam == 1 || skill.descdam == 7) {
+        line.damage = true;
+        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+        line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+        own_damage(1);
+    } else if (skill.descdam == 5 || skill.descdam == 24) {   // FUN_004ead60, FUN_004eae70: the same sum in another order
+        line.damage = true;
+        line.damage_colour = etype_colour;
+        weapon_share();
+        own_damage(skill.etype == 3 ? elem_length(skill_tables, skill, env, lvl) : 1);   // poison x ELen (FUN_00644f20), 0 too
+    } else if (skill.descdam == 9) {                          // FUN_004eb390 (Blaze, Fire Wall, Firestorm)
+        line.damage = true;
+        const int shift = skill.hitshift & 31;
+        line.min = ((skill.mindam << shift) + elem_damage(skill_tables, skill, env, lvl, false, 0, true)) * 75 >> 8;
+        line.max = ((skill.maxdam << shift) + elem_damage(skill_tables, skill, env, lvl, true, 0, true)) * 75 >> 8;
+        line.damage_colour = etype_colour;
+        weapon_share();
+    } else if (skill.descdam == 8) {                          // FUN_004eb290 (Inferno, Arctic Blast, Inferno Sentry)
+        line.damage = true;
+        const int scale = calc_of(skill.ddam_calc1), over = calc_of(skill.ddam_calc2);
+        const int times = scale != 0 ? scale : 1, per = over != 0 ? over : 1;
+        line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
+        line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
+        line.damage_colour = etype_colour;
     }
     if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
         const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);
