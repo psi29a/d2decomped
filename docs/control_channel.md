@@ -179,3 +179,13 @@ The same AF_UNIX socket, through Winsock (Windows 10 1803 and later,
 `afunix.h`): the protocol and the pump are the same on every OS. The path is
 a file path (`%TEMP%\d2d.sock`), at most 107 bytes.
 
+Python on Windows has no `socket.AF_UNIX`. The test scripts connect through
+`tests/devctl_client.py`, which calls Winsock with `ctypes` there.
+`devctl_client.isolated(home)` also gives the user dir and the environment
+for a throwaway run: d2d's user dir on Windows is `Documents\My Games\d2d`
+whatever `HOME` says, so `D2D_USER_DIR` names it on every OS.
+
+To run the headless tests on Windows, d2d needs an OpenAL device even with
+the null backend: put openal-soft's `soft_oal.dll` on `PATH` as
+`OpenAL32.dll`. The OpenAL router looks for drivers only next to the exe, in
+the working directory and in the system directory, not on `PATH`.
