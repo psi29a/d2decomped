@@ -686,7 +686,7 @@ struct Missile {
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
-    int pierce = 0;                           // pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
+    int pierce = 0;                           // the player's: pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
     bool flight_over = false;                 // its flight ended (missile_fly false): its hit with no unit goes off
     std::uint32_t last_hit_ms = ~0u;          // when
