@@ -673,6 +673,23 @@ takeoff and landing flags (it flies by row 11, strikes on the next event).
 
 ## Baal — FUN_005fcfe0, his clone FUN_005fd210
 
+`tools/emu/ai_baal_clone_count.py` compares FUN_005fc830 with d2d's live-clone
+gate over 24 cases, including Baal himself and a clone in NU, DT and DD.
+The fixture synchronizes positive life with NU and zero life with DT / DD;
+null candidates and inconsistent life/mode combinations are not checked.
+From the worktree root, with `GAME_EXE` set to stock 1.14d and `STORM_SRC`
+to an existing StormLib source `src` directory:
+
+```sh
+mkdir -p build/ai-baal-clones
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_clone_count.py --cpp > build/ai-baal-clones/cases.cpp
+include_flags=()
+for component_dir in components/* components/game/*; do if [ -d "$component_dir" ]; then include_flags+=("-I$component_dir"); fi; done
+c++ -std=c++23 -DSTORMLIB_NO_AUTO_LINK -include cmake/no_near_far.hpp -Icomponents -I"$STORM_SRC" "${include_flags[@]}" build/ai-baal-clones/cases.cpp -o build/ai-baal-clones/cases
+build/ai-baal-clones/cases > build/ai-baal-clones/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_baal_clone_count.py --cases build/ai-baal-clones/cases.txt --exe "$GAME_EXE"
+```
+
 MonAI 135 `{FUN_005fcfe0, FUN_005fcf30, 1}`, 140 (baalclone) `{FUN_005fd210,
 FUN_005fcf30, 1}`. Proven on game.exe: `tools/emu/mon_ais.py
 BaalCrab,BaalCrabClone --dump tests/mon_ais_baal_cases.inc` (2026-10-24).
