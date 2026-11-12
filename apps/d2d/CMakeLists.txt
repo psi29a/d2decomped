@@ -41,6 +41,14 @@ else()
         foreach(target IN LISTS targets)
             get_target_property(target_type ${target} TYPE)
             if(NOT target_type STREQUAL "INTERFACE_LIBRARY")
+                # Nor the near/far guard: a force-included file of ours is new
+                # in every fresh checkout, so CI's cached vendor objects would
+                # always be older than it and compile again.
+                get_target_property(options ${target} COMPILE_OPTIONS)
+                if(options)
+                    list(FILTER options EXCLUDE REGEX "no_near_far")
+                    set_target_properties(${target} PROPERTIES COMPILE_OPTIONS "${options}")
+                endif()
                 if(MSVC)
                     target_compile_options(${target} PRIVATE
                         "$<$<COMPILE_LANGUAGE:C,CXX>:/WX->")
