@@ -139,8 +139,13 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
 // (El1MinD + rand(El1MaxD - El1MinD) on its seed) << 8, the normal
 // columns (+0x10e / +0x120) whatever the difficulty; FUN_0057e090 (flags
 // 0, so 0x583) within its level (stat 12) x aip3 (+0x62) subtiles.
-// ponytail: every monster of the level within that radius, not only the
-// near rooms' (FUN_0065a950).
+// FUN_0057e090 calls FUN_0065a950 and FUN_0065ac70. FUN_0065a6b0 keeps the
+// unit's own room when the square of the radius lies inside it; otherwise
+// the near list, and FUN_0065a710 lets every room of that list through
+// (bugs.md #23). A unit in none of those rooms is missed, however close.
+// FUN_0065ac70 walks each room's unit list from its head (room +0x74, next
+// at +0xe8). FUN_0064c2c0 inserts at the head, so the hits in a room run
+// newest first. monsters is oldest first.
 auto Fight::blast_due(const Monster& golem) const -> bool {
         return !golem.alive() && golem.mode == "DT" && !golem.fx_done && golem.type >= 0
             && (game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem")
@@ -164,19 +169,36 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
             radius = golem.stats.level * type_info.diff[std::size_t(std::clamp(golem.difficulty, 0, 2))].aip[2];
         }
         const int from_x = int(std::floor(golem.unit.x * 5)), from_y = int(std::floor(golem.unit.y * 5));
-        for (std::size_t j = 0; j < monsters.size(); ++j) {
-            const auto& other = monsters[j];
+        const int own = room_of(*level, golem.unit.x, golem.unit.y);
+        std::vector<int> rooms;
+        if (const auto rect = own >= 0 ? level_room(*level, std::size_t(own)) : std::nullopt;
+            rect && rect->x * 5 < from_x - radius && rect->y * 5 < from_y - radius
+                && from_x + radius < (rect->x + rect->width) * 5 && from_y + radius < (rect->y + rect->height) * 5)
+            rooms.push_back(own);
+        else {
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, golem.unit.x, golem.unit.y))
+                if (room_level == level) rooms.push_back(near_room);
+        }
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(monsters.size());
+        for (const auto& other : monsters) {
+            const int room = room_of(*level, other.unit.x, other.unit.y);
+            units.push_back({ room, std::ranges::contains(rooms, room) });
+        }
+        for (const int index : d2d::rules::room_order(units, rooms)) {
+            const auto monster_index = std::size_t(index);
+            const auto& other = monsters[monster_index];
             const int to_x = int(std::floor(other.unit.x * 5)), to_y = int(std::floor(other.unit.y * 5));
             if (!other.targetable() || d2d::rules::friends(2, other.align) || (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > radius * radius
                 || d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); }))
                 continue;
-            const auto target = target_of(j);
+            const auto target = target_of(monster_index);
             const int physical = d2d::rules::resisted_fine(physical_fine, std::max(target.res[0], -100)), fire = d2d::rules::resisted_fine(fire_fine, target.res[2]);
             d2d::rules::Blow blow{ .hit = true };
             blow.phys = physical_fine >> 8; blow.phys_fine = physical;
             blow.damage = (physical >> 8) + (fire >> 8); blow.frac = (physical & 255) + (fire & 255);
             blow.elemental = fire > 0;
-            land(j, blow, false, now_ms, golem.id);
+            land(monster_index, blow, false, now_ms, golem.id);
         }
         if (const auto found = game_data->missiles.find("monstercorpseexplode"); goboom && found != game_data->missiles.end()) {
             Missile blast{ &found->second, golem.unit.x, golem.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
