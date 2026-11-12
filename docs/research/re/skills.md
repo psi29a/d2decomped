@@ -1231,35 +1231,36 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   air: passes units, lands at its target), **51** (volcano debris):
   HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
-  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
-  allies by calc1. The heal gate is `FUN_005542c0(target, caster,
-  skill) || FUN_00554d20(target, caster, skill)`: `FUN_005542c0` (EDX
-  `target`, stack `caster`, `skill`; fastcall ECX unused) requires both
-  non-null, then `target`'s type 0 (player) or `caster`'s type 1
-  (monster, not mode — mode is a separate field), and bounds `skill`
-  against the Skills.txt count
-  (`[0x744304]+0xba0`), its record's `+7` bit 1 (`gadwBitMasks[1]`,
-  `0x6ce26c`). It then calls `FUN_0058f090(caster, &skill_slot,
-  &caster_slot)`: for a monster `caster` with a resolved pet-owner chain
-  (`+0x28`), it overwrites `caster_slot` with the owner's `+0x30` and
-  `skill_slot` with the owner's `+0x2c`; otherwise it only sets
-  `skill_slot` to -1 and leaves `caster_slot` (still the original,
-  non-null `caster` pointer) alone. `FUN_005542c0` passes only when
-  `caster_slot` came back 0 (so only the pet-owner branch can pass) and
-  `skill_slot` equals `target`'s `+0xc`. Not traced: `FUN_00554d20`, the
-  other half of the gate, and what `target`'s `+0xc` and the owner's
-  `+0x2c` / `+0x30` fields hold by name.
+  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 non-zero
+  and an owner (`FUN_00552fd0`/`GetOwnerUnit`, the missile's caster) it
+  heals instead. The heal gate is `FUN_005542c0(caster, target, skill) ||
+  FUN_00554d20(caster, target, skill)` (re-decompiled to fix a
+  caster/target mix-up a prior pass had): `FUN_005542c0` requires both
+  non-null, the caster's type 0 (player) or target's type 1 (monster,
+  not mode — mode is a separate field), and bounds `skill` against the
+  Skills.txt count (`[0x744304]+0xba0`), its record's `+7` bit 1
+  (`gadwBitMasks[1]`, `0x6ce26c`, Skills.txt's TargetPet flag). It then
+  calls `FUN_0058f090(target, &owner_guid, &owner_type)`: for a monster
+  `target` with a resolved pet-owner chain (its own `pAiGeneral`), it
+  fills `owner_guid`/`owner_type` from that chain's own owner-GUID and
+  owner-type fields; otherwise it sets `owner_guid` to -1 and leaves
+  `owner_type` unchanged. `FUN_005542c0` passes only when `owner_type`
+  came back 0 and `owner_guid` equals the caster's own GUID — so
+  TargetPet only passes for a monster the caster itself owns. TargetAlly
+  (bit 0x1a, `FUN_00554d20`) is a player, or a monster owned by a
+  player, in the owner's party: `FUN_00540710` is -1 with no party, and
+  that fails, so a solo caster is not healed through this path. Not
+  traced: `FUN_00554d20`'s own body.
+
+  With the gate passed, the amount is `calc[0]` whole points (skill
+  `+0x138`, `FUN_00646ca0`) in 256ths plus a roll of `calc[1] - calc[0]`
+  in 256ths on the missile's own seed (`+0x20`, `RANDOM_RandomNumberSelector`/
+  `FUN_0045c3e0`); 0 or under falls back to `FUN_005a8910` of missile
+  stats mindamage/maxdamage (0x16/0x15). The result is added to the
+  target's life (stat 6), capped at max life; `ProgOverlay` (`+0x36`)
+  plays when set. Returns 1 (ends, no damage). When the gate fails, the
+  type/sHitPar2 check above runs instead (a strike, not a heal).
   **9** (FUN_005aa250, Immolation Arrow): the damage
-  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 (+0x4c)
-  non-zero and an owner (FUN_00552fd0) it heals. TargetPet (flag bit 0x19,
-  FUN_005542c0) is a monster owned by that player. TargetAlly (bit 0x1a,
-  FUN_00554d20) is a player, or a monster owned by a player, in the owner's
-  party: FUN_00540710 is -1 with no party, and that fails, so a solo caster
-  is not healed. The amount is calc1 whole points (skill +0x138, FUN_00646ca0)
-  in 256ths plus FUN_0045c3e0 below (calc2 - calc1) x 256 on the missile seed
-  (+0x20). At 0 or less, FUN_005a8910 of missile stats 0x16 and 0x15. Added
-  to life (stat 6), capped at max life. Returns 1 (ends, no damage).
-  ProgOverlay (+0x36) plays when above 0 (holybolt: healing). **9** (FUN_005aa250, Immolation Arrow): the damage
   within sHitPar1 (else calc1), fire over that ground (FUN_005a9530) for
   the arrow row's SHitCalc1 (+0x88) frames (0x8000), burning its own row
   (immolationfire: + Fire Arrow x 5 %).
