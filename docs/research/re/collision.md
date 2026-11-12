@@ -296,8 +296,13 @@ were not read in the asm); cited, no oracle run.
     and end in 20,000 cases (3,461 with no free spot; 800 frozen in
     `tests/walk_back_cases.inc`).
   - d2d: `player_walk` and `path_to`'s type 7 (ai.cpp) run it on a blocked
-    end. Left: at a unit it isn't run, since the target's stamp isn't lifted
-    for the test as flag 0x800 has it.
+    end. FUN_00649970 lifts the mover's stamp (FUN_00649560) and, with flag
+    0x800 and a target unit of non-zero size (FUN_00620510), the target's,
+    before the end test and the pather, and puts both back after
+    (FUN_00649400). FUN_00649560 skips a player in mode 0 or 0x11 and a
+    monster in mode 0 or 0xc (dying, dead): no stamp to lift. `player_walk`
+    leaves its `target` (the monster or NPC walked up to) out of the crowd
+    for both. A monster's type 7 is only the Dark Wanderer's walk to a spot.
 
 ## A walk's stop
 

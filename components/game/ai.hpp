@@ -122,10 +122,13 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
 // subtiles with the unit collision test, `to_unit` when walking up to a
-// monster or NPC (near 1, FUN_006498a0). Points are subtile centres; the
-// leading ones it stands on are skipped (FUN_0064fe40), and a repeat.
+// monster or NPC (near 1, FUN_006498a0), `target` that unit: its stamp,
+// as its own, isn't in the way (flag 0x800, FUN_00649560). A blocked end is
+// walked back toward the start (flag 0x1000, rules::end_walk_back). Points
+// are subtile centres; the leading ones it stands on are skipped
+// (FUN_0064fe40), and a repeat.
 std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
-                                                 const Crowd& crowd = {}, const UnitState* self = nullptr);
+                                                 const Crowd& crowd = {}, const UnitState* self = nullptr, const UnitState* target = nullptr);
 
 // A walk as a monster's (town NPCs, Cain, the merc, pets) to (gx, gy) in
 // cells: rules::monster_path's points as subtile centres, a budget of 0x14

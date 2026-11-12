@@ -564,8 +564,13 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                         loot.take(i, now_ms);
                     }
                 }
-            bool to_unit = (actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size()) || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
-            if (const auto target = fight.engage(now_ms)) { std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true; }
+            const bool to_npc = actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size();
+            bool to_unit = to_npc || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
+            const UnitState* walk_target = to_npc && std::size_t(actor->interact_npc) < npc_states.size() ? &npc_states[std::size_t(actor->interact_npc)] : nullptr;
+            if (const auto target = fight.engage(now_ms)) {
+                std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true;
+                walk_target = &fight.monsters[std::size_t(actor->attack_mon)].unit;
+            }
             if (actor->player.walking && (actor->pmode < 0 || actor->ghost)) {
                 // A route to the target (path type 7), re-planned as
                 // FUN_006503f0 has it: a target unit more than 5 subtiles off
@@ -577,7 +582,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 const auto subtile = [](float value) { return int(std::floor(value * 5)); };
                 const int off_x = std::abs(subtile(actor->player.goal_x) - subtile(actor->target_x)), off_y = std::abs(subtile(actor->player.goal_y) - subtile(actor->target_y));
                 if (actor->player.path.empty() || (to_unit ? off_x > 5 || off_y > 5 : off_x != 0 || off_y != 0)) {
-                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player);
+                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player, walk_target);
                     actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;
                 }
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));

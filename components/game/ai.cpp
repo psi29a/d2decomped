@@ -44,18 +44,19 @@
 namespace d2d::game {
 
 std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
-                                                 const Crowd& crowd, const UnitState* self) {
+                                                 const Crowd& crowd, const UnitState* self, const UnitState* target) {
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
     const std::pair from{ sub(x), sub(y) };
+    Crowd lifted = crowd;                     // flag 0x800: the target's stamp lifted too (FUN_00649970 -> FUN_00649560)
+    std::erase(lifted.units, target);
     const auto blocked = [&](int subtile_x, int subtile_y) {
-        return level.unit_blocked(centre(subtile_x), centre(subtile_y), self ? self->shape : UnitShape{}) || crowd.at(centre(subtile_x), centre(subtile_y), self);
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y), self ? self->shape : UnitShape{}) || lifted.at(centre(subtile_x), centre(subtile_y), self);
     };
     // Type 7 has path flag 0x1000 (PATHTYPEFLAGS 0x6eb690): a blocked end is walked back toward
     // the start and pushed on (FUN_00648120), and with no free spot there's no path.
-    // ponytail: not at a unit: its stamp isn't lifted for the test as flag 0x800 has it (FUN_00649560).
     int to_x = sub(goal_x), to_y = sub(goal_y);
-    if (!to_unit && blocked(to_x, to_y) && !d2d::rules::end_walk_back(from.first, from.second, to_x, to_y, true, blocked)) return {};
+    if (blocked(to_x, to_y) && !d2d::rules::end_walk_back(from.first, from.second, to_x, to_y, true, blocked)) return {};
     const auto steps = d2d::rules::player_path(from.first, from.second, to_x, to_y, to_unit ? 1 : 0, to_unit, blocked);
     // A point given twice (the toward pather's cut-short subtile) stays: the walk passes it (FUN_0064fe40).
     std::vector<std::pair<float, float>> points;
@@ -394,8 +395,9 @@ namespace {
 // level, and its path stays in its level, so none is refused.
 // Type 7 has path flag 0x1000 (PATHTYPEFLAGS 0x6eb690; 0xd and 0xf don't):
 // a blocked end is walked back toward the start (FUN_00648120), and with no
-// free spot there's no path. ponytail: not at a foe: its stamp isn't lifted
-// for the test as flag 0x800 has it (FUN_00649560).
+// free spot there's no path. A monster's type 7 is only the Dark Wanderer's
+// walk to a spot (act3.cpp), never at a foe, so flag 0x800 (the target's
+// stamp lifted) has nothing to lift here.
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
