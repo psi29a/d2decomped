@@ -622,8 +622,9 @@ arguments), cited, not run. The functions are in the order they are met.
   (LAB_0057eff2). **The dispatcher** `FUN_0054d750` calls it as `(1, 0, 0)` (LAB_0054d7b0:
   pushes 0, 0, 1), so for the ids read here, all but 0x14, 0x15, 0x3c, 0x43, 0x66 (no test) and 0x41 (only in
   mode 0x11) the gate is those three tests and nothing else. **Walking is not one of them**,
-  so the "a walking player is busy" of network.md, `walk.cpp` and `World::apply`'s comment is
-  not what `FUN_0057eec0` reads; whatever drops a packet from a walking player is in the
+  so the "a walking player is busy" that network.md, `walk.cpp` and `World::apply`'s comment said is
+  not what `FUN_0057eec0` reads (`tools/emu/player_may_act.py` runs it as the dispatcher
+  does, every mode 0..0x12); whatever drops a packet from a walking player is in the
   handler, not traced here. **`FUN_00580a70`** calls it as `(mode, 1, skill)` (LAB_00580af6), and
   then it goes on: the unit's skill list (`FUN_00620250`) and the skill record of its head
   (`.\PLAYER\PlrModes.cpp` line 0xb9, `FUN_0045c4b0`); none of either returns 1. The skill
@@ -633,7 +634,7 @@ arguments), cited, not run. The functions are in the order they are met.
   With the flag set: state 0x2a on the unit and its list's stat 0xa4 over a roll
   (`FUN_0045c390(unit seed, 100)`) go to the mode test above; otherwise state 0xf absent returns 1,
   present goes to the same mode test. The roll, the states and `FUN_005809d0` are not ported
-  or traced further. **DISAGREES** with d2d on what "busy" is (issue).
+  or traced further. d2d's network.md, `walk.cpp` and `World::apply` no longer call a walking player busy (#363).
 - **`FUN_006248e0`: the log line.** Does nothing while `0x96ca48` is 0; else
   `FUN_00624780` inside the critical section `0x96ca30` (stubs.md has its callers). Here only
   `FUN_00580a70` uses it, for a target that is gone: `(1, 2, 4, 4, ".\PLAYER\PlrModes.cpp",
