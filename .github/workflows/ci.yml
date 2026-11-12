@@ -243,8 +243,10 @@ jobs:
       # isolated source/build trees so unchanged vendor code needn't compile,
       # and Ninja's log and deps beside them: without those Ninja takes every
       # restored object for stale and compiles all ~265 again. The runner
-      # image is in the key because a new one can bring newer system headers,
-      # which Ninja would rebuild for on every run of an older cache.
+      # image's version stays out of the key: GitHub rolls a new image out
+      # over days, so two runs get two images and miss each other's cache.
+      # ponytail: an image whose system headers are newer than the cache
+      # rebuilds Sentry every run; delete the sentry-* cache if that shows.
       - name: Sentry cache key
         id: sentry-key
         shell: bash
@@ -257,7 +259,7 @@ jobs:
           key=$({
             sed -n -e '/^    set(SENTRY_BACKEND /,/^    set(SENTRY_SCREENSHOT /p' \
               -e '/^    FetchContent_Declare(/,/^    )/p' apps/d2d/CMakeLists.txt
-            printf '%s\n' "$compiler_version" "${ImageVersion:-}" ninja-state
+            printf '%s\n' "$compiler_version" ninja-state
           } | git hash-object --stdin)
           echo "key=${key:0:16}" >> "$GITHUB_OUTPUT"
 
