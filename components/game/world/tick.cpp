@@ -22,6 +22,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -307,10 +308,10 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
-            if (afterglow_due == 0) afterglow_due = now_ms + 2 * kTickMs;
+            if (afterglow_in == 0 && !afterglow_due) afterglow_in = d2d::rules::quest_timer_steps(2);
         }
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
-            !afterglow_made && afterglow_due != 0 && now_ms >= afterglow_due && wanderer != fight.monsters.end()) {
+            !afterglow_made && afterglow_due && wanderer != fight.monsters.end()) {
             afterglow_made = true;
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
@@ -332,7 +333,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             day_at = frame_at;
             if (first_turn) {
                 day.step(act(), level->id);
-                credit_party([&] { act1_tick(); act2_tick(); });
+                const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
+                credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
             each_player([&](Player&) { stamina_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
@@ -627,7 +629,6 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
-        if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
             if (std::exchange(player.storm_struck, false)) player.events.push_back(ev::Lightning{});

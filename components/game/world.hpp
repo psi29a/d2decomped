@@ -24,6 +24,7 @@
 #include <light.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
@@ -433,7 +434,8 @@ struct World {
     struct Fire { const Level* level; const Npc* npc; float x, y; std::uint32_t born = 0, gone = 0; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning; the afterglow till `gone`
     bool afterglow_made = false;           // a3q7's record +0xc: the Dark Wanderer's afterglow, once a game
-    std::uint32_t afterglow_due = 0;       // ms: when it's made (two ticks after he goes), 0 not yet
+    int afterglow_in = 0;                  // quest steps to it: 2 ticks after he goes (0x5bd4ce -> FUN_005bd390), 0 not running
+    bool afterglow_due = false;            // that timer has run: it's made
     // a3q6's record (0x14, a3q6.cpp): +0xc 2 once Mephisto's dead; the
     // bridge's event 7 (FUN_005bcac0) every 24 frames from then.
     std::uint32_t bridge_check = 0;
@@ -482,6 +484,7 @@ struct World {
     // The player's act (0-based): the act of the level they're on.
     [[nodiscard]] int act() const { return level ? d2d::rules::level_ids::act_of(level->id) : 0; }
     int next_item_id = 1;                  // the next item's unit id
+    d2d::rules::QuestClock quest_clock;    // the quest timers' clock: a step every 20 frames (FUN_0052d870)
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
     d2d::rules::BurialQuest burial;        // and Sisters' Burial Grounds
@@ -510,11 +513,12 @@ struct World {
     int ubers_dead = 0;                    // the Tristram ubers dead (FUN_005e0070: game +0x1df0 / +0x1dec / +0x1de8), a bit each
     void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
-    std::uint32_t statues_back_at = 0;     // a5q5: the statues' return timer's next tick (FUN_0058bd50, every 2 frames)
+    int statues_back_in = 0;               // quest steps to a5q5's statues' return timer: 2 ticks (0x58c9da -> FUN_0058bd50), 0 none
+    bool statues_back_due = false;         // that timer has run
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_0058d560)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     void rite_put_back(std::uint32_t now_ms);
-    std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
+    int betrayal_log_in = 0;               // quest steps to a5q4's 8-tick timer (0x58b84a -> 0x58b770), 0 none
     std::size_t cages_seen = 0;               // a5q2's cages (Spawning::rescue_cages) come into the quest so far
     std::map<const Level*, std::size_t> objects_inited;   // init_new_objects: each level's npcs seen so far
     void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)
@@ -525,7 +529,9 @@ struct World {
     std::uint32_t thaw_at = 0;             // a5q3's thaw timer (FUN_0058aab0), a tick a step
     std::pair<const Level*, int> fana{ nullptr, -1 };     // the fana object made (Level::npcs index)
     bool nihlathak_made = false;           // a5q3 +0x92: InitFn 69's Nihlathak (superunique 60)
-    std::uint32_t izual_ghost_at = 0;      // a4q1's 3-tick timer (FUN_005b3e60): his ghost
+    int izual_ghost_in = 0;                // quest steps to a4q1's 3-tick timer (0x5b4126 -> 0x5b3e60): his ghost, 0 none
+    bool izual_ghost_due = false;          // that timer has run
+    const Level* izual_level = nullptr;    // where he died: the ghost goes there (0x5b3eaf: Act 4's map, game +0xc8)
     std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
@@ -545,8 +551,10 @@ struct World {
     struct SealBoss { int superunique, x, y; std::uint32_t at; };
     std::vector<SealBoss> seal_bosses;
     [[nodiscard]] d2d::rules::KhalimQuest::Parts khalim_parts() const;
-    std::uint32_t gidbinn_timer = 0;       // a3q3's 7 ticks from the altar's use (FUN_00543f10 -> FUN_005b9a30)
+    int gidbinn_in = 0;                    // quest steps to a3q3's timer: 7 ticks from the altar's use (0x5b9c22 -> FUN_005b9a30), 0 none
+    bool gidbinn_due = false;              // that timer has run: the guardians are due
     int gidbinn_altar = -1;                // the altar's Level::npcs index
+    const Level* gidbinn_level = nullptr;  // and its level: FUN_005b9a30 looks in Act 3's map at the altar's spot
     d2d::rules::TaintedSunQuest tainted;   // and the Tainted Sun
     d2d::rules::HoradricStaffQuest staff;  // and the Horadric Staff
     d2d::rules::ArcaneQuest arcane;        // and the Arcane Sanctuary
@@ -560,7 +568,7 @@ struct World {
     // reward nothing and drop nothing; the client shows the host's.
     bool hosted_quests = false;     // the game's own quest flags (game +0x10f4 +0xc), as Act 2's records set them
     int den_left = -1;                     // its monsters alive when last counted
-    std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
+    int den_log_in = 0;                    // quest steps to the log's "Return to Akara" (8 ticks, LAB_00590230), 0 none
     std::array<bool, d2d::rules::kQuestFlagCount> closed_at_join{};  // quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
@@ -611,6 +619,12 @@ struct World {
     // A frame of the day clock (40 ms).
     void act1_tick();
     void act2_tick();
+    // A step of the quest clock (quest_clock): the quest timers.
+    void act1_quest_step();
+    void act2_quest_step();
+    void act3_quest_step();
+    void act4_quest_step();
+    void act5_quest_step();
     // The NPC's "!" over its head.
     bool act1_alert(int hc_idx);
     bool act2_alert(int hc_idx);

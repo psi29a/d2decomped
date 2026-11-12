@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
@@ -54,10 +55,12 @@ auto World::act5_join() -> void {
         prison.join(quests(), carries(d2d::rules::PrisonQuest::kPotionCode));
         betrayal = {};
         betrayal.join(quests());
-        betrayal_log_at = 0;
+        betrayal_log_in = 0;
         rite = {};
         rite.join(quests());
-        statues_at = statues_back_at = 0;
+        statues_at = 0;
+        statues_back_in = 0;
+        statues_back_due = false;
         rite_died = false;
         eve = {};
         if (eve.join(quests())) open_act(5);                // FUN_00538680: the next difficulty
@@ -295,7 +298,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
             bool timer = false;                        // each player by him (FUN_0058b7a0's pass)
             each_player([&](Player& player) { timer |= betrayal.killed(quests(), rooms_near(*game_data, *level, player.player.x, player.player.y, kill.x, kill.y)); });
-            if (timer) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
+            if (timer) betrayal_log_in = d2d::rules::quest_timer_steps(d2d::rules::BetrayalQuest::kLogTicks);
             d2d::log::info("Betrayal of Harrogath: Nihlathak is dead");
         }
     }
@@ -456,15 +459,14 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
 // (FUN_0058c0e0: each to mode 4, its Ancient at its spot, FUN_00545c30);
 // the Ancients asleep till then; a death there (RiteQuest::died) or a town
 // portal opened there (RiteQuest::portal_opened) puts it back.
-// An Ancient fallen: the return timer every 2 frames (FUN_0058bd50), its
-// statue to mode 1, then mode 2 after FrameCnt1 (its event 1). game.exe
+// An Ancient fallen: the return timer, 2 ticks (FUN_0058bd50: the 3rd quest
+// step), its statue to mode 1, then mode 2 after FrameCnt1 (its event 1). game.exe
 // retries a failed make 10 frames on (FUN_0058c0e0); seal_boss doesn't fail.
 auto World::rite_update(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::RiteQuest::kSummit) return;
         const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };
-        if (rite.returning && !statues_back_at) statues_back_at = now_ms + 2 * kTickMs;
-        if (statues_back_at && now_ms >= statues_back_at) {
-            statues_back_at = 0;
+        if (rite.returning && statues_back_in == 0 && !statues_back_due) statues_back_in = d2d::rules::quest_timer_steps(2);
+        if (std::exchange(statues_back_due, false)) {
             const auto back = rite.statues_back();
             for (std::size_t which = 0; which < back.size(); ++which)
                 if (const int statue = object_index(d2d::rules::RiteQuest::kStatues[which]); back[which] && statue < int(level->npcs.size())) {
@@ -505,7 +507,9 @@ auto World::rite_put_back(std::uint32_t now_ms) -> void {
             if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); })) monster.gone = true;
         for (const int object_id : { 474, 475, 476, d2d::rules::RiteQuest::kAltar })
             if (const int found = object_index(object_id); found < int(level->npcs.size())) doors[{ level, found }] = Door{ 0, now_ms };
-        statues_at = statues_back_at = 0;
+        statues_at = 0;
+        statues_back_in = 0;
+        statues_back_due = false;
         d2d::log::info("Rite of Passage: the Ancients go back to sleep");
     }
 
@@ -627,13 +631,19 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         return true;
     }
 
+// A quest-clock step: a5q4's timer (8 ticks, 0x58b770) and a5q5's
+// statues' return (2 ticks, FUN_0058bd50) run.
+auto World::act5_quest_step() -> void {
+        if (betrayal_log_in > 0 && --betrayal_log_in == 0) betrayal.log_timer();
+        if (statues_back_in > 0 && --statues_back_in == 0) statues_back_due = true;
+    }
+
 auto World::act5_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         rescue_update(now_ms);
         prison_update(now_ms);
         rite_update(now_ms);
         eve_update(now_ms);
-        if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
         for (auto [news, quest] : { std::pair{ &siege.news, d2d::rules::SiegeQuest::kQuest }, { &rescue.news, d2d::rules::RescueQuest::kQuest },

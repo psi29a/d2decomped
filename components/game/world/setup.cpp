@@ -322,6 +322,7 @@ auto World::new_game() -> void {
         fight.new_game(actor->character.header.active_difficulty());
         set_waypoint(0);                          // the town's is always active (FUN_00661030 forces index 0 as the save loads)
         day = {};                                 // a new game starts at sunrise
+        quest_clock = {};                         // and its frame and quest count from 0 (game +0xa8, +0x10f4 +0x14)
         day_at = now;
         loot.ground.clear();
         loot.kept.clear();
@@ -342,7 +343,7 @@ auto World::new_game() -> void {
         act4_join();
         act5_join();
         den_left = -1;
-        den_log_at = 0;
+        den_log_in = 0;
         actor->voice_found.reset();               // FUN_004ca280: a new game's find lines
         actor->voice_checked = 0;
         operated.clear();
@@ -366,7 +367,8 @@ auto World::new_game() -> void {
         objects_inited.clear();
         fires.clear();
         afterglow_made = false;
-        afterglow_due = 0;
+        afterglow_in = 0;
+        afterglow_due = false;
         traps.clear();
         treasure.clear();
         cain_walk = {};
