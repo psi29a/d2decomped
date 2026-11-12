@@ -430,6 +430,21 @@ chooser's casting test (Fire Wall over 3, 0x1b over 7) reads them.
 `rules::diablo_score`, proven on 400 cases (tools/emu/diablo_score.py,
 tests/diablo_score_cases.inc).
 
+`tools/emu/ai_mephisto_target_choice.py` compares FUN_005f77c0 with the
+target chosen by d2d's Mephisto think over 4,608 cases. Nearby-unit search
+is hooked; the original selection draws run for real. This includes the
+zero-target result of the original's second search branch, but does not
+check search ordering or the later skill action. From the worktree root with
+`GAME_EXE` set to stock 1.14d:
+
+```sh
+mkdir -p build/ai-mephisto-target
+uv run --no-sync --project tools/emu python tools/emu/ai_mephisto_target_choice.py --cpp > build/ai-mephisto-target/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-mephisto-target/cases.cpp -o build/ai-mephisto-target/cases
+build/ai-mephisto-target/cases > build/ai-mephisto-target/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_mephisto_target_choice.py --cases build/ai-mephisto-target/cases.txt --exe "$GAME_EXE"
+```
+
 ## The imps' ride and skills (traced 2026-10-24)
 
 imp1..imp8 (BaseId imp1, class 0x1ec) carry Imp Teleport (Skill1, do
