@@ -5,7 +5,7 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
-(FUN_004ead60), 24 (FUN_004eae70), FUN_004e9660 (the SrcDam share of the
+(FUN_004ead60), 9 (FUN_004eb390), 24 (FUN_004eae70), FUN_004e9660 (the SrcDam share of the
 weapon) and FUN_004e6fb0 (EType's colour). Hooked: FUN_00647bc0 /
 FUN_00647d00 (the skill's MinDam / MaxDam), FUN_00644d50 / FUN_00644e40
 (EMin / EMax with mastery), FUN_00644f20 (ELen), FUN_004e86f0 (the
@@ -27,7 +27,7 @@ PHYS_MIN, PHYS_MAX, ELEM_MIN, ELEM_MAX, ELEM_LEN = 0x647BC0, 0x647D00, 0x644D50,
 WEAPON, WEAPON_ELEMENTS, DRAW = 0x4E86F0, 0x4E89A0, 0x4E96E0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 24)
+HANDLERS = (5, 9, 24)
 
 
 def d2d_line(descdam, case):
@@ -56,6 +56,11 @@ def d2d_line(descdam, case):
     if descdam in (5, 24):
         weapon_share()
         own_damage()
+    elif descdam == 9:
+        shift = case["hitshift"]
+        low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
+        high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
+        weapon_share()
     return low, high, colour
 
 

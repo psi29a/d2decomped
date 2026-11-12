@@ -115,6 +115,9 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     the weapon's elements recolour the line (004e8b37) and damblue /
     damred win last (004e8d58). 1 and 7 don't multiply poison by ELen.
     Oracle: `tools/emu/panel_damage.py`.
+  - 9 (0x4eb390; Blaze, Fire Wall, Firestorm): (MinDam << HitShift, no
+    level brackets, + EMin with mastery) x 75 >> 8, the same for the max;
+    colour by EType; then the weapon's share as 5.
   - 24 (0x4eae70; Blade Fury): 5's sum in another order (MinDam, the
     weapon's share, EMin).
 - **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
@@ -143,7 +146,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 2..4, 6, 8..23, descatt 3 / 4, dual wield, stat 325, the usability gate, the K formats, barehanded strength,
+Not done: descdam 2..4, 6, 8, 10..23, descatt 3 / 4, dual wield, stat 325, the usability gate, the K formats, barehanded strength,
 tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)
