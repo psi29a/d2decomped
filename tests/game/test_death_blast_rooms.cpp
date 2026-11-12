@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <ds1.hpp>
 #include <exception>
+#include <gamedata.hpp>
 #include <world.hpp>
 
 using namespace d2d::game;
