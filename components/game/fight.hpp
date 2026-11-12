@@ -1256,6 +1256,13 @@ struct Fight {
     // (do 13) the next in reach by FUN_0056bd10's pick (other_target);
     // the rest (Talon's next kick) stay on their monster while it lives.
     bool next_target();
+    // Do 13's next hit (FUN_005dbc60), on the hit's action frame: one hit
+    // fewer; with hits left, the next in reach above `struck` (FUN_0056bd10,
+    // handed the struck one's id even dead) and the swing starts over now
+    // (FUN_0056e210 -> FUN_00553b10, Param2 at +0x14c: from (100 - Param2) %
+    // of the frames played, Zeal's and Fury's 100 from frame 0); none in
+    // reach, the swing plays out and the hits left are lost.
+    void repeat_hit(int struck, std::uint32_t now_ms);
     // The monsters in reach, by unit id (d2d's index), as FUN_0056b7e0
     // walks the units in the rooms around the player with flags 0x2a783:
     // within FUN_0056e510's radius (the weapon's range + 4, squared
