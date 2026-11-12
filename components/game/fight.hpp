@@ -382,6 +382,9 @@ struct Fight {
         // the skill (and level) its attack mode carries (-1: a plain blow).
         std::array<int, 6> merc_ids{}, merc_levels{};
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
+        // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles).
+        // ponytail: nothing bumps it (FUN_00597e20's default branch isn't read).
+        std::uint32_t merc_pierce_idx = 0;
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
         const std::vector<GameData::MonSeqFrame>* merc_seq = nullptr;
@@ -967,6 +970,11 @@ struct Fight {
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
+    // FUN_0059f940's chance (skill_pierce + item_pierce) and whether either stat
+    // is set (FUN_005adf10 asks only then). A merc's come from its gear.
+    [[nodiscard]] int pierce_chance(bool for_merc) const;
+    [[nodiscard]] bool pierce_armed(bool for_merc) const;
+    void seed_pierce(Missile& missile, bool for_merc);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
     [[nodiscard]] int calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl);
