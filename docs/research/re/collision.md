@@ -3640,3 +3640,166 @@ server's own skill data (the flag could only matter for the client's copy).
 
 Re-check: `python3 tools/ghidra/fn.py 004acd70 004ad020`; disassemble
 `004acd70`..`004acda9` and `004ad05a`..`004ad080`.
+
+### Client missile hit callbacks that scan or fan out: `FUN_004cf150`, `FUN_004d04d0`, `FUN_004d05e0` (batch 27)
+
+Entries 64, 30 and 4 of the client hit table at `0x72a508` (entry `n` is the
+dword at `0x72a508 + 4*n`, read from memory). These three are fastcall (ECX
+missile unit, EDX unused), plain `RET`, return 1, and fan out sub-missiles
+with the 0x5c-byte make-missile record (`memset` to 0, flags dword `+0` = 2,
+owner `+4`, parent missile `+8`, skill `+0x2c`, level `+0x30`, then
+`FUN_004cd540(record)`). After a successful make they copy the same X/Y pair
+into the new missile with `FUN_0064a710` (TargetX) and `FUN_0064a760`
+(TargetY). Each spawn's record `+0x1c` / `+0x20` are that pair, so the fan
+direction is carried in the target fields too.
+
+- **`FUN_004cf150`** (`004cf150`..`004cf24b`, 242 bytes, slot 64): needs an owner
+  (`FUN_004639d0(unit)`), a valid missiles.txt row (stride `0x1a4`, count at
+  `[[0x744304]+0xb6c]`) and word `+0x2c` (CltHitSubMissile1) `>= 0`.
+  Record `+0x10` (missile id) is **not set** here, so it stays 0 from the
+  `memset`: the spawn does not carry CltHitSubMissile1 (what `FUN_004cd540`
+  does with id 0 was not traced).
+  The step is `max(dword txt+0x6c, 1) * 4` bytes through two 16-dword
+  tables (stop at byte offset `0x20`, so 8 entries at step 1): record `+0x1c`
+  and TargetX come from `0x6dafa8`, record `+0x20` and TargetY from `0x6daf88`.
+  `0x6daf88` holds `0,16,16,16,0,-16,-16,-16` (then
+  `16,16,0,-16,-16,-16,0,16`), i.e. the Y pair on the first 8 entries.
+  **Trap:** Ghidra's decompile feeds nUnitX from the lower table and nUnitY
+  from the upper one; the disassembly (`004cf200`, `004cf206`, `004cf220`,
+  `004cf22d`) is the other way round. Whether slot 64 is reachable from any
+  missiles.txt row (its Ghidra name says Unused) was not traced.
+- **`FUN_004d04d0`** (`004d04d0`..`004d05d0`, 267 bytes, slot 30) and
+  **`FUN_004d05e0`** (`004d05e0`..`004d06e6`, 267 bytes, slot 4) are the same
+  routine over different tables. `004d05e0` read through its loop: guards (unit,
+  class `0..count`, row, word `+0x2c >= 0`), owner by `FUN_004639d0`, record
+  flags 2 with record `+0x10` = **CltHitSubMissile1** (word `+0x2c`), step
+  `max(dword +0x6c, 1) * 4`, loop end `0x100` (64 entries at step 1). Slot 4:
+  record `+0x1c` and TargetX from `0x6db440`, record `+0x20` and TargetY from
+  `0x6db340`. Slot 30 (`004d0580`..`004d05c2` read): same with
+  `0x6db240` (X) and `0x6db140` (Y). Slot 30 is named FrozenOrb by Ghidra;
+  the prologue and guards of `004d04d0` are decompile-only, the loop is
+  disassembly.
+
+Callers: none by call (table slots 64, 30, 4). d2d: no match found by
+address in `components/` or `apps/`; client missile hits are not run through
+this table. Not traced: the table contents of `0x6db140`..`0x6db440` and
+`0x6dafa8`, the missiles.txt rows that name these slots, why slot 64 leaves
+the missile id unset.
+
+Re-check: `python3 tools/ghidra/fn.py 004cf150 004d04d0 004d05e0`; read
+`0x72a508 + 4*n` for n = 64, 30, 4; disassemble `004cf1ae`..`004cf23f`,
+`004d0580`..`004d05c2`, `004d0690`..`004d06d2`.
+
+### Client missile "make at area" sub-missile spawner: `FUN_004cddb0` and its caller `FUN_004cf500` (batch 27)
+
+- **`FUN_004cddb0`** (`004cddb0`..`004ce04d`, 672 bytes, fastcall ECX missile
+  unit, EDX pointer to a dword array of missile class ids, four stack args,
+  `RET 0x10`, so [EBP+8] id count, [+0xc] half-width `r`, [+0x10] flag/offset
+  `d`, [+0x14] percent chance `p`). Gated first by `FUN_00620bb0(unit)` (a
+  room or game lookup for the missile; not traced). Builds the make-missile
+  record (flags 1, or `0x8001` when `d != 0`; owner `FUN_004639d0(unit)`;
+  skill and level from `FUN_0064a280` / `FUN_0064a210`; the unit's position
+  from two lookups chosen by unit type: types 2 and 4..5 use the static path
+  pair at `+0x2c` `+0xc` / `+0x10`, others `FUN_006488c0` / `FUN_00648900`).
+  It then walks a square `-r..r` in both axes, keeping only cells with
+  `x*x + y*y <= r*r`, and for each cell: needs the cell's room via
+  `FUN_00620bb0`, a `FUN_0064e260(room, ...)` test, `FUN_00463740` and
+  `FUN_0061ab00` (both zero results skip the cell) — their meaning was
+  not traced. A cell then draws from the **missile's own seed** (`+0x20`
+  low, `+0x24` high, step `low*0x6ac690c5 + high`): if `d != 0` a first
+  roll `% 25 + d - 12` goes into record `+0x4c` (offset); then a roll picks
+  the id (`& (count-1)` when the count is a power of two, else `% count`);
+  a last roll `% 100` must be `< p` to call `FUN_004cd540(record)`. Record `+0x14` / `+0x18` get
+  the cell's world x/y, `+0x10` the chosen class id.
+- **`FUN_004cf500`** (`004cf500`..`004cf63d`, 318 bytes, slot 12, fastcall ECX
+  missile unit, EDX unused): up to three ids from the shorts at txt `+0x2c`
+  (stop at the first negative); skill row stride `0x23c` at `[[0x744304]+0xb98]`
+  (count `+0xba0`). `r` = dword txt `+0x6c` (cHitPar1) if positive, else
+  `FUN_00646ca0(owner, skillrow.calc[0] (+0x138), skill, level)` clamped
+  to 1. `d` = `FUN_0064b7c0(unit, owner, SHitCalc1 (txt +0x88), class, level)`;
+  if not positive then `Range (short +0x96) + LevRange (short +0x98) * (level - 1)`.
+  `p` = dword txt `+0x70` (cHitPar2). Calls `FUN_004cddb0(unit, ids,
+  count, r, d, p)` and returns 1. The pushes
+  (`004cf624`..`004cf62d`) put `count`, `r`, `d`, `p` in that argument order.
+
+d2d: no match by address in `components/` or `apps/`. Not traced: the four
+grid/room tests in `FUN_004cddb0`, what the `0x8001` flag bit and record
+`+0x4c` do downstream, the txt column names behind `+0x6c`/`+0x70`.
+
+Re-check: `python3 tools/ghidra/fn.py 004cddb0 004cf500`; disassemble
+`004cddb0`..`004ce04d` and `004cf56f`..`004cf62d`.
+
+### Client hit callbacks with seed-driven or bounce targeting: `FUN_004cf640`, `FUN_004cf800` (batch 27)
+
+- **`FUN_004cf640`** (`004cf640`..`004cf7f0`, 433 bytes, slot 14, fastcall ECX
+  unit): position of the missile (static path `+0x2c`/`+0xc`,`+0x10` for types
+  2 and 4..5, else the two path getters). If word txt `+0x2c` (CltHitSubMissile1)
+  `>= 0`: `FUN_004cdba0(unit, class, 0, 0, skill, level)` (a make-at-position
+  helper, args from the pushes at `004cf6f6`..`004cf706`). If word txt `+0x2e`
+  (CltHitSubMissile2) `>= 0`: two rolls from the missile's seed
+  (`low*0x6ac690c5 + high`): the first `% 3` picks a row of the table at `0x6db008`
+  (20 bytes per row: a count then four direction offsets), the second `& 7` is a
+  base direction. Read from memory: `{4: 0,1,4,5}`, `{4: 0,2,4,6}`,
+  `{3: 0,3,5}`. For each offset the direction is `(offset + base) & 7`, a
+  sub-missile CltHitSubMissile2 is made (same helper) and `FUN_00649ef0(its
+  path, x, y, 0)` aims it at the missile position plus the direction's unit step
+  (x from `0x6dafc8`, y from `0x6dafe8`; `0,1,1,1,0,-1,-1,-1` and
+  `1,1,0,-1,-1,-1,0,1`). **Trap:** Ghidra names those two direction arrays
+  `gnMissileMovementSpeedByType` / `gnMissileCollisionOffsetByType`; they are
+  eight-way step tables.
+- **`FUN_004cf800`** (`004cf800`..`004cf99f`, 417 bytes, slot 16, fastcall ECX
+  missile, EDX hit target): needs a txt row, an owner (`FUN_004639d0`) and a
+  target. If word txt `+0x36` (ProgOverlay) `> 0`, adds that overlay to the
+  target (`FUN_00470390(target, id, 2, 0,0,0,0,0)`). The bounce counter is the
+  missile's TargetX (`FUN_0064a730`); only if `> 1` it searches: centre = missile
+  x/y (`FUN_0045adf0` / `FUN_0045ae20`), radius dword txt `+0x6c` or, if not
+  positive, `FUN_00646ca0(owner, skillrow aurarangecalc (+0x64), skill, level)` (skill
+  row from `FUN_0045c4b0`; null row ends the callback) clamped to 1. Search:
+  `FUN_004c5eb0(owner, x, y, radius, 0x88583, target GUID (+0xc), 0)`. A found
+  unit other than the target gets a record (flags `0x21`, owner, target the new
+  unit, missile id = this missile's class, x/y the centre, unit x/y the new
+  target's, skill and level copied) through `FUN_004cd540`; the new missile's
+  TargetX is set to the counter minus 1 (`FUN_0064a710`) and its owner reset to the
+  unit just hit (`FUN_0064a400`). Both return 1.
+
+d2d: no match by address in `components/` or `apps/`. Not traced:
+`FUN_004cdba0` internals, `FUN_004c5eb0`'s filter bit meaning for `0x88583`,
+the tail of `004cf800` past `004cf990` (read by decompile only: counter, owner,
+return 1).
+
+Re-check: `python3 tools/ghidra/fn.py 004cf640 004cf800`; read `0x6db008`,
+`0x6dafc8`, `0x6dafe8`; disassemble `004cf715`..`004cf7e3` and `004cf84b`..`004cf990`.
+
+### Client hit callbacks that apply a "for each unit in radius" skill function: `FUN_004cfe30`, `FUN_004d0060` (batch 27)
+
+Both end in `FUN_004c5c40` (ECX owner, EDX x, stack y, radius, filter, callback,
+context pointer, flag; the same scan batch 26's callbacks `FUN_004cfd70` and
+`FUN_004cffa0` plug into). Plain `RET`, fastcall ECX missile unit.
+
+- **`FUN_004cfe30`** (`004cfe30`..`004cff8d`, 360 bytes, slot 25): needs a
+  missile row with word txt `+0x2c >= 0`, a skill row (stride `0x23c`) and an
+  owner. Radius: dword `+0x6c` or `FUN_00646ca0(owner, aurarangecalc, ...)`,
+  clamped to 1; limit: dword `+0x70` or the same with `calc[0]` (skill row
+  `+0x138`), clamped to 1. Filter = skill row `+0x50` (aurafilter), `0xa783` if 0.
+  Context (stack): owner, missile, skill, level, limit, sub-missile id
+  (word `+0x2c`); callback `0x4cfd70`; flag argument `1`. Returns 1 on the
+  paths read. The limit is stored in the context, so the decompile's locals
+  mis-describe it as unused.
+- **`FUN_004d0060`** (`004d0060`..`004d01c5`, 358 bytes, slot 26): the gate is
+  word txt `+0x24 >= 0` (the field before CltHitSubMissile; Ghidra names it
+  HitSubMissile1), the id carried is word txt `+0x2c`. Owner required, skill
+  row required. The unit it scans around is not the target: it looks up the
+  unit stored in the missile's TargetX/TargetY (type from `FUN_0064a730`, GUID from
+  `FUN_0064a780`) with `FUN_00463990(guid, type)`; **returns 0** if none
+  is found (the only 0 return), but scans around the **missile's** own x/y.
+  Radius: `+0x6c` or aurarangecalc, min 1. If `+0x70 <= 0` it evaluates
+  `calc[3]` (skill row `+0x144`) and **discards the result**. Filter: `0` when the
+  skill row `+0x50` is 0, else `0xa683`. Callback `0x4cffa0`, flag `0`; context
+  as above without the limit.
+
+d2d: no match by address in `components/` or `apps/`. Not traced: what the
+discarded `calc[3]` call could have as side effect (it is a calc evaluator, so
+probably none); the callbacks' effects beyond batch 26.
+
+Re-check: `python3 tools/ghidra/fn.py 004cfe30 004d0060`; disassemble
+`004cfec2`..`004cff7d` and `004d00b4`..`004d01b5`.
