@@ -313,6 +313,20 @@ skill aip8 (N) names, its level with bonuses (`FUN_006439f0`,
 Each think (`0x5eafa0`) gives itself the owner's left and right skills at
 +0x1c / 3 + their level with bonuses / 2, at least 1 (`FUN_005eaf00`).
 
+`tools/emu/ai_shadow_hand.py` compares this calculation against d2d's
+`shadow_hand_level` over 5,002 nonnegative inputs, including no owner. The
+skill-level lookup is hooked; skill lookup and other think behaviour are not
+checked. From the worktree root, with the emulator environment set up and
+`GAME_EXE` pointing to stock 1.14d:
+
+```sh
+mkdir -p build/ai-shadow-oracle
+uv run --no-sync --project tools/emu python tools/emu/ai_shadow_hand.py --cpp > build/ai-shadow-oracle/cases.cpp
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-shadow-oracle/cases.cpp -o build/ai-shadow-oracle/cases
+build/ai-shadow-oracle/cases > build/ai-shadow-oracle/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_shadow_hand.py --cases build/ai-shadow-oracle/cases.txt --exe "$GAME_EXE"
+```
+
 ### ShadowMaster's think (FUN_005eb970)
 
 Its row's P56..P60 below are the fixed aip slots above; "rand(P5c)" is
