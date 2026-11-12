@@ -13,18 +13,21 @@
 //
 // Fields d2d does not model print `*`: armor% (d2d folds it into def, the effective
 // defence; --compare folds game.exe's the same way) and regen (no monster regeneration).
+#include "combat.hpp"
 #include "montypes.hpp"
 #include "uniques.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     if (argc < 3 || std::strcmp(argv[1], "--umod-stats") != 0) { std::printf("SKIP: needs --umod-stats CASES\n"); return D2D_TEST_SKIPPED; }
     std::FILE* cases = std::fopen(argv[2], "r");
     if (cases == nullptr) { std::fprintf(stderr, "cannot open %s\n", argv[2]); return 1; }
@@ -57,9 +60,11 @@ int main(int argc, char** argv) {
         const auto boss = boss_stats(umods, type, kind, mods, diff);
         // make_boss (ai.cpp 2923..2958) on the fixed base.
         const int level = std::max(base_level + boss.level_add, 1);
-        int hit_points = 1000, armor_class = 100, exp = 1000;
-        hit_points += hit_points * boss.hp_pct / 100;
-        hit_points = std::max(hit_points + hit_points * boss.life_after_pct / 100, 1);
+        int armor_class = 100, exp = 1000;
+        int life = 1000 * 256;                                // 256ths through both steps, as make_boss (ai.cpp)
+        life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.hp_pct, 100)));
+        life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.life_after_pct, 100)));
+        life = std::max(life, 256);
         armor_class += armor_class * boss.defense_pct / 100;
         std::array<int, 6> boss_res{};
         if (boss.phys_resist >= 0) boss_res[0] = boss.phys_resist - res[0];
@@ -83,7 +88,7 @@ int main(int argc, char** argv) {
             mana_lo = damage_pct * umods.constants[std::size_t(base + diff)] / 100;
             mana_hi = std::max(damage_pct * umods.constants[std::size_t(base + 3 + diff)] / 100, mana_lo);
         }
-        std::printf("%s\t%d\t%d\t%d\t%d\t%d\t%d", tag.c_str(), level, exp, hit_points << 8, boss.dmg_pct, boss.tohit_pct, boss.velocity_pct);
+        std::printf("%s\t%d\t%d\t%d\t%d\t%d\t%d", tag.c_str(), level, exp, life, boss.dmg_pct, boss.tohit_pct, boss.velocity_pct);
         for (int i = 0; i < 6; ++i) std::printf("\t%d", res[std::size_t(i)] + boss_res[std::size_t(i)]);
         std::printf("\t%d\t*\t*", armor_class);
         for (const int value : element_rows) std::printf("\t%d", value);
@@ -91,4 +96,7 @@ int main(int argc, char** argv) {
     }
     std::fclose(cases);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }
