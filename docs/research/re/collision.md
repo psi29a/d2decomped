@@ -226,7 +226,9 @@ were not read in the asm); cited, no oracle run.
   to 4 it adds the step to the end, asks `FUN_0064d910` there, and stops
   at the first blocked subtile; each free one is stored in `rq[2..3]`. It
   returns nothing. Its only caller is `FUN_00648120`, for a player (below).
-  d2d: not ported.
+  The table, read: the entry for (a, b) is the sign of a when |a| ≥ |b|, else
+  0, so the step runs along the longer axis away from the start, both on a
+  diagonal. d2d: in `rules::end_walk_back`.
 - **`FUN_00678df0`** `(out, a, b)` (thiscall, ECX = out): the three
   direction tries toward b from a. `i = FUN_00678c10(a, b)` (the 5 x 5
   index, coordinates packed x low, y high) and `out[0..2]` = the bytes at
@@ -234,10 +236,10 @@ were not read in the asm); cited, no oracle run.
   the first of those bytes alone; `FUN_00678d70` fills the same three from
   the dword table `0x6f1518` (12 bytes a row, 25 rows: d2d's `kTry`,
   monsters.hpp:567). So 0x6f1648 is a byte table of the same shape that
-  follows it (0x6f1518 + 25 * 12 = 0x6f1644); that its rows equal `kTry`
-  was not checked (the bytes were not read). A third entry of 0xff is
-  skipped by `FUN_00648120` (below), as `toward_path` skips it. d2d: not
-  ported; `kTry` and `FUN_00678d70` are the dword twin.
+  follows it (0x6f1518 + 25 * 12 = 0x6f1644). Its rows are not `kTry`'s:
+  read, they hold straight ways only (0, 2, 4, 6) and 0xff for a missing
+  third (`rules::kBackTry`). A third entry of 0xff is skipped by
+  `FUN_00648120` (below), as `toward_path` skips it.
 - **`FUN_00648120`: walk a blocked end back toward the start** (EAX = the
   request `rq` of `FUN_00648050` above; `rq +0x30` is the unit's path).
   `FUN_00649970` calls it only when path flag 0x1000 is set and
@@ -271,12 +273,23 @@ were not read in the asm); cited, no oracle run.
   - Once a free spot was taken as `rq[2..3]`: if it equals the start,
     **return 0**; else for unit type 0 (the player) `FUN_00648050` pushes
     it on again (above); **return 1**. Monsters keep the free spot as is.
-  - d2d: **not ported**. `ai.cpp:348` (`path_to`) leaves it out with
-    "its setter isn't found". This read does not find the setter either:
-    only `FUN_00649970` tests path flag 0x1000, and the places that set
-    +0x34 bits were not searched. So d2d agrees as far as it goes, and no
-    disagreement is claimed. `rules::player_path` is a player's walk, so
-    the push-on (`FUN_00648050`) matters only once that flag is set.
+  - **The setter** is the path type: `FUN_00648cf0` ors in `PATHTYPEFLAGS`
+    (0x6eb690), read as 0x21900, 0x1900, 0, 0, 0x60000, 0, 0, 0x21900,
+    0x1e600, 0x1e800, 0x60000, 0x1e604, 0, 0x100, 0x60000, 0x800, 0, 0 for
+    types 0..17. So types 0, 1 and 7 have 0x1000 (and 0x800: the target
+    unit's stamp lifted for the path, `FUN_00649560`); a monster's 0xd and
+    0xf don't. Every player walk (type 7) to a blocked end goes through this.
+  - Only the first way is read anew each round (the second read lands in
+    another buffer, and its first dword alone is copied); the two side
+    spots keep the first read's ways.
+  - **Verified**: `tools/emu/walk_back.py` runs `FUN_00648120` (with
+    `FUN_00648050` for a player) on random ends and walls, `FUN_0064d910`
+    answering from the walls: `rules::end_walk_back` gives the same return
+    and end in 20,000 cases (3,461 with no free spot; 800 frozen in
+    `tests/walk_back_cases.inc`).
+  - d2d: `player_walk` and `path_to`'s type 7 (ai.cpp) run it on a blocked
+    end. Left: at a unit it isn't run, since the target's stamp isn't lifted
+    for the test as flag 0x800 has it.
 
 ## A walk's stop
 

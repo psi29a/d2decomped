@@ -578,6 +578,66 @@ inline constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, {
 inline constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
     { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
     { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
+// DAT_006f1648: the three ways back toward the start a blocked end tries
+// (FUN_00678df0, by FUN_00678c10's 5x5 index; 0xff: no third). Straight
+// ways only, unlike kTry.
+inline constexpr std::array<std::array<int, 3>, 25> kBackTry{ { { 4, 6, 0xff }, { 4, 6, 0xff }, { 4, 2, 6 }, { 4, 2, 0xff }, { 4, 2, 0xff },
+    { 6, 4, 0xff }, { 4, 6, 0xff }, { 4, 2, 6 }, { 4, 2, 0xff }, { 2, 4, 0xff }, { 6, 0, 4 }, { 6, 0, 4 }, { 6, 0, 4 }, { 2, 0, 4 }, { 2, 0, 4 },
+    { 6, 0, 0xff }, { 0, 6, 0xff }, { 0, 2, 6 }, { 2, 0, 0xff }, { 2, 0, 0xff }, { 0, 6, 0xff }, { 0, 6, 0xff }, { 0, 2, 6 }, { 0, 2, 0xff },
+    { 0, 2, 0xff } } };
+
+// A path's blocked end walked back toward its start (FUN_00648120, which
+// FUN_00649970 runs for a path type with flag 0x1000, PATHTYPEFLAGS
+// 0x6eb690: types 0, 1 and 7, when FUN_0064d910 finds the end blocked).
+// Three spots leave the end: one steps the first way back each round (the
+// way read anew from where it stands), the other two keep stepping the
+// second and third ways of the first read. The first free one is the new
+// end. False (no path at all) when the first spot reaches the start with
+// none free, or the free one is the start. A player's end is then pushed
+// on (FUN_00648050): while it's under 5 off the start on both axes, a step
+// along the longer axis from the start (both on a diagonal: the table
+// 0x6eb490) up to 4 off, stopping at the first blocked.
+// tools/emu/walk_back.py; tests/test_walk_back.cpp.
+template <class Blocked>
+bool end_walk_back(int x, int y, int& to_x, int& to_y, bool player, Blocked&& blocked) {
+    auto tries = [&](int from_x, int from_y) -> const std::array<int, 3>& {   // FUN_00678c10
+        const int dx = x - from_x, dy = y - from_y, adx = std::abs(dx), ady = std::abs(dy);
+        int aim_x = dx, aim_y = dy;
+        if (adx >= ady * 2) aim_y = dy < 0 ? -1 : dy & 1;
+        else if (adx * 2 <= ady) aim_x = dx < 0 ? -1 : dx & 1;
+        return kBackTry[std::size_t(std::clamp(aim_x, -2, 2) * 5 + 12 + std::clamp(aim_y, -2, 2))];
+    };
+    const auto first = tries(to_x, to_y);
+    int way = first[0];
+    std::pair<int, int> lead{ to_x, to_y }, second = lead, third = lead, found = lead;
+    auto step = [](std::pair<int, int>& spot, int dir) { spot.first += kDir[std::size_t(dir)][0]; spot.second += kDir[std::size_t(dir)][1]; };
+    for (;;) {
+        if (lead == std::pair{ x, y }) return false;
+        step(lead, way);
+        if (!blocked(lead.first, lead.second)) { found = lead; break; }
+        step(second, first[1]);
+        if (!blocked(second.first, second.second)) { found = second; break; }
+        if (first[2] != 0xff) {
+            step(third, first[2]);
+            if (!blocked(third.first, third.second)) { found = third; break; }
+        }
+        way = tries(lead.first, lead.second)[0];
+    }
+    std::tie(to_x, to_y) = found;
+    if (found == std::pair{ x, y }) return false;
+    if (!player) return true;
+    const int dx = to_x - x, dy = to_y - y, adx = std::abs(dx), ady = std::abs(dy);
+    if (adx >= 5 || ady >= 5) return true;
+    const int push_x = adx >= ady ? (dx > 0) - (dx < 0) : 0, push_y = ady >= adx ? (dy > 0) - (dy < 0) : 0;
+    int at_x = to_x, at_y = to_y;
+    for (int off = std::max(adx, ady); off < 5; ++off) {
+        at_x += push_x; at_y += push_y;
+        if (blocked(at_x, at_y)) break;
+        to_x = at_x; to_y = at_y;
+    }
+    return true;
+}
+
 // A move's path toward subtile (to_x, to_y), the toward pather of path
 // types 2 / 5 / 6 / 0xd (FUN_00679c80; a monster's walk and run are 0xd,
 // `steps` path +0x91: 5, FUN_005a63f0). The straight line (FUN_00679720, a

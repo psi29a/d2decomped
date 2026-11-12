@@ -48,9 +48,15 @@ std::vector<std::pair<float, float>> player_walk(const Level& level, float x, fl
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
     const std::pair from{ sub(x), sub(y) };
-    const auto steps = d2d::rules::player_path(from.first, from.second, sub(goal_x), sub(goal_y), to_unit ? 1 : 0, to_unit, [&](int subtile_x, int subtile_y) {
+    const auto blocked = [&](int subtile_x, int subtile_y) {
         return level.unit_blocked(centre(subtile_x), centre(subtile_y), self ? self->shape : UnitShape{}) || crowd.at(centre(subtile_x), centre(subtile_y), self);
-    });
+    };
+    // Type 7 has path flag 0x1000 (PATHTYPEFLAGS 0x6eb690): a blocked end is walked back toward
+    // the start and pushed on (FUN_00648120), and with no free spot there's no path.
+    // ponytail: not at a unit: its stamp isn't lifted for the test as flag 0x800 has it (FUN_00649560).
+    int to_x = sub(goal_x), to_y = sub(goal_y);
+    if (!to_unit && blocked(to_x, to_y) && !d2d::rules::end_walk_back(from.first, from.second, to_x, to_y, true, blocked)) return {};
+    const auto steps = d2d::rules::player_path(from.first, from.second, to_x, to_y, to_unit ? 1 : 0, to_unit, blocked);
     // A point given twice (the toward pather's cut-short subtile) stays: the walk passes it (FUN_0064fe40).
     std::vector<std::pair<float, float>> points;
     for (const auto& step : steps) points.emplace_back(centre(step.first), centre(step.second));
@@ -382,8 +388,10 @@ namespace {
 // FUN_006483a0 refuses a monster that isn't npc / inTown / a pet a path
 // whose end room is in town; a thinking monster here is never in a town
 // level, and its path stays in its level, so none is refused.
-// ponytail: path flag 0x1000 (the end tested with FUN_0064d910, then
-// FUN_00648120 walks it back) left out: its setter isn't found.
+// Type 7 has path flag 0x1000 (PATHTYPEFLAGS 0x6eb690; 0xd and 0xf don't):
+// a blocked end is walked back toward the start (FUN_00648120), and with no
+// free spot there's no path. ponytail: not at a foe: its stamp isn't lifted
+// for the test as flag 0x800 has it (FUN_00649560).
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
@@ -395,7 +403,11 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
         monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked);
         return !monster.steps.empty();
     }
-    if (monster.path_type == 7) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, 5);
+    if (monster.path_type == 7) {
+        const bool end_free = at_foe || !blocked(to_x, to_y) || d2d::rules::end_walk_back(x, y, to_x, to_y, false, blocked);
+        if (end_free) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, 5);
+        else monster.steps.clear();
+    }
     if (monster.path_type == 7 && monster.steps.empty()) monster.path_type = 0xf;
     if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, 5, at_foe, blocked);
     monster.steps.erase(monster.steps.begin(), std::ranges::find_if(monster.steps, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); }));
