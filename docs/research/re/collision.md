@@ -3194,3 +3194,150 @@ type codes 2 and 10, the 0xb4 stat's row.
 Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
 `0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
 `0057d8a0`..`0057d8c0` (stat 0x73 on EBX).
+
+### Client player and unit helpers: `FUN_00460d50`, `FUN_00460de0`, `FUN_00461010`, `FUN_004611f0`, `FUN_004619e0`, `FUN_00461ac0`, `FUN_00462370`, `FUN_00463810`, `FUN_00463180`, `FUN_00464420`, `FUN_004644e0`, `FUN_00464600`, `FUN_00465420`, `FUN_00465bf0`, `FUN_00465f20` (batch 24)
+
+Read from disassembly (conventions and constants); decompiler names
+are leads. `0x7a6a70` is the client's player-unit pointer (`pPlayerUnit`),
+`0x7a0634` the client act pointer. Unit fields used: `+0` type, `+0xc`
+GUID, `+0x10` mode, `+0x14` unit data, `+0x2c` path, `+0x60` inventory,
+`+0xc4` flags. Player mode numbers: 0 death, 1 neutral, 2 walk, 3 run,
+5 town neutral, 6 town walk, 0xd..0x10 skill 1..4, 0x12 sequence. The
+"position" idiom below is repeated in these functions: unit types 2, 4 and
+5 read the static path (`+0xc` x, `+0x10` y); any other type reads the
+dynamic path through `0x6488c0` (x) and `0x648900` (y), or 0 when the path
+is null.
+
+- `FUN_00460d50` (fastcall ECX unit; 0x83 bytes): the client's player-unit
+  free. Calls `0x46c700` and `0x46ec10`; if the act pointer is non-null,
+  `0x649f50` (remove collision) and `0x64c370` (remove from room); frees the
+  static path (`0x648460`, `+0x2c` zeroed), `FUN_00466cb0` with EDX 0,
+  frees the inventory (`0x63ac40`, `+0x60` zeroed), swaps the skill light
+  map for null (`0x643a00`) and frees the old one (`0x4743d0`),
+  `0x464930`; if the unit is `pPlayerUnit` calls `0x463d90` with ECX 0
+  (clears it); `0x622060` frees the player data; ends with a tail jump to
+  `0x4608c0`. Caller: `0x465870`.
+- `FUN_00460de0` (**ESI** unit, plain RET): reads the unit's position (idiom
+  above), `0x620bb0` (room) and `0x620f50` (needs-room-update flag), then
+  `0x61acd0(room, x, y, flag)` (stack args, the pops update). Caller:
+  `0x463390`.
+- `FUN_00461010` (**ESI** unit; the client player-death handler): `0x4c1e30`;
+  `0x649f70(unit, 0)` (corpse collision); `0x464810`; clears flag `0x4` in
+  `+0xc4`; if state 7 is not set (`0x639df0`) clears flag `0x2` too;
+  `0x46ece0`; `0x46f020` with DL 0; `0x627260(unit, 6, 0, 0)` sets stat 6
+  to 0 (hit points). Caller: `0x461250`.
+- `FUN_004611f0` (**EDI** unit,
+  one stack arg, RET 4; `isLocalPlayer`): the current skill (`0x620250`);
+  if null does nothing. If skill flags (`0x6446a0`) bit 0 is set: sets bit 1
+  (`0x644660`) and calls `0x4c68f0` (ECX unit). Else, when the stack arg is
+  0 and the unit is null or has `+0xc4` bit 6 clear, calls `0x4c68f0`.
+  Callers: `0x461250`, `0x463260`, `0x463390`.
+- `FUN_004619e0` (**ESI** pUnderMouse, **EDI** target GUID, plain RET): the
+  mouse struct has `+4` player, `+8` target, `+0x18` attack action. If
+  `0x641530(target, player)` (distance) is <= 2 and
+  `0x622b50(target, player, 0x804)` returns 0, calls `0x481030` with ECX
+  `0x13` (interact) and the player in EDX; otherwise `0x481030` with ECX
+  `+0x18`. Then, for a player whose unit data is non-null, sets in the player
+  data `+0x150 = 1`, `+0x154 = 0x13`, `+0x158 = 0`, `+0x15c = GUID`
+  (a pending interact). Callers: `0x461a70`, `0x4625b0`.
+- `FUN_00461ac0` (fastcall ECX skill, EDX unit, stack pnRange and pnDist,
+  RET 8): `pPlayerUnit`, the skill and the unit must each be non-null, and the
+  skills row (`0x644140`) non-null. `*pnRange` = skill calc (`0x646ca0`)
+  of the row's field at `+0x64` (aura range calc; the skill id is the
+  row's word at `+0`) at the player's skill level (`0x6442a0`, 1);
+  `*pnDist` = `0x6416d0(player, unit)`; returns `dist <= range`. Callers:
+  `0x461b40`, `0x480c80`.
+- `FUN_00462370` (**ESI** pUnderMouse, plain RET): only for a player-type
+  unit (mouse `+4`, type 0) with no confirmed target (`0x4648f0`): mode 2
+  or 6 calls `FUN_00461840` with x (`+0xc`, ECX), y (`+0x10`, EAX) and stack
+  1; mode 3 calls it with stack 3; other modes do nothing. Caller:
+  `0x462b40`.
+- `FUN_00463810` (fastcall ECX unit): for a monster (type 1) with unit data,
+  returns the data field at `+0x2c` (a name pointer); else null. Caller
+  `0x464a60`.
+- `FUN_00463180` (fastcall ECX unit, EDX room, stack x and y, RET 8): saves
+  mode (`+0x10`) and path; if mode is 2, 3 or 6 remembers it and fetches
+  the confirmed target (`0x4648f0`) or, with none, the move coordinates
+  (`0x4c52e0`). Calls `0x650c60(path, unit, room, x, y)` (the warp itself,
+  stack args). If it was moving, builds a 7-dword message (zero except the
+  first two dwords) and calls `FUN_00461250` (ECX message code, EDX unit,
+  stack message and 0): with a target the first two dwords are the target's
+  type and GUID (`+0` and `+0xc`) and the code is 0x18 when mode is 3, else
+  0; with coordinates the dwords are x and y, and the code is 0x17 when
+  mode is 3, else 1. Caller: `0x4804e0`.
+- `FUN_00464420` (fastcall ECX unit; turn to face `pPlayerUnit`): a null
+  dynamic path halts (assert line 0x7f3); `0x624690(unit, 1)`; then
+  `0x649ef0(path, playerX, playerY, 0)` using the position idiom above
+  for the player. Caller: `0x4b6dd0`.
+- `FUN_004644e0` (fastcall ECX unit; the reverse, turn the player to face a
+  unit): nothing unless `pPlayerUnit` is non-null and in mode 1 or 5; a null
+  player path halts (line 0x802); `0x649ef0(playerPath, unitX, unitY, 0)`.
+  Caller: `0x4b6dd0`.
+- `FUN_00464600` (fastcall ECX unit, EDX skill; "can the player be
+  interrupted"): returns 0 if the hand (cursor) item (`0x63c1e0` of
+  `+0x60`) exists or the unit type is not 0. Then a jump table over mode
+  (a byte index table at `0x464684`, 20 entries, and dword targets at
+  `0x46466c`; read from memory): modes 0, 4, 7..0xc, 0x11, 0x13 return 0;
+  modes 1, 2, 3, 5, 6 and above 0x13 return 1; mode 0xd returns 0 for
+  class 3, 0xe for class 6; modes 0xf and 0x10 return 0 for classes 4, 5
+  and 6; mode 0x12 returns `FUN_004645b0(skill)`'s result. Callers:
+  `0x4629a0`, `0x462a20`, `0x462ba0`, `0x462c20`.
+- `FUN_00465420` (fastcall ECX x, EDX y, plain RET; the client room finder):
+  returns null when both are 0. With `pPlayerUnit` non-null: takes the
+  player's room (`0x620bb0`) and `FUN_00463740(room, x, y)`; a non-null result
+  wins. Else `0x619da0(act, x, y)` (room by subtile). If still none,
+  formats "Unable to find room for unit...  hControlUnit:%8x  hUnitRoom:%8x
+  ghAct:%8x  nX:%d  nY:%d" (string at `0x6d6a60`) and halts (line 0x13c).
+  Callers: `0x4654c0`, `0x465fd0`, `0x466200`, `0x466360`, `0x4c2540`,
+  `0x4c26f0`.
+- `FUN_00465bf0` (fastcall ECX unit, EDX immediate flag, plain RET): `0x480420`
+  (confirm target); null path halts (line 0x946); target = `0x648bf0(path)`;
+  if non-null and not the unit itself, `0x649ef0(path, x, y, flag)` with x from
+  `0x45adf0` and y from `0x45ae20` of the target (a second null-path check
+  halts with line 0x7e2). Callers: `0x4ae1d0`, `0x4ae4f0`, `0x4af6a0`,
+  `0x4aff60`, `0x4c6eb0`, `0x4c8ed0`, `0x4c9b40`, `0x4efdf0`.
+- `FUN_00465f20` (**EAX** unit, plain RET; server-side unit creation
+  finish): `FUN_00463a50(unit)` inserts it; on failure looks up the same
+  GUID (`FUN_00463940`) in the table at `0x7a5e70 + type * 0x200` (128
+  pointers a type; the **server** table, in the first lookup, whatever the unit's flags);
+  finding the unit itself halts (line 0x1c6). If another unit holds the GUID,
+  it is removed (`FUN_00465e80`; the table is `0x7a5270` instead when its
+  flag `0x200000` is set, the client table) and insertion retried. If it
+  still fails, `FUN_00465870` frees the new unit and null is returned.
+  Callers: `0x465fd0`, `0x466200`, `0x466360`.
+
+### MonUnique frame modifiers and two monster helpers: `FUN_004ad890`, `FUN_004ad8e0`, `FUN_004ad920`, `FUN_004ade80`, `FUN_004ae3c0` (batch 24)
+
+Monster modes here are the **monster** numbering (0 death, 3 get-hit, per
+the usual trap): the decompile prints the player names (Run, Death).
+
+- `FUN_004ad890` (fastcall ECX unit, one stack arg, RET 4; the stack arg is
+  both the "modifier enabled" flag and, after `0x621810(unit, &arg, &total)`,
+  overwritten with the current frame): if the arg was non-zero, the unit is
+  non-null in mode 3 and the frame is 2, calls `FUN_004ad6e0(unit, 0xc3)` with
+  EAX = the unit's stat 0xc (`0x625480(unit, 0xc, 0)`) shifted right by 1.
+  The decompile's `nUMod` is not read.
+- `FUN_004ad8e0` (ECX unit, stack flag, RET 4): flag non-zero and the unit
+  null or not in mode 3: the same `FUN_004ad6e0(unit, 0xc3)` with stat 0xc >> 1.
+- `FUN_004ad920` (ECX unit, one ignored stack arg, RET 4): frame from
+  `0x621810`; if the unit is null, or in mode 3 or 0, and the frame is 2:
+  `FUN_004ad6e0(unit, 0xe1)` with EAX = stat 0xc (unshifted). The missile ids
+  0xc3 and 0xe1 were not looked up in Missiles.txt; the decompile's names
+  are leads.
+- `FUN_004ade80` (fastcall ECX attacker, EDX other): both non-null and ECX
+  a monster (type 1): `FUN_004add90(ECX, EDX, 4)`. Caller `0x4cd540`.
+- `FUN_004ae3c0` (fastcall ECX unit): the missile's owner (`0x4639d0`); if
+  non-null it must be a missile (type 3) or the call halts (line 0x161);
+  then `0x4d2d70(owner, 0, 0)` (the client hit-explode, ECX owner, EDX 0,
+  one stack 0). Callers: `0x4af2e0`, `0x4af6a0`.
+
+d2d: `git grep` over `components/`, `apps/` and `tests/` finds none of
+these addresses; **not checked** whether equivalents exist under other
+names. Not traced: `FUN_00461840`, `FUN_00461250` message codes,
+`FUN_00463740`, `FUN_00463a50`, `FUN_004ad6e0`, `0x4add90`'s modifier table,
+which modifier index each of the three frame functions belongs to, the
+Missiles.txt rows 0xc3 and 0xe1.
+
+Re-check: `python3 tools/ghidra/fn.py 00464600 00465f20 004ad890`; the
+jump tables with `read_memory 0x46466c 56`; asserts at
+`0x4644e0`/`0x464420`/`0x465bf0` (lines 0x802, 0x7f3, 0x946, 0x7e2).
