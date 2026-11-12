@@ -1445,3 +1445,44 @@ Re-check: `python3 tools/ghidra/fn.py 00463810 00464a60`; disassemble
 `00463810`..`00463827` to confirm the ECX-only fastcall and the type/null
 gates.
 
+### Moving a unit and the client's own control unit toward each other: `FUN_00464420` / `FUN_004644e0` (batch 12)
+
+Both sit right after the name getter above and both call the already
+cited `FUN_00649ef0` (not traced, line 1351 above) to re-path one unit
+toward a point taken from another unit's current path. Both are reached
+from the same caller, `FUN_004b6dd0` (the server's 0x28 quest-info
+packet handler, already cited `net-packets.md:540`,
+`unit-sounds.md:435`, `collision.md:365`) — one call each, back to back
+at `004b6f23` and `004b6ffa`, confirmed in disassembly.
+
+- **`FUN_00464420`** (0xb2 bytes, `00464420`..`004644d2`, fastcall ECX
+  the unit, plain `RET`; confirmed in disassembly, `MOV
+  EBX,dword ptr [ECX + 0x2c]` at entry): fatal (assert id `0x7f3`) if
+  `unit`'s own path (`+0x2c`) is null. Otherwise it reads the global
+  client control unit `DAT_007a6a70` (already read as "the client's own
+  player unit", line 1111 above) and its mode (`+0x10`): modes 2 or
+  4..5 take the control unit's static path x/y straight from `+0xc`/
+  `+0x10`; any other mode resolves them through `d2d_path_get_x`/
+  `d2d_path_get_y` on the control unit's path. It then calls
+  `FUN_00649ef0(unit's path, x, y, 0)` — so `unit` re-paths toward
+  wherever the client's own control unit currently stands.
+- **`FUN_004644e0`** (0xc4 bytes, `004644e0`..`004645a4`, fastcall ECX
+  `param_1`, plain `RET`): the mirror. It only runs when
+  `DAT_007a6a70` is set **and** its own mode (`+0x10`) is 1 or 5 (not
+  resolved here); fatal (assert id `0x802`) if the control unit's path
+  is null. With the same x/y resolution as above but read off
+  `param_1` instead, it calls `FUN_00649ef0(control unit's path, x, y,
+  0)` — so the client's own control unit re-paths toward `param_1`.
+
+So the pair make the client's own unit and a given unit (likely the
+quest NPC the 0x28 packet names) turn to face or close on each other when
+a quest-info dialog opens; `FUN_004644e0`'s mode-1/5 gate is the only
+asymmetry between the two directions. Not traced: `FUN_004b6dd0`'s own
+body beyond these two calls, what modes 1 and 5 are here, and
+`FUN_00649ef0`'s own effect (already not traced, line 1351). d2d: not
+ported as a function; no d2d equivalent was checked against this pair.
+
+Re-check: `python3 tools/ghidra/fn.py 00464420 004644e0 004b6dd0`;
+disassemble `00464420`..`004644d2` and `004644e0`..`004645a4` to confirm
+the ECX-only fastcall and the mode-1/5 gate in the second.
+
