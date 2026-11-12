@@ -388,6 +388,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             entry = back ? operated.erase(entry) : std::next(entry);
         }
         fissure_frame(now_ms);
+        slime_doors_on(now_ms);
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in
             if (key.first == level && std::size_t(key.second) < npc_states.size())
                 std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };

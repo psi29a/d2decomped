@@ -4,7 +4,8 @@
 // FUN_005821a0): a click operates one; shut (mode 0) it goes to OP
 // (FUN_00624690(unit, 1) at 0x5821b8) and its footprint lifts
 // (FUN_00623830, 0x5821c1); in any other mode it does nothing, so it never
-// shuts again. Needs the data; SKIPs without it.
+// shuts again. With Mode2 its event 1 (0x58223c, FUN_00581490) takes it ON
+// (object_op_ticks), with ON's footprint. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -17,6 +18,7 @@
 #include <world.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -81,11 +83,25 @@ int main() try {
             assert(!stamped(*lair, door));
             world.operate(int(index), 5000);                 // past the 500 a plain door waits: still OP, never shut
             assert(world.doors.at({ lair, int(index) }).mode == 1 && !stamped(*lair, door));
+            // Event 1 (0x58223c, FUN_00581490): with Mode2, ON at object_op_ticks after the click
+            // (FrameCnt1 + 1, or the client's OP counter's end if sooner).
+            assert(door.mode2 && object_op_ticks(door) > 0);
+            const std::uint32_t on_ms = 1000 + std::uint32_t(object_op_ticks(door)) * kTickMs;
+            world.slime_doors_on(on_ms - 1);
+            assert(world.doors.at({ lair, int(index) }).mode == 1);
+            world.slime_doors_on(on_ms);
+            const auto& turned = world.doors.at({ lair, int(index) });
+            assert(turned.mode == 2 && turned.when == on_ms);
+            assert(stamped(*lair, door) == ((door.collision >> 2 & 1) != 0));   // HasCollision2's footprint
+            world.operate(int(index), on_ms + 5000);         // ON: a click does nothing
+            assert(world.doors.at({ lair, int(index) }).mode == 2);
+            std::printf("slime door %zu (object %d): FrameCnt1 %d, ON after %d ticks, HasCollision2 %d\n", index, door.object_id, door.op_frames,
+                        object_op_ticks(door), door.collision >> 2 & 1);
             ++opened;
         }
     }
     if (!opened) { std::printf("SKIP: no slime door in the Maggot Lair\n"); return D2D_TEST_SKIPPED; }
-    std::printf("OK: %d slime doors open once and stay open\n", opened);
+    std::printf("OK: %d slime doors open once, go ON and stay open\n", opened);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_slime_door: %s\n", error.what());

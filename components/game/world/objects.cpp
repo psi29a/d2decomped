@@ -566,8 +566,7 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         if (door.operate_fn == d2d::rules::operate_fn::kSecretDoor) {                   // secret door (FUN_00583ff0): slides open (OP), once
             if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kSlimeDoor) {           // the Maggot Lair's (FUN_005821a0): NU only, to OP (0x5821b8), once
-            // ponytail: its event 1 (0x58223c, FrameCnt1 + 1 frames) takes it to ON; d2d holds OP's last frame (the same collision).
-            if (state.mode == 0) mode = 1;
+            if (state.mode == 0) mode = 1;                                              // then ON by its event 1 (slime_doors_on)
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
             // Mode 2: the first warp tile unit (type 5) of the door's room
             // (room +0x74's list); a room without one is game.exe's assert 0x40e.
@@ -625,6 +624,24 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         state = { mode, now_ms };
         set_footprint(*level, door, door.collision >> mode & 1);   // FUN_00623830 out / FUN_00620a70 back in
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
+    }
+
+// A slime door's event 1: with Mode2 (objects.bin +0x141, 0x582209)
+// FUN_005821a0 queues it at FrameCnt1 + 1 frames on (FUN_005417d0,
+// 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
+// footprint ON's (HasCollision2). The time is object_op_ticks', as the
+// chests' tick: the sooner of that event and the client's OP counter's end.
+// ponytail: on this level's tick only; one left mid-OP goes ON when it's back in view.
+auto World::slime_doors_on(std::uint32_t now_ms) -> void {
+        for (const auto& [key, state] : doors) {
+            if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
+            const auto& door = level->npcs[std::size_t(key.second)];
+            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor) continue;
+            const int on_ticks = object_op_ticks(door);
+            if (on_ticks < 0) continue;
+            const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;
+            if (now_ms >= on_ms) set_door_mode(key.second, 2, on_ms);
+        }
     }
 
 // A monster's door at a think (FUN_005b0f50): of the level's closed (mode

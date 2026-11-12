@@ -752,6 +752,8 @@ struct World {
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
     void set_door_mode(int npc_index, int mode, std::uint32_t now_ms);
+    // This level's slime doors OP long enough go ON (event 1, FUN_00581490).
+    void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
     void reopen_doors();
     // The player's item_reducedprices (stat 87) off their gear and charms now.

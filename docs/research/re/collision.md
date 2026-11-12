@@ -99,8 +99,9 @@ the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
   0x5821aa) it does nothing; shut, it goes to mode 1
   (`FUN_00624690(unit, 1)`, 0x5821b8) and its footprint lifts
   (`FUN_00623830`, 0x5821c1); with Mode2 (objects.bin +0x141) event 1 at
-  FrameCnt1 + 1 takes it to mode 2 (0x58223c). It never shuts. d2d:
-  `World::operate_door` (`test_slime_door`).
+  FrameCnt1 + 1 takes it to mode 2 (0x58223c, `FUN_00581490`). It never
+  shuts. d2d:
+  `World::operate_door`, then `World::slime_doors_on` (`test_slime_door`).
 
 ## d2d
 
