@@ -1492,3 +1492,30 @@ cache this commit adds.
 Re-check: `python3 tools/ghidra/fn.py 004ae0a0 004ae170`; disassemble
 `004ae0a0`..`004ae187` to confirm the EDX word write at `+0x28` and the
 `LEA`-only getter at `+0x34`.
+
+### Replaying a path-target action: `FUN_004ae1d0` (batch 13)
+
+`FUN_004ae1d0` (0x37 bytes, `004ae1d0`..`004ae207`, no ECX/EDX move at
+entry at all — the unit arrives in **ESI** already, confirmed in
+disassembly, a naked convention like `FUN_004656c0`'s above): a null
+unit, a non-monster unit, or a mode (unit `+0x10`) that is 0, `0xc`, or at
+or past `0x10` skips everything and returns. Otherwise, in order:
+`FUN_00465bf0(unit, 0)` (untouched here; its own body was not read in
+this commit), `FUN_00480490(unit)` (0xa bytes, `00480490`..`0048049a`,
+fastcall ECX unit, plain `RET`: one call, `FUN_00650590(unit +0x2c)` — the
+unit's `path` pointer, `structs.tsv`; `FUN_00650590` is already cited
+`collision.md:1137` as part of `FUN_00461250`'s command-0x13 handling,
+not re-read here), then a tail call to `FUN_00480e70(unit, 1)`
+(`UNITMODE_SetAnimMode`, already described `collision.md:1194`). So for a
+monster in modes 1-0xb or 0xd-0xf it plays something at the unit's path
+target and sets mode 1 before returning through `SetAnimMode`'s own tail.
+Its one caller, `FUN_004aff60` (the client's monster unit-command
+handler, verified, already cited `collision.md:1077`/`:1104`,
+`net-packets.md:71`), was not re-read for which commands reach it.
+
+d2d: not ported as a function; `SetAnimMode` itself is already verified
+(`tools/emu/unitmode_setanim.py`); no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae1d0 00480490`; disassemble
+`004ae1d0`..`004ae207` to confirm the naked ESI convention and the two
+calls in order.
