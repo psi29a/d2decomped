@@ -280,14 +280,35 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         return true;
     }
 
+auto Fight::pierce_chance(bool for_merc) const -> int {
+        using namespace d2d::d2s;
+        if (!for_merc) return int(actor->psum[kSkillPierce] + actor->psum[kItemPierce]);
+        const auto gear = merc_gear();
+        return int(gear.sum[kSkillPierce] + gear.sum[kItemPierce]);
+    }
+
+auto Fight::pierce_armed(bool for_merc) const -> bool {
+        using namespace d2d::d2s;
+        if (!for_merc) return actor->psum[kSkillPierce] != 0 || actor->psum[kItemPierce] != 0;
+        const auto gear = merc_gear();
+        return gear.sum[kSkillPierce] != 0 || gear.sum[kItemPierce] != 0;
+    }
+
+// FUN_0059f940: a Pierce row's charges from the owner's skill_pierce + item_pierce,
+// seeded by its stat 0x148. Chance 0 sets nothing (the count stays 0).
+auto Fight::seed_pierce(Missile& missile, bool for_merc) -> void {
+        if (!missile.info->pierce) return;
+        const int chance = pierce_chance(for_merc);
+        if (chance == 0) return;
+        missile.pierce = d2d::rules::pierce_charges(chance, for_merc ? actor->merc_pierce_idx : actor->pierce_idx);
+    }
+
 auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms) -> Missile& {
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_facing(x, y, dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
-        // FUN_0059f940. ponytail: a merc's pierce isn't read (its gear's item_pierce, its own stat 0x148).
-        if (missile_info.pierce && !casting_merc)
-            missile.pierce = d2d::rules::pierce_charges(int(actor->psum[d2d::d2s::kSkillPierce] + actor->psum[d2d::d2s::kItemPierce]), actor->pierce_idx);
+        seed_pierce(missile, casting_merc);
         pending.push_back(std::move(missile));
         return pending.back();
     }
@@ -759,8 +780,8 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             return true;
         }
         // FUN_005adf10 -> FUN_005ada80: a charge left flies on, one fewer, while the owner has
-        // skill_pierce or item_pierce; no draw.
-        if (missile_info.pierce && missile.pierce > 0 && (actor->psum[d2d::d2s::kSkillPierce] != 0 || actor->psum[d2d::d2s::kItemPierce] != 0)) {
+        // skill_pierce or item_pierce; no draw. A merc's owner is the merc.
+        if (missile_info.pierce && missile.pierce > 0 && pierce_armed(missile.by_merc)) {
             --missile.pierce;
             return false;
         }

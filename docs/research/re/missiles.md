@@ -604,11 +604,16 @@ then `git diff --exit-code tests/pierce_charges_cases.inc`.
 
 d2d: `rules::pierce_charges` matches FUN_0059f940 on 2000 cases
 (tests/test_pierce_charges.cpp). `Fight::launch` gives a Pierce row's
-missile its charges from the player's skill_pierce + item_pierce and its
-`pierce_idx` (bumped by each `cmd::UseSkill`); a struck monster spends
-one while the player still has either stat, with no draw
-(`skill_missile_hits`). ponytail: a merc's missiles get none, and
-`pierce_idx` counts d2d's commands, not game.exe's packets.
+missile its charges from the owner's skill_pierce + item_pierce and its
+stat 0x148: the player's `psum` and `pierce_idx` (bumped by each
+`cmd::UseSkill`), or the merc's gear and `merc_pierce_idx` on a skill
+missile. A struck monster spends one while
+that owner still has either stat, with no draw (`skill_missile_hits`,
+tests/game/test_merc_pierce.cpp). ponytail: nothing bumps a merc's stat
+0x148 (`FUN_00597e20`'s default branch isn't read), a merc's plain
+arrow still ends on the first unit (its hit is not `skill_missile_hits`),
+and `pierce_idx`
+counts d2d's commands, not game.exe's packets.
 
 ## Server hit function 20 helper — FUN_005ab2a0 (area callback)
 

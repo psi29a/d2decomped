@@ -275,6 +275,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     missile.to = { target.unit.x, target.unit.y };
                     const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
                     missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
+                    // ponytail: this hit ends the missile on the first unit (tick.cpp), so FUN_0059f940's charges are not applied here.
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Bash, Stun; Jab only off its sequence) builds
