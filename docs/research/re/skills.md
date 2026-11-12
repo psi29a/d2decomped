@@ -1256,7 +1256,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `+0x138`, `FUN_00646ca0`) in 256ths plus a roll of `calc[1] - calc[0]`
   in 256ths on the missile's own seed (`+0x20`, `RANDOM_RandomNumberSelector`/
   `FUN_0045c3e0`); 0 or under falls back to `FUN_005a8910` of missile
-  stats mindamage/maxdamage (0x16/0x15). The result is added to the
+  stats mindamage/maxdamage (0x15/0x16). The result is added to the
   target's life (stat 6), capped at max life; `ProgOverlay` (`+0x36`)
   plays when set. Returns 1 (ends, no damage). When the gate fails, the
   type/sHitPar2 check above runs instead (a strike, not a heal).
