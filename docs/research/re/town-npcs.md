@@ -169,6 +169,19 @@ build/ai-town-home/cases > build/ai-town-home/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_town_return_home.py --cases build/ai-town-home/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_town_linger.py` compares the active-linger branch of
+FUN_005e6ae0 with `npc_think` over 85 horizontal distances and remaining
+counts. Command lookup, distance and movement are hooked; later branches of
+the function are not checked.
+
+```sh
+mkdir -p build/ai-town-linger
+uv run --no-sync --project tools/emu python tools/emu/ai_town_linger.py --cpp > build/ai-town-linger/cases.cpp
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-linger/cases.cpp -o build/ai-town-linger/cases
+build/ai-town-linger/cases > build/ai-town-linger/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_town_linger.py --cases build/ai-town-linger/cases.txt --exe "$GAME_EXE"
+```
+
 So an NPC picks a random point of its path two thinks in three, walks
 there and lingers 12 (or 20) thinks of 10 frames, walking back when pushed
 over 3 off; a point with action 4 / 5 ends with S1 / S2 there, facing its
