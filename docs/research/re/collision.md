@@ -154,9 +154,14 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - A monster's walk (town NPCs too: FUN_005ded90 → FUN_005a7c20 →
   FUN_005a63f0, move mode 0x65 → type 0xd, steps +0x91 = 5): FUN_005a6290
   computes type 0xd (the toward pather, monster-ai.md) and, with no point,
-  type 0xf. FUN_005a7c20 gives it a budget of 0x14 points (+0x94); a path
-  run out short of its end paths again while that lasts, the points walked
-  coming off it (FUN_006503f0 → FUN_00650350).
+  type 0xf. FUN_005a7c20 gives it a budget of 0x14 points (+0x94); a
+  re-path (FUN_006503f0 → FUN_00650350) spends it, the points reached
+  coming off it. A path walked to its last point, or blocked, ends the
+  walk: FUN_006507b0 zeroes its count (+0x28) and FUN_00650840 runs
+  FUN_006503f0 only while the count is over 0, so its run-out test (+0x24
+  at +0x28) never fires after a walk; the next think walks on.
+  **Verified**: `tools/emu/walk_step.py` asserts the count is 0 after each
+  walk's last frame (3,000 walks); `game::walk_on` ends there.
 - The wall pather (FUN_0067c2d0, type 0xf): a line (FUN_0067b9f0,
   Bresenham on the long axis) of at most `steps` − 1 subtiles (`steps` is
   +0x91, 0x28 at least with a unit to walk to), else none; none with two

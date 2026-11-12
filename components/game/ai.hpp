@@ -132,10 +132,10 @@ std::vector<std::pair<float, float>> player_walk(const Level& level, float x, fl
 // points (FUN_005a7c20 -> FUN_006490e0). False with no step to take.
 bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bool to_unit, const Crowd& crowd = {});
 
-// A frame of that walk (FUN_00650840): along its path; run out short of its
-// end, it paths again while the budget lasts, the points walked coming off
-// it (FUN_006503f0 -> FUN_00650350). Blocked, it ends (FUN_00650150).
-// False once it's over.
+// A frame of that walk (FUN_00650840): along its path. False once it's
+// over: at its last point or blocked (FUN_00650150), short of the goal or
+// not; FUN_006507b0 zeroes the path's count then, so FUN_006503f0 (the
+// re-path) doesn't run again. Further on is the next think's walk.
 bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {});
 
 // A frame of u's walk along its path at `velocity` (path_velocity)

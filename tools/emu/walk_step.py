@@ -6,7 +6,9 @@ until it returns 0. The chase check (FUN_006503f0, moves.py) is hooked to "go
 on" and the subtile test (FUN_0064ff90) answers from the case's blocked set.
 Each row is the case and, per frame, FUN_00650840's return, the 16.16 position
 and the point index after it: tests/walk_step_cases.inc, which
-tests/test_walk_step.cpp replays through rules::walk_frame.
+tests/test_walk_step.cpp replays through rules::walk_frame. A walk's last
+frame leaves the path's count (+0x28) 0, asserted: FUN_00650840 runs the chase
+check only with points left, so a walk over never paths again (game::walk_on).
 
   uv run walk_step.py [cases] > ../../tests/walk_step_cases.inc
 """
@@ -52,7 +54,9 @@ def main():
         for _ in range(60):
             ret = e.call(0x650840, unit, 0x400)
             frames.append((ret, e.r32(path), e.r32(path + 4), e.r32(path + 0x24)))
-            if not ret: break
+            if not ret:
+                assert e.r32(path + 0x28) == 0, "a walk over keeps its count"
+                break
         pairs = lambda rows: "{ " + ", ".join(f"{{ {a}, {b} }}" for a, b in rows) + " }" if rows else "{}"
         steps = ", ".join(f"{{ {r}, 0x{fx:x}, 0x{fy:x}, {i} }}" for r, fx, fy, i in frames)
         print(f"    {{ 0x{x:x}, 0x{y:x}, {velocity}, {pairs(points)}, {pairs(sorted(blocked))}, {{ {steps} }} }},")

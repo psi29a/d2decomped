@@ -132,16 +132,7 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
 }
 
 bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd) {
-    if (unit.path.empty()) return false;
-    bool blocked = false;
-    if (follow_path(level, unit, velocity, crowd, &blocked)) return true;
-    if (blocked) return false;
-    auto sub = [](float value) { return int(std::floor(value * 5)); };
-    if ((sub(unit.x) == sub(unit.goal_x) && sub(unit.y) == sub(unit.goal_y)) || unit.budget == 0) return false;
-    unit.budget = std::max(unit.budget - unit.path_points, 0);
-    unit.path = monster_walk(level, unit, crowd);
-    unit.path_points = int(unit.path.size());
-    return !unit.path.empty();
+    return !unit.path.empty() && follow_path(level, unit, velocity, crowd);
 }
 
 std::string unique_name(const GameData& game_data, int name_seed) {
