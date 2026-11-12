@@ -21,8 +21,8 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
-#include <exception>
 #include <cstring>
+#include <exception>
 #include <sstream>
 #include <string>
 #include <vector>
