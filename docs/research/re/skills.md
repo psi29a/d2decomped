@@ -418,13 +418,30 @@ lines (missile names aren't passed in). What it does:
   on from the attacker (FUN_00648cf0 / FUN_00648e40); no path, NU
   (FUN_0057f020). On a monster with no KB mode (MonStats2 bit 13) it's
   turned into a get-hit (flag 4); else mode 13 (FUN_005a7e60 /
-  FUN_005a7c20; start FUN_005a77d0: GH and KB modes, alive): path type 8,
-  5 subtiles, 10 for class 0x4e (sandleaper1); each frame along the path
-  (FUN_005a8630 -> FUN_00554ca0) till the mode ends, then FUN_005a8520:
-  GH (mode 3), a Sand Leaper instead thinking 15 frames on (45 stunned).
-  The player's KB is drawn as GH (PlrMode.txt). d2d: `Fight::land` and
-  `monster_update`'s KB (a monster), `Fight::knock` (the player), an even
-  slide over the mode (path type 8 adds no pace, 0x6eb648[8] = 0).
+  FUN_005a7c20; start LAB_005a77d0: FUN_0046c140 bits 3 and 13, MonStats2
+  mGH and mKB, alive): path type 8, 5 subtiles, 10 for class 0x4e
+  (sandleaper1); each frame along the path (LAB_005a8630 -> FUN_00554ca0,
+  its 2 at the path's end ignored) till the mode ends (FUN_006217c0), then
+  FUN_005a8520: the saved velocity back (FUN_00648dc0), GH (mode 3), a Sand
+  Leaper instead thinking 15 frames on (45 stunned).
+  A monster's KB draws its GH COF: MonMode.txt's row is `knockback GH KB`
+  (token GH), and no monster has a KB COF.
+  **The pace.** FUN_00623f50 gives a player in mode 0x13 or a monster in
+  mode 0xd path velocity 0x1000 (FUN_00648690, LAB_006240ca), whatever its
+  speed; path type 8 neither saves nor sets one (0x6eb690[8] = 0x1e6, no
+  0x2000 / 0x8000). FUN_00650840's step is velocity x dir >> 8 (FUN_006502d0,
+  FUN_0064fe40; dir from FUN_0064fc60's slope table at 0x6eb7e0, 4096 long),
+  one subtile a frame, snapping on the point once within a step on both axes
+  (FUN_00650090): 5 subtiles take 5 frames. A monster whose KB is shorter
+  stops where its mode ends. The player's KB frame is the walk's
+  (0x732c10[0x13] = FUN_00580c20), whose path end is NU (FUN_0057f020), so
+  its KB lasts the slide; it's drawn as GH (PlrMode.txt).
+  d2d: `Fight::knock_back` (gate: `can_get_hit`, `can_knock_back`),
+  `knock_slide` / `knock_moved` / `knock_ms` (ai.hpp), `npc_cof`'s KB token,
+  `Fight::hurt_side` (the player). `tools/emu/knock_pace.py` runs
+  FUN_00623f50, FUN_0064fe40 and FUN_00650090 on 2000 paths: velocity 0x1000
+  on all, frames all match, the step within 361 / 65536 subtile (the slope
+  table).
 - Record flags seen: 1 = the physical is built (FUN_0057b7d0 doesn't roll
   the weapon), 2 = don't run FUN_0057b7d0 at all, 0x1000 = self damage;
   FUN_0057b7d0 marks 0x20.

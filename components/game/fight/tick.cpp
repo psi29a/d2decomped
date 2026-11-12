@@ -627,9 +627,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // FUN_0057f090): path type 8, 5 subtiles on from the attacker;
         // with no room it stays (FUN_0057f020, NU).
         // The KB mode is drawn as GH (PlrMode.txt "Knock back": GH), the
-        // player sliding there over it.
-        // ponytail: an even slide over the GH length (FHR's); the path's own
-        // pace (FUN_00554ca0) isn't traced.
+        // player sliding there a subtile a frame (knock_moved: FUN_00623f50's
+        // KB velocity 0x1000). KB's frame is the walk's (0x732c10[0x13] =
+        // FUN_00580c20): the path's end is the mode's (FUN_0057f020, NU), so
+        // it lasts the slide, not FHR's get-hit.
         if (actor->leap) {                                          // Leap's flight, then its landing's knockback (FUN_005da120, FUN_0056bad0)
             const float done = std::clamp(float(now_ms - actor->leap->start) / float(std::max<std::uint32_t>(actor->leap->lands - actor->leap->start, 1)), 0.f, 1.f);
             actor->player.x = actor->leap->from_x + (actor->leap->to_x - actor->leap->from_x) * done; actor->player.y = actor->leap->from_y + (actor->leap->to_y - actor->leap->from_y) * done;
@@ -650,8 +651,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (actor->knock) {
             if (actor->pmode == kModeGH) {
-                const float done = std::clamp(float(now_ms - actor->player.mode_ms) / float(std::max<std::uint32_t>(actor->pmode_until - actor->player.mode_ms, 1)), 0.f, 1.f);
-                actor->player.x = (*actor->knock)[0] + ((*actor->knock)[2] - (*actor->knock)[0]) * done; actor->player.y = (*actor->knock)[1] + ((*actor->knock)[3] - (*actor->knock)[1]) * done;
+                const float dx = (*actor->knock)[2] - (*actor->knock)[0], dy = (*actor->knock)[3] - (*actor->knock)[1], length = std::hypot(dx, dy);
+                const float done = length > 0 ? d2d::game::knock_moved(now_ms - actor->player.mode_ms, length) / length : 1.f;
+                actor->player.x = (*actor->knock)[0] + dx * done; actor->player.y = (*actor->knock)[1] + dy * done;
             }
             if (actor->pmode != kModeGH || now_ms >= actor->pmode_until) actor->knock.reset();   // done, or cut short
         }
@@ -661,6 +663,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             if (const float next_x = actor->player.x + dx / distance, next_y = actor->player.y + dy / distance; !level->unit_blocked(next_x, next_y, actor->player.shape)) {
                 actor->knock = std::array{ actor->player.x, actor->player.y, next_x, next_y };
                 set_pmode(kModeGH, now_ms);
+                actor->pmode_until = now_ms + d2d::game::knock_ms(std::hypot(next_x - (*actor->knock)[0], next_y - (*actor->knock)[1]));
             }
         }
         for (std::size_t k = 0; k < 2; ++k)
