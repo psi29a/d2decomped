@@ -1454,3 +1454,39 @@ compared against a d2d equivalent.
 Re-check: `python3 tools/ghidra/fn.py 004afb60`; disassemble
 `004afb60`..`004afbbd` and `004b0c60`..`004b0d20` to confirm `EDI` holds
 the unit at both call sites and that the mode-0xe gate precedes them.
+
+### A player-only overlay-message gate on state 0xb8: `FUN_004afc10` (batch 14)
+
+`FUN_004afc10` (0xcf bytes, `004afc10`..`004afcde`, plain `RET`): no
+formal parameter either — the decompile shows `unaff_ESI`, and `ESI` is
+the unit the same way as `FUN_004d2c70` above ("reads unaffected EBX
+directly rather than a passed argument"): its single call site
+(`004b05b9`, also in `FUN_004aff60`) has `ESI` already holding that
+function's unit for its whole body, with no register move immediately
+before the call.
+
+A null unit, or a unit whose type (`+0x0`) isn't `1` (player), returns
+at once — monsters, objects, missiles and items never reach the rest of
+the function. For a player: `FUN_00639df0(unit, 0xb8)` (the state test
+`collision.md` already cites throughout, e.g. line 1082/1316) gates two
+message shapes, both built the same way — an `0x5c`-byte record zeroed by
+`FUN_00681ef0`, header word `0x2020`, both pointer fields set to the
+unit — then fed to `FUN_004cd540` (not read further here; already flagged
+above as "not read here; their own") twice with two different ids:
+
+- state `0xb8` **off**: `FUN_00451fe0(unit+4)` (the class-row lookup by
+  class id, `cursor-units.md:116`/`:127`) reads that row's byte `+0xb`,
+  adds `0x10f` for the first id; the second id is the fixed `0x113`.
+- state `0xb8` **on**: `FUN_00639df0(unit, 1)` (state `1`) nonzero skips
+  both messages entirely; zero sends the fixed ids `0x1ab` then `0x1aa`.
+
+**Not traced**: states `0xb8`/`1`'s names (no row found for either in the
+states tables read so far); the string text behind the four sstr ids;
+what `FUN_004cd540` does with this `0x5c`-byte record shape downstream.
+
+d2d: not ported as a function; no disagreement found, nothing here was
+compared against a d2d equivalent.
+
+Re-check: `python3 tools/ghidra/fn.py 004afc10`; disassemble
+`004afc10`..`004afcde` and `004b0590`..`004b05c0` to confirm `ESI` is the
+unit at the call site and the state-0xb8/state-1 gate order.
