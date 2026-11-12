@@ -3805,6 +3805,723 @@ only).
 Re-check: `python3 tools/ghidra/fn.py 004cfd70 004cffa0 004d34e0 004d3540
 004d3d00`; compare the bytes of the first two with `read_memory`, and read
 the branches at `004d3586`..`004d3618` for the three frame rules.
+### An NPC-menu speech id getter: `FUN_004b1050` (batch 25)
+
+`FUN_004b1050` (0x3a bytes, `004b1050`..`004b108a`; no direct caller in
+`game-calls.tsv`; Ghidra's name for it, `NPCMENU_ParseSpeechData`, is a lead).
+Disassembly: **ECX** a unit pointer, **EDX** a byte out-pointer, one stack
+argument (a dword out-pointer), `RET 4`, returns 0 or 1 in EAX. First it
+stores 1 through EDX and -1 through the stack pointer. Then, only if the
+dword at `[ECX]` (the unit type) is 1 and `[ECX+0x14]` is non-null and the
+dword at `[[ECX+0x14]+0x3c]` is not -1, it copies that dword to the stack
+out-pointer, clears the EDX byte and returns 1. Anything else returns 0 with
+the defaults left in place. What the monster-data dword at `+0x3c` means is
+not read here.
+
+d2d: `git grep 004b1050` in `components/` and `apps/` finds nothing. Not
+traced: who calls it (it has no direct call row), the meaning of `+0x3c`.
+
+Re-check: `python3 tools/ghidra/fn.py 004b1050`; disassemble `004b1050`..
+`004b108a` (the three compares at `004b1060`, `004b1068`, `004b106f`).
+
+### Two item-slot helpers: `FUN_004c1c20`, `FUN_004c1c50` (batch 25)
+
+- **`FUN_004c1c20`** (0x21 bytes, `004c1c20`..`004c1c41`, plain `RET`):
+  **EAX** an item unit (pushed for `FUN_00629fe0`, which `items-common-trace.md`
+  traces as "return the ushort short-mapping of the item row's `+0xc0`"),
+  **BL** a body slot. The ushort result is zero-extended; slot 4 stores it to
+  the word at `0x7c78a8`, slot 5 to the word at `0x7c78ac`; any other slot
+  stores nothing. Ghidra calls it `ITEM_SaveWeaponHandClassId` (lead); what
+  reads the two words is not traced. Callers: `004c2e90`, `004c3070`,
+  `004c35f0`, `004c3980`, `004c4c70`.
+- **`FUN_004c1c50`** (0x40 bytes, `004c1c50`..`004c1c90`): **ECX** an
+  inventory, **EDX** an item, one stack argument the body slot, `RET 4`
+  (read on the null path at `004c1c62`). A null EDX returns 0. Otherwise it
+  calls `FUN_0063bde0(inventory, slot)` (the item now in that body slot,
+  `inventory.md`); if that is non-null it calls the empty stub `FUN_0063be30`
+  (`RET 8`, `inventory.md`) with the same two arguments; then it calls
+  `FUN_0063bdb0(inventory, item, slot)` and returns 1 when that result is
+  non-zero, else 0 (`NEG`/`SBB`/`NEG` at `004c1c83`..`004c1c89`). So an item
+  already in the slot is not removed first here: the stub does nothing.
+  Callers: `004c2e90`, `004c3070`, `004c35f0`, `004c4aa0`, `004c4c70`.
+
+d2d: `git grep` finds neither address in `components/` or `apps/`. Not
+traced: `FUN_0063bdb0`'s own body (its slot-occupied case), the
+readers of `0x7c78a8` / `0x7c78ac`.
+
+Re-check: `python3 tools/ghidra/fn.py 004c1c20 004c1c50`; disassemble
+`004c1c20`..`004c1c41` (BL compares at `004c1c26`, `004c1c35`) and
+`004c1c50`..`004c1c90`.
+
+### The item-flag and clear-cursor packets: `FUN_004c2020`, `FUN_004c2050` (batch 25)
+
+Both are fastcall with **ECX** the packet body, plain `RET`. They are the
+handlers of the opcode-0x40 and opcode-0x42 rows of the table at `0x7114d0`:
+the row at `0x7117d0` holds handler `0x45e240`, size 13, and the row at
+`0x7117e8` holds handler `0x45e270`, size 6 (bytes read). The two wrappers
+(`FUN_0045e240`, `FUN_0045e270`) only copy the packet to a local and call
+these. `net-packets.md` already lists both opcodes in one line each.
+
+- **`FUN_004c2020`** (0x24 bytes, `004c2020`..`004c2044`): finds the unit
+  with `FUN_00463990(id = dword at +1, type = 4)`; if there is one it calls
+  `FUN_006280d0(unit, dword at +5, dword at +9)` (stdcall, args in that
+  order from the pushes at `004c203a`..`004c203d`). A missing item is
+  dropped silently.
+- **`FUN_004c2050`** (0x5b bytes, `004c2050`..`004c20ab`): finds the unit
+  with `FUN_00463990(id = dword at +2, type = byte at +1)`. It goes on only
+  if that unit exists and equals `FUN_00463dd0()` (the local player,
+  `004c2063`..`004c206a`). Then, with `inv` the player's inventory (unit
+  `+0x60`): `held = FUN_0063c1e0(inv)` (the hand item); if non-null, it
+  keeps `held`'s id (`+0xc`), calls `FUN_0063c180(inv, 0)` (clears the
+  cursor item), calls `FUN_00468070(FUN_0063c1e0(inv))` (re-sets the client's
+  cursor item from whatever the inventory now holds), calls
+  `FUN_00465ee0(id, held's type)` (the remove-unit routine of opcode 0x0a),
+  and finishes with a tail jump to `FUN_004b29e0(id)`. The packet's type and
+  id are used only to prove the target is the local player; the item that
+  goes is the inventory's own hand item. A non-local target or an empty
+  hand does nothing.
+
+d2d: `git grep` finds neither address in `components/` or `apps/`. Not
+traced: `FUN_00468070`'s and `FUN_004b29e0`'s bodies (the latter is named an
+NPC-menu cursor-item hook by Ghidra only), `FUN_006280d0`'s exact bit
+semantics (`items.md:77` reads it as clearing the mask bits for the 0/non-0
+third argument; not re-read here).
+
+Re-check: `python3 tools/ghidra/fn.py 004c2020 004c2050`; read 13 and 6
+bytes at `0x7117d0` / `0x7117e8` and disassemble `0045e240`..`0045e28f`.
+
+### Three item removal and sound helpers: `FUN_004c0ec0`, `FUN_004c1290`, `FUN_004c18b0` (batch 25)
+
+The first two call `FUN_006280a0(item, 0x100, 0x96, file)` with the
+`.\UNIT\Item.cpp` string at `0x6dab78` (read) as the file and `0x96` as the
+line (an item-flag test, `items.md` / `act1-end.md` use it with 0x10 and
+0x100); only the first uses its result.
+
+- **`FUN_004c0ec0`** (0x53 bytes, `004c0ec0`..`004c0f13`): **ECX** the item,
+  **EDX** the owner, stack `recalc`, stack `update`, `RET 8`. A null owner
+  does nothing. For a player owner (`[owner]` is 0) it calls `FUN_0063bef0`
+  on the owner's inventory (`+0x60`) and discards the result. Then
+  `FUN_006280a0(item, 0x100, 0x96, file)`: if the flag is clear, or
+  `recalc` is non-zero, it calls `FUN_006277f0(owner, item)` (detach the
+  item's stat list from the owner). If `update` is non-zero it then calls
+  `FUN_006275b0(owner)`. Callers: `00462f60`, `00466cb0`.
+- **`FUN_004c1290`** (0x51 bytes, `004c1290`..`004c12e1`): **ESI** the owner,
+  **EDI** the item, one stack argument, `RET 4`. If either is null or the
+  owner's `+0x60` inventory is null, nothing. Else it calls
+  `FUN_0063d2b0(inventory, item)` (wield bookkeeping removal), for a player
+  `FUN_0063bef0(inventory)` (discarded), the same flag test (discarded),
+  `FUN_006277f0(owner, item)` unconditionally, and finishes with
+  `FUN_0046f280(owner, stack argument)` (clear layer flags: 20 / 16 / 8
+  slots by unit type, nothing when the second argument is 16 or more).
+  Callers: `004c1350`, `004c2270`.
+- **`FUN_004c18b0`** (0x56 bytes, `004c18b0`..`004c1906`, plain `RET`):
+  **EAX** an item unit. A local volume dword starts at 0xc and its address
+  goes to **EDI** for `FUN_004c16d0` (called with the unit in **ESI**, body
+  not read here), whose return is the sound id. It queues
+  `FUN_004b9a00(0xd8, unit, 0, 0, 0)` (the sound player, **ECX** id, **EDX**
+  unit, three stack words). If the id from `FUN_004c16d0` is above 0 it
+  queues `FUN_004b9a00(id, unit, volume, 0, 0)`; a non-zero return (a
+  channel) is then given `FUN_004b9b50(channel, 0xb4)` (**ECX** channel,
+  **EDX** 0xb4). Callers: `004c1910`, `004c25b0`.
+
+d2d: `git grep` finds none of the three addresses in `components/` or
+`apps/`. Not traced: `FUN_004c16d0` (how the id and volume are picked),
+what sound row 0xd8 is, `FUN_004b9b50`, `FUN_006275b0`'s body.
+
+Re-check: `python3 tools/ghidra/fn.py 004c0ec0 004c1290 004c18b0`; the
+`6dab78`/`0x96`/`0x100` pushes are at `004c0edb`..`004c0ee5` and
+`004c12b7`..`004c12c1`.
+
+### Five unit sound-field accessors: `FUN_004ca990`, `FUN_004ca9c0`, `FUN_004caaa0`, `FUN_004cab00`, `FUN_004caca0` (batch 25)
+
+Client unit fields (`structs.tsv` already has unit `+0x78` as the head of the
+unit's active sound-node list). Each null-checks the unit the same way: a
+push of a line constant, `FUN_00408090`, `FUN_00408a60("", ...)` and the exit
+`FUN_00681e09(-1)`.
+
+- **`FUN_004ca990`** (0x30 bytes, `004ca990`..`004ca9c0`): **ECX** unit, plain
+  `RET`, line `0xc63`. Returns the dword at `[[unit+0x78]]` (the first sound
+  node's first field), or 0 when the list is empty. Caller: `004d39c0`.
+- **`FUN_004ca9c0`** (0x48 bytes, `004ca9c0`..`004caa08`): **ECX** unit,
+  **EDX** a flag, line `0xc2c` (the same constant the next function,
+  `FUN_004caa10`, uses). Walks the list at unit `+0x78`; for each node it
+  reads the key at `+0` and the next pointer at `+4` before the call, then
+  calls `FUN_004ba790(key, unit, flag)` (**ECX** key, **EDX** unit, flag on
+  the stack), so a call that unlinks the node is safe. Caller: `00465870`.
+- **`FUN_004caaa0`** (0x30 bytes): **EAX** unit, stack byte, `RET 4`, line
+  `0xc9a`; stores the byte at unit `+0x70`.
+- **`FUN_004cab00`** (0x30 bytes): **EAX** unit, stack dword, `RET 4`, line
+  `0xcb0`; stores the dword at unit `+0x74`. (`004caad0`, the getter of
+  the same field, line `0xca5`, sits right before it; not covered here.)
+- **`FUN_004caca0`** (0x33 bytes, `004caca0`..`004cacd3`): **EAX** unit,
+  stack dword, `RET 4`, line `0xd08`; stores the dword at unit `+0x88`.
+
+None of `FUN_004caaa0`, `FUN_004cab00` or `FUN_004caca0` has a row in
+`game-calls.tsv`. Ghidra's names for them ("placeholder", `SetHasActiveSound`,
+bUnitSfx / nSfxMode) are leads: only the offsets above were read.
+
+d2d: `git grep` finds none of the five addresses in `components/` or `apps/`.
+Not traced: what reads unit `+0x70`, `+0x74` and `+0x88`.
+
+Re-check: `python3 tools/ghidra/fn.py 004ca990 004ca9c0 004caaa0 004cab00
+004caca0`; the stores are at `004caac9`, `004cab29`, `004cacc9`.
+
+### Two missile-age speed tiers: `FUN_004cd2d0`, `FUN_004cc910` (batch 25)
+
+Both return a small step count from a missile's age. **Trap:** Ghidra names
+`FUN_0064a3b0` `GetRemainingFrames` and both functions after "remaining
+frames", but the disassembly of `FUN_0064a3b0` (`0064a3b0`..`0064a3d8`) is:
+a unit whose type (`[unit]`) is 3 (missile), missile data at `+0x14`, result
+`word[data+0xe] - word[data+0x10]`, 0 otherwise, `RET 4`. That is total
+minus remaining, as `unit-sounds.md:604` and the batch 9 note say, so the
+thresholds below are on elapsed frames.
+
+- **`FUN_004cd2d0`** (0x3d bytes, `004cd2d0`..`004cd30d`): **EAX** the age,
+  plain `RET`. Below 150: 20; below 200: 15; below 225: 10; below 375: 5;
+  otherwise 25 (the `SETGE`/`SUB 1`/`AND 0xffffffec`/`ADD 0x19` tail at
+  `004cd2f7`..`004cd307`). Only caller `FUN_004d7690` (call site `004d76ec`;
+  Ghidra: missile client function 61): the age comes straight from
+  `FUN_0064a3b0(ESI)`, the result minus 1 goes to `FUN_0064a710(missile,
+  n)`, then `FUN_004d30c0`.
+- **`FUN_004cc910`** (0x34 bytes, `004cc910`..`004cc944`): **EAX** the
+  missile, plain `RET`; it calls `FUN_0064a3b0` itself. Below 125: 25;
+  below 175: 10; below 300: 3; otherwise 15 (`004cc92e`..`004cc93e`).
+  Only caller `FUN_004d48b0` (call site `004d49c2`; Ghidra: missile client
+  function 21), the same
+  "result minus 1 into `FUN_0064a710`, then `FUN_004d30c0`" shape.
+
+d2d: `git grep` finds neither address in `components/` or `apps/`. Not traced:
+`FUN_0064a710` and `FUN_004d30c0`, so what the "step count" drives, and
+whether the two callers are the Overseer and Baal-death-control missiles
+(the function numbers are Ghidra's).
+
+Re-check: `python3 tools/ghidra/fn.py 004cd2d0 004cc910 0064a3b0`; disassemble
+`004d76d1`..`004d76ff` and `004d49af`..`004d49d9` for the callers.
+
+### The client and server player lists: `FUN_004dc270`, `FUN_004dc2b0`, `FUN_0055b780`, `FUN_0055b790` (batch 25)
+
+The four allocate or free through the `.\UNIT\PlayerList.cpp` string at
+`0x6db9a4` (read).
+
+- **`FUN_004dc270`** (0x3a bytes, `004dc270`..`004dc2aa`): no arguments, plain
+  `RET`. `FUN_0040b380(ECX = 4, EDX = file, line 0x25, 0)` allocates a
+  4-byte head; null is an assertion with line `0x27`; it stores 0 in the
+  head and returns it. Caller: `0047a6f0`.
+- **`FUN_004dc2b0`** (0x3a bytes, `004dc2b0`..`004dc2ea`): **ECX** the head
+  (null does nothing). Walks the chain from `[head]`, next pointer at node
+  `+8` read before the free, freeing each node with `FUN_0040b3c0(node,
+  file, line 0x3c, 0)` (**ECX** node, **EDX** file) and then the head
+  itself with line `0x40`. Caller: `004794b0`.
+- **`FUN_0055b780`** (9 bytes): **ECX** game, **EDX** unit, one stack
+  argument; `PUSH EBP; MOV; POP EBP; JMP 0x0055b1e0`, so a pure forward to
+  `FUN_0055b1e0` with the registers and stack argument untouched. It is used
+  only as a callback address (see next).
+- **`FUN_0055b790`** (0x48 bytes, `0055b790`..`0055b7d8`): **ECX** game,
+  **EDX** unit, plain `RET`. `data = FUN_006221a0(unit)` (the player data,
+  `+0x14`), then `FUN_005538d0(game, 0x55b780, unit)` (**ECX** game, **EDX**
+  the callback, unit on the stack; `FUN_005538d0` is the per-client /
+  per-unit iterator elsewhere in these docs), then frees the chain at
+  player data `+0x38` (next at node `+0x10`, read before the free) with
+  `FUN_0040b480(pool = [game+0x1c], node, file, line 0x4e, 0)` and sets
+  `+0x38` to 0. Caller: `005349d0`.
+
+Note the two lists differ: the client head's nodes link at `+8`, the server
+player data's at `+0x10`. d2d: `git grep` finds none of the four addresses
+in `components/` or `apps/`. Not traced: `FUN_0055b1e0` (what removing the
+unit from each other player's list does), what the client list holds.
+
+Re-check: `python3 tools/ghidra/fn.py 004dc270 004dc2b0 0055b780 0055b790`;
+disassemble `0055b790`..`0055b7d8` (the callback address is the immediate
+at `0055b79e`).
+
+### Four state-table callbacks: `FUN_004d8960`, `FUN_004d9090`, `FUN_004d9360` and a tier helper `FUN_004d8a30` (batch 25)
+
+The first three are entries of the state set-callback table at `0x72a690`
+(the same table `lighting.md:156` and `monster-ai.md:505` index): the dwords
+read there are `0x4d8960` at `0x72a6a0` (index 4), `0x4d9090` at `0x72a6ac`
+(index 7), and `0x4d9360` at `0x72a6c4` (index 13). Each takes **ECX** the
+unit and **EDX** the state id.
+
+- **`FUN_004d8960`** (0x3f bytes, `004d8960`..`004d899f`): `list =
+  FUN_006256b0(unit, state)` (the state's stat list); if non-null, `type =
+  FUN_00625d00(list, 0x161, 0)`; if `type < 6` (unsigned), `id =
+  FUN_00625d00(list, 0x162, 0)` and `FUN_00621cc0(unit, type, id)` (names.tsv:
+  sets unit `+0x94` / `+0x98`). So a state with a source-unit stat copies
+  that (type, id) into the unit when the type is valid.
+- **`FUN_004d9090`** (0x5b bytes, `004d9090`..`004d90eb`): `list =
+  FUN_006256b0`; non-null: `skill = FUN_00625d00(list, 0x15e, 0)`; it
+  needs `0 <= skill < dword[table+0xba0]` (table pointer `[0x744304]`),
+  takes the Skills.txt row at `dword[table+0xb98] + skill * 0x23c`, reads
+  the signed word at row `+0x10e`, and if that is above 0 plays it:
+  `FUN_004b9a00(ECX = that word, EDX = unit, 0, 0, 0)`. The word is
+  Ghidra's `prgsound`; the stat names (`source_unit_type`, `modifierlist_
+  skill`) are leads, only the stat numbers `0x161`, `0x162`, `0x15e` were read.
+- **`FUN_004d9360`** (0x16 bytes): `FUN_004da000(unit)` (stack argument),
+  then `FUN_004da620(unit, 1)` as a tail jump (**ECX** unit, **EDX** 1). The
+  neighbour at `004d9380` calls `FUN_004da620` with EDX 0, so index 13 is the
+  "set" half of a pair. `FUN_004da000` / `FUN_004da620` are not read.
+- **`FUN_004d8a30`** (0x2e bytes, `004d8a30`..`004d8a5e`; no direct caller
+  and not a table entry above): **ESI** a value (not saved by the function, so it is a
+  hidden input, not in Ghidra's signature), one stack argument `n`, `RET 4`.
+  With `q = n / 3` (the `0x55555556` signed multiply, `004d8a33`..
+  `004d8a40`): the result is 1 if `ESI < q`, 2 if `q <= ESI < 2q`, else 3.
+  Ghidra calls it `STATES_CalcDamageSeverityTier` (lead; not verified).
+
+d2d: `git grep` finds none of the four addresses in `components/` or
+`apps/`. Not traced: the table's remaining slots, which states use indexes 4,
+7 and 13, the bodies of `FUN_004da000` and `FUN_004da620`, whether
+`FUN_004d8a30` is reached through a pointer.
+
+Re-check: `python3 tools/ghidra/fn.py 004d8960 004d9090 004d9360 004d8a30`;
+read 64 bytes at `0x72a690`.
+### NPC item-list repair pass: `FUN_00576c30` (batch 30)
+
+`00576c30`..`00576c8c` (93 bytes). Registers read in disassembly: **ECX**
+the owning unit (saved in EBX; `[EBX+0x60]` is its inventory), **EDX** the
+inventory to walk (pushed at once to `0063b2c0`, the first-item walker),
+plain `RET`. Ghidra names ECX "player"; both callers pass the NPC. Each item
+node is turned into its carried item with `0063dfd0` and the next node is
+fetched with `0063dfa0` before the body runs. For a non-null carried item it
+sets bit `0x4` of the `+0xc8` flag word. It then calls `0055f590(item,
+".\UNIT\SUNITNPC.CPP", 0x2da)` and, on a nonzero result, `006280d0(item, 1,
+1)`. Last it calls `0063cc70(unit +0x60, item)`, adding the item to the
+unit's update list. Callers: `FUN_00579430` at `005794dd` (EDX = the NPC's
+own inventory, `[ESI+0x60]`) and at `005794fe` (EDX = the proxy inventory
+from `00536c50`).
+
+d2d: no function carries this address. Not traced: what `0055f590` returns
+and whether it tolerates a null item (the `JZ` at `00576c53` skips only the
+flag write, not the two calls after it); what bit `0x4` of `+0xc8` and the
+`006280d0` flag mean.
+
+Re-check: disassemble `00576c30`..`00576c8c`; xrefs to `00576c30`.
+
+### Trade-list item roll: `FUN_00576c90` (batch 30)
+
+`00576c90`..`00576d85` (248 bytes). **ECX** game, **EDX** unit (both pass
+straight to `00535f10`, the NPC record lookup, which gets `&index` on the
+stack), stack args at `[EBP+8]` seed pointer, `[EBP+0xc]` (not read in the body),
+`[EBP+0x10]` out item code, `[EBP+0x14]` pointer to a word that is read at
+entry and written back; `RET 0x10` at `00576d42` and `00576d85`. The NPC
+record plus `0x20` is the trade block. A null record halts (line `0x389`), a
+null block halts (`0x383`) and a zero byte at block `+3` halts (`0x384`).
+With a list pointer at `+0xc` and a count at `+0x10`: both nonzero ->
+`0045c3e0(seed, count)` picks an index (ECX seed, EDX count). The function
+then **advances the seed a second time by hand**:
+`seed = seed.low * 0x6ac690c5 + seed.high` as a 64-bit step
+(`00576cea`..`00576cff`). It then converts the 12-byte entry's code (entry
+`+4`; stride from `LEA ESI,[ESI+ESI*2]; ADD ESI,ESI`) with `00633640` and
+looks the class up with `00629c80` (result unused), writes the code to the
+out slot, writes the saved word back, and returns 1. Zero count or a null
+list: `*out = 0`, return 0 (`00576d76`).
+
+Caller: `FUN_00579030`. d2d: no function carries this address. Not traced:
+whether `0045c3e0` already advances the seed itself (if it does, each roll
+steps the seed twice).
+
+Re-check: disassemble `00576c90`..`00576d85`; the `0x6ac690c5` multiply is at
+`00576cec`.
+
+### Gold forwarder: `FUN_00576f40` (batch 30)
+
+`00576f40`..`00576f48` (9 bytes): `PUSH EBP; MOV EBP,ESP; POP EBP; JMP
+0055b060`. It is a tail jump, so ECX, EDX and the stack arguments reach
+`0055b060` unchanged and the callee's `RET n` returns to the caller. No xref
+of any type in the database.
+
+d2d: not ported. Not traced: `0055b060`'s argument count (Ghidra shows ECX
+game, EDX unit and a gold amount).
+
+Re-check: disassemble `00576f40`.
+
+### First NPC inventory item of a class that is not flagged: `FUN_00577670` (batch 30)
+
+`00577670`..`005776d7` (104 bytes). **ECX** NPC unit (`[ECX+0x60]`
+inventory), **EDX** class id (saved to EBX), plain `RET`. A null inventory
+returns 0. Walks the inventory with `0063b2c0` / `0063dfd0` / `0063dfa0`;
+the class compared is the carried item's `+4` (or -1 for a null carried
+item). On a match it returns the item when bit `0x10` of `+0xc8` is clear;
+a set bit moves on to the next entry. Returns 0 when nothing matches. Bit
+`0x10` is the one `FUN_00576650` sets (next entries). The Ghidra name
+"GetBuyableStackSize" is a guess. No xref of any type in the database.
+
+d2d: not ported. Not traced: what bit `0x10` is named in the original.
+
+Re-check: disassemble `00577670`..`005776d7`; the `SHR ECX,4; AND ECX,1`
+at `005776b8`.
+
+### Clone with flag 1: `FUN_005776e0` (batch 30)
+
+`005776e0`..`005776ef` (18 bytes). ECX game and EDX unit pass through; the
+stack argument at `[EBP+8]` is pushed after a constant 1 to `0055a2a0`
+(Ghidra: `ITEM_CloneFromSerializedData`); `RET 4`. Ghidra's label "ReturnZero2"
+in the function comment is wrong, since it returns whatever `0055a2a0`
+leaves in EAX. No xref of any type in the database.
+
+d2d: not ported. Not traced: `0055a2a0`'s body.
+
+Re-check: disassemble `005776e0`.
+
+### Move an item off the NPC into the proxy inventory: `FUN_00576650` (batch 30)
+
+`00576650`..`005766c8` (123 bytes). **ECX** player, **EDX** NPC unit (kept
+in EDI), stack `[EBP+8]` item, `[EBP+0xc]` game, `[EBP+0x10]` flag; `RET
+0xc`. Null item or null NPC returns at once. It asks `00536c50(game, player,
+NPC)` for the proxy inventory (null returns). It then calls
+`00560420(item guid [item+0xc], &item, 0, 0, proxyInv, 0)`, with ECX game and
+EDX NPC. With the flag nonzero it ORs `0x10` into the item's `+0xc8`, calls
+`00621000(NPC, 1)`, `0063cc70(proxyInv, item)` and `00628170(item, 1, 1)`.
+With the flag zero it calls `00557fd0(game, item)` instead, which Ghidra
+names the item delete-and-free. Callers: `FUN_00537680` (per `store.md`).
+
+d2d: no function carries this address. Not traced: the meaning of the last
+two `1` arguments to `00628170` (Ghidra's `ITEMCMD_DELETE` is a lead only).
+
+Re-check: disassemble `00576650`..`005766c8`; xrefs to `00576650`.
+
+### Re-seat the player's hireling: `FUN_005773d0` (batch 30)
+
+`005773d0`..`00577462` (147 bytes). **ECX** game, **EDX** player, plain
+`RET`. It calls `00574ec0(game, player, 7, 0)` (the constant 7 is the pet type; its name is a lead); null returns. Then it calls `005754b0(game, player, x, y)`
+with the player's tile position: for player-unit type 2 or types 4..5
+(types 2, 4, 5; the unit-type enum is not re-read here) it reads the static path
+(`[unit+0x2c]`) at `+0xc` (X) and `+0x10` (Y); otherwise the dynamic path via
+`006488c0` (X) and `00648900` (Y), with 0 for a missing path. The X is the
+first stack argument and Y the second (EAX pushed after EDI). The Ghidra name
+"ValidateGambleItem" is wrong; `hireling.md` already calls it the
+repositioning helper, and this read agrees.
+
+d2d: the hireling follows its own logic; not ported by address. Not traced:
+`005754b0`'s body and its callers.
+
+Re-check: disassemble `005773d0`..`00577462`.
+
+### Re-apply item stat lists on a unit: `FUN_00577470` (batch 30)
+
+`00577470`..`005774e8` (121 bytes). **ECX** the unit, plain `RET`, returns 1
+(0 for a null unit or null inventory). Walks `[unit+0x60]` with `0063b2c0` /
+`0063dfa0` / `0063dfd0`. For each carried item whose unit type is 4 it calls
+`00625820(item, &out)` (Ghidra: owner lookup) and, when that returns nonzero,
+`006277f0(unit, item)` followed by `00627910(unit, item, out)`. So it
+re-applies each item's stat list to the unit. "ProcessGambleResult" is a
+guess with no support in the body.
+
+d2d: no function carries this address (`npc-menu.md` notes it as not ported).
+Not traced: the stat-list semantics of the three callees.
+
+Re-check: disassemble `00577470`..`005774e8`.
+
+### Create and hire a merc unit: `FUN_005774f0` (batch 30)
+
+`005774f0`..`00577667` (378 bytes). **ECX** game, **EDX** player (saved at
+`[EBP-8]`), stack `[EBP+8]` name id word, `+0xc` hire seed word, `+0x10`
+name-id override word (0xffff = none), `+0x14` class override, `+0x18` replace
+flag; `RET 0x14` at `00577563` and `00577667`. The merc's act is
+`00663750(game +0x70 (expansion), 0, name id)`. The player's act comes from
+`[player+0x18]` or, when `005531c0` (player, file, line `0x735`) returns a
+client, from `005382b0(client)` (line `0x737`). Without the expansion byte
+the merc act must be non-negative and equal the player's act, or 0 returns.
+The row is `006562f0(expansion, override, 1)` or, with no override,
+`00656580(expansion, merc act, [game+0x6d] (difficulty), 0)`; a null row
+halts (line `0x744`). Row fields read: `+0x8` class, `+0x14` seller class,
+`+0x114` / `+0x116` first / last name word. The name id is clamped to the
+first name when outside the range. The seller record comes from
+`00535ea0(game, &idx)`; if its slot array (`+0x10`, stride 16) entry
+`[name - first]` has `+0xc` zero, that entry's `+8` is set to 1. The unit is
+`00555230(type 1, class, 0, 0, game, 0, 1, mode, 0)` with mode `0xc` when the
+replace flag is set, else 1. Success calls `00573270(game, player, merc,
+override, &hire{name word, seed}, replace)` and returns the merc.
+
+d2d: not ported by address (`hireling.md`). Not traced: `00573270`'s body.
+
+Re-check: disassemble `005774f0`..`00577667`.
+
+### Buy relay with interaction check: `FUN_00577f30` (batch 30)
+
+`00577f30`..`00577fd5` (168 bytes). **ECX** game (null halts, line `0x944`),
+**EDX** player, six stack args `[EBP+8]`..`[EBP+0x1c]`, `RET 0x18`. It looks up
+the player's interacted NPC with `00554d00` and the unit named by the first
+stack arg (monster type 1) with `00552f60`. If the unit exists and equals the
+interacted NPC, it forwards game, player, NPC and the five remaining args to
+`FUN_00577830` and returns its result. Otherwise it sends opcode `0x2a` via
+`0053d740` (DL `0x2a`, ECX the client from `005531c0`, line `0x94c`) with
+result code 9, gold = stat `0xe`, unit id -1 and trade type 0, and returns 1.
+Net-packets maps this to client packet `0x32`.
+
+d2d: no function carries this address. Not traced: what code 9 shows on the
+client.
+
+Re-check: disassemble `00577f30`..`00577fd5`.
+
+### Merc hire relay with interaction check: `FUN_00577fe0` (batch 30)
+
+`00577fe0`..`0057804d` (112 bytes). **ECX** game, **EDX** player, stack
+`[EBP+8]` NPC guid, `[EBP+0xc]` merc name word; `RET 8`. Same check as
+`FUN_00577f30`: the interacted NPC (`00554d00`) must equal the unit found by
+`00552f60(game, 1, guid)`. Match forwards to `FUN_005770e0(game, player, npc,
+name)`; otherwise it sends opcode `0x2a` with result code 9, gold stat
+`0xe`, id -1, type 0 (line `0x9ad`).
+
+d2d: no function carries this address. Not traced: `FUN_005770e0` (750 bytes)
+was not read in this batch.
+
+Re-check: disassemble `00577fe0`..`0057804d`.
+
+### Trade-list discard rolls: `FUN_00579030` (batch 30)
+
+`00579030`..`00579086` (89 bytes). **ECX** game, **EDX** player, stack
+`[EBP+8]` queue field 0, `[EBP+0xc]` queue value; `RET 8`. It gets the NPC
+control seed from `00536b40(game)` and a level from `00576890(game, player,
+field 0)`. It then calls `FUN_00576c90(game, player, seed, level, &code,
+&value)` up to 5 times, stopping on the first zero, and returns 0 on every path
+(one `XOR EAX,EAX` at `00579080`). Only effect: it steps that seed. Caller:
+`FUN_005368f0` (`SUNITPROXY_ProcessNpcItemQueue`, `00536aa5`); the caller's
+nonzero branch cannot be taken.
+
+d2d: no function carries this address. Not traced: whether d2d's store
+refresh reproduces the seed advance.
+
+Re-check: disassemble `00579030`..`00579086`; the call at `00536aa5`.
+
+### Refill the last NPC's store: `FUN_00579090` (batch 30)
+
+`00579090`..`00579124` (149 bytes). **ECX** game (saved in ESI and
+`[EBP-8]`), **EDX** player (`[EBP-4]`), plain `RET`. It reads the global
+`0x88cac4`, which has one writer (`00578e85`, inside `FUN_00578e70`, storing
+the NPC unit id `[npc+0xc]`, or -1 for a null NPC) and this one reader. A zero
+global returns. Otherwise `00552f60(game, 1, id)` finds the unit, and if the
+monster's AI sub (`[[unit+0x14]+0x30]` through `00572dc0`) is not 1, the
+function takes its NPC record (`00535f10`), clears its inventory
+(`0063cb70`, `0063bd00`) and, when the record has `[trade+3]`, sets
+`[trade+0]` to 0, calls `FUN_00576980(game, player, npc, trade)` (store
+fill) and sets it back to 1. The Ghidra name "HandleResurrect" is unsupported:
+nothing in the body touches a merc or a resurrection. No xref of any type to
+this function.
+
+d2d: no function carries this address. Not traced: whether it is dead or
+reached through a table with no database reference.
+
+Re-check: xrefs to `0088cac4` (two); disassemble `00579090`..`00579124`.
+
+### End an NPC interaction: `FUN_00579130` (batch 30)
+
+`00579130`..`00579176` (71 bytes, verified up to the NPC type test).
+**ECX** game (EDI), **EDX** player (ESI), stack `[EBP+8]` NPC unit; `RET 4` is
+inferred from the caller pushing one stack argument. It calls `00554190(player)` (Ghidra: ClearInteractInfo).
+For a monster-type NPC (`[npc] == 1`) with a unit-data pointer per the decompiler only (disassembly read to `00579146`), it frees
+the specific AI for the player with the unit data's AI pointer; otherwise it
+does the same with null. Callers: `FUN_005350f0` at `00535138` and `FUN_005351c0` at
+`0053520f`. `monsters.md:859` already read this statically.
+
+d2d: no function carries this address. Not traced: the epilogue past the
+type test, which this batch read to `00579146` only; the `RET` count is
+inferred from the stack argument.
+
+Re-check: disassemble `00579130`..`00579176`.
+
+### Healer: pay and heal: `FUN_00578ed0` (batch 30)
+
+`00578ed0`..`0057902b` (350 bytes). **ECX** game (EDI), **EDX** player (ESI),
+stack `[EBP+8]` NPC guid; `RET 4`. It runs only if the unit from
+`00552f60(game, 1, guid)` is nonzero and equals the player's interacted NPC
+(`00554d00`). Needs-heal flag: stat 6 differs from `00625d10(player)` or stat
+8 differs from `00625d60(player)`. Cost: `00622de0(player)`, or 1 if zero.
+Branches: (a) stat `0xa` equals `00625db0(player)` and no flag: reply code
+`0xe`; (b) stat `0xe` plus stat `0xf` below the cost: code `0xc`; (c)
+`FUN_00576d90(game, player, cost)` returns 0: code 9; (d) otherwise
+`FUN_00578d30(game, player, npc)` heals and the reply code is 6. Each path
+sends `0053d740` (DL `0x2a`, ECX from `005531c0`) with the code, stat `0xe`,
+id -1 and 0. The pushed numbers `0xf08`, `0xf15`, `0xf1c`, `0xf22` are source
+line numbers for the client lookup, not message ids. Ghidra's
+"ExecutePrayUnused" is not backed by the body. No xref of any type to this
+function.
+
+d2d: heal pricing is already written up in `combat.md:550`; this entry adds
+the branch order. Not traced: the max getters `00625d10` / `00625d60` /
+`00625db0` and `00622de0`'s price formula.
+
+Re-check: disassemble `00578ed0`..`0057902b`.
+
+### Trade action and repair refresh: `FUN_00579430` (batch 30)
+
+`00579430`..`0057950a` (220 bytes). **ECX** game (EBX), **EDX** player
+(`[EBP-4]`), stack `[EBP+8]` NPC unit, `[EBP+0xc]` repair flag, `[EBP+0x10]`
+mode; `RET 0xc`. Null NPC or no NPC record (`00535f10`) returns. It sets the
+record's `+0x1c` to 1 and `+0x40` to the NPC guid, then calls
+`FUN_00578b30(game, player, npc, mode)`. NPC classes `0x96`, `0x203` and
+`0xc6` return there. With the repair flag set, mode 0 and the trade byte `+7`
+(record `+0x27`) set, it clears that byte, resets the proxy with `00536d10`,
+refills the store with `FUN_00576980` and sets the trade block's byte 0 to 1.
+Then `00621000(npc, 1)`. Mode 0 runs `FUN_00576c30` on the NPC's own
+inventory; any other mode fetches the proxy inventory with `00536c50` and, if
+present, runs it there.
+
+d2d: no function carries this address (store logic is in `rules.hpp`). Not
+traced: the meaning of the mode values and of the `+7` byte's name.
+
+Re-check: disassemble `00579430`..`0057950a`.
+### Client missile hit callbacks that scan or fan out: `FUN_004cf150`, `FUN_004d04d0`, `FUN_004d05e0` (batch 27)
+
+Entries 64, 30 and 4 of the client hit table at `0x72a508` (entry `n` is the
+dword at `0x72a508 + 4*n`, read from memory). These three are fastcall (ECX
+missile unit, EDX unused), plain `RET`, return 1, and fan out sub-missiles
+with the 0x5c-byte make-missile record (`memset` to 0, flags dword `+0` = 2,
+owner `+4`, parent missile `+8`, skill `+0x2c`, level `+0x30`, then
+`FUN_004cd540(record)`). After a successful make they copy the same X/Y pair
+into the new missile with `FUN_0064a710` (TargetX) and `FUN_0064a760`
+(TargetY). Each spawn's record `+0x1c` / `+0x20` are that pair, so the fan
+direction is carried in the target fields too.
+
+- **`FUN_004cf150`** (`004cf150`..`004cf24b`, 242 bytes, slot 64): needs an owner
+  (`FUN_004639d0(unit)`), a valid missiles.txt row (stride `0x1a4`, count at
+  `[[0x744304]+0xb6c]`) and word `+0x2c` (CltHitSubMissile1) `>= 0`.
+  Record `+0x10` (missile id) is **not set** here, so it stays 0 from the
+  `memset`: the spawn does not carry CltHitSubMissile1 (what `FUN_004cd540`
+  does with id 0 was not traced).
+  The step is `max(dword txt+0x6c, 1) * 4` bytes through two 16-dword
+  tables (stop at byte offset `0x20`, so 8 entries at step 1): record `+0x1c`
+  and TargetX come from `0x6dafa8`, record `+0x20` and TargetY from `0x6daf88`.
+  `0x6daf88` holds `0,16,16,16,0,-16,-16,-16` (then
+  `16,16,0,-16,-16,-16,0,16`), i.e. the Y pair on the first 8 entries.
+  **Trap:** Ghidra's decompile feeds nUnitX from the lower table and nUnitY
+  from the upper one; the disassembly (`004cf200`, `004cf206`, `004cf220`,
+  `004cf22d`) is the other way round. Whether slot 64 is reachable from any
+  missiles.txt row (its Ghidra name says Unused) was not traced.
+- **`FUN_004d04d0`** (`004d04d0`..`004d05d0`, 267 bytes, slot 30) and
+  **`FUN_004d05e0`** (`004d05e0`..`004d06e6`, 267 bytes, slot 4) are the same
+  routine over different tables. `004d05e0` read through its loop: guards (unit,
+  class `0..count`, row, word `+0x2c >= 0`), owner by `FUN_004639d0`, record
+  flags 2 with record `+0x10` = **CltHitSubMissile1** (word `+0x2c`), step
+  `max(dword +0x6c, 1) * 4`, loop end `0x100` (64 entries at step 1). Slot 4:
+  record `+0x1c` and TargetX from `0x6db440`, record `+0x20` and TargetY from
+  `0x6db340`. Slot 30 (`004d0580`..`004d05c2` read): same with
+  `0x6db240` (X) and `0x6db140` (Y). Slot 30 is named FrozenOrb by Ghidra;
+  the prologue and guards of `004d04d0` are decompile-only, the loop is
+  disassembly.
+
+Callers: none by call (table slots 64, 30, 4). d2d: no match found by
+address in `components/` or `apps/`; client missile hits are not run through
+this table. Not traced: the table contents of `0x6db140`..`0x6db440` and
+`0x6dafa8`, the missiles.txt rows that name these slots, why slot 64 leaves
+the missile id unset.
+
+Re-check: `python3 tools/ghidra/fn.py 004cf150 004d04d0 004d05e0`; read
+`0x72a508 + 4*n` for n = 64, 30, 4; disassemble `004cf1ae`..`004cf23f`,
+`004d0580`..`004d05c2`, `004d0690`..`004d06d2`.
+
+### Client missile "make at area" sub-missile spawner: `FUN_004cddb0` and its caller `FUN_004cf500` (batch 27)
+
+- **`FUN_004cddb0`** (`004cddb0`..`004ce04d`, 672 bytes, fastcall ECX missile
+  unit, EDX pointer to a dword array of missile class ids, four stack args,
+  `RET 0x10`, so [EBP+8] id count, [+0xc] half-width `r`, [+0x10] flag/offset
+  `d`, [+0x14] percent chance `p`). Gated first by `FUN_00620bb0(unit)` (a
+  room or game lookup for the missile; not traced). Builds the make-missile
+  record (flags 1, or `0x8001` when `d != 0`; owner `FUN_004639d0(unit)`;
+  skill and level from `FUN_0064a280` / `FUN_0064a210`; the unit's position
+  from two lookups chosen by unit type: types 2 and 4..5 use the static path
+  pair at `+0x2c` `+0xc` / `+0x10`, others `FUN_006488c0` / `FUN_00648900`).
+  It then walks a square `-r..r` in both axes, keeping only cells with
+  `x*x + y*y <= r*r`, and for each cell: needs the cell's room via
+  `FUN_00620bb0`, a `FUN_0064e260(room, ...)` test, `FUN_00463740` and
+  `FUN_0061ab00` (both zero results skip the cell) — their meaning was
+  not traced. A cell then draws from the **missile's own seed** (`+0x20`
+  low, `+0x24` high, step `low*0x6ac690c5 + high`): if `d != 0` a first
+  roll `% 25 + d - 12` goes into record `+0x4c` (offset); then a roll picks
+  the id (`& (count-1)` when the count is a power of two, else `% count`);
+  a last roll `% 100` must be `< p` to call `FUN_004cd540(record)`. Record `+0x14` / `+0x18` get
+  the cell's world x/y, `+0x10` the chosen class id.
+- **`FUN_004cf500`** (`004cf500`..`004cf63d`, 318 bytes, slot 12, fastcall ECX
+  missile unit, EDX unused): up to three ids from the shorts at txt `+0x2c`
+  (stop at the first negative); skill row stride `0x23c` at `[[0x744304]+0xb98]`
+  (count `+0xba0`). `r` = dword txt `+0x6c` (cHitPar1) if positive, else
+  `FUN_00646ca0(owner, skillrow.calc[0] (+0x138), skill, level)` clamped
+  to 1. `d` = `FUN_0064b7c0(unit, owner, SHitCalc1 (txt +0x88), class, level)`;
+  if not positive then `Range (short +0x96) + LevRange (short +0x98) * (level - 1)`.
+  `p` = dword txt `+0x70` (cHitPar2). Calls `FUN_004cddb0(unit, ids,
+  count, r, d, p)` and returns 1. The pushes
+  (`004cf624`..`004cf62d`) put `count`, `r`, `d`, `p` in that argument order.
+
+d2d: no match by address in `components/` or `apps/`. Not traced: the four
+grid/room tests in `FUN_004cddb0`, what the `0x8001` flag bit and record
+`+0x4c` do downstream, the txt column names behind `+0x6c`/`+0x70`.
+
+Re-check: `python3 tools/ghidra/fn.py 004cddb0 004cf500`; disassemble
+`004cddb0`..`004ce04d` and `004cf56f`..`004cf62d`.
+
+### Client hit callbacks with seed-driven or bounce targeting: `FUN_004cf640`, `FUN_004cf800` (batch 27)
+
+- **`FUN_004cf640`** (`004cf640`..`004cf7f0`, 433 bytes, slot 14, fastcall ECX
+  unit): position of the missile (static path `+0x2c`/`+0xc`,`+0x10` for types
+  2 and 4..5, else the two path getters). If word txt `+0x2c` (CltHitSubMissile1)
+  `>= 0`: `FUN_004cdba0(unit, class, 0, 0, skill, level)` (a make-at-position
+  helper, args from the pushes at `004cf6f6`..`004cf706`). If word txt `+0x2e`
+  (CltHitSubMissile2) `>= 0`: two rolls from the missile's seed
+  (`low*0x6ac690c5 + high`): the first `% 3` picks a row of the table at `0x6db008`
+  (20 bytes per row: a count then four direction offsets), the second `& 7` is a
+  base direction. Read from memory: `{4: 0,1,4,5}`, `{4: 0,2,4,6}`,
+  `{3: 0,3,5}`. For each offset the direction is `(offset + base) & 7`, a
+  sub-missile CltHitSubMissile2 is made (same helper) and `FUN_00649ef0(its
+  path, x, y, 0)` aims it at the missile position plus the direction's unit step
+  (x from `0x6dafc8`, y from `0x6dafe8`; `0,1,1,1,0,-1,-1,-1` and
+  `1,1,0,-1,-1,-1,0,1`). **Trap:** Ghidra names those two direction arrays
+  `gnMissileMovementSpeedByType` / `gnMissileCollisionOffsetByType`; they are
+  eight-way step tables.
+- **`FUN_004cf800`** (`004cf800`..`004cf99f`, 417 bytes, slot 16, fastcall ECX
+  missile, EDX hit target): needs a txt row, an owner (`FUN_004639d0`) and a
+  target. If word txt `+0x36` (ProgOverlay) `> 0`, adds that overlay to the
+  target (`FUN_00470390(target, id, 2, 0,0,0,0,0)`). The bounce counter is the
+  missile's TargetX (`FUN_0064a730`); only if `> 1` it searches: centre = missile
+  x/y (`FUN_0045adf0` / `FUN_0045ae20`), radius dword txt `+0x6c` or, if not
+  positive, `FUN_00646ca0(owner, skillrow aurarangecalc (+0x64), skill, level)` (skill
+  row from `FUN_0045c4b0`; null row ends the callback) clamped to 1. Search:
+  `FUN_004c5eb0(owner, x, y, radius, 0x88583, target GUID (+0xc), 0)`. A found
+  unit other than the target gets a record (flags `0x21`, owner, target the new
+  unit, missile id = this missile's class, x/y the centre, unit x/y the new
+  target's, skill and level copied) through `FUN_004cd540`; the new missile's
+  TargetX is set to the counter minus 1 (`FUN_0064a710`) and its owner reset to the
+  unit just hit (`FUN_0064a400`). Both return 1.
+
+d2d: no match by address in `components/` or `apps/`. Not traced:
+`FUN_004cdba0` internals, `FUN_004c5eb0`'s filter bit meaning for `0x88583`,
+the tail of `004cf800` past `004cf990` (read by decompile only: counter, owner,
+return 1).
+
+Re-check: `python3 tools/ghidra/fn.py 004cf640 004cf800`; read `0x6db008`,
+`0x6dafc8`, `0x6dafe8`; disassemble `004cf715`..`004cf7e3` and `004cf84b`..`004cf990`.
+
+### Client hit callbacks that apply a "for each unit in radius" skill function: `FUN_004cfe30`, `FUN_004d0060` (batch 27)
+
+Both end in `FUN_004c5c40` (ECX owner, EDX x, stack y, radius, filter, callback,
+context pointer, flag; the same scan batch 26's callbacks `FUN_004cfd70` and
+`FUN_004cffa0` plug into). Plain `RET`, fastcall ECX missile unit.
+
+- **`FUN_004cfe30`** (`004cfe30`..`004cff8d`, 360 bytes, slot 25): needs a
+  missile row with word txt `+0x2c >= 0`, a skill row (stride `0x23c`) and an
+  owner. Radius: dword `+0x6c` or `FUN_00646ca0(owner, aurarangecalc, ...)`,
+  clamped to 1; limit: dword `+0x70` or the same with `calc[0]` (skill row
+  `+0x138`), clamped to 1. Filter = skill row `+0x50` (aurafilter), `0xa783` if 0.
+  Context (stack): owner, missile, skill, level, limit, sub-missile id
+  (word `+0x2c`); callback `0x4cfd70`; flag argument `1`. Returns 1 on the
+  paths read. The limit is stored in the context, so the decompile's locals
+  mis-describe it as unused.
+- **`FUN_004d0060`** (`004d0060`..`004d01c5`, 358 bytes, slot 26): the gate is
+  word txt `+0x24 >= 0` (the field before CltHitSubMissile; Ghidra names it
+  HitSubMissile1), the id carried is word txt `+0x2c`. Owner required, skill
+  row required. The unit it scans around is not the target: it looks up the
+  unit stored in the missile's TargetX/TargetY (type from `FUN_0064a730`, GUID from
+  `FUN_0064a780`) with `FUN_00463990(guid, type)`; **returns 0** if none
+  is found (the only 0 return), but scans around the **missile's** own x/y.
+  Radius: `+0x6c` or aurarangecalc, min 1. If `+0x70 <= 0` it evaluates
+  `calc[3]` (skill row `+0x144`) and **discards the result**. Filter: `0` when the
+  skill row `+0x50` is 0, else `0xa683`. Callback `0x4cffa0`, flag `0`; context
+  as above without the limit.
+
+d2d: no match by address in `components/` or `apps/`. Not traced: what the
+discarded `calc[3]` call could have as side effect (it is a calc evaluator, so
+probably none); the callbacks' effects beyond batch 26.
+
+Re-check: `python3 tools/ghidra/fn.py 004cfe30 004d0060`; disassemble
+`004cfec2`..`004cff7d` and `004d00b4`..`004d01b5`.
 ### Damage helpers with no caller: `FUN_0057b630`, `FUN_0057c3e0`, `FUN_0057d760`, `FUN_0057e350` (batch 29)
 
 The four are in `SUnitDmg.cpp`'s run and none has a call xref in the
