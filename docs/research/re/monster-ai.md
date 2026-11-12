@@ -489,6 +489,19 @@ build/ai-imp-ride/cases > build/ai-imp-ride/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_ride_init.py --cases build/ai-imp-ride/cases.txt --exe "$GAME_EXE"
 ```
 
+`tools/emu/ai_imp_teleport_point.py` compares FUN_005df850's destination and
+updated seed with `Thinker::imp_teleport` over 1,088 cases. It uses a static
+path, and hooks the game and skill-action boundaries; it does not test the
+skill action. From the worktree root, with the same `GAME_EXE`:
+
+```sh
+mkdir -p build/ai-imp-teleport
+uv run --no-sync --project tools/emu python tools/emu/ai_imp_teleport_point.py --cpp > build/ai-imp-teleport/cases.cpp
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-imp-teleport/cases.cpp -o build/ai-imp-teleport/cases
+build/ai-imp-teleport/cases > build/ai-imp-teleport/cases.txt
+uv run --no-sync --project tools/emu python tools/emu/ai_imp_teleport_point.py --cases build/ai-imp-teleport/cases.txt --exe "$GAME_EXE"
+```
+
 ## Act 5's monster skills (traced 2026-10-24)
 
 The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e
