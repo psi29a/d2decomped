@@ -692,7 +692,8 @@ arguments), cited, not run. The functions are in the order they are met.
   corpse unit; `FUN_00548b00` case 0, LAB_00548e56). The corpse must be in state 7
   (`FUN_00639df0`, LAB_0057fb80) and `FUN_0057faf0` must pass: the taker is a player and its
   inventory owner (`FUN_0063d450` on the corpse's +0x60) is the taker, or the owner's unit is found
-  and `FUN_0055b300(1)` answers (not traced). When the corpse's owner id equals the taker's
+  and `FUN_0055b300(1)` answers: bit 1 of the owner's relation flags toward the taker, i.e. whether
+  the owner has granted the taker "loot" (party.md "The unit relation list (server)"). When the corpse's owner id equals the taker's
   (LAB_0057fbb2), its stat 0xd, if any, is zeroed (`FUN_00627260`) and added to the taker
   (`FUN_0057eab0`): the experience comes back only to the owner. The items pass
   (`FUN_00562f30`, combat.md "Taking one's corpse") follows; when it returns non-zero the
