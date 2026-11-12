@@ -79,7 +79,8 @@ the altar's mode.
 - **The altar** (objects.txt 252 "gidbinn decoy": InitFn 25 `FUN_005b9ae0`,
   OperateFn 31 `FUN_005b9b40`; the stand 251, InitFn 39): used with none of
   bits 0, 7, 8: mode 1; the first use sets a 7-tick timer (`FUN_00543f10`,
-  `FUN_005b9a30`): with a player in its room, `FUN_005b9930` makes a unique
+  `FUN_005b9a30`, one look: every path returns 1, so with no player there
+  the guardians never come): with a player in its room, `FUN_005b9930` makes a unique
   pack of class 0x197 (fetish11, `FUN_005a43e0`) and the record's +0xc0 =
   `FUN_005b9980`: the unique's death drops `g33 ` and marks everyone
   (`FUN_005b8b20`: carried bit 5; found bit 4 and bit 2; told bit 3).

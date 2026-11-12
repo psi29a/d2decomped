@@ -250,7 +250,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 | The Cairn Stones' portal at their room's InitFn 6 (`World::stones_portal_in`, `act1_quest_step`) | 0x59366e | 1 |
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
 | Diablo's release (`TerrorQuest::release_step`; again every 2 steps, Diablo on the 10th run; also 0x5b55ef, 0x5b56f7) | 0x5b5338 | 1 |
-| The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
+| The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`; one look, #394) | 0x5b9c22 | 7 |
 | Mephisto's log 4 (`GuardianQuest::log_in`) | 0x5bc9d6 | 12 |
 | The Dark Wanderer's afterglow (`World::afterglow_in`) | 0x5bd4ce | 2 |
 | The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |

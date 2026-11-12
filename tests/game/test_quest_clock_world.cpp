@@ -98,17 +98,20 @@ int main() try {
     assert(world.den.log == 0xd);
 
     // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
-    world.gidbinn_in = quest_timer_steps(7);
-    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
     // Its guardians come at the altar's level only (FUN_005b9a30: Act 3's map at the
     // altar's spot), not by whatever object has the altar's index where the player is.
     world.gidbinn_altar = 0;
     world.gidbinn_level = data->level(d2d::rules::BladeQuest::kFlayerJungle);
     world.actor->player.x = world.level->npcs[0].x;
     world.actor->player.y = world.level->npcs[0].y;
+    world.gidbinn_in = quest_timer_steps(7);
+    runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_in == 0; });
+    // One look (#394): every path of FUN_005b9a30 returns 1, so with no player
+    // there it's spent; a player by the altar later brings nothing.
+    assert(!world.gidbinn_due && !world.blade.spawned);
+    world.gidbinn_level = world.level;   // the player by "the altar" now
     for (int frame = 0; frame < 5; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
-    assert(world.gidbinn_due && !world.blade.spawned);
-    world.gidbinn_due = false;
+    assert(!world.blade.spawned);
     world.gidbinn_altar = -1;
     world.gidbinn_level = nullptr;
 

@@ -220,9 +220,10 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         }
         // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
-        // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0);
-        // till then the timer asks again.
-        if (gidbinn_due && !blade.spawned && level == gidbinn_level && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
+        // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0).
+        // One look: every path returns 1, so with no player there they
+        // never come (#394).
+        if (std::exchange(gidbinn_due, false) && !blade.spawned && level == gidbinn_level && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
             const auto& altar = level->npcs[std::size_t(gidbinn_altar)];
             const auto rooms = near_rooms(*game_data, *level, altar.x, altar.y);
             const bool by_altar = std::ranges::any_of(players, [&](const auto& player) {
@@ -241,7 +242,6 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
                     fetish.boss = d2d::rules::Boss::minion;
                     fight.add_monster(std::move(fetish));
                 }
-                gidbinn_due = false;
                 d2d::log::info("The Blade of the Old Religion: the guardians come");
             }
         }
