@@ -1519,3 +1519,33 @@ d2d: not ported as a function; `SetAnimMode` itself is already verified
 Re-check: `python3 tools/ghidra/fn.py 004ae1d0 00480490`; disassemble
 `004ae1d0`..`004ae207` to confirm the naked ESI convention and the two
 calls in order.
+
+### A per-mode MonStats2 flag test: `FUN_004afbc0` (batch 13)
+
+`FUN_004afbc0` (0x42 bytes, `004afbc0`..`004afc02`, fastcall ECX unit,
+plus a second, naked **EAX** struct pointer — confirmed in disassembly,
+not shown in the decompile's signature at all): a null unit or null EAX
+struct returns 0; otherwise reads the struct's `+4` field as a presence
+gate and its `+0` field as a bit index (`< 0x10`). With both set, it
+calls `FUN_00451fe0(unit's class, unit +0x4)` — the MonStats2 row lookup
+`unit_size.hpp` already names (MonStats row `+0x18` word → MonStats2
+index, bounded, `* 0x134 + [0x744304] +0xa90`) — and, with a row, tests
+the bit index of the row's own byte array starting at `+0x104`
+(`(bit >> 3) + 0x104`, masked by the same `DAT_006ce268` bit-mask table
+`FUN_004638a0` (`montypes.hpp:62`) uses for its own, different flag byte
+at `+4`). A missing row, or either gate failing, returns 0.
+
+Its two call sites (both in `FUN_004aff60`, confirmed in disassembly) sit
+right after `FUN_00480e70(unit, mode)`, with ECX the same unit and EAX
+the same struct pointer whose `+0` field supplied that mode — so the bit
+tested is the mode just set, and the struct's `+4` field is the same
+value `FUN_00480e70`'s own call there read. Which MonStats2 flag byte
+`+0x104` is (a Monstats2.txt column, if any) is not traced; `montypes.hpp`'s
+ported flag byte is `+4`, a different one.
+
+d2d: not ported as a function; no disagreement found (nothing in
+`montypes.hpp` reads `+0x104`).
+
+Re-check: `python3 tools/ghidra/fn.py 004afbc0 00451fe0 004638a0`;
+disassemble `004afbc0`..`004afc02` and `004b0280`..`004b02b0` (one call
+site) to confirm the EAX struct and the post-`FUN_00480e70` placement.
