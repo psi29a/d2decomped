@@ -98,6 +98,66 @@ wire results (S→C 0x8b/0x8d/0x75/0x7f) into `NetGame::Unit::party` /
 `party_life` / `area` / `relation` (`apps/d2d/netgame.hpp:40-44`). Nothing
 here ports into `components/` until hosting exists.
 
+## The unit relation list (server) — `.\UNIT\PlayerList.cpp`
+
+The roster above (`DAT_007bb5c0`) is the *client's* mirror; the host keeps
+the actual one-way relation flags per player on the unit itself: each
+player's data (`FUN_006221a0`, the +0x14 player-data pointer) has a
+singly-linked list at +0x38 of `{+0x0 other's owner id (from the other
+unit +0xc, or -1), +0x4 flag bits, +0x8 unused (0), +0xc a bool from
+`FUN_00554630() != -1`, +0x10 next}`, one node per player ever related to.
+Every function below takes the "self" player's unit and the "other"
+player's unit; none of the four calling conventions below is what
+Ghidra's decompile shows — each hides at least one argument in ECX/EDX,
+confirmed by disassembling the call sites (`CallArgs.java` from
+005a5700..005a6150 against all four):
+
+- **`FUN_0055b140(self EDX, other stack)`** — add. A no-op for `self ==
+  other`, for either unit in state 7 (dead, `FUN_00639df0`) or if
+  `FUN_0055b110` (a global single-relation-list toggle, not traced) is
+  set. Otherwise allocates a node (pool-tagged `.\UNIT\PlayerList.cpp:0x6d`),
+  keyed on the other's owner id, flags 0, and the `FUN_00554630() != -1`
+  bool, and prepends it to self's list. Every caller below adds the pair
+  both ways (self into other's list, other into self's) with two calls,
+  one with the operands swapped, except `FUN_005a6080`/`FUN_005a60e0`
+  (one direction only).
+- **`FUN_0055b1e0(self EDX, other stack)`** — remove. Finds the node by
+  the other's owner id, unlinks it (head or mid-list), and frees it
+  (`.\UNIT\PlayerList.cpp:0x97`). No-op if `self == other` or not found.
+- **`FUN_0055b260(self EDX, other stack, mask stack:uint, on stack:int)`**
+  — set (`on != 0`) or clear the bits in `mask` on self's node for
+  `other`, then calls `FUN_0053de20(other's owner id, self's new flags)`,
+  which builds and broadcasts an S→C 0x8c packet (`FUN_005538d0` sends it
+  to every player) — the same opcode `FUN_004dc440` reads client-side
+  (party.md "The roster", above). No-op if the node isn't found.
+- **`FUN_0055b300(self ECX, other EDX, mask stack:uint)`** — test: returns
+  `node->flags & mask`, or 0 if `self == other` or no node. (Note: unlike
+  the other three, *self* is the ECX operand here, not EDX — confirmed
+  from the call sites at `005a5861`/`005a5ebb`/`005a617b`, not from the
+  decompile.)
+
+The mask bits match the roster's own layout (party.md "The roster": 1
+loot, 2 not heard, 4 squelched, 8 hostile), confirmed from the four C→S
+0x5d handlers that use `FUN_0055b260`/`FUN_0055b300` with a literal mask:
+`FUN_005a5750` (bit 1, loot; called from `FUN_005a57b0`, which hardcodes
+mask 1 — so despite being a 4-argument "generic" looking wrapper, this
+path only ever handles loot), `FUN_005a5840` (bit 2, not heard),
+`FUN_005a58a0` (bit 4, squelched), `FUN_005a5e50` (bit 8, hostile — gated
+on both players' level ≥ 9, `FUN_006253b0`, and on setting it, has extra
+side effects: a 10 s re-declare cooldown via `FUN_0055b720` and a
+corpse-drop check). `FUN_005a6080` / `FUN_005a60e0` set bit 8 one-way to
+0 / 1 (no gate, no cooldown) and are what `FUN_00540320`
+(PARTY_AddUnitToParty, above) calls twice, with the operands swapped, to
+clear the hostile bit **both ways** between a new party member and each
+existing one — matching that bullet's "PARTYSCREEN_ClearHostileRelation"
+by behaviour, not by name (not confirmed as the game's own symbol).
+
+d2d: none of this is ported; d2d never hosts (see above). Not traced in
+this pass: `FUN_0055b110` (the list-disable toggle `FUN_0055b140` checks),
+`FUN_00554630` (the per-node bool), and the siblings `FUN_0055b350` /
+`0055b3a0` / `0055b3f0` / `0055b440` / `0055b4c0` / `0055b540` in the same
+file, which read or touch the same node list for other purposes.
+
 ## The player count — FUN_00535790
 
 Players in the game (FUN_005538d0 over the player hash, game +0x1120,
