@@ -26,6 +26,7 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <variant>
 
 namespace filesystem = std::filesystem;
 using namespace d2d::game;
@@ -133,6 +134,16 @@ int main() try {
     runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
     for (int frame = 0; frame < 2; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
     assert(ghosts(*plains) == on_plains + 1 && ghosts(*world.level) == in_town && world.izual.log == 3);
+
+    // Mephisto dead: a3q6's 12-tick timer (0x5bc9d6 -> 0x5bc720), the log 4 sent again.
+    world.guardian.log = 2;
+    world.guardian.arm_log();
+    world.actor->events.clear();
+    runs_after(world, now_ms, 13, "Mephisto's log", [&] { return world.guardian.log == 4; });
+    assert(std::ranges::any_of(world.actor->events, [](const auto& event) {
+        const auto* news = std::get_if<ev::QuestNews>(&event);
+        return news && news->quest == d2d::rules::GuardianQuest::kQuest;
+    }));
 
     // The seals broken: a4q2's release timer (1 tick, again till Diablo:
     // FUN_005b4be0), its 10th run 20 steps on.

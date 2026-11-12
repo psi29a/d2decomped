@@ -700,6 +700,25 @@ struct GuardianQuest {
     int log = 0;                   // +0xb
     bool dead = false;             // data+0xc 2: Mephisto's dead
     quest::Players rewarded;         // +0x1c
+    static constexpr int kLogTicks = 12;   // push 0xc at 0x5bc9d6
+    int log_in = 0;                // data +0 set: quest steps to his death's timer (0x5bc720), 0 none
+    bool news = false;             // the log sent again (FUN_00544300 flag 1)
+
+    // Mephisto's death (FUN_005bc8b0): with the record open (+9) and
+    // data +0 clear, the 12-tick timer; data +0 1.
+    void arm_log() { if (open && log_in == 0) log_in = quest_timer_steps(kLogTicks); }
+    // A quest-clock step. The timer (0x5bc720): unless the log is 4, the
+    // log 4 sent to each player (FUN_00544300(record, 4, 0, 0x5bc210, 1));
+    // data +0 0; returns 1 (once).
+    void quest_step() {
+        if (log_in == 0 || --log_in > 0) return;
+        if (log != 4) { log = 4; news = true; }
+    }
+    // 0x5bc210 (the quest update notifier, word 0x16, message 0x14): the
+    // log goes to a player unless done (bit 0 or 15) without 13 / 14.
+    static bool told(const QuestBits& quest_bits) {
+        return !(quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) || quest::bit(quest_bits, kQuest, 13) || quest::bit(quest_bits, kQuest, 14);
+    }
 
     // The player joins (LAB_005bcc80).
     void join(const QuestBits& quest_bits, QuestBits& game_bits) {

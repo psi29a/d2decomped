@@ -197,14 +197,17 @@ auto World::act3_bind_new_bosses() -> void {
     }
 
 // A quest-clock step: a3q3's timer (7 ticks, FUN_005b9a30) and a3q7's
-// afterglow (2 ticks, FUN_005bd390) run.
+// afterglow (2 ticks, FUN_005bd390) and a3q6's log after Mephisto (12
+// ticks, 0x5bc720) run.
 auto World::act3_quest_step() -> void {
         if (gidbinn_in > 0 && --gidbinn_in == 0) gidbinn_due = true;
         if (afterglow_in > 0 && --afterglow_in == 0) afterglow_due = true;
+        guardian.quest_step();
     }
 
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
+        if (std::exchange(guardian.news, false) && d2d::rules::GuardianQuest::told(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
         mephisto_bridge(now_ms);
         // The Golden Bird's items picked up (FUN_005ba6a0, event 4 on g34 / j34, bound to
         // a3q4): the same transitions, polled from what's carried.

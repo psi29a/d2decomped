@@ -211,8 +211,8 @@ synthetic flag, NPC and state combinations with the flag test hooked.
 
 Record callbacks (`FUN_005bcdc0`): +0xc0 a monster dies `FUN_005bc8b0`,
 +0xa0 `FUN_005bc270`, +0xcc `FUN_005bc5a0`, +0xac entering a level
-`FUN_005bc3c0`, +0xec `FUN_005bbfe0`. Data (0x34 bytes): +0 the record's
-opening sent, +1 / +4 the hellgate made / its id, +2 / +8 the bridge
+`FUN_005bc3c0`, +0xec `FUN_005bbfe0`. Data (0x34 bytes): +0 Mephisto's
+log timer queued, +1 / +4 the hellgate made / its id, +2 / +8 the bridge
 made / its id, +0xc the state (2 once Mephisto's dead), +0x10 the bridge's
 mode, +0x1c soulstones owed.
 
@@ -223,6 +223,13 @@ mode, +0x1c soulstones owed.
   Each one that hadn't bit 0xb owes a soulstone: the dying unit's drop
   code becomes `mss ` and `FUN_00559a30` drops that many. The state goes
   to 2; the hellgate goes to mode 1, its event 1 at FrameCnt1 frames on.
+  With the record open (+9) and data +0 clear: a 12-tick quest timer
+  (push 0xc at 0x5bc9d6), data +0 1.
+- **Mephisto's log timer** (0x5bc720, no Ghidra function): unless the log
+  (+0xb) is 4 (0x5bc727), +0x14 0 and `FUN_00544300(record, 4, 0,
+  0x5bc210, 1)`: the log 4, sent to each player by the quest update
+  notifier 0x5bc210 (word 0x16, message 0x14; quests.md). Then data +0 0;
+  returns 1. d2d: `GuardianQuest::arm_log` / `quest_step`.
 - **The hellgate** (objects.txt 342, `1y`, InitFn 44 `FUN_005bcbf0`):
   takes the record's state as its mode (0 till he's dead; level 104:
   mode 2). Its parts are DC6, not DCC. OperateFn 46 leads to Act 4.

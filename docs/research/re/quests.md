@@ -249,6 +249,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
 | Diablo's release (`TerrorQuest::release_step`; again every 2 steps, Diablo on the 10th run; also 0x5b55ef, 0x5b56f7) | 0x5b5338 | 1 |
 | The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
+| Mephisto's log 4 (`GuardianQuest::log_in`) | 0x5bc9d6 | 12 |
 | The Dark Wanderer's afterglow (`World::afterglow_in`) | 0x5bd4ce | 2 |
 | The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
 
@@ -325,6 +326,7 @@ that one.)
 | `FUN_0059bcb0` | 0xd | 0xc |
 | `FUN_0059c650` | 0xe | 0xd |
 | `FUN_005b7340` | 0x11 | 0xf |
+| 0x5bc210 (no Ghidra function; a3q6's log timer 0x5bc720 passes it) | 0x16 | 0x14 |
 
 `FUN_00599510` is the same test for quest 0xa as a function (eax unit, game
 on the stack, `ret 4`; 1 = send). `FUN_00599570` has register arguments,

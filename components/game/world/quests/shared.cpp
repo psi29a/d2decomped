@@ -138,6 +138,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 // FrameCnt1 + 1 frames on taking it to mode 2 (FUN_00581490).
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         each_player([&](Player& player) { guardian.killed(player.id); });   // the killer and each player in the level: one level in co-op
+        guardian.arm_log();   // 12 ticks on, the log 4 (0x5bc9d6 -> 0x5bc720)
         class_cue("act3_complete_guardian", d2d::rules::quest_line_due(0x42, now_ms));   // FUN_005bc8b0: unit event 0x42
         music_cue("music_quest_mephisto");
         bridge_check = now_ms + 24 * kTickMs;
