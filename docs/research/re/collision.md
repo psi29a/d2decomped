@@ -3640,3 +3640,168 @@ server's own skill data (the flag could only matter for the client's copy).
 
 Re-check: `python3 tools/ghidra/fn.py 004acd70 004ad020`; disassemble
 `004acd70`..`004acda9` and `004ad05a`..`004ad080`.
+
+### Client missile hit callbacks, burst and sub-missile makers: `FUN_004cf250`, `FUN_004cf300`, `FUN_004d02e0`, `FUN_004d11d0` (batch 26)
+
+The four sit in the client hit-function table `0x72a508` (`+ slot * 4`;
+data references at `0x72a50c` slot 1, `0x72a514` slot 3, `0x72a578` slot 28,
+`0x72a5ec` slot 57). Fastcall, ECX the missile unit, EDX the unit hit or 0,
+plain `RET`, and the paths I read end in `EAX = 1` except one in `FUN_004d11d0`.
+Common gate (`004cf258`..`004cf27d`): unit non-null, `class = [unit+4]` in
+`0 <= class < [[0x744304]+0xb6c]`, record `[[0x744304]+0xb64] + class * 0x1a4`,
+and the signed word at record `+0x2c` (CltHitSubMissile1 by the decompiler's
+name, a lead) `>= 0`; otherwise nothing is made. Record `+0x6c` / `+0x70` are
+read as dwords (the decompiler's cHitPar1 / cHitPar2). `FUN_0064a210` /
+`FUN_0064a280` give the missile's level and skill (see "Client missile
+callbacks" in `missiles.md`).
+
+- **`FUN_004cf250`** (slot 1, 0x5f bytes): calls `FUN_004cef50(ECX unit,
+  EDX rec+0x6c, stack 0x109, skill, level, rec+0x70, 1)`. The made missile
+  id is the constant `0x109` (`push 0x109` at `004cf29b`), not the record's
+  `+0x2c` word, which is only the gate. The stack order was read from the
+  push sequence `004cf287`..`004cf29b` (the first two pushes, `1` and
+  `rec+0x70`, wait under the level and skill calls).
+- **`FUN_004cf300`** (slot 3, 0xb7 bytes): `FUN_004cdba0(ECX unit, EDX = word
+  +0x2c, stack 0, 0, skill, level)` at the missile's own coordinates given as
+  0, 0. Then, if the **unsigned word** at `+0x2e` has no sign bit (`TEST DX,
+  DX; JL`, so a value 0x8000 or more counts as negative), a second id is
+  chosen: the signed word `+0x30` greater than `+0x2e` gives
+  `FUN_004cc790(ECX unit+0x20, EDX lo, stack hi)` (an inclusive roll on the
+  unit's own seed, the one `monsters.md` names for PartyMin..Max); otherwise
+  the id is `+0x2e` itself. It is made the same way (stack 0, 0, skill,
+  level) and, if made, `FUN_00464810` (sets the dead flag, `units.md`) is
+  called on it at once, so the second missile is a one-frame visual.
+- **`FUN_004d02e0`** (slot 28, 0x93 bytes, `RET` plain, EDX saved at
+  `[EBP-4]`): `FUN_004639d0(ECX unit)` (the owner, as in `FUN_004d1820`)
+  null: nothing. Else the target is EDX, or the missile itself when EDX is 0;
+  count = `rec+0x6c` clamped to at least 1 (`CMP EAX,1; JGE`); calls
+  `FUN_004d01d0(ECX owner, EDX target, stack word+0x2c, skill, level,
+  count)`. That callee's header (`004d01d0`..`004d0202`) shows four stack arguments (`RET 0x10` at `004d020a`: id, skill, level, count); it gates the id against the same table, zeroes a 0x5c block and sets flags `0x1f`. Its body past `004d029e` was **not traced**.
+- **`FUN_004d11d0`** (slot 57, 0x68 bytes): after the gate, a hit unit
+  (EDX non-zero) returns **0** at `004d1209` (the only non-1 return), so it
+  fires only for a wall or range-out hit. Then `FUN_004cef50(ECX unit,
+  EDX rec+0x6c, stack word+0x2c, skill, level, rec+0x70, 1)`: the same
+  helper as `FUN_004cf250`, with the id taken from the record.
+
+d2d: not ported; `git grep` of `components/` and `apps/` finds no client
+missile hit table (d2d draws its own client effects and spawns server-style
+missiles through `Missiles`). No disagreement in a rule found.
+
+Not traced: the body of `FUN_004cef50` (`missiles.md` only names it as the
+grid maker's caller) and of `FUN_004d01d0` past its header; what Missiles.txt
+columns the words at `+0x2c`, `+0x2e`, `+0x30` and the dwords at `+0x6c`,
+`+0x70` are (only the decompiler's names).
+
+Re-check: `python3 tools/ghidra/fn.py 004cf250 004cf300 004d02e0 004d11d0`;
+read the table references at `0x72a50c`, `0x72a514`, `0x72a578`,
+`0x72a5ec`, the `CMP word ptr [ESI+0x2c],0` gate and the push order before
+each `CALL`.
+
+### Client hit callbacks that make fixed-id missiles: `FUN_004d1820`, `FUN_004d1bd0`, and `FUN_004d1640` (batch 26)
+
+Hit-table slots 42 (`0x72a5b0`) and 37 (`0x72a59c`); `FUN_004d1640` is a
+helper with **no reference found** in the program (neither code nor data).
+`FUN_004cd540` is the missile maker (ECX the zeroed 0x5c-byte block, as
+`missiles.md` for `FUN_0059fa30`'s client twin; the block offsets used here
+match its list: `+0` flags, `+4` owner, `+8` missile, `+0x10` id, `+0x14` /
+`+0x18` start x / y, `+0x1c` / `+0x20` target x / y, `+0x2c` skill, `+0x30`
+level).
+
+- **`FUN_004d1820`** (slot 42, 0x6a bytes): owner `FUN_004639d0(ECX unit)`
+  (null: nothing). Block: owner, missile = the hit missile, id **`0x177`**
+  (`004d184c`), skill `FUN_0064a280`, level `FUN_0064a210`, flags 0. The
+  made missile (if any) gets the hit missile's TargetX: `FUN_0064a730`
+  (missile data `+0x28`, only for unit type 3) then `FUN_0064a710`. The hit
+  unit is ignored. Returns 1.
+- **`FUN_004d1bd0`** (slot 37, 0x20 bytes of header; the body lives at
+  `004d1be4`, the `JZ` target of `004d1bdb`, which the gap map lists as its
+  own 390-byte function): a hit unit (EDX non-zero) returns **0** at
+  `004d1bdd`. Otherwise `count = FUN_0064a730(missile)` (TargetX, data
+  `+0x28`) and the seed `unit+0x20` is reset by `FUN_00650e40(ECX seed,
+  EDX = FUN_0064a780(missile))` (TargetY, data `+0x2c`; `{y, 0x29a}` as
+  `missiles.md` has it). The missile's tile position is read per unit type
+  (types 2, 4, 5 from the static path `+0xc` / `+0x10`; others through
+  `FUN_006488c0` / `FUN_00648900`, 0 without a path). Block: flags
+  **0x21**, owner, start (`+0x14` / `+0x18`) the position, id **`0x15d`**,
+  skill and level from the missile. Loop `count` times: step the seed twice
+  (`x = x0 + rand(20) - 10`, then `y`, both from the multiply-add by
+  `0x6ac690c5` and a `% 20` through the `0xcccccccd` reciprocal). If both
+  offsets land on the origin the iteration is retried (counter
+  decremented, same seed stream continues, so it terminates on the next
+  non-zero draw); otherwise the target `+0x1c` / `+0x20` is set,
+  `FUN_004cd540` makes it, and `FUN_004e2ed0(ECX made, EDX target x)` runs
+  on it. Returns 1.
+- **`FUN_004d1640`** (0x76 bytes, ECX unit, EDX start frame): returns 0 if
+  the unit's path `+0x2c` is null. Else it reads the direction byte
+  (`FUN_006487f0(path)`), builds a block with owner and missile both the
+  unit, id **`0x54`** (`004d1677`) and **skill 1**, makes it, sets the new
+  missile's `+0x44` to `startFrame << 8`, copies the direction onto its
+  path (`FUN_00648820`) and sets its dead flag (`FUN_00464810`). Returns
+  the missile. Decompiler trap: it labels the `1` at `[EBP-0x30]` as the
+  skill **level**; that slot is block `+0x2c`, the skill, per the other
+  callers (`FUN_004d1820` stores `FUN_0064a280`'s result there), and the
+  level (`+0x30`) stays 0.
+
+d2d: not ported (client effects only). The ids `0x54`, `0x177`, `0x15d` are
+immediates in the code, not taken from a name table.
+
+Not traced: what `FUN_004e2ed0` does with the x argument; why
+`FUN_004d1640` has no caller (a dead helper, or reached through a path
+the analysis missed); the row names for ids `0x54`, `0x177`, `0x15d`
+(Missiles.txt rows were not read).
+
+Re-check: `python3 tools/ghidra/fn.py 004d1820 004d1bd0 004d1640`;
+disassemble `004d1826`..`004d187a`, `004d1be4`..`004d1d58` (the loop) and
+`004d1677`..`004d16a9`.
+
+### Client skill-function makers, "do" callbacks: `FUN_004cfd70`, `FUN_004cffa0`, `FUN_004d34e0`, `FUN_004d3540`, `FUN_004d3d00` (batch 26)
+
+- **`FUN_004cfd70`** and **`FUN_004cffa0`** (0xbe bytes each; ECX = an
+  argument block `{.., +4 count, +8 sub}`, EDX the unit, plain `RET`, `EAX`
+  1 or 0). The two bodies are byte-identical apart from the displacements of
+  their calls (`read_memory` of both), so they are one routine with two
+  table entries; each is referenced once, as an immediate `PUSH` in the
+  hit functions `MISSILE_CltHitFn25_LightningFury` (`004cff63`) and
+  `MISSILE_CltHitFn26_FistOfHeavensDelay` (`004d01a7`; names are the
+  decompiler's), i.e. used as a per-target callback. If `[ECX+4]` (the number
+  already handled) is `>= [sub+0x10]` (the limit, signed) it returns 0.
+  Otherwise it zeroes a 0x5c block and copies: owner `sub[0]` to `+4`,
+  missile `sub[1]` to `+8`, skill `sub[2]` to `+0x2c`, level `sub[3]` to
+  `+0x30`, id `sub[5]` to `+0x10`; flags `0x20`; the target `+0x1c` / `+0x20`
+  is the unit's position (types 2, 4, 5 from the static path `+0xc` /
+  `+0x10`; others `FUN_006488c0` / `FUN_00648900`, 0 without a path). It
+  calls `FUN_004cd540` and returns 1 whether or not a missile was made.
+- **`FUN_004d34e0`** (slot 4 of the client do-table `0x72a398`, reference
+  `0x72a3a8`; 0x35 bytes): with the usual gate, calls `FUN_004ce140(ECX
+  unit, EDX rec+0x58, stack rec+0x5c, rec+0x60, word rec+0x1e)` and then
+  jumps to `FUN_004d30c0`, the ordinary flight step (`missiles.md`). With an
+  out-of-range class it only does the jump.
+- **`FUN_004d3540`** (slot 5, `0x72a3ac`; 0xe9 bytes): the Fire Wall
+  animation chooser. With a bad record it calls `FUN_004cd390` (the
+  decompiler calls it remove) and returns without the step. Otherwise, with
+  S the record byte `+0x181` and E `+0x182` (the decompiler's SubStart /
+  SubStop), `f = [unit+0x44] >> 8` (arithmetic) and the data frame
+  `FUN_0064a380` (word at missile data `+0x10`, 0 for non-missiles):
+  if `f == S - 1`, `[unit+0x44] = (f + RANDOM_RandomNumberSelector(unit+0x20,
+  E - S)) << 8` (`FUN_0045c3e0`: 0 for `n <= 0`); else if the data frame
+  equals S, `[unit+0x44] = max(S - 3, 0) << 8`; else if the data frame is
+  below S, `[unit+0x44] = max(f - 2, 0) << 8`. The paths I read then call
+  `FUN_004d30c0`.
+- **`FUN_004d3d00`** (slot 11, `0x72a3c4`; 0x1e bytes): if `FUN_006217c0(unit)`
+  (the end-of-frame-cycle test, per the decompiler's name, not otherwise
+  read) is non-zero: `FUN_00464810` (dead flag) and a tail jump to
+  `FUN_00464930` (the decompiler: FreeLightMap, not read); else a tail
+  jump to `FUN_004d30c0`.
+
+d2d: not ported; d2d does not run client missile callbacks. Fire Wall's
+look is d2d's own.
+
+Not traced: `FUN_004ce140` (the poison cloud scatter) and what
+`FUN_004d30c0`'s second client frame (`+0x44`) means beyond `missiles.md`;
+the Missiles.txt names of the words at `+0x1e`, `+0x58`..`+0x60` and bytes
+`+0x181` / `+0x182` (the decompiler's CltParam / SubStart / SubStop are leads
+only).
+
+Re-check: `python3 tools/ghidra/fn.py 004cfd70 004cffa0 004d34e0 004d3540
+004d3d00`; compare the bytes of the first two with `read_memory`, and read
+the branches at `004d3586`..`004d3618` for the three frame rules.
