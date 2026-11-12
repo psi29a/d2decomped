@@ -139,8 +139,12 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
 // (El1MinD + rand(El1MaxD - El1MinD) on its seed) << 8, the normal
 // columns (+0x10e / +0x120) whatever the difficulty; FUN_0057e090 (flags
 // 0, so 0x583) within its level (stat 12) x aip3 (+0x62) subtiles.
-// ponytail: every monster of the level within that radius, not only the
-// near rooms' (FUN_0065a950).
+// FUN_0057e090 calls FUN_0065a950 and FUN_0065ac70. FUN_0065a6b0 keeps the
+// unit's own room when the square of the radius lies inside it; otherwise
+// the near list, and FUN_0065a710 lets every room of that list through
+// (bugs.md #23). A unit in none of those rooms is missed, however close.
+// ponytail: the hits go in monsters order, not each room's newest first
+// (FUN_0065ac70).
 auto Fight::blast_due(const Monster& golem) const -> bool {
         return !golem.alive() && golem.mode == "DT" && !golem.fx_done && golem.type >= 0
             && (game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem")
@@ -164,9 +168,20 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
             radius = golem.stats.level * type_info.diff[std::size_t(std::clamp(golem.difficulty, 0, 2))].aip[2];
         }
         const int from_x = int(std::floor(golem.unit.x * 5)), from_y = int(std::floor(golem.unit.y * 5));
+        const int own = room_of(*level, golem.unit.x, golem.unit.y);
+        std::vector<int> rooms;
+        if (const auto rect = own >= 0 ? level_room(*level, std::size_t(own)) : std::nullopt;
+            rect && rect->x * 5 < from_x - radius && rect->y * 5 < from_y - radius
+                && from_x + radius < (rect->x + rect->width) * 5 && from_y + radius < (rect->y + rect->height) * 5)
+            rooms.push_back(own);
+        else {
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, golem.unit.x, golem.unit.y))
+                if (room_level == level) rooms.push_back(near_room);
+        }
         for (std::size_t j = 0; j < monsters.size(); ++j) {
             const auto& other = monsters[j];
             const int to_x = int(std::floor(other.unit.x * 5)), to_y = int(std::floor(other.unit.y * 5));
+            if (!std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) continue;
             if (!other.targetable() || d2d::rules::friends(2, other.align) || (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > radius * radius
                 || d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); }))
                 continue;
