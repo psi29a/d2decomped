@@ -246,6 +246,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 | Nihlathak's log (`World::betrayal_log_in`, `act5_quest_step`) | 0x58b84a | 8 |
 | The Ancients' statues' return (`World::statues_back_in`; again 2 on while a statue isn't found) | 0x58c9da | 2 |
 | The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
+| The Cairn Stones' portal at their room's InitFn 6 (`World::stones_portal_in`, `act1_quest_step`) | 0x59366e | 1 |
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
 | Diablo's release (`TerrorQuest::release_step`; again every 2 steps, Diablo on the 10th run; also 0x5b55ef, 0x5b56f7) | 0x5b5338 | 1 |
 | The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |

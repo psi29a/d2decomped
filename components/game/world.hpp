@@ -836,7 +836,9 @@ struct World {
     void leave_town(const Level* from);
     void swap_npc_states(const Level* from);         // swap_npcs without the players' level change hooks
     void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
+    void stones_portal();                  // their timer's run (FUN_00592d50): the portal to Tristram
     bool stones_pending = false;           // on Stony Field, the stones not up yet
+    int stones_portal_in = 0;              // quest steps to the stones' portal: 1 tick (0x59366e -> FUN_00592d50), 0 none
 
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::nearby), so the player

@@ -10,6 +10,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -151,6 +152,22 @@ int main() try {
     runs_after(world, now_ms, 20, "Diablo's release", [&] { return world.terror.release_runs == d2d::rules::TerrorQuest::kReleaseRuns; });
     world.terror.armed = false;
     world.terror.diablo_made = false;
+
+    // The Cairn Stones up: their portal's 1-tick timer (0x59366e -> FUN_00592d50).
+    // Stony Field isn't built here: a StoneAlpha stands in for its preset.
+    auto* stony = const_cast<Level*>(data->level(d2d::rules::CainQuest::kStony));   // GameData owns its levels mutable
+    assert(stony);
+    Npc stone_alpha;
+    stone_alpha.object_id = d2d::rules::object_ids::kStoneAlpha;
+    stone_alpha.x = 20;
+    stone_alpha.y = 20;
+    stony->npcs.push_back(stone_alpha);
+    world.portal[2] = {};
+    world.stones_portal_in = quest_timer_steps(1);
+    runs_after(world, now_ms, 2, "the stones' portal", [&] { return world.stones_portal_in == 0; });
+    assert(world.portal[2].level == stony);   // FUN_0056d130 at StoneAlpha + 4 (its nearest free spot)
+    world.portal[2] = {};
+    stony->npcs.pop_back();
 
     // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
     world.betrayal.log = 2;
