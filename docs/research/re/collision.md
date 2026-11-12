@@ -1420,3 +1420,28 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### A monster's own `+0x2c` field, read for its name: `FUN_00463810` (batch 12)
+
+`FUN_00463810` (0x17 bytes, `00463810`..`00463827`, fastcall ECX the
+unit, plain `RET`, confirmed in disassembly: `TEST ECX,ECX` first, no
+EDX or stack use): a null unit, a unit whose own type (`+0`) isn't 1
+(monster), or a monster whose `+0x14` data block (units.md "Type data" —
+the per-type `+0x14` block; for a monster this is the already-cited
+monster-data cluster `FUN_004ae080`..`004ae3a0`, units.md:236) is null
+each return 0; otherwise it returns that data block's own `+0x2c` field
+(a dword, not read elsewhere in `units.md`'s monster-data list, which so
+far only names `+0x28` and `+0x30`). Its one caller is `FUN_00464a60`
+(the unit-name text, already cited `cursor-units.md:402`,
+`npc-menu.md:228`, `npc-talk.md:69`, `automap.md:241`): reached from the
+name path for a monster specifically, so `+0x2c` of the monster-data
+block is read while building a monster's display name. Not traced:
+`FUN_00464a60`'s own use of the returned value (what it means there, or
+whether it's an id, a pointer or a count was not read here), and the
+monster-data block's own layout beyond this one field. d2d: not ported
+as a function; no d2d equivalent was checked against this field.
+
+Re-check: `python3 tools/ghidra/fn.py 00463810 00464a60`; disassemble
+`00463810`..`00463827` to confirm the ECX-only fastcall and the type/null
+gates.
+
