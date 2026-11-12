@@ -670,3 +670,69 @@ ponytail: the gold pile isn't split; requirements aren't checked when
 items go back; a saved corpse lies by the camp's start (the save's x / y
 aren't read); goldlost isn't kept.
 
+## A unit's paired records — unit +0xac (SUnitDmg.cpp)
+
+A unit's +0xac is the head of its own singly-linked list of allocated
+records, each one naming a **pair** of units: +4 / +8 a u32 type and id
+(the list owner's own, i.e. the unit this list hangs off), +0xc / +0x10 a
+second unit's type and id, +0x14.. a payload not traced here, +0x84 the
+next node. `FUN_0040b430` / `FUN_0040b480` (file, line, size or pointer,
+a register the decompile drops) are the allocator's alloc / free, as in
+`path.md`'s `STRUCT_FreePath` and `items.md`'s inventory free; `0057c980`
+and `0057c9f0` free through them, so this is a pool-backed list, not a
+flag.
+
+- **`FUN_0057d690`** (`__fastcall`, ECX unit A, EDX unit B; no stack args):
+  read-only. Null A or B: 0. Else walks A's own +0xac list; a node
+  matches when its +4/+8 equal A's own type/id (`FUN_0044be50` /
+  `FUN_00451f50`, both already d2d-verified null-safe accessors) **and**
+  its +0xc/+0x10 equal B's. Returns the matching node +0x14 (the
+  payload), or 0 when A, B or no match. Callers: `FUN_0056f1f0`
+  (skills.md's srvdofunc [2], already ported, `components/game/fight.hpp`)
+  uses it to test "does A already have a record for (A, B)" before
+  granting the skill's target state at Skills.txt +0x82; `FUN_0056f115`
+  (not otherwise traced here) the same, before a freeze-length clamp. So
+  the pair is (self, the other unit a skill's state concerns), and the
+  payload holds at least a tick count the skills.md citation already
+  describes as "the calc at +0x60 ticks".
+- **`FUN_0057c9f0`** (`__fastcall`, ECX a pool-context pointer whose +0x1c
+  is passed to the free call, EDX unit A, one stack arg unit B): frees
+  (SUnitDmg.cpp:0x79f) every node in A's own +0xac list whose +4/+8 /
+  +0xc/+0x10 match (A, B) exactly (raw unit +0 / +0xc, not through the
+  accessors above), unlinking it from the list first. Null A, null B, or
+  an empty list: no-op. Callers run from `005caf30`..`005d8e00`
+  (monster/skill handling the batch didn't open) and `0057d4f0`: the
+  mirror of `FUN_0057d690`'s lookup, dropping the (A, B) record once it's
+  no longer wanted.
+- **`FUN_0057c980`** (`__fastcall`, ECX the same pool-context, EDX unit A;
+  no stack args, no null check on A — a null A faults reading `A[0x2b]`):
+  frees (SUnitDmg.cpp:0x769) every node in A's own +0xac list whose +4/+8
+  equal **A's own** type/id, regardless of what +0xc/+0x10 say — i.e.
+  every record this list's owner still tags as being about itself. Two
+  callers, both teardown: `FUN_005349d0` (a unit's death/removal chain,
+  passing the room/game's own pool at the caller's own +0x1c) and
+  `FUN_00553570` (freeze/resume, oracle `tools/emu/freeze_resume.py:188`,
+  which calls it right before `FUN_00624690` clears the freeze state).
+  Not traced: why a live node's self pair would ever stop matching its
+  own owner — this reads as a guard against stale self-tagged records
+  surviving a unit's teardown (and the pool slot's later reuse for a
+  different unit), not an everyday no-op.
+- **`FUN_0057e240`** (`__fastcall`, ECX / EDX plus two stack args, `RET
+  0x8`): forwards the same four arguments, unchanged and in the same
+  order, first to the already-ported `FUN_0056e170` (physical/leech
+  portion of a skill's damage) then to the already-ported `FUN_0056e0c0`
+  (elemental portion). No branch of its own; one caller, `FUN_005d3140`
+  (Static Field, skills.md:1129, already ported), which builds a damage
+  record from the result with `d2d_objects_take_blast`. d2d: no function
+  of its own found for this pairing; not flagged as a difference since
+  the two pieces it combines are already ported separately and the
+  combiner adds no logic.
+
+d2d: no function of its own for the +0xac list; nothing in `ai.cpp` or
+`fight.hpp` was found keeping a per-(caster, target) record list, so this
+is cited, not matched. Not a behavioural difference by itself — the
+callers above are already ported and credited to the functions that use
+this list's result.
+Re-check: `python3 tools/ghidra/fn.py 0057d690 0057c9f0 0057c980 0057e240
+0044be50 00451f50 0056f1f0 005d3140`.
+
