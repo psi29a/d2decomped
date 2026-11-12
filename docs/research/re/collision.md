@@ -1444,3 +1444,51 @@ d2d: not ported as a function; no disagreement found.
 Re-check: `python3 tools/ghidra/fn.py 004ade80`; disassemble
 `004ade80`..`004ade97` to confirm the ECX/EDX gate (the first four slots
 check only ECX).
+
+### Two more monster type-data accessors: `FUN_004ae0a0` and `FUN_004ae170` (batch 13)
+
+Two more accessors beside the monster-data cluster `units.md:236` already
+names (`FUN_004ae080`'s `+0x28` masked word to `FUN_004ae110`'s `+0x30`
+modifier list) — `structs.tsv`'s `monster_data` rows at `0x28`
+(`ai_control`, `ai-control.md:3`) and `0x30` (`state_gate`,
+`ai-control.md:185`) sit in the same span.
+
+- **`FUN_004ae170`** (0x17 bytes, `004ae170`..`004ae187`, fastcall ECX
+  unit, plain `RET`): a null unit, a non-monster unit, or a null
+  monster-data pointer (unit `+0x14`) returns 0; otherwise returns the
+  **address** monster-data `+0x34` (`LEA EAX,[ECX+0x34]`, confirmed in
+  disassembly — it hands back a pointer into the struct, not a
+  dereferenced value, the same shape `ai-control.md:8`'s `FUN_0058f000`
+  uses for control `+0x38`). Its two callers, `FUN_0046ce40` and
+  `FUN_0046d110` (both already ported, `apps/d2d/town/ambient.cpp:195` and
+  `:173`, `critters.md:47`-`48`), are outside the UNIT module; what either
+  does with the returned address is not traced here.
+- **`FUN_004ae0a0`** (0x40 bytes, `004ae0a0`..`004ae0e0`, fastcall ECX
+  unit / EDX a 16-bit value, confirmed in disassembly): the same
+  null/non-monster/null-monster-data gate, then two writes to the
+  monster-data record:
+  1. `*(uint16_t *)(monster_data + 0x28) = EDX` — the same offset
+     `structs.tsv` documents as the 4-byte `ai_control` pointer
+     (`ai-control.md:3`), here written as only its low 16 bits. The two
+     claims are not reconciled here: whether `ai_control` is still
+     unallocated at this call site, so the overwrite is harmless, was not
+     traced.
+  2. the unit's own `class` (`unit +0x4`, `structs.tsv`) is checked
+     against the MonStats row count (`[0x744304] +0xa80`); in range,
+     monster-data `+0x0` is set to the MonStats row address
+     (`[0x744304] +0xa78 + class * 0x1a8`, the same table `monsters.md:10`
+     and `collision.md:947` already name); out of range, monster-data
+     `+0x0` is zeroed.
+
+  Callers: `FUN_00466360` (the client's monster-colour/creation step,
+  already cited `bugs.md:68`, `monsters.md:554`), `FUN_004ae8d0` and
+  `FUN_004aedd0` (both already cited `collision.md:936`/`:1063`,
+  `missiles.md:1018`). What each passes as the EDX word is not traced.
+
+d2d: not ported as a function for either; no disagreement found.
+`structs.tsv` gets a new `monster_data +0x0` row for the MonStats-row
+cache this commit adds.
+
+Re-check: `python3 tools/ghidra/fn.py 004ae0a0 004ae170`; disassemble
+`004ae0a0`..`004ae187` to confirm the EDX word write at `+0x28` and the
+`LEA`-only getter at `+0x34`.
