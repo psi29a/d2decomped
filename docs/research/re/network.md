@@ -39,10 +39,14 @@ TCP / Battle.net game uses.
   (class 0); anything over 0x70 other than 0xff is refused.
 - **Dispatch** (`FUN_0054d750(game, player unit, packet, len)`): table
   `DAT_006e0d18`, 8 bytes an id: handler, then a flag (1 on most item /
-  NPC ids; not traced). Ids 0 and over 0x66 are refused. A player who's
-  busy (`FUN_0057eec0`) gets nothing through except 0x14, 0x15, 0x3c,
-  0x43 and 0x66. 0x41 only goes through while the player's mode is 0x11
-  (dead).
+  NPC ids; not traced). Ids 0 and over 0x66 are refused. All ids but
+  0x14, 0x15, 0x3c, 0x43, 0x66 and 0x41 pass the gate
+  `FUN_0057eec0(1, 0, 0)` (pushed at LAB_0054d7a8): it refuses only a
+  player in state 0x36, a null unit and modes 0 and 0x11, so a walking or
+  running player (mode 2 or 3) gets through (`tools/emu/player_may_act.py`;
+  collision.md). What drops a walking player's packets on a recorded host
+  is not this gate; not traced. 0x41 only goes through while the
+  player's mode is 0x11 (dead).
 - **Layout**: `[id]`, then the fields, little-endian. A 5-byte packet is
   `u16 x, u16 y` (subtiles); a 9-byte one is `u32 unit type, u32 unit id`.
   Unit types: 0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp.

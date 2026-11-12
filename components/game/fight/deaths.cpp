@@ -16,6 +16,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <shatter.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
@@ -97,6 +98,23 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
             // 0), whatever the kill: no corpse to raise or blow up.
             if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
+            // A shattered death (the client's unit command 8, FUN_004aff60 from LAB_004b053e):
+            // freeze (1) and shatter (107) carry States.txt hide and shatter, so the corpse is
+            // hidden and can't be picked (FUN_0063a320: corpse_used), its hit class's element
+            // becomes 0xa0, and FUN_004afc10 breaks it into ice (rules::shatter_rows) from it.
+            // ponytail: the create flags 0x2020's placement isn't traced: both stand on the
+            // corpse, direction 0, as fire_blast's guts.
+            if (monster.mode != monster.fx_mode && monster.mode == "DT" && (monster.shatter || now_ms < monster.frozen_until)) {
+                monster.corpse_used = true;
+                monster.hit_class = (monster.hit_class & 0xf) | 0xa0;
+                const auto rows = d2d::rules::shatter_rows(1, monster.npc.height, false, now_ms < monster.frozen_until);
+                for (const int row : { rows.first, rows.second })
+                    if (const auto found = game_data->missiles.find(std::string(d2d::rules::shatter_row_name(row))); found != game_data->missiles.end()) {
+                        Missile ice{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
+                        ice.visual_only = true;
+                        pending.push_back(std::move(ice));
+                    }
+            }
             // Killself's event (FUN_005a3aa0): alive, 3 frames on while
             // uninterruptable (state 0x36), else into death (FUN_005a7c20 mode 0:
             // no credit). Its player-owner branch (FUN_005750e0) needs a pet,

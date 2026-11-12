@@ -233,7 +233,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(int(chosen[k])))
                 panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
-                                                          actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red);
+                                                          actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red,
+                                                          skill_status(skill->id, now_ms));   // FUN_004d9fc0: 0, 1, 6, 8 draw
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
@@ -501,7 +502,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
         // 107 (shatter) on, else off; never on a deadCol monster (MonStats2 flag 19).
-        // ponytail: the shattered death (state 107's client look) isn't drawn.
+        // A death under it shatters (boss_events, rules::shatter_rows).
         if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
             const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
             const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);

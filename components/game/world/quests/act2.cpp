@@ -108,10 +108,15 @@ auto World::act2_said(int hc_idx, int message_string) -> void {
         if (staff.said(quests(), hc_idx, message_string, actor->id)) take_carried("tr1");   // the scroll read: it goes
     }
 
-auto World::act2_tick() -> void {
+auto World::act2_quest_step() -> void {
         radament.tick();
         tainted.tick(quests());
         if (tombs.tick()) durielportal_open(day_at);
+        if (summoner.tick() && d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level->id == d2d::rules::SummonerQuest::kSanctuary)
+            class_cue("act2_complete_summoner", day_at);   // voice 0x33
+    }
+
+auto World::act2_tick() -> void {
         // Tyrael's think (NpcStationary, FUN_005e73a0): once his portal is
         // open (FUN_0059df50: record +0xf) and no player is within 12 of
         // him (FUN_006416d0, the sweep at 0x59df30), not in a talk
@@ -127,8 +132,6 @@ auto World::act2_tick() -> void {
                     each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::SevenTombsQuest::kQuest, 13)) class_cue("act2_complete_tombs", day_at); });
                     d2d::log::info("The Seven Tombs: Tyrael leaves");
                 }
-        if (summoner.tick() && d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level->id == d2d::rules::SummonerQuest::kSanctuary)
-            class_cue("act2_complete_summoner", day_at);   // voice 0x33
         // The act's sky (S->C 0x53, FUN_0059a100 / FUN_0059a170): dark
         // while the Tainted Sun has it out and the player's in Act 2; a
         // joined game's comes from the host.
