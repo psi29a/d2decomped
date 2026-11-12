@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Lightning (the `lightningbolt` row) hits on standing monsters, decided by game.exe's own code (next_hit.py with the lightningbolt row).
 
-    ../../build/tests/test_light_pierce --light-hit SEED N > d2d.txt
-    uv run python light_pierce.py d2d.txt > game.txt
-    grep -E '^[HT]' d2d.txt | diff game.txt -
+    set -o pipefail
+    ../../build/tests/test_light_pierce --light-hit SEED N > d2d.txt \
+        && grep -q '^T' d2d.txt \
+        && uv run python light_pierce.py d2d.txt > game.txt \
+        && grep -E '^[HT]' d2d.txt | diff game.txt -
+
+(the grep -q stops the chain when the test skipped and wrote no cast)
 
 Replays the contacts d2d's flight produced (the F lines of test_next_hit:
 per frame, per live missile, the monsters in the subtiles it entered)
