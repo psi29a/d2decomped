@@ -1420,3 +1420,27 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### A fifth monster-mod dispatch slot: `FUN_004ade80` (batch 13)
+
+Right after the four mod-dispatch slots `names.tsv` already names
+(`monster_mod_dispatch_0`..`_3`, `004ade40`..`004ade7f`, each
+`FUN_004add90(unit, 0, N)`): `FUN_004ade80` (0x17 bytes,
+`004ade80`..`004ade97`, fastcall ECX unit / EDX a forwarded value,
+confirmed in disassembly) is a fifth slot with a different gate — a null
+unit **or a zero EDX** skips the call, where the first four pass a
+literal 0 unconditionally — plus the unit being a monster (`*unit == 1`):
+`FUN_004add90(unit, EDX, 4)`. Its one caller is `FUN_004cd540` (the
+client's generic missile/event sequencer, already cited
+`collision.md:1294`, `lighting.md:378`, `missiles.md:142`,
+`unit-sounds.md:322`, `ponytail:0515ee35`). `FUN_004add90` itself (cited,
+`names.tsv:235`-`238`, `unit-sounds.md:322`) is not re-read here: it runs
+the table at `0x724e28` by `mod * 5 + event`. Not traced: what value
+`FUN_004cd540` forwards as EDX, or whether it is itself a mod or an event
+index into that table.
+
+d2d: not ported as a function; no disagreement found.
+
+Re-check: `python3 tools/ghidra/fn.py 004ade80`; disassemble
+`004ade80`..`004ade97` to confirm the ECX/EDX gate (the first four slots
+check only ECX).
