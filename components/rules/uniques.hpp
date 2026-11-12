@@ -240,11 +240,15 @@ struct BossStats {
     std::array<int, 6> res_add{};               // + DR%, MR%, fire, light, cold, poison resist (ResDm..ResPo order)
     bool double_defense = false;                // stone skin
     int elem = -1, elem_min_pct = 0, elem_max_pct = 0;   // enchanted: the MonLvl damage % it adds as that element (0 fire, 1 light, 2 cold)
-    int elem_len = 0;                           // ghostly: its cold's length (frames)
+    int elem_len = 0;                           // the cold's length (frames): ghostly 150, Cold Enchanted 100 + 5 a level
+    int elem_len_per_level = 0;                 // Cold Enchanted: FUN_005a1c70 adds stat 12 x 5 + 100
     int life_after_pct = 0;                     // possessed +100, berserker -75: after the hp% rows (FUN_005a0d20)
     int defense_pct = 0;                        // fanatic: item_armor_percent -70
     int phys_resist = -1;                       // ghostly: damageresist set to 80
 };
+// The cold length a boss's blow carries (frames): FUN_005a1c70 adds the unit's level x 5 + 100 (0x5a1dcd), the level taken as at least 1 and at
+// most MonLvl's last row (0x5a1cf5..0x5a1d1c: max_level, the table's rows - 1); ghostly's FUN_005a1080 adds 150.
+inline int boss_elem_length(const BossStats& stats, int level, int max_level) { return stats.elem_len + stats.elem_len_per_level * std::clamp(level, 1, max_level); }
 // FUN_005a1370's "at most two immunities" counts the monster's resists as
 // they stand: its MonStats ones plus the mods' adds so far (no 1.14d MonProp
 // row adds a resist: monsters.md "MonProp"). Stone skin's defence x 2 comes
@@ -342,6 +346,8 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
             const int base = kind == Boss::minion ? 16 : champion ? 22 : 28;
             stats.elem_min_pct = umods.constants[std::size_t(base + difficulty_index)];
             stats.elem_max_pct = umods.constants[std::size_t(base + 3 + difficulty_index)];
+            stats.elem_len = id == umod::cold ? 100 : 0;                  // FUN_005a1c70: the length 100 + level x 5
+            stats.elem_len_per_level = id == umod::cold ? 5 : 0;
             resist(id);
             break;
         }
