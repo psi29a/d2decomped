@@ -1486,3 +1486,35 @@ Re-check: `python3 tools/ghidra/fn.py 00464420 004644e0 004b6dd0`;
 disassemble `00464420`..`004644d2` and `004644e0`..`004645a4` to confirm
 the ECX-only fastcall and the mode-1/5 gate in the second.
 
+### Finding the room under a point, near list first: `FUN_00465420` (batch 12)
+
+`FUN_00465420` (0x9c bytes, `00465420`..`004654bc`, fastcall ECX an x,
+EDX a y, confirmed in disassembly: `MOV ESI,ECX` / `MOV EDI,EDX` at
+entry): `(0, 0)` returns 0 without any lookup. Otherwise, when the
+client control unit `DAT_007a6a70` (line 1111 above) is set, it takes
+that unit's own room (`FUN_00620bb0`, already cited lines 1009/1022) and
+calls `FUN_00463740(room, x, y)` — the same three-register signature
+already read at line 884 ("the room and x are in registers", confirmed
+again here: ECX the room, EDX the x, y on the stack) — returning that
+room immediately on a hit (the control unit's own near list, per
+`FUN_00463740`'s write-up). Missing a control unit, or that lookup
+coming up empty, falls through to `FUN_00619da0(DAT_007a0634, x, y)` (the
+client act, already cited `gdi-driver.md:124`): a wider, act-level room
+search. If that also returns nothing, it's fatal (assert id `0x13c`),
+after formatting a log line naming the control unit, the room found so
+far, the act and the x/y (`"Unable to find room for unit...
+hControlUnit:%8x hUnitRoom:%8x ghAct:%8x nX:%d nY:%d"`). Its six
+callers (`FUN_00465fd0` the unit-creation helper already cited
+`units.md:235`; `FUN_00466360` the monster-colour/creation step,
+`monsters.md:554`; `FUN_00466200` the 0x59 assign-player handler,
+`net-packets.md:122`; `FUN_004654c0` the unit's hard teleport,
+`automap.md:95`; `FUN_004c2540`/`FUN_004c26f0`, not read here) all feed
+it a unit's new or reported x/y to resolve its room. Not traced:
+`FUN_004c2540`/`FUN_004c26f0`'s own bodies. d2d: not ported as a
+function; no d2d equivalent was checked against this room-resolution
+order.
+
+Re-check: `python3 tools/ghidra/fn.py 00465420 00463740 00619da0
+00465fd0 00466360`; disassemble `00465420`..`004654bc` to confirm the
+ECX=x/EDX=y fastcall and the `FUN_00463740(room, x, y)` register setup.
+
