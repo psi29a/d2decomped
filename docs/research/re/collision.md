@@ -1420,3 +1420,49 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
   mode switch and the selectable-bit toggle have no d2d equivalent found
   (not ported as a function).
+
+### The client's own pierce check: `FUN_004cd310` (batch 10)
+
+`FUN_004cd310` (0x64 bytes, `004cd310`..`004cd374`, plain `RET`, no stack
+args) is the only caller's dependency of the already-verified
+`FUN_004d2d70` (**the client's hit and explosion**, `missiles.md:117`); it
+sits right before batch 8's sound-timer cluster. It takes no stack
+arguments and no register arguments either — confirmed in disassembly: it
+never sets ESI itself, only pushes and pops it around the body, so
+whatever the caller's **ESI** held (the missile) is what it reads,
+including on the forwarded call to `FUN_0064a3e0(ESI)`. At the one call
+site (`FUN_004d2d70`, `004d2e76`), ESI is that function's own ECX
+parameter — the missile. This is the same register-implicit convention
+batches 8/9 found on EAX; here it's ESI instead, confirmed the same way
+(raw disassembly, not the decompiler's `unaff_ESI` label alone).
+
+`FUN_0064a3e0(missile)` re-derives the missile's Missiles.txt row (same
+bounds check and `* 0x1a4 + PTR_DAT_00744304+0xb64` lookup `FUN_004d2d70`
+already did); a result that is `< 0` or past the table's count resets the
+row pointer to 0 rather than failing. It then tests the row's own `+4`
+byte against the global mask `DAT_006ce270` — the same byte and mask
+`missiles.md:1030` already names **Pierce** (`FUN_00661b20`'s column list,
+mask `0x04`) and `monsters.md:26` already cites for `DAT_006ce270`. Set:
+`FUN_00625480(ESI, 0x148, 0)` (`GetStat`, `stats.md:34`) reads the
+missile's own stat `0x148` — the same **pierce_idx** counter
+`missiles.md:550` already names on the *server* side
+(`FUN_005ada80`/`FUN_0059f940`); nonzero: `FUN_00627260(ESI, 0x148, n-1, 0)`
+(`SetStat`) decrements it and the function returns **2**; otherwise, or
+when the Pierce flag is clear, it returns the default **3**. `FUN_004d2d70`
+treats these the same way `FUN_005ada80`'s caller `FUN_005adf10` treats its
+own 2/3: 2 keeps the missile flying (its hit function still runs), 3 ends
+it.
+
+So `FUN_004cd310` is the **client**-side mirror of the already-documented
+server pierce check `FUN_005ada80` (`missiles.md:1030`), decrementing the
+same server-seeded `pierce_idx` stat on the client's own copy of the
+missile so its locally-predicted flight/explosion agrees with the
+server's. d2d: not ported as a function; no disagreement found —
+`rules::missile_blow` and the pierce chance roll are the parts of this
+system already ported, and the client-side mirror itself is not mentioned
+there either way.
+
+Re-check: `python3 tools/ghidra/fn.py 004cd310 004d2d70 0064a3e0`;
+disassemble `004cd310`..`004cd374` to confirm the ESI-implicit, no-args
+convention above.
+
