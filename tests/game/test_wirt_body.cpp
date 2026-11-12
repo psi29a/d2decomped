@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 
