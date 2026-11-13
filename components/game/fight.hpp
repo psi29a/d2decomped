@@ -281,6 +281,9 @@ struct Fight {
         std::uint32_t pierce_idx = 0;
         float cast_x = 0, cast_y = 0;          // where a missile skill was sent
         int aura = 0;                          // the aura on (Town: the right skill when it's one)
+        // State 0x55 (nomanaregen): on while the player's Prayer pays for a
+        // pulse that heals (prayer_pulse); a right skill picked clears it.
+        bool no_mana_regen = false;
         // The player's summons (skills.md "Summons"): a Monster of the skill's
         // summon row on the player's side, the skill that raised it, and the
         // monster it's after.
@@ -1118,8 +1121,8 @@ struct Fight {
     // FUN_00644b10 cost in mana (Prayer: (16 + 3 x (lvl - 1)) << 4, 256ths)
     // or heals nothing, and takes the cost off it (FUN_0056c110) when it
     // healed someone; the merc's costs nothing.
-    // ponytail: the state it sets then (0x55 nomanaregen, FUN_00639db0) and
-    // clears on a pulse that heals no one isn't kept, so mana still regens.
+    // A player's pulse with a cost sets state 0x55 (nomanaregen,
+    // FUN_00639db0) when it healed, else clears it (Hero::no_mana_regen).
     void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast = false);
     // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
     // monster here is no side of the player's, so a friendly aura's never

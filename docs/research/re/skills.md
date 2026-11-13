@@ -923,8 +923,14 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   FUN_00639db0) and calls FUN_0056c110(ECX caster, EDX cost), which takes
   the cost off stat 8 (state 0x72: FUN_005d2b60 instead); a count of 0
   clears 0x55. So a Paladin's Prayer draws its cost only on a pulse that
-  heals someone, and a merc's Prayer (not a player) costs nothing. d2d:
-  `Fight::prayer_pulse`; 0x55 and Sanctuary's (66) side aren't built.
+  heals someone, and a merc's Prayer (not a player) costs nothing. While
+  0x55 is on, the player's mana a frame (FUN_005806f0, 0x580713) skips
+  the ManaRegen part: manarecovery (26) alone. A right skill set clears
+  it: FUN_005701b0 (0x5701db), for any skill but 5 (Left Hand Swing),
+  from C->S 0x3c (FUN_0054be70, 0x54bee4) and from the weapon switch
+  when its kept right skill is usable (FUN_005616a0, 0x561aa9). d2d:
+  `Fight::prayer_pulse`, `Hero::no_mana_regen`; Sanctuary's (66) side
+  isn't built.
 - FUN_00646d60 holds an aura's passive state off while the aura's state
   (+0x80) is on, so the passive stats hold either way.
 - Operands 49..53 (enma, exma, edma, enms, exms) are the elemental damage
@@ -936,8 +942,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
   (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
   the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
-  slow (its cold chills), Sanctuary's mana and state 0x55 (above), the
-  aura overlays.
+  slow (its cold chills), Sanctuary's mana and its state 0x55
+  (FUN_005cf3a0), the aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
   (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
   a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).

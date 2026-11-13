@@ -253,8 +253,10 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         life += actor->player_combat.life_regen * 256.0 / 256.0 * elapsed / 40.0;
         // The steady mana comes a whole frame at a time (FUN_005806f0).
         const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
-        mana += double(d2d::rules::mana_per_frame(actor->character.stats.values[kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, int(actor->psum[kManaRecovery])))
-              * double(now_ms / 40 - last_ms / 40);
+        // State 0x55 on (0x580713): the ManaRegen part is skipped, manarecovery (26) alone.
+        const std::int64_t per_frame = actor->no_mana_regen ? std::int64_t(actor->psum[kManaRecovery])
+            : d2d::rules::mana_per_frame(actor->character.stats.values[kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, int(actor->psum[kManaRecovery]));
+        mana += double(per_frame) * double(now_ms / 40 - last_ms / 40);
         actor->regen_acc_life += life; actor->regen_acc_mana += mana;
         if (actor->merc && actor->merc->hit_points > 0 && last_ms < actor->merc_poison_until) {   // its poison: life lost with the next hits
             actor->merc_poison_acc += actor->merc_poison_rate * double(std::min(now_ms, actor->merc_poison_until) - last_ms);
