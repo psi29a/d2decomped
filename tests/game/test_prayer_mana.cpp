@@ -21,7 +21,9 @@
 #include <skills.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -112,6 +114,21 @@ int main() try {
     header.right_swap = 0;
     world.apply(cmd::SwapWeapons{}, now);
     assert(header.right_skill == 0 && !actor.no_mana_regen);
+    // Smite learned: the weapon gate (status 2) asks for a shield in the hands
+    // the switch puts on. The empty set has none, so Attack stays; the
+    // starting set's buckler lets Smite in.
+    const int smite = data->skills.by_name.at("Smite");
+    const auto& paladin_ids = data->skills.class_ids[kPaladin];
+    actor.character.stats.skills[std::size_t(std::ranges::find(paladin_ids, smite) - paladin_ids.begin())] = 1;
+    assert(skill_level(*data, actor.character, smite, {}) == 1 && !skill_refused(*data, actor.character, smite));
+    actor.no_mana_regen = true;
+    header.right_swap = std::uint32_t(smite);
+    world.apply(cmd::SwapWeapons{}, now);                         // to the empty set
+    assert(skill_refused(*data, actor.character, smite));
+    assert(header.right_skill == 0 && actor.no_mana_regen);
+    header.right_swap = std::uint32_t(smite);
+    world.apply(cmd::SwapWeapons{}, now);                         // back to the sword and buckler
+    assert(header.right_skill == std::uint32_t(smite) && !actor.no_mana_regen);
     std::puts("OK: Prayer's paid pulses hold the mana regen, a right skill set lets it go");
 
     // The merc's Prayer: no player cast, no cost.

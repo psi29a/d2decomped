@@ -413,9 +413,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             auto& header = actor->character.header;
             if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's Resurrect stays with no set
             header.weapon_set ^= 1;
+            // FUN_00647960 on the hands now worn (0x561a1f / 0x561a8e): its status 7 (level 0) or
+            // 2 (the weapon gate, Throw's too: skill_refused) gives way.
             const auto usable = [&](std::uint32_t id, bool left) {
                 const auto* skill = game_data->skills.get(int(id));
-                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0;
+                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0
+                    && !skill_refused(*game_data, actor->character, int(id));
             };
             std::swap(header.left_skill, header.left_swap);
             std::swap(header.right_skill, header.right_swap);
