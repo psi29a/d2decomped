@@ -305,6 +305,86 @@ rosters; the relation list `FUN_004dc320` / `004dc440` / `004dc3e0` and the look
 `FUN_0049a640` makes a row for every other player, at most nine. The rows
 sit at y 0x5a + 0x26·i (panel coordinates, +0x50 / +0x3c at 800×600).
 
+### More roster functions (read from the disassembly, not run in the emulator)
+
+Read from each function's asm: which registers carry the inputs, and the
+branches. Only the callers that `game-calls.tsv` lists are named; "none" means
+it has no row there. "Local" is the local player (`FUN_00463dd0`, `names.tsv`
+`client_player`); its id is at `+0xc`, and `-1` stands in when there is none.
+`mine` in a relation query is that id. `FUN_004dc440(ECX, EDX, mask)` is the
+relation read from party.md, with ECX the first record's id and EDX the second.
+Some callers pass the two ids the other way round: those rows say "swapped".
+Rows run in address order.
+
+| Function | Operation | Callers |
+|---|---|---|
+| `FUN_00479b80` | ECX record: returns the dword at `+0x18`; null gives 0. `FUN_004796d0` sorts by this key | `FUN_00453b30`, `FUN_00453bb0` |
+| `FUN_00479bb0` | ECX id: `mov edx, ecx` and `jmp FUN_004792e0`, so it is `roster_find` (the record whose `+0x10` or `+0x38` list holds the id) | `FUN_00453b30`, `FUN_00478d90`, `FUN_0049e8f0` |
+| `FUN_00479c20` | ECX record: null gives 0. Else `FUN_004dc440(mine, record id, 1)`: the relation bit 1 (loot) from the local player to the record | `FUN_0049a090`, `FUN_0049b330`, `FUN_0049b990` |
+| `FUN_00479c60` | as `FUN_00479c20` with mask 2 (not heard) | the same three |
+| `FUN_00479ca0` | as `FUN_00479c20` with mask 4 (squelched) | the same three |
+| `FUN_00479ce0` | ECX record: null gives 0; else 1 when the relation bit 8 (hostile) from the local player to the record is set | the same three |
+| `FUN_00479d20` | ECX record: null gives 1; else the dword `+0x30` (the relationship of party.md) | `FUN_0049a090`, `FUN_0049bad0` |
+| `FUN_00479da0` | ECX record: null does nothing. Else `FUN_00479d30` with EDI = 1 (toggles bit 1), then `FUN_004dc440` is read again and `FUN_00478740` sends C->S 0x5d: type byte 1, a flag byte (1 when the masked value is nonzero, else 0), the id dword. 7 bytes | `FUN_0049b990` |
+| `FUN_00479de0` | as `FUN_00479da0` with EDI = 2 and type byte 2 (not heard) | `FUN_0049b990` |
+| `FUN_00479fc0` | `call FUN_00479f60` (roster_leave_area: returns the local record, fatal 0x4ed without one), then `FUN_00478780` sends C->S 0x5e: type byte 9 and the record's id dword, 6 bytes | `FUN_0049bdd0` |
+| `FUN_0047a0d0` | ECX id, EDX dword, stack word (`ret 4`): `roster_find`; when found, `+0x14` := EDX, `+0x24` := the word (the area of party.md), then `FUN_00479ab0` (the regroup pass below) and `FUN_0049a640` | none |
+| `FUN_0047a120` | ECX record: 0 when null or `+0x22` is 0xffff. Else 1 when `FUN_00465400` of the local unit equals `+0x22`. With no local player `FUN_00465400` gets ECX 0; that is not traced | none |
+| `FUN_0047a150` | ECX id: `roster_find`; returns the dword `+0x14`, or 0 when absent | `FUN_00493a00` |
+| `FUN_0047a170` | ECX id: `roster_find`; absent gives 1. Else 1 when relation bit 4 (squelched) from the local player to the record is 0 | `FUN_0049f490` |
+| `FUN_0047a1b0` | ECX record, EDX pointer, stack pointer (`ret 4`): `*EDX` := `+0x28`, `*stack` := `+0x2c`, the x and y that `FUN_0047a100` stores; null writes 0 to both | `FUN_0045ab60` |
+| `FUN_0047a270` | ECX id, EDX, stack dword (`ret 4`): `roster_find`; `+0x3c` := EDX, `+0x40` := the stack dword | `FUN_0045e9d0` |
+| `FUN_0047a290` | ECX id: walks the roster list (`DAT_007bb5c0`) for the first record whose `+0x3c` or `+0x40` equals the id; returns record + 0x66 (the name), else 0 | `FUN_00454f30` |
+| `FUN_0047a2c0` | ECX unit or null: the party word from `FUN_00465400(ECX)`; 0xffff gives 0. Else 1 when another roster record has the same `+0x22` and its `+0x10` is not the unit's `+0xc` (-1 for null) | `FUN_00493340` |
+| `FUN_0047a370` | ECX id, EDX dword, stack word (`ret 4`): when `roster_find` finds the record: `FUN_004dc320(id, EDX)`, `FUN_004dc4c0(id, EDX, word)`, `FUN_0049a640`, then `FUN_00479230(id)` when EDX equals the local id. The four callees are not traced | none |
+| `FUN_0047a3d0` | ECX id, EDX dword: when `roster_find` finds nothing, allocates 0x84 bytes from pool `0x6d7268` (line 0x686, failure fatal 0x687), zeroes them, sets `+0x10` := id and links the record at the head of `DAT_007bb5c4`, the list `FUN_004792e0` does not scan. Then, unless EDX is already in the record's `+0x38` list, prepends an 8-byte node {id, next} (line 0x697, failure fatal 0x698) | none (gaps.py counts six) |
+| `FUN_0047a520` | ECX id A, EDX id B: 1 when both records exist, their `+0x22` are equal and it is not 0xffff | `FUN_00464f70`, `FUN_004c5910` |
+| `FUN_0047a560` | no args: walks the roster list; 1 as soon as `FUN_004dc440(record id, local id, 8)` is nonzero (swapped) | `FUN_00496b10`, `FUN_00497c50`, `FUN_00497cf0` |
+| `FUN_0047a5b0` | ECX record: 1 when the local player and the record exist and `FUN_004dc440(record id, local id, 8)` is nonzero (swapped) | `FUN_0049b030`, `FUN_0049c270` |
+| `FUN_0047a5e0` | ECX record: as `FUN_0047a5b0`, with the order (local id, record id), mask 8 | `FUN_0049b030` |
+| `FUN_0047a610` | ECX record: as `FUN_0047a5b0` with mask 1 (swapped) | `FUN_0049b030` |
+| `FUN_0047a640` | ECX record: as `FUN_0047a5e0` with mask 1 | `FUN_0049b030` |
+| `FUN_0047a670` | ECX record: null gives 1; a negative `+0x1c` (class) gives 1; classes 0, 1 and 6 give 0; any other class gives 1 | `FUN_0049b030` |
+
+The send `FUN_00478740` takes ECX as the type byte, EDX as the id and a stack
+word as the flag; `FUN_00478780` takes ECX and EDX alone and sends 0x5e. Both
+are read here only as far as the packet bytes go (`FUN_00478350` is the
+sender). Which server reply a 0x5e type 9 gets is not traced.
+
+#### The party groups (the regroup pass `FUN_00479ab0`)
+
+`FUN_00479ab0` (cited above in the names table) reads the local id, and the
+party word of the local record when there is one (0xffff otherwise), then calls
+in this order: `FUN_00479940`, `FUN_004799c0`, `FUN_004798c0` (DX = the party
+word, EBX = the local id), `FUN_00479a00`, `FUN_004797c0`, and, only when the
+party word is 0xffff, `FUN_00479a60` (ESI = the local id).
+
+A group node is 0xc bytes from pool `0x6d7268` (line 0x1fc; the result is not
+checked): `+0` the party word, `+4` the head of its record list, `+8` the next
+group. `DAT_007bb5c8` heads the group chain. The record list uses the `+0x80`
+link, the same as the roster list `DAT_007bb5c0`.
+
+- `FUN_00479940` makes a group for each roster record whose party word has none
+  yet (prepended), then `FUN_00479800` moves each roster record with that word
+  into the group. It repeats until `DAT_007bb5c0` is empty.
+- `FUN_00479800` (EDI = the group): moves each roster record whose `+0x22` equals
+  the group's word to the front of the group's list, in scan order.
+- `FUN_004799c0` sorts each group's list. `FUN_0047a980` returns bit 1 of the byte
+  at 0x712efc (not traced further). When it is set the list goes to `FUN_004796d0`
+  (EAX = the head): an insertion sort, ascending by the signed dword `+0x18`,
+  returning the head. When it is 0 the list goes to `FUN_004795f0` (the head on the
+  stack, `ret 4`): an insertion sort ascending by the zero-terminated 16-bit units
+  at `+0` (low byte first). Then `FUN_00479860` sorts the group chain ascending by
+  its word `+0`.
+- `FUN_004798c0` moves the group whose word is DX to the front of the chain (0xffff
+  does nothing), then moves the record with id EBX to the front of that group's list.
+- `FUN_00479a00` sets `DAT_007bb5c0` to the group lists concatenated in chain
+  order and clears each group's `+4`. It frees nothing.
+- `FUN_004797c0` frees each group node to pool `0x6d7268` (line 0x22f, through
+  `FUN_0040b3c0`) and sets `DAT_007bb5c8` to 0.
+- `FUN_00479a60` (ESI = an id) moves each roster record with that `+0x10` that is not
+  already the head to the front of `DAT_007bb5c0`.
+
 ### Drawing
 
 - `Menu\party`, four frames, as `NPCInv` is drawn.

@@ -188,16 +188,53 @@ address	name	evidence
 00479320	roster_self	the local player's record (id at FUN_00463dd0 +0xc); fatal line 0x75 without one; verified roster_small.py
 004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0); verified roster_small.py
 004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174; verified roster_small.py
+004795f0	roster_sort_key_u16	stack head: insertion sort by the zero-terminated 16-bit units at +0, returns head (group sort)
+004796d0	roster_sort_key_18	EAX head: insertion sort ascending by dword +0x18, returns head (group sort)
+004797c0	roster_free_groups	frees each group node (DAT_007bb5c8 chain, +8) to pool 0x6d7268, line 0x22f; clears the head
+00479800	roster_group_take	EDI group: moves roster records with the group's party word to the group's list
+00479860	roster_sort_groups	sorts the group chain DAT_007bb5c8 ascending by word +0
+004798c0	roster_group_front	DX party word, EBX id: group to the chain front, then the record to its list front
+00479940	roster_build_groups	makes a 0xc-byte group per party word (pool 0x6d7268, line 0x1fc), fills them with roster_group_take
+004799c0	roster_sort_group_lists	sorts each group's list (FUN_004796d0 or FUN_004795f0 by FUN_0047a980), then roster_sort_groups
+00479a00	roster_flatten_groups	sets DAT_007bb5c0 to the group lists concatenated in chain order
+00479a60	roster_front_id	ESI id: moves each roster record with that id, not the head, to the front
+00479b80	roster_field_18	ECX record: dword +0x18, null 0; sort key of FUN_004796d0 (party.md "More roster functions")
 00479b90	roster_level	ECX roster entry: u16 +0x20; null 0; verified roster_small.py
 00479ba0	roster_class	ECX roster entry: +0x1c; null 0; verified roster_small.py
+00479bb0	roster_find_ecx	ECX id, jmp FUN_004792e0 (roster_find) (party.md)
+00479c20	roster_relation_1	ECX record: relation bit 1 from the local player to it, null 0 (party.md)
+00479c60	roster_relation_2	ECX record: relation bit 2 from the local player to it, null 0 (party.md)
+00479ca0	roster_relation_4	ECX record: relation bit 4 from the local player to it, null 0 (party.md)
+00479ce0	roster_relation_8	ECX record: relation bit 8 from the local player to it, null 0 (party.md)
+00479d20	roster_relationship	ECX record: dword +0x30, null 1 (party.md)
 00479d30	roster_toggle_relation	custom call, EBX record and DI mask: adds the relation node if missing, then sets every mask bit when none is set, else clears them all; fatal line 0x463 on null; verified roster_small.py
+00479da0	roster_send_relation_1	ECX record: toggles bit 1, sends C->S 0x5d type 1 (FUN_00478740)
+00479de0	roster_send_relation_2	ECX record: toggles bit 2, sends C->S 0x5d type 2 (FUN_00478740)
 00479e20	roster_squelch	flips relation bit 4, sends C->S 0x5d (ECX 3), adds or removes the name in the ignore list (vtable slot 0 or 1); verified roster_small.py
 00479f60	roster_leave_area	own record area +0x22 := 0xffff, +0x30 := 1, redraw FUN_00479ab0 and FUN_0049a640; fatal line 0x4ed; verified roster_small.py
+00479fc0	roster_leave_area_send	FUN_00479f60 then C->S 0x5e type 9 with the local id (FUN_00478780)
 00479fe0	roster_hostile	flips relation bit 8 if level >= 9 or already hostile, sends 0x5d (ECX 4), leaves the area when both share one; verified roster_small.py
 0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1; verified roster_small.py
+0047a0d0	roster_set_field_14_24	ECX id, EDX dword to +0x14, stack word to +0x24, then FUN_00479ab0 and FUN_0049a640
 0047a100	roster_set_position	ECX id, EDX x, stack y: record +0x28 / +0x2c (S->C 0x90); verified roster_small.py
+0047a120	roster_same_party_as_local	ECX record: 1 when its +0x22 equals the local player's party (FUN_00465400)
+0047a150	roster_field_14	ECX id: dword +0x14 of roster_find, 0 when absent
+0047a170	roster_not_squelched	ECX id: 1 when the record is absent or relation bit 4 is clear
+0047a1b0	roster_get_position	ECX record, EDX and stack pointers: +0x28 and +0x2c, null 0 (inverse of roster_set_position)
 0047a1e0	roster_area	ECX roster entry: +0x24; null 0; verified roster_small.py
 0047a210	roster_unit_name	player unit: its record's name (+0x66), else the player data pointer; fatal lines 0x5db, 0x5dc, 0x5e5; verified roster_small.py
+0047a270	roster_set_alt_ids	ECX id, EDX and stack dwords to +0x3c and +0x40
+0047a290	roster_name_by_alt_id	ECX id: name (+0x66) of the record whose +0x3c or +0x40 is the id, else 0
+0047a2c0	roster_party_other	ECX unit: 1 when another roster record shares its party word (FUN_00465400)
+0047a370	roster_set_relation_word	ECX id, EDX dword, stack word: FUN_004dc320 and FUN_004dc4c0, then FUN_0049a640
+0047a3d0	roster_add_id	ECX id, EDX dword: creates the record on DAT_007bb5c4 when absent, adds EDX to its +0x38 list
+0047a520	roster_same_party_pair	ECX and EDX ids: 1 when both records share a party word other than 0xffff
+0047a560	roster_any_hostile_to_local	no args: 1 when a roster record has FUN_004dc440(record, local, 8) nonzero (swapped order)
+0047a5b0	roster_other_hostile_to_local	ECX record: FUN_004dc440(record, local, 8) nonzero (swapped order)
+0047a5e0	roster_local_hostile_to	ECX record: FUN_004dc440(local, record, 8) nonzero
+0047a610	roster_other_loot_to_local	ECX record: FUN_004dc440(record, local, 1) nonzero (swapped order)
+0047a640	roster_local_loot_to	ECX record: FUN_004dc440(local, record, 1) nonzero
+0047a670	roster_class_check	ECX record: 0 for class 0, 1 or 6, else 1; null 1 (+0x1c)
 0047a690	roster_set_life	ECX id, DL zero-extended and stored as a dword at record +0x14 (clears +0x15..+0x17; the party life bar); verified roster_small.py
 0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
 0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
