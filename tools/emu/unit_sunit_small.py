@@ -157,6 +157,7 @@ class Scene:
     """Random blocks in emulator memory and a model copy of each, for whole-block comparison."""
 
     def __init__(self, rig, rng):
+        """Start empty, bound to this rig and random stream."""
         self.rig, self.rng, self.blocks = rig, rng, {}
 
     def block(self, size):
@@ -520,6 +521,7 @@ def check_ally(rig, rng):
             sc.put(shared_owner, 2)
 
         def resolve(unit, kind):
+            """The unit, or its owner for a merc/pet kind (shared_owner, else none)."""
             if kind != 1:
                 return unit
             if shared_owner is not None:
@@ -553,6 +555,7 @@ def check_ally(rig, rng):
                 pid_choice = rng.choice((1, 2, 5))
 
                 def make_game(guid, want_id):
+                    """A game block, with pPartyControl built so GetPartyIdFromUnit finds want_id for guid (or none)."""
                     if rng.random() < 0.2:
                         return 0, 0xFFFF
                     control = build_party_control(rig, [(want_id, [guid])]) if rng.random() < 0.8 else 0

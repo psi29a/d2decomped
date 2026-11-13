@@ -58,6 +58,7 @@ def mut(name):
 
 
 def require(condition, message):
+    """Raise RuntimeError(message) unless condition holds."""
     if not condition:
         raise RuntimeError(message)
 
@@ -134,6 +135,7 @@ def run_all():
 
 
 def main():
+    """Run the cases, or --mutation-check each deliberate model defect."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--mutation-check", action="store_true", help="require every deliberate model defect to fail")
     options = parser.parse_args()
