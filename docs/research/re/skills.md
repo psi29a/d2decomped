@@ -1351,7 +1351,10 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   at calc1 % (calc2 champion, calc3 unique, calc4 boss). **51**
   (FUN_005d76e0, Mind Blast): physical and stun within aurarange (or
   prgcalc), conversion through FUN_005d7680. **20** (FUN_005c9800 ->
-  FUN_005c96a0, Static Field): calc1 % of life within aurarange. **55**
+  FUN_005c96a0, Static Field): calc1 % of life within aurarange; its walk
+  (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
+  Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
+  or in town isn't struck (`Fight::spot`, `filter_takes`). **55**
   (FUN_005c4df0, Corpse Explosion): the corpse's max life (FUN_006538a0) x
   calc1..calc2 %, half fire half physical, within aurarange / 2. **63**
   (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**

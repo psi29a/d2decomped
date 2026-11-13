@@ -19,6 +19,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
@@ -69,6 +70,21 @@ int main(int argc, char** argv) try {
     character.header.status |= 0x20;   // an expansion game: StaticFieldMin counts
     World world(&*data, -1, -1);
     world.enter(character);
+    // Out of town (Static Field's aurafilter 0x8783 has 0x100), on the Blood Moor where the
+    // lines (0x200, mask 4) to the two monsters, 2 subtiles east and south, are clear.
+    const Level* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(moor);
+    const auto open = [&](int at_x, int at_y) { return !moor->blocked_here((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    bool placed = false;
+    for (int at_y = 0; at_y + 2 < moor->ds1.height() * 5 && !placed; ++at_y)
+        for (int at_x = 0; at_x + 2 < moor->ds1.width() * 5 && !placed; ++at_x)
+            if (open(at_x, at_y) && open(at_x + 1, at_y) && open(at_x + 2, at_y) && open(at_x, at_y + 1) && open(at_x, at_y + 2)) {
+                world.level = moor;
+                world.actor->player.x = (float(at_x) + 0.5f) / 5;
+                world.actor->player.y = (float(at_y) + 0.5f) / 5;
+                placed = true;
+            }
+    assert(placed);
     const World::Player start = *world.actor;
     const auto skill_row = data->skills.by_name.find("Static Field");
     assert(skill_row != data->skills.by_name.end());

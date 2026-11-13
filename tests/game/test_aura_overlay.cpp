@@ -4,9 +4,9 @@
 // FUN_0056b3e0, rules/aura_filter.hpp), with the game's MPQs (D2_MPQ_DIR;
 // the 1.14d ones with D2_PATCH_INSTALLER): Might (0x12003) is over no
 // monster, so its auratargetstate isn't drawn on one; Conviction is;
-// Sanctuary takes the undead only, Holy Freeze no prime evil and only in
-// a clear line (0x200, mask 4); in town none takes a monster (0x100,
-// 0x2000).
+// Sanctuary takes the undead only, Holy Freeze no prime evil; it and
+// Static Field only in a clear line (0x200, mask 4); in town none takes a
+// monster (0x100, 0x2000).
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -107,11 +107,28 @@ int main() try {
     assert(!fight.aura_takes(*holy_freeze, diablo, from_x, from_y) && fight.aura_takes(*holy_freeze, fallen, from_x, from_y));
     std::printf("OK: Sanctuary takes the undead, Holy Freeze no prime evil\n");
 
+    // Static Field (its walk on the caster with aurafilter 0x8783, 0x200)
+    // strikes the monster a cell east; behind a wall, not.
+    const auto* static_field = skill("Static Field");
+    assert(static_field->aura_filter == 0x8783);
+    const Fight::Caster caster{ from_x, from_y, 1, -1, 0, 0 };
+    const auto field_hits = [&] {
+        fight.monsters.clear();
+        Monster target = fallen;
+        target.hit_points = target.stats.hit_points = 1000;
+        fight.monsters.push_back(target);
+        fight.spot(*static_field, 1000, caster);
+        return fight.monsters.back().hit_points < 1000;
+    };
+    assert(field_hits());
+
     // A wall subtile (mask 4) between them: Holy Freeze's 0x200 fails,
     // Conviction (0xa583) has no line test.
     moor.walk[std::size_t(row_y) * std::size_t(width) + std::size_t(row_x + 2)] |= 0x04;
     assert(!fight.aura_takes(*holy_freeze, fallen, from_x, from_y) && fight.aura_takes(*conviction, fallen, from_x, from_y));
-    std::printf("OK: Holy Freeze needs a clear line, Conviction doesn't\n");
+    assert(!field_hits());
+    fight.monsters.clear();
+    std::printf("OK: Holy Freeze and Static Field need a clear line, Conviction doesn't\n");
 
     // In town: Conviction's 0x100 and 0x2000 take no monster.
     world.level = town;

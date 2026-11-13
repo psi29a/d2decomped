@@ -708,8 +708,10 @@ struct Fight {
     // physical, within half its aurarange), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
     // FUN_005ca360: to the point, where it's open; not in town).
-    // ponytail: Static Field hits only monsters, with no line-of-sight test
-    // (aurafilter 0x8783: FUN_0056b3e0, 0x200), Mind Blast's
+    // Static Field's walk takes its aurafilter (0x8783) from the caster: a
+    // clear line (0x200), out of town.
+    // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
+    // enemy player: FUN_0056b3e0 type 0), Mind Blast's
     // conversion (Param3 / 4 through FUN_005d7680) and the knockback
     // guards aren't applied; Corpse Explosion takes its corpse's life from
     // the MonStats roll, not FUN_006538a0's.
