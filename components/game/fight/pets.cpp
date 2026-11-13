@@ -455,13 +455,16 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
         const int found = pick.target >= 0 ? pick.target : pick.second;
+        // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
+        const auto* curse = game_data->skills.get(pet.curse.skill);
+        const bool slowed = curse && now_ms < pet.curse.until && curse->auratarget == "decrepify";
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
                                   .cur_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.front().first),
                                   .cur_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.front().second),
                                   .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
                                   .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
-                                  .town = town, .velocity = type_info.velocity, .run = type_info.run };
+                                  .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
         view.crowd = pet_crowd(pet);
         if (found >= 0) {
@@ -669,7 +672,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                   .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
                                   .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
-                                  .town = town, .velocity = type_info.velocity, .run = type_info.run };
+                                  .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = scene.slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
         view.crowd = pet_crowd(pet);
         auto area_under = [&](int from_x, int from_y, int x, int y) { return int(area_id_at(*game_data, *level, centre(from_x), centre(from_y), centre(x), centre(y))); };   // FUN_0061b130

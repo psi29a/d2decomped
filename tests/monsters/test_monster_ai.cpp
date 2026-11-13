@@ -243,6 +243,21 @@ int main() try {
                     assert(seed.low == entry.after_low && seed.high == entry.after_high);
                 }
             }
+            // A requested run (FUN_005deeb0) downgrades to a walk under
+            // Decrepify (state 0x3c): traced against stock 1.14d,
+            // tools/emu/ai_pet_decrepify_probe.py (game_mode 15 unslowed, 2 slowed).
+            {
+                for (const bool slowed : { false, true }) {
+                    PetView view; view.x = 100; view.y = 100; view.owner_x = 110; view.owner_y = 110;
+                    view.end_x = 110; view.end_y = 110; view.slowed = slowed;
+                    Rng rng(1);
+                    auto area = [](int, int, int, int) { return 1; };
+                    auto move = [](const MercMove&) { return true; };
+                    PetFollow follower(view, rng, area, move);
+                    assert(follower.follow(0, true, 100, 0));
+                    assert(follower.act.move.mode == (slowed ? kMonsterWalk : kMonsterRun));
+                }
+            }
             // The other pets' thinks (rules::*_think on PetBrain; tools/emu/pet_ais.py
             // --dump: game.exe's own runs, the follow / decide answers replayed):
             // the scene, the calls each makes and what it comes to.
