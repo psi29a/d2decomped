@@ -22,6 +22,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
+#include "storage_close.hpp"
 #include "store.hpp"
 #include "ui.hpp"
 
@@ -475,7 +476,20 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (mouse.press_this_frame && over) { down = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && down) { down = false; if (over) open = false; mouse.release_this_frame = false; }
         };
-        if (inv_open && !held) close_button(inv_close_down, inv_open, lay.panel_x + 0x12, lay.panel_y + 416);
+        if (inv_open && !held) {
+            bool still_open = true;
+            close_button(inv_close_down, still_open, lay.panel_x + 0x12, lay.panel_y + 416);
+            // With the stash, the Cube or a store up, it shuts that one (storage_close.hpp).
+            if (!still_open) {
+                inv_open = false;
+                switch (d2d::client::inventory_close_shuts(stash_open, cube_open, store.npc >= 0)) {
+                    case d2d::client::InventoryCloseShuts::kStash: stash_open = false; break;
+                    case d2d::client::InventoryCloseShuts::kCube: cube_open = false; break;
+                    case d2d::client::InventoryCloseShuts::kStore: send(cmd::CloseTrade{}); break;
+                    case d2d::client::InventoryCloseShuts::kInventory: break;
+                }
+            }
+        }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
             const auto close = skill_tree_close(character.character_class, tree_tab);
