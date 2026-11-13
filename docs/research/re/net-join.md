@@ -329,6 +329,32 @@ fill, the first byte is set to 0 (an empty string) when the level was 0 or over 
 class was 7 or more, the adjusted flag word has a bit of mask 0x13 set, or the string length of
 the buffer (`FUN_00413750`) is not 0x21. What the consumer of the summary does is not traced.
 
+### More Game.cpp functions
+
+Read from each function's disassembly, with the callers from
+`game-calls.tsv`. Not run in `tools/emu`. Rows run in address order.
+
+| Function | Operation | Callers |
+|---|---|---|
+| `FUN_0044cca0` | ECX n, stack m (`ret 4`): returns the count of the tests (m < 7), (n > 1), (n > 9), (n > 0x13), (n > 0x1d), signed compares, as a byte | `FUN_0044efa0` |
+| `FUN_0044cd70` | no args: `now` = `GetTickCount` (import at `0x6cc260`). When `DAT_007a049c` is below `now`: calls `FUN_00477dd0` (a C->S sender, its packet not traced here), `DAT_007a04a0` := now, `DAT_007a049c` := now + 5000. The bit test of `[[0x7a0438] + 0x1ef]` sets flags and nothing branches on it | `FUN_004565e0` |
+| `FUN_0044ce90` | no args: `DAT_007a0664` := 1 when, first pass, `FUN_00469d90` (ECX 0x24, EDX 1) is nonzero and the key from `FUN_00469aa0` (ECX 0x24, EDX 1; 0xffff means none) is down in `GetAsyncKeyState` (the import at `0x6cc460`; the high bit of the 16-bit result). Otherwise the same pass with EDX 0; otherwise `DAT_007a0664` := 0. The two callees are not read beyond these arguments | `FUN_0044efa0` |
+| `FUN_0044d080` | no args: when `DAT_0070ef18` is 5, `FUN_0044b440` with ECX 2. Returns `DAT_0070ef18` | `FUN_0044b8a0` (call); `0070ee60` is a data reference |
+| `FUN_0044d390` | ECX: a text pointer, EDX: a centre x. Zeroes a 0xc8-byte buffer; `FUN_00524a30(ECX)` gives the value that `FUN_005267e0(buffer, EDX)` takes; `FUN_00501820(buffer)` gives a width W. Returns EDX minus W/2 with the sign added before the shift, so W/2 rounds toward zero. The three callees are not read beyond these arguments | `FUN_0044d3e0`, `FUN_0044e770` |
+| `FUN_0044d510` | `DAT_007a062c` := 1 | `FUN_00482ef0` |
+| `FUN_0044d530` | ECX: `DAT_007a0628` := ECX | `FUN_00482ef0`, `FUN_004a2cb0` |
+| `FUN_0044d540` | returns `DAT_007a05f4` | `FUN_00477f70` |
+| `FUN_0044db60` | stack a0 with its low byte + 1 (`ret 4`). For i = 0 to 0x23: when `FUN_0061eae0(i, a0)` is nonzero, for j = 0 to 0x1f: `FUN_0061eb40(i, j, buf)` fills a 60-byte string, and when its first byte is neither '0' nor NUL, `FUN_00600790(&a0, buf)`. Then `FUN_00600790(&a0, 0x6d5d94)` and `FUN_00600790(&a0, 0x6d5d68)`, two fixed strings at those addresses. `FUN_00600790` and the three callees are not read beyond these arguments | `FUN_0044e100` |
+| `FUN_0044dce0` | no args: for the three pairs (index 1, table `0x70f2c4`), (2, `0x70f348`), (2, `0x70f360`): `FUN_004f59a0(index)` gives ECX, then `FUN_00451e10(ECX, EDX = table)`. The callees are not traced | `FUN_0044f360`, `FUN_004a5200` |
+| `FUN_0044dd20` | as `FUN_0044dce0` with `FUN_00451db0` for the call | `FUN_004a5200`, `FUN_004a5de0` |
+| `FUN_0044dff0` | ECX: a pair of dwords `{+0 base, +4 length}`. Returns 1 when the length is 0 or the time has run out (`base + length` at or below `GetTickCount`, unsigned); then both dwords are cleared. Otherwise returns 0 | `FUN_00455510` |
+| `FUN_0044e040` | ECX: the same pair. Returns 0 when the length is 0 or the time has run out (then cleared); otherwise 1 | `FUN_0044e380`, `FUN_0044f360` |
+| `FUN_0052da90` | ECX: a record. Null: fatal line 0x1063. When `+0x18` (a `CRITICAL_SECTION` pointer) is null: fatal line 0x1064. Else `LeaveCriticalSection(+0x18)` | `FUN_0052fa50`, `FUN_0052fd90`, `FUN_0052fee0`, `FUN_005300f0`, `FUN_00530190`, `FUN_00530270`, `FUN_00530300`, `FUN_005303d0`, `FUN_005306e0`, `FUN_005389a0`, `FUN_0053eff0`, `FUN_0053f3d0`, `FUN_005645e0` |
+| `FUN_0052e050` | ECX: a record, EDX: a value. Calls `FUN_0052ded0` (table `0x52dfb0`, the record on the stack) and then tail-jumps to `FUN_00555600` with ECX = the value, EDX = the record. Both callees are not traced, so only the call shape is written | `FUN_0059ef70`, `FUN_0059f0c0` |
+| `FUN_0052e6d0` | ECX: a record. `+0x48` is a counter that is incremented each pass; when it wraps to 0, `+0x4c` := 1. While `+0x4c` is nonzero, `FUN_0052e650(counter, +0x44)` runs; a 0 result returns the counter. Returns the counter when `+0x4c` is 0 | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
+| `FUN_0052f940` | ECX: a record, EDX: a name. When the probe `FUN_0052f8b0(EDX)` is nonzero, the name is copied as it is to `+0x2a` (`FUN_004135d0`, bound 0x7fffffff). Otherwise the name is copied into a 16-byte buffer, cut to 11 bytes when its length is 13 to 15 (a longer name is copied whole), and the candidates are tried in order: name + `~%d` with EDX itself (the pointer, not a count; the format at `0x6e0754` is `~%d`), then `name~1` to `name~98` (format `%s~%d` at `0x6e074c`). The first candidate the probe accepts (nonzero) is copied to `+0x2a`. `name~99` is not copied: the fatal report (line 0x263) follows it either way. A name of 16 or more bytes is copied past the 16-byte buffer | `FUN_00530930`, `FUN_00530bf0` |
+| `FUN_00530820` | ECX: a table object (mask at `+0x24`, bucket base at `+0x1c`, a list head at `+8`, a node base at `+4`); stack a0 (the key), a2, a3 (`ret 0x10`; a1 is not read). The bucket is `a0 & mask` (`FUN_00530600` is called on it, but both branches use the same index). Its address (`[+0x1c] + bucket * 12`) goes to vtable slot 1 (`[*ECX + 4]`) with a2 and a3, which returns an offset or 0. An offset gives the node at `[+4] + offset`; zero gives the head at `+8`. The node is linked into the list (the pointers at +0 and +4 of the link), and a0 is stored at the node's first dword. When the slot returns 0, that store writes through a null pointer (`mov [eax], ecx` at `0x5308ad`) | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
+
 ### Verified in the emulator (`tools/emu/clients_small.py`)
 
 `clients_small.py` runs 30 GAME/Clients.cpp functions and the getter at `0x538230` from game.exe 1.14d on random client
