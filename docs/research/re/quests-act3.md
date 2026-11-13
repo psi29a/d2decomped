@@ -63,6 +63,18 @@ unit event 0x23), +0x18 the stand's mode.
   event 5 takes the player out (0x5b7a1a), state 3 (EDX 3 at 0x5b7a2f),
   log 1 (0x5b7a44), whatever the state was (+9 the only gate).
 
+- **Hratli's map AI** (`Q17_SetupHratliMapAi`, `FUN_005b7230`, namespace
+  `A3Q1` but keyed by `QUESTINT_SpokeToHratli`, a separate internal
+  record from the journaled a3q1): stores the current DRLG map pointer
+  into that record's data and, the first time Hratli's own monster unit
+  and a valid map are both in hand (`bDrlgMapTaken` one-shot), transfers
+  the DRLG preset file onto Hratli's own map-AI
+  (`DRLGPRESET_TransferMapAI`). No `QuestRecord` writes.
+- **The sequence filter** (`Q18_SequenceFilter`, `FUN_005b7cd0`): the
+  chain pattern in `quests.md` ("Quest-chain SequenceFilter"); once
+  state 5 (done) or past intro, chains into
+  `nSequenceQuestId = QUEST_BladeOfTheOldReligion` (a3q3 below).
+
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
 
@@ -92,6 +104,27 @@ the altar's mode.
 - **"!"** (`FUN_005b8e10`), **talk** (`FUN_005b8ec0`, blocks 0x73fb98, state
   → 0x7401b8), **log** (`FUN_005b8cc0`) and **join** (`FUN_005b9700`) as
   `rules::BladeQuest`.
+
+- **Completion notify** (`Q20_PlayerNotifyCompleted`, `FUN_005b8bf0`):
+  the broadcast callback passed to `QUEST_SetStateAndBroadcast`; sends
+  quest-update packet 0x11 to a player only when the quest is
+  Completed or FinishedInPreviousGame *and* a fresh JustCompleted or
+  CannotCompleteQuestInGame flag is pending.
+- **Locking a player out this game** (`Q20_PlayerCheckBladeQuestCannotComplete`,
+  `FUN_005b9130`): per-player iterate callback; if the quest is below
+  Step0x06/0x07/0x08 and the player no longer holds the Gidbinn
+  (`g33`/0x20333367), sets `QUESTSTATE_CannotCompleteQuestInGame`. Run
+  after the item's consumed elsewhere, so whoever never picked it up
+  can't still finish this game.
+- **The sequence filter** (`Q20_SequenceFilter`, `FUN_005b9610`): the
+  chain pattern (`quests.md`); below state 5 it bumps `nStateFlag` 0→1
+  itself (the only SequenceFilter instance seen doing a state write of
+  its own), then at state 5 chains to
+  `nSequenceQuestId = QUEST_AbleGoToAct3`.
+- **The stand** (object 251, InitFn 39, `Objects_InitFn39_GidbinnAltar`,
+  `FUN_005b9d40`): records the object's GUID and spot (`nAltarX/Y`) and
+  applies the stored update flag (`nQuestStage`) on (re)creation. No
+  `QuestRecord` write.
 
 d2d: `rules::BladeQuest`; the guardians' "room" is 20 cells; the lost log
 (+0x20, 7 / 8) is left out. `tests/quests_d2d.py` plays it.
@@ -137,6 +170,16 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   3 (0x5ba721), log 3; `j34 ` log 1, state 1 (0x5ba76c), and bit 6 with
   unit event 0x48 the first time (0x5ba794). No +9 test.
 
+- **Completion notify** (`Q21_PlayerNotifyCompleted`, `FUN_005b9e70`):
+  same shape as a3q3's (above); packet 0x12, gated on Completed or
+  FinishedInPreviousGame with a pending JustCompleted or
+  CannotCompleteQuestInGame.
+- **The sequence filter** (`Q21_SequenceFilter`, `FUN_005ba7b0`): the
+  chain pattern (`quests.md`); at state 5 or past intro it chains
+  through *both* `nSequenceQuestId` (`QUESTINT_SpokeToHratli`) and, in
+  the same call, `QUESTINT_BladeOfTheOldReligion` — the only
+  SequenceFilter instance seen chaining two quests instead of one.
+
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
 on an act 3 level; pickups polled. `tests/quests_d2d.py` plays it.
 
@@ -165,6 +208,27 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   made usable, `FUN_0059d9d0` → `FUN_005550b0`) open by the lever (367, InitFn
   42, OperateFn 45 `FUN_005b8530`: the stairs to mode 1, +8 = 2).
 - **The Will** made in the Cube (`FUN_005b86e0` from the transmute, 0x5664d4).
+- **The quest-state packet** (`Q19_SendQuestStatePacket`, `FUN_005b81c0`):
+  sends S->C **0x5D** quest-state (quest id 0x10, `nQuestPacketFlags`
+  carried along) with whatever sub-stage byte the caller gives it;
+  pure client notification, no `QuestRecord` write.
+- **Item pickup** (`Q19_Callback04_ItemPickedUp`, `FUN_005b8210`): gated
+  on `QUEST_AbleGoToAct3` Completed and Khalim's Will not already
+  Completed. By the picked-up item's code (the flail `rt1`/0x20316671,
+  eye `piv`/0x20796571, brain `box`/0x20726271, heart `msf`/0x20726871,
+  or the assembled Will `rt2`/0x20326671) and which relics are already
+  carried, it picks one of the sub-stage bytes (1..7) and calls
+  `Q19_SendQuestStatePacket` with it — the log text for "found the
+  flail but not the eye" vs. "all four, go to the chests" etc. Reads
+  `QUESTSTATE_Step0x02..0x07` but never sets them.
+- **The sewer stairs** (`Q19_UpdateSewerStairsObject`, `FUN_005b85e0`):
+  run from the sewer lever's own timer event; once
+  `bSewerStairsInitialized`, re-finds the stairs object by its stored
+  GUID, re-applies its update flag, and — only on a change — schedules
+  the stairs' own operate event `FrameCnt[1] >> 8` frames out. Pairs
+  with `Objects_InitFn42_SewerLever` (`FUN_005b86b0`): while the quest
+  is still pre-intro, forces the lever object's update flag to 2
+  (hidden). Neither touches a `QuestRecord` bit.
 
 ## The Blackened Temple (a3q5.cpp)
 
@@ -194,6 +258,30 @@ needing a flail / a Cube (`FUN_005bb7b0`).
   Will's done; bit 0, bit 4 off; state 7.
 - Talk `FUN_005bafd0` (blocks 0x7408b8, state → 0x740ed8), "!"
   `FUN_005bad60`, join `FUN_005bb480`; no log function (+0xe8 0).
+- **Completion notify** (`Q22_PlayerNotifyCompleted`, `FUN_005baf70`):
+  same shape again; packet 0x13, same Completed-or-FinishedInPreviousGame
+  plus pending-JustCompleted-or-CannotComplete gate.
+- **The sequence filter** (`Q22_SequenceFilter`, `FUN_005bb410`): the
+  chain pattern (`quests.md`); at state 7 (fully done) chains to
+  `nSequenceQuestId = QUEST_TheGoldenBird`.
+- **Tracking a Council kill** (`Q22_TrackCouncilKill`, `FUN_005bb550`):
+  called per Council death; sets `bCouncilTrackingActive`, dedups the
+  killer's GUID into a 6-slot list and bumps `nCouncilKillCount` /
+  `nCouncilKillsRemaining`. On the first qualifying kill it broadcasts
+  live state 1 or 3 via `QUEST_SetStateAndBroadcast` (using
+  `Q22_PlayerNotifyCompleted` above), then sets `nStateFlag` to 4 or 5
+  by whether Lam Esen's Tome (`quests-act3.md` "Lam Esen's Tome") has
+  just completed, and resyncs every player's log. This is the detail
+  behind the existing "**The Council**" paragraph's "the last [kill]:
+  state 6 / 7" above — the two functions share the same kill path.
+- **The status filter** (`Q22_StatusFilter`, `FUN_005bbe20`): hides the
+  log entry (byte 0) until `QUEST_AbleGoToAct3` is Completed; once
+  visible, Completed → 0xb (0xd if JustCompleted), Step0x04 → 0x4 or
+  0xd by a council-tracking flag, else the raw `nStateFlagPrev`. The
+  comment at its own call site notes `Q22_InitData` actually wires
+  `fpStatusFilter` to null in this build, so this handler is dead code
+  in 1.14d (kept, per its own namespace tag, as the historical/Mac
+  status handler).
 
 ## The Guardian (a3q6.cpp)
 
@@ -241,6 +329,30 @@ mode, +0x1c soulstones owed.
   unit list, room +0x74; any player, the first) within 18
   (`FUN_00641530`), mode 0 → 1 (it rises, 28 frames) and the next 1 → 2,
   its footprint lifted (`FUN_00623830`: no HasCollision2). Mode 2 stops it.
+
+- **Completion notify** (`Q23_PlayerNotifyCompleted`, `FUN_005bc210`):
+  same shape as a3q3/a3q4/a3q5's; packet 0x14, same
+  Completed-or-FinishedInPreviousGame plus pending-notify gate.
+- **Party credit** (`Q23_PartyMember_SetCompleted`, `FUN_005bc750`):
+  run via `ExecuteFunctionForEveryPartyMember` on Mephisto's death; for
+  each party member not already Completed who is physically in Act
+  III, calls `Q23_SetGuardianQuestComplete` and bumps this quest's
+  `nPlayerCount` — Mephisto-kill credit for nearby party members who
+  weren't in his room.
+- **Driving the state-flag machine** (`Q23_NotifyGuardianStateToPlayers`,
+  `FUN_005bcf60`, namespace `A3Q7` though its data is `pA3Q6`): while
+  active and `nStateFlag < 6`, either saves the current
+  `nStateFlagPrev` and advances to 6 (7 in multiplayer), or restores
+  the saved value — both paths through `QUEST_SetStateAndBroadcast`
+  with `Q23_PlayerNotifyCompleted` as the per-player callback. No
+  direct `GetQuestState`/`SetQuestState` calls (uses the broadcast
+  helper instead).
+- **The Dark Wanderer's map AI** (`Q24_SetupDarkWandererMapAi`,
+  `FUN_005bd040`, same `A3Q7`/`pA3Q6` pairing): the Act 3→4 transition
+  actor's equivalent of a3q1's `Q17_SetupHratliMapAi` above — stores
+  the DRLG map pointer, then one-shot transfers it onto the tracked
+  monster's own map-AI once both exist and `bDrlgMapTaken` is still
+  clear.
 
 d2d: `World::mephisto_died`, `World::mephisto_bridge`; the hellgate's
 OperateFn only says Act 4 isn't built. `tests/quests_d2d.py` (map seed 3).
