@@ -44,6 +44,10 @@ int main(int argc, char** argv) try {
             }
             std::printf("%lld\t%d\t%lld\t%d\t%d\t%d\t%lld\n", id, state, max_mana, regen, bonus, flat, static_cast<long long>(amount(state, max_mana, regen, bonus, flat)));
         }
+        if (input.bad() || !input.eof()) {
+            std::fprintf(stderr, "test_mana_frame: %s: read error after line %d\n", argv[1], line_number);
+            return 1;
+        }
         return 0;
     }
     struct Case { int state; long long max_mana; int regen, bonus, flat; long long amount; };
