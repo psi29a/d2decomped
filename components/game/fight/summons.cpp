@@ -144,6 +144,8 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         summon_one(skill, type, lvl, env, x, y, now_ms);
     }
 
+// Makes one pet of monster row `type` for `skill` at a spot: its AI control
+// starts as the AI's init does (the traced inits in the body), returns its id.
 auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> int {
         const int max = std::max(d2d::rules::eval_calc(game_data->skills, skill.petmax, env, skill.id, lvl), 1);
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
@@ -306,6 +308,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // from Skill1's calc (FUN_005ea2b0), here at once; +0x1c stays 0.
         // Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
         else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { int(now_ms / 40), pet.shots, 0 };
+        // The Blade Sentinel's init (FUN_005ea510, MonAI 102): -1, 1, 0.
+        else if (ai_name == "BladeCreeper") pet.ctrl = d2d::rules::blade_sentinel_init();
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
         // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Master's
         // init (FUN_005eb490: Attack, the owner's class skills it may have)
