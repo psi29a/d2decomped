@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 namespace d2d::client {
@@ -31,6 +32,15 @@ auto Town::open_use_item(int npc) -> void {
     inv_open = true;
 }
 
+// S->C 0x58 kind 0 (0x4c0563): an object's panel (the orifice's), opened
+// as an NPC's is (FUN_004c0380).
+auto Town::open_object_use_item(int object) -> void {
+    use_item::open_object(use_item, object, now_ms);
+    char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
+    waypoint = {};
+    inv_open = true;
+}
+
 // FUN_004c0090: shut; a held item back on the cursor (FUN_00468070).
 // ponytail: whether UI 0xe's close (FUN_00455f20 mode 1) shuts the inventory isn't traced; it stays.
 auto Town::close_use_item() -> void { use_item = {}; }
@@ -40,6 +50,7 @@ auto Town::close_use_item() -> void { use_item = {}; }
 // state 1; Esc and Space shut it.
 // ponytail: d2d's Mouse has no right release; a right press works the slot only.
 auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio) -> void {
+    if (const int sound = std::exchange(use_item_sound, 0); sound > 0 && scene) audio.play_sfx(*scene, sound, 1.f, 0);
     if (!use_item.open() || !scene) return;
     const auto play = [&](const use_item::Outcome& out) {
         for (const int sound : out.sounds)
@@ -52,8 +63,15 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
             if (const auto found = scene->sound_index.find(d2d::game::item_sound(*scene, *held, false)); found != scene->sound_index.end())
                 audio.play_sfx(*scene, found->second, 1.f, 0);   // FUN_004c1d60
         }
-        if (out.act == use_item::Act::kSend) send(cmd::Imbue{ use_item.npc, use_item.item });   // FUN_004b2370
-        if (out.act == use_item::Act::kClose) close_use_item();
+        const bool object = use_item.kind == use_item::kObjectKind;
+        if (out.act == use_item::Act::kSend) {
+            if (object) send(cmd::ItemToObject{ use_item.object, use_item.item, 3 });   // FUN_004bfaf0: C->S 0x44
+            else send(cmd::Imbue{ use_item.npc, use_item.item });                       // FUN_004b2370
+        }
+        if (out.act == use_item::Act::kClose) {
+            if (object) send(cmd::ItemToObject{ use_item.object, -1, 2 });               // FUN_004c02f0: C->S 0x44 {object, 0, 2}
+            close_use_item();
+        }
     };
     if (std::ranges::any_of(keys, [](SDL_Keycode key) { return key == SDLK_ESCAPE || key == SDLK_SPACE; })) {
         act(use_item::key(use_item));
@@ -65,7 +83,8 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
     const int close_x = lay.panel_x + 0x12, close_bottom = lay.panel_y + 416;
     const bool on_close_box = inv_open && mouse.x >= close_x && mouse.x < close_x + 0x20 && mouse.y > close_bottom - 0x20 && mouse.y <= close_bottom;
     const bool accepted = held && held->identified
-                          && (use_item.hc_idx == use_item::kCharsi   ? d2d::rules::imbuable(scene->rules, *held, character.expansion)
+                          && (use_item.kind == use_item::kObjectKind ? held->code == "hst"
+                              : use_item.hc_idx == use_item::kCharsi   ? d2d::rules::imbuable(scene->rules, *held, character.expansion)
                               : use_item.hc_idx == use_item::kLarzuk ? d2d::rules::socketable(scene->rules, *held)
                               : use_item.hc_idx == use_item::kAnya   && d2d::rules::nameable(scene->rules, *held));
     bool inventory_press = false;
@@ -84,8 +103,10 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
     if (!inventory_own) mouse.release_this_frame = false;
 }
 
-// S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with it.
+// S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with
+// it; 5 (the orifice took the staff) plays its sound and shuts it.
 auto Town::use_item_reply(int kind) -> void {
+    if (kind == 5 && use_item.open()) use_item_sound = use_item::kTaken;
     if (use_item::reply(use_item, kind)) close_use_item();
 }
 

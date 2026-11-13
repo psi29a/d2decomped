@@ -220,6 +220,7 @@ struct NetGame {
     std::optional<Sky> sky;
     bool cube_opened = false;                  // the host opened our Cube (0x77 0x15), for the client to take                    // the act's day the host set (0x53: the Tainted Sun's dark), for the client to take     // NPCs the host balloons for us (0x8a: the "!"), for the client to take
     int use_item_reply = -1;                   // S->C 0x58's kind for our item panel (FUN_004c0550), for the client to take; -1 none
+    std::uint32_t object_panel = 0;            // S->C 0x58 kind 0: the object whose item panel opens (0x4c0563), for the client to take; 0 none
 
 private:
     bool socket_gone = false;

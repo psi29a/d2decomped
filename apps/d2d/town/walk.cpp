@@ -15,6 +15,7 @@
 #include "store.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <automap_step.hpp>
@@ -504,6 +505,11 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 kind 6 / 7 (FUN_004c0550)
             if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
+            return;
+        }
+        if (const auto* panel = std::get_if<ev::ObjectPanel>(&event)) {     // S->C 0x58 for an object (FUN_005852e0, FUN_0059dc70)
+            if (panel->kind == 0) open_object_use_item(panel->object);
+            else if (use_item.kind == use_item::kObjectKind && panel->object == use_item.object) use_item_reply(panel->kind);
             return;
         }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once

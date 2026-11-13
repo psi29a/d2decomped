@@ -6,7 +6,8 @@
 // (FUN_004bfc50), presses closer than 400 ms are dropped, the first button
 // sends only with an item placed (FUN_004bfaf0) and the wait holds against
 // cancel and Esc (FUN_004c02f0, FUN_004c0150), S->C 0x58 6 / 7 shut it
-// (FUN_004c0550).
+// (FUN_004c0550). The orifice's kind 0 (S->C 0x58 kind 0): its label, the
+// same slot and buttons, 0x58 5 shuts it.
 #include "use_item.hpp"
 
 #include <cassert>
@@ -20,7 +21,8 @@ int main() try {
     assert(kButtons[0].label == 0xfb1 && kButtons[0].frame == 16 && kButtons[1].label == 0x102f && kButtons[1].frame == 10);
     assert(button_at(0x7a, 0xe0) == 0 && button_at(0x9a, 0x100) == 0 && button_at(0x9b, 0xf0) == -1 && button_at(0xb1, 0xe0) == 1);
     assert(in_slot(0x7b, 0x6a) && in_slot(0xd3, 0xdc) && !in_slot(0x7a, 0x80) && !in_slot(0xa0, 0xdd));
-    assert(service_label(kCharsi) == 0xfb1 && service_label(kLarzuk) == 0x58dc && service_label(kAnya) == 0x58dd);
+    assert(service_label(kServiceKind, kCharsi) == 0xfb1 && service_label(kServiceKind, kLarzuk) == 0x58dc && service_label(kServiceKind, kAnya) == 0x58dd);
+    assert(service_label(kObjectKind, -1) == 0xd49);
     assert(instructions(kCharsi) == 0x275c && instructions(kLarzuk) == 0x58de && instructions(kAnya) == 0x58db);
 
     Panel panel;
@@ -77,6 +79,22 @@ int main() try {
     panel = {};
     assert(!reply(panel, 6) && press(panel, kSlotX, kSlotY, 9000, false, false, true, true).act == Act::kNone);
     std::printf("OK: the item panel's slot, buttons, wait and answers\n");
+
+    // Kind 0, the orifice's: placed, sent, waiting; 0x58 4 back to placed,
+    // 5 (taken) shuts it; Esc and close shut it (Town sends 0x44 action 2).
+    open_object(panel, 12, 0);
+    assert(panel.kind == kObjectKind && panel.object == 12 && panel.npc == -1 && panel.state == State::kOpen);
+    assert(press(panel, kSlotX, kSlotY, 1000, false, false, true, true).act == Act::kPlace && panel.state == State::kPlaced);
+    (void)press(panel, kImbueX, kButtonY, 1400, false, false, true, true);
+    assert(release(panel, kImbueX, kButtonY, false).act == Act::kSend && panel.state == State::kWaiting);
+    assert(!reply(panel, 4) && panel.state == State::kPlaced);
+    panel.state = State::kWaiting;
+    assert(reply(panel, 5) && kTaken == 5);
+    open_object(panel, 12, 0);
+    assert(key(panel).act == Act::kClose);
+    (void)press(panel, kCloseX, kButtonY, 1000, false, false, false, false);
+    assert(release(panel, kCloseX, kButtonY, false).act == Act::kClose);
+    std::printf("OK: the orifice's panel (kind 0)\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_use_item: %s\n", error.what());

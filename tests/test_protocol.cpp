@@ -21,7 +21,7 @@ int main() try {
         cmd::ToBelt{ 7 }, cmd::OpenTrade{ 3, true }, cmd::OpenTrade{ 3, false }, cmd::OpenHire{ 8 }, cmd::Buy{ 2 }, cmd::Buy{ 5, 3 },
         cmd::Sell{ 55 }, cmd::Repair{ -1 }, cmd::Identify{}, cmd::IdentifyWith{ 7, 12 }, cmd::Hire{ 1 }, cmd::CloseTrade{}, cmd::Run{ true }, cmd::Run{ false },
         cmd::Chat{ 4 }, cmd::Chat{ -1 }, cmd::QuestMessage{ 3, 76 }, cmd::Respec{ 2 }, cmd::Waypoint{ 5, 3 }, cmd::Caravan{ 6 }, cmd::Imbue{ 7, 31 }, cmd::SwapWeapons{}, cmd::AutoBelt{ 9 },
-        cmd::EquipFromBag{ 44 } };
+        cmd::EquipFromBag{ 44 }, cmd::ItemToObject{ 6, 31, 3 }, cmd::ItemToObject{ 6, -1, 2 } };
     for (const auto& command : all) {
         const auto bytes = encode(command);
         const auto back = decode(bytes);

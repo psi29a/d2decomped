@@ -370,11 +370,21 @@ lines after Tyrael, 13 took part, 14 by others, 15 closed.
      into the slot, then the button (`FUN_004bfaf0`) sends **C->S 0x44
      {player, orifice, item id, 3}** (`FUN_00478700`, opcode in CL); the
      close box or button 1 (`0x4c02f0`) sends 0x44 {player, orifice, 0, 2}.
-  3. **The server's 0x44** (`FUN_005852e0`): action 2 sends 0x58, sets
-     the orifice back to mode 0 and releases the player. Action 3 with
-     the orifice (class 0x98) and an `hst ` item: release, 0x58 (UI 1:
-     the panel closes), mode 1, then mode 2, then `FUN_0059dd80(game,
-     player, orifice)`.
+     The slot takes only an identified item whose ItemsTxt code (+0x80)
+     is `hst ` (`FUN_004bfc50` at `LAB_004bfd8f`); the panel is
+     `menu\horadricback` with no instructions (`FUN_004bfdd0` draws them
+     for kind 1 only) and the first button's hover label 0xd49 (0x4bff07).
+     Esc or Space in state 1 or 2 (`FUN_004c0150`) sends 0x44 action 2 too.
+  3. **The server's 0x44** (`FUN_005852e0`): action 2 sends 0x58 {orifice,
+     kind 1} (the panel shuts), sets the orifice back to mode 0 and
+     releases the player. Action 3 with the orifice (class 0x98) and an
+     `hst ` item: release, 0x58 {orifice, kind 5, +6 = 1} (0x5853bb /
+     0x5853cd), mode 1, then mode 2, then `FUN_0059dd80(game, player,
+     orifice)`. Any other item: 0x58 kind 4 (0x585392), the wait box
+     down and the item still in the slot. The client's kind 5
+     (`FUN_004c0550` table 0x4c05f8, entry 0x4c05a0): the cursor item
+     cleared (`FUN_0063c180`), Sounds.txt 5 (3 if +6 is 0), the panel
+     shut.
   4. **Placed** (`FUN_0059dd80`): quest 10 bits 0 and 13, the staff and
      its parts gone (`FUN_00544160` 'hst ', 'vip ', 'msf '), the party's
      the same (`FUN_0059dbd0`); `FUN_00545760` (S->C 0x89); data +0xd and
@@ -427,8 +437,9 @@ d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`,
 3 and 13, his portal; Jerhyn → 5 / 6 (bit 4); Meshif → done (bits 0, 2,
 5, 13). The way down is drawn as object 100 (SJ): OP for 20 ticks (the
 client's counter, `object_op_ticks`), then ON; from an earlier game ON at
-once (0x59d976). Gaps: the orifice's panel (using it with the staff places
-it);
+once (0x59d976). The orifice's panel: `World::operate` opens it
+(ev::ObjectPanel kind 0), `cmd::ItemToObject` is the 0x44, `use_item.hpp`
+kind 0 the client's (cited from the disassembly, no oracle). Gaps:
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
 +0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
 

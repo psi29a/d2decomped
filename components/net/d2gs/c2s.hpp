@@ -344,6 +344,14 @@ inline auto npc_action(std::uint32_t action, std::uint32_t id, std::uint32_t ext
     put_u8(out, 0x38); put_u32(out, action); put_u32(out, id); put_u32(out, extra);
     return out;
 }
+// 0x44 (FUN_00478700, 17 bytes): item `item` into object `object`'s item
+// panel, from player `player`: action 3 puts it in, 2 shuts the panel
+// with item 0 (.\UI\UseItem.cpp: FUN_004bfaf0, FUN_004c02f0).
+inline auto item_to_object(std::uint32_t player, std::uint32_t object, std::uint32_t item, std::uint32_t action) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x44); put_u32(out, player); put_u32(out, object); put_u32(out, item); put_u32(out, action);
+    return out;
+}
 // 0x59: where we see unit (type, id), sent before an 0x13 on an NPC (a
 // real client's, recorded 2026-10-05).
 inline auto unit_position(std::uint32_t type, std::uint32_t id, std::uint32_t x, std::uint32_t y) -> Bytes {

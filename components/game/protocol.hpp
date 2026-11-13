@@ -105,6 +105,11 @@ struct Caravan { int npc = -1; };
 // service on the item in hand, `item` its id (the server checks it's the
 // cursor item, FUN_00578610).
 struct Imbue { int npc = -1; int item = -1; };
+// 0x44 (FUN_00478700 from .\UI\UseItem.cpp): the item panel an object
+// opened, by its Level::npcs index. Action 3 (FUN_004bfaf0) puts item
+// `item` in it, action 2 (FUN_004c02f0 / FUN_004c0150 / FUN_004c0380)
+// shuts it with none. The server answers S->C 0x58 (FUN_005852e0).
+struct ItemToObject { int object = -1; int item = -1; int action = 2; };
 // 0x53 / 0x54: run or walk.
 struct Run { bool running = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
@@ -135,7 +140,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say, cmd::ItemToObject>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -216,6 +221,7 @@ inline constexpr std::uint8_t kStatPoint = 0x3a;
 inline constexpr std::uint8_t kSkillPoint = 0x3b;
 inline constexpr std::uint8_t kSelectSkill = 0x3c;
 inline constexpr std::uint8_t kResurrect = 0x41;
+inline constexpr std::uint8_t kItemToObject = 0x44;
 inline constexpr std::uint8_t kButton = 0x4f;      // game.exe's "click button": +1 u16 0x18 Transmute
 inline constexpr std::uint8_t kWaypoint = 0x49;
 inline constexpr std::uint8_t kDropGold = 0x50;
@@ -240,6 +246,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         if constexpr (std::is_same_v<T, cmd::Move>) out.u8(opcode::kMove).f32(message.x).f32(message.y).u8(message.fresh);
         else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(opcode::kInteract).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::ItemToObject>) out.u8(opcode::kItemToObject).i32(message.object).i32(message.item).i32(message.action);
         else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
         else if constexpr (std::is_same_v<T, cmd::SwapWeapons>) out.u8(opcode::kSwapWeapons);
@@ -297,6 +304,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kMove: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
         case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, i32() }; break; }
         case opcode::kInteract: command = cmd::Interact{ i32() }; break;
+        case opcode::kItemToObject: { const int object = i32(), item = i32(); command = cmd::ItemToObject{ object, item, i32() }; break; }
         case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
         case opcode::kResurrect: command = cmd::Resurrect{}; break;
         case opcode::kSwapWeapons: command = cmd::SwapWeapons{}; break;

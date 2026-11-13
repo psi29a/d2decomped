@@ -16,6 +16,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quest_music.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
@@ -124,13 +125,17 @@ int main() try {
     const auto& hole = tomb->npcs[std::size_t(orifice)];
     stand(hole.x, hole.y);
     give(first, "hst", false);
-    world.operate(orifice, 1000);
+    first.character.items.back().id = 7001;
+    world.operate(orifice, 1000);                                   // its panel opens (S->C 0x58 kind 0)
+    world.apply(cmd::ItemToObject{ orifice, 7001, 3 }, 1000);       // the staff put in it (C->S 0x44 action 3)
     assert(heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 0);
     second.player.x = hole.x; second.player.y = hole.y + 1;   // both by it: both hear it
     first.events.clear(); second.events.clear();
     world.operated.erase({ tomb, orifice });
     give(first, "hst", false);
+    first.character.items.back().id = 7002;
     world.operate(orifice, 2000);
+    world.apply(cmd::ItemToObject{ orifice, 7002, 3 }, 2000);
     assert(heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 1);
     std::puts("OK: the Horadric Staff's jingle at the orifice, by it");
 
