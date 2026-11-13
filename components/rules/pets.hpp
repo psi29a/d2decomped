@@ -790,6 +790,11 @@ void death_sentry_think(PetBrain<World>& brain) {
     brain.stand(brain.aip(1));
 }
 
+// The Blade Sentinel's init (FUN_005ea510, MonAI 102's init, the row's second
+// dword at 0x73d07c): +0x14 -1 (its first think sets its last frame), +0x18 1,
+// +0x1c 0 (its missile not made yet).
+inline std::array<int, 3> blade_sentinel_init() { return { -1, 1, 0 }; }
+
 // MonAI 102 BladeCreeper (FUN_005ea540: Blade Sentinel). +0x14 its last
 // frame (Skill1's calc on), then it dies. Its missile is made once (+0x1c).
 // It walks to one end of its line, then the other (+0x18 which; path type
