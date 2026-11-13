@@ -2611,7 +2611,7 @@ void pet_follow(const Level& level, UnitState& unit, float player_x, float playe
     // Re-plan when the player has moved a cell from where it was planned.
     if (path.empty() || std::hypot(unit.goal_x - player_x, unit.goal_y - player_y) > 1.f) set_off(level, unit, player_x, player_y, true, crowd);
     const float old_x = unit.x, old_y = unit.y;
-    walk_on(level, unit, int(std::lround(speed * elapsed * 5 * 4096)), crowd);
+    (void)walk_on(level, unit, int(std::lround(speed * elapsed * 5 * 4096)), crowd);   // still walking or not: the follow decides by distance, above
     if (std::hypot(unit.x - old_x, unit.y - old_y) > speed * elapsed * 0.3f) unit.stuck_since = 0;
     else if (!unit.stuck_since) unit.stuck_since = now_ms;
     else if (now_ms - unit.stuck_since > 1500) { unit.x = player_x + 1; unit.y = player_y + 1; unit.walking = false; unit.stuck_since = 0; path.clear(); }

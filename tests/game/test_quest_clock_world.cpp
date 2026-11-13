@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <functional>
 #include <tuple>
+#include <utility>
 #include <variant>
 
 namespace filesystem = std::filesystem;
@@ -165,7 +166,7 @@ int main() try {
     stone_alpha.object_id = d2d::rules::object_ids::kStoneAlpha;
     stone_alpha.x = 20;
     stone_alpha.y = 20;
-    stony->npcs.push_back(stone_alpha);
+    stony->npcs.push_back(std::move(stone_alpha));
     world.portal[2] = {};
     world.stones_portal_in = quest_timer_steps(1);
     runs_after(world, now_ms, 2, "the stones' portal", [&] { return world.stones_portal_in == 0; });

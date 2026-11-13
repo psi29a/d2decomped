@@ -263,7 +263,7 @@ int main() try {
         assert(attack_line(skill_tables, fury, env, 5, fighter, 5, kPanelDamage).damage_colour == 3);
         fighter.elem[0] = { 2, 4 };
         // Poison x ELen (FUN_00644f20), a length of 0 too: no floor at 1.
-        Skill venom = fury;
+        Skill venom = std::move(fury);
         venom.descdam = 5; venom.etype = 3; venom.srcdam_raw = 0; venom.emin = venom.emax = 40; venom.hitshift = 8; venom.elen = 0; venom.elen_lev = {};
         venom.elen_sym = {};
         line = attack_line(skill_tables, venom, env, 1, fighter, 5);
@@ -274,7 +274,7 @@ int main() try {
         // descdam 9 (Fire Wall, FUN_004eb390): (MinDam << HitShift + EMin
         // with mastery) x 75 >> 8, no level brackets; EType's colour (magic:
         // no mastery).
-        Skill wall = venom;
+        Skill wall = std::move(venom);
         wall.descdam = 9; wall.etype = 4; wall.hitshift = 4; wall.mindam = 2; wall.maxdam = 3; wall.mindam_lev = { 9, 9, 9, 9, 9 };
         wall.emin = 10; wall.emax = 20;
         line = attack_line(skill_tables, wall, env, 5, fighter, 5);
@@ -282,7 +282,7 @@ int main() try {
         assert(line.damage_colour == 3);
         // descdam 8 (Inferno, FUN_004eb290): EMin / EMax x ddam calc1 x 25 /
         // ddam calc2 >> 8, a calc of 0 taken as 1; no weapon share.
-        Skill inferno = wall;
+        Skill inferno = std::move(wall);
         inferno.descdam = 8; inferno.srcdam_raw = 128; inferno.hitshift = 8; inferno.ddam_calc1 = {}; inferno.ddam_calc2 = compile("3");
         line = attack_line(skill_tables, inferno, env, 5, fighter, 5);
         assert(line.damage && line.min == (10 << 8) * 25 / 3 >> 8 && line.max == (20 << 8) * 25 / 3 >> 8 && line.damage_colour == 3);

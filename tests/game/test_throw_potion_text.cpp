@@ -31,7 +31,7 @@ int main() try {
     assert(data);
     if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     const std::string throw_label = string_id(*data, 3467) + " ", to_text = " " + string_id(*data, 3464) + " ";
-    const auto damage_line = [&](const char* code) {
+    const auto damage_line = [&](const char* code) -> TextLine {   // a copy: `lines` ends with the call
         d2d::d2s::Item potion;
         potion.code = code;
         potion.identified = true; potion.quality = 2; potion.defense = -1; potion.quantity = 5;
