@@ -69,6 +69,7 @@ struct MonType {
     int damage_regen = 0;                       // DamageRegen (+0x1a0): stat 0x4a's 4096ths of max life a frame (FUN_00573cb0)
     bool switch_ai = false;                     // SwitchAI (flags +0xe & 1, FUN_00573040): Confuse / Attract can set its target
     bool interact = false;                      // interact (flag 9, +0xd & 2): the curse thinks don't swing (FUN_00457490)
+    bool no_aura = false;                       // noaura (flag 0x1b, FUN_00651210 at 0x651994): an area walk told to passes it (FUN_0056b7e0, 0x56b979)
     // Percentages of the MonLvl row (1.10+ style), per difficulty.
     struct Diff {
         int min_hp = 0, max_hp = 0, armor_class = 0, exp = 0;
