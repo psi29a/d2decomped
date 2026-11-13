@@ -592,6 +592,27 @@ seed against:
 cd tools/emu && uv run python ai_countess_home.py --dump ../../tests/countess_home_cases.inc
 ```
 
+Blood Raven's think (`FUN_005e6320`) reads the same answer at five walks:
+home when she or the target is 50 off it (`FUN_005dede0` at 0x5e645b), home
+again while her flag is set and she's over 5 off (0x5e64ac), the walk to a
+spot about the target past 20 off (`FUN_005df680` at 0x5e650c), the circle
+(`FUN_005df7d0(4, 1)` at 0x5e6765) and the running back-off (`FUN_005df140`
+at 0x5e67d0). Each one
+that can't set off drops the think event (`FUN_00540e60(2, 0)`) and the
+think goes on from the next test, the distance halved (12 at least) once
+she has tried to close. Her 5 % walk 12 about the target (0x5e6692) returns
+either way. Her strike is at the second target (`FUN_005ddc30` at 0x5e66ac); with none she
+circles. `tools/emu/mon_ais_pace.py` now answers those walks as the scene's
+moves do and keeps the second target as unit 2; her 120 lines in
+`tests/mon_ais_pace_cases.inc` are
+
+```sh
+cd tools/emu && uv run python mon_ais_pace.py BloodRaven 120 20261102 --dump <dir>
+```
+
+put in place of the old ones (the other thinks' lines are as they were; a
+further 3,000 at seed 99 passed `test_monster_ai` and were not kept).
+
 ## Act 5's monster skills (traced 2026-10-24)
 
 The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e

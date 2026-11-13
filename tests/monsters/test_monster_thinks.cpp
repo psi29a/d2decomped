@@ -298,6 +298,7 @@ int main() try {
         int back = 0, raised = 0, raven_pace = 0;
         state = 0;
         think_in = { .dist = 46, .skill = { true, true }, .state = &state, .command = &back, .state2 = &raised, .pace = &raven_pace };
+        think_in.second = true;                                                       // a second target to strike (FUN_005ddc30): with none she circles
         roll = Rng{ 5 };
         assert(mon_think("BloodRaven", think_in, roll, no_away).n == 5 && steps(5, roll) == 0 && raven_pace == 0);
         think_in.dist = 10; think_in.home_dist = 50;                                  // her own distance 50: not past it

@@ -526,9 +526,10 @@ int main() try {
                                    : think.other ? d2d::rules::other_think(ai_name, input)
                                                  : d2d::rules::mon_think(ai_name, input, seed, away);
                     auto act = first_act;
-                    for (const auto& next : otherwise) {
+                    for (std::size_t tried = 0; tried < otherwise.size(); ++tried) {   // a next act may add its own
                         assert(asked < asks.size() && asks[asked].first == act.n);
                         if (asks[asked++].second != 0) break;
+                        const auto next = std::move(otherwise[tried]);
                         act = next();
                     }
                     if (ai_name == "BloodRaven") ctrl[2] = command;
