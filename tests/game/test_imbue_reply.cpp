@@ -7,6 +7,7 @@
 
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <monster_ids.hpp>
@@ -22,6 +23,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -93,12 +95,29 @@ int main() try {
     // A normal axe with the reward due: done, made rare, the reward used.
     hand(2, 9103);
     world.apply(cmd::Imbue{ charsi, 9103 }, 27 * kTickMs);
-    assert(answer() && answer()->npc == charsi && answer()->done && world.actor->held && world.actor->held->quality == 6);
+    assert(answer() && answer()->npc == charsi && answer()->done && !world.actor->held);
+    // Off the cursor into the inventory (FUN_00560200).
+    const auto& stored = world.actor->character.items.back();
+    assert(stored.code == "axe" && stored.quality == 6 && stored.location == d2d::d2s::item_location::kStored && stored.panel == d2d::d2s::item_panel::kInventory);
     assert(d2d::rules::quest::bit(quest_bits, kTools, 0) && !d2d::rules::quest::bit(quest_bits, kTools, 1));
     // Used: the next is refused.
     hand(2, 9104);
     world.apply(cmd::Imbue{ charsi, 9104 }, 27 * kTickMs);
     assert(answer() && !answer()->done && world.actor->held->quality == 2);
+    // No room: on the ground at the player (FUN_00555da0 / FUN_00558aa0).
+    auto& items = world.actor->character.items;
+    std::erase_if(items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
+    for (int cell = 0; cell < 40; ++cell) {
+        auto potion = d2d::rules::generate_item(data->rules, "hp1", 1, 2, rng);
+        potion.location = d2d::d2s::item_location::kStored; potion.panel = d2d::d2s::item_panel::kInventory; potion.column = cell % 10; potion.row = cell / 10;
+        items.push_back(std::move(potion));
+    }
+    d2d::rules::quest::set(quest_bits, kTools, 1);
+    const std::size_t on_ground = world.loot.ground.size(), carried = items.size();
+    hand(2, 9105);
+    world.apply(cmd::Imbue{ charsi, 9105 }, 27 * kTickMs);
+    assert(answer() && answer()->done && !world.actor->held && items.size() == carried);
+    assert(world.loot.ground.size() == on_ground + 1 && world.loot.ground.back().item.quality == 6);
     std::printf("OK: Charsi's imbue answers 0x58 done / refused, nothing for another item\n");
     return 0;
 } catch (const std::exception& error) {
