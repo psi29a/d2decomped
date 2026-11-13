@@ -417,8 +417,14 @@ works record by record too: `FUN_0057c1e0` raises state event 0xb
 total +0x4c, and Bone Armor (`FUN_005c6370`) takes from that record's
 physical field, Cyclone Armor (`FUN_005c87a0`) from its fire, cold, then
 lightning, the pool carrying to the next record; the get-hit then reads what
-is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
-(its oracle, `hit_absorb.py`, was never committed: cited, not re-checkable).
+is left, an element emptied no longer marks. `FUN_0057ce30` reads the
+fields in 256ths, so an element with under a point left still marks. d2d:
+`rules::absorb_blows`. Its oracle, `tools/emu/hit_absorb.py`, runs
+`FUN_0057c1e0` on each record of a frame with either armor's handler, then
+`FUN_0057ce30`, against `test_combat --get-hit-absorb` (each record's total
+and mark, the pool after the frame): no difference on 100,000 records each
+for seeds 1 and 7. It has no reduction and no resistance on the defender
+(`monster_damage.py` and `cyclone_armor.py` have those).
 
 ## Approximations still in the port (marked `ponytail:` in code)
 
