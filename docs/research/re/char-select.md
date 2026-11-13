@@ -121,7 +121,82 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 - d2d: `CharSelectUI::pick_difficulty` (main.cpp sets the picked
   difficulty as the save's current one, its act kept), not when joining.
 
-## Not yet RE'd
+## Building the list (`FUN_0043adb0`)
+
+`FUN_0043adb0` rebuilds the list (from `FUN_0043b4c0`, among others). It
+clears `0x779dd8`, then reads the mode `DAT_007795ec` (written by
+`FUN_004359d0` with 0 to 3, and 2 by `FUN_00434790`, the TCP host):
+
+- 1: `FUN_004fb6a0`, `FUN_004fcff0(0)`, then `FUN_0043ad10`, a character
+  list from a server, not the save folder (below).
+- 0, 2 or 3: `FUN_00438ea0` empties the list (it frees each entry and
+  clears `0x779dbc` head, `0x779dc4` count, `0x779dc8` offset,
+  `0x779dd8`). Without the expansion (`FUN_00408f20` 0), `FUN_0043a5d0`
+  adds a line (`FUN_0043a460(.., .., 1, 0xc)`, `0x70cc04` = the count).
+  Then `FUN_00438f70` scans the save folder.
+- Every mode then runs `FUN_00439210` and the drawer `FUN_00438560`.
+
+The save folder scan, `FUN_00438f70`:
+
+- `FindFirstFileA("<save dir>*.d2s")` (the folder from `FUN_00407050`,
+  the pattern `%s*.d2s` at `0x6d41d4`); `0x779de0` counts what it keeps.
+- The name is the file name up to its first `.`, copied to `0x779b68`.
+  It's kept when it's 2 to 15 characters long (`0x43901e`: length - 2
+  unsigned, at most 0xd), its last character isn't `-` (`0x439026`), its
+  first isn't `_` (`0x43902f`), and `FUN_0043c8a0` reads its header.
+- `FUN_00438ad0(name, stat string, 0)` adds it, with the file's
+  `ftLastWriteTime` (the find data's +0x14 and +0x18, `0x43904c`) as the
+  last two arguments.
+
+The header read, `FUN_0043c8a0(ECX name, EDX out)`:
+
+- Opens `<save dir><name>.d2s` (`%s%s.d2s`) and reads up to 0x2000 bytes.
+  It needs more than 7 bytes and the magic `0xaa55aa55` at 0.
+- The version at +4: below 0x5c it needs at least 0x82 bytes read and a
+  version of at least 0x47, and reads the old layout (status word +0x18,
+  class +0x22, level +0x24, appearance +0x26, colours +0x36). From 0x5c it
+  needs at least 0x14f bytes and a version of at most 0x60 (status word
+  +0x24, class +0x28, level +0x2b, appearance +0x88, colours +0x98).
+  Anything else returns 0 and the file isn't listed.
+- `out` gets a stat string of 0x22 bytes, its words in 7 bits with the
+  high bit set (`FUN_006bbf40`; read back by `FUN_006bbf20`): +0 the word
+  0xe; +2 11 bytes of appearance (the defaults at `0x70ccc8` when the
+  first is 0); +0xd class + 1; +0xe 11 bytes of colours; +0x19 level;
+  +0x1a the status word; +0x1c the word 0; +0x1e..+0x20 0xff; +0x21 0.
+
+The entry, `FUN_00438ad0(EAX, name, stat string, extra, time low, time
+high)`: a 0x414-byte entry; +0x340 / +0x344 the time, +0x348 the extra,
++0x300 / +0x310 appearance and colours (16 each, padded with 0xff),
++0x320 class, +0x322 level, +0x324 status, +0x34c the next entry. With
+the expansion it goes in newest first by the 64-bit time (high +0x344,
+then low +0x340); without, at the end, in the order the folder scan found
+the files. Then the count `0x779dc4` goes up and the list redraws.
+
+From a server, `FUN_0043ad10`: it empties the list and looks up a hash
+of a name (`FUN_00413ce0`) in a cache at `0x779de8` (entries of 0x10:
+hash, the packet bytes, the time they expire, the next). An entry whose
+time hasn't passed (`GetTickCount`) is listed with `FUN_0043aab0`.
+Otherwise it asks through the object at `0x77abf0` (its +0x68), and sets
+`0x779dac` = 1 when that call returns nonzero.
+
+- `FUN_0043aab0(key, packet, store)` reads a packet whose first byte is
+  its id: +1, +3 and +7 words. It lists min(+3, +7) characters, each a
+  name then its stat string; for id 0x19 each has 4 more bytes before the
+  name, passed as the extra. A character `FUN_00438ad0` refuses lowers
+  the count, runs `FUN_00437b90` and stops the caching. With `store`,
+  `FUN_00437ab0` caches the packet. A count reaching the +1 word sets
+  `0x779dd8`; +7 below +3 adds a line (`FUN_0043a460(.., .., 2, 0x12)`).
+- `FUN_00437ab0(ECX key, packet, size)` copies the packet into the entry
+  with that hash, or a new one at the head (`.\Src\CharSel.cpp` lines
+  0xf1 to 0xfc), and sets its expiry to `GetTickCount() + 300000`: five
+  minutes.
+
+d2d (`load_saves`, apps/d2d/load.cpp) lists each `.d2s` whose header
+`parse_header` accepts (the magic, versions 0x5c to 0x60, a name), with
+the name from its header (+0x14), and sorts newest first by the header's
++0x30, not the file's last write time. The classic list isn't left in
+folder order.
+
 ## Input
 
 - `FUN_00439e90` (LoD keys; `FUN_0043a0d0` is the one-column classic
