@@ -1110,11 +1110,9 @@ struct Fight {
     // Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
     // target state (+0x82) and target_of applies them while the monster is
     // in range.
-    // ponytail: perdelay taken as ticks (its reader isn't traced); the
-    // aurafilter's unit-flag, town and sight bits aren't read
-    // (aura_filter.hpp); Sanctuary and Redemption's own callbacks aren't
-    // built; Sanctuary's mana (FUN_005cf3a0, FUN_00644b10) isn't asked or
-    // drawn.
+    // ponytail: perdelay taken as ticks (its reader isn't traced);
+    // Sanctuary and Redemption's own callbacks aren't built; Sanctuary's
+    // mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
     void aura_pulse(std::uint32_t now_ms);
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
@@ -1127,10 +1125,18 @@ struct Fight {
     void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast = false);
     // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
     // monster here is no side of the player's, so a friendly aura's never
-    // does (0x12003 needs an ally: FUN_00554de0).
-    [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const;
-    // Whether a FUN_0056b3e0 filter takes the monster (aura_filter.hpp).
-    [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster) const;
+    // does (0x12003 needs an ally: FUN_00554de0). (from_x, from_y): the
+    // walk's own unit, where the line (0x200) starts.
+    [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const;
+    // Whether FUN_0056b7e0's walk with a FUN_0056b3e0 filter, centred on a
+    // unit at (from_x, from_y), takes the monster (aura_filter.hpp): its
+    // mode (DD a corpse, any other without life dying), MonStats npc, unit
+    // flags 4 and 8 as `targetable` (flags 0xe), the level a town, and a
+    // clear line, mask 4, when the filter asks.
+    // ponytail: 0x20000 (FUN_00622c40) is never in melee and 0x80000
+    // (state 0x56) never just hit here: no Skills.txt row sets either,
+    // in_reach makes its own melee test.
+    [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
     [[nodiscard]] bool in_aura(const Monster& monster);

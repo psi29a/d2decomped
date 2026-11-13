@@ -940,8 +940,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
-  the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  (taken as ticks), the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
   slow (its cold chills), Sanctuary's mana and its state 0x55
   (FUN_005cf3a0), the aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
@@ -972,7 +971,11 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (below); `rules::aura_walk_takes` adds FUN_0056b7e0's own part (0 is
   0x583, 0x2000 skips town rooms). `Fight::aura_takes` in `enemy_pulse`
   and `in_aura`, so a friendly aura's auratargetstate isn't drawn on a
-  monster.
+  monster. `Fight::filter_takes` gives it the monster's mode (DD a corpse,
+  any other without life dying), MonStats npc, `targetable` for unit
+  flags 4 and 8 (flags 0xe), the level a town, and the line from the
+  walk's unit, mask 4 (in_reach's); never in melee (0x20000) nor just hit
+  (0x80000), which no Skills.txt row asks.
   Re-check: `python3 tools/ghidra/fn.py 0056b3e0` (and 0056b7e0, 005cf010,
   005cf3a0, 005d0920); the rows from Skills.txt's aurafilter column.
 - **FUN_0056b3e0 whole: the other unit types and the order** (cited,
