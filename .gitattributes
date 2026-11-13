@@ -8,3 +8,9 @@ docs/research/re/deviations.md  merge=union
 docs/research/re/stubs.md       merge=union
 docs/research/re/todo.md        merge=union
 docs/research/re/unverified.md  merge=union
+
+# vcpkg port files kept byte for byte, as vcpkg keeps its whole tree (`* -text`):
+# no CRLF on a Windows checkout, where a patch would no longer apply. A blank
+# context line in a patch is a single space.
+tools/vcpkg-ports/**            -text
+tools/vcpkg-ports/**/*.patch    -text -whitespace
