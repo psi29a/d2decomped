@@ -576,6 +576,22 @@ build/ai-countess-firewall/cases > build/ai-countess-firewall/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cases build/ai-countess-firewall/cases.txt --exe "$GAME_EXE"
 ```
 
+Her think itself (`FUN_005e5c50`) walks home at three places (`FUN_005dede0`
+at 0x5e5ded, the one after the target's room test, and 0x5e5f51). Each
+returns when the walk set off; when it didn't, the think event is dropped
+(`FUN_00540e60(2, 0)`) and the think goes on down its list: the next room
+test, the 40 from home test, then the firewall and the roll. d2d's
+`countess_think` does that through `ThinkIn::otherwise` (`CountessIn::stuck`).
+`tools/emu/ai_countess_home.py` runs the think on 320 scenes (rooms, at
+home, over 40 off, the walk setting off or not, a firewall or not, melee,
+four seeds; every callee but the roll hooked) and dumps
+`tests/countess_home_cases.inc`, which `test_monster_thinks` checks act and
+seed against:
+
+```sh
+cd tools/emu && uv run python ai_countess_home.py --dump ../../tests/countess_home_cases.inc
+```
+
 ## Act 5's monster skills (traced 2026-10-24)
 
 The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e

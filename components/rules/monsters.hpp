@@ -1526,11 +1526,17 @@ inline SearchMiss search_missed(std::string_view ai_name, bool has_walk, bool go
 // in melee under aip3 + 10 A1, out of it under aip1 a run at the target;
 // else stands aip2. A firewall (FUN_005e5b70): at her map AI's next point
 // (state: its index; state2: the frame of the last), until they run out;
-// 700 frames on from the last they start over.
-// ponytail: a walk home always sets off, so FUN_00540e60(2, 0)'s fallback
-// (on down the list) doesn't come up.
-struct CountessIn { bool away = false, target_away = false, at_home = false; };
+// 700 frames on from the last they start over. A walk home that can't set
+// off (FUN_005dede0 0: 0x5e5ded, 0x5e5f51 and the one between) drops the
+// think event (FUN_00540e60(2, 0)) and she goes on down the list: `stuck`,
+// the think again by ThinkIn::otherwise. tools/emu/ai_countess_home.py.
+struct CountessIn { bool away = false, target_away = false, at_home = false, stuck = false; };
 inline Think countess_think(const ThinkIn& input, const CountessIn& where, std::span<const std::pair<int, int>> path, Rng& rng) {
+    auto home = [&] {
+        if (input.otherwise)
+            input.otherwise->emplace_back([&input, where, path, &rng] { auto again = where; again.stuck = true; return countess_think(input, again, path, rng); });
+        return Think{ MonAct::home };
+    };
     auto firewall = [&](Think& out) {
         if (*input.state < int(path.size())) {
             const auto [point_x, point_y] = path[std::size_t(*input.state)];
@@ -1542,13 +1548,12 @@ inline Think countess_think(const ThinkIn& input, const CountessIn& where, std::
         return false;
     };
     Think out;
-    if (where.away) return { MonAct::home };
-    if (where.target_away) {
-        if (!where.at_home) return { MonAct::home };
+    if (where.away && !where.stuck) return home();
+    if (where.target_away && where.at_home) {
         if (input.dist < 25 && firewall(out)) return out;
         return { MonAct::idle, 10 };
     }
-    if (input.home_dist > 40) return { MonAct::home };
+    if ((where.target_away || input.home_dist > 40) && !where.stuck) return home();
     if (firewall(out)) return out;
     const int roll = rng(100);
     if (input.in_melee) return roll < input.aip[2] + 10 ? Think{ MonAct::a1 } : Think{ MonAct::idle, input.aip[1] };
