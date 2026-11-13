@@ -20,4 +20,18 @@ enum class InventoryCloseShuts { kInventory, kStash, kCube, kStore };
     return InventoryCloseShuts::kInventory;
 }
 
+// The UIs the panel keys and the mini-panel's buttons open.
+inline constexpr int kUiInventory = 1, kUiCharacter = 2, kUiSkillTree = 4;
+// Does game.exe let that panel open with the stash, the Cube or a store up?
+// FUN_00455f20 asks FUN_00453910, which reads the table at 0x711130 (row:
+// the UI up, column: the one opening; 2 refuses): the stash's (0x710a10)
+// and the Cube's (0x710aa8) rows refuse UI 1, 2 and 4, a store's (0x710090)
+// refuses 2 and 4 and passes 1. Oracle: tools/emu/panel_keys.py.
+[[nodiscard]] constexpr bool panel_key_refused(int panel_ui, bool stash_open, bool cube_open, bool store_open) {
+    const bool right_or_char = panel_ui == kUiInventory || panel_ui == kUiCharacter || panel_ui == kUiSkillTree;
+    if (!right_or_char) return false;
+    if (stash_open || cube_open) return true;
+    return store_open && panel_ui != kUiInventory;
+}
+
 } // namespace d2d::client

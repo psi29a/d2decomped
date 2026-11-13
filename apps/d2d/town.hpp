@@ -669,6 +669,9 @@ struct Town {
     [[nodiscard]] QuestState quest_state() const { return { view.quest_log, view.game_quests, view.den_left, net_game != nullptr }; }
     int view_act() const;
     void toggle_quest_log();               // Q and the mini-panel (FUN_004a3fe0)
+    void toggle_inventory();               // I, C, T and the mini-panel (FUN_00455f20 via FUN_00453910)
+    void toggle_character();
+    void toggle_skill_tree();
     [[nodiscard]] QuestLogButton quest_log_button_now() const;
 
     // The client's side of a click: what it asks the server for
