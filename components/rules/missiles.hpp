@@ -82,8 +82,10 @@ inline int pierce_charges(int chance, std::uint32_t seed) {
 
 // FUN_0064fc60: the unit vector (x 4096) from 16.16 (x, y) to (to_x, to_y).
 // The smaller delta x 127 / the larger picks the row (32-bit, as the exe).
+// The sides are compared signed: game.exe's places are all under 2^31, and
+// d2d's are its level's own, below 0 past the west or north edge.
 inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
-    const bool west = to_x < x, north = to_y < y;
+    const bool west = std::int32_t(to_x) < std::int32_t(x), north = std::int32_t(to_y) < std::int32_t(y);
     const std::uint32_t across = west ? x - to_x : to_x - x, down = north ? y - to_y : to_y - y;
     const bool steep = std::int32_t(across) <= std::int32_t(down);
     const std::uint32_t major = steep ? down : across, minor = steep ? across : down;
@@ -178,8 +180,8 @@ struct MissileFlight {
         flight.velocity = velocity; flight.max_velocity = max_velocity; flight.accel = accel;
         return flight;
     }
-    [[nodiscard]] int subtile_x() const { return int(x >> 16); }
-    [[nodiscard]] int subtile_y() const { return int(y >> 16); }
+    [[nodiscard]] int subtile_x() const { return std::int16_t(x >> 16); }   // game.exe's subtiles are shorts
+    [[nodiscard]] int subtile_y() const { return std::int16_t(y >> 16); }
 
     // One frame (FUN_00650840 with 0x400): every fifth frame Accel joins
     // the velocity, up to MaxVel (then Accel stops) or down to 0; the step is
@@ -249,7 +251,7 @@ private:
             const std::uint32_t next_x = at_x + std::uint32_t(part_x), next_y = at_y + std::uint32_t(part_y);
             const std::uint32_t there_x = next_x >> 16, there_y = next_y >> 16;
             if (there_x != here_x || there_y != here_y) {
-                if (blocked(int(there_x), int(there_y))) {
+                if (blocked(int(std::int16_t(there_x)), int(std::int16_t(there_y)))) {   // FUN_0064ff90 takes them as shorts
                     x = (at_x & 0xffff0000u) + 0x8000; y = (at_y & 0xffff0000u) + 0x8000;
                     return false;
                 }
