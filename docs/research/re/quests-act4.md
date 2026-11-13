@@ -161,6 +161,12 @@ deaths.
   0 or 13: in act 4 sets word 0x1c bits 0 and 13, sound 0x55a and the
   waypoint (`FUN_00554190`), then to level 0x6d (109, Harrogath,
   `FUN_0054b830`). d2d has no Act 5: it stops there.
+  `Q27_InitPandemoniumAndSendState` (`FUN_005b4a30`) is a standalone
+  variant of the same move: `InitLevel(..., LEVEL_ThePandemoniumFortress,
+  0)` then S->C **0x5D** quest-state {quest 0x17, alert flags 1} to the
+  player's own client. Its `__FILE__` literal is `a4q2.cpp` line 0x1b8,
+  the same translation unit as the rest of this section, but it isn't
+  reached from any of the record callbacks traced here.
 - **Entering** (`LAB_005b4ea0`): the fortress at state 2 → state; the
   Chaos Sanctuary (0x6c) → state, logs.
 - **Join** (`FUN_005b5080`): LoD bit 9 without word 0x1c bit 0 → bit 9
@@ -237,6 +243,24 @@ is nonzero, state is exactly 1 and data +0x1c is zero; other NPCs skip both
 flag tests. `tools/emu/quest_hellforge_alert.py` checks 486 combinations with
 the flag helper hooked, including non-boolean values. The upper EAX bytes and
 helper internals are outside the check.
+
+## Tyrael's farewell gossip ("Spoke to Malachai", not a journal quest)
+
+An internal pseudo-quest slot (namespace `A4Q4`,
+`nQuestIdReal = QUEST_SpokeToMalachai`), registered through
+`Q30_InitData` the same way Quest 39 is (`quests.md` "Quest slot 39"),
+drives Tyrael's (MonStats 0x198) Act 4 → Act 5 transition chatter.
+`Q30_Callback00_NpcActivate` (`FUN_005b6940`) only fires for Tyrael:
+while the Hellforge (a4q3.cpp, word 0x1b, above) is not yet
+Completed/RewardAwaits/JustCompleted, it queues gossip line 0; once the
+forge is done, it checks `QUESTINT_TerrorsEnd`'s own
+`bDiabloKilledBroadcast` flag and, while Diablo isn't dead yet, queues
+line 1 instead. `Q30_ActiveFilter` (`FUN_005b69f0`) mirrors the same
+two gates to decide whether the option is offered at all: active
+whenever the Hellforge isn't finished, or (once it is) whenever Diablo
+isn't JustCompleted/Completed yet — so Tyrael keeps a line of dialog the
+whole act, and loses it only once both the forge and Diablo are done.
+Flavor text only; reads `QuestRecord` but never writes it. Not ported.
 
 ## Act 4's other objects
 
