@@ -253,21 +253,6 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
     return true;
 }
 
-// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
-// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
-// product wraps); a bigger times over at most times / 16 divides it first,
-// as a bigger value over at most value / 16 does the value (each multiply
-// wrapping); else 64 bits.
-inline int mul_div(int value, int times, int over) {
-    if (over == 0) return 0;
-    if (value <= 0x100000) {
-        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
-        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
-    } else if (over <= value >> 4) {
-        return int(std::uint32_t(value / over) * std::uint32_t(times));
-    }
-    return int(std::int64_t(value) * times / over);
-}
 // FUN_0057c1e0 (0x57c252..0x57c2a4): the flat (stat 34 or 35, whole points) in 256ths, scaled by the record's +0x54 / 1024
 // (FUN_00483360) when that is above 0. +0x54 is the missile's stat 327 damage_framerate, Missiles.txt DamageRate (FUN_0059fa30,
 // copied by its hit FUN_005ad730): set only on the burners, so any other hit takes the flat whole.
