@@ -232,7 +232,9 @@ open, +0x4c altar mode.
 - **Finding a live Ancient** (`Q35_FindAncientByClassId`,
   `FUN_0058d030`): walks the tracked GUID list (`anAncientMonsterGUID`,
   up to `nSpawnedAncientCount`) for a live monster of the given
-  classId (Talic 0x1da / Korlic 0x1db / Madawc 0x1dc).
+  classId — the Ancient monster classes (Talic 0x21c / Madawc 0x21d /
+  Korlic 0x21e, `monsters.md`), not the statue object classIds
+  (0x1da/0x1db/0x1dc) used below to pick which one to spawn.
 - **Killing and removing one** (`Q35_KillAndRemoveAncient`,
   `FUN_0058bec0`, **frontier**): finds the Ancient by GUID, clears its
   uninterruptable state if set, runs its `Dead` skill and lifecycle

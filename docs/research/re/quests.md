@@ -801,9 +801,9 @@ state 0 to `FUN_005b6d30` (`Q39_Callback00_NpcActivate`) and state 0xb to
 `aNpcGossipData`, and sets `nQuestIdReal = QUEST_ActIntroduced`.
 
 `Q39_Callback00_NpcActivate` (`FUN_005b6d30`) fires on interacting with
-one of six Act 3 NPCs (Asheara 0x18c, Alkor, Ormus, Meshif2, Cain 3,
+one of six Act 3 NPCs (Asheara 0xfc, Alkor, Ormus, Meshif2, Cain 3,
 Natalya): `PLAYER_CheckIfSpokenWithNPC` gates a first-talk-only
 `AddGossipMessageOnMonster`, picking message variant 1 for the one
-class-matched slot (Asheara, player class 7, the Amazon) and 0 for every
+class-matched slot (Asheara, player class 0, the Amazon) and 0 for every
 other first meeting. Flavor text only; no quest-record reads or writes.
 Not ported — d2d has no first-meeting NPC gossip of its own yet.

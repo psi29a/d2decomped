@@ -238,10 +238,12 @@ read (or any part shown), 4 / 5 / 6 the amulet / shaft / Cube shown,
 - **+0xac** (`LAB_00599a00`): leaving 40, off the rewarded list.
 - **Item pickup** (`Q10_Callback04_ItemPickedUp`, `FUN_00599a30`): on
   picking up `tr1` / `vip` / `box` / `msf` (not `hst` itself, handled
-  above), records which part in `nStateFlagPrev` (the scroll → 1 unless
-  bit 3 already set; the shaft or Cube → 2 or 6 by bit 3; the Cube → 2
-  with bit 3, else 6) and, while the player is physically in this
-  quest's act, refreshes the log through `Q10_CheckHoradricStaffState` /
+  above), records which part in `nStateFlagPrev` (the scroll (`tr1`) →
+  1 unless bit 3 already set, else no change; the amulet (`vip`), the
+  Cube (`box`), and the staff piece (`msf`) all take the same bit-3
+  split → 6 when bit 3 is clear, 2 when set) and, while the player is
+  physically in this quest's act, refreshes the log through
+  `Q10_CheckHoradricStaffState` /
   `Q10_NotifyHoradricStaffActive` (quest-update packet 9). Reads bit 3
   only; no `SetQuestState`.
 - **The chests** (objects.txt 355 / 356 / 354; InitFns 32 / 33 / 31 do
@@ -457,7 +459,8 @@ lines after Tyrael, 13 took part, 14 by others, 15 closed.
 - **The tomb map marker**: `Q14_SendTombLevelInfo` (`FUN_0059d6a0`)
   sends S->C **0x50** QuestSpecial type 0xd carrying (true tomb's level
   id − 0x42), from `Dungeon::GetHoradricStaffTombLevelId(act)`, so the
-  client can mark the correct one of the 5 Tal Rasha tombs; it also
+  client can mark the correct one of the 7 Tal Rasha tombs (the quest
+  itself, `QUEST_TheSevenTombs`, names the count); it also
   caches the chosen level id into this quest's data. Read-only, no
   state transition.
 - **The stairs down to the tombs** (an object's OperateFn, not
@@ -497,15 +500,17 @@ builds, `diff_drlg.py 1-5 75 tiles units seeds` 5/5 (FUN_00665950's act 3
 monster-to-object remaps: 0x129 -> 0x17e, 0x16e -> 0x194; act 5's too).
 Checked headless both ways. Gap: FUN_00544160's item removal.
 
-## Jerhyn's and the guards' act-progression gossip (not journal quests)
+## The guards' act-progression gossip (not journal quests)
 
 Two more pseudo-quest slots drive flavor chatter as the act's main
 quests move along; neither shows in the quest log or touches a player's
 `QuestRecord` beyond reading it.
 
 - **Slot "Act2Guard4Gossip"** (`QUEST_Act2Guard4Gossip`):
-  `Q15_Callback00_NpcActivate` (`FUN_0059e140`) only fires for Jerhyn
-  (NPC 0x179). Once the Act2Guard4Gossip record itself is marked
+  `Q15_Callback00_NpcActivate` (`FUN_0059e140`) only fires for
+  Act2Guard4 (NPC 0x179, not Jerhyn — 0x179 is Act2Guard4's own
+  class, distinct from Jerhyn's 0xc9). Once the Act2Guard4Gossip record
+  itself is marked
   Completed, it picks one of 2 seeded lines; before that, once
   Radament's Lair is done, in progress or just-completed
   (`QUEST_RadamentsLair` Completed / JustCompleted / RewardAwaits, or
