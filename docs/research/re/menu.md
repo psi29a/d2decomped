@@ -106,6 +106,16 @@ oracle run); their names first came from D2BS's UI enum:
   under the store's inventory, drawn anyway. Oracle:
   `tools/emu/panel_keys.py`. d2d: `client::panel_key_refused`,
   `Town::toggle_inventory` / `toggle_character` / `toggle_skill_tree`.
+- The stash's close button (`FUN_0048edf0` state 0xc..0xd): buysellbtn
+  10, 11 while `0x7bce38` holds it, at x + 0x113, bottom foot - 0x41
+  (`FUN_00486b00`), the expansion stash at x + 0x110, foot - 0x40. The
+  mouse-down handler `FUN_00492510` sets `0x7bce38` over it (after the
+  inventory's close button and the gold box); the mouse-up handler
+  `FUN_00489ac0` shuts UI 0x19 (0x489b86) when it was held and the
+  release is over it (`FUN_00489980`: x left .. left + 0x28, y bottom -
+  0x23 .. bottom + 5, every edge excluded), with no test of the hand.
+  Oracle: `tools/emu/storage_close.py`. d2d: `client::stash_close`,
+  `over_stash_close`.
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`

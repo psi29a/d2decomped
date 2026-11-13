@@ -490,6 +490,18 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 }
             }
         }
+        // The stash's own close button (storage_close.hpp): held by a press
+        // over it, a release over it shuts the stash, an item in hand or not.
+        if (!stash_open || cube_open) stash_close_down = false;
+        else {
+            const bool over = d2d::client::over_stash_close(character.expansion, mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { stash_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && stash_close_down) {
+                stash_close_down = false;
+                if (over) stash_open = inv_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
             const auto close = skill_tree_close(character.character_class, tree_tab);

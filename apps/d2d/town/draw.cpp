@@ -19,6 +19,7 @@
 #include "skill_tree_close.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
+#include "storage_close.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
 #include "ui.hpp"
@@ -296,6 +297,10 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
             if (inv_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, inv_close_down ? 11 : 10), pal, lay.panel_x + 0x12, lay.panel_y + 416);
             if (char_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, char_close_down ? 11 : 10), pal, kCharPanelX + 0x80, kCharPanelY + 420);
+            if (stash_open && !cube_open) {
+                const auto spot = d2d::client::stash_close(character.expansion);
+                blit_at_anchor(framebuffer, scene->store_buttons.frame(0, stash_close_down ? 11 : 10), pal, spot.left, spot.bottom);
+            }
         }
         // A level's "entering" art for 2 s after a change, none for the game's
         // first (FUN_00455510): its frames side by side, centred at W/2 - 1,

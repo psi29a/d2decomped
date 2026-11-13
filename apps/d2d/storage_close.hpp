@@ -20,6 +20,27 @@ enum class InventoryCloseShuts { kInventory, kStash, kCube, kStore };
     return InventoryCloseShuts::kInventory;
 }
 
+// A close button's spot: buysellbtn 10 (11 held), bottom-left anchored.
+struct StorageClose { int left, bottom; };
+// 800x600: the left panels' x (0x7a2858) and their foot (H + 0x7a285c).
+inline constexpr int kStoragePanelX = 80, kStoragePanelFoot = 540;
+
+// The stash's close button (FUN_0048edf0 state 0xc): x + 0x113, bottom
+// foot - 0x41 (FUN_00486b00); the expansion stash (FUN_0044dcc0, the
+// game's expansion flag) x + 0x110, foot - 0x40. A press over it holds it
+// (FUN_00492510: 0x7bce38, frame 11), a release over it shuts the stash
+// (FUN_00489ac0, UI 0x19 at 0x489b86), a hand holding an item or not.
+[[nodiscard]] constexpr StorageClose stash_close(bool expansion, int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
+    return { panel_x + (expansion ? 0x110 : 0x113), foot - (expansion ? 0x40 : 0x41) };
+}
+// Over it (FUN_00489980), every edge excluded: left .. left + 0x28,
+// bottom - 0x23 .. bottom + 5. Oracle: tools/emu/storage_close.py.
+[[nodiscard]] constexpr bool over_stash_close(bool expansion, int mouse_x, int mouse_y,
+                                              int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
+    const StorageClose spot = stash_close(expansion, panel_x, foot);
+    return mouse_x > spot.left && mouse_x < spot.left + 0x28 && mouse_y > spot.bottom - 0x23 && mouse_y < spot.bottom + 5;
+}
+
 // The UIs the panel keys and the mini-panel's buttons open.
 inline constexpr int kUiInventory = 1, kUiCharacter = 2, kUiSkillTree = 4;
 // Does game.exe let that panel open with the stash, the Cube or a store up?

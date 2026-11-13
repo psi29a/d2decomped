@@ -212,6 +212,7 @@ struct Town {
     std::uint32_t net_drift_ms = 0;                          // since when d2d's player has been far from the host's (0: not)
     std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
     bool inv_close_down = false, char_close_down = false, tree_close_down = false;   // the inventory's / character panel's close button held
+    bool stash_close_down = false;                           // the stash's close button held (0x7bce38)
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
