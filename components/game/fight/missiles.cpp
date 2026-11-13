@@ -1069,7 +1069,7 @@ auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) c
 auto Fight::filter_takes(std::uint32_t filter, const Monster& monster) const -> bool {
         if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-        return d2d::rules::aura_filter_takes(filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
+        return d2d::rules::aura_walk_takes(filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
                                                                   .prime_evil = type_info.prime_evil, .ally = false });
     }
 
