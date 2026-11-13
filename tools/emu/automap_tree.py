@@ -19,6 +19,7 @@ import argparse
 import random
 import sys
 
+import checked_emu
 import emu
 
 POOL, USED, HEAD, SAVED_OUT, LAYER_MAP, GROUPS = 0x7a5158, 0x7a515c, 0x7a5160, 0x7a5154, 0x7a5164, 0x7a3150
@@ -34,7 +35,7 @@ class Tree:
 
     def __init__(self):
         """Hook the allocator, free and registry read; run FUN_0045a4c0 (the group table and option defaults)."""
-        self.e = emu.Emu()
+        self.e = checked_emu.CheckedEmu()
         self.e.hook(0x40b380, lambda e: e.alloc(0x2804), 2)       # the chunk pool's allocator
         self.freed = 0
         self.e.hook(0x40b3c0, self._free, 2)

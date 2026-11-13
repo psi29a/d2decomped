@@ -20,6 +20,7 @@ read.
 import argparse
 import random
 
+import checked_emu
 import emu
 
 TEXT, ANCHOR_X, ANCHOR_Y, SCREEN_W, SCREEN_H = 0x7A2C80, 0x7A2D20, 0x7A2D24, 0x71146C, 0x711470
@@ -48,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=2000)
     runs = parser.parse_args().runs
-    e = emu.Emu()
+    e = checked_emu.CheckedEmu()
     state, drawn = {}, []
     e.hook(WIDTH, lambda e: state["width"], 0)
     e.hook(HEIGHT, lambda e: state["height"], 0)

@@ -18,6 +18,7 @@ are game.exe's own.
 """
 import sys
 
+import checked_emu
 import emu
 
 Y, RIGHT = 0x7a51bc, 0x7a5220
@@ -33,7 +34,7 @@ def wide(e, address):
 
 def main():
     """Run the three line functions and check what they draw."""
-    e = emu.Emu()
+    e = checked_emu.CheckedEmu()
     e.crt_init()
     state = {"difficulty": 0, "drawn": []}
     markers = {}

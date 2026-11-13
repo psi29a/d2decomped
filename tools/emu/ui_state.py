@@ -16,6 +16,7 @@ FUN_004f59a0`, a getter of `[0x7c8cbc]` with no argument, and FUN_00451e10 pops
 that 7 (`ret 4`), so the call is FUN_00451e10(ECX = [0x7c8cbc], EDX = 0x722600,
 7), not FUN_004f59a0(7). No MPQs are read.
 """
+import checked_emu
 import emu
 
 LINE_OF = 0x6DA13C   # ".\UI\text.cpp" for the frees
@@ -46,7 +47,7 @@ class Rig:
 
     def __init__(self):
         """Hook each callee: log (address, ECX, EDX, EAX, arg 0, arg 1) and return self.ret[address]."""
-        self.e = emu.Emu()
+        self.e = checked_emu.CheckedEmu()
         self.log = []
         self.ret = {}
         for addr, nstack in CALLEES.items():
