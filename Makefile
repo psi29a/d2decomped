@@ -11,6 +11,7 @@
 #   make deck             the bundle, copied to the Deck and installed (DECK=deck@steamdeck)
 #   make d2vita           d2d for the PS Vita (eboot.bin, d2d.vpk) in build/d2vita/vita, in VitaSDK's Docker image (docs/d2vita.md)
 #   make d2vita-win32     d2d as a Win32 Game.exe in build/d2vita/win32, in an Ubuntu container (MinGW; fetches SDL3 and OpenAL Soft)
+#   make switch           d2d for the Nintendo Switch (d2d.nro) in build/d2vita/switch, in devkitPro's Docker image (docs/switch.md)
 #   make clean            drop the build and the bundle (keeps the module cache)
 #   make distclean        clean, and the module cache too (the next build is a full one)
 
@@ -58,7 +59,7 @@ $(RUN_WHAT):
 	@:
 endif
 
-.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing d2vita d2vita-win32
+.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing d2vita d2vita-win32 switch
 .DEFAULT_GOAL := help
 
 help:
@@ -148,6 +149,7 @@ deck: bundle
 # each to compile, past Docker Desktop's memory at one per core. VitaSDK's
 # image has arm64 and amd64: no --platform, so it runs native on either Mac.
 VITASDK_IMAGE := vitasdk/vitasdk@sha256:f0eeb443be707be534c568d5d23702e14152a8513778cd11d209aa1b42fbd434
+DEVKITA64_IMAGE := devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282
 D2VITA_JOBS   ?= 4
 D2VITA_DEPS   := build/d2vita-deps
 SDL3_VERSION  := 3.4.16
@@ -160,6 +162,9 @@ D2VITA_DOCKER  = docker run --rm -v "$(CURDIR)":/src -v d2vita-$(1):/src/build/d
 
 d2vita:
 	$(call D2VITA_DOCKER,vita) $(VITASDK_IMAGE) tools/d2vita.sh vita
+
+switch:
+	$(call D2VITA_DOCKER,switch) $(DEVKITA64_IMAGE) tools/d2vita.sh switch
 
 $(D2VITA_DEPS)/SDL3-$(SDL3_VERSION):
 	mkdir -p $(D2VITA_DEPS)
