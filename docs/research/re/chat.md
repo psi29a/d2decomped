@@ -1,6 +1,6 @@
 # Chat/Chat.cpp: overhead message nodes
 
-Traced from game.exe 1.14d. `FUN_00661110` and `FUN_006611a0` are run in `tools/emu/chat_node.py`, the IME helpers in `tools/emu/chat_ime.py`; the rest of the file is cited, no oracle run.
+Traced from game.exe 1.14d. `FUN_00661110` and `FUN_006611a0` are run in `tools/emu/chat_node.py`, the IME helpers in `tools/emu/chat_ime.py`, and the IME lifecycle in `tools/emu/chat_ime_lifecycle.py`; the remaining findings are cited without an oracle run.
 
 ## Overhead message node (`FUN_00661110`, 138 bytes, `.\Chat\Chat.cpp`)
 
