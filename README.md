@@ -124,6 +124,9 @@ brew install cmake ninja sdl3 openal-soft qtbase stormlib
 
 Windows: see the `Windows` steps in `.github/workflows/ci.yml` for the
 prebuilt SDL3, OpenAL Soft and FFmpeg, plus zlib and StormLib from vcpkg.
+Windows on ARM64 takes the same steps with `arm64` binaries, and OpenAL Soft
+from vcpkg. CI builds and tests it natively, not under x64 emulation; nobody
+has played it on ARM64 hardware yet, so the package isn't supported yet.
 
 Then build and run:
 

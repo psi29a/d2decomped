@@ -85,6 +85,28 @@ data import, gameplay, audio, save/reload, and release-package tests on ARM64
 hardware or an appropriate validated runner. Record separately whether the
 claim is native ARM64, x64 emulation, or both.
 
+**Status (2026-11-13, #42):** CI's `Windows ARM64 (MSVC)` leg builds d2d and
+the launcher natively on GitHub's `windows-11-arm` runner, runs the tests
+there, packages `d2d-<version>-Windows-ARM64.zip`, and fails unless every
+`.exe` and `.dll` in it is ARM64 (dumpbin machine `AA64`). The x64 leg, its
+package name and its dependencies are unchanged.
+
+| Dependency | ARM64 source |
+|---|---|
+| MSVC, CMake, Ninja, vcpkg | the runner image (VS 2022 17.14) |
+| Qt 6.8 | `install-qt-action`, host `windows_arm64`, `win64_msvc2022_arm64` |
+| SDL3 3.4.16 | libsdl-org's VC zip, `lib/arm64` |
+| FFmpeg (Bink only) | BtbN's pinned `winarm64-lgpl-shared` build |
+| OpenAL Soft | vcpkg `arm64-windows` (kcat's bin zip has no ARM64) |
+| zlib, StormLib | vcpkg `arm64-windows` |
+| Sentry Native (crashpad) | FetchContent, 0.17.3 |
+
+The code needed no change: the one x86 intrinsic (`__cpuid` in
+`apps/d2d/main.cpp`, the Sentry CPU name) is already guarded, so ARM64
+sends no CPU name. Not verified yet: a native run on ARM64 hardware (launch,
+data import, gameplay, audio, save/reload) and x64 emulation of the x64
+package. Until both are done, neither is a supported claim.
+
 ### Android phones and tablets
 
 **Assessment: plausible after SDL3 input, resolution, and data-access
