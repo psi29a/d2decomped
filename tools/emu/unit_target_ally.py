@@ -199,6 +199,11 @@ def main():
     options = parser.parse_args()
     global mutation
     if options.mutation_check:
+        mutation = None
+        try:
+            run_all()
+        except Mismatch as exc:
+            sys.exit(f"baseline failed (not a caught mutation): {exc}")
         for name in MUTATIONS:
             mutation = name
             try:
