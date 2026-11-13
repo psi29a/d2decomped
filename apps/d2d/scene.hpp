@@ -73,6 +73,8 @@ struct Scene : GameData {
     d2d::font::Font       font24;             // Font24 (font id 7): popup messages
     d2d::font::Font       font42;             // Font42 (font id 3): screen titles
     d2d::font::Font       font_formal12;      // FontFormal12 (font id 5): edit boxes
+    d2d::font::Font       font_exocet10;      // FontExocet10 (font id 9): labels on buttons 0x23 high and up
+    d2d::font::Font       font_ridiculous;    // FontRidiculous (font id 10): labels on lower buttons
     d2d::dc6::Sprite      cursor;             // CURSOR\ohand.dc6 — D2's gauntlet, 8 frames
     d2d::dc6::Sprite      cursor_buysell;     // CURSOR\buysell.dc6 — the item-use cursors (frame 0 identify)
     // Character composites (in-game player, char-select portraits). The

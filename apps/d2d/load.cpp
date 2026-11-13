@@ -513,6 +513,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.font42 = font("font42");
         scene.font_formal12 = font("fontformal12");
         scene.font24 = font("font24");
+        scene.font_exocet10 = font("fontexocet10");
+        scene.font_ridiculous = font("fontridiculous");
         scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
         scene.cursor_buysell = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\buysell.dc6)"));
         scene.class_anims = [&] {
