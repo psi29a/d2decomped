@@ -67,7 +67,8 @@ struct Fine {
 struct UnitState {
     Fine x, y;                        // cells, held in 16.16 subtiles (Fine)
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
-    int dir = 0;
+    int dir = 0;                      // its facing drawn, 16 directions in DCC order
+    d2d::rules::Facing facing;        // a walk's facing in 64 (path +0x64 / +0x65 / +0x66)
     bool walking = false;
     bool greets = false;              // a town NPC's think greeted the player just now (unit sound 0x12; World plays it)
     std::size_t next = 0;             // path point being walked to

@@ -89,19 +89,40 @@ bool on_door(const Level& level, const UnitState& unit) {
 // `velocity` (path +0x7c): rules::walk_frame (FUN_00650840) on the unit's 16.16
 // position, a new subtile tested as the pathers test it (FUN_0064ff90 ->
 // FUN_0064eda0: the walls and the others' stamps under its mask, its own
-// off). It turns to its point first. False when the walk is over, the unit
-// on a subtile's centre and `point` past the last; `hit` when blocked.
-// ponytail: the facing is direction16's, set at once, not FUN_006485f0's
-// turn (64 directions, DIFFDIRECTIONS 0x6eb548). Upgrade: a 64-direction
-// facing on UnitState and the turn's frame function traced.
+// off). False when the walk is over, the unit on a subtile's centre and
+// `point` past the last; `hit` when blocked. Its facing aims at the next
+// point not under it (FUN_0064fe40 -> FUN_006485f0: rules::aim_direction),
+// as the path is made and after each step, and turns a step a frame toward
+// that (FUN_00648640, the client's); `dir` is it drawn in 16 (FUN_00600c90:
+// missile_direction). A `dir` set outside a walk is where it starts from.
+// ponytail: a turn still going when the walk ends finishes at once (the
+// client turns on, FUN_00463390 -> FUN_00648640 each frame), and a facing
+// set outside a walk is direction16's, at once. Upgrade: the turn in each
+// unit's frame, and those facings traced one by one.
 bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
                 const Crowd& crowd, bool* hit = nullptr) {
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
-    if (point < points.size())
-        if (const float dx = centre(points[point].first) - unit.x, dy = centre(points[point].second) - unit.y; std::hypot(dx, dy) > 0.05f)
-            unit.dir = direction16(dx, dy);
-    return d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity,
+    auto& facing = unit.facing;
+    if (missile_direction(facing.now, 16) != unit.dir) {
+        const auto sector = std::ranges::find(kDir16FromSector, unit.dir) - std::begin(kDir16FromSector);
+        facing.now = facing.goal = std::uint8_t(sector * 4 & 0x3f);
+    }
+    auto aim = [&] {
+        const auto fine = [](int coord) { return (std::uint32_t(coord) << 16) + 0x8000; };
+        for (auto next = point; next < points.size(); ++next)
+            if (const auto to_x = fine(points[next].first), to_y = fine(points[next].second); to_x != unit.x.raw || to_y != unit.y.raw) {
+                facing.aim(d2d::rules::aim_direction(unit.x.raw, unit.y.raw, to_x, to_y));
+                return;
+            }
+    };
+    aim();
+    const bool going = d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity,
         [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); }, hit);
+    if (going) aim();
+    facing.turn();
+    if (!going) facing.now = facing.goal;
+    unit.dir = missile_direction(facing.now, 16);
+    return going;
 }
 
 }  // namespace

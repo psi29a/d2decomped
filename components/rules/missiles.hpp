@@ -80,20 +80,79 @@ inline int pierce_charges(int chance, std::uint32_t seed) {
     return charges;
 }
 
-// FUN_0064fc60: the unit vector (x 4096) from 16.16 (x, y) to (to_x, to_y).
-// The smaller delta x 127 / the larger picks the row (32-bit, as the exe).
-// The sides are compared signed: game.exe's places are all under 2^31, and
-// d2d's are its level's own, below 0 past the west or north edge.
-inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+// The direction within an eighth for each of those rows (the third word,
+// 0x6eb7e8): 0..7.
+inline constexpr std::array<std::uint8_t, 128> kAimEighth{
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+};
+
+// FUN_0064fc60's row from 16.16 (x, y) to (to_x, to_y): the smaller delta x
+// 127 / the larger (32-bit, as the exe), which axis is the larger, and the
+// sides. Those are compared signed: game.exe's places are all under 2^31,
+// and d2d's are its level's own, below 0 past the west or north edge.
+struct AimRow {
+    int row;
+    bool steep, west, north;
+};
+inline AimRow aim_row(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
     const bool west = std::int32_t(to_x) < std::int32_t(x), north = std::int32_t(to_y) < std::int32_t(y);
     const std::uint32_t across = west ? x - to_x : to_x - x, down = north ? y - to_y : to_y - y;
     const bool steep = std::int32_t(across) <= std::int32_t(down);
     const std::uint32_t major = steep ? down : across, minor = steep ? across : down;
     const int row = major == 0 ? 0 : std::int32_t(minor * 0x7fu) / std::int32_t(major);
-    const auto& [small, big] = kMissileAim[std::size_t(std::clamp(row, 0, 127))];
-    const int aim_x = steep ? small : big, aim_y = steep ? big : small;
-    return { west ? -aim_x : aim_x, north ? -aim_y : aim_y };
+    return { std::clamp(row, 0, 127), steep, west, north };
 }
+
+// FUN_0064fc60: the unit vector (x 4096) from (x, y) to (to_x, to_y).
+inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+    const auto aim = aim_row(x, y, to_x, to_y);
+    const auto& [small, big] = kMissileAim[std::size_t(aim.row)];
+    const int aim_x = aim.steep ? small : big, aim_y = aim.steep ? big : small;
+    return { aim.west ? -aim_x : aim_x, aim.north ? -aim_y : aim_y };
+}
+
+// The 64-step direction FUN_0064fc60 writes with it (through EDX), 0 screen
+// south, clockwise: the row's eighth folded by the larger axis and the
+// sides. tools/emu/facing.py; tests/test_facing.cpp.
+inline int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+    const auto aim = aim_row(x, y, to_x, to_y);
+    int dir = kAimEighth[std::size_t(aim.row)];
+    if (!aim.steep) dir = (-dir - 1) & 0xf;
+    if (aim.north) dir = (-dir - 1) & 0x1f;
+    return aim.west ? (dir + 8) & 0x3f : (((-dir - 1) & 0x3f) + 8) & 0x3f;
+}
+
+// DIFFDIRECTIONS (0x6eb548): a turn's step a frame by how far round its
+// goal is, in 64ths.
+inline constexpr std::array<std::int8_t, 64> kDiffDirections{
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -4, -4, -4, -4, -4, -4, -4, -4, -1, -1, -1, -1, -1, -1, -1, -1
+};
+
+// A unit's facing in 64 steps (0 screen south, clockwise): path +0x64 the
+// one drawn, +0x65 its goal (what the server keeps: FUN_00648810) and +0x66
+// the turn's step. tools/emu/facing.py; tests/test_facing.cpp.
+struct Facing {
+    std::uint8_t now = 0, goal = 0;
+    std::int8_t step = 0;
+    // FUN_006485f0 for a player's or monster's path: a new goal and its step.
+    void aim(int dir64) {
+        dir64 &= 0x3f;
+        if (dir64 == goal) return;
+        goal = std::uint8_t(dir64);
+        step = kDiffDirections[std::size_t((dir64 - now) & 0x3f)];
+    }
+    // FUN_00648640: a frame's turn, onto the goal once it reaches or passes it.
+    void turn() {
+        if (now == goal) return;
+        now = std::uint8_t((now + step) & 0x3f);
+        const int past = (now - goal) & 0x3f;
+        if ((past > 0x1f && step < 0) || (past < 0x1f && step >= 0)) now = goal;
+    }
+};
 
 // The same along a direction in floats (a missile turned in flight).
 inline std::pair<int, int> missile_aim_along(float dx, float dy) {

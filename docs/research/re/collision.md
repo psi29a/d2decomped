@@ -359,8 +359,30 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   path +0 / +4 are: it reads as cells, a centre is set exactly
   (`Fine::centre`), cells written in round to the nearest 1/65536 subtile,
   and LAN sends it as is (protocol 5). `tests/game/test_fine.cpp`. Left:
-  the facing isn't FUN_006485f0's turn, and d2d's own moves outside a walk
-  (knockback, leaps, a stand-in's step) are cells rounded in.
+  d2d's own moves outside a walk (knockback, leaps, a stand-in's step) are
+  cells rounded in.
+- **The facing.** FUN_0064fc60 writes a 64-step direction with its vector
+  (EDX; 0 screen south, clockwise): the row's eighth from the table's third
+  word (0x6eb7e8), folded by the larger axis (`(-d - 1) & 0xf`), the north
+  side (`& 0x1f`) and the west side (`+ 8`, else `(-d - 1) + 8`, `& 0x3f`).
+  FUN_0064fe40 hands it to FUN_006485f0 (ECX path, DL direction) as the path
+  is made (FUN_00649970) and after each step (FUN_00650840), both passing 1
+  for the flag that asks it; path flag 0x200 turns it round (`- 0x20`).
+  For a player's or monster's path FUN_006485f0 sets the goal (+0x65) and
+  the step (+0x66 = DIFFDIRECTIONS 0x6eb548 by goal less now: 1 up to 8
+  round, 4 up to 16, 8 up to 31, then the same back); an object's, item's
+  or missile's it sets now (+0x64) at once (a missile not with flag 0x40).
+  FUN_00648640 turns now by the step a frame, onto the goal once it reaches
+  or passes it (unless flag 0x40); only the client calls it (FUN_00463390,
+  FUN_004b13a0). FUN_006488a0 sets both at once, as FUN_00649ef0 does
+  with its last argument set (else it aims through FUN_006485f0).
+  **Verified**: `tools/emu/facing.py` runs FUN_0064fc60, FUN_006485f0 and
+  FUN_00648640: `rules::aim_direction`, `missile_aim` and `rules::Facing`
+  give the same in 20,000 aims and 20,000 turn runs (400 each frozen in
+  `tests/facing_cases.inc`). d2d: `path_frame` aims and turns a walker's
+  `UnitState::facing`, drawn as `dir` through FUN_00600c90's rounding
+  (`missile_direction`). ponytail: a turn left when the walk ends finishes
+  at once, and facings set outside a walk stay `direction16`'s, at once.
 
 ### What keeps a walk to a unit going: the client
 
