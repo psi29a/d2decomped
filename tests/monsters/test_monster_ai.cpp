@@ -163,6 +163,25 @@ int main() try {
                     });
                 assert(next == entry.tried.size() && act.kind == entry.kind && seed.low == entry.after_low && seed.high == entry.after_high);
             }
+            // A requested run at the footsteps (FUN_005dede0,
+            // MONSTERAI_CommandMoveToCoords) downgrades to a walk under
+            // Decrepify (state 0x3c): traced against stock 1.14d,
+            // tools/emu/ai_merc_decrepify_probe.py (game_mode 15 unslowed, 2 slowed).
+            {
+                for (const bool slowed : { false, true }) {
+                    d2d::rules::MercView view; view.mode = d2d::rules::kMonsterNeutral;
+                    view.x = 5000; view.y = 5000; view.owner_x = 5100; view.owner_y = 5000;
+                    view.owner_mode = d2d::rules::kMonsterNeutral; view.end_x = 5100; view.end_y = 5000;
+                    for (auto& spot : view.ring) spot = { 5050, 5000 };
+                    view.slowed = slowed;
+                    d2d::rules::Rng seed;
+                    int calls = 0;
+                    const auto act = d2d::rules::hireable_think(view, seed, [](int, int, int, int) { return 1; },
+                        [&](const d2d::rules::MercMove&) { return ++calls == 2; });
+                    assert(act.kind == d2d::rules::MercAct::Kind::moved);
+                    assert(act.move.mode == (slowed ? d2d::rules::kMonsterWalk : d2d::rules::kMonsterRun));
+                }
+            }
         }
             // The pets' think (MonAI 67 NecroPet, FUN_005e4cf0; tools/emu/necropet.py
             // --dump: game.exe's own runs). From the pet (at 5000, 5000): size, the

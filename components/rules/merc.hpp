@@ -32,6 +32,7 @@ struct MercView {
     int cursor = 0;
     bool on_bit40 = false, town = false;
     int target = -1;
+    bool slowed = false;   // state 0x3c (Decrepify): FUN_005dede0 downgrades a run to a walk
 };
 
 // A move it sets off (FUN_005a7c20 through FUN_005dee50 and its kin): to a
@@ -76,6 +77,7 @@ struct MercAct {
 // as seen from the room holding another (FUN_0061b130, game::area_id_at);
 // `try_move(move)` sets off, true when it finds a path.
 template <class AreaAt, class TryMove>
+// Runs the think above; `view.slowed` (FUN_005dede0) downgrades its requested run to a walk.
 MercAct hireable_think(const MercView& view, Rng& seed, AreaAt&& area_at, TryMove&& try_move) {
     using Kind = MercAct::Kind;
     MercAct act{ .kind = Kind::failed };
@@ -147,7 +149,7 @@ MercAct hireable_think(const MercView& view, Rng& seed, AreaAt&& area_at, TryMov
     if (view.mode == kMonsterWalk || view.mode == kMonsterRun) return { .kind = Kind::none };
     const int gap = merc_gap(view.x, view.y, view.size, view.owner_x, view.owner_y);
     if (gap > 100) return { .kind = Kind::teleport };
-    if (gap > 24) { footsteps(kMonsterRun, 0x3c); return act; }
+    if (gap > 24) { footsteps(view.slowed ? kMonsterWalk : kMonsterRun, 0x3c); return act; }   // FUN_005dede0: a walk in state 0x3c (decrepify)
     if (gap > 16 && (view.owner_mode == kPlayerWalk || view.owner_mode == kPlayerTownWalk)) { near_owner(0); return act; }
     if (gap > 16 && view.owner_mode == kPlayerRun) { near_owner(0x3c); return act; }
     if (view.mode != kMonsterNeutral) return { .kind = Kind::stand, .frames = 5 };

@@ -72,9 +72,12 @@ extra call) and the pet's `FUN_005e3ea0` follow, `pet-ai.md`
 - **Mode 1.** With the owner walking (mode 2): steps 100 to his path end.
   Else his footsteps, newest first (player data +0xa0 the cursor, +0xa8 20
   spots of 8 bytes): the first over 5 off (`FUN_005dc5c0`), walking at the
-  pace, steps 100; then as the mode asks with path type 0xf; then, once,
-  with type 1. Twenty tried: a wander of a quarter of the gap (4 at least),
-  pace 15.
+  pace, steps 100; then as the mode asks with path type 0xf (`FUN_005dede0`,
+  a walk in state 0x3c, Decrepify: traced against stock 1.14d,
+  `tools/emu/ai_merc_decrepify_probe.py`; `rules::MercView::slowed` — the
+  same decrepify-gated Run/Walk pattern as the pet's `FUN_005deeb0`,
+  `pet-ai.md` "FUN_005e3ea0 (after the owner)"); then, once, with type 1.
+  Twenty tried: a wander of a quarter of the gap (4 at least), pace 15.
 - **Mode 3.** A spot in the owner's room (`FUN_0054dc40`: up to 20 tries
   inside the room's rect less a subtile each side, `FUN_0054dac0`, on the
   room's seed +0x6c, where MonStats class 0x16b fits, `FUN_005b2f20`), the
