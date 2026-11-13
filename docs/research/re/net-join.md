@@ -268,7 +268,7 @@ net-packets.md lists the packet.
   `+0x3bc`. The loop tests the next entry's link before using that entry
   (`00537fb1..00537fc3`), so the last entry of a chain of two or more is not
   written: a chain of n entries yields n - 1, a chain of one yields one. Nothing in the
-  function says this is deliberate. `FUN_00537fd0` stores 0 at the table's `+4` and
+  function says this is deliberate. bugs.md #111. `FUN_00537fd0` stores 0 at the table's `+4` and
   `+8` and nothing at `+0`; with no unit added, the first entry written comes from
   that unwritten slot 0.
 
