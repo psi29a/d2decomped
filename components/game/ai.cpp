@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <initializer_list>
 #include <limits>
 #include <optional>
@@ -796,9 +797,9 @@ auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit) -> bool {
     return true;
 }
 
-auto ThinkCtx::walk_to(int off_x, int off_y, bool running) -> void {   // to a spot, subtiles off
+auto ThinkCtx::walk_to(int off_x, int off_y, bool running) -> bool {   // to a spot, subtiles off
     unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
-    set_off(running, nullptr);
+    return set_off(running, nullptr);
 }
 
 auto ThinkCtx::use(std::string_view mode, int skill) -> void {     // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
@@ -1039,6 +1040,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.aura_on = monster.aura != 0;
     std::vector<d2d::rules::ThinkEffect> effects;
     input.effects = &effects;
+    std::vector<std::function<d2d::rules::Think()>> otherwise;     // its next acts when a walk can't set off (ThinkIn::otherwise)
+    input.otherwise = &otherwise;
     input.kin_dist = std::numeric_limits<int>::max();          // no kin found (the searches start there: ai/)
     // Act 3's (rules::mon_think, monster-ai.md "Act 3's thinks"): its
     // command's unit; Skill1's level; the line to the target (mask 4);
@@ -1195,6 +1198,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     if (rally && monster.leader >= 0)
         for (auto& other : pack)
             if (other.alive() && other.leader == monster.leader) other.ai_command = 1;
+    // A walk that can't set off with another act to try: the think it filed
+    // (FUN_005a73e0) is dropped (FUN_00540e60(2, 0)) and the next one runs.
+    std::size_t tried = 0;
+    const auto set_off_or_next = [&](auto&& sets_off) {
+        const auto pending = monster.next_act;
+        if (sets_off() || tried >= otherwise.size()) return true;
+        monster.next_act = pending;
+        const auto next = std::move(otherwise[tried++]);          // moved out: the act it makes may add its own
+        act = next();
+        return false;
+    };
+    const auto walk_or_next = [&](int off_x, int off_y) { return set_off_or_next([&] { return ctx.walk_to(off_x, off_y, false); }); };
     const bool acted = [&] { for (;;) switch (act.act) {
         case MonAct::idle: ctx.idle(act.n); return true;
         case MonAct::a1: ctx.use("A1", -1); return true;
@@ -1258,8 +1273,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             else ctx.walk_to(target_x - x, target_y - y, false);
             return true;
         case MonAct::wander: ctx.walk_to(act.x, act.y, false); return true;
-        case MonAct::around: ctx.walk_to(target_x - x + act.x, target_y - y + act.y, false); return true;
-        case MonAct::home: ctx.walk_to(subtile(monster.home_x) - x, subtile(monster.home_y) - y, false); return true;
+        case MonAct::around: if (walk_or_next(target_x - x + act.x, target_y - y + act.y)) return true; break;
+        case MonAct::home: if (walk_or_next(subtile(monster.home_x) - x, subtile(monster.home_y) - y)) return true; break;
         case MonAct::point:                                        // FUN_005dead0(Sk1mode, Skill1, no unit, x, y)
             ctx.use(type_info.sk_mode[0], skill_id(game_data, type_info.skill[0]));
             monster.skill_x = act.x; monster.skill_y = act.y;
@@ -1272,14 +1287,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, stride);
             int step_x = sum ? across * stride / sum : 0, step_y = sum ? down * stride / sum : 0;
             while (sum && step_x + step_y < stride) { ++step_x; ++step_y; }
-            ctx.walk_to(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign, false);
-            return true;
+            if (walk_or_next(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign)) return true;
+            break;
         }
         case MonAct::circle: {                                     // FUN_005df7d0
             const float side = act.x ? 1.f : -1.f, length = std::max(std::hypot(dx, dy), 0.01f), off = float(act.n) / 5;
             unit.goal_x = target->x - dy / length * off * side; unit.goal_y = target->y + dx / length * off * side;
-            ctx.set_off(false, nullptr);
-            return true;
+            if (set_off_or_next([&] { return ctx.set_off(false, nullptr); })) return true;
+            break;
         }
         case MonAct::seq:                                          // FUN_005de000: the skill's own sequence (the Greater Mummy's raise)
         case MonAct::skill: {                                      // its Sk mode's sequence (MonSeq) plays out

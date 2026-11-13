@@ -942,10 +942,10 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 int count = radius(missile_info.hit_par2, skill->calc[0]);
                 // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk skips only the owner, so the unit
                 // struck gets one too; its filter is the aurafilter, else 0xa783 (tools/emu/hit_fury.py).
-                // ponytail: the walk's skip of MonStats flag 0x1b (FUN_00457490) isn't read.
+                // Handed 1 as here, the walk passes a monster with MonStats noaura (flag 0x1b: 0x56b979).
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (monsters[j].targetable() && filter_takes(filter, monsters[j]) && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
+                    if (monsters[j].targetable() && filter_takes(filter, monsters[j]) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }

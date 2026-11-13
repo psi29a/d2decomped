@@ -38,7 +38,9 @@ inline SoundMix sound_mix_pixels(int volume, int falloff, float screen_x, float 
     if (!mix.audible) return mix;
     int level = 255;
     if (const float distance = std::sqrt(screen_x * screen_x + screen_y2 * screen_y2); near_px < distance)
-        level = far_px > near_px ? std::max(0, int((far_px - distance) * 255.f / (far_px - near_px))) : 0;
+        // max(.., 1): the same value for every range that gets here (far - near is 340 or more), and
+        // no zero divisor for MSVC to fold from Falloff 4's near == far (C4723, an error on ARM64).
+        level = far_px > near_px ? std::max(0, int((far_px - distance) * 255.f / std::max(far_px - near_px, 1.f))) : 0;
     level = level * volume / 255;
     // FUN_00516830: 6 dB down a doubling of the distance from a point 640 px
     // above the floor (capped at 100 x 320 px); pan by x, 400 px to the side.

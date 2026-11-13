@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <functional>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -515,13 +516,22 @@ int main() try {
                         assert(asked < asks.size() && asks[asked].first == reach);
                         return asks[asked++].second != 0;
                     };
+                    std::vector<std::function<Think()>> otherwise;        // a walk asked whether it set off: its next act when not
+                    input.otherwise = &otherwise;
                     const auto& think = kAis[std::size_t(which)];
                     const auto ai_name = think.name;
                     if (ai_name == "BloodRaven") command = ctrl[2];                // her flag is AI control word 3 in game.exe, the command word here
-                    const auto act = ai_name == "DimVision" ? d2d::rules::dim_vision_think(input, seed)
+                    const auto first_act = ai_name == "DimVision" ? d2d::rules::dim_vision_think(input, seed)
                                    : ai_name == "Terror" ? d2d::rules::terror_think(input, seed, away)
                                    : think.other ? d2d::rules::other_think(ai_name, input)
                                                  : d2d::rules::mon_think(ai_name, input, seed, away);
+                    auto act = first_act;
+                    for (std::size_t tried = 0; tried < otherwise.size(); ++tried) {   // a next act may add its own
+                        assert(asked < asks.size() && asks[asked].first == act.n);
+                        if (asks[asked++].second != 0) break;
+                        const auto next = std::move(otherwise[tried]);
+                        act = next();
+                    }
                     if (ai_name == "BloodRaven") ctrl[2] = command;
                     if (input.dying) effects.push_back(ThinkEffect{ ThinkEffect::command_done, 0, 0 });   // ai.cpp clears the leader's command on a flee (FUN_0058ed10)
                     if (rally && ai_name == "Fallen") effects.push_back(ThinkEffect{ ThinkEffect::rally, 0, 0 });                  // the leader's rally, as game.exe's effect
