@@ -31,7 +31,7 @@ FUN_00623e00 finds no event frames.
 Not covered: the player's own frames (FUN_00463390), a looping mode, the
 path-driven animation (+0x30 set).
 """
-import sys
+import argparse
 
 import emu
 import hit_len
@@ -88,16 +88,13 @@ def game(exe, cases_path, answers_path):
 
 def main():
     """`[--exe PATH] game CASES ANSWERS`."""
-    args = sys.argv[1:]
-    exe = None
-    if "--exe" in args:
-        at = args.index("--exe")
-        exe = args[at + 1]
-        del args[at:at + 2]
-    if len(args) == 3 and args[0] == "game":
-        game(exe, args[1], args[2])
-    else:
-        sys.exit(__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--exe", help="another copy of game.exe")
+    parser.add_argument("command", choices=("game",))
+    parser.add_argument("cases", help="hit_len.py gen's output")
+    parser.add_argument("answers", help="hit_len.py game's output for those cases")
+    args = parser.parse_args()
+    game(args.exe, args.cases, args.answers)
 
 
 if __name__ == "__main__":

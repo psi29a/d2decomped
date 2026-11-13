@@ -37,8 +37,8 @@ Not covered: the reductions and resistances after the absorb
 (monster_damage.py, cyclone_armor.py), Energy Shield, magic (+0x20), the
 get-hit size test on what is left (hit_rule.py).
 """
+import argparse
 import random
-import sys
 
 import monster_damage
 
@@ -107,13 +107,18 @@ def game(path):
 
 def main():
     """`gen N SEED` or `game CASES`."""
-    args = sys.argv[1:]
-    if len(args) == 3 and args[0] == "gen":
-        gen(int(args[1]), int(args[2]))
-    elif len(args) == 2 and args[0] == "game":
-        game(args[1])
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest="command", required=True)
+    make = commands.add_parser("gen", help="print N case lines from SEED")
+    make.add_argument("count", type=int)
+    make.add_argument("seed", type=int)
+    run = commands.add_parser("game", help="run the case lines of CASES on game.exe")
+    run.add_argument("cases")
+    args = parser.parse_args()
+    if args.command == "gen":
+        gen(args.count, args.seed)
     else:
-        sys.exit(__doc__)
+        game(args.cases)
 
 
 if __name__ == "__main__":
