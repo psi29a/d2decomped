@@ -23,7 +23,9 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
+#ifndef __vita__   // no Unix sockets there: listen() says so and stays off
 #include <sys/un.h>
+#endif
 #include <unistd.h>
 #endif
 
@@ -69,8 +71,9 @@ auto ignore_sigpipe() -> void {}                              // Winsock has no 
 using Native = int;
 constexpr Native kNone = -1;
 auto close_native(Native socket) -> void { ::close(socket); }
-auto last_error() -> std::string { return std::strerror(errno); }
-auto ensure_started() -> bool { return true; }
+// maybe_unused: only listen() calls these two, and the Vita's does nothing.
+[[maybe_unused]] auto last_error() -> std::string { return std::strerror(errno); }
+[[maybe_unused]] auto ensure_started() -> bool { return true; }
 auto set_nonblocking(Native socket) -> bool { const int flags = ::fcntl(socket, F_GETFL, 0); return flags >= 0 && ::fcntl(socket, F_SETFL, flags | O_NONBLOCK) == 0; }
 auto would_block() -> bool { return errno == EAGAIN || errno == EWOULDBLOCK; }
 auto interrupted() -> bool { return errno == EINTR; }
@@ -137,7 +140,9 @@ void Channel::listen(const std::string& path) {
     if (path.empty()) return;
     if (impl_->listen_fd != kNone) close();
     ignore_sigpipe();
-
+#ifdef __vita__
+    std::fprintf(stderr, "[devctl] no Unix sockets on the Vita: %s not opened\n", path.c_str());
+#else
     if (path.size() >= sizeof(sockaddr_un{}.sun_path)) {
         std::fprintf(stderr, "[devctl] path too long: %s\n", path.c_str());
         return;
@@ -175,6 +180,7 @@ void Channel::listen(const std::string& path) {
     impl_->listen_fd = socket_fd;
     impl_->path = path;
     std::fprintf(stderr, "[devctl] listening on %s\n", path.c_str());
+#endif
 }
 
 void Channel::pump() {

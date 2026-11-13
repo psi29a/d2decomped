@@ -10,7 +10,9 @@ find_package(OpenAL REQUIRED)
 # then caches between builds; that module installs the licenses itself.
 set(D2D_SENTRY_PREFIX "" CACHE PATH
     "Use the static crashpad Sentry Native installed here instead of building it (Flatpak)")
-if(D2D_SENTRY_PREFIX)
+if(D2D_GAME_ONLY)
+    # d2d alone: no Sentry, so no crashpad_handler beside it.
+elseif(D2D_SENTRY_PREFIX)
     if(NOT D2D_FLATPAK)
         message(FATAL_ERROR "D2D_SENTRY_PREFIX is for the Flatpak: the packages ship crashpad_handler from this build")
     endif()
@@ -90,9 +92,9 @@ endif()
 # which SDL decodes. A distro's FFmpeg brings every codec and ~100 MB of
 # codec libraries to ship, so by default a static Bink-only FFmpeg (LGPL)
 # is built from source: ~25 s once, under 1 MB in d2d. -DD2D_BUNDLED_FFMPEG=OFF uses
-# the system's through pkg-config. Windows: off for now, its configure
-# wants MSYS2; CI ships BtbN's DLLs there.
-if(WIN32)
+# the system's through pkg-config. MSVC: off for now, its configure
+# wants MSYS2; CI ships BtbN's DLLs there. MinGW cross builds use it.
+if(MSVC)
     set(bundled_ffmpeg_default OFF)
 else()
     set(bundled_ffmpeg_default ON)
@@ -124,6 +126,20 @@ if(D2D_BUNDLED_FFMPEG)
         --enable-static --disable-shared --enable-pic
         --disable-x86asm   # no nasm needed; Bink at 640x480 is cheap in C
         --enable-demuxer=bink --enable-decoder=bink,binkaudio_rdft,binkaudio_dct)
+    if(CMAKE_CROSSCOMPILING)   # MinGW for Win32, VitaSDK
+        if(WIN32)
+            set(ffmpeg_os mingw32)
+        elseif(CMAKE_SYSTEM_NAME STREQUAL "Generic")
+            set(ffmpeg_os none)
+            # The last one wins: vita-elf-create refuses PIC's GOT relocations.
+            list(APPEND ffmpeg_options --disable-pic)
+        else()
+            string(TOLOWER "${CMAKE_SYSTEM_NAME}" ffmpeg_os)
+        endif()
+        list(APPEND ffmpeg_options --enable-cross-compile --target-os=${ffmpeg_os}
+            --arch=${CMAKE_SYSTEM_PROCESSOR} --cc=${CMAKE_C_COMPILER} --ar=${CMAKE_AR}
+            --nm=${CMAKE_NM} --ranlib=${CMAKE_RANLIB} --strip=${CMAKE_STRIP})
+    endif()
     # Named for its version and options, and built only when that build isn't
     # already there: CI caches build/ffmpeg-* (most of the ~25 s is configure).
     string(SHA1 ffmpeg_key "${D2D_FFMPEG_VERSION};${ffmpeg_options}")
@@ -178,7 +194,8 @@ if(D2D_BUNDLED_FFMPEG)
         file(MAKE_DIRECTORY "${ffmpeg_prefix}/include")   # exists before the build fills it
     endif()
     target_include_directories(ffmpeg SYSTEM INTERFACE "${ffmpeg_prefix}/include")
-    target_link_libraries(ffmpeg INTERFACE ${ffmpeg_archives} $<$<PLATFORM_ID:Linux>:m>)
+    target_link_libraries(ffmpeg INTERFACE ${ffmpeg_archives} $<$<PLATFORM_ID:Linux>:m>
+        $<$<PLATFORM_ID:Windows>:bcrypt>)   # libavutil's random seed (MinGW)
     set(ffmpeg_target ffmpeg)
 else()
     find_package(PkgConfig REQUIRED)
@@ -288,18 +305,32 @@ add_executable(d2d
 target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 # The version reaches main.cpp through build_info.hpp, not a define: a
 # define changes every commit and misses ccache for all of d2d's sources.
-target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
 target_link_libraries(d2d PRIVATE
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
-    SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} sentry)
+    SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
 target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+if(NOT D2D_GAME_ONLY)
+    target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
+    target_link_libraries(d2d PRIVATE sentry)
+endif()
 # start_sentry looks for the handler beside d2d; the packages put it there,
 # this does for the build tree (sentry_init fails without it).
 if(TARGET crashpad_handler)
     add_dependencies(d2d crashpad_handler)
     add_custom_command(TARGET d2d POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "$<TARGET_FILE:crashpad_handler>" "$<TARGET_FILE_DIR:d2d>")
+endif()
+# PS Vita (VitaSDK): d2d as eboot.bin in d2d.vpk, in the extended-memory
+# app mode (ATTRIBUTE2=12) that main.cpp's newlib heap counts on.
+# ponytail: no LiveArea art (a blank icon); add sce_sys/ when it's wanted.
+if(VITA)
+    include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
+    # std::thread and std::mutex: VitaSDK's specs link libpthread, whole, on -pthread.
+    target_link_options(d2d PRIVATE -pthread)
+    set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
+    vita_create_self(eboot.bin d2d UNSAFE)
+    vita_create_vpk(d2d.vpk DDEC00001 eboot.bin VERSION 01.00 NAME "d2d")
 endif()
 d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include

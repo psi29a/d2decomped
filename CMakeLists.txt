@@ -81,11 +81,23 @@ else()
     endif()
 endif()
 
+# The Vita's newlib hides POSIX (fileno, strnlen, gethostname, ftruncate)
+# from a strict -std=c++NN; glibc's g++ defines this itself.
+# -Wno-psabi: GCC notes every std::format call's ABI change since 9.1,
+# which a static eboot never links across.
+if(VITA)
+    add_compile_definitions(_GNU_SOURCE)
+    add_compile_options(-Wno-psabi)
+endif()
+
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(HeaderCheck)
 
 option(D2D_FLATPAK "Install apps using Flatpak's runtime and filesystem layout" OFF)
+# d2d and nothing else: no launcher, d2proxy, Sentry, tools or tests. The
+# builds for D2Vita (Win32 Game.exe, PS Vita) are this; docs/d2vita.md.
+option(D2D_GAME_ONLY "Build d2d alone, without crash reports" OFF)
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
@@ -108,7 +120,7 @@ include(CTest)
 enable_testing()
 
 option(D2D_BUILD_APPS  "Build end-user apps under apps/"  ON)
-if(D2D_FLATPAK)
+if(D2D_FLATPAK OR D2D_GAME_ONLY)
     set(_d2d_tools_default OFF)
     set(_d2d_tests_default OFF)
 else()

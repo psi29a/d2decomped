@@ -50,7 +50,9 @@
 #include <mpq.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
+#ifdef D2D_WITH_SENTRY
 #include <sentry.h>
+#endif
 #include <sound_ids.hpp>
 #include <switches.hpp>
 #include <tcp.hpp>
@@ -100,11 +102,24 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef __vita__
+#include <SDL3/SDL_main.h>   // SDL's main runs ours on a 512 KB stack
+#endif
 
 using namespace d2d::client;
 
+#ifdef __vita__
+// newlib's heap: most of the extended-memory app mode (ATTRIBUTE2=12,
+// apps/d2d/CMakeLists.txt), where D2Vita sees ~355 MiB free at boot.
+// ponytail: a guess, not measured on a Vita; lower it if SDL's GXM runs short.
+extern "C" {
+unsigned int _newlib_heap_size_user = 300 * 1024 * 1024;
+}
+#endif
+
 namespace {
 
+#ifdef D2D_WITH_SENTRY
 std::string cpu_model() {
 #if defined(_WIN32) && (defined(_M_IX86) || defined(_M_X64))
     int registers[4]{};
@@ -156,6 +171,7 @@ constexpr const char* cpu_architecture() {
     return "unknown";
 #endif
 }
+#endif   // D2D_WITH_SENTRY
 
 std::string crash_notes_from_environment() {
 #ifdef _WIN32
@@ -173,6 +189,7 @@ std::string crash_notes_from_environment() {
 #endif
 }
 
+#ifdef D2D_WITH_SENTRY
 void sentry_log_sink(d2d::log::Level level, std::string_view line) {
     const std::string message(line);
     auto breadcrumb = sentry_value_new_breadcrumb("default", message.c_str());
@@ -349,6 +366,19 @@ private:
     sentry_uuid_t attachment_{};
     std::thread worker_;
 };
+#else   // -DD2D_GAME_ONLY=ON builds without Sentry (apps/d2d/CMakeLists.txt)
+class SentrySession {
+public:
+    SentrySession(bool requested, const fs::path&, std::string_view, std::string_view) {
+        if (requested) d2d::log::warn("This d2d was built without crash reporting.");
+    }
+    [[nodiscard]] bool enabled() const { return false; }
+};
+
+struct SentryFrameAttachment {
+    void update(std::span<const std::uint8_t>) {}
+};
+#endif   // D2D_WITH_SENTRY
 
 // Set by main() before entering the loop — a lazy way to plumb --start-*
 // through without threading extra parameters everywhere.
@@ -494,6 +524,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // A set cap is the sleep's alone: a present held to the next refresh after it would miss the rate.
     if (g_fps_cap > 0) SDL_SetRenderVSync(win.renderer, 0);
     SentryFrameAttachment crash_frame;
+#ifdef D2D_WITH_SENTRY
     if (sentry_is_enabled()) {
         auto graphics = sentry_value_new_object();
         sentry_value_set_by_key(graphics, "renderer",
@@ -515,6 +546,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         }
         sentry_set_context("graphics", graphics);
     }
+#endif
     d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
                    SDL_GetRendererName(win.renderer));
     // The title shows while finish_scene loads the rest (only the menus'
@@ -2012,6 +2044,9 @@ int main(int argc, char** argv) {
         const char* env = std::getenv("D2_MPQ_DIR");
         const char* base = SDL_GetBasePath();
         std::error_code cwd_ec;
+#ifdef __vita__
+        if (cfg["data"].empty()) cfg["data"] = user_dir.string();   // D2Vita's game folder (userdir.hpp)
+#endif
         const auto found = d2d::install::resolve_data_dir(data_dir_str, env ? env : "", base ? fs::path(base) : fs::path{},
                                                           fs::current_path(cwd_ec), cfg["data"]);
         if (!found.error.empty()) {
@@ -2069,8 +2104,10 @@ int main(int argc, char** argv) {
         if (args.size() != 2 || args[1] != "CONFIRM_CRASH")
             return std::string("err usage: crash-test CONFIRM_CRASH\n");
         d2d::log::warn("Triggering the explicitly requested Sentry crash test.");
+#ifdef D2D_WITH_SENTRY
         sentry_set_tag("crash_test", "true");
         sentry_crash();
+#endif
         return std::string("err Sentry crash test unexpectedly returned\n");
     });
     channel.listen(devctl_path);
