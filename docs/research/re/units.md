@@ -241,3 +241,30 @@ Not covered: the callees themselves (`FUN_004ac7e0`, `FUN_004add90`,
 `FUN_0046f1c0` ... are hooked and logged, not run), `FUN_00464d20` /
 `00464d90` (inventory walk), `FUN_00466820` / `004667f0` (preset units).
 No original bug found in these.
+
+## Unit allocation (`FUN_00620290`)
+
+The two stack arguments are the memory-pool pointer and unit type (`ret 8`).
+The allocator `FUN_0040b430` is called with ECX = pool, EDX = 0xf4,
+`.\\UNITS\\Units.cpp`, line 0x66e and flag 0. Its result is passed directly
+to the CRT clear for 0xf4 bytes, then unit +0 is set to type and +8 to pool.
+For type 1 only, a second allocation uses the same pool, size 0x60, line
+0x67b and flag 0; its pointer is stored at unit +0x14 and the block is
+cleared. The function returns the first pointer; no other unit bytes are
+set. The allocation and clear calls are visible at `0x6202a4–0x6202ec`.
+
+`tools/emu/unit_allocate.py` runs the original function and CRT clear on
+240 type/pool combinations with the pool allocator hooked to return
+poisoned guarded blocks. It checks all block bytes, guard bytes, allocation
+arguments, return address and stack cleanup. Two model mutations are caught.
+Three additional cases inject null at the first or second allocation: all
+fault on the null write inside the CRT (`0x681f4f`), rather than returning
+null. In the second-allocation case the already-zeroed unit retains type 1,
+the pool, and a null data pointer at the fault. This is an injected-failure
+result: the real pool allocator and its exhaustion/error handling are not
+run, so it does not establish what a real out-of-memory event does. The
+script compares stock code to Python expectations, not to a d2d port.
+
+Re-check with `cd tools/emu && uv run python unit_allocate.py --exe
+/path/to/Game.exe --mutation-check`; the executable's 1.14d SHA-256 is
+checked before execution. No MPQs are needed.
