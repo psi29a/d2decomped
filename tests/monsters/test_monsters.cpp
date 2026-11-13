@@ -117,7 +117,7 @@ void diablo_scores() {
     // traced against stock 1.14d, tools/emu/ai_baal_score_probe.py.
     {
         d2d::rules::DiabloPick pick;
-        for (const auto [cold, want] : { std::pair{0, 17}, std::pair{330, 18}, std::pair{660, 19} }) {
+        for (const auto& [cold, want] : { std::pair{0, 17}, std::pair{330, 18}, std::pair{660, 19} }) {
             pick.cold_resist = cold;
             assert(d2d::rules::diablo_score(pick, 100, false, true, false, false) == want);
         }
