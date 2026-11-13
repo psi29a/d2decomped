@@ -333,9 +333,9 @@ auto Town::drive_strip(const pad::Actions& actions) -> void {
     if (!actions.confirm) return;
     menu_handoff.armed = true;                         // this South press must not click the screen it opens
     switch (skill_strip) {
-        case 0: char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; break;
-        case 1: inv_open = !inv_open; if (inv_open) tree_open = false; break;
-        case 2: tree_open = !tree_open; if (tree_open) inv_open = false; break;
+        case 0: toggle_character(); break;
+        case 1: toggle_inventory(); break;
+        case 2: toggle_skill_tree(); break;
         case 3: automap.open = !automap.open; break;
         case 4: toggle_quest_log(); break;
         case 5:

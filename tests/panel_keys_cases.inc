@@ -1,0 +1,13 @@
+// tools/emu/panel_keys.py: the UI up, the key's UI, game.exe allows it (FUN_00453910)
+{0x0, 1, 1},
+{0x0, 2, 1},
+{0x0, 4, 1},
+{0xc, 1, 1},
+{0xc, 2, 0},
+{0xc, 4, 0},
+{0x19, 1, 0},
+{0x19, 2, 0},
+{0x19, 4, 0},
+{0x1a, 1, 0},
+{0x1a, 2, 0},
+{0x1a, 4, 0},

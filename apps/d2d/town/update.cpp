@@ -273,15 +273,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const bool covered_before = view_covered();
             bool cursor_follows = std::ranges::any_of(std::array{ keys::kInventory, keys::kSkillTree, keys::kCharacter, keys::kQuestLog, keys::kParty, keys::kHireling },
                                                       [&](int action) { return fires(action); });
-            if (fires(keys::kInventory)) { inv_open = !inv_open; if (inv_open) tree_open = false; }
-            if (fires(keys::kSkillTree)) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
+            if (fires(keys::kInventory)) toggle_inventory();
+            if (fires(keys::kSkillTree)) toggle_skill_tree();   // both right-hand panels
             if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
             if (fires(keys::kSwapWeapons) && character.expansion) send(cmd::SwapWeapons{});
             for (int slot = 0; slot < 16; ++slot)
                 if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skill_hotkey(slot, mouse.x, mouse.y);
             if (fires(keys::kShowBelt)) belt_open = !belt_open;
             if (fires(keys::kAutomap)) automap.open = !automap.open;
-            if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
+            if (fires(keys::kCharacter)) toggle_character();
             if (fires(keys::kQuestLog)) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead) && !game_menu.open) { send(cmd::Resurrect{}); continue; }
             for (int belt = 0; belt < 4; ++belt)
@@ -417,9 +417,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const bool left_open = left_panel_open();
             int action = -1;
             hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, mini_right(), action);
-            if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
-            if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
-            if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
+            if (action == MiniPanel::kCharacter) toggle_character();
+            if (action == MiniPanel::kInventory) toggle_inventory();
+            if (action == MiniPanel::kSkills) toggle_skill_tree();
             if (action == MiniPanel::kAutomap) automap.open = !automap.open;
             if (action == MiniPanel::kMessages) mini_panel::messages(belt_open, message_log);
             if (action == MiniPanel::kQuests) toggle_quest_log();
