@@ -207,6 +207,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.sound = text("MonSound");
         type_info.usound = text("UMonSound");
         type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1"; type_info.damage_regen = num(text("damageregen")); type_info.interact = text("interact") == "1";
+        type_info.no_aura = text("noaura") == "1";
         type_info.montype = text("MonType");
         if (const auto found = monprop_rows.find(std::string(text("MonProp"))); found != monprop_rows.end())
             for (int difficulty = 0; difficulty < 3; ++difficulty)

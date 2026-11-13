@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <variant>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -63,8 +64,14 @@ int main() try {
     // InitFn 47 (FUN_00595a50) lists a chest as its room comes up: dead before
     // any is up, nothing yet; the first chest up makes the treasure there.
     world.objects_inited[cellar] = std::size_t(chest - cellar->npcs.begin());
+    world.actor->events.clear();
     world.countess_died(0);
     assert(world.treasure.empty() && !world.tower.treasure);
+    // Unit event 0x25 (0x4cbaad): the music off for 1500 ticks, for a player who took part.
+    const auto hushes = [&](int back_ms) {
+        return std::ranges::count_if(world.actor->events, [&](const Event& event) { const auto* music = std::get_if<ev::MusicCue>(&event); return music && music->sound == 0 && music->back_ms == back_ms; });
+    };
+    assert(world.actor->tower_line_held && hushes(1500 * 40) == 1);
     auto game_seed = world.fight.spawning.game;
     world.init_new_objects();
     assert(world.treasure.size() == 1 && world.tower.treasure);
@@ -91,11 +98,13 @@ int main() try {
     assert(lines(31'000) == 0);
     world.tower_treasure(30'000);                        // 1 left: the 0x5c
     assert(lines(31'000) == 1 && !world.actor->tower_line_held);
+    assert(hushes(75 * 40) == 1);                        // the music back 0x32 ticks after the line (FUN_004dce10)
     world.treasure.front().left = 1;                     // over 60 s on: dropped
     world.actor->tower_line_held = 0;
     world.cues.due.clear();
     world.tower_treasure(60'000);
     assert(lines(61'000) == 0 && !world.actor->tower_line_held);
+    assert(hushes(75 * 40) == 1);                        // no second one
     std::printf("OK: her complete_tower line plays 1 s after the treasure's end, within 60 s\n");
     return 0;
 } catch (const std::exception& error) {

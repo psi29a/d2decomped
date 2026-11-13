@@ -387,6 +387,7 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
         each_player([&](Player& player) {
             if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, player.id)) return;
             player.tower_line_held = now_ms;
+            player.events.push_back(ev::MusicCue{ .back_ms = d2d::rules::quest_music_event(0x25)->back * 40 });   // 0x4cbaad: no jingle, the music off 1500 ticks
             quest_kill = true;
         });
         if (quest_kill && act() == 0)
@@ -425,9 +426,10 @@ auto World::tower_treasure_made() -> void {
 // off the spawner's own. At 1 left, unit event 0x5c on the chest (0x5af381):
 // the client (FUN_004cbde0 -> FUN_004dce10) plays the line the Countess's
 // 0x25 held, 25 sound ticks (1 s) on, if that came under 1500 ticks (60 s)
-// ago (FUN_004dcaa0); later, the line's dropped.
-// ponytail: it runs only while the player's on its level (game.exe: while its room's up); the
-// music's 60 s hush round the line (FUN_004ba8f0 / FUN_004ba890) isn't played.
+// ago (FUN_004dcaa0); later, the line's dropped. The 0x25 turned the music
+// off for those 1500 ticks (FUN_004dcd40 -> FUN_004ba8f0); the 0x5c brings
+// it back 0x32 ticks after the line (FUN_004dce10).
+// ponytail: it runs only while the player's on its level (game.exe: while its room's up).
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
@@ -455,7 +457,10 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
             }
             if (spawner.left == 1)
                 each_player([&](Player& player) {
-                    if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) class_cue("act1_complete_tower", now_ms + 1'000);
+                    if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) {
+                        class_cue("act1_complete_tower", now_ms + 1'000);
+                        player.events.push_back(ev::MusicCue{ .back_ms = (25 + 0x32) * 40 });   // FUN_004dce10: the music back 0x32 ticks after the line
+                    }
                 });
             --spawner.left;
         }
@@ -700,10 +705,14 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
         // FUN_00593710 ends on S->C 0x89 event 1 (FUN_00545760); each client's
         // 0x46aee0 dips its ambient, from missile cairnstones, in level 4.
-        // ponytail: every player gets it; game.exe's client only with a
-        // StoneAlpha (object 17) in its near rooms (FUN_0065a620).
+        // Only with a StoneAlpha (object 17) in the rooms near the player's
+        // (FUN_0065a620(room, 2, 0x11) at 0x46aefc).
         if (const auto stones = game_data->missiles.find("cairnstones"); stones != game_data->missiles.end())
             each_player([&](Player& player) {
+                const auto rooms_near = near_rooms(*game_data, *level, player.player.x, player.player.y);
+                if (std::ranges::none_of(level->npcs, [&](const Npc& stone) {
+                        return stone.object_id == 17 && std::ranges::any_of(rooms_near, [&](const auto& room) { return room.first == level && room.second == stone.room; });
+                    })) return;
                 const auto frames = d2d::rules::cairn_dip(stones->second.param1, stones->second.range);
                 player.events.push_back(ev::AmbientDip{ frames.fade_in, frames.hold, frames.back, d2d::rules::level_ids::kStonyField });
             });

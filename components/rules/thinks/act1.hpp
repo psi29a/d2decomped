@@ -222,32 +222,53 @@ struct Act1Thinks : Thinker {
     // 5..19 off the target; past 5, 5 % moves 12 about the target, else
     // not hit 80 % strikes ((difficulty + 4) * 10 % Quick Strike, else A1),
     // else circles 4; within 5, 30 % backs off to 12 running, else A1.
-    // ponytail: the walks home / about the target and the circle always
-    // set off; the second target search (FUN_005ddc30) is the target.
-    Think blood_raven() {
-        if (input.dist > 45) return { MonAct::idle, 5 };
-        if (input.target_home_dist >= 50 || input.home_dist > 50) { *input.command = 1; *input.pace = 100; return { MonAct::home }; }
-        if (*input.command && input.home_dist > 5) { *input.pace = 100; return { MonAct::home }; }
-        *input.command = 0;
+    // A walk that can't set off (home at 0x5e645b and 0x5e64ac, past 20
+    // off at 0x5e650c, the circle at 0x5e6765, the back-off) drops the think event
+    // (FUN_00540e60(2, 0)) and she goes on down the list from there:
+    // `stage`, by ThinkIn::otherwise; `reach` is the distance, halved once
+    // she's tried to close. She strikes her second target (FUN_005ddc30);
+    // with none she circles.
+    Think blood_raven() { return blood_raven_from(0, input.dist); }
+    Think blood_raven_from(int stage, int reach) {
+        auto or_from = [&](int next, Think out) {
+            if (input.otherwise)
+                // `away` by value: the caller's may be a temporary made for this think's call.
+                input.otherwise->emplace_back([name = ai_name, &scene = input, &seed = rng, back = away, next, reach] {
+                    Act1Thinks again{ { name, scene, seed, back } };
+                    return again.blood_raven_from(next, reach);
+                });
+            return out;
+        };
         auto around = [&](int radius) { auto out = think_wander(rng, radius); out.act = MonAct::around; return out; };
-        if (input.dist > 20) { *input.pace = 100; return around(std::max(input.dist >> 1, 12)); }
-        *input.state += 3;
-        if (input.skill[0] && !input.in_melee && *input.state2 < input.difficulty * 2 + 8 && roll() < *input.state) {
-            const int reach = rng(15) + 5;
-            int x = reach, y = reach;
-            if (rng.next() & 1) y = rng(reach); else x = rng(reach);
-            if (rng.next() & 1) x = -x;
-            if (rng.next() & 1) y = -y;
-            ++*input.state2; *input.state = 0;
-            return { MonAct::skill, 0, x, y };
+        if (stage < 1) {
+            if (input.dist > 45) return { MonAct::idle, 5 };
+            if (input.target_home_dist >= 50 || input.home_dist > 50) { *input.command = 1; *input.pace = 100; return or_from(1, { MonAct::home }); }
         }
-        if (input.dist > 5) {
-            if (roll() < 5) { *input.pace = 100; return around(12); }
-            if (!input.got_hit && roll() < 80) return input.skill[1] && roll() < (input.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 };
-            *input.pace = 50;
-            return think_circle(rng, 4);             // FUN_005df7d0(4, 1): its walk flagged 4
+        if (stage < 2 && *input.command && input.home_dist > 5) { *input.pace = 100; return or_from(2, { MonAct::home }); }
+        if (stage < 3) {
+            *input.command = 0;
+            if (reach > 20 && input.target_home_dist < 50) { reach = std::max(reach >> 1, 12); *input.pace = 100; return or_from(3, around(reach)); }
         }
-        if (roll() < 30) { *input.pace = 100; if (away(12 - input.dist, true)) return { MonAct::none }; }
+        if (stage < 4) {
+            *input.state += 3;
+            if (input.skill[0] && !input.in_melee && *input.state2 < input.difficulty * 2 + 8 && roll() < *input.state) {
+                const int span = rng(15) + 5;
+                int x = span, y = span;
+                if (rng.next() & 1) y = rng(span); else x = rng(span);
+                if (rng.next() & 1) x = -x;
+                if (rng.next() & 1) y = -y;
+                ++*input.state2; *input.state = 0;
+                return { MonAct::skill, 0, x, y };
+            }
+            if (reach > 5) {
+                if (roll() < 5 && input.target_home_dist < 50) { *input.pace = 100; return around(12); }
+                if (input.second && !input.got_hit && roll() < 80)
+                    return at_second(input.skill[1] && roll() < (input.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 });
+                *input.pace = 50;
+                return or_from(4, think_circle(rng, 4));             // FUN_005df7d0(4, 1): its walk flagged 4
+            }
+        }
+        if (roll() < 30 && reach < 12) { *input.pace = 100; if (away(12 - reach, true)) return { MonAct::none }; }
         return { MonAct::a1 };
     }
     // SkeletonMage (FUN_005f96c0): with a second target (FUN_005ddc30) by

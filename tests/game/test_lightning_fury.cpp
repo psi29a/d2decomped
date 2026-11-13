@@ -17,6 +17,7 @@
 #include <skills.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -126,6 +127,15 @@ int main() try {
     skill.aura_filter = 0xb783;
     burst(info);
     assert(fight.pending.empty());
+    // The walk passes a noaura monster (MonStats flag 0x1b, FUN_0056b7e0 at 0x56b979).
+    const auto no_aura = std::ranges::find_if(data->monsters.types, [](const auto& type) { return type.no_aura; });
+    assert(no_aura != data->monsters.types.end());
+    skill.aura_filter = 0;
+    burst(info);
+    const std::size_t all = fight.pending.size();
+    fight.monsters[1].type = int(no_aura - data->monsters.types.begin());
+    burst(info);
+    assert(all == 2 && fight.pending.size() == 1);
     std::printf("OK: Lightning Fury's hit sends one to the unit it struck too, through the aurafilter, as game.exe's (FUN_005ab370)\n");
     return 0;
 } catch (const std::exception& error) {
