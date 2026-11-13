@@ -57,6 +57,18 @@ with `{}`. It has no separately allocated bit-buffer header or pool
 release calls. These helpers are verified stock behavior, rather than
 equivalent d2d allocation functions.
 
+### Akara's Den-of-Evil gossip (not a journal quest)
+
+A pseudo-quest slot (namespace `A1Q7`) gives Akara (NPC 0x10a) extra
+chatter while the Den of Evil is still open. `Q07_ActiveFilter`
+(`FUN_00596bc0`) is true only when: the target is Akara; the Den of
+Evil quest is past intro; the game-wide "just completed in this game"
+flag (`QUEST_GetQuestRecordState(QUEST_DenOfEvil, 0xd)`) is clear; and
+for this player the Den of Evil is none of Completed, JustCompleted or
+RewardAwaits — i.e. while the player still has the Den open. All reads,
+no `QuestRecord` writes. Not ported — d2d has no equivalent Akara
+gossip line; `rules::DenQuest` itself is unaffected.
+
 ## The quest record
 
 `FUN_00590720` sets up the record. Each quest has one record per game.
