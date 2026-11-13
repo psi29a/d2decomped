@@ -80,7 +80,7 @@ jobs:
       # BtbN keeps month-end autobuilds indefinitely (dailies are pruned), so
       # pin one of those: an immutable n9.0.x release-branch build.
       FFMPEG_TAG: "autobuild-2026-08-31-13-27"
-      FFMPEG_BUILD: "ffmpeg-n9.0.1-11-ge47273f4d9-win64-lgpl-shared-9.0"
+      FFMPEG_BUILD: "ffmpeg-n9.0.1-11-ge47273f4d9-${{ matrix.arch == 'arm64' && 'winarm64' || 'win64' }}-lgpl-shared-9.0"
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +92,13 @@ jobs:
             name: macOS (Clang)
           - os: windows-latest
             name: Windows (MSVC)
+            arch: x64
+          # Native ARM64 (docs/design/platform-support.md), not x64 emulated:
+          # "Check the package's architecture" fails a binary of any other kind.
+          - os: windows-11-arm
+            name: Windows ARM64 (MSVC)
+            arch: arm64
+            artifact_suffix: -ARM64
 
     steps:
       - uses: actions/checkout@v5
@@ -136,7 +143,8 @@ jobs:
       # FFmpeg: Linux and macOS build a Bink-only one (apps/d2d/CMakeLists.txt).
       # Windows: prebuilt release binaries rather than compiling anything.
       #   SDL3        - libsdl-org's VC dev zip (ships SDL3Config.cmake)
-      #   OpenAL Soft - kcat's bin zip (headers, OpenAL32.lib, soft_oal.dll)
+      #   OpenAL Soft - kcat's bin zip (headers, OpenAL32.lib, soft_oal.dll);
+      #                 it has no ARM64 build, so arm64 takes vcpkg's
       #   FFmpeg      - BtbN's LGPL shared build (import libs + .pc files),
       #                 a pinned month-end autobuild of the 9.0 release branch
       #   zlib,       - no official MSVC binaries; the runner's preinstalled
@@ -148,7 +156,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/deps
-          key: deps-win-sdl3-${{ env.SDL3_VERSION }}-openal-${{ env.OPENAL_VERSION }}-${{ env.FFMPEG_BUILD }}-zlib-stormlib-v2
+          key: deps-win-${{ matrix.arch }}-sdl3-${{ env.SDL3_VERSION }}-openal-${{ env.OPENAL_VERSION }}-${{ env.FFMPEG_BUILD }}-zlib-stormlib-v2
 
       - name: Download prebuilt dependencies (Windows)
         if: runner.os == 'Windows' && steps.cache-deps.outputs.cache-hit != 'true'
@@ -162,9 +170,11 @@ jobs:
             7z x -y "-o$deps" "$env:RUNNER_TEMP\$name.zip" | Out-Null
           }
           Get-Zip "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL3_VERSION/SDL3-devel-$env:SDL3_VERSION-VC.zip" sdl3
-          Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal
           Get-Zip "https://github.com/BtbN/FFmpeg-Builds/releases/download/$env:FFMPEG_TAG/$env:FFMPEG_BUILD.zip" ffmpeg
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib stormlib --triplet x64-windows --x-install-root="$deps\vcpkg"
+          $ports = @("zlib", "stormlib")
+          if ("${{ matrix.arch }}" -eq "arm64") { $ports += "openal-soft" }
+          else { Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal }
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install @ports --triplet ${{ matrix.arch }}-windows --x-install-root="$deps\vcpkg"
           Get-ChildItem $deps
 
       # pkg-config for FFmpeg's .pc files (pkgconfiglite is a prebuilt binary).
@@ -194,14 +204,16 @@ jobs:
         uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.8.*'
-          host: 'windows'
+          host: ${{ matrix.arch == 'arm64' && 'windows_arm64' || 'windows' }}
           target: 'desktop'
-          arch: 'win64_msvc2022_64'
+          arch: ${{ matrix.arch == 'arm64' && 'win64_msvc2022_arm64' || 'win64_msvc2022_64' }}
           cache: true
 
       - name: Set up MSVC environment (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
 
       # ccache 4.x handles MSVC too; CMake picks it up via
       # CMAKE_*_COMPILER_LAUNCHER. StormLib and CLI11 (FetchContent) share it.
@@ -292,9 +304,10 @@ jobs:
         run: |
           $deps = "${{ github.workspace }}\deps"
           $sdl = "$deps\SDL3-$env:SDL3_VERSION"
-          $al = "$deps\openal-soft-$env:OPENAL_VERSION-bin"
           $ff = "$deps\$env:FFMPEG_BUILD"
-          $z = "$deps\vcpkg\x64-windows"
+          $z = "$deps\vcpkg\${{ matrix.arch }}-windows"
+          $al_include, $al_library = "$deps\openal-soft-$env:OPENAL_VERSION-bin\include", "$deps\openal-soft-$env:OPENAL_VERSION-bin\libs\Win64\OpenAL32.lib"
+          if ("${{ matrix.arch }}" -eq "arm64") { $al_include, $al_library = "$z\include", "$z\lib\OpenAL32.lib" }
           $env:PKG_CONFIG_PATH = "$ff\lib\pkgconfig"
           # BtbN's .pc files are relocatable (prefix=${pcfiledir}/../..).
           # Embedded (/Z7), not RelWithDebInfo's /Zi: ccache can't cache a
@@ -312,8 +325,8 @@ jobs:
             -DD2D_CHECK_HEADERS=OFF `
             "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
             "-DSDL3_DIR=$sdl\cmake" `
-            "-DOPENAL_INCLUDE_DIR=$al\include" `
-            "-DOPENAL_LIBRARY=$al\libs\Win64\OpenAL32.lib"
+            "-DOPENAL_INCLUDE_DIR=$al_include" `
+            "-DOPENAL_LIBRARY=$al_library"
 
       - name: Build
         # -k 0: keep going past the first failure so one run shows every error.
@@ -333,10 +346,10 @@ jobs:
         run: |
           $deps = "${{ github.workspace }}\deps"
           $dlls = @(
-            "$deps\SDL3-$env:SDL3_VERSION\lib\x64\SDL3.dll",
-            "$deps\openal-soft-$env:OPENAL_VERSION-bin\bin\Win64\soft_oal.dll",
+            "$deps\SDL3-$env:SDL3_VERSION\lib\${{ matrix.arch }}\SDL3.dll",
             "$deps\$env:FFMPEG_BUILD\bin\*.dll",
-            "$deps\vcpkg\x64-windows\bin\*.dll")
+            "$deps\vcpkg\${{ matrix.arch }}-windows\bin\*.dll")   # arm64's OpenAL32.dll too
+          if ("${{ matrix.arch }}" -ne "arm64") { $dlls += "$deps\openal-soft-$env:OPENAL_VERSION-bin\bin\Win64\soft_oal.dll" }
           foreach ($dir in @("build\apps\d2d", "build\apps\launcher", "build\tests")) {
             if (Test-Path $dir) { Copy-Item -Path $dlls -Destination $dir -Force }
           }
@@ -355,6 +368,24 @@ jobs:
       # Chocolatey's.
       - name: Package
         run: cmake --build build --target package
+
+      # The package as a player gets it: dumpbin's machine for every .exe and
+      # .dll in it (8664 x64, AA64 ARM64) and the processor in its name, so
+      # an x64 DLL in the ARM64 zip, or the reverse, fails here. The tests
+      # above ran on the native runner, not under x64 emulation.
+      - name: Check the package's architecture (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $machine, $processor = if ("${{ matrix.arch }}" -eq "arm64") { "AA64", "ARM64" } else { "8664", "AMD64" }
+          $zip = Get-Item build\d2d-*.zip
+          if ($zip.Name -notlike "*-Windows-$processor.zip") { throw "$($zip.Name) isn't named for $processor" }
+          Expand-Archive $zip.FullName "$env:RUNNER_TEMP\package" -Force
+          $wrong = Get-ChildItem "$env:RUNNER_TEMP\package" -Recurse -Include *.exe, *.dll |
+            Where-Object { -not ((dumpbin /headers $_.FullName) -match "^\s*$machine machine") }
+          $wrong | ForEach-Object { Write-Host "::error::not $machine`: $($_.FullName)" }
+          if ($wrong) { exit 1 }
+          Write-Host "$($zip.Name): every binary is $machine"
 
       - name: Upload Sentry debug information
         if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
@@ -414,7 +445,7 @@ jobs:
         continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
-          name: d2d-${{ runner.os }}
+          name: d2d-${{ runner.os }}${{ matrix.artifact_suffix }}
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
           path: |
             build/d2d-*.dmg
