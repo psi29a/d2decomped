@@ -58,8 +58,9 @@ struct Fine {
         while (int(std::floor(cells * 5)) < subtile()) cells = std::nextafter(cells, cells + 1);
         return cells;
     }
-    Fine& operator+=(float cells) { return *this = Fine(float(*this) + cells); }
-    Fine& operator-=(float cells) { return *this = Fine(float(*this) - cells); }
+    // Moved by cells in 16.16, so the place keeps the bits a float can't hold.
+    Fine& operator+=(float cells) { raw += Fine(cells).raw; return *this; }
+    Fine& operator-=(float cells) { raw -= Fine(cells).raw; return *this; }
 };
 
 // Where each world NPC is right now (index-aligned with Level::npcs):

@@ -32,6 +32,13 @@ int main() try {
             assert(int(std::floor(float(fine) * 5)) == sub);
         }
 
+    // Moved by whole cells (a level crossing), a place a float can't hold comes back exactly.
+    Fine crossing;
+    crossing.raw = 71 * 5 * 65536 + 1;
+    crossing -= 8.f;
+    crossing += 8.f;
+    assert(crossing.raw == 71 * 5 * 65536 + 1);
+
     // A walk from off a centre steps from exactly there (nothing snaps it on).
     Level level;
     level.ds1 = d2d::ds1::Map(40, 40, 1, 1);
