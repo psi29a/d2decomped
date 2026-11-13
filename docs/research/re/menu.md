@@ -85,6 +85,16 @@ oracle run); their names first came from D2BS's UI enum:
   expansion stash is drawn higher (glyph top bottom - 0x19f against
   bottom - 0xdb) and its close button at x + 0x110 against x + 0x113. Not
   traced: what a nonzero `0x7bce2c` is for beyond those tests.
+- The inventory beside them: the stash, the Cube and a store don't turn
+  UI 1 on (`FUN_00489e00` opens 0x19 alone); the panel drawer runs
+  `FUN_0048edf0` for UI 0xc, 0x19, 0x1a as for UI 1 (`FUN_00456ee0`).
+  Each one's mouse-up handler takes a release over the inventory's close
+  button (`FUN_00486e10`: x W - 80 - 0x12e .. - 0x10e, y H - 60 - 0x60 ..
+  - 0x40, inclusive), with no belt popup under it and nothing in the hand
+  (`FUN_0063c1e0`), as its own close: the stash's (`FUN_00489ac0`) shuts
+  UI 0x19 (0x489b54), the Cube's (`FUN_0048a190`) UI 0x1a (0x48a208), a
+  store's (`FUN_00488b00`) runs `FUN_004b3ed0`, which shuts UI 0xc then 8.
+  d2d: `client::inventory_close_shuts` (storage_close.hpp).
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`
