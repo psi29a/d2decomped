@@ -7,8 +7,10 @@
 #include "ui.hpp"
 #include "world_view.hpp"
 
+#include <button_label.hpp>
 #include <d2s.hpp>
 #include <font.hpp>
+#include <palette.hpp>
 #include <text_box.hpp>
 
 #include <algorithm>
@@ -33,6 +35,31 @@ static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& s
     for (const auto& row : rows) {
         font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
                                  row.x, row.baseline, row.text, shade, shade, shade);
+    }
+}
+
+// A kind 6 button's label (FUN_00500db0 / FUN_00500c50, frontend-menu-table.md
+// "Button labels"): FontExocet10 or FontRidiculous by the button's height,
+// bottom-anchored on its baseline, 2 left and 2 down when pressed, and
+// never recoloured on hover. `label2` is a second line under the first.
+// ponytail: game.exe keeps a disabled button's label in colour 0 and
+// draws its chrome in mode 1 (not traced); d2d greys the label by `shade`.
+static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
+                              const d2d::palette::Palette& pal, const Button& button,
+                              std::string_view label, bool pressed, int shade = 255,
+                              std::string_view label2 = {}) {
+    const auto& wanted = d2d::font::button_label_font(button.height).exocet10 ? scene.font_exocet10 : scene.font_ridiculous;
+    const auto& font = wanted.line_height() > 0 ? wanted : scene.font;
+    const int bottom = button.y + button.height - 1;
+    const int lines = label2.empty() ? 1 : 2;
+    for (int line = 0; line < lines; ++line) {
+        const auto text = line == 0 ? label : label2;
+        if (text.empty()) continue;
+        const auto spot = d2d::font::button_label_spot(button.x, bottom, button.width, button.height,
+                                                       font.measure(text), font.tbl_height(), pressed, lines, line);
+        const auto tint = std::uint8_t(shade);
+        font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, spot.x, spot.baseline,
+                                  text, tint, tint, tint);
     }
 }
 
@@ -71,27 +98,12 @@ void render_title(std::vector<std::uint8_t>& framebuffer,
     blit_additive  (framebuffer, scene.logo_fr.frame(0, frame_index), scene.pal, &scene.sky_pl2, kLogoAnchorX, kLogoAnchorY);
 
     // Buttons — chrome frames from RE'd assets: 2-frame (normal/pressed)
-    // for Short/Medium, 4-frame two-piece composite for Wide/Narrow. Hover
-    // brightens the label to gold; no chrome-only hover frame exists.
+    // for Short/Medium, 4-frame two-piece composite for Wide/Narrow. No
+    // hover frame or hover colour exists.
     for (const auto& button : buttons) {
-        if (button.chrome) {
-            blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y,
-                               button.hovered && button.pressed);
-        }
-        if (button.label && *button.label) {
-            const int label_width = scene.font.measure(button.label);
-            const int line_height = scene.font.line_height();
-            const int label_x = button.x + (button.width - label_width) / 2;
-            const int label_y = button.y + (button.height - line_height) / 2;
-            if (button.hovered) {
-                // Gold hover — matches the highlight D2 draws through a
-                // PL2 text-colour shift.
-                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, button.label,
-                                   255, 208, 80);
-            } else {
-                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, button.label);
-            }
-        }
+        const bool pressed = button.hovered && button.pressed;
+        if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, pressed);
+        if (button.label) draw_button_label(framebuffer, scene, scene.pal, button, button.label, pressed);
     }
 }
 
@@ -228,18 +240,10 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     // normal/pressed); the medium OK/EXIT chrome uses blit_button_chrome.
     auto draw_tall = [&](const Button& button, bool disabled = false) {
         if (!button.chrome) return;
-        const auto& frame = button.chrome->frame(0, button.hovered && button.pressed ? 1 : 0);
-        blit_sprite(framebuffer, frame, pal, button.x, button.y);
-        const int line_height = scene.font.line_height();
-        const int lines = button.label2 ? 2 : 1;
-        int label_y = button.y + (button.height - lines * line_height) / 2;
-        for (const char* text : { button.label, button.label2 }) {
-            if (!text || !*text) continue;
-            const int label_x = button.x + (button.width - scene.font.measure(text)) / 2;
-            if (disabled) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, text, 96, 96, 96);
-            else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, text);
-            label_y += line_height;
-        }
+        const bool pressed = button.hovered && button.pressed;
+        blit_sprite(framebuffer, button.chrome->frame(0, pressed ? 1 : 0), pal, button.x, button.y);
+        draw_button_label(framebuffer, scene, pal, button, button.label ? button.label : "", pressed,
+                          disabled ? 96 : 255, button.label2 ? button.label2 : "");
     };
     draw_tall(select_ui.create_btn);
     // Convert-to-expansion only applies to a classic character (ponytail:
@@ -253,18 +257,11 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         if (!button->chrome) continue;
         blit_button_chrome(framebuffer, pal, *button->chrome, button->x, button->y,
                            button->hovered && button->pressed);
-        if (button->label && *button->label) {
-            const int label_width = scene.font.measure(button->label);
-            const int line_height = scene.font.line_height();
-            const int label_x = button->x + (button->width - label_width) / 2;
-            const int label_y = button->y + (button->height - line_height) / 2;
-            // OK greys out until a save is picked (do_switch is gated
-            // on that each frame, before this draw).
-            if (button == &select_ui.ok_btn && !button->do_switch)
-                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label, 96, 96, 96);
-            else
-                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
-        }
+        // OK greys out until a save is picked (do_switch is gated on that
+        // each frame, before this draw).
+        if (button->label)
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed,
+                              button == &select_ui.ok_btn && !button->do_switch ? 96 : 255);
     }
     if (select_ui.confirm_delete) {
         // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
@@ -272,9 +269,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         draw_text_box(framebuffer, scene, scene.font, select_ui.delete_text, 268, 320, 264, 120, 255, 10, 8);
         for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
             blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
-            const int label_x = button->x + (button->width - scene.font.measure(*label)) / 2, label_y = button->y + (button->height - scene.font.line_height()) / 2;
-            if (button->hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, *label, 255, 208, 80);
-            else                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, *label);
+            draw_button_label(framebuffer, scene, pal, *button, *label, button->hovered && button->pressed);
         }
         return;
     }
@@ -289,11 +284,9 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
             const Button& button = select_ui.difficulty_btn[std::size_t(index)];
             const std::string& label = select_ui.difficulty_label[std::size_t(index)];
             const bool enabled = index < 2 || select_ui.hell_open;   // FUN_004f96f0(button, 0) greys it
-            if (button.chrome) blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, enabled && button.hovered && button.pressed);
-            const int label_x = button.x + (button.width - scene.font.measure(label)) / 2, label_y = button.y + (button.height - scene.font.line_height()) / 2;
-            if (!enabled)            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label, 105, 105, 105);
-            else if (button.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label, 255, 208, 80);
-            else                     scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label);
+            const bool pressed = enabled && button.hovered && button.pressed;
+            if (button.chrome) blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, pressed);
+            draw_button_label(framebuffer, scene, pal, button, label, pressed, enabled ? 255 : 105);
         }
         return;
     }
@@ -304,9 +297,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     draw_text_box(framebuffer, scene, scene.font24, select_ui.popup, 268, 300, 264, 100, 255, 10, 8);
     const auto& ok = select_ui.popup_ok;
     blit_button_chrome(framebuffer, pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
-    const int label_x = ok.x + (ok.width - scene.font.measure(select_ui.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
-    if (ok.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, select_ui.ok_label, 255, 208, 80);
-    else            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, select_ui.ok_label);
+    draw_button_label(framebuffer, scene, pal, ok, select_ui.ok_label, ok.hovered && ok.pressed);
 }
 
 void render_credits(std::vector<std::uint8_t>& framebuffer,
@@ -616,18 +607,9 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
         if (!button->chrome) continue;
         blit_button_chrome(framebuffer, pal, *button->chrome, button->x, button->y,
                            button->hovered && button->pressed);
-        if (button->label && *button->label) {
-            const int label_width = scene.font.measure(button->label);
-            const int line_height = scene.font.line_height();
-            const int label_x = button->x + (button->width - label_width) / 2;
-            const int label_y = button->y + (button->height - line_height) / 2;
-            if (disabled)
-                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label, 96, 96, 96);
-            else if (button->hovered)
-                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label, 255,208,80);
-            else
-                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
-        }
+        if (button->label)
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed,
+                              disabled ? 96 : 255);
     }
 }
 
@@ -685,12 +667,9 @@ void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scen
     // own strings can't live in the Buttons.
     auto draw = [&](Button button, const std::string& label, bool enabled) {
         button.label = label.c_str();
-        if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, enabled && button.hovered && button.pressed);
-        const int label_width = scene.font.measure(button.label);
-        const int label_x = button.x + (button.width - label_width) / 2, label_y = button.y + (button.height - scene.font.line_height()) / 2;
-        if (!enabled)       scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, button.label, 105, 105, 105);
-        else if (button.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, button.label, 255, 208, 80);
-        else                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, button.label);
+        const bool pressed = enabled && button.hovered && button.pressed;
+        if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, pressed);
+        draw_button_label(framebuffer, scene, scene.pal, button, label, pressed, enabled ? 255 : 105);
     };
     for (int i = 0; i < 7; ++i) draw(cinematics.entry[std::size_t(i)], cinematics.labels[std::size_t(i)], i < cinematics.unlocked);
     draw(cinematics.cancel, cinematics.cancel_label, true);
@@ -799,11 +778,9 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     blit_dc6_grid(framebuffer, scene.tcpip_bg, scene.pal, 0, 0, 4);
     constexpr std::uint8_t kGrey = 105;
     auto button = [&](const Button& place, const std::string& label, bool enabled) {
-        if (place.chrome) blit_button_chrome(framebuffer, scene.pal, *place.chrome, place.x, place.y, enabled && place.hovered && place.pressed);
-        const int label_x = place.x + (place.width - scene.font.measure(label)) / 2, label_y = place.y + (place.height - scene.font.line_height()) / 2;
-        if (!enabled)        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label, kGrey, kGrey, kGrey);
-        else if (place.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label, 255, 208, 80);
-        else                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label);
+        const bool pressed = enabled && place.hovered && place.pressed;
+        if (place.chrome) blit_button_chrome(framebuffer, scene.pal, *place.chrome, place.x, place.y, pressed);
+        draw_button_label(framebuffer, scene, scene.pal, place, label, pressed, enabled ? 255 : kGrey);
     };
     auto text = [&](const d2d::font::Font& font, const std::string& line, int x, int y, int width, int height, bool enabled = true) {
         draw_text_box(framebuffer, scene, font, line, x, y, width, height, enabled ? 255 : kGrey);
@@ -840,9 +817,7 @@ void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& sce
     draw_text_box(framebuffer, scene, scene.font24, tcpip.popup, 268, 300, 264, 100, 255, 10, 8);
     const auto& ok = tcpip.popup_ok;
     blit_button_chrome(framebuffer, scene.pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
-    const int label_x = ok.x + (ok.width - scene.font.measure(tcpip.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
-    if (ok.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, tcpip.ok_label, 255, 208, 80);
-    else            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, tcpip.ok_label);
+    draw_button_label(framebuffer, scene, scene.pal, ok, tcpip.ok_label, ok.hovered && ok.pressed);
 }
 
 TitleUI title_ui(const Scene& scene, bool coop) {

@@ -200,7 +200,11 @@ slot `+8`). It gets the label's width with `FUN_00501820`, then:
 - pressed (`+0x44` and `+0x48`, or `+0x4c`: the same test that picks
   the chrome's pressed frames), x − 2 and baseline + 2.
 
-Both halvings round toward zero. `FUN_00502360` → `FUN_00501c30` draws
+With flag 0x40 at `+0x40` (`0x500cb4`) the button has two lines: the
+label at `+0x10` − 2 × ((height − font height) / 3) + drop, and the
+string with id `+0x270` (`FUN_00524a30`) under it at `+0x10` −
+(height − font height) / 3 + drop, each centred on its own width and
+both moved when pressed. The halvings and thirds round toward zero. `FUN_00502360` → `FUN_00501c30` draws
 the label at that point: colour 0, not centred again (0), mode 4 (not
 traced). Each glyph's frame is placed with its bottom row on the baseline
 (`FUN_004f64b0`).
@@ -217,19 +221,14 @@ FontRidiculous is 14 rows, with ink in rows 4 to 12. On the title:
 BATTLE.NET, OTHER MULTIPLAYER and EXIT follow the 0x23 row, and CREDITS
 and CINEMATICS the 0x19 row, at their own bottoms.
 
-d2d differs (the title's drawer in apps/d2d/frontend.cpp, and the other
-frontend screens' buttons, which share its pattern):
-
-- It draws every label in Font16. In the Sky palette Font16's capitals
-  are mostly index 31 (196, 196, 196). FontExocet10's are mostly index 15
-  (12, 12, 8), with 29, 31 and 32 (132 to 244 grey). On average Font16's
-  ink is lighter (133 against 78).
-- It sets the glyph's top to box top + (h − 10) / 2, where 10 is Font16's
-  tallest `.tbl` glyph. Font16's frames are 16 rows, with ink in rows 3 to
-  14. So SINGLE PLAYER's capitals land on rows 305..316, 3 to 4 rows below
-  game.exe's, and the gateway's on 377..388, 2 to 5 rows below.
-- On hover it tints the label gold.
-- It doesn't move the label 2 left and 2 down when pressed.
+d2d draws every frontend button's label this way (`draw_button_label`,
+apps/d2d/frontend.cpp, with `button_label_spot` in
+components/font/button_label.hpp). It used to draw them in Font16, whose
+capitals in the Sky palette are mostly index 31 (196, 196, 196) where
+FontExocet10's are mostly index 15 (12, 12, 8) with 29, 31 and 32, and
+3 to 5 rows low, with a gold hover and no press offset. It still greys a
+disabled button's label; game.exe keeps colour 0 there and draws the
+chrome in mode 1 (not traced).
 
 ## Interpretation — layout convention
 
