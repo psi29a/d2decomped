@@ -186,9 +186,9 @@ every light's. The dip (`rules::AmbientDip`, `Town::dip_tick` each client
 frame) starts from Cloak of Shadows' state on the player or a Shadow
 (`Fight::cloaks`, `World::cloak_dips`: every player gets it, as each client
 sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
-`rules::cairn_dip` from Missiles.txt's row: every player in Stony Field gets
-it, where game.exe's client needs a StoneAlpha, object 17, in its near rooms,
-`FUN_0065a620`; `test_cairn_dip`). A joined game's state 153 (0xa8 / 0xaa)
+`rules::cairn_dip` from Missiles.txt's row: a player in Stony Field with a
+StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
+0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's state 153 (0xa8 / 0xaa)
 and event 1 don't start one.
 
 The fill runs over the whole grid for the player's room, then for each other
