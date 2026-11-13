@@ -255,12 +255,18 @@ while the Hellforge (a4q3.cpp, word 0x1b, above) is not yet
 Completed/RewardAwaits/JustCompleted, it queues gossip line 0; once the
 forge is done, it checks `QUESTINT_TerrorsEnd`'s own
 `bDiabloKilledBroadcast` flag and, while Diablo isn't dead yet, queues
-line 1 instead. `Q30_ActiveFilter` (`FUN_005b69f0`) mirrors the same
-two gates to decide whether the option is offered at all: active
-whenever the Hellforge isn't finished, or (once it is) whenever Diablo
-isn't JustCompleted/Completed yet — so Tyrael keeps a line of dialog the
-whole act, and loses it only once both the forge and Diablo are done.
-Flavor text only; reads `QuestRecord` but never writes it. Not ported.
+line 1 instead. `Q30_ActiveFilter` (`FUN_005b69f0`) only shares the
+Hellforge gate, not the Diablo one: once the forge is done it checks
+the player's own `QUESTSTATE_JustCompleted` / `QUESTSTATE_Completed`
+bits on `QUEST_TerrorsEnd`, not the callback's game-wide
+`bDiabloKilledBroadcast` flag. The two can disagree: a player who
+already completed Terror's End in an earlier game carries those bits
+set, so the filter goes inactive, while a game where Diablo is still
+alive (`bDiabloKilledBroadcast` unset) would have the callback still
+queue line 1 if that player did talk to Tyrael. So Tyrael keeps a line
+of dialog for most of the act, but the option's visibility and the
+line it plays can come from different players' state. Flavor text
+only; reads `QuestRecord` but never writes it. Not ported.
 
 ## Act 4's other objects
 

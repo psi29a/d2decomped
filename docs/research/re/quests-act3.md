@@ -72,8 +72,9 @@ unit event 0x23), +0x18 the stand's mode.
   (`DRLGPRESET_TransferMapAI`). No `QuestRecord` writes.
 - **The sequence filter** (`Q18_SequenceFilter`, `FUN_005b7cd0`): the
   chain pattern in `quests.md` ("Quest-chain SequenceFilter"); once
-  state 5 (done) or past intro, chains into
-  `nSequenceQuestId = QUEST_BladeOfTheOldReligion` (a3q3 below).
+  state 5 (done) or still before intro (`bIsNotIntroduction` unset),
+  chains into `nSequenceQuestId = QUEST_BladeOfTheOldReligion` (a3q3
+  below).
 
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
@@ -175,8 +176,8 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   FinishedInPreviousGame with a pending JustCompleted or
   CannotCompleteQuestInGame.
 - **The sequence filter** (`Q21_SequenceFilter`, `FUN_005ba7b0`): the
-  chain pattern (`quests.md`); at state 5 or past intro it chains
-  through *both* `nSequenceQuestId` (`QUESTINT_SpokeToHratli`) and, in
+  chain pattern (`quests.md`); at state 5 or still before intro it
+  chains through *both* `nSequenceQuestId` (`QUESTINT_SpokeToHratli`) and, in
   the same call, `QUESTINT_BladeOfTheOldReligion` — the only
   SequenceFilter instance seen chaining two quests instead of one.
 
@@ -214,9 +215,9 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   pure client notification, no `QuestRecord` write.
 - **Item pickup** (`Q19_Callback04_ItemPickedUp`, `FUN_005b8210`): gated
   on `QUEST_AbleGoToAct3` Completed and Khalim's Will not already
-  Completed. By the picked-up item's code (the flail `rt1`/0x20316671,
-  eye `piv`/0x20796571, brain `box`/0x20726271, heart `msf`/0x20726871,
-  or the assembled Will `rt2`/0x20326671) and which relics are already
+  Completed. By the picked-up item's code (the flail `qf1`/0x20316671,
+  eye `qey`/0x20796571, brain `qbr`/0x20726271, heart `qhr`/0x20726871,
+  or the assembled Will `qf2`/0x20326671) and which relics are already
   carried, it picks one of the sub-stage bytes (1..7) and calls
   `Q19_SendQuestStatePacket` with it — the log text for "found the
   flail but not the eye" vs. "all four, go to the chests" etc. Reads
