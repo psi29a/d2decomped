@@ -27,6 +27,7 @@
 
 using namespace d2d::rules;
 
+// Each block below is one AI or subsystem; see the file header for the source of its cases.
 int main() try {
     // Andariel (MonAI 34): distances, facing, her think's draws, the spray's sweep.
     {

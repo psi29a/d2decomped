@@ -41,6 +41,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -61,6 +62,7 @@ def main():
     machine.hook(0x649070, lambda current: 0, 2)
 
     def initialize(current):
+        """Hook: record the mode FUN_005a7e60 was asked to set."""
         state["mode"] = current.arg(1)
         return 0
 
