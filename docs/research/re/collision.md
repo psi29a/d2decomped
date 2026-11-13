@@ -3378,41 +3378,6 @@ is null.
   still fails, `FUN_00465870` frees the new unit and null is returned.
   Callers: `0x465fd0`, `0x466200`, `0x466360`.
 
-### MonUnique frame modifiers and two monster helpers: `FUN_004ad890`, `FUN_004ad8e0`, `FUN_004ad920`, `FUN_004ade80`, `FUN_004ae3c0` (batch 24)
-
-Monster modes here are the **monster** numbering (0 death, 3 get-hit, per
-the usual trap): the decompile prints the player names (Run, Death).
-
-- `FUN_004ad890` (fastcall ECX unit, one stack arg, RET 4; the stack arg is
-  both the "modifier enabled" flag and, after `0x621810(unit, &arg, &total)`,
-  overwritten with the current frame): if the arg was non-zero, the unit is
-  non-null in mode 3 and the frame is 2, calls `FUN_004ad6e0(unit, 0xc3)` with
-  EAX = the unit's stat 0xc (`0x625480(unit, 0xc, 0)`) shifted right by 1.
-  The decompile's `nUMod` is not read.
-- `FUN_004ad8e0` (ECX unit, stack flag, RET 4): flag non-zero and the unit
-  null or not in mode 3: the same `FUN_004ad6e0(unit, 0xc3)` with stat 0xc >> 1.
-- `FUN_004ad920` (ECX unit, one ignored stack arg, RET 4): frame from
-  `0x621810`; if the unit is null, or in mode 3 or 0, and the frame is 2:
-  `FUN_004ad6e0(unit, 0xe1)` with EAX = stat 0xc (unshifted). The missile ids
-  0xc3 and 0xe1 were not looked up in Missiles.txt; the decompile's names
-  are leads.
-- `FUN_004ade80` (fastcall ECX attacker, EDX other): both non-null and ECX
-  a monster (type 1): `FUN_004add90(ECX, EDX, 4)`. Caller `0x4cd540`.
-- `FUN_004ae3c0` (fastcall ECX unit): the missile's owner (`0x4639d0`); if
-  non-null it must be a missile (type 3) or the call halts (line 0x161);
-  then `0x4d2d70(owner, 0, 0)` (the client hit-explode, ECX owner, EDX 0,
-  one stack 0). Callers: `0x4af2e0`, `0x4af6a0`.
-
-d2d: `git grep` over `components/`, `apps/` and `tests/` finds none of
-these addresses; **not checked** whether equivalents exist under other
-names. Not traced: `FUN_00461840`, `FUN_00461250` message codes,
-`FUN_00463740`, `FUN_00463a50`, `FUN_004ad6e0`, `0x4add90`'s modifier table,
-which modifier index each of the three frame functions belongs to, the
-Missiles.txt rows 0xc3 and 0xe1.
-
-Re-check: `python3 tools/ghidra/fn.py 00464600 00465f20 004ad890`; the
-jump tables with `read_memory 0x46466c 56`; asserts at
-`0x4644e0`/`0x464420`/`0x465bf0` (lines 0x802, 0x7f3, 0x946, 0x7e2).
 ### The pending-interact helpers: `FUN_00461a70`, `FUN_00461d60`, `FUN_00462920` (batch 23)
 
 - `FUN_00461a70` (**ECX** target unit, no stack): 0x20-byte local record.
