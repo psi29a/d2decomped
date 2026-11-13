@@ -35,7 +35,7 @@ int main() try {
     unit.path = { { centre(23), centre(20) } };
     unit.path_points = 1;
     int frames = 0;
-    while (walk_on(level, unit, 4096)) assert(++frames < 10);
+    while (walk_on(level, unit, 4096)) { ++frames; assert(frames < 10); }
     assert(subtile(unit.x) == 23 && subtile(unit.y) == 20 && unit.x == centre(23));
     assert(unit.path.empty() && unit.budget == 0x14 && unit.goal_x == centre(40));
     return 0;
