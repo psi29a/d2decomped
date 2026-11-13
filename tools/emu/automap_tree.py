@@ -20,7 +20,6 @@ import random
 import sys
 
 import checked_emu
-import emu
 
 POOL, USED, HEAD, SAVED_OUT, LAYER_MAP, GROUPS = 0x7a5158, 0x7a515c, 0x7a5160, 0x7a5154, 0x7a5164, 0x7a3150
 
