@@ -212,6 +212,8 @@ struct Town {
     std::uint32_t net_drift_ms = 0;                          // since when d2d's player has been far from the host's (0: not)
     std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
     bool inv_close_down = false, char_close_down = false, tree_close_down = false;   // the inventory's / character panel's close button held
+    bool stash_close_down = false;                           // the stash's close button held (0x7bce38)
+    bool cube_close_down = false;                            // the Cube's close button held (0x7bce40)
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
@@ -669,6 +671,9 @@ struct Town {
     [[nodiscard]] QuestState quest_state() const { return { view.quest_log, view.game_quests, view.den_left, net_game != nullptr }; }
     int view_act() const;
     void toggle_quest_log();               // Q and the mini-panel (FUN_004a3fe0)
+    void toggle_inventory();               // I, C, T and the mini-panel (FUN_00455f20 via FUN_00453910)
+    void toggle_character();
+    void toggle_skill_tree();
     [[nodiscard]] QuestLogButton quest_log_button_now() const;
 
     // The client's side of a click: what it asks the server for

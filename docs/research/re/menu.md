@@ -85,6 +85,46 @@ oracle run); their names first came from D2BS's UI enum:
   expansion stash is drawn higher (glyph top bottom - 0x19f against
   bottom - 0xdb) and its close button at x + 0x110 against x + 0x113. Not
   traced: what a nonzero `0x7bce2c` is for beyond those tests.
+- The inventory beside them: the stash, the Cube and a store don't turn
+  UI 1 on (`FUN_00489e00` opens 0x19 alone); the panel drawer runs
+  `FUN_0048edf0` for UI 0xc, 0x19, 0x1a as for UI 1 (`FUN_00456ee0`).
+  Each one's mouse-up handler takes a release over the inventory's close
+  button (`FUN_00486e10`: x W - 80 - 0x12e .. - 0x10e, y H - 60 - 0x60 ..
+  - 0x40, inclusive), with no belt popup under it and nothing in the hand
+  (`FUN_0063c1e0`), as its own close: the stash's (`FUN_00489ac0`) shuts
+  UI 0x19 (0x489b54), the Cube's (`FUN_0048a190`) UI 0x1a (0x48a208), a
+  store's (`FUN_00488b00`) runs `FUN_004b3ed0`, which shuts UI 0xc then 8.
+  d2d: `client::inventory_close_shuts` (storage_close.hpp).
+- The panel keys beside them: Inventory, Character and Skill Tree (and
+  the mini-panel's buttons, `FUN_0047ec50`) open through `FUN_00455f20`
+  mode 2, which asks `FUN_00453910`. With the panel shut it walks the UIs
+  that are up and reads each one's row of the table at `0x711130` (one
+  38-dword row per UI; 0 pass, 1 shut that one, 2 or more refuse). The
+  stash's row (`0x710a10`) and the Cube's (`0x710aa8`) refuse UI 1, 2
+  and 4: I, C and T do nothing there (I seen doing nothing in 1.14d play too).
+  A store's (`0x710090`) refuses 2 and 4 and passes 1, whose flag toggles
+  under the store's inventory, drawn anyway. Oracle:
+  `tools/emu/panel_keys.py`. d2d: `client::panel_key_refused`,
+  `Town::toggle_inventory` / `toggle_character` / `toggle_skill_tree`.
+- The stash's close button (`FUN_0048edf0` state 0xc..0xd): buysellbtn
+  10, 11 while `0x7bce38` holds it, at x + 0x113, bottom foot - 0x41
+  (`FUN_00486b00`), the expansion stash at x + 0x110, foot - 0x40. The
+  mouse-down handler `FUN_00492510` sets `0x7bce38` over it (after the
+  inventory's close button and the gold box); the mouse-up handler
+  `FUN_00489ac0` shuts UI 0x19 (0x489b86) when it was held and the
+  release is over it (`FUN_00489980`: x left .. left + 0x28, y bottom -
+  0x23 .. bottom + 5, every edge excluded), with no test of the hand.
+  Oracle: `tools/emu/storage_close.py`. d2d: `client::stash_close`,
+  `over_stash_close`.
+- The Cube's close button (`FUN_0048edf0` state 0xe): buysellbtn 10, 11
+  while `0x7bce40` holds it, at x + 0x113, bottom foot - 0x41. The
+  mouse-down handler `FUN_004927c0` sets `0x7bce40` over it
+  (`FUN_00489fb0`: x + 0x113 .. x + 0x13b, foot - 100 .. foot - 0x3c,
+  every edge excluded); the mouse-up handler `FUN_0048a190` runs
+  `FUN_0048a050` when it was held and the release is over it: shut UI
+  0x1a, send C->S 0x4f `{0x17}` once (`0x7bcc54`). Oracle:
+  `tools/emu/storage_close.py`. d2d: `client::cube_close`,
+  `over_cube_close`; net.cpp sends 0x17 when the Cube shuts.
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`

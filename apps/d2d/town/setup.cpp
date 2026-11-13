@@ -14,6 +14,7 @@
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
+#include "storage_close.hpp"
 #include "ui.hpp"
 
 #include <cues.hpp>
@@ -214,6 +215,29 @@ auto Town::toggle_quest_log() -> void {
         if (quest_log.open) { quest_log.open = false; return; }
         quest_log_open(quest_log, quest_bits(), quest_state(), view_act());
         char_open = stash_open = cube_open = false;
+    }
+
+// The Inventory, Character and Skill Tree keys and the mini-panel's
+// buttons: not past the stash, the Cube or a store (storage_close.hpp).
+// The inventory stays drawn beside them all; a store passes UI 1, whose
+// flag then toggles unseen under it (not modelled: d2d shuts the
+// inventory with the store).
+auto Town::toggle_inventory() -> void {
+        if (d2d::client::panel_key_refused(d2d::client::kUiInventory, stash_open, cube_open, store.npc >= 0) || store.npc >= 0) return;
+        inv_open = !inv_open;
+        if (inv_open) tree_open = false;
+    }
+
+auto Town::toggle_character() -> void {
+        if (d2d::client::panel_key_refused(d2d::client::kUiCharacter, stash_open, cube_open, store.npc >= 0)) return;
+        char_open = !char_open;
+        if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false;
+    }
+
+auto Town::toggle_skill_tree() -> void {
+        if (d2d::client::panel_key_refused(d2d::client::kUiSkillTree, stash_open, cube_open, store.npc >= 0)) return;
+        tree_open = !tree_open;
+        if (tree_open) inv_open = false;
     }
 
 auto Town::quest_log_button_now() const -> QuestLogButton {

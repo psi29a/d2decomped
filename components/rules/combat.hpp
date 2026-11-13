@@ -364,7 +364,8 @@ inline void settle_blow(StruckBlow& blow, std::int64_t old) {
 // only its own part: Bone Armor (FUN_005c6370) from the physical field,
 // Cyclone Armor (FUN_005c87a0) from fire, cold, then lightning. A blow whose
 // fire / lightning / cold went keeps its mark only by its poison
-// (FUN_0057ce30 reads the fields after). `pool` is in 256ths, as game.exe's
+// (FUN_0057ce30 reads the fields after, in 256ths: under a point left of one
+// still marks; tools/emu/hit_absorb.py). `pool` is in 256ths, as game.exe's
 // stat is: Bone Armor subtracts it from the physical field BEFORE the defender's
 // reduction (`raw`; a blow without one takes it from `physical` and `frac`), then
 // the flat and percent reduction (reduce_fine) are put back on what is left, as
@@ -372,7 +373,7 @@ inline void settle_blow(StruckBlow& blow, std::int64_t old) {
 // outlasts the field takes the fraction too. Returns what the pool took, in 256ths
 // of the unreduced field.
 // Its oracle for the pool in 256ths and the absorb before the reduction is tools/emu/monster_damage.py (sets absorb and
-// both); hit_absorb.py, the older whole-point one, was never committed.
+// both); tools/emu/hit_absorb.py runs a frame's records through either armor's pool and FUN_0057ce30's mark.
 // Cyclone Armor works on each part's unresisted field (raw x 256) in 256ths and puts what is left back through the flat magic
 // reduction and the resistance (elemental_fine); a blow with no parts (built by hand) loses whole points of its elemental total.
 inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
@@ -393,7 +394,9 @@ inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) 
                 taken += cut;
             }
             store_total(blow, total);
-            if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+            // FUN_0057ce30 reads the fields in 256ths: a fire, lightning or cold field with under a point left still marks.
+            const bool lit = std::ranges::any_of(std::array{ 0, 1, 2 }, [&](int type) { return part_fine(blow.parts[std::size_t(type)]) > 0; });
+            if (!lit && !blow.poisoned) blow.marked = false;
             continue;
         }
         if (elemental) {

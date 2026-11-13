@@ -1334,3 +1334,59 @@ if found, calls `FUN_0053da90(client player unit from FUN_00537860, found
 unit)` (the 0x75 packet). Its one caller `FUN_00571f90` (`00571ff0`) passes the
 id at record +0xc, the class byte at +4, the name pointer at +0x14 and two
 words of its frame. Re-check: `python3 tools/ghidra/fn.py 0053e8f0 00571f90`.
+
+### Read from the disassembly: more SCmd.cpp builders
+
+These builders were read in the disassembly (register and stack arguments,
+`ret n`, the stores into the packet and the queue call). The queue is
+`FUN_0053b280(buffer, size)` with the client in EDI, as above. The
+emulator has not run them. Offsets are into the packet, and a0, a1 ... are
+stack words in order.
+
+| Builder | Size | Packet |
+|---|---|---|
+| `FUN_0053b400` | 5 | id (DL), u32 a0 at +1 |
+| `FUN_0053c1d0` | 0xa | id (DL), u32 a0 at +1, u8 a1 at +5, u32 a2 at +6. A word a1 of 0xff or more is fatal (line 0x4b8, file string `0x6cc837`) |
+| `FUN_0053cab0` | 2 | 0x77, u8 DL at +1 |
+| `FUN_0053cad0` | 0x15 | the 0x15 bytes of the structure at EDX (the id is its first byte, set by the caller) |
+| `FUN_0053cbe0` | 6 | 0x79, u8 a0 at +1, u32 EDX at +2 |
+| `FUN_0053d220` | 8 | 0x3f, u8 at +1 (a0 when the stack word a1 is 0, else 0xff), u32 at +2 (`[EDX+0xc]`, or 0 when EDX is null), u16 a3 at +6. The stack word at +0x10 is not read |
+| `FUN_0053d270` | 0xd | 0x40, u32 at +1 (`[EDX+0xc]`, or 0xffffffff when EDX is null), u32 a0 at +5, u32 a1 at +9 |
+| `FUN_0053d330` | (wrapper) | `FUN_0053cef0(a0, 0x13, a1, 0)` with ECX and EDX as they came in; `FUN_0053cef0` is the 0x9d builder |
+| `FUN_0053d370` | 0xb | 0x47, u8 at +1 (low byte of `[EDX]`, or 6 when EDX is null), +2 zero, u32 at +3 (`[EDX+0xc]`, or 0xffffffff when EDX is null), +7 to +10 zero |
+| `FUN_0053d3c0` | 0xb | 0x48, u8 at +1 (low byte of `[EDX]`, or 6 when EDX is null), u8 a0 at +2, u32 at +3 (`[EDX+0xc]`, or 0xffffffff when EDX is null), +7 to +10 zero |
+| `FUN_0053d6d0` | 7 | id (DL), u8 a0 at +1, u32 a1 at +2. The third stack word is not read |
+| `FUN_0053d7b0` | 7 | the 7 bytes of the structure at EDX (u32 at +0, u16 at +4, u8 at +6) |
+| `FUN_0053d830` | 0x26 | the 0x26 bytes of the structure at EDX |
+| `FUN_0053d840` | 0x2a | the 0x2a bytes of the structure at EDX |
+| `FUN_0053d850` | 8 | 0x11, u8 DL at +1, u32 a0 at +2, u16 a1 at +6 |
+| `FUN_0053d880` | 0xe | 0x57, u32 EDX at +1, u8 a0 at +5, u16 a1 at +6, u16 a2 at +8, u16 a3 at +0xa, u16 a4 at +0xc (`ret 0x14`) |
+| `FUN_0053d900` | 7 | 0x60, u8 at +1 (low byte of `FUN_006222c0(unit)`), u8 at +2 (`[[unit+0x14]+4]`, read with no null test), u32 at +3 (`[unit+0xc]`) |
+| `FUN_0053d9c0` | 7 | 0x65, u32 EDX at +1, u16 a0 at +5 |
+| `FUN_0053da10` | 0x20 | the 32 bytes of the structure at EDX (the caller sets the id) |
+| `FUN_0053da40` | 0xa | 0x74, u8 a1 at +1, u32 at +2 (`[EDX+0xc]`, or 0xffffffff when EDX is null), u32 at +6 (`[a0+0xc]`, or 0xffffffff when a0 is null) |
+| `FUN_0053db20` | 8 | 0x7b, u8 DL at +1, u16 at +2 (a0 & 0xfff, with 0x8000 set when the stack word a1 is not 0), u32 a2 at +4 |
+| `FUN_0053db70` | 5 | 0x7e at +0. The four bytes after it are not written, so the queue copies what is on the stack (bugs.md #113) |
+| `FUN_0053db90` | 0x1d | 0x82, u32 at +1 (`[P+0xc]`), 16 bytes at +5 (the name from `FUN_006221a0(P)`, copied by `FUN_004135d0` with count 0x10), u32 a0 at +0x15, u32 a1 at +0x19. P is found in two steps: `FUN_00552f60(client, type 2, a0)` gives the first unit, `FUN_00552b10` on it gives an id, and `FUN_00552f60(client, type 0, id)` gives P. Sent only when both lookups find a unit |
+| `FUN_0053df50` | 0xa | the callback of `FUN_0053df80`: ECX is the unit (the walker's EDX), the stack word the record pointer (`ret 4`). Calls `FUN_005531c0(0xbff)` with ECX = unit, then queues the record with EDI set to that result, so the walker's client is not the queue target. `FUN_005531c0` returns 0 when the unit is null or its first dword is not 0; otherwise the dword at +0x9c of `FUN_006221a0(unit)` |
+| `FUN_0053df80` | (none) | not a sender here: it stores a 10-byte record (0x8e, u8 a1 at +1, u32 EDX at +2, u32 a0 at +6) and passes its address to `FUN_005538d0` with EDX = 0x53df50 (the callback, `FUN_0053df50`, below). `FUN_005538d0` walks the client's unit lists (the 0x80 heads at client +0x1120, the link at unit +0xe4) and calls that routine for each unit where `FUN_00639df0(unit, 7)` is 0 |
+| `FUN_0053dff0` | 6 | the 6 bytes of the structure at EDX (u32 at +0, u16 at +4) |
+| `FUN_0053e0a0` | 7 | 0x98, u32 EDX at +1, u16 a0 at +5 |
+| `FUN_0053e0e0` | 7 | 0x9b, u16 DX at +1, u32 a0 at +3 |
+| `FUN_0053e110` | 1 | 0x97 |
+| `FUN_0053ec00` | (none) | a wrapper: `FUN_0053eae0(0, a0, 0)` with ECX and EDX as they came in |
+
+**`FUN_0053cdf0`** (EDX the unit; a null unit is fatal, line 0x72a) sends up
+to two packets. The first is 10 bytes, 0x7f, sent when `FUN_0053cd80`
+returns nonzero: +1 is 1 when the dword at unit +0 is 0, else 0; +2 is the
+low word of `FUN_00621f20(unit)`, or 0xffff when that value is 0xffff or
+more (signed compare); +4 is `[unit+0xc]`; +8 is the low word of
+`FUN_0061a1b0(FUN_00620bb0(unit))`. `FUN_0053cd80` takes the zero-extended
+0x61a1b0 word as its stack argument, the client's player unit (from
+`FUN_00537860(client, 0)`) in ECX and the 0x621f20 value in EDX. The second is
+13 bytes, 0x90, sent when the +1 flag is nonzero and `FUN_006416d0(player
+unit, unit)` is above 0x32 (signed): +1 is `[unit+0xc]`, +5 is
+`FUN_0045adf0(unit)`, +9 is `FUN_0045ae20(unit)`.
+
+Re-check: `python3 tools/ghidra/fn.py 0053cdf0 0053d220 0053db90`, and read
+the same addresses in the disassembly (`ret n` and the stores).

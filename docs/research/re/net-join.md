@@ -184,6 +184,177 @@ case-insensitive 16-byte `strnicmp`.
 - `FUN_00538c60(name, destination)` returns 0 when found and 1 when absent.
   A non-null destination receives the record's canonical 16-byte name.
 
+### More client record accessors and list helpers
+
+Read from the disassembly of each function (ECX is the client unless noted).
+Rows run in address order. "Fatal" is the assert report `0x408a60` followed by
+exit, with the `Clients.cpp` line shown; the other functions do not check for
+a null client. Field meanings are given only where a caller read shows them.
+
+| Function | Field and operation | Caller evidence |
+|---|---|---|
+| `FUN_00537ac0` | ECX game: walk the game's client list (head `+0x88`, next `+0x4a8`, next read before the free) and release each 0x518-byte record to the game pool (`[game + 0x1c]`, line 0x617) | `FUN_0052c7f0`. It does not touch the id table (`0x8842a8`), the name table (`0x883ea8`), `+0x88` or `+0x8c`, and does not free a record's `+0x17c` buffer |
+| `FUN_005381c0` | ECX game, EDX id: 1 when a record on the game list (`+0x88`, next `+0x4a8`) has `+0` equal to the id, else 0. No lock, no null check | seven callers in the join and game-flow code: `FUN_0052c570`, `FUN_0052fee0`, `FUN_005300f0`, `FUN_00530190`, `FUN_00530270`, `FUN_00530300`, `FUN_005303d0` |
+| `FUN_00538260` | EDX unit or null. Null clears `+0x3d4` mask 2. Otherwise `+0x198` := unit `+0` (its type), `+0x19c` := unit `+0xc` (its id), and mask 2 is set. Fatal line 0x7ce on a null client | `FUN_0057f330` (the player-death mode change) calls it with EDX = 0 at `0057f35b..0057f35f`; no static caller passes a unit |
+| `FUN_00538320` | `+0x178` := 1 (the save tag that `FUN_00538ce0` also stores). Fatal line 0x7f5 | `FUN_0052fa50` after the join callback of the GS interface (`DAT_00883d50 + 8`) |
+| `FUN_00538350` | return `+0x18c`, the value `FUN_00538ce0` stores from `FUN_00531e30` when the count reaches the total. Fatal line 0x7ff | `FUN_00531eb0` |
+| `FUN_00538380` | EDX: `+0x18c` := EDX. Fatal line 0x80a | `FUN_00531eb0` |
+| `FUN_005385c0` | returns `0xffffffff` (`or eax, -1; ret`) | `FUN_00568f20` stores it in the save header at `+0x34`; see stubs.md |
+| `FUN_005385d0` | `ret 4`, no work | `FUN_00569f80` calls it with 1; see stubs.md |
+| `FUN_00538640` | return the word `+0xa` whole (the mask the getter at `FUN_00538670` tests). No null check | `FUN_00568f20` stores it in the save header image at `+0x24` (the status byte) and ORs 0x20 when the dword `+0x70` of its first argument is nonzero; `FUN_0052c900` and `FUN_0052ca10` |
+| `FUN_00538e60` | ECX client, EDX data, stack size (`ret 4`): when `+0x180` equals the size and `+0x17c` is nonnull it reuses the buffer; otherwise it frees `+0x17c` if nonnull (pool `[[+0x1a8] + 0x1c]`, line 0xb6e), allocates `size` bytes (line 0xb70) and stores the block at `+0x17c` and the size at `+0x180`. It then copies `size` bytes of EDX into the buffer. Fatal line 0xb69 on a null client; the size is not checked | `FUN_00531eb0` |
+| `FUN_00539000` | `+0x3d4` \|= 0x20. Fatal line 0xbaf | `FUN_00530bf0` (host game creation) calls it for the host's own client, after `FUN_00539a30`, when `game + 0x6a` is 1 |
+| `FUN_00539030` | return `+0x3d4` bit 5 (mask 0x20) as 0 or 1. Fatal line 0xbba | `LAB_0052cbb0` (stores the client in `*EDX` when it is set) and `FUN_005303d0` |
+| `FUN_00539070` | ECX game: return `+0x88`, the head of the client list | `FUN_005303d0`, `FUN_0053eff0`, `FUN_00543a30`, `FUN_00588e10` |
+| `FUN_00539080` | return `+0x4a8`, the next client on the game list | `FUN_0053eff0` |
+| `FUN_005390a0` | EDX slot, stack word, byte, dword (`ret 0xc`): when the client is nonnull, slot `+0x3dc + slot * 8` word := the word, `+0x3de` byte := the byte, `+0x3e0` dword := the dword. A null client does nothing; the slot index is not checked | `FUN_00532690` (join), `FUN_00533f70`, `FUN_005356b0`, `FUN_0056a090`, `FUN_0056af80`. `FUN_00539a30` creates the 16 slots as word 0xffff, byte 0, dword 0xffffffff, and the getter is `FUN_005390d0` |
+| `FUN_00539110` | return the word `+0x45e` | `FUN_0053c940` puts it in the S->C 0x5b packet at `+0x20`, the word net-packets.md leaves open |
+| `FUN_00539120` | EDX word: `+0x45e` := the word | `FUN_00532690` |
+| `FUN_00539130` | EDX pointer: `*EDX` := the dword `+0x460` | `FUN_0053c940` stores it at S->C 0x5b `+0x22`, and the packet code then measures a NUL-terminated string from there, so the dword is read as text |
+| `FUN_00539140` | EDX pointer: `+0x460` := `*EDX` | `FUN_00532690` |
+| `FUN_00539150` | EDX destination: copy the NUL-terminated string at `+0x464` to it, unbounded | `FUN_0053c940` appends it after the first string in S->C 0x5b |
+| `FUN_00539170` | EDX source: copy a NUL-terminated string to `+0x464`, unbounded | `FUN_00532690` |
+| `FUN_00539190` | EDX, stack, stack: the bytes `+0x480`, `+0x481`, `+0x482` go to the three byte pointers (`ret 8`) | `FUN_00568f20` (save writer), `FUN_0052c900`, `FUN_0052ca10` |
+| `FUN_005391c0` | EDX, stack, stack: `+0x480` := DL, `+0x481` := the first stack byte, `+0x482` := the second (`ret 8`) | `FUN_00532690`, `FUN_0056a090` |
+| `FUN_005391e0` | EDX: `+0x508` := EDX. A negative value is fatal (line 0xc5e); the null client is not checked | `FUN_005359f0` and `FUN_0057f700` (the death path: it reads it with `FUN_00539210`, scales it by 0x4b / 100, then calls this setter) |
+| `FUN_00539210` | return `+0x508`, no check | `FUN_0057f700` |
+| `FUN_00539230` | DL: byte `+0x45c` := DL, no check | `FUN_00532690`, `FUN_005616a0`, `FUN_0056a090`; the getter is `FUN_00539220` |
+| `FUN_00539270` | EDX queue node: node `+0x204` := 0; with `+0x1b8` zero it becomes the head and `+0x1bc` is left alone, otherwise `+0x1bc` and `+0x1b8` both become the node | `FUN_0052e320` |
+| `FUN_005392a0` | pop the head of the packet queue: when `+0x1bc` equals `+0x1b8` both are cleared; then, when the old head was nonnull, `+0x1b8` := old head `+0x204` | `FUN_0052e320` |
+| `FUN_005392e0` | return `+0x1b8`, the head of the packet queue, no check | `FUN_0052d980`, `FUN_0052da00`, `FUN_0053e130` |
+| `FUN_005392f0` | EDX destination: `FUN_004135d0(EDX, client + 0x1d, 0x32)`, the string `FUN_00539a30` stored there from its fifth argument | `FUN_0052caf0`, `FUN_0052d440`, `FUN_005303d0`, `FUN_00532400` |
+| `FUN_00539300` | EDX pointer: `*EDX` := the dword `+0x60` (the `+0x60` argument of `FUN_00539a30`) | `FUN_00532400` |
+| `FUN_00539310` | EDX pointer: `*EDX` := the dword `+0x68` | `FUN_00532400` |
+| `FUN_00539320` | EDX: `+0x68` := EDX | `FUN_00531eb0` |
+| `FUN_00539330` | return `client + 0x48c`, a block that holds the life last sent (a word at `+4` of it). Fatal line 0xd10 on a null client | `FUN_00548760` compares that word with the unit's life in whole points (char-panel.md) |
+
+`FUN_00539270` as read does not set the tail when the queue is empty, unlike
+`FUN_00539240`; its only caller `FUN_0052e320` was not read for how the list
+is used, so whether that matters is not traced.
+
+### The nearby-player list (S->C 0x16)
+
+`FUN_0052da00` is the sender. With the client's queue head nonnull
+(`FUN_005392e0`), its player unit (`FUN_00537860`) a unit of type 0 and
+`+0x1b0` at least 10 (the count `FUN_005380d0` adds one to), it computes
+`limit = (0x1f3 - used) / 9`, where `used` is the first dword of the queue
+head node. A limit under 1 sends nothing; 0x38 or more is fatal (line 0xf23;
+a nonzero unit type is line 0xf19). Otherwise `FUN_00537fd0(client, limit)` fills the
+client's `+0x1cc` buffer and `+0x3bc` count, and `FUN_0053e130` appends the packet:
+id 0x16, a u16 length of `count * 9 + 0xd`, the count byte, then the entries.
+net-packets.md lists the packet.
+
+- `FUN_00537fd0` (ECX client, EDX limit): fatal line 0x70b when `+0x1b4` (the
+  area) is null; the area's room array pointer (`+0`) and count (`+0x24`) come
+  from `FUN_00619790`, and a null array is fatal line 0x70d. A null player unit
+  (`FUN_00537860(client, 0)`) returns. It reads the player's x and y (`FUN_0045adf0`,
+  `FUN_0045ae20`), zeroes `+0x3bc`, a distance cell and the table's `+4` and `+8`
+  words, and for each room in the array walks the room's unit chain (head `+0x74`,
+  next `+0xe8`) through `FUN_00537d10`. It ends with `FUN_00537ee0`.
+- `FUN_00537d10` (EAX player x, ESI the table, stack unit, player y, pointer to the
+  maximum distance, client, limit; `ret 0x14`) keeps the nearest units in a table of
+  12-byte entries `{unit, distance, next index}`. Slot 0 holds the first (nearest)
+  entry and its `+8` is the index of the next one, 0 ending the chain. It returns for a
+  null unit or a unit type other than 0. The distance is `|x - ux| + |y - uy|` using the
+  unit's path x and y (`FUN_006488c0`, `FUN_00648900`; 0 for a null path). With the
+  count (`client + 0x3bc`) below the limit the unit is added in sorted position, the
+  count goes up and a displaced slot 0 moves to the new slot. At the limit, a unit
+  at or past the current maximum distance is skipped; a nearer one replaces the last
+  chain entry and the maximum is set to the new last distance. The maximum is also
+  raised to the unit's distance when that is larger.
+- `FUN_00537ee0` (ESI client, stack the table; `ret 4`) writes the chain to the
+  client's `+0x1cc` buffer as 9-byte entries: type byte (6 for a null unit),
+  id dword (unit `+0xc`, -1 for null), x word and y word, and counts them at
+  `+0x3bc`. The loop tests the next entry's link before using that entry
+  (`00537fb1..00537fc3`), so the last entry of a chain of two or more is not
+  written: a chain of n entries yields n - 1, a chain of one yields one. Nothing in the
+  function says this is deliberate. bugs.md #111. `FUN_00537fd0` stores 0 at the table's `+4` and
+  `+8` and nothing at `+0`; with no unit added, the first entry written comes from
+  that unwritten slot 0.
+
+### Adding and removing a unit for a client
+
+- `FUN_00538410` (ECX client, EDX unit): returns quietly when the unit is the
+  client's own player (`FUN_00537860(client, 0)`) or when `FUN_005545c0(game at +0x1a8,
+  unit)` returns 0. That call takes the room from the unit's path and returns it when
+  it is in the act's room list at `game + 0xbc + act * 4`, else releases it and
+  returns 0 (read from the decompile). Otherwise it looks the room up in the client area's room array
+  (`+0x1b4`, null is fatal line 0x83b; a null array entry is line 0x840); when the room is not in
+  the array it calls `FUN_00571f90(game, unit, client)`, which switches on the unit type
+  to build the add packets. `FUN_005531e0` calls it for a unit that passes
+  `FUN_00620f50` and lacks flag `0x10` of `+0xc4`.
+- `FUN_005384e0` (ECX client, EDX unit): fatal line 0x853 on a null client. It takes the unit's room
+  (`FUN_00620bb0`) and searches the same array (`+0x1b4` null is line 0x859,
+  a null entry line 0x85e). When the room is not found it calls `FUN_00571600(unit, client)`,
+  which passes the unit's type byte and id (`+0xc`) to `FUN_0053bda0`. No static call, jump or pointer
+  reaches it.
+
+### A ring of five stamps on the player record
+
+Two functions keep a ring of five stamps for a player unit, both used by `FUN_0054cc40`
+(the server's resync of a player, net-packets.md). Both take ECX game and EDX the unit, and
+are fatal (lines 0xd1b, 0xd2d) for a null unit or a unit type other than 0. The slots are an array of five dwords at
+`+0x3c0` of the record `FUN_005531c0(unit)` returns (fatal lines 0xd1e, 0xd30 when
+null). A slot is in use when it is nonzero and `game + 0xa8 - slot` is at most 0x8ca.
+
+- `FUN_00539360` stores `game + 0xa8` in the first slot that is not in use, and does
+  nothing when the five slots are in use.
+- `FUN_005393f0` returns 1 when the five slots are in use, else 0.
+
+`FUN_0054cc40` calls the first and then the second. When the second returns nonzero and
+`game + 0x6a` is 0, the decompile picks a value with a seeded draw over the table at
+`DAT_006e1064` instead of the default 0x7d, and adds it to `game + 0xa8`. What that value
+is used for beyond the time handed to `FUN_006251f0` is not traced.
+
+### The 0x25-byte record `FUN_00539be0` fills
+
+ECX client, EDX a 0x25-byte buffer. `FUN_00539da0` (its only caller) passes the buffer at
+`record + 0x6c` of the client it finds by id (`FUN_00537810`, a lookup on the game list). The
+function writes, in this order:
+
+| Offset | Content |
+|---|---|
+| `+0`, `+1` | the two bytes `FUN_006bbf40` makes of 0xe: `0x8e`, `0x80` (`v \| 0x80`, `(v >> 7) \| 0x80`) |
+| `+2..+0xc` | 11 bytes from the first `FUN_0063e510(player, ...)` result, a 16-byte array that starts at 0xff |
+| `+0xd` | the player unit's `+4` plus 1 when it is below 7, else 1 |
+| `+0xe..+0x18` | 11 bytes from the second `FUN_0063e510` result, zero bytes replaced with 0xff |
+| `+0x19` | unit stat 0xc (`FUN_00625480(unit, 0xc, 0)`) when it is 1..99, else 1 |
+| `+0x1a`, `+0x1b` | `FUN_006bbf40` of the client's `+0xa` word, with mask 8 set when unit `+0x10` is 0x11 or 0 and mask 4 is set, else mask 8 cleared |
+| `+0x1c`, `+0x1d` | `FUN_006bbf40` of the word `+0x45e` |
+| `+0x1e..+0x20` | the bytes `+0x480..+0x482`, each 0 replaced with 0xff |
+| `+0x21..+0x24` | the dword `+0x460` |
+
+A null player unit (`FUN_00537860`) leaves only the first two bytes. After the
+fill, the first byte is set to 0 (an empty string) when the level was 0 or over 99, the
+class was 7 or more, the adjusted flag word has a bit of mask 0x13 set, or the string length of
+the buffer (`FUN_00413750`) is not 0x21. What the consumer of the summary does is not traced.
+
+### More Game.cpp functions
+
+Read from each function's disassembly, with the callers from
+`game-calls.tsv`. Not run in `tools/emu`. Rows run in address order.
+
+| Function | Operation | Callers |
+|---|---|---|
+| `FUN_0044cca0` | ECX n, stack m (`ret 4`): returns the count of the tests (m < 7), (n > 1), (n > 9), (n > 0x13), (n > 0x1d), signed compares, as a byte | `FUN_0044efa0` |
+| `FUN_0044cd70` | no args: `now` = `GetTickCount` (import at `0x6cc260`). When `DAT_007a049c` is below `now`: calls `FUN_00477dd0` (a C->S sender, its packet not traced here), `DAT_007a04a0` := now, `DAT_007a049c` := now + 5000. The bit test of `[[0x7a0438] + 0x1ef]` sets flags and nothing branches on it | `FUN_004565e0` |
+| `FUN_0044ce90` | no args: `DAT_007a0664` := 1 when, first pass, `FUN_00469d90` (ECX 0x24, EDX 1) is nonzero and the key from `FUN_00469aa0` (ECX 0x24, EDX 1; 0xffff means none) is down in `GetAsyncKeyState` (the import at `0x6cc460`; the high bit of the 16-bit result). Otherwise the same pass with EDX 0; otherwise `DAT_007a0664` := 0. The two callees are not read beyond these arguments | `FUN_0044efa0` |
+| `FUN_0044d080` | no args: when `DAT_0070ef18` is 5, `FUN_0044b440` with ECX 2. Returns `DAT_0070ef18` | `FUN_0044b8a0` (call); `0070ee60` is a data reference |
+| `FUN_0044d390` | ECX: a text pointer, EDX: a centre x. Zeroes a 0xc8-byte buffer; `FUN_00524a30(ECX)` gives the value that `FUN_005267e0(buffer, EDX)` takes; `FUN_00501820(buffer)` gives a width W. Returns EDX minus W/2 with the sign added before the shift, so W/2 rounds toward zero. The three callees are not read beyond these arguments | `FUN_0044d3e0`, `FUN_0044e770` |
+| `FUN_0044d510` | `DAT_007a062c` := 1 | `FUN_00482ef0` |
+| `FUN_0044d530` | ECX: `DAT_007a0628` := ECX | `FUN_00482ef0`, `FUN_004a2cb0` |
+| `FUN_0044d540` | returns `DAT_007a05f4` | `FUN_00477f70` |
+| `FUN_0044db60` | stack a0 with its low byte + 1 (`ret 4`). For i = 0 to 0x23: when `FUN_0061eae0(i, a0)` is nonzero, for j = 0 to 0x1f: `FUN_0061eb40(i, j, buf)` fills a 60-byte string, and when its first byte is neither '0' nor NUL, `FUN_00600790(&a0, buf)`. Then `FUN_00600790(&a0, 0x6d5d94)` and `FUN_00600790(&a0, 0x6d5d68)`, two fixed strings at those addresses. `FUN_00600790` and the three callees are not read beyond these arguments | `FUN_0044e100` |
+| `FUN_0044dce0` | no args: for the three pairs (index 1, table `0x70f2c4`), (2, `0x70f348`), (2, `0x70f360`): `FUN_004f59a0(index)` gives ECX, then `FUN_00451e10(ECX, EDX = table)`. The callees are not traced | `FUN_0044f360`, `FUN_004a5200` |
+| `FUN_0044dd20` | as `FUN_0044dce0` with `FUN_00451db0` for the call | `FUN_004a5200`, `FUN_004a5de0` |
+| `FUN_0044dff0` | ECX: a pair of dwords `{+0 base, +4 length}`. Returns 1 when the length is 0 or the time has run out (`base + length` at or below `GetTickCount`, unsigned); then both dwords are cleared. Otherwise returns 0 | `FUN_00455510` |
+| `FUN_0044e040` | ECX: the same pair. Returns 0 when the length is 0 or the time has run out (then cleared); otherwise 1 | `FUN_0044e380`, `FUN_0044f360` |
+| `FUN_0052da90` | ECX: a record. Null: fatal line 0x1063. When `+0x18` (a `CRITICAL_SECTION` pointer) is null: fatal line 0x1064. Else `LeaveCriticalSection(+0x18)` | `FUN_0052fa50`, `FUN_0052fd90`, `FUN_0052fee0`, `FUN_005300f0`, `FUN_00530190`, `FUN_00530270`, `FUN_00530300`, `FUN_005303d0`, `FUN_005306e0`, `FUN_005389a0`, `FUN_0053eff0`, `FUN_0053f3d0`, `FUN_005645e0` |
+| `FUN_0052e050` | ECX: a record, EDX: a value. Calls `FUN_0052ded0` (table `0x52dfb0`, the record on the stack) and then tail-jumps to `FUN_00555600` with ECX = the value, EDX = the record. Both callees are not traced, so only the call shape is written | `FUN_0059ef70`, `FUN_0059f0c0` |
+| `FUN_0052e6d0` | ECX: a record. `+0x48` is a counter that is incremented each pass; when it wraps to 0, `+0x4c` := 1. While `+0x4c` is nonzero, `FUN_0052e650(counter, +0x44)` runs; a 0 result returns the counter. Returns the counter when `+0x4c` is 0 | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
+| `FUN_0052f940` | ECX: a record, EDX: a name. When the probe `FUN_0052f8b0(EDX)` is nonzero, the name is copied as it is to `+0x2a` (`FUN_004135d0`, bound 0x7fffffff). Otherwise the name is copied into a 16-byte buffer, cut to 11 bytes when its length is 13 to 15 (a longer name is copied whole), and the candidates are tried in order: name + `~%d` with EDX itself (the pointer, not a count; the format at `0x6e0754` is `~%d`), then `name~1` to `name~98` (format `%s~%d` at `0x6e074c`). The first candidate the probe accepts (nonzero) is copied to `+0x2a`. `name~99` is not copied: the fatal report (line 0x263) follows it either way. A name of 16 or more bytes is copied past the 16-byte buffer, and the first candidate can run past it too (bugs.md #112) | `FUN_00530930`, `FUN_00530bf0` |
+| `FUN_00530820` | ECX: a table object (mask at `+0x24`, bucket base at `+0x1c`, a list head at `+8`, a node base at `+4`); stack a0 (the key), a2, a3 (`ret 0x10`; a1 is not read). The bucket is `a0 & mask` (`FUN_00530600` is called on it, but both branches use the same index). Its address (`[+0x1c] + bucket * 12`) goes to vtable slot 1 (`[*ECX + 4]`) with a2 and a3, which returns a record's address. The record's link is at the record plus the dword at `+4` (the link's offset in a record); a result of 0 takes the head at `+8` as the link. A link already in a list is taken out first, then it is put in the list at `+8` (the pointers at +0 and +4 of the link), and a0 is stored at the record's first dword (`mov [eax], ecx` at `0x5308ad`). The result is not tested before that store | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
+
 ### Verified in the emulator (`tools/emu/clients_small.py`)
 
 `clients_small.py` runs 30 GAME/Clients.cpp functions and the getter at `0x538230` from game.exe 1.14d on random client

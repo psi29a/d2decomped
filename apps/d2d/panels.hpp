@@ -205,7 +205,7 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
-// ponytail: no "close" button of its own; classic stash untested.
+// Its close button: storage_close.hpp. ponytail: classic stash untested.
 // Rect {x, y, w, h} of a stored item in a grid layout.
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item);
 

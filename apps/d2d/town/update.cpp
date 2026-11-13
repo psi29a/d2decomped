@@ -22,6 +22,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
+#include "storage_close.hpp"
 #include "store.hpp"
 #include "ui.hpp"
 
@@ -272,15 +273,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const bool covered_before = view_covered();
             bool cursor_follows = std::ranges::any_of(std::array{ keys::kInventory, keys::kSkillTree, keys::kCharacter, keys::kQuestLog, keys::kParty, keys::kHireling },
                                                       [&](int action) { return fires(action); });
-            if (fires(keys::kInventory)) { inv_open = !inv_open; if (inv_open) tree_open = false; }
-            if (fires(keys::kSkillTree)) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
+            if (fires(keys::kInventory)) toggle_inventory();
+            if (fires(keys::kSkillTree)) toggle_skill_tree();   // both right-hand panels
             if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
             if (fires(keys::kSwapWeapons) && character.expansion) send(cmd::SwapWeapons{});
             for (int slot = 0; slot < 16; ++slot)
                 if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skill_hotkey(slot, mouse.x, mouse.y);
             if (fires(keys::kShowBelt)) belt_open = !belt_open;
             if (fires(keys::kAutomap)) automap.open = !automap.open;
-            if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
+            if (fires(keys::kCharacter)) toggle_character();
             if (fires(keys::kQuestLog)) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead) && !game_menu.open) { send(cmd::Resurrect{}); continue; }
             for (int belt = 0; belt < 4; ++belt)
@@ -416,9 +417,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const bool left_open = left_panel_open();
             int action = -1;
             hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, mini_right(), action);
-            if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
-            if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
-            if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
+            if (action == MiniPanel::kCharacter) toggle_character();
+            if (action == MiniPanel::kInventory) toggle_inventory();
+            if (action == MiniPanel::kSkills) toggle_skill_tree();
             if (action == MiniPanel::kAutomap) automap.open = !automap.open;
             if (action == MiniPanel::kMessages) mini_panel::messages(belt_open, message_log);
             if (action == MiniPanel::kQuests) toggle_quest_log();
@@ -470,17 +471,54 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // The inventory's and the character panel's close buttons (buysellbtn
         // 10, 11 held): pressed, then let go over it, shuts the panel
         // (FUN_0048edf0 at W - 80 - 0x12e, H - 0x7c; FUN_004a7d00 at 80 + 0x80, H - 0x78).
+        // The press stays the UI's: dragged off the panel, it walks nowhere.
         auto close_button = [&](bool& down, bool& open, int left, int bottom) {
             const bool over = mouse.x >= left && mouse.x < left + 0x20 && mouse.y > bottom - 0x20 && mouse.y <= bottom;
-            if (mouse.press_this_frame && over) { down = true; mouse.press_this_frame = false; }
+            if (mouse.press_this_frame && over) { down = true; press_on_ui = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && down) { down = false; if (over) open = false; mouse.release_this_frame = false; }
         };
-        if (inv_open && !held) close_button(inv_close_down, inv_open, lay.panel_x + 0x12, lay.panel_y + 416);
+        if (inv_open && !held) {
+            bool still_open = true;
+            close_button(inv_close_down, still_open, lay.panel_x + 0x12, lay.panel_y + 416);
+            // With the stash, the Cube or a store up, it shuts that one (storage_close.hpp).
+            if (!still_open) {
+                inv_open = false;
+                switch (d2d::client::inventory_close_shuts(stash_open, cube_open, store.npc >= 0)) {
+                    case d2d::client::InventoryCloseShuts::kStash: stash_open = false; break;
+                    case d2d::client::InventoryCloseShuts::kCube: cube_open = false; break;
+                    case d2d::client::InventoryCloseShuts::kStore: send(cmd::CloseTrade{}); break;
+                    case d2d::client::InventoryCloseShuts::kInventory: break;
+                }
+            }
+        }
+        // The stash's own close button (storage_close.hpp): held by a press
+        // over it, a release over it shuts the stash, an item in hand or not.
+        if (!stash_open || cube_open) stash_close_down = false;
+        else {
+            const bool over = d2d::client::over_stash_close(character.expansion, mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { stash_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && stash_close_down) {
+                stash_close_down = false;
+                if (over) stash_open = inv_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
+        // The Cube's, the same way (a joined game's host hears 0x4f 0x17: net.cpp).
+        if (!cube_open) cube_close_down = false;
+        else {
+            const bool over = d2d::client::over_cube_close(mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { cube_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && cube_close_down) {
+                cube_close_down = false;
+                if (over) cube_open = inv_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
             const auto close = skill_tree_close(character.character_class, tree_tab);
             const bool over = close.contains(mouse.x, mouse.y);
-            if (mouse.press_this_frame && over) { tree_close_down = true; mouse.press_this_frame = false; }
+            if (mouse.press_this_frame && over) { tree_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && tree_close_down) {
                 tree_close_down = false;
                 if (over) tree_open = false;
