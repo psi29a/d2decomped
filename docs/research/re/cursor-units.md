@@ -506,7 +506,7 @@ frontend-text-box.md) + 7:
   one frame's.
 
 The anchor (0x7a2d20, 0x7a2d24) sits right after the 0xa0-byte text buffer,
-so the `_memset` leaves it. The width kept at 0x7a2d28 is not read here.
+so the `_memset` leaves it; the oracle also checks that both anchor coordinates survive the clear. The width kept at 0x7a2d28 is not read here.
 d2d: not ported. Re-check: `cd tools/emu && uv run python ui_label.py`.
 
 ### The frame of cels (`FUN_00452e50`, 0x452e50, 518 bytes)

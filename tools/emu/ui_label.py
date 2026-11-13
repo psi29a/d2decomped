@@ -80,7 +80,8 @@ def main():
         assert len(drawn) == 1, drawn
         ecx, edx, ypos, colour, flag = drawn[0]
         assert (ecx, s32(edx), s32(ypos), colour, flag) == (TEXT, want[0], want[1], 0, 1), (px, py, width, height, sw, sh, drawn, want)
-        assert e.read(TEXT, 0xA0) == bytes(0xA0) and e.read(TEXT + 0xA8, 8) == b"\xaa" * 8     # 0xa0 and 0xa4 are the anchor
+        assert e.read(TEXT, 0xA0) == bytes(0xA0) and e.read(TEXT + 0xA8, 8) == b"\xaa" * 8
+        assert e.r32(ANCHOR_X) == (px & 0xFFFFFFFF) and e.r32(ANCHOR_Y) == (py & 0xFFFFFFFF), "label clear changed anchor"
     e.mu.mem_write(TEXT, b"\0\0" + b"\xaa" * 0xAE)
     drawn.clear()
     e.call(0x453060)
