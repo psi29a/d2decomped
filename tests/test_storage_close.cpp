@@ -5,9 +5,9 @@
 // the inventory's close button shuts the one that's up, as their mouse-up
 // handlers in game.exe do (FUN_00489ac0, FUN_0048a190, FUN_00488b00);
 // the panel keys pass or not as FUN_00453910 lets them, run by
-// tools/emu/panel_keys.py (panel_keys_cases.inc); the stash's close
-// button where FUN_00489980 takes it, run by tools/emu/storage_close.py
-// (storage_close_cases.inc).
+// tools/emu/panel_keys.py (panel_keys_cases.inc); the stash's and the
+// Cube's close buttons where FUN_00489980 / FUN_00489fb0 take them, run by
+// tools/emu/storage_close.py (storage_close_cases.inc).
 #include "storage_close.hpp"
 
 #include <cassert>
@@ -36,7 +36,8 @@ int main() try {
 #include "storage_close_cases.inc"
     };
     for (const auto& row : hit_cases) {
-        const bool over = d2d::client::over_stash_close(row.expansion != 0, row.mouse_x, row.mouse_y);
+        const bool over = row.kind == 1 ? d2d::client::over_stash_close(row.expansion != 0, row.mouse_x, row.mouse_y)
+                                        : d2d::client::over_cube_close(row.mouse_x, row.mouse_y);
         if (over != (row.over != 0))
             std::fprintf(stderr, "FAIL: kind %d expansion %d (%d, %d): d2d %d, game.exe %d\n", row.kind, row.expansion, row.mouse_x, row.mouse_y, int(over), row.over);
         assert(over == (row.over != 0));
@@ -44,6 +45,7 @@ int main() try {
     // Drawn where FUN_0048edf0 puts it.
     static_assert(d2d::client::stash_close(false).left == 80 + 0x113 && d2d::client::stash_close(false).bottom == 540 - 0x41);
     static_assert(d2d::client::stash_close(true).left == 80 + 0x110 && d2d::client::stash_close(true).bottom == 540 - 0x40);
+    static_assert(d2d::client::cube_close().left == 80 + 0x113 && d2d::client::cube_close().bottom == 540 - 0x41);
     std::printf("OK: the inventory's close button shuts the stash, Cube or store; %zu panel keys, %zu close-button points as game.exe's\n",
                 sizeof(key_cases) / sizeof(key_cases[0]), sizeof(hit_cases) / sizeof(hit_cases[0]));
     return 0;

@@ -116,6 +116,15 @@ oracle run); their names first came from D2BS's UI enum:
   0x23 .. bottom + 5, every edge excluded), with no test of the hand.
   Oracle: `tools/emu/storage_close.py`. d2d: `client::stash_close`,
   `over_stash_close`.
+- The Cube's close button (`FUN_0048edf0` state 0xe): buysellbtn 10, 11
+  while `0x7bce40` holds it, at x + 0x113, bottom foot - 0x41. The
+  mouse-down handler `FUN_004927c0` sets `0x7bce40` over it
+  (`FUN_00489fb0`: x + 0x113 .. x + 0x13b, foot - 100 .. foot - 0x3c,
+  every edge excluded); the mouse-up handler `FUN_0048a190` runs
+  `FUN_0048a050` when it was held and the release is over it: shut UI
+  0x1a, send C->S 0x4f `{0x17}` once (`0x7bcc54`). Oracle:
+  `tools/emu/storage_close.py`. d2d: `client::cube_close`,
+  `over_cube_close`; net.cpp sends 0x17 when the Cube shuts.
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`

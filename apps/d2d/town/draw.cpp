@@ -301,6 +301,10 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 const auto spot = d2d::client::stash_close(character.expansion);
                 blit_at_anchor(framebuffer, scene->store_buttons.frame(0, stash_close_down ? 11 : 10), pal, spot.left, spot.bottom);
             }
+            if (cube_open) {
+                const auto spot = d2d::client::cube_close();
+                blit_at_anchor(framebuffer, scene->store_buttons.frame(0, cube_close_down ? 11 : 10), pal, spot.left, spot.bottom);
+            }
         }
         // A level's "entering" art for 2 s after a change, none for the game's
         // first (FUN_00455510): its frames side by side, centred at W/2 - 1,
