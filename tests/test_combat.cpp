@@ -49,7 +49,7 @@ int main(int argc, char** argv) try {
         return 0;
     }
     // `--get-hit-frames`: the frame drawn at each tick of a monster's (or the merc's) get-hit hold for
-    // the kind-1 cases on stdin (an uncommitted oracle's, hit_render.py, which ran game.exe's client step
+    // the kind-1 cases on stdin (hit_len.py's; tools/emu/hit_render.py runs game.exe's client step
     // FUN_004b1280 and the draw's FUN_00621810 on them): `id rate ticks f0 f1 ...` a case.
     if (argc > 1 && std::string_view(argv[1]) == "--get-hit-frames") {
         long case_id, kind, speed, frames, fhr;

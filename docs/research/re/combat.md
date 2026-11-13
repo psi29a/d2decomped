@@ -485,8 +485,9 @@ is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
   17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
   the same way and, re-testing after the step, ends the mode a tick before
   the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
-  (`Unit::get_hit_rate` in the renderer), checked by the oracle `hit_render.py` (never committed: todo.md #37)
-  (the PR's; game.exe's step and draw run natively) against `test_combat --get-hit-frames`. Not ported: the player's own frames
+  (`Unit::get_hit_rate` in the renderer), checked by the oracle `tools/emu/hit_render.py`
+  (game.exe's step and draw run natively on hit_len.py's cases and its rate and ticks) against
+  `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. Not ported: the player's own frames
   (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
