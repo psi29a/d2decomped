@@ -85,7 +85,7 @@ struct ThinkCtx {
     // unit.goal, walk to a spot subtiles off, a mode against the target.
     void idle(int frames);
     bool set_off(bool running, const Foe* foe, bool to_unit = false);
-    void walk_to(int off_x, int off_y, bool running);
+    bool walk_to(int off_x, int off_y, bool running);   // whether it set off
     void use(std::string_view mode, int skill);
 
     // The eligible pack units in FUN_005dd0b0 mode 1's order (FUN_005dce60,
