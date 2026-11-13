@@ -51,6 +51,7 @@ class Mismatch(Exception):
 
 
 def require(condition, message):
+    """Raise Mismatch(message) unless condition holds."""
     if not condition:
         raise Mismatch(message)
 
@@ -118,6 +119,7 @@ def one_case(e, rng, freed):
 
 
 def run_all(count=3000, seed=0x5C0B50):
+    """Run count random cases through FUN_005c0b50 and the model, requiring agreement."""
     rng = random.Random(seed)
     exe = Path(emu.data_path()) / "bin" / "game.exe"
     require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d (1.14.3.71)")
@@ -130,6 +132,7 @@ def run_all(count=3000, seed=0x5C0B50):
 
 
 def main():
+    """Run the cases, or --mutation-check each deliberate model defect."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--mutation-check", action="store_true", help="require every deliberate model defect to fail")
     options = parser.parse_args()

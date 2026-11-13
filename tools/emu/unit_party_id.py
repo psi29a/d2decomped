@@ -54,6 +54,7 @@ class Mismatch(Exception):
 
 
 def require(condition, message):
+    """Raise Mismatch(message) unless condition holds."""
     if not condition:
         raise Mismatch(message)
 
@@ -80,6 +81,7 @@ def model(search, control):
 
 
 def to_int16(value):
+    """Reinterpret value's low 16 bits as a signed int16."""
     value &= 0xFFFF
     return value - 0x10000 if value >= 0x8000 else value
 
@@ -149,6 +151,7 @@ def one_case(e, rng):
 
 
 def run_all(count=4000, seed=0x540710):
+    """Run count random cases through FUN_00540710 and the model, requiring agreement."""
     rng = random.Random(seed)
     exe = Path(emu.data_path()) / "bin" / "game.exe"
     require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d (1.14.3.71)")
@@ -159,6 +162,7 @@ def run_all(count=4000, seed=0x540710):
 
 
 def main():
+    """Run the cases, or --mutation-check each deliberate model defect."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--mutation-check", action="store_true", help="require every deliberate model defect to fail")
     options = parser.parse_args()

@@ -44,6 +44,7 @@ mutation = None
 
 
 def mut(name):
+    """Whether the current --mutation-check pass is deliberately breaking name."""
     return mutation == name
 
 
@@ -52,6 +53,7 @@ class Mismatch(Exception):
 
 
 def require(condition, message):
+    """Raise Mismatch(message) unless condition holds."""
     if not condition:
         raise Mismatch(message)
 
@@ -89,6 +91,7 @@ def build_player(e, unit_id, game):
 
 
 def build_monster(e):
+    """A fresh non-player unit, type UNIT_MONSTER."""
     unit = e.alloc(UNIT_SIZE)
     e.w32(unit + UNIT_TYPE_OFF, UNIT_MONSTER)
     return unit
@@ -99,6 +102,7 @@ class Side:
     becomes: itself (a player, or a monster with no owner) or its owner player."""
 
     def __init__(self, e, rng, control):
+        """Build a random side (monster-with-owner, ownerless monster, or player) in e's memory."""
         self.is_monster = rng.random() < 0.5
         if self.is_monster:
             self.original = build_monster(e)
@@ -118,6 +122,7 @@ class Side:
 
 
 def one_case(e, rng, owner_map):
+    """Run FUN_00554de0 and the model on one random pair of sides, requiring agreement."""
     control = [(rng.randrange(3, 200), [rng.randrange(-(1 << 31), 1 << 31) for _ in range(rng.randrange(0, 3))])
                for _ in range(rng.randrange(1, 4))]
     left = Side(e, rng, control)
@@ -169,6 +174,7 @@ def party_search(control, unit_id):
 
 
 def run_all(count=3000, seed=0x554DE0):
+    """Run count random cases through FUN_00554de0 and the model, requiring agreement."""
     rng = random.Random(seed)
     exe = Path(emu.data_path()) / "bin" / "game.exe"
     require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d (1.14.3.71)")
@@ -176,6 +182,7 @@ def run_all(count=3000, seed=0x554DE0):
     owner_map = {}
 
     def owner_hook(current):
+        """Hook: FUN_0058f0d0's owner resolution, from owner_map."""
         pointer = current.mu.reg_read(UC_X86_REG_ECX)
         return owner_map.get(pointer, 0)
     e.hook(GET_OWNER_UNIT, owner_hook, 0)
@@ -186,6 +193,7 @@ def run_all(count=3000, seed=0x554DE0):
 
 
 def main():
+    """Run the cases, or --mutation-check each deliberate model defect."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--mutation-check", action="store_true", help="require every deliberate model defect to fail")
     options = parser.parse_args()
