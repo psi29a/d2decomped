@@ -2044,8 +2044,8 @@ int main(int argc, char** argv) {
         const char* env = std::getenv("D2_MPQ_DIR");
         const char* base = SDL_GetBasePath();
         std::error_code cwd_ec;
-#ifdef __vita__
-        if (cfg["data"].empty()) cfg["data"] = user_dir.string();   // D2Vita's game folder (userdir.hpp)
+#if defined(__vita__) || defined(__SWITCH__)
+        if (cfg["data"].empty()) cfg["data"] = user_dir.string();   // the MPQs' folder there (userdir.hpp)
 #endif
         const auto found = d2d::install::resolve_data_dir(data_dir_str, env ? env : "", base ? fs::path(base) : fs::path{},
                                                           fs::current_path(cwd_ec), cfg["data"]);
