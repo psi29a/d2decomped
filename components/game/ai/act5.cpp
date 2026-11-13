@@ -301,7 +301,7 @@ struct Act5Ai : ThinkCtx {
         if (!monster.chamber_portal) { idle(25); return true; }
         const auto [portal_x, portal_y] = *monster.chamber_portal;
         const int dist = d2d::rules::ai_distance(portal_x - x, portal_y - y);
-        if (dist >= 25) { idle(25); return true; }
+        if (dist > 25) { idle(25); return true; }   // FUN_005ef5e0: the boundary itself (25) is in range
         if (dist < per_difficulty.aip[0]) { monster.baal_in = true; monster.gone = true; return true; }
         walk_to(portal_x - x, portal_y - y, false);
         return true;
