@@ -189,13 +189,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # The image's Strawberry Perl already has a pkg-config on PATH (it
+          # says 0.26) that CMake's FindPkgConfig doesn't take: with the feed
+          # down (504, 2026-11-13) it passed for pkgconfiglite, so it doesn't count.
+          function Test-PkgConfig { (Get-Command pkg-config -ErrorAction SilentlyContinue) -and ((pkg-config --version) -ne '0.26') }
           foreach ($try in 1..3) {
             choco install pkgconfiglite -y --no-progress
-            if (Get-Command pkg-config -ErrorAction SilentlyContinue) { break }
+            if (Test-PkgConfig) { break }
             Write-Host "pkg-config not installed (try $try of 3)"
             Start-Sleep -Seconds (20 * $try)
           }
-          if (-not (Get-Command pkg-config -ErrorAction SilentlyContinue)) { throw "pkg-config is missing: the Chocolatey install failed 3 times" }
+          if (-not (Test-PkgConfig)) { throw "pkg-config is missing: the Chocolatey install failed 3 times" }
           pkg-config --version
 
       - name: Set up Ninja (Windows)
