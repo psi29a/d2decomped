@@ -268,16 +268,33 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // Not the cursor item: no answer (FUN_00578610, 0x579f75). Else S->C
         // 0x58 answers 7, refused (0x579fc6, 0x57a002, 0x57a2e6, 0x57a54a), or
         // 6, done (0x57a1b4, 0x57a488, 0x57a63f): ev::ServiceResult.
-        // ponytail: the new item stays in hand; game.exe puts it back (FUN_00560200) or drops it.
+        // Each service takes the item off the cursor (FUN_0055eea0) and puts
+        // it in the inventory's free spot (FUN_00560200(.., 0, 0, 1, 1, 0),
+        // called in each of FUN_00579d60's three branches), with no room on the ground at the
+        // player (FUN_00555da0 / FUN_00558aa0).
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held || actor->held->id != imbue->item) return true;
             const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;
             const auto answer = [&](bool done) { actor->events.push_back(ev::ServiceResult{ imbue->npc, done }); return true; };
+            const auto put_back = [&] {
+                const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls % 7)];
+                std::vector<const d2d::d2s::Item*> stored;
+                for (const auto& other : actor->character.items)
+                    if (other.location == d2d::d2s::item_location::kStored && other.panel == d2d::d2s::item_panel::kInventory) stored.push_back(&other);
+                const auto [width, height] = d2d::rules::item_size(game_data->rules, actor->held->code);
+                if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, stored, layout.cols, layout.rows, width, height, true);
+                    column < 0 || !d2d::rules::put_in_grid(game_data->rules, actor->character.items, actor->held, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) {
+                    loot.enter(level);                       // the player's floor, as cmd::Drop: a respawn changes level without it
+                    loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms);
+                }
+                actor->held.reset();
+            };
             if (service_npc == d2d::rules::SiegeQuest::kLarzuk) {
                 if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(item_rules, *actor->held)) return answer(false);
                 actor->held = d2d::rules::socket_item(item_rules, *actor->held);
                 siege.socketed(quests());
                 d2d::log::info("Siege on Harrogath: Larzuk put {} sockets in the {}", actor->held->sockets, actor->held->code);
+                put_back();
                 return answer(true);
             }
             if (service_npc == d2d::rules::BetrayalQuest::kAnya) {
@@ -286,6 +303,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                 actor->held->owner = actor->character.header.name;
                 betrayal.personalized(quests());
                 d2d::log::info("Betrayal of Harrogath: Anya personalized the {}", actor->held->code);
+                put_back();
                 return answer(true);
             }
             if (service_npc != d2d::rules::monster_ids::kCharsi) return true;
@@ -295,6 +313,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->held = std::move(made);
             tools.imbued(quests());
             d2d::log::info("Tools of the Trade: Charsi imbued the {}", actor->held->code);
+            put_back();
             return answer(true);
         }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { actor->running = run->running; return true; }
