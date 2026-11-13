@@ -521,9 +521,12 @@ def check_ally(rig, rng):
             sc.put(shared_owner, 2)
 
         def resolve(unit, kind):
-            """The unit, or its owner for a merc/pet kind (shared_owner, else none)."""
+            """(modeled, real) unit after owner resolution for a merc/pet kind (shared_owner,
+            else none). `real` is what the hooked GetOwnerUnit call always returns (owner, or
+            unit if it has none) - the address the real game.exe call actually operates on.
+            `modeled` carries the ally-owner-not-resolved defect instead, when active."""
             if kind != 1:
-                return unit
+                return unit, unit
             if shared_owner is not None:
                 owner = shared_owner
             else:
@@ -532,10 +535,11 @@ def check_ally(rig, rng):
                     sc.put(owner, rng.choice((0, 0, 2)))
             rig.script["get-owner"][unit] = owner
             want_log.append(("get-owner", unit))
-            return owner if owner and not mut("ally-owner-not-resolved") else unit
+            real = owner if owner else unit
+            return (real if not mut("ally-owner-not-resolved") else unit), real
 
-        resolved_u = resolve(sc.unit, kind_u)
-        resolved_o = resolve(sc.other, kind_o)
+        resolved_u, real_u = resolve(sc.unit, kind_u)
+        resolved_o, real_o = resolve(sc.other, kind_o)
 
         if resolved_u == resolved_o and not mut("ally-same-unit-false"):
             result = 1
@@ -543,15 +547,19 @@ def check_ally(rig, rng):
             tu = sc.r(resolved_u) if resolved_u in sc.blocks else 0
             to = sc.r(resolved_o) if resolved_o in sc.blocks else 0
             both_players = bool(resolved_u) and bool(resolved_o) and tu == 0 and to == 0
-            # The real call's own memory setup (+0x60, +0x80, the party-control blocks) runs
-            # whenever both_players is structurally true, regardless of the mutation below: the
-            # real game.exe call doesn't know about the mutation and still takes the real
-            # party-id path when both sides really are players, and it will fault dereferencing
-            # an unset +0x80 pGame if this setup were skipped under the mutation instead.
-            if both_players:
-                sc.put(resolved_u + 0x60, 0)
-                sc.put(resolved_o + 0x60, 0)
-                guid_u, guid_o = sc.r(resolved_u + 0xC), sc.r(resolved_o + 0xC)
+            real_tu = sc.r(real_u) if real_u in sc.blocks else 0
+            real_to = sc.r(real_o) if real_o in sc.blocks else 0
+            real_both_players = bool(real_u) and bool(real_o) and real_tu == 0 and real_to == 0
+            # The real call's own memory setup (+0x60, +0x80, the party-control blocks) runs,
+            # at the real (unmutated) owner addresses, whenever those real owners are
+            # structurally both players - regardless of what the model believes: game.exe
+            # doesn't know about the mutation and still takes the real party-id path when both
+            # real owners are players, and it will fault dereferencing an unset +0x80 pGame at
+            # the real address if this setup instead targeted the model's resolved address.
+            if real_both_players:
+                sc.put(real_u + 0x60, 0)
+                sc.put(real_o + 0x60, 0)
+                guid_u, guid_o = sc.r(real_u + 0xC), sc.r(real_o + 0xC)
                 pid_choice = rng.choice((1, 2, 5))
 
                 def make_game(guid, want_id):
@@ -565,8 +573,8 @@ def check_ally(rig, rng):
 
                 game_u, pid_u = make_game(guid_u, pid_choice)
                 game_o, pid_o = make_game(guid_o, pid_choice if rng.random() < 0.5 else (pid_choice + 1) & 0xFFFF)
-                sc.put(resolved_u + 0x80, game_u)
-                sc.put(resolved_o + 0x80, game_o)
+                sc.put(real_u + 0x80, game_u)
+                sc.put(real_o + 0x80, game_o)
             if both_players and not mut("ally-nonplayer-skips-isallyof"):
                 result = 1 if (pid_u == pid_o and pid_u != 0xFFFF) else 0
                 if mut("ally-party-ffff-ok"):
