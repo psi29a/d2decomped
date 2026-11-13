@@ -90,6 +90,10 @@ jobs:
             name: Linux (GCC)
           - os: macos-latest
             name: macOS (Clang)
+          # Intel Macs. macOS 15's Homebrew bottles: the .dmg needs 15 or later.
+          - os: macos-15-intel
+            name: macOS Intel (Clang)
+            artifact_suffix: -Intel
           - os: windows-latest
             name: Windows (MSVC)
             arch: x64
@@ -248,8 +252,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/ffmpeg-*
-          key: ffmpeg-${{ runner.os }}-${{ steps.ffmpeg-key.outputs.key }}
-          restore-keys: ffmpeg-${{ runner.os }}-
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ steps.ffmpeg-key.outputs.key }}
+          restore-keys: ffmpeg-${{ runner.os }}-${{ runner.arch }}-
 
       # Sentry Native and Crashpad are built through FetchContent. Keep their
       # isolated source/build trees so unchanged vendor code needn't compile,
@@ -282,7 +286,7 @@ jobs:
             build/_deps/sentry_native-*
             build/.ninja_log
             build/.ninja_deps
-          key: sentry-${{ runner.os }}-${{ steps.sentry-key.outputs.key }}
+          key: sentry-${{ runner.os }}-${{ runner.arch }}-${{ steps.sentry-key.outputs.key }}
 
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'
@@ -509,8 +513,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/ffmpeg-*
-          key: ffmpeg-${{ runner.os }}-${{ steps.ffmpeg-key.outputs.key }}
-          restore-keys: ffmpeg-${{ runner.os }}-
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ steps.ffmpeg-key.outputs.key }}
+          restore-keys: ffmpeg-${{ runner.os }}-${{ runner.arch }}-
 
       # A cache miss leaves an ffmpeg_build target: build it for its headers.
       - name: Configure and generate

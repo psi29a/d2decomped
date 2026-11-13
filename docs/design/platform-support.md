@@ -24,8 +24,9 @@ tested on representative hardware.
 - The project requires C++23; MSVC gets it via `/std:c++latest`.
   Toolchain and language-library support must be checked per target rather
   than assumed.
-- Current CI covers Linux/macOS/Windows desktop builds and Linux Flatpak
-  bundles for x86_64 and aarch64. These jobs do not by themselves certify
+- Current CI covers Linux/macOS/Windows desktop builds (macOS for Apple
+  silicon and, on `macos-15-intel`, Intel) and Linux Flatpak bundles for
+  x86_64 and aarch64. These jobs do not by themselves certify
   native Windows ARM64, Android, iOS, iPadOS, Switch, or Switch 2 support.
 - Native dependencies include SDL3, OpenAL, StormLib, zlib, and FFmpeg for
   Bink video. Cross-compiling and packaging each dependency is part of target
