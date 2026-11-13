@@ -947,7 +947,8 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 // traced, so the default's line (0x200) runs from the missile; the 1.14d row's 0xa583 has none.
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (monsters[j].targetable() && filter_takes(filter, monsters[j], missile.x, missile.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
+                    if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)
+                        && filter_takes(filter, monsters[j], missile.x, missile.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }
@@ -1060,7 +1061,7 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (aura_takes(skill, monsters[i], x, y) && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
+            if (std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach && aura_takes(skill, monsters[i], x, y)) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
@@ -1089,9 +1090,10 @@ auto Fight::filter_takes(std::uint32_t filter, const Monster& monster, float fro
 
 auto Fight::in_aura(const Monster& monster) -> bool {
         const auto* skill = game_data->skills.get(actor->aura);
-        if (!skill || !skill->aura || !aura_takes(*skill, monster, actor->player.x, actor->player.y)) return false;
+        if (!skill || !skill->aura) return false;
         const int radius = d2d::rules::eval_calc(game_data->skills, skill->aurarange, calc_env(), skill->id, skill_level ? skill_level(actor->aura) : 1);
-        return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius);
+        return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius)
+            && aura_takes(*skill, monster, actor->player.x, actor->player.y);
     }
 
 auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
