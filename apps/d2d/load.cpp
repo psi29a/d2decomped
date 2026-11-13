@@ -333,12 +333,18 @@ void load_monster_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
         std::atomic<std::size_t> next = 0;
         // std::thread, joined by hand: Xcode 16.4's libc++ (the Intel runner) has no std::jthread.
         std::vector<std::thread> pool(std::max(1u, std::thread::hardware_concurrency()));
-        for (auto& worker : pool) worker = std::thread([&] {
-            for (std::size_t i; (i = next++) < cels.size();)
-                try { *cels[i].first = d2d::dcc::Sprite(cels[i].second); }
-                catch (const std::exception& error) { d2d::log::warn("missile cel: {}", error.what()); }
-        });
-        for (auto& worker : pool) worker.join();
+        const auto join_all = [&] { for (auto& worker : pool) if (worker.joinable()) worker.join(); };
+        try {
+            for (auto& worker : pool) worker = std::thread([&] {
+                for (std::size_t i; (i = next++) < cels.size();)
+                    try { *cels[i].first = d2d::dcc::Sprite(cels[i].second); }
+                    catch (const std::exception& error) { d2d::log::warn("missile cel: {}", error.what()); }
+            });
+        } catch (...) {                          // a thread that can't start: the ones running finish first
+            join_all();
+            throw;
+        }
+        join_all();
     }
 }
 

@@ -1177,11 +1177,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // The unit it's at: its kin (a walk to it), the hurt one or corpse it
     // casts on; the second target, in the target's place.
     using d2d::rules::ThinkUnit;
-    if (act.unit == ThinkUnit::second && second && second != target) {
+    const auto at_second = [&] {                                   // the act now current: a next act (set_off_or_next) too
+        if (act.unit != ThinkUnit::second || !second || second == target) return;
         target = second;
         target_x = subtile(target->x); target_y = subtile(target->y);
         dx = target->x - unit.x; dy = target->y - unit.y;
-    }
+    };
+    at_second();
     const Monster* at_unit = act.unit == ThinkUnit::kin ? (kin >= 0 ? &pack[std::size_t(kin)] : corpse >= 0 ? &pack[std::size_t(corpse)] : nullptr)
                            : act.unit == ThinkUnit::aid && aid >= 0 ? &pack[std::size_t(aid)] : nullptr;
     // After the act, its next think (unit event 2) n frames on: `wait`
@@ -1207,6 +1209,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.next_act = pending;
         const auto next = std::move(otherwise[tried++]);          // moved out: the act it makes may add its own
         act = next();
+        at_second();
         return false;
     };
     const auto walk_or_next = [&](int off_x, int off_y) { return set_off_or_next([&] { return ctx.walk_to(off_x, off_y, false); }); };

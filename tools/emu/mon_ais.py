@@ -333,8 +333,9 @@ def install(e):
         unit, n = e.arg(0), e.arg(1) & 0xff
         if not unit: return wander_n(2)
         draws = wander_draws(n)
-        ok = moved() if cur["s"]["ai"] == "Mephisto" else 1                 # Mephisto's reads whether it set off (0x5f7e8a)
-        out("around", name(unit), n, *draws, ok)
+        asked = cur["s"]["ai"] == "Mephisto"                                # Mephisto's reads whether it set off (0x5f7e8a)
+        ok = moved() if asked else 1
+        out("around", name(unit), n, *draws, ok if asked else None)         # None: not read, so no ask
         return ok
     def wander_n(n):
         out("wander", n, *wander_draws(n)); return 1
@@ -713,7 +714,7 @@ def outcome(s, out):
             to("circle", item[2], item[4], item[3], item[1])
         elif k == "wander": to("wander", item[1], item[2], item[3])
         elif k == "around":
-            if s["ai"] == "Mephisto" or (len(item) > 5 and item[5] is not None): asks.append((item[2], item[5]))   # Blood Raven's (mon_ais_pace.py): where her think reads it
+            if len(item) > 5 and item[5] is not None: asks.append((item[2], item[5]))   # Mephisto's; Blood Raven's (mon_ais_pace.py) where her think reads it
             to("around", item[2], item[3], item[4], item[1])
         elif k == "home":                                                  # FUN_005dede0 (mon_ais_pace.py): a walk home, asked whether it set off
             asks.append((0, item[3]))
