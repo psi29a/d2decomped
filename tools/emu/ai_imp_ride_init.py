@@ -27,6 +27,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -54,6 +55,7 @@ def main():
     lookup = {"mask": 0}
 
     def skill(current):
+        """Hook: answer the rider's has-skill check from the scripted mask."""
         skill_id = current.mu.reg_read(UC_X86_REG_EDX)
         if skill_id not in (2, 4):
             raise AssertionError(f"unexpected skill lookup {skill_id}")

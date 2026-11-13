@@ -31,6 +31,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -53,6 +54,7 @@ def main():
     machine.hook(0x554010, lambda current: 0x1234, 0)
 
     def action(current):
+        """Hook: record the skill cast at FUN_005dead0 (id, mode)."""
         actions.append((current.arg(3), current.arg(4)))
         return 0
 

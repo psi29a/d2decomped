@@ -17,6 +17,7 @@ GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", type=Path, required=True)
     parser.add_argument("--exe", type=Path, required=True)

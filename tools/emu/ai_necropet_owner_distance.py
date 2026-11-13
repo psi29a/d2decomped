@@ -37,6 +37,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -58,6 +59,7 @@ def main():
     machine.hook(0x5DC380, lambda current: state["gap"], 0)
 
     def follow(current):
+        """Hook: record which follow() branch and pace ran."""
         state["branch"], state["pct"] = current.arg(1), current.arg(3)
         return 1
 

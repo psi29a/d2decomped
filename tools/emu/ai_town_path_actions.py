@@ -41,6 +41,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -62,10 +63,12 @@ def main():
     machine.hook(0x5DE190, lambda current: 0, 2)
 
     def walk(current):
+        """Hook: count a walk attempt."""
         state["walks"] += 1
         return 1
 
     def command(current):
+        """Hook: answer an AI-command allocation and record which kind ran."""
         kind = current.arg(0)
         if kind not in commands:
             raise AssertionError(f"unexpected command {kind}")
