@@ -787,21 +787,26 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // FUN_005c9800: calc1 %, calc2 the least (256ths), the floor
                 // only in an expansion game; FUN_005c96a0 on each unit, its
                 // record through FUN_0057c6c0 with the attacker's pierce.
+                // Its walk (FUN_0056b7e0, the caster in EDX, x = y = 0: the
+                // caster's spot) takes Skills.txt's aurafilter (+0x50, 0x8783):
+                // a monster behind a wall (0x200, mask 4) isn't struck.
                 const int pct = calc(skill, skill.calc[0], lvl), low = calc(skill, skill.calc[1], lvl);
                 const int floor_pct = actor->character.header.expansion() ? game_data->static_field_min[std::size_t(std::clamp(game_difficulty, 0, 2))] : 0;
                 const int ltng_pierce = pierce()[1];
-                within(actor->player.x, actor->player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
+                const float radius = float(calc(skill, skill.aurarange, lvl));
+                for (std::size_t monster_index = 0; monster_index < monsters.size(); ++monster_index) {
                     const auto& struck = monsters[monster_index];
+                    if (std::hypot(struck.unit.x - caster.x, struck.unit.y - caster.y) * 5 > radius || !filter_takes(skill.aura_filter, struck, caster.x, caster.y)) continue;
                     const int res = target_of(monster_index).res[3];
                     const int fine = d2d::rules::static_field_fine(struck.life_fine(), struck.max_life_fine(), pct, low, floor_pct, res);
-                    if (fine < 0) return;
+                    if (fine < 0) continue;
                     const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - ltng_pierce, -100) : res);
                     d2d::rules::Blow blow{ .hit = true };
                     blow.damage = got >> 8;
                     blow.frac = got & 255;
                     blow.elemental = got > 0;
                     land(monster_index, blow, true, now_ms, striker_of(caster));
-                });
+                }
                 break;
             }
             case ServerDoFunction::kCorpseExplosion: case ServerDoFunction::kPoisonExplosion: {
