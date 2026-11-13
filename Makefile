@@ -9,6 +9,8 @@
 #   make run og host NAME   ... and on into a hosted TCP/IP game as d2d's save NAME (DIFF=normal|nightmare|hell)
 #   make bundle           build d2decomped-x86_64.flatpak, to copy to a Deck
 #   make deck             the bundle, copied to the Deck and installed (DECK=deck@steamdeck)
+#   make d2vita           d2d for the PS Vita (eboot.bin, d2d.vpk) in build/d2vita/vita, in VitaSDK's Docker image (docs/d2vita.md)
+#   make d2vita-win32     d2d as a Win32 Game.exe in build/d2vita/win32, in an Ubuntu container (MinGW; fetches SDL3 and OpenAL Soft)
 #   make clean            drop the build and the bundle (keeps the module cache)
 #   make distclean        clean, and the module cache too (the next build is a full one)
 
@@ -56,7 +58,7 @@ $(RUN_WHAT):
 	@:
 endif
 
-.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing
+.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing d2vita d2vita-win32
 .DEFAULT_GOAL := help
 
 help:
@@ -141,6 +143,39 @@ bundle: source
 deck: bundle
 	scp $(BUNDLE) $(DECK):/tmp/$(BUNDLE)
 	ssh $(DECK) 'flatpak install --user --reinstall -y --bundle /tmp/$(BUNDLE) && rm /tmp/$(BUNDLE)'
+
+# CI's d2vita jobs, in Docker. D2VITA_JOBS: d2d's biggest files take ~2 GB
+# each to compile, past Docker Desktop's memory at one per core. VitaSDK's
+# image has arm64 and amd64: no --platform, so it runs native on either Mac.
+VITASDK_IMAGE := vitasdk/vitasdk@sha256:f0eeb443be707be534c568d5d23702e14152a8513778cd11d209aa1b42fbd434
+D2VITA_JOBS   ?= 4
+D2VITA_DEPS   := build/d2vita-deps
+SDL3_VERSION  := 3.4.16
+OPENAL_VERSION := 1.25.2
+# The build tree is a Docker volume, not the bind mount: Docker Desktop's
+# file sharing handed FFmpeg's make install a libavcodec.a with zeroed
+# blocks. `docker volume rm d2vita-vita` (or -win32) starts one over.
+D2VITA_DOCKER  = docker run --rm -v "$(CURDIR)":/src -v d2vita-$(1):/src/build/d2vita-$(1) -w /src \
+  -e CMAKE_BUILD_PARALLEL_LEVEL=$(D2VITA_JOBS)
+
+d2vita:
+	$(call D2VITA_DOCKER,vita) $(VITASDK_IMAGE) tools/d2vita.sh vita
+
+$(D2VITA_DEPS)/SDL3-$(SDL3_VERSION):
+	mkdir -p $(D2VITA_DEPS)
+	curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-$(SDL3_VERSION)/SDL3-devel-$(SDL3_VERSION)-mingw.tar.gz | tar -xz -C $(D2VITA_DEPS)
+
+$(D2VITA_DEPS)/openal-soft-$(OPENAL_VERSION)-bin:
+	mkdir -p $(D2VITA_DEPS)
+	curl -fsSLo $(D2VITA_DEPS)/openal.zip https://github.com/kcat/openal-soft/releases/download/$(OPENAL_VERSION)/openal-soft-$(OPENAL_VERSION)-bin.zip
+	unzip -q -o $(D2VITA_DEPS)/openal.zip -d $(D2VITA_DEPS) && rm $(D2VITA_DEPS)/openal.zip
+
+d2vita-win32: $(D2VITA_DEPS)/SDL3-$(SDL3_VERSION) $(D2VITA_DEPS)/openal-soft-$(OPENAL_VERSION)-bin
+	$(call D2VITA_DOCKER,win32) -e SDL3_MINGW=/src/$(D2VITA_DEPS)/SDL3-$(SDL3_VERSION) \
+	  -e OPENAL_MINGW=/src/$(D2VITA_DEPS)/openal-soft-$(OPENAL_VERSION)-bin ubuntu:26.04 bash -c '\
+	  apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates cmake ninja-build make gcc libc6-dev git \
+	    g++-mingw-w64-i686-posix libz-mingw-w64-dev >/dev/null && \
+	  git config --global --add safe.directory /src && tools/d2vita.sh win32'
 
 clean:
 	rm -rf $(SOURCE) $(BUILDDIR) $(REPO) $(BUNDLE)

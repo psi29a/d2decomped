@@ -6,6 +6,7 @@
 //   user dir    macOS    ~/Library/Preferences/<app>/
 //               Linux    $XDG_CONFIG_HOME/<app>/ (normally ~/.config/<app>/)
 //               Windows  Documents\My Games\<app>
+//               PS Vita  ux0:data/d2vita/1.14d/ (D2Vita's game folder, any app)
 //   global dir  macOS    /Library/Preferences/<app>/
 //               Linux    /etc/<app>/
 //               Windows  Program Files\<app>
@@ -26,7 +27,7 @@
 
 #if defined(_WIN32)
 #  include <shlobj.h>
-#else
+#elif !defined(__vita__)
 #  include <pwd.h>
 #  include <unistd.h>
 #endif
@@ -52,6 +53,11 @@ inline fs::path user_dir(std::string_view app) {
         base = fs::path(docs) / "My Games";
     CoTaskMemFree(docs);
     return base / app;
+#elif defined(__vita__)
+    // Where D2Vita keeps Game.exe and the MPQs: d2d.cfg and save/ sit
+    // beside them, as d2d does in a PC install (docs/d2vita.md).
+    static_cast<void>(app);
+    return fs::path("ux0:data/d2vita/1.14d");
 #else
     const char* home = std::getenv("HOME");
     if (!home || !*home)

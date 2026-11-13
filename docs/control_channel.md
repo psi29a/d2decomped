@@ -192,3 +192,8 @@ To run the headless tests on Windows, d2d needs an OpenAL device even with
 the null backend: put openal-soft's `soft_oal.dll` on `PATH` as
 `OpenAL32.dll`. The OpenAL router looks for drivers only next to the exe, in
 the working directory and in the system directory, not on `PATH`.
+
+## PS Vita
+
+No channel: the Vita has no Unix sockets, so `listen()` logs that it didn't
+open the path and d2d runs without one (`docs/d2vita.md`).

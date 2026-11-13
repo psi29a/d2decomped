@@ -594,11 +594,83 @@ jobs:
             --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
             "$d2d_binary" "$crashpad_handler"
 
+  # d2d alone for D2Vita (docs/d2vita.md): a Win32 Game.exe (MinGW) and a
+  # PS Vita VPK (VitaSDK), each built by tools/d2vita.sh in its container.
+  # ponytail: no ccache or FFmpeg cache; add them if these become the slow jobs.
+  d2vita:
+    name: D2Vita (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container: ${{ matrix.image }}
+    env:
+      SDL3_VERSION: "3.4.16"     # as the Windows build's
+      OPENAL_VERSION: "1.25.2"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32
+            name: Win32
+            image: ubuntu:26.04
+          - target: vita
+            name: PS Vita
+            # A digest: :latest moves with every VitaSDK package update.
+            image: vitasdk/vitasdk@sha256:f0eeb443be707be534c568d5d23702e14152a8513778cd11d209aa1b42fbd434
+    steps:
+      # Before the checkout: without git it downloads a tarball, and
+      # git describe has no tags to stamp the version from.
+      - name: Install dependencies (Win32)
+        if: matrix.target == 'win32'
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates cmake ninja-build make gcc libc6-dev \
+            git curl unzip g++-mingw-w64-i686-posix libz-mingw-w64-dev
+
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0   # every tag, for git describe's version stamp
+
+      # The container's root doesn't own the checkout: git refuses it
+      # (CMake's version stamp would read "unknown").
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Download SDL3 and OpenAL Soft (Win32)
+        if: matrix.target == 'win32'
+        run: |
+          mkdir -p deps
+          curl -fsSL "https://github.com/libsdl-org/SDL/releases/download/release-$SDL3_VERSION/SDL3-devel-$SDL3_VERSION-mingw.tar.gz" | tar -xz -C deps
+          curl -fsSLo deps/openal.zip "https://github.com/kcat/openal-soft/releases/download/$OPENAL_VERSION/openal-soft-$OPENAL_VERSION-bin.zip"
+          unzip -q deps/openal.zip -d deps
+          echo "SDL3_MINGW=$PWD/deps/SDL3-$SDL3_VERSION" >> "$GITHUB_ENV"
+          echo "OPENAL_MINGW=$PWD/deps/openal-soft-$OPENAL_VERSION-bin" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: tools/d2vita.sh ${{ matrix.target }}
+
+      - name: Zip
+        run: |
+          zip="$PWD/build/d2d-$(git describe --tags --always)-d2vita-${{ matrix.target }}.zip"
+          cd build/d2vita/${{ matrix.target }} && cmake -E tar cf "$zip" --format=zip -- *
+
+      # Pull requests too, unlike the packages: a few MB, and a pull
+      # request's is the only one to try on a Vita before the merge.
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2vita-${{ matrix.target }}
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
+          path: build/d2d-*-d2vita-*.zip
+          if-no-files-found: error
+
   # The one check the main ruleset requires: green when every job above
   # passed or was skipped for a docs-only change.
   ci-ok:
     name: CI ok
-    needs: [changes, build, tidy, flatpak]
+    needs: [changes, build, tidy, flatpak, d2vita]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -612,6 +684,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build
+      - d2vita
       - flatpak
       - tidy
     runs-on: ubuntu-latest
