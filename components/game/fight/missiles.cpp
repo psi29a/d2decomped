@@ -1106,7 +1106,7 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).
-        for (const auto& aura : enemy_auras(monsters[monster_index].unit.x, monsters[monster_index].unit.y)) apply_target_stats(*aura.skill, aura.level, target, base, &aura.env);
+        for (const auto& aura : enemy_auras(monsters[monster_index])) apply_target_stats(*aura.skill, aura.level, target, base, &aura.env);
         return target;
     }
 

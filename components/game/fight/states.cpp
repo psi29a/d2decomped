@@ -384,7 +384,7 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
             // The enemy auras over it (the player's, the merc's): Holy Freeze's
             // velocitypercent and attackrate / other_animrate (one rate), -dm34.
             if (monster.alive())
-                for (const auto& aura : enemy_auras(monster.unit.x, monster.unit.y)) {
+                for (const auto& aura : enemy_auras(monster)) {
                     int rate = 0;
                     for (std::size_t aura_stat = 0; aura_stat < aura.skill->aurastat.size(); ++aura_stat) {
                         const int value = d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[aura_stat], aura.env, aura.skill->id, aura.level);

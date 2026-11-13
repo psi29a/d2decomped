@@ -121,14 +121,27 @@ int main() try {
         return fight.monsters.back().hit_points < 1000;
     };
     assert(field_hits());
+    // The player's Holy Freeze slows (velocitypercent, aurastat 67) only a
+    // monster its filter takes: the fallen in a clear line, not Diablo
+    // (0x40000).
+    actor.aura = holy_freeze->id;
+    const auto slowed = [&](const Monster& one) {
+        fight.monsters.clear();
+        fight.monsters.push_back(one);
+        fight.monster_states(1000);
+        return fight.monsters.back().speed_pct < 0;
+    };
+    assert(slowed(fallen) && !slowed(diablo));
 
-    // A wall subtile (mask 4) between them: Holy Freeze's 0x200 fails,
-    // Conviction (0xa583) has no line test.
+    // A wall subtile (mask 4) between them: Holy Freeze's 0x200 fails, its
+    // pulse and its slow; Conviction (0xa583) has no line test.
     moor.walk[std::size_t(row_y) * std::size_t(width) + std::size_t(row_x + 2)] |= 0x04;
     assert(!fight.aura_takes(*holy_freeze, fallen, from_x, from_y) && fight.aura_takes(*conviction, fallen, from_x, from_y));
+    assert(!slowed(fallen));
     assert(!field_hits());
     fight.monsters.clear();
-    std::printf("OK: Holy Freeze and Static Field need a clear line, Conviction doesn't\n");
+    actor.aura = conviction->id;
+    std::printf("OK: Holy Freeze (its pulse and slow) and Static Field need a clear line, Conviction doesn't\n");
 
     // In town: Conviction's 0x100 and 0x2000 take no monster.
     world.level = town;
