@@ -320,6 +320,25 @@ byte cells (`FUN_00457c30`): `+0` saved flag, `+4` s16 cel, `+6` s16 x,
 | 2 | 0x10 | `FUN_00458dc0` → `FUN_00457e80` | units' icons: objects with an Objects.txt automap cel (`+0x1bc`; 0x10b, 0x16e, 0x192 have conditions), monsters with one at their MonStats2 row's `+0x118` (via MonStats `+0x18`) |
 | 3 | 0x14 | `FUN_004591a0` | the town miniatures: level 0x28 (cel file 1), 0x67 (2), 0x6d (3) |
 
+Checked against game.exe's own code by `tools/emu/automap_tree.py`
+(`tests/test_automap_tree.cpp`, 600 random runs of inserts over the four
+trees, the in-order walks compared). The oracle ran `FUN_00457c30` (a cell
+from the chunk pool: 0x2804 bytes, 0x200 cells each, chained at +0x2800, so
+`DAT_007a515c` counts the cells made, dropped ones too), `FUN_00457b00`,
+`FUN_00458470` (the walk, at `DAT_007a5154`) and `FUN_00458440` (its count
+of flag-0 cells, 6 bytes each, equal to the bytes the walk wrote),
+`FUN_00458680` (one free per chunk, the pool, the count and the layer's four
+trees zeroed) and `FUN_00458cf0` (a layer's map: id, zeros, `+0x18` the
+previous head `DAT_007a5160`). After `FUN_0045a4c0` the group table at
+0x7a3150 is the 0x711258 pairs and -1 elsewhere (0x800 entries), and the
+options it reads from the registry default to AutoMapFade 0, Centers 1,
+Party 1, Party Names 1, Left 1 (`FUN_0045a2b0`, the miniature cel loader,
+stubbed: not traced here).
+Before this d2d dropped a cel against the cells at its (x, y); in 22 of 600
+runs game.exe kept one that d2d dropped, since the tree meets only the cells
+on its search path (run 0 of `tests/automap_tree_cases.inc`: list 0 keeps
+cel 169, group 10, at (-1, -1) beside a 120 and a 121).
+
 `FUN_00457b00` inserts by y, then x; at the same (x, y) a cel whose
 group (`DAT_007a3150`, filled by `FUN_0045a4c0` from the {cel, group}
 pairs at `0x711258..0x7113e0`) is -1 or the same as the cell there is
@@ -458,8 +477,8 @@ dropped, otherwise the cel decides.
 - devctl `debug automap` reveals the whole level.
 - Saved maps: `d2s_automap.hpp` reads and writes the files above;
   `load_automap` / `save_automap` (panels.cpp) run on entering the game,
-  on a layer change and on saving. Cells are deduped like
-  `FUN_00457b00`, against every cell at (x, y) rather than the tree's
-  search path. A file's miniature cells are cut at their cel file's
+  on a layer change and on saving. Cells go in `rules::AutomapTree`
+  (`automap_cells.hpp`), `FUN_00457b00`'s AVL tree, so a cel is dropped
+  only against the cells on its search path, as game.exe's. A file's miniature cells are cut at their cel file's
   count, as `FUN_00458750` does. No subdirectory
   try. test_automap checks the format.

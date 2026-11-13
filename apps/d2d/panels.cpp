@@ -752,16 +752,10 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
     return -1;
 }
 
+// FUN_00457b00 on the cell's list: false when the tree drops it (same (x, y), no group or the group of the cell it meets).
 bool Automap::add(const Cell& cell) {
-    int group = -1;
-    for (const auto& pair : kCelGroups)
-        if (pair[0] == cell.cel) group = pair[1];
-    // ponytail: matches against every cell at (x, y); the tree only meets those on its search path.
-    const auto found = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
-    const bool taken = group < 0 ? found != placed.end() && std::get<0>(*found) == cell.list && std::get<1>(*found) == cell.y && std::get<2>(*found) == cell.x
-                                 : placed.count({ cell.list, cell.y, cell.x, group }) != 0;
-    if (taken) return false;
-    placed.insert({ cell.list, cell.y, cell.x, group });
+    if (cell.list < 0 || cell.list > 3) return false;
+    if (!trees[std::size_t(cell.list)].insert(cell.cel, cell.x, cell.y, d2d::rules::automap_cel_group(cell.cel))) return false;
     cells.push_back(cell);
     return true;
 }
