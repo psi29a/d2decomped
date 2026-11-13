@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -79,18 +80,79 @@ inline int pierce_charges(int chance, std::uint32_t seed) {
     return charges;
 }
 
-// FUN_0064fc60: the unit vector (x 4096) from 16.16 (x, y) to (to_x, to_y).
-// The smaller delta x 127 / the larger picks the row (32-bit, as the exe).
-inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
-    const bool west = to_x < x, north = to_y < y;
+// The direction within an eighth for each of those rows (the third word,
+// 0x6eb7e8): 0..7.
+inline constexpr std::array<std::uint8_t, 128> kAimEighth{
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+};
+
+// FUN_0064fc60's row from 16.16 (x, y) to (to_x, to_y): the smaller delta x
+// 127 / the larger (32-bit, as the exe), which axis is the larger, and the
+// sides. Those are compared signed: game.exe's places are all under 2^31,
+// and d2d's are its level's own, below 0 past the west or north edge.
+struct AimRow {
+    int row;
+    bool steep, west, north;
+};
+inline AimRow aim_row(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+    const bool west = std::int32_t(to_x) < std::int32_t(x), north = std::int32_t(to_y) < std::int32_t(y);
     const std::uint32_t across = west ? x - to_x : to_x - x, down = north ? y - to_y : to_y - y;
     const bool steep = std::int32_t(across) <= std::int32_t(down);
     const std::uint32_t major = steep ? down : across, minor = steep ? across : down;
     const int row = major == 0 ? 0 : std::int32_t(minor * 0x7fu) / std::int32_t(major);
-    const auto& [small, big] = kMissileAim[std::size_t(std::clamp(row, 0, 127))];
-    const int aim_x = steep ? small : big, aim_y = steep ? big : small;
-    return { west ? -aim_x : aim_x, north ? -aim_y : aim_y };
+    return { std::clamp(row, 0, 127), steep, west, north };
 }
+
+// FUN_0064fc60: the unit vector (x 4096) from (x, y) to (to_x, to_y).
+inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+    const auto aim = aim_row(x, y, to_x, to_y);
+    const auto& [small, big] = kMissileAim[std::size_t(aim.row)];
+    const int aim_x = aim.steep ? small : big, aim_y = aim.steep ? big : small;
+    return { aim.west ? -aim_x : aim_x, aim.north ? -aim_y : aim_y };
+}
+
+// The 64-step direction FUN_0064fc60 writes with it (through EDX), 0 screen
+// south, clockwise: the row's eighth folded by the larger axis and the
+// sides. tools/emu/facing.py; tests/test_facing.cpp.
+inline int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
+    const auto aim = aim_row(x, y, to_x, to_y);
+    int dir = kAimEighth[std::size_t(aim.row)];
+    if (!aim.steep) dir = (-dir - 1) & 0xf;
+    if (aim.north) dir = (-dir - 1) & 0x1f;
+    return aim.west ? (dir + 8) & 0x3f : (((-dir - 1) & 0x3f) + 8) & 0x3f;
+}
+
+// DIFFDIRECTIONS (0x6eb548): a turn's step a frame by how far round its
+// goal is, in 64ths.
+inline constexpr std::array<std::int8_t, 64> kDiffDirections{
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -4, -4, -4, -4, -4, -4, -4, -4, -1, -1, -1, -1, -1, -1, -1, -1
+};
+
+// A unit's facing in 64 steps (0 screen south, clockwise): path +0x64 the
+// one drawn, +0x65 its goal (what the server keeps: FUN_00648810) and +0x66
+// the turn's step. tools/emu/facing.py; tests/test_facing.cpp.
+struct Facing {
+    std::uint8_t now = 0, goal = 0;
+    std::int8_t step = 0;
+    // FUN_006485f0 for a player's or monster's path: a new goal and its step.
+    void aim(int dir64) {
+        dir64 &= 0x3f;
+        if (dir64 == goal) return;
+        goal = std::uint8_t(dir64);
+        step = kDiffDirections[std::size_t((dir64 - now) & 0x3f)];
+    }
+    // FUN_00648640: a frame's turn, onto the goal once it reaches or passes it.
+    void turn() {
+        if (now == goal) return;
+        now = std::uint8_t((now + step) & 0x3f);
+        const int past = (now - goal) & 0x3f;
+        if ((past > 0x1f && step < 0) || (past < 0x1f && step >= 0)) now = goal;
+    }
+};
 
 // The same along a direction in floats (a missile turned in flight).
 inline std::pair<int, int> missile_aim_along(float dx, float dy) {
@@ -177,8 +239,8 @@ struct MissileFlight {
         flight.velocity = velocity; flight.max_velocity = max_velocity; flight.accel = accel;
         return flight;
     }
-    [[nodiscard]] int subtile_x() const { return int(x >> 16); }
-    [[nodiscard]] int subtile_y() const { return int(y >> 16); }
+    [[nodiscard]] int subtile_x() const { return std::int16_t(x >> 16); }   // game.exe's subtiles are shorts
+    [[nodiscard]] int subtile_y() const { return std::int16_t(y >> 16); }
 
     // One frame (FUN_00650840 with 0x400): every fifth frame Accel joins
     // the velocity, up to MaxVel (then Accel stops) or down to 0; the step is
@@ -248,11 +310,11 @@ private:
             const std::uint32_t next_x = at_x + std::uint32_t(part_x), next_y = at_y + std::uint32_t(part_y);
             const std::uint32_t there_x = next_x >> 16, there_y = next_y >> 16;
             if (there_x != here_x || there_y != here_y) {
-                if (blocked(int(there_x), int(there_y))) {
+                if (blocked(int(std::int16_t(there_x)), int(std::int16_t(there_y)))) {   // FUN_0064ff90 takes them as shorts
                     x = (at_x & 0xffff0000u) + 0x8000; y = (at_y & 0xffff0000u) + 0x8000;
                     return false;
                 }
-                crossed.emplace_back(int(there_x), int(there_y));
+                crossed.emplace_back(int(std::int16_t(there_x)), int(std::int16_t(there_y)));
                 if (crossed.size() >= 10) break;
             }
             at_x = next_x; at_y = next_y; here_x = there_x; here_y = there_y;
@@ -260,5 +322,31 @@ private:
         return true;
     }
 };
+
+// A walker's frame (FUN_00650840 past its chase check, FUN_006503f0): from
+// 16.16 subtiles (x, y) toward points[point]'s centre at `velocity` (path
+// +0x7c: velocity / 4096 subtiles a frame). The aim is taken anew each frame
+// and points it stands on are passed (FUN_0064fe40, so a point given twice
+// costs no frame); one within the step is landed on and ends the frame
+// (FUN_00650090). A new subtile that `blocked(x, y)` (FUN_0064ff90) ends the
+// walk on the centre of the last free one (FUN_00650150), `hit` set. False
+// when the walk is over: on its subtile's centre (FUN_006507b0), `point`
+// past the last. tools/emu/walk_step.py; tests/test_walk_step.cpp.
+template <class Blocked>
+bool walk_frame(std::uint32_t& x, std::uint32_t& y, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
+                Blocked&& blocked, bool* hit = nullptr) {
+    MissileFlight flight;
+    flight.x = x; flight.y = y; flight.velocity = velocity;
+    flight.points.assign(points.begin(), points.end());
+    flight.point = point;
+    bool stopped = false;
+    flight.retarget();
+    bool going = flight.point < points.size() ? flight.step([&](int at_x, int at_y) { return stopped = blocked(at_x, at_y); }) : flight.stop();
+    if (going) { flight.retarget(); going = flight.point < points.size() || flight.stop(); }
+    x = flight.x; y = flight.y;
+    point = going ? flight.point : points.size();
+    if (hit) *hit = stopped;
+    return going;
+}
 
 }  // namespace d2d::rules

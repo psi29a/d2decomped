@@ -334,7 +334,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
                 if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f)
                     set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
-                if (!walk_on(*level, unit, speed * elapsed, crowd)) pet.target = -1;
+                if (!walk_on(*level, unit, int(std::lround(speed * elapsed * 5 * 4096)), crowd)) pet.target = -1;
             } else {
                 pet_follow(*level, unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
             }
@@ -345,7 +345,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
 
 // A pet's walk between thinks (a walk at its target ends in reach); true
 // while it walks or isn't due a think.
-auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> bool {
+auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd) -> bool {
         auto& monster = pet.monster;
         auto& unit = monster.unit;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
@@ -376,9 +376,10 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
                         if (monster.mode == "RN") run_pct = d2d::rules::run_percent(game_data->walk_velocity[cls], game_data->run_velocity[cls]);
                     }
                 const int sum = 100 + run_pct + monster.move_pct + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent);   // Burst of Speed's on a Shadow
-                if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(sum, 25)) / 100 * elapsed, crowd)) return true;
+                const UnitState* walk_at = pet.to_owner ? &actor->player : pet.chase ? &monsters[std::size_t(pet.target)].unit : nullptr;
+                if (walk_on(*level, unit, path_velocity(velocity, std::max(sum, 25)), crowd, walk_at)) return true;
             }
-            pet.chase = false;
+            pet.chase = pet.to_owner = false;
             set_mode(*game_data, monster, "NU", now_ms);
             monster.next_act = now_ms;                                    // a walk's end thinks at once (FUN_005a8030)
         }
@@ -492,6 +493,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
             monster.move_pct = act.move.pct;
             pet.chase = act.kind == Kind::chase;
             pet.target = pet.chase ? found : -1;
+            pet.to_owner = false;
         } else if (act.kind == Kind::swing && found >= 0) {
             pet.target = found;
             unit.dir = direction16(monsters[std::size_t(found)].unit.x - unit.x, monsters[std::size_t(found)].unit.y - unit.y);
@@ -908,6 +910,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             monster.move_pct = act.move.pct;
             pet.chase = act.kind == Kind::chase && chased >= 0;
             pet.target = pet.chase ? chased : -1;
+            pet.to_owner = act.kind == Kind::chase && act.move.unit == int(PetUnit::owner);
             break;
         }
         case Kind::swing:

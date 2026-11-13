@@ -190,7 +190,7 @@ auto move_route(const Level& level, const UnitState& unit, int from_x, int from_
 // FUN_0064e7b0, its size, mask 0x1c09); none: it stays.
 void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, float y) {
     if (const auto spot = free_spot_near(level, crowd, &unit, int(std::floor(x * 5)), int(std::floor(y * 5)), unit.shape.size, 0x1c09)) {
-        unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
+        unit.x = Fine::centre(spot->first); unit.y = Fine::centre(spot->second);
     }
 }
 
@@ -215,7 +215,7 @@ bool room_teleport(const GameData& game_data, const Level& level, const Crowd& c
     return false;
 }
 
-auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town) -> void {
+auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
@@ -303,7 +303,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         if (actor->merc->mode == "WL" || actor->merc->mode == "RN") {                    // velocitypercent: the move's pace
             // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk %, at least 25 (FUN_00623f50).
             const int velocity = type_info ? type_info->velocity : 6;
-            if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(100 + actor->merc->move_pct, 25)) / 100 * elapsed, crowd)) return;
+            const UnitState* foe = actor->merc_chase && actor->merc_target >= 0 ? &monsters[std::size_t(actor->merc_target)].unit : nullptr;
+            if (walk_on(*level, unit, path_velocity(velocity, std::max(100 + actor->merc->move_pct, 25)), crowd, foe)) return;
             set("NU");
             actor->merc_chase = false;
             actor->merc->next_act = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)

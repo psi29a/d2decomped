@@ -581,7 +581,7 @@ int main(int argc, char** argv) try {
                 assert(!view.level->blocked((float(spot->first - 1 + column) + 0.5f) / 5, (float(spot->second - 1 + row) + 0.5f) / 5, 0x0f11));
         assert(std::abs(spot->first - start_x) < 100 && std::abs(spot->second - start_y) < 100);
     }
-    std::printf("OK: %s in level %d at (%.1f, %.1f)\n", character.name.c_str(), view.level->id, view.player.x, view.player.y);
+    std::printf("OK: %s in level %d at (%.1f, %.1f)\n", character.name.c_str(), view.level->id, double(view.player.x), double(view.player.y));
     {   // A walk's % (FUN_00623f50): 100, a run's run x 100 / walk (stamina left),
         // effective FRW 150 x v / (150 + v), chill's -50, at least 25.
         auto& walker = *world.actor;

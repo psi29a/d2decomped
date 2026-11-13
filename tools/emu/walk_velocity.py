@@ -21,8 +21,8 @@ Modelled, not traced (the inputs of stat 0x43, d2d's own split of it): a monster
 WalkVelocity) + velocitypercent - 50 chilled.
 
 d2d side: the REAL build (`test_walk_velocity --walk-velocity`, tests/game/test_walk_velocity.cpp): monster_update (one
-frame), World::walk_percent, Fight::merc_turn, Fight::pet_walking; the walk % is the distance moved over
-Velocity's step.
+frame), World::walk_percent, Fight::merc_turn, Fight::pet_walking; a player's walk %, the others' path
+velocity (the 16.16 distance a frame moved them along x, x 4096), against the velocity game.exe set.
 
     uv run python walk_velocity.py gen N SEED > cases.tsv
     uv run python walk_velocity.py game cases.tsv [game.exe] > game.tsv   (default: <data dir>/bin/game.exe)
@@ -269,23 +269,26 @@ def compare(cases, a, b):
     velfail = sum(1 for v in ga.values() if "VELFAIL" in v)
     skipped = [k for k, v in gb.items() if v[1] == "skip"]
     names = {"0": "monster", "1": "player", "2": "merc", "3": "pet"}
-    bad, per, total, trunc = [], {}, {}, 0
+    bad, per, total, wrapped = [], {}, {}, 0
     compared = 0
     for k, r in rows.items():
         if k not in gb or gb[k][1] == "skip" or k not in ga:
             continue
         compared += 1
-        g_pct, d_pct = int(ga[k][1]), float(gb[k][1])
+        # a player: the walk %; the others: the path velocity (d2d's frame moves velocity / 4096 subtiles)
+        g_pct, d_pct = (int(ga[k][1]), float(gb[k][1])) if r[1] == "1" else (int(ga[k][2]), float(gb[k][1]))
         key = names[r[1]] + ("" if r[1] == "1" else " RN" if r[3] == "15" else " WL")
         total[key] = total.get(key, 0) + 1
-        if abs(g_pct - d_pct) > 0.01:
+        # from 0x8000 the frame's step (velocity x 16 x 4096, FUN_006502d0) wraps in 32 bits, in game.exe as in d2d
+        # (tools/emu/walk_step.py has the step): the distance moved is no velocity then; no 1.14d row comes near
+        if r[1] != "1" and g_pct >= 0x8000:
+            wrapped += 1
+        elif abs(g_pct - d_pct) > 0.01:
             bad.append(k)
             per[key] = per.get(key, 0) + 1
-        if r[1] != "1" and (int(r[{"0": 5, "2": 4, "3": 4}[r[1]]]) << 8) * g_pct % 100 != 0:
-            trunc += 1
     print(f"cases {len(rows)} compared {compared} skipped {len(skipped)} mismatches {len(bad)} velfail {velfail}")
     print("  per kind (cases, mismatches):", {k: (total[k], per.get(k, 0)) for k in sorted(total)})
-    print(f"  monster-velocity-truncated {trunc} (game.exe's velocity x pct / 100 truncates; d2d's float step does not)")
+    print(f"  step-wrapped {wrapped} (velocity 0x8000 or more: not compared)")
     for k in bad[:12]:
         print("  ", " ".join(rows[k]), "game", ga[k][1], "d2d", gb[k][1])
     from collections import Counter
@@ -294,7 +297,7 @@ def compare(cases, a, b):
     missing = [k for k in rows if not (k in gb and gb[k][1] == "skip") and (k not in ga or k not in gb)]
     if missing:
         print(f"  missing results for {len(missing)} cases, first: {missing[:5]}")
-    return 1 if bad or velfail or missing or compared == 0 else 0
+    return 1 if bad or velfail or missing or compared == wrapped else 0   # none compared (all wrapped) is no pass
 
 
 if __name__ == "__main__":

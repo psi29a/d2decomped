@@ -235,6 +235,7 @@ struct World {
         float target_x = 0, target_y = 0;      // where the player is walking to
         bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
         int   take_warp = -1;                  // the warp of `level` the player is walking to
+        bool  walk_pending = false;            // a walk to an item or warp may be issued once more when it ends (unit +0x150, FUN_00548a50)
         const Level* on_level = nullptr;       // split levels (World::split_levels): the level they're on
         bool  own_screen = false;              // a LAN joiner: drawn on its own machine, so it travels alone; the host's screen's party (pad partners) goes together
         int   interact_npc = -1;               // the object / NPC being walked to

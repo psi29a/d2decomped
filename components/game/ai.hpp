@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -36,12 +37,39 @@ namespace d2d::game {
 // A monster's velocitypercent (stat 0x43) as its stat initialiser sets it (FUN_00573cb0, SetStat(0x43, 0x4b) at 0x573f16).
 inline constexpr int kMonsterVelocityPct = 75;
 
+// A unit's coordinate as game.exe keeps it: 16.16 subtiles (path +0 / +4),
+// which a walk steps (rules::walk_frame). It reads as cells, kept on its
+// subtile (a float holds 24 bits of the 27); cells written in go to the
+// nearest 1/65536 subtile, and centre() is a subtile's centre exactly.
+struct Fine {
+    std::uint32_t raw = 0;
+    Fine() = default;
+    explicit Fine(float cells) : raw(std::uint32_t(std::llround(double(cells) * 5 * 65536))) {}
+    Fine& operator=(float cells) { return *this = Fine(cells); }
+    [[nodiscard]] static Fine centre(int subtile) {
+        Fine fine;
+        fine.raw = (std::uint32_t(subtile) << 16) + 0x8000;
+        return fine;
+    }
+    [[nodiscard]] int subtile() const { return std::int32_t(raw) >> 16; }
+    operator float() const {
+        float cells = float(std::int32_t(raw)) / (65536.f * 5);
+        while (int(std::floor(cells * 5)) > subtile()) cells = std::nextafter(cells, cells - 1);
+        while (int(std::floor(cells * 5)) < subtile()) cells = std::nextafter(cells, cells + 1);
+        return cells;
+    }
+    // Moved by cells in 16.16, so the place keeps the bits a float can't hold.
+    Fine& operator+=(float cells) { raw += Fine(cells).raw; return *this; }
+    Fine& operator-=(float cells) { raw -= Fine(cells).raw; return *this; }
+};
+
 // Where each world NPC is right now (index-aligned with Level::npcs):
 // patrolling NPCs walk their DS1 path, pausing at each point.
 struct UnitState {
-    float x = 0, y = 0;
+    Fine x, y;                        // cells, held in 16.16 subtiles (Fine)
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
-    int dir = 0;
+    int dir = 0;                      // its facing drawn, 16 directions in DCC order
+    d2d::rules::Facing facing;        // a walk's facing in 64 (path +0x64 / +0x65 / +0x66)
     bool walking = false;
     bool greets = false;              // a town NPC's think greeted the player just now (unit sound 0x12; World plays it)
     std::size_t next = 0;             // path point being walked to
@@ -121,27 +149,36 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
 // subtiles with the unit collision test, `to_unit` when walking up to a
-// monster or NPC (near 1, FUN_006498a0). Points are subtile centres; the
-// leading ones it stands on are skipped (FUN_0064fe40), and a repeat.
+// monster or NPC (near 1, FUN_006498a0), `target` that unit: its stamp,
+// as its own, isn't in the way (flag 0x800, FUN_00649560). A blocked end is
+// walked back toward the start (flag 0x1000, rules::end_walk_back). Points
+// are subtile centres; the leading ones it stands on are skipped
+// (FUN_0064fe40), and a repeat.
 std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
-                                                 const Crowd& crowd = {}, const UnitState* self = nullptr);
+                                                 const Crowd& crowd = {}, const UnitState* self = nullptr, const UnitState* target = nullptr);
 
 // A walk as a monster's (town NPCs, Cain, the merc, pets) to (gx, gy) in
 // cells: rules::monster_path's points as subtile centres, a budget of 0x14
 // points (FUN_005a7c20 -> FUN_006490e0). False with no step to take.
 bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bool to_unit, const Crowd& crowd = {});
 
-// A frame of that walk (FUN_00650840): along its path; run out short of its
-// end, it paths again while the budget lasts, the points walked coming off
-// it (FUN_006503f0 -> FUN_00650350). Blocked, it ends (FUN_00650150).
-// False once it's over.
-bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
+// A frame of that walk (FUN_00650840): along its path. False once it's
+// over: at its last point or blocked (FUN_00650150), short of the goal or
+// not; FUN_006507b0 zeroes the path's count then, so FUN_006503f0 (the
+// re-path) doesn't run again. Further on is the next think's walk.
+// With a `target` (a walk at a unit) its check comes first
+// (rules::chase_check): within 0 of it (+0x93), over; more than 5 subtiles
+// off the goal on either axis, a new path to it while the budget lasts.
+bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, const UnitState* target = nullptr);
 
-// Moves u along its path by `step` cells, dropping reached points and
-// turning it to face the way; blocked by a wall or another unit, it
-// drops the route and stands on its subtile's centre (FUN_00650150), and
-// `blocked`, if given, is set. False once there (or stuck).
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {}, bool* blocked = nullptr);
+// A frame of u's walk along its path at `velocity` (path_velocity)
+// (rules::walk_frame: FUN_00650840 in 16.16 subtiles), dropping reached
+// points and turning it to face the way; a new subtile blocked by a wall or
+// another unit ends it on the centre of the last free one (FUN_00650150),
+// and `blocked`, if given, is set. False once it's over: no path left, and
+// the unit on its subtile's centre (FUN_006507b0; with no path or no step
+// too).
+bool follow_path(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, bool* blocked = nullptr);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
@@ -1295,3 +1332,9 @@ std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crow
 std::string merc_name(const GameData& game_data, const GameData::Merc& merc, int index);
 
 }  // namespace d2d::game
+
+// A Fine prints as its cells (the logs, devctl).
+template <>
+struct std::formatter<d2d::game::Fine> : std::formatter<float> {
+    auto format(d2d::game::Fine fine, std::format_context& context) const { return std::formatter<float>::format(float(fine), context); }
+};

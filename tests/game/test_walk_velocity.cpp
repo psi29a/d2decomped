@@ -55,11 +55,12 @@ int main(int argc, char** argv) try {
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 // `--walk-velocity CASES`: a unit's walk % through the REAL d2d code, the
 // cases of tools/emu/walk_velocity.py (game.exe's own FUN_00623f50). Per
-// case `num pct` (the walk %, 3 decimals) or `num skip why`. A monster:
+// case `num pct` (a player's walk %), `num velocity` (the others' path
+// velocity, FUN_00648690's) or `num skip why`. A monster:
 // one frame of monster_update on a WL / RN monster with a far spot to
 // walk to; a player: World::walk_percent; a merc: one Fight::merc_turn;
-// a pet: one Fight::pet_walking. The % is the distance moved over the
-// Velocity's step (cells_per_sec x 0.04 s). The level is a copy of the
+// a pet: one Fight::pet_walking. The velocity is the distance the frame moved it along
+// x, in 4096ths of a subtile (FUN_006502d0). The level is a copy of the
 // Blood Moor with every subtile open; the case's Velocity (and a
 // monster's coldeffect) replace the MonStats row's, restored after.
     World world(&*data, -1, -1);
@@ -168,7 +169,7 @@ int main(int argc, char** argv) try {
         type_info = saved_type;
         if (!walked) { std::printf("%d skip mode\n", num); continue; }
         if (velocity <= 0 || unit_pct <= 0) { std::printf("%d skip vel\n", num); continue; }
-        std::printf("%d %.3f\n", num, double(moved / unit_pct * 100.f));
+        std::printf("%d %ld\n", num, std::lround(double(moved) * 5 * 4096));   // a frame along x: velocity / 4096 subtiles
     }
     return 0;
 } catch (const std::exception& error) {

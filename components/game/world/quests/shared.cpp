@@ -474,12 +474,12 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
 // tick. FUN_005e77a0's spot-already-noted branch (FUN_005944f0, stat 6 0,
 // mode 0xc at his spot) isn't kept: d2d's Cain takes his first think once.
-auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
+auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame */) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
         if (unit.walking) {
-            unit.walking = walk_on(*level, unit, cells_per_sec(npc.velocity) * elapsed);
+            unit.walking = walk_on(*level, unit, path_velocity(int(npc.velocity)));
             if (unit.walking) return;
             unit.path.clear();
         }

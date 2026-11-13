@@ -90,7 +90,7 @@ auto World::cross_level() -> void {
             loot.enter(level);
             leave_town(from);
             swap_npcs(from);
-            d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), actor->player.x, actor->player.y);
+            d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), float(actor->player.x), float(actor->player.y));
             return;
         }
     }

@@ -254,7 +254,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
 auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         if (now_ms >= actor->curses[1].until) actor->curses[1] = {};   // merc_fighter reads one still on
         for (auto& state : actor->merc_potion_states) if (now_ms >= state.until) state = {};
-        Foe foe{ actor->merc ? actor->merc->unit.x : 0, actor->merc ? actor->merc->unit.y : 0, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
+        Foe foe{ actor->merc ? float(actor->merc->unit.x) : 0.f, actor->merc ? float(actor->merc->unit.y) : 0.f, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.fighter.prime_evil_pct = 200;                // a hireling under a prime evil's blow (FUN_0057c060)
         foe.pet = true;                                  // the merc: its MonStats class's size
@@ -661,7 +661,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             const auto [from_x, from_y] = *foe.knocked_from;
             const float dx = actor->player.x - from_x, dy = actor->player.y - from_y, distance = std::max(std::hypot(dx, dy), 0.01f);
             if (const float next_x = actor->player.x + dx / distance, next_y = actor->player.y + dy / distance; !level->unit_blocked(next_x, next_y, actor->player.shape)) {
-                actor->knock = std::array{ actor->player.x, actor->player.y, next_x, next_y };
+                actor->knock = std::array{ float(actor->player.x), float(actor->player.y), next_x, next_y };
                 set_pmode(kModeGH, now_ms);
                 actor->pmode_until = now_ms + d2d::game::knock_ms(std::hypot(next_x - (*actor->knock)[0], next_y - (*actor->knock)[1]));
             }

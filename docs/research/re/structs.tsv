@@ -112,14 +112,25 @@ monstats_spawn	0x170	u16	skill	first monster skill ID	docs/research/re/ai-contro
 monstats_spawn	0x180	u8	skill_mode	mode for the first monster skill	docs/research/re/ai-control.md:122
 monstats2_txt	0x09	u8	size_y	the collision size FUN_006205a0 returns for a monster unit, sign-extended (the field is a signed char)	tools/emu/units_small.py:938
 objects_txt	0xd4	i32	size_y	the collision size FUN_006205a0 returns for an object unit (the row's own +0xd4, read raw as a 4-byte int)	tools/emu/units_small.py:938
+path	0x00	u16	x_fraction	precise X's low word: X in 16.16 subtiles is x << 16 | x_fraction	docs/research/re/path.md:20
 path	0x02	u16	x	the dynamic path's subtile X (GetXPos, 0x6488c0)	tools/emu/click_move.py:20
+path	0x04	u16	y_fraction	precise Y's low word: Y in 16.16 subtiles is y << 16 | y_fraction	docs/research/re/path.md:20
 path	0x06	u16	y	the dynamic path's subtile Y (GetYPos, 0x648900)	tools/emu/click_move.py:20
 path	0x08	u32	target_x	the dynamic path's ScreenPos.x, GetTargetX/FUN_006489c0 reads it for FUN_00620900	tools/emu/units_small.py:989
 path	0x0c	u32	target_y	the dynamic path's ScreenPos.y, GetTargetY/FUN_006489d0 reads it for FUN_00620900	tools/emu/units_small.py:989
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
+path	0x24	u32	point	the path point walked to	docs/research/re/path.md:27
+path	0x28	u32	points	the path point count (77 at most; 0 once a walk is over)	docs/research/re/path.md:27
+path	0x30	ptr	owner	the unit it belongs to (its +0 the unit type)	docs/research/re/path.md:29
+path	0x34	u32	flags	path flags (PATHTYPEFLAGS 0x6eb690 by type, FUN_00648cf0)	docs/research/re/path.md:30
+path	0x3c	u32	type	the path type	docs/research/re/path.md:32
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
 path	0x54	u32	collided	this frame's collision bits, masked	docs/research/re/missiles.md:54
+path	0x64	u8	facing	the facing drawn, 64 steps (FUN_00648640 turns it)	docs/research/re/path.md:37
+path	0x65	u8	facing_goal	the facing it turns to (FUN_006485f0)	docs/research/re/path.md:37
+path	0x66	u8	turn_step	the turn's step a frame (DIFFDIRECTIONS 0x6eb548)	docs/research/re/path.md:37
 path	0x7c	u32	velocity	a missile's velocity, 0 standing (FUN_006486c0)	docs/research/re/missiles.md:392
+path	0x9c	u32	point_list	the path points inline, {u16 x, u16 y} each, 78 of them	docs/research/re/path.md:41
 path	0x1d4	u32	step_count	subtiles entered this move (FUN_00648f40)	docs/research/re/missiles.md:402
 path	0x1d8	ptr	step_list	{short x, short y} each, inline (FUN_00648f40)	docs/research/re/missiles.md:402
 room	0x4c	u32	x	the room's first subtile column	docs/research/re/act1-end.md:737

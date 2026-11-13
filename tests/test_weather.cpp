@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <utility>
 
 using namespace d2d::rules;
 
@@ -73,7 +74,7 @@ int main() try {
     assert(rain.bubbles.empty());
     // The pools (FUN_00472320): 512 splashes and 128 bubbles. A full pool
     // takes no more and rolls only the floor's rand(1000) (tools/emu/weather_pools.py).
-    auto full = rain;
+    auto full = std::move(rain);
     full.splash_pass = full.bubble_pass = true;
     full.threshold = 1000;
     for (int k = 0; k < 3000; ++k) full.floor(rng, 100, 100);

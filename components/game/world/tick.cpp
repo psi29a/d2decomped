@@ -564,8 +564,13 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                         loot.take(i, now_ms);
                     }
                 }
-            bool to_unit = (actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size()) || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
-            if (const auto target = fight.engage(now_ms)) { std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true; }
+            const bool to_npc = actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size();
+            bool to_unit = to_npc || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
+            const UnitState* walk_target = to_npc && std::size_t(actor->interact_npc) < npc_states.size() ? &npc_states[std::size_t(actor->interact_npc)] : nullptr;
+            if (const auto target = fight.engage(now_ms)) {
+                std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true;
+                walk_target = &fight.monsters[std::size_t(actor->attack_mon)].unit;
+            }
             if (actor->player.walking && (actor->pmode < 0 || actor->ghost)) {
                 // A route to the target (path type 7), re-planned as
                 // FUN_006503f0 has it: a target unit more than 5 subtiles off
@@ -577,17 +582,16 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 const auto subtile = [](float value) { return int(std::floor(value * 5)); };
                 const int off_x = std::abs(subtile(actor->player.goal_x) - subtile(actor->target_x)), off_y = std::abs(subtile(actor->player.goal_y) - subtile(actor->target_y));
                 if (actor->player.path.empty() || (to_unit ? off_x > 5 || off_y > 5 : off_x != 0 || off_y != 0)) {
-                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player);
+                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player, walk_target);
                     actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;
                 }
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
                 // FUN_00623f50: the walk velocity x a % (at least 25) of 100 (run: run x 100 / walk),
                 // faster run/walk's effective % (150 x v / (150 + v)) and chill's -50.
                 const int walk = std::max(game_data->walk_velocity[save_class], 1);
-                const float vel = float(walk * walk_percent(*actor, now_ms)) / 100.f;
                 const float before_x = actor->player.x, before_y = actor->player.y;
                 bool blocked = false;
-                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd, &blocked);
+                actor->player.walking = follow_path(*level, actor->player, path_velocity(walk, walk_percent(*actor, now_ms)), walk_crowd, &blocked);
                 // The merc's think reads the player's footsteps (FUN_00580c20): walking or
                 // running, 25 ms on from the last, over 45 (squared) from it.
                 if (const int step_x = int(std::floor(actor->player.x * 5)), step_y = int(std::floor(actor->player.y * 5)); now_ms > actor->footstep_ms + 25) {
@@ -596,10 +600,25 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 }
                 if (!actor->player.walking) {
                     actor->player.path.clear();
-                    // Short of the target with a step made and nothing in the way: it paths
-                    // again from here. A block ends the walk (the snap isn't a step).
-                    actor->player.walking = !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
+                    // A walk to a unit short of it, with a step made and nothing in the way,
+                    // paths again from here: the client's queued action keeps it going
+                    // (FUN_00481600). One to a spot ends where its path does: a ground click
+                    // queues nothing (FUN_00650840's stop, LAB_006508ff). A block ends either
+                    // (the snap isn't a step).
+                    actor->player.walking = to_unit && !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
                                      && (actor->player.x != before_x || actor->player.y != before_y);
+                    // An item or a warp out of reach when the walk ends, blocked or not, gets
+                    // one more walk (FUN_00580c20 -> FUN_00548b00, LAB_00580e73, which clears
+                    // pending, LAB_00580e88); the second's end is plain idle. In reach, the
+                    // pick-up and use_warp take it this tick or the next.
+                    const int lying = actor->pick_item >= 0 ? loot.index_of(actor->pick_item) : -1;
+                    const bool item_far = lying >= 0 && std::hypot(loot.ground[std::size_t(lying)].x - actor->player.x, loot.ground[std::size_t(lying)].y - actor->player.y) > 1.f;
+                    const bool warp_far = actor->take_warp >= 0 && std::size_t(actor->take_warp) < level->warps.size()
+                                       && !warp_close(level->warps[std::size_t(actor->take_warp)], actor->player.x, actor->player.y);
+                    if (item_far || warp_far) {
+                        if (std::exchange(actor->walk_pending, false)) actor->player.walking = true;
+                        else actor->pick_item = actor->take_warp = -1;
+                    }
                 }
             }
             }

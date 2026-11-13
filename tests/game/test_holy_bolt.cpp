@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
@@ -70,7 +71,7 @@ int main() try {
     Fight::Pet pet;
     pet.monster = fallen;
     world.actor->pets.push_back(pet);
-    world.fight.monsters.push_back(fallen);
+    world.fight.monsters.push_back(std::move(fallen));
 
     Missile missile;
     missile.info = &bolt->second;
@@ -96,7 +97,7 @@ int main() try {
     assert(!world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == untouched);
 
-    world.actor->pets.push_back(pet);
+    world.actor->pets.push_back(std::move(pet));
     missile.skill = fist->second;
     assert(!world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == untouched);

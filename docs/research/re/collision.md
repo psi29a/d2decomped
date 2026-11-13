@@ -154,9 +154,14 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - A monster's walk (town NPCs too: FUN_005ded90 → FUN_005a7c20 →
   FUN_005a63f0, move mode 0x65 → type 0xd, steps +0x91 = 5): FUN_005a6290
   computes type 0xd (the toward pather, monster-ai.md) and, with no point,
-  type 0xf. FUN_005a7c20 gives it a budget of 0x14 points (+0x94); a path
-  run out short of its end paths again while that lasts, the points walked
-  coming off it (FUN_006503f0 → FUN_00650350).
+  type 0xf. FUN_005a7c20 gives it a budget of 0x14 points (+0x94); a
+  re-path (FUN_006503f0 → FUN_00650350) spends it, the points reached
+  coming off it. A path walked to its last point, or blocked, ends the
+  walk: FUN_006507b0 zeroes its count (+0x28) and FUN_00650840 runs
+  FUN_006503f0 only while the count is over 0, so its run-out test (+0x24
+  at +0x28) never fires after a walk; the next think walks on.
+  **Verified**: `tools/emu/walk_step.py` asserts the count is 0 after each
+  walk's last frame (3,000 walks); `game::walk_on` ends there.
 - The wall pather (FUN_0067c2d0, type 0xf): a line (FUN_0067b9f0,
   Bresenham on the long axis) of at most `steps` − 1 subtiles (`steps` is
   +0x91, 0x28 at least with a unit to walk to), else none; none with two
@@ -180,13 +185,31 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   all equal).
 - FUN_00650660 moves a unit one step a frame. FUN_00650090 tests the next
   point: within the step on both axes, the unit lands on it and the frame
-  ends there, with the rest of the step unused. So a repeated point (the
-  toward pather's cut-short subtile) costs a frame (`follow_path`).
-- ponytail: A target that moves re-paths at
-  0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
-  FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
-  to a spot, not a unit. The merc's moves carry their own type, pace and
-  steps (merc-ai.md).
+  ends there, with the rest of the step unused. FUN_00650840 then runs
+  FUN_0064fe40 (LAB_006508dd), which passes every point whose centre the unit
+  stands on, so a repeated point (the toward pather's cut-short subtile)
+  costs no frame. The step is the unit vector (FUN_0064fc60, taken anew each
+  frame) x the velocity (path +0x7c) >> 8, in 16.16 subtiles (FUN_006502d0).
+  **Verified**: `tools/emu/walk_step.py` runs FUN_00650840 frame by frame on
+  random positions, points, velocities and blocked subtiles; `rules::walk_frame`
+  gives the same return, position and point index every frame (3,000 walks;
+  250 frozen in `tests/walk_step_cases.inc`). An earlier note here had the
+  repeated point cost a frame: game.exe's run says not.
+- Path flag 0x10 marks a client unit's path: FUN_00649d00 (the path's
+  set-up) ors it in when its last argument is 1, which only the client's
+  callers pass (FUN_00460bf0, FUN_004ae8d0, FUN_004cd0a0); the server's
+  (FUN_00554850, FUN_00554a30) pass 0. With it, a monster's blocked step
+  paths again (FUN_00650660 → FUN_00650350, which then skips the budget).
+  A server walk never does: blocked, it ends (idx = count). d2d runs the
+  server's rules, so `game::walk_on` and `move_frame` end there.
+- A walk at a unit runs FUN_006503f0's check (`rules::chase_check`,
+  `tools/emu/moves.py`) at each frame's start: the player's (World's
+  tick), a hostile monster's (`move_frame`), the merc's at its foe and a
+  pet's at its foe or owner (`game::walk_on`).
+- ponytail: a revived monster's stand-in think (pets.cpp, `pet_follow`)
+  re-paths at 1 cell with a fresh budget, not 5 subtiles off SP2. Town
+  NPCs walking up to the player go to a spot, not a unit. The merc's moves
+  carry their own type, pace and steps (merc-ai.md).
 - ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
@@ -218,7 +241,9 @@ were not read in the asm); cited, no oracle run.
   to 4 it adds the step to the end, asks `FUN_0064d910` there, and stops
   at the first blocked subtile; each free one is stored in `rq[2..3]`. It
   returns nothing. Its only caller is `FUN_00648120`, for a player (below).
-  d2d: not ported.
+  The table, read: the entry for (a, b) is the sign of a when |a| ≥ |b|, else
+  0, so the step runs along the longer axis away from the start, both on a
+  diagonal. d2d: in `rules::end_walk_back`.
 - **`FUN_00678df0`** `(out, a, b)` (thiscall, ECX = out): the three
   direction tries toward b from a. `i = FUN_00678c10(a, b)` (the 5 x 5
   index, coordinates packed x low, y high) and `out[0..2]` = the bytes at
@@ -226,10 +251,10 @@ were not read in the asm); cited, no oracle run.
   the first of those bytes alone; `FUN_00678d70` fills the same three from
   the dword table `0x6f1518` (12 bytes a row, 25 rows: d2d's `kTry`,
   monsters.hpp:567). So 0x6f1648 is a byte table of the same shape that
-  follows it (0x6f1518 + 25 * 12 = 0x6f1644); that its rows equal `kTry`
-  was not checked (the bytes were not read). A third entry of 0xff is
-  skipped by `FUN_00648120` (below), as `toward_path` skips it. d2d: not
-  ported; `kTry` and `FUN_00678d70` are the dword twin.
+  follows it (0x6f1518 + 25 * 12 = 0x6f1644). Its rows are not `kTry`'s:
+  read, they hold straight ways only (0, 2, 4, 6) and 0xff for a missing
+  third (`rules::kBackTry`). A third entry of 0xff is skipped by
+  `FUN_00648120` (below), as `toward_path` skips it.
 - **`FUN_00648120`: walk a blocked end back toward the start** (EAX = the
   request `rq` of `FUN_00648050` above; `rq +0x30` is the unit's path).
   `FUN_00649970` calls it only when path flag 0x1000 is set and
@@ -263,12 +288,28 @@ were not read in the asm); cited, no oracle run.
   - Once a free spot was taken as `rq[2..3]`: if it equals the start,
     **return 0**; else for unit type 0 (the player) `FUN_00648050` pushes
     it on again (above); **return 1**. Monsters keep the free spot as is.
-  - d2d: **not ported**. `ai.cpp:348` (`path_to`) leaves it out with
-    "its setter isn't found". This read does not find the setter either:
-    only `FUN_00649970` tests path flag 0x1000, and the places that set
-    +0x34 bits were not searched. So d2d agrees as far as it goes, and no
-    disagreement is claimed. `rules::player_path` is a player's walk, so
-    the push-on (`FUN_00648050`) matters only once that flag is set.
+  - **The setter** is the path type: `FUN_00648cf0` ors in `PATHTYPEFLAGS`
+    (0x6eb690), read as 0x21900, 0x1900, 0, 0, 0x60000, 0, 0, 0x21900,
+    0x1e600, 0x1e800, 0x60000, 0x1e604, 0, 0x100, 0x60000, 0x800, 0, 0 for
+    types 0..17. So types 0, 1 and 7 have 0x1000 (and 0x800: the target
+    unit's stamp lifted for the path, `FUN_00649560`); a monster's 0xd and
+    0xf don't. Every player walk (type 7) to a blocked end goes through this.
+  - Only the first way is read anew each round (the second read lands in
+    another buffer, and its first dword alone is copied); the two side
+    spots keep the first read's ways.
+  - **Verified**: `tools/emu/walk_back.py` runs `FUN_00648120` (with
+    `FUN_00648050` for a player) on random ends and walls, `FUN_0064d910`
+    answering from the walls: `rules::end_walk_back` gives the same return
+    and end in 20,000 cases (3,461 with no free spot; 800 frozen in
+    `tests/walk_back_cases.inc`).
+  - d2d: `player_walk` and `path_to`'s type 7 (ai.cpp) run it on a blocked
+    end. FUN_00649970 lifts the mover's stamp (FUN_00649560) and, with flag
+    0x800 and a target unit of non-zero size (FUN_00620510), the target's,
+    before the end test and the pather, and puts both back after
+    (FUN_00649400). FUN_00649560 skips a player in mode 0 or 0x11 and a
+    monster in mode 0 or 0xc (dying, dead): no stamp to lift. `player_walk`
+    leaves its `target` (the monster or NPC walked up to) out of the crowd
+    for both. A monster's type 7 is only the Dark Wanderer's walk to a spot.
 
 ## A walk's stop
 
@@ -305,14 +346,43 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   pending interact, a monster's walk update (LAB_005a84c4) thinks at
   once (FUN_005a8030). Only a client-side monster re-paths from the stop
   (monster-ai.md).
-- **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
-  stops for a wall and the crowd alike, as game.exe does, on a step that stops
-  short of its next point; one that reaches a point tests nothing. A stop puts the
-  unit on the centre of the subtile it stands on and clears its path, as game.exe's
-  does (#226). A walk with no route snaps the same way and ends
-  (LAB_006508ff): `follow_path` on an empty path, and that snap counts as
-  a block so the walk does not start again off it. A
-  hostile monster walks by `move_frame`, which snaps already.
+- **d2d.** `follow_path` (ai.cpp: the player, merc, pets and town NPCs) and
+  `move_frame` (a hostile monster) step through `rules::walk_frame`, game.exe's
+  frame in 16.16 subtiles (`UnitState::x` / `y`, a `Fine`): each new subtile
+  crossed is tested, a wall and the crowd alike, and none inside its own; a stop
+  puts the unit on the centre of the last free subtile and clears its path
+  (#226), with no route or no velocity too (LAB_006508ff); `follow_path`'s
+  no-route snap counts as a block, so the walk does not start again off it.
+  The velocity is
+  FUN_00623f50's (`path_velocity`: Velocity << 8 x the walk % / 100, truncated;
+  `tools/emu/walk_velocity.py`). Every unit's place is held that way, as
+  path +0 / +4 are: it reads as cells, a centre is set exactly
+  (`Fine::centre`), cells written in round to the nearest 1/65536 subtile,
+  and LAN sends it as is (protocol 5). `tests/game/test_fine.cpp`. Left:
+  d2d's own moves outside a walk (knockback, leaps, a stand-in's step) are
+  cells rounded in.
+- **The facing.** FUN_0064fc60 writes a 64-step direction with its vector
+  (EDX; 0 screen south, clockwise): the row's eighth from the table's third
+  word (0x6eb7e8), folded by the larger axis (`(-d - 1) & 0xf`), the north
+  side (`& 0x1f`) and the west side (`+ 8`, else `(-d - 1) + 8`, `& 0x3f`).
+  FUN_0064fe40 hands it to FUN_006485f0 (ECX path, DL direction) as the path
+  is made (FUN_00649970) and after each step (FUN_00650840), both passing 1
+  for the flag that asks it; path flag 0x200 turns it round (`- 0x20`).
+  For a player's or monster's path FUN_006485f0 sets the goal (+0x65) and
+  the step (+0x66 = DIFFDIRECTIONS 0x6eb548 by goal less now: 1 up to 8
+  round, 4 up to 16, 8 up to 31, then the same back); an object's, item's
+  or missile's it sets now (+0x64) at once (a missile not with flag 0x40).
+  FUN_00648640 turns now by the step a frame, onto the goal once it reaches
+  or passes it (unless flag 0x40); only the client calls it (FUN_00463390,
+  FUN_004b13a0). FUN_006488a0 sets both at once, as FUN_00649ef0 does
+  with its last argument set (else it aims through FUN_006485f0).
+  **Verified**: `tools/emu/facing.py` runs FUN_0064fc60, FUN_006485f0 and
+  FUN_00648640: `rules::aim_direction`, `missile_aim` and `rules::Facing`
+  give the same in 20,000 aims and 20,000 turn runs (400 each frozen in
+  `tests/facing_cases.inc`). d2d: `path_frame` aims and turns a walker's
+  `UnitState::facing`, drawn as `dir` through FUN_00600c90's rounding
+  (`missile_direction`). ponytail: a turn left when the walk ends finishes
+  at once, and facings set outside a walk stay `direction16`'s, at once.
 
 ### What keeps a walk to a unit going: the client
 
@@ -414,7 +484,8 @@ LAB_00480b11, through 0x4786d0), 0x13 for the rest, a warp too (LAB_00480a3d, th
 0x4786a0). The other 0x16 immediates in these functions aren't sends: LAB_004807db is a state
 test, and LAB_00481186 and LAB_004811f6 are FUN_00461250 command numbers.
 
-d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit.
+d2d's item walk (`tick.cpp`, `pick_item`, `walk_pending`) has the limit: out of reach at
+its end it walks once more, then drops the pick-up (`tests/game/test_walk_item_twice.cpp`).
 
 A warp's click, FUN_00461dc0's type 5 (LAB_00461fb7): refused until 0x7a04c8, the time
 FUN_0044dad0 sets 500 ms ahead (LAB_00462022, LAB_0048168f; FUN_00467000 uses it too).
@@ -428,9 +499,8 @@ after a stop, at most each 500 ms, and each click is two more walks.
 d2d (`World::use_warp`):
 
 - Same reach: `warp_close`, under 5 by `unit_distance`.
-- No two-walk limit here: "Short of the target with a step made" re-plans with no
-  count, and `take_warp` goes when the walk ends short of reach. Since #226 a block
-  ends it, as does a stop with no step, so a blocked walk is one walk where game.exe has two.
+- The two-walk limit as the item's (`walk_pending`, `tick.cpp`): out of reach when the
+  walk ends, blocked or not, it walks once more, and `take_warp` goes at the second's end.
 - It tests every tick, so it takes the warp on the way at reach 4; a single click in
   game.exe walks on to the path's end first. Up to 4 subtiles early.
 - A held button sets `take_warp` only on the press, so after a stop it's gone.
@@ -729,8 +799,8 @@ arguments), cited, not run. The functions are in the order they are met.
   - 5 a warp: `FUN_00641530` over 0x32 returns 1, over 4 walks, else `FUN_005550b0`.
   Nothing in it tests that the player is walking. d2d: the cases are ported in `walk.cpp`,
   `net.cpp` and `world/` by the doc rows that cite it (collision.md above, net-packets.md 786,
-  drlg.md 1645); the walks of these cases share the two-walk limit above, which d2d lacks. **DISAGREES**
-  only there (todo 47).
+  drlg.md 1645); the walks of these cases share the two-walk limit below, which d2d keeps for an
+  item or a warp (World's tick, `walk_pending`).
 - **`FUN_00580c20(game, unit)`: a walking or running player's frame** (a function-table entry,
   data refs at 0x732c18, 0x732c1c, 0x732c28, 0x732c5c). In order: `FUN_00553490`; state 0xd on
   gives `FUN_005c9d90`; in mode 3 with no stamina drain `FUN_0057f090` (tick.cpp's stamina);
@@ -748,13 +818,13 @@ arguments), cited, not run. The functions are in the order they are met.
   With +0x150 clear it goes idle (`FUN_0057f020(1, 0, 0)`, LAB_00580e9a) and the walk is over.
   So the server makes at most two walks for one interact packet: the second one's end finds
   +0x150 zero. The client's re-issue ("What keeps a walk to a unit going: the client") is
-  separate and has no count, so a click on an NPC or object can add more walks. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
-  travel.cpp) re-plans from the stop each tick while a step is made, with no count (todo 47;
-  how often `use_warp` tests was not re-checked here), so it **DISAGREES** in two ways. A crowded route (a stop short of the
-  point with a step made) that takes game.exe two walks takes d2d as many as it needs; a blocked one
-  ends d2d's walk at once (above, since #226), one walk where game.exe has two. And d2d tests the
-  warp's reach every tick, game.exe only when the packet comes and when a walk ends (above). Read, not run; the oracle phase would
-  call `FUN_00580c20` with a stub path.
+  separate and has no count, so a click on an NPC or object can add more walks. d2d: an item's
+  or a warp's walk that ends out of reach, blocked or not, walks once more and then goes idle
+  (World's tick, `walk_pending`, set with the walk as FUN_00548a50 sets +0x150;
+  `tests/game/test_walk_item_twice.cpp`). A walk to an NPC, object or monster re-plans from a stop
+  short of it while a step is made, with no count, as the client's re-issue does. d2d still tests
+  the warp's reach every tick, game.exe only when the packet comes and when a walk ends (above).
+  Read, not run; the oracle phase would call `FUN_00580c20` with a stub path.
 - **`FUN_005868a0(op)`: a barrel opened** (OperateFn 5; `op` +0 the game, +4 the object unit, +8
   the operator, +0xc its random seed, +0x10 the object id). Only for an object unit that is
   null or in mode 0. A player operator (`*op[2] == 0`) with a skill node
@@ -824,9 +894,9 @@ Before #231 it also drops a queued interact: `walk_to` clears `interact_npc` bef
 play, and with real X button events on Warriv: held 120 ms, 2 of 8 talked; 0 ms, 8 of 8.
 #231 sends no held walk while the press's interact is queued.
 
-d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
-target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
-does. A blocked one ends there since #226.
+d2d's walk to a spot ends where its path does, run out or blocked (`tick.cpp`,
+`tests/game/test_walk_spot_ends.cpp`); only a walk to a unit paths again from a
+path run out short.
 
 ### The mouse-button state words (FUN_0044da40 clears them)
 

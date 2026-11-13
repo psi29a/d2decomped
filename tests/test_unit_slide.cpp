@@ -55,17 +55,17 @@ void keyed_units() {
     view.monsters[1].unit.x = 40;
     view.monsters[2].id = 11;
     view.others[0].unit.y = 6;
-    view.npc_states[1].x = 71;
+    view.npc_states[1].x.raw = 71 * 5 * 65536 + 1;      // 16.16 a float can't hold: back exactly
     {
         const SlidGuard slid(slide_units(view, from, 0.25f));
-        assert(slid.slid.size() == 4);   // 7, the other player, both NPCs (one standing)
+        assert(slid.slid.units.size() == 4 && slid.slid.missiles.empty());   // 7, the other player, both NPCs (one standing)
         assert(about(view.monsters[0].unit.x, 10.25f) && about(view.monsters[0].unit.y, 20));
         assert(about(view.monsters[1].unit.x, 40));        // a jump snaps
         assert(about(view.monsters[2].unit.x, 50));        // a new unit stays put
         assert(about(view.others[0].unit.y, 5.25f));
         assert(about(view.npc_states[0].x, 60) && about(view.npc_states[1].x, 70.25f));
     }
-    assert(about(view.monsters[0].unit.x, 11) && about(view.others[0].unit.y, 6) && about(view.npc_states[1].x, 71));
+    assert(about(view.monsters[0].unit.x, 11) && about(view.others[0].unit.y, 6) && view.npc_states[1].x.raw == 71 * 5 * 65536 + 1);
 
     // At blend 1 the View is where the tick put it.
     {
@@ -93,7 +93,7 @@ void loose_units() {
     view.missiles[0].x = 8;
     {
         const SlidGuard slid(slide_units(view, from, 0.5f));
-        assert(slid.slid.size() == 2);
+        assert(slid.slid.units.size() == 1 && slid.slid.missiles.size() == 1);
         assert(about(view.pets[0].unit.x, 20.5f));
         assert(about(view.missiles[0].x, 6.5f));
     }
