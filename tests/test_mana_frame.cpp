@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <exception>
 #include <fstream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -29,17 +30,19 @@ int main(int argc, char** argv) try {
             std::fprintf(stderr, "test_mana_frame: cannot open %s\n", argv[1]);
             return 1;
         }
-        long long id = 0, max_mana = 0, last_read = 0;
-        int state = 0, regen = 0, bonus = 0, flat = 0;
-        std::string rest;
-        while (input >> id >> state >> max_mana >> regen >> bonus >> flat) {
-            std::getline(input, rest);
-            last_read = id;
+        std::string line;
+        int line_number = 0;
+        while (std::getline(input, line)) {
+            ++line_number;
+            if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
+            std::istringstream fields(line);
+            long long id = 0, max_mana = 0;
+            int state = 0, regen = 0, bonus = 0, flat = 0;
+            if (!(fields >> id >> state >> max_mana >> regen >> bonus >> flat)) {
+                std::fprintf(stderr, "test_mana_frame: %s:%d: not a case line (want 6 numbers)\n", argv[1], line_number);
+                return 1;
+            }
             std::printf("%lld\t%d\t%lld\t%d\t%d\t%d\t%lld\n", id, state, max_mana, regen, bonus, flat, static_cast<long long>(amount(state, max_mana, regen, bonus, flat)));
-        }
-        if (!input.eof()) {
-            std::fprintf(stderr, "test_mana_frame: %s: a line after case %lld doesn't read\n", argv[1], last_read);
-            return 1;
         }
         return 0;
     }
