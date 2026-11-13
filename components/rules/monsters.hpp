@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -1327,6 +1328,10 @@ struct ThinkIn {
     bool second = false, kin = false, aid = false, usable = true, aura_on = true;
     int second_dist = 0x7fffffff, kin_dist = 0, in_reach = 0;
     ThinkUnit* away_from = nullptr;             // whom `away` backs off from (the second target's back-offs)
+    // What it does when the walk it returned can't set off: game.exe's think
+    // drops the pending think event (FUN_00540e60(2, 0)) and goes on down
+    // its list. Tried in order, each only when the one before failed too.
+    std::vector<std::function<Think()>>* otherwise = nullptr;
     std::vector<ThinkEffect>* effects = nullptr;
     int* steps = nullptr;
     // The Vulture's: its spot and the target's (subtiles); the target in its

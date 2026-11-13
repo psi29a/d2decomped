@@ -332,8 +332,10 @@ def install(e):
     def around(e):
         unit, n = e.arg(0), e.arg(1) & 0xff
         if not unit: return wander_n(2)
-        out("around", name(unit), n, *wander_draws(n))
-        return 1
+        draws = wander_draws(n)
+        ok = moved() if cur["s"]["ai"] == "Mephisto" else 1                 # Mephisto's reads whether it set off (0x5f7e8a)
+        out("around", name(unit), n, *draws, ok)
+        return ok
     def wander_n(n):
         out("wander", n, *wander_draws(n)); return 1
     e.hook(0x5df530, around, 2)
@@ -439,7 +441,11 @@ def install(e):
         e.w32(e.arg(1), spot[0]); e.w32(e.arg(1) + 4, spot[1])
         return 1
     e.hook(0x64e7b0, free, 5)
-    e.hook(0x5de4e0, lambda e: out("keep", name(e.arg(0)), e.arg(1), S32(e.arg(2)), S32(e.arg(3))) or 1, 4)
+    def keep(e):
+        ok = moved() if cur["s"]["ai"] == "Mephisto" else 1                 # Mephisto's reads whether it set off (0x5f7dc3)
+        out("keep", name(e.arg(0)), e.arg(1), S32(e.arg(2)), S32(e.arg(3)), ok)
+        return ok
+    e.hook(0x5de4e0, keep, 4)
     e.hook(0x5de440, lambda e: out("fly", S32(e.arg(0)), S32(e.arg(1)), e.arg(2)) or 1, 3)
     e.hook(0x599420, lambda e: 0, 0)
     e.hook(0x553540, lambda e: cur["units"]["foe"], 2)                 # the unit its mode is at (the target)
@@ -706,7 +712,9 @@ def outcome(s, out):
             if s["ai"] in ACT3_AIS: asks.append((item[2], item[5]))
             to("circle", item[2], item[4], item[3], item[1])
         elif k == "wander": to("wander", item[1], item[2], item[3])
-        elif k == "around": to("around", item[2], item[3], item[4], item[1])
+        elif k == "around":
+            if s["ai"] == "Mephisto": asks.append((item[2], item[5]))
+            to("around", item[2], item[3], item[4], item[1])
         elif k == "pace":
             if item[1]: pace[0] = item[1]
             if item[2]: pace[1] = item[2]
@@ -714,7 +722,9 @@ def outcome(s, out):
         elif k == "gone": to("gone") if item[1] == 0 else to("mode_at", item[1], item[2], item[3], None)
         elif k == "move_to": to("move_to", item[3], item[1], item[2], None)
         elif k == "word": effects.append(("set_word", item[1] * 4 + item[2], item[3]))
-        elif k == "keep": to("keep", item[3], item[4], item[2], item[1])
+        elif k == "keep":
+            if s["ai"] == "Mephisto": asks.append((item[3], item[5]))      # a walk asked whether it set off: the next act when not
+            to("keep", item[3], item[4], item[2], item[1])
         elif k == "fly" and s["ai"] == "SandMaggotQueen": to("spawn", 0)   # mode 8 where she stands
         elif k == "fly": to("fly", item[3], item[1], item[2], None)
         elif k == "spawn": to("spawn", 1)
