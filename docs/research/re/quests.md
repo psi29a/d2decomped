@@ -752,3 +752,46 @@ player-data list; kinds 0/1/2/4 use the 6/11/7/7 words at 0x7318b0, c8, f4,
 910, kind 3 and above 4 nothing), `FUN_00545090` / `FUN_00545100` (0x91 state
 packet of the words `FUN_00572470` accepts), `FUN_00545530`, `FUN_005455b0`,
 `FUN_005456f0` (0x89), `FUN_00545780` (0x27; the tail `FUN_00661480` packs at +6 is not checked, only the opcode, kind byte and id) and `FUN_00545920` (0x5d: six bytes 5d, DL, 0, 0xc, 0, 0; an owner without a level sends nothing; the level rank byte is compared unsigned against the stack byte). The state ids of 00544f60 / 00545090 / 00545100 are the NPC-intro ids, FUN_00545830's tag 0x49 is the portal from Duriel and 00545780 is the gossip packet. Names are Redivivus candidates, verified here by the oracles.
+
+## Quest-chain SequenceFilter (`fpSequenceFilter`)
+
+Several quests chain their `fpSequenceFilter` to the next quest in the
+act: once the quest reaches its own done state (`nStateFlag` at its last
+step, or still before `bIsNotIntroduction`), the filter looks up
+`nSequenceQuestId`'s own `D2QuestDataStrc` and calls *its*
+`fpSequenceFilter`, so finishing one quest can cascade through several
+"is the next one open" checks in a single call. Every instance guards the
+function pointer with `IsBadCodePtr` first and halts through
+`Fog::Src::ErrorManager::ERROR_UnrecoverableInternalError_Halt` if it's
+bad; that branch is dead in practice, since `fpSequenceFilter` is always
+set by the owning quest's own InitData. None of these make
+`GetQuestState` / `SetQuestState` calls of their own.
+
+Traced instances: `FUN_0059b4a0` (a2q4 → a2q5 the Summoner,
+quests-act2.md "Jerhyn and the palace gate"), `FUN_005b7cd0` (a3q1 →
+the Blade of the Old Religion, quests-act3.md "Lam Esen's Tome"),
+`FUN_005b9610` (a3q3 → AbleGoToAct3, quests-act3.md "The Blade of the Old
+Religion"), `FUN_005ba7b0` (a3q4 → SpokeToHratli and the Blade of the Old
+Religion, quests-act3.md "The Golden Bird") and `FUN_005bb410` (a3q5 →
+the Golden Bird, quests-act3.md "The Blackened Temple"). d2d doesn't
+model the function-pointer chain itself; `World::act5_chain` and the
+`chain()` helpers in `components/game/world/quests/*.cpp` reach the same
+observable effect (the next quest opening) without the `IsBadCodePtr`
+guard, which this trace never saw fire on real data.
+
+## Quest slot 39, "ActIntroduced" (not a journal quest)
+
+Slot 39 (`QUEST_ActIntroduced`) is a per-act pseudo-quest used only to
+drive each NPC's first-meeting gossip; it never shows in the quest log.
+`FUN_005b6e60` (`Q39_InitData`) zeroes the state-handler table, wires
+state 0 to `FUN_005b6d30` (`Q39_Callback00_NpcActivate`) and state 0xb to
+`Q39_Callback11_ScrollMessage`, points `pNpcMessages` at
+`aNpcGossipData`, and sets `nQuestIdReal = QUEST_ActIntroduced`.
+
+`Q39_Callback00_NpcActivate` (`FUN_005b6d30`) fires on interacting with
+one of six Act 3 NPCs (Asheara 0x18c, Alkor, Ormus, Meshif2, Cain 3,
+Natalya): `PLAYER_CheckIfSpokenWithNPC` gates a first-talk-only
+`AddGossipMessageOnMonster`, picking message variant 1 for the one
+class-matched slot (Asheara, player class 7, the Amazon) and 0 for every
+other first meeting. Flavor text only; no quest-record reads or writes.
+Not ported — d2d has no first-meeting NPC gossip of its own yet.
