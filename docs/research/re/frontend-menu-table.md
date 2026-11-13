@@ -89,15 +89,22 @@ add ID-based lookup when a subsystem needs it.
 
 ## LoD variant records (0x709010..)
 
-LoD moves the buttons LOWER and adds separate text-label records that
-overlay the button chrome. The button chrome uses the same handles;
-only the y coords shift:
+LoD moves four buttons LOWER. The button chrome uses the same handles;
+only the y coords shift. The title adds no other LoD records: CREDITS,
+CINEMATICS and EXIT are the classic ones (indices 0xd to 0xf) in both
+(`FUN_004336c0`, below).
 
 ```
 0x709010    6  264  324  ...  WideButton    SINGLE PLAYER  (was y=224)
 0x709040    6  264  366  ...  WideButton02  BATTLE.NET     (was y=266)
 0x709070    6  264  391  ...  NarrowButton  Gateway link   (was y=291)
 0x7090a0    6  264  433  ...  WideButton    OTHER MULTIPLAYER (was y=333)
+```
+
+The records after them aren't the title's (which screens add them is
+not traced):
+
+```
 0x709100..1c0  2 (five text-label boxes at x=319, w=169, h=26)
 0x7091f0..2b0  4 (five clickable rects, w=300, h=32)
 0x709370..3a0  1 (two hotspot markers)
@@ -106,6 +113,61 @@ only the y coords shift:
 0x7095b0      8 (kind 8 marker at (50,0), maybe click threshold?)
 0x709670    2 (326×341 sprite at (237,555), handle 0x779770 — some CharSelect asset)
 ```
+
+## The title screen (`FUN_004336c0`)
+
+A screen adds a record with `FUN_0042f430(ECX index)`, the record at
+`0x708d10 + index * 0x30` (tcpip-menu.md). On `FUN_004359d0`'s last path
+(config `+0x35e` not 2, 3 or 4, and `+0x35d` clear) it sets the mode
+`0x7795ec` to 0 (`0x435c19`) and, the first time (config `+0x35f`
+clear), runs `FUN_00435230` and sets `+0x35f`; after that it builds the
+title, `FUN_004336c0` (`0x435c45`). OTHER MULTIPLAYER's CANCEL builds it too
+(`0x434df0`).
+
+In order:
+
+1. `FUN_0043b9a0`: with a Battle.net client (`0x77abf0`) up, disconnect
+   it ("Disconnect from BNET"). Config `+0x37` = 0.
+2. `FUN_0043c4f0`: tear down the last screen (`FUN_0042f480`), add records
+   8, 6, 7 (TitleScreen and the two logo halves; record 5, the static
+   `Diablo2.dc6`, isn't added), the palette (`FUN_0042f2e0`), and
+   `FUN_00432ef0` (in language 9 it moves 16 records of other screens).
+3. With the expansion (`FUN_00408f20`): 0x12 (gateway, kept at
+   `0x7795ac`), `FUN_00431af0`, 0x11 (BATTLE.NET), 0x13 (OTHER
+   MULTIPLAYER), 0x10 (SINGLE PLAYER). Without: 0xa, 0xb (gateway,
+   `0x7795ac`), `FUN_00431af0`, 9, 0xc.
+4. `FUN_004fac90` (no `d2char.mpq` in the install path or the current
+   folder, and `DAT_0074c82c` 0): BATTLE.NET, OTHER MULTIPLAYER and the
+   gateway are disabled (`FUN_004f96f0(button, 0)`).
+5. 0xd CREDITS, 0xe CINEMATICS, 0xf EXIT, and 0x115: a text box (kind 4)
+   at (0, bottom 599), 200x40, font pair `0x7089c4` {1, 0} (Font16),
+   alignment 2. Its text is `"v %d.%d%c"` (`0x6d48d4`) with 1, 0xe, 'd':
+   "v 1.14d"; with config `+0x223` nonzero, `" %d"` (`0x6d48d0`) with
+   0x47 follows. `FUN_004fcff0(record, text, 0)` sets it.
+6. With `FUN_00514d80` (`DAT_008817c0`) nonzero, `FUN_005148f0(1)` turns
+   the frontend playlist on (sound.md "Frontend music").
+
+`FUN_00431af0` writes the gateway's label: the current gateway's name
+(the client's +0x98, `BNGatewayAccess::Name`) put in a TBL string
+(`FUN_00524a30`; which id is not traced), characters below 0x100 mapped
+through `0x730578`, then `FUN_005009d0`.
+
+The buttons' handlers (record +0x20, read from the table):
+
+| Index | Button | Handler |
+|---|---|---|
+| 9 / 0x10 | SINGLE PLAYER | `0x435cd0`: mode 0; a `*.d2s` in the save folder (`FUN_00430bc0`, `FindFirstFileA`) tears down and opens character select (`FUN_0043b080`), none opens character creation (`FUN_00435580`) |
+| 0xa / 0x11 | BATTLE.NET | `0x435d30`: mode 1, `FUN_00435330` (the realm and login screens, "Last BNet") |
+| 0xb / 0x12 | Gateway | `FUN_00434600`: the gateway list, one line per gateway, then `FUN_00431af0` |
+| 0xc / 0x13 | OTHER MULTIPLAYER | `0x430c50` (tcpip-menu.md); its OPEN BATTLE.NET, `0x435d10`, sets mode 3 and runs `FUN_00435330` |
+| 0xd | CREDITS | `0x4312c0`: teardown, a palette, records 0x29 and 0x2a |
+| 0xe | CINEMATICS | `FUN_00431600` |
+| 0xf | EXIT DIABLO II | `0x431c30`: `0x7795e8` = 0, `FUN_00515f50(0xb4)`, `FUN_004f9190` |
+
+d2d (`title_ui`, apps/d2d/frontend.cpp) has the seven LoD buttons, with
+the LoD positions with or without the expansion. It doesn't draw the
+0x115 version text. Its SINGLE PLAYER opens character select even when
+the save folder has no `.d2s`.
 
 ## Interpretation — layout convention
 
