@@ -314,7 +314,7 @@ private:
                     x = (at_x & 0xffff0000u) + 0x8000; y = (at_y & 0xffff0000u) + 0x8000;
                     return false;
                 }
-                crossed.emplace_back(int(there_x), int(there_y));
+                crossed.emplace_back(int(std::int16_t(there_x)), int(std::int16_t(there_y)));
                 if (crossed.size() >= 10) break;
             }
             at_x = next_x; at_y = next_y; here_x = there_x; here_y = there_y;

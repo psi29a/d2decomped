@@ -8,10 +8,12 @@
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <missiles.hpp>
 
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -36,6 +38,10 @@ int main() try {
     int frames = 0;
     while (follow_path(here, unit, 0x1000)) assert(++frames < 20);
     assert(unit.x.subtile() == -5 && unit.y.subtile() == 20 && !here.inside(unit.x, unit.y));
+
+    // A missile's step into subtile -1 lists it as -1 too (the subtiles it entered, +0x1d8).
+    auto flight = d2d::rules::MissileFlight::launch(0, 0, -5, 0, 0x1000, 0x1000, 0);   // a subtile a frame
+    assert(flight.step([](int, int) { return false; }) && flight.crossed.size() == 1 && flight.crossed[0] == std::pair(-1, 0));
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_walk_off_level: %s\n", error.what());
