@@ -5,6 +5,7 @@
 #   tools/d2vita.sh win32   Game.exe, SDL3.dll, OpenAL32.dll (MinGW i686)
 #   tools/d2vita.sh vita    eboot.bin, d2d.vpk (VitaSDK)
 #   tools/d2vita.sh switch  d2d.nro (devkitA64)
+#   tools/d2vita.sh android d2d.apk (Android NDK, arm64; docs/android.md)
 # Runs where its toolchain is: CI's d2vita jobs, or the Makefile's Docker.
 #   win32  i686-w64-mingw32-g++-posix and a MinGW zlib (Debian/Ubuntu:
 #          g++-mingw-w64-i686-posix, libz-mingw-w64-dev), gcc and make for
@@ -15,12 +16,25 @@
 #          (the vitasdk/vitasdk image has them)
 #   switch $DEVKITPRO with libnx, mesa, zlib and bzip2 (the devkitpro/devkita64
 #          image has them); it fetches SDL3 and OpenAL Soft's source itself
+#   android $ANDROID_HOME (default ~/Library/Android/sdk) with an ndk/, a
+#          build-tools/ and a platforms/ in it, and a JDK; it fetches SDL3 and
+#          OpenAL Soft's source itself. No Gradle: aapt2, javac, d8, apksigner.
 set -euo pipefail
-target=${1:?usage: tools/d2vita.sh win32|vita|switch}
+target=${1:?usage: tools/d2vita.sh win32|vita|switch|android}
 build=build/d2vita-$target
 out=build/d2vita/$target
 mkdir -p "$out"
 common=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DD2D_GAME_ONLY=ON -DD2D_BUNDLED_STORMLIB=ON)
+
+fetch() {   # name url sha256: the tarball unpacked into $build/name
+    [[ -d $build/$1 ]] && return
+    mkdir -p "$build"
+    curl -fsSLo "$build/$1.tar.gz" "$2"
+    echo "$3  $build/$1.tar.gz" | sha256sum -c --quiet
+    # Into .part, then renamed: an interrupted tar leaves no tree a rerun takes as done.
+    rm -rf "$build/$1.part" && mkdir "$build/$1.part"
+    tar -xzf "$build/$1.tar.gz" -C "$build/$1.part" --strip-components=1 && mv "$build/$1.part" "$build/$1"
+}
 
 case $target in
 win32)
@@ -57,15 +71,6 @@ switch)
     # built once into $deps. ponytail: pinned by hand; bump with the SHA-256.
     nx=(-DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake")
     deps=$PWD/$build/nx-deps
-    fetch() {   # name url sha256: the tarball unpacked into $build/name
-        [[ -d $build/$1 ]] && return
-        mkdir -p "$build"
-        curl -fsSLo "$build/$1.tar.gz" "$2"
-        echo "$3  $build/$1.tar.gz" | sha256sum -c --quiet
-        # Into .part, then renamed: an interrupted tar leaves no tree a rerun takes as done.
-        rm -rf "$build/$1.part" && mkdir "$build/$1.part"
-        tar -xzf "$build/$1.tar.gz" -C "$build/$1.part" --strip-components=1 && mv "$build/$1.part" "$build/$1"
-    }
     if [[ ! -f $deps/lib/libSDL3.a ]]; then
         fetch nx-sdl3-src https://github.com/devkitPro/SDL/archive/c329016c0e338ab4397ad930f83330c9fe058348.tar.gz \
             6047e4787f105ab4a0c6293ee3090ce5d1ebad112fcbe2a3e5a8874b0cc6f709
@@ -87,8 +92,60 @@ switch)
     cmake --build "$build" --target d2d_nro
     cp "$build/apps/d2d/d2d.nro" "$out/"
     ;;
+android)
+    # arm64 only, Android 8 (API 26) up, pages of 4 or 16 KB.
+    # ponytail: a debug-signed APK from the SDK's own tools; a Gradle project
+    # when there's a release to sign or a second ABI to carry.
+    sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
+    ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
+    tools=$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)
+    android_jar=$(ls -d "$sdk"/platforms/* | sort -V | tail -1)/android.jar
+    ndk_args=(-DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" -DANDROID_ABI=arm64-v8a
+        -DANDROID_PLATFORM=android-26 -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON)
+    deps=$PWD/$build/deps
+    if [[ ! -f $deps/lib/libSDL3.so ]]; then
+        fetch sdl3-src https://github.com/libsdl-org/SDL/releases/download/release-3.4.16/SDL3-3.4.16.tar.gz \
+            7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68
+        cmake -S "$build/sdl3-src" -B "$build/sdl3" -G Ninja -DCMAKE_BUILD_TYPE=Release "${ndk_args[@]}" \
+            -DCMAKE_INSTALL_PREFIX="$deps" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+        cmake --build "$build/sdl3" --target install
+    fi
+    if [[ ! -f $deps/lib/libopenal.a ]]; then   # plays through OpenSL ES
+        fetch openal-src https://github.com/kcat/openal-soft/archive/refs/tags/1.25.2.tar.gz \
+            fb27e5839aa11f0e5b9d33756965291fad5d6909ab928ea1f796f4a1a6877894
+        cmake -S "$build/openal-src" -B "$build/openal" -G Ninja -DCMAKE_BUILD_TYPE=Release "${ndk_args[@]}" \
+            -DCMAKE_INSTALL_PREFIX="$deps" -DLIBTYPE=STATIC -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF \
+            -DALSOFT_ENABLE_MODULES=OFF -DALSOFT_BACKEND_WAVE=OFF
+        cmake --build "$build/openal" --target install
+    fi
+    cmake -S . -B "$build/d2d" "${common[@]}" "${ndk_args[@]}" -DCMAKE_FIND_ROOT_PATH="$deps" \
+        -DSDL3_DIR="$deps/lib/cmake/SDL3" -DOPENAL_INCLUDE_DIR="$deps/include" -DOPENAL_LIBRARY="$deps/lib/libopenal.a"
+    cmake --build "$build/d2d" --target d2d
+    # The APK: the icon and manifest, SDL's Java activity, the two libraries
+    # (stripped, stored unpacked and page-aligned so Android maps them in place).
+    apk=$build/apk
+    rm -rf "$apk" && mkdir -p "$apk/res/mipmap" "$apk/classes" "$apk/lib/arm64-v8a"
+    cp assets/icon/d2d.png "$apk/res/mipmap/ic_launcher.png"
+    "$tools/aapt2" compile --dir "$apk/res" -o "$apk/res.zip"
+    "$tools/aapt2" link -o "$apk/d2d.apk" -I "$android_jar" --manifest apps/d2d/android/AndroidManifest.xml \
+        --version-code 1 --version-name "$(git describe --tags --always --dirty)" "$apk/res.zip"
+    find "$build/sdl3-src/android-project/app/src/main/java" -name '*.java' > "$apk/sources"
+    javac -nowarn --release 11 -cp "$android_jar" -d "$apk/classes" @"$apk/sources"
+    find "$apk/classes" -name '*.class' > "$apk/class-files"
+    "$tools/d8" --release --min-api 26 --lib "$android_jar" --output "$apk" @"$apk/class-files"
+    strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
+    "$strip" -o "$apk/lib/arm64-v8a/libmain.so" "$build/d2d/apps/d2d/libmain.so"
+    "$strip" -o "$apk/lib/arm64-v8a/libSDL3.so" "$deps/lib/libSDL3.so"
+    (cd "$apk" && zip -q -0 d2d.apk classes.dex lib/arm64-v8a/*.so)
+    "$tools/zipalign" -f -P 16 4 "$apk/d2d.apk" "$apk/aligned.apk"
+    # A debug key of this build's own: adb installs it, no store takes it.
+    [[ -f $build/debug.keystore ]] || keytool -genkeypair -keystore "$build/debug.keystore" -storepass android \
+        -keypass android -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=d2d debug"
+    "$tools/apksigner" sign --ks "$build/debug.keystore" --ks-pass pass:android --out "$out/d2d.apk" "$apk/aligned.apk"
+    rm -f "$out/d2d.apk.idsig"
+    ;;
 *)
-    echo "tools/d2vita.sh: $target: win32, vita or switch" >&2
+    echo "tools/d2vita.sh: $target: win32, vita, switch or android" >&2
     exit 2
     ;;
 esac

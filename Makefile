@@ -11,6 +11,7 @@
 #   make deck             the bundle, copied to the Deck and installed (DECK=deck@steamdeck)
 #   make d2vita           d2d for the PS Vita (eboot.bin, d2d.vpk) in build/d2vita/vita, in VitaSDK's Docker image (docs/d2vita.md)
 #   make d2vita-win32     d2d as a Win32 Game.exe in build/d2vita/win32, in an Ubuntu container (MinGW; fetches SDL3 and OpenAL Soft)
+#   make android          d2d for Android (d2d.apk, arm64) in build/d2vita/android, with the SDK in $ANDROID_HOME (docs/android.md)
 #   make switch           d2d for the Nintendo Switch (d2d.nro) in build/d2vita/switch, in devkitPro's Docker image (docs/switch.md)
 #   make clean            drop the build and the bundle (keeps the module cache)
 #   make distclean        clean, and the module cache too (the next build is a full one)
@@ -59,7 +60,7 @@ $(RUN_WHAT):
 	@:
 endif
 
-.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing d2vita d2vita-win32 switch
+.PHONY: help source flatpak run bundle deck clean distclean wine wine-missing d2vita d2vita-win32 switch android
 .DEFAULT_GOAL := help
 
 help:
@@ -165,6 +166,10 @@ d2vita:
 
 switch:
 	$(call D2VITA_DOCKER,switch) $(DEVKITA64_IMAGE) tools/d2vita.sh switch
+
+# On this machine, not in Docker: the SDK and NDK are the host's.
+android:
+	tools/d2vita.sh android
 
 $(D2VITA_DEPS)/SDL3-$(SDL3_VERSION):
 	mkdir -p $(D2VITA_DEPS)
