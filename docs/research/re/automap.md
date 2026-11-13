@@ -262,6 +262,18 @@ With the map open, Font16 (`FUN_00502ef0(1)`), colour 4, right-aligned
    +0x37 at the Host Game button, net-join.md "Game types");
 6. on an expansion game, 0x58ca ("EXPANSION") (`FUN_00459ff0`).
 
+`tools/emu/automap_lines.py` runs `FUN_00459ff0`, `FUN_0045a0a0` and
+`FUN_0045a190` and checks the above: each draws one line at
+`DAT_007a51bc` (then +0x10) in colour 4, its x the screen's width
+(`DAT_007a5220`) less the measured text width (`FUN_00501820`, which leaves
+the three pushed arguments for the draw `FUN_00502320`, `ret 0xc`) less 0x10;
+`FUN_0045a190` draws nothing for difficulty 0 and for 1 / 2 formats 0x1057
+with 0x1423 / 0x1422 (`FUN_00526800` its lengths, 299 or more is the assert
+at 0xb2a). The string table, the difficulty read and the two text calls are
+stubbed; d2d's lines (`town/view.cpp`) agree. `FUN_0045a050` (the level
+name) and `FUN_0045a120` (the host's IP) are not traced beyond the callees
+above.
+
 ## Saved maps (`Name.map`, `Name.ma0`..`ma3`)
 
 The automap is kept beside the save, per map seed, not per difficulty.
