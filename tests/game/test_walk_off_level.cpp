@@ -18,7 +18,7 @@ using namespace d2d::game;
 namespace {
 
 Level open_level() {
-    Level level;
+    Level level{};
     level.ds1 = d2d::ds1::Map(8, 8, 1, 1);
     level.walk.assign(std::size_t(40 * 40), 0);
     return level;

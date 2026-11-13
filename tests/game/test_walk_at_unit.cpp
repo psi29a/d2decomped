@@ -23,7 +23,7 @@ int subtile(float value) { return int(std::floor(value * 5)); }
 float centre(int sub) { return (float(sub) + 0.5f) / 5; }
 
 Level open_level() {
-    Level level;
+    Level level{};
     level.ds1 = d2d::ds1::Map(16, 16, 1, 1);
     level.walk.assign(std::size_t(80 * 80), 0);
     return level;

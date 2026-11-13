@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -65,7 +66,7 @@ int main() try {
             Monster made = make_monster(*data, fallen->second, 10, 10, rng, 0);
             made.stats.hit_points = 50000; made.hit_points = 50000;
             made.unit.x = actor.player.x + offsets[index][0]; made.unit.y = actor.player.y + offsets[index][1];
-            fight.add_monster(Monster(made));
+            fight.add_monster(std::move(made));
         }
     };
     // One chain: the target at each action frame, and how long it took.

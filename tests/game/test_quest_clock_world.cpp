@@ -127,7 +127,7 @@ int main() try {
     // where he died (0x5b3eaf: Act 4's map at his spot), not where the player is.
     const auto* plains = data->level(d2d::rules::level_ids::kPlainsOfDespair);
     assert(plains);
-    const auto ghost_code = data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)].code;
+    const auto& ghost_code = data->mon_npc[std::size_t(d2d::rules::IzualQuest::kGhost)].code;
     const auto ghosts = [&](const Level& where) { return std::ranges::count(where.npcs, ghost_code, &Npc::code); };
     const auto on_plains = ghosts(*plains), in_town = ghosts(*world.level);
     world.izual.state = 4;

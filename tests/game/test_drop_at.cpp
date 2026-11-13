@@ -31,7 +31,7 @@ int subtile(float value) { return int(std::floor(value * 5)); }
 float centre(int sub) { return (float(sub) + 0.5f) / 5; }
 
 Level open_level() {
-    Level level;
+    Level level{};
     level.ds1 = d2d::ds1::Map(kWidth, kWidth, 1, 1);
     level.walk.assign(std::size_t(kWidth * 5) * std::size_t(kWidth * 5), 0);
     return level;
@@ -127,7 +127,7 @@ int main() try {
         Loot::GroundItem lying;
         lying.x = centre(12);
         lying.y = centre(13);
-        bench.loot.ground.push_back(lying);
+        bench.loot.ground.push_back(std::move(lying));
         assert(landed(bench.loot, 10, 10) == std::pair(11, 13));
     }
     // A drop onto another level does not see this level's crowd.

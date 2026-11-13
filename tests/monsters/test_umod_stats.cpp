@@ -24,6 +24,7 @@
 #include <cstring>
 #include <exception>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -42,13 +43,20 @@ int main(int argc, char** argv) try {
         std::string tag;
         fields >> tag;
         if (tag == "#k") { for (auto& value : umods.constants) fields >> value; continue; }
-        if (tag == "#lvl") { int level; fields >> level; if (std::size_t(level) >= damage_rows.size()) damage_rows.resize(std::size_t(level) + 1); fields >> damage_rows[std::size_t(level)][0] >> damage_rows[std::size_t(level)][1] >> damage_rows[std::size_t(level)][2]; continue; }
+        if (tag == "#lvl") {
+            int level = -1;
+            if (!(fields >> level) || level < 0 || level > 999) throw std::runtime_error("bad #lvl row: " + line);   // the oracle's MonLvl rows
+            if (std::size_t(level) >= damage_rows.size()) damage_rows.resize(std::size_t(level) + 1);
+            fields >> damage_rows[std::size_t(level)][0] >> damage_rows[std::size_t(level)][1] >> damage_rows[std::size_t(level)][2];
+            continue;
+        }
         if (tag.empty() || tag[0] == '#') continue;
         int row, diff, base_level, velocity, base_id;
         std::string kind_s, mods_s;
         std::array<int, 6> res{};
         fields >> row >> diff >> kind_s >> mods_s >> base_level >> velocity >> base_id;
         for (auto& value : res) fields >> value;
+        if (!fields || diff < 0 || diff > 2) throw std::runtime_error("bad case row: " + line);
         MonType type;
         type.velocity = velocity;
         type.base = base_id;
