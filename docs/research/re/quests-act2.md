@@ -44,6 +44,27 @@ and calls a2q4's hook:
   lack bit 13 and record 13 holds (he's outside then).
 - `FUN_0059f0c0` (a2q4's level change, +0xac) moves him in on entering
   level 40 once record +0x11 is set (not ported).
+- **The harem blocker**: `BlockHaremRoomForPlayerAccess` (`FUN_0059b710`,
+  called from `SetTimerByMonsterId`) spawns an invisible object (classId
+  0x13e) 2 west / 1 north of the player — or, if that spot is taken, at
+  the player's own spot — once per game (`bPortalJerhynSpawned`), unless
+  Drognan's Summoner hint (`bDrognanSummonerHint`) already fired; it
+  records the spawned object's GUID. `Objects_InitFn30_HaremBlocker`
+  (`FUN_0059b7d0`) ties that object's visual/update flag to
+  `nPortalPlacedState` on (re)creation, records the GUID again, and
+  removes the object's collision once `nPortalPlacedState == 2` (the
+  portal active) — the actual unblocking. Neither writes a
+  `QuestRecord` bit. `Q14_CheckDurielProximity` (`FUN_0059b820`) is a
+  per-player iterate callback, registered as data in
+  `QUEST_JerhynNpcAILogic`: while the Seven Tombs quest isn't
+  Completed/RewardAwaits for that player, it checks the player's
+  distance to the harem-blocker's own coords (< 0x1f) and, on a hit,
+  records `bDurielProximity` and the player's GUID — Jerhyn's AI uses it
+  to notice a player waiting at the blocked door before Duriel's dead.
+- `Q12_SequenceFilterInlined` (`FUN_0059b4a0`), called from the thin
+  `Q12_SequenceFilter` wrapper, is a2q4's real `fpSequenceFilter` body:
+  the quest-chain pattern in `quests.md` ("Quest-chain SequenceFilter"),
+  chaining into a2q5 the Summoner (`nSequenceQuestId`).
 
 d2d: `rules::palace_spots` (quests.hpp, tests/test_quests.cpp); Lut
 Gholein builds every candidate (`Npc::palace` 1..4) and
@@ -215,6 +236,14 @@ read (or any part shown), 4 / 5 / 6 the amulet / shaft / Cube shown,
   staff: unless all three parts are carried, the missing ones' shown bits
   (5 shaft, 6 Cube, 4 amulet) clear.
 - **+0xac** (`LAB_00599a00`): leaving 40, off the rewarded list.
+- **Item pickup** (`Q10_Callback04_ItemPickedUp`, `FUN_00599a30`): on
+  picking up `tr1` / `vip` / `box` / `msf` (not `hst` itself, handled
+  above), records which part in `nStateFlagPrev` (the scroll → 1 unless
+  bit 3 already set; the shaft or Cube → 2 or 6 by bit 3; the Cube → 2
+  with bit 3, else 6) and, while the player is physically in this
+  quest's act, refreshes the log through `Q10_CheckHoradricStaffState` /
+  `Q10_NotifyHoradricStaffActive` (quest-update packet 9). Reads bit 3
+  only; no `SetQuestState`.
 - **The chests** (objects.txt 355 / 356 / 354; InitFns 32 / 33 / 31 do
   nothing): OperateFns 40 `FUN_00599c10` (Sewers 3), 41 `FUN_00599cf0`
   (Maggot Lair 3), 39 `FUN_00599df0` (Halls of the Dead 3). Once
@@ -419,6 +448,28 @@ lines after Tyrael, 13 took part, 14 by others, 15 closed.
 - **Tyrael** is the Lair's DS1 preset (`1:251`, NpcStationary) by
   objects 352 / 353; he stands there from the start, and leaves once his
   portal is open and no player is within 12 of him (monster-ai.md).
+- **Tyrael's door object** (`Objects_InitFn38_TyraelsDoor`,
+  `FUN_0059dad0`): records the object's GUID and sets
+  `bAllPlayersLeft`; while the quest isn't introduced yet, the object's
+  update flag is forced hidden (mode 2), otherwise it follows
+  `nDurielState` (the data byte read by the InitFn-21 orifice code
+  above). No `QuestRecord` bit.
+- **The tomb map marker**: `Q14_SendTombLevelInfo` (`FUN_0059d6a0`)
+  sends S->C **0x50** QuestSpecial type 0xd carrying (true tomb's level
+  id − 0x42), from `Dungeon::GetHoradricStaffTombLevelId(act)`, so the
+  client can mark the correct one of the 5 Tal Rasha tombs; it also
+  caches the chosen level id into this quest's data. Read-only, no
+  state transition.
+- **The stairs down to the tombs** (an object's OperateFn, not
+  identified in this batch): `Q14_OperateStairsToTombs`
+  (`FUN_0059da10`) only lets the warp run (`TakeStairs`) when the
+  warping unit is in a Walk animation and either the quest isn't
+  introduced yet or `bPortalCreated` (the Duriel portal) is already up —
+  gating the early stairs the same way the orifice gates Duriel's Lair.
+  Two predicates read the same state elsewhere:
+  `Q14_IsSevenTombsNotStarted` (`FUN_0059d7c0`, true while introduced
+  and `nStateFlag < 2`) and `Q14_IsSevenTombsAtState1`
+  (`FUN_0059d7e0`, true only at `nStateFlag == 1`). None write state.
 
 d2d: `rules::SevenTombsQuest`, the orifice in `World::operate`,
 `World::durielportal_open`, portal slot 6. Checked headless (devctl,
@@ -445,3 +496,38 @@ d2d: `World` cmd::Caravan; Kurast Docks (DockTown3.ds1, LvlPrest 529)
 builds, `diff_drlg.py 1-5 75 tiles units seeds` 5/5 (FUN_00665950's act 3
 monster-to-object remaps: 0x129 -> 0x17e, 0x16e -> 0x194; act 5's too).
 Checked headless both ways. Gap: FUN_00544160's item removal.
+
+## Jerhyn's and the guards' act-progression gossip (not journal quests)
+
+Two more pseudo-quest slots drive flavor chatter as the act's main
+quests move along; neither shows in the quest log or touches a player's
+`QuestRecord` beyond reading it.
+
+- **Slot "Act2Guard4Gossip"** (`QUEST_Act2Guard4Gossip`):
+  `Q15_Callback00_NpcActivate` (`FUN_0059e140`) only fires for Jerhyn
+  (NPC 0x179). Once the Act2Guard4Gossip record itself is marked
+  Completed, it picks one of 2 seeded lines; before that, once
+  Radament's Lair is done, in progress or just-completed
+  (`QUEST_RadamentsLair` Completed / JustCompleted / RewardAwaits, or
+  the game-wide JustCompleted flag), it picks one of 3 seeded
+  "post-Radament" lines (or, failing that gate, falls back to the
+  2-line set). The RNG draw perturbs the player's own seed each time
+  (same LCG step as elsewhere in quests.md). `Q15_ActiveFilter`
+  (`FUN_0059e2c0`) mirrors the same gate to decide whether the option
+  shows at all: active while Act2Guard4Gossip is neither
+  Completed nor JustCompleted, or (once it is) still active for one
+  more turn right after Radament's Lair just completed.
+- **Slot "Act2Guard8Gossip"** (implied by namespace `A2Q8`; NPC 0x17a):
+  `Q16_Callback00_NpcActivate` (`FUN_0059e3f0`) queues a single gossip
+  line (index 0) only in the window where the Seven Tombs is open and
+  `nStateFlag < 2`, the Tainted Sun is finished or never started
+  (`nStateFlag` absent or > 3), and the Seven Tombs is neither
+  RewardAwaits nor Completed for that player — i.e. after the Tainted
+  Sun closes but before Duriel falls. `Q16_ActiveFilter`
+  (`FUN_0059e4b0`) is the matching eligibility check, requiring the
+  Tainted Sun's game-wide JustCompleted flag instead of the looser
+  "finished or never started" read `Q16_Callback00_NpcActivate` uses on
+  its own quest-data pointer.
+
+Not ported — d2d has no act-progression NPC gossip; `rules::DenQuest`-
+style journal quests are unaffected either way.
