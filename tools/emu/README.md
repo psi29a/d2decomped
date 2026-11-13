@@ -38,6 +38,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Belt step of a pickup (which box, or none) | `uv run python belt_pickup.py gen 100000 1 > cases.tsv; uv run python belt_pickup.py game cases.tsv > g.txt; ../../build/tests/test_game --belt-pickup cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Battle.net CACHE.CPP, bncache.dat: CRC, crypt table, name hash, cipher, time, hash find/delete, path, open (codes 1-12), read, write, close, rebuild (16 functions, FUN_00518de0 ... FUN_00519db0; `--mutation-check` 11 ways) | `uv run python bncache.py` | `ok: 1165 CACHE.CPP cases over 18 checks` |
 | Battle.net gateway parser and lifecycle (synthetic I/O) | `uv run python bnetgw.py` | `ok: 63 BNetGW parser, access and lifecycle checks` |
+| Three server-side bugs of game.exe (bugs.md #111 to #113: S->C 0x16's list a player short, FUN_00537d10 / FUN_00537ee0; the game-name suffix, FUN_0052f940; S->C 0x7e's unset bytes, FUN_0053db70) | `uv run python net_join_bugs.py` | `ok: 0x16 sends [1, 1, 2, 4] of 1, 2, 3, 5 players; first suffix abc~<the name's address>; 0x7e is 7eaaaaaaaa` |
 | BNNews cache save/load and array growth (synthetic I/O and heap) | `uv run python bnnews_cache.py && uv run python bnnews_array.py` | `ok` |
 | BNNews initialization and request packet (cache and socket scripted) | `uv run python bnnews_init.py` | `ok` |
 | BNNews 0x46 reply merge, cutoff and callback order (cache writer hooked; signed count guard) | `uv run python bnnews_reply.py` | `ok` |
