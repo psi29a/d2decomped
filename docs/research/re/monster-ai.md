@@ -758,7 +758,9 @@ uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --
 
 - Pick: FUN_005fbdd0 is Diablo's FUN_005e8f20 (filter FUN_005fc000 = same
   act, under 0x3fc), the score FUN_005fbb00 Diablo's with the point bonus at
-  0x4b instead of 0x55.
+  0x4b instead of 0x55 — and, unlike Diablo's own score, counting cold
+  resist whether or not the target is in reach (`tools/emu/ai_baal_score_probe.py`,
+  traced against stock 1.14d; `rules::diablo_score`'s `cold_in_reach`).
 - Kept point: his own spot when he has none (FUN_0058ef40 kind 10).
 - Chooser FUN_005fc630(ECX him, EAX target; game, AI control, score, looked,
   point): AI control +0x14 non-zero is the act. No target: stuck

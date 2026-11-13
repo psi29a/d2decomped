@@ -112,6 +112,16 @@ void diablo_scores() {
         pick.max_damage = damage; pick.state_b = state != 0;
         assert(d2d::rules::diablo_score(pick, life, reach != 0, line_clear != 0, bonus != 0) == want);
     }
+    // Baal's own copy of the score (FUN_005fbb00) counts cold resist
+    // whether or not the target is in reach, unlike Diablo's FUN_005e8530:
+    // traced against stock 1.14d, tools/emu/ai_baal_score_probe.py.
+    {
+        d2d::rules::DiabloPick pick;
+        for (const auto [cold, want] : { std::pair{0, 17}, std::pair{330, 18}, std::pair{660, 19} }) {
+            pick.cold_resist = cold;
+            assert(d2d::rules::diablo_score(pick, 100, false, true, false, false) == want);
+        }
+    }
 }
 
 // The max damage a swing leaves for Diablo's score (FUN_005a4f50): that mode's, plus its elements.
