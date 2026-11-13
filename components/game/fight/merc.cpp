@@ -215,6 +215,7 @@ bool room_teleport(const GameData& game_data, const Level& level, const Crowd& c
     return false;
 }
 
+// The merc's hireable_think, fed its view of its owner, footsteps and target.
 auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
         const auto set = [&](std::string_view mode) {
@@ -350,12 +351,15 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), path_to_primary, target_gap);
         actor->merc_target = chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
         if (actor->merc_target < 0) target_gap = -1;
+        // State 0x3c is decrepify: a monster's curse on the merc (actor->curses[1]).
+        const auto* curse = game_data->skills.get(actor->curses[1].skill);
+        const bool slowed = curse && now_ms < actor->curses[1].until && curse->auratarget == "decrepify";
         d2d::rules::MercView view{ .cls = actor->merc_npc->hc_idx, .x = merc_x, .y = merc_y, .size = size, .mode = d2d::rules::kMonsterNeutral,
                                    .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
                                    .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
                                    .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
                                    .ring = actor->footsteps, .cursor = actor->footstep_cursor,
-                                   .on_bit40 = level->blocked(unit.x, unit.y, 0x40), .town = town, .target = target_gap };
+                                   .on_bit40 = level->blocked(unit.x, unit.y, 0x40), .town = town, .target = target_gap, .slowed = slowed };
         auto area_at = [&](int from_x, int from_y, int x, int y) { return int(area_id_at(*game_data, *level, centre(from_x), centre(from_y), centre(x), centre(y))); };   // FUN_0061b130
         std::vector<std::pair<float, float>> route;
         auto try_move = [&](const d2d::rules::MercMove& move) {
