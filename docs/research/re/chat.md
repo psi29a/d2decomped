@@ -110,6 +110,56 @@ the allocator hooked). d2d has no IME support: not ported.
 - `FUN_0047b070` (24 bytes, `ret 4`) sets the message's +0x18 to 1 and +0x1c
   to 0 (handled, result 0).
 
-Not traced here: `FUN_0047ae00`, `FUN_0047b090` (the composition and key
-handlers) and `FUN_0047b2e0` (IME shutdown: unregisters the handler tables
-through `FUN_00451e10`, closes the IME, frees the list, line 0x29d).
+### IME notification, initialization and shutdown
+
+`tools/emu/chat_ime_lifecycle.py --exe /path/to/Game.exe` runs the three
+remaining mapped `UI/chat.cpp` functions on the 1.14d executable: 432
+notification cases, 768 initialization cases and 48 shutdown cases. The
+IME calls, language gate, candidate refresh, allocator and event-table
+registration are scripted and logged; no IME is opened on the host. The
+script checks return and stack cleanup. This verifies scoped stock control
+flow, not parity with d2d or an end-to-end Windows IME.
+
+- `FUN_0047ae00` (one message pointer, `ret 4`) sets message +0x18 = 1
+  and +0x1c = 0, calls `FUN_00420290`, then obtains the window's IME
+  context. Null context returns immediately. Message +8 selects the
+  notification: code 2 in mode 9 asks whether the current keyboard layout
+  is an IME and sets `0x7bb5f0` to 0 if so, 4 otherwise; code 3 in mode 9
+  refreshes candidates; code 4 frees the candidate list for mode 9 or 8
+  (source lines 0x160 or 0x16b); code 5 refreshes it for mode 9 or 8.
+  Code 6 queries conversion in every mode, then modes 7 and 12 set the
+  byte at `0x7bb5e0` and status at `0x7bb5f0` to conversion bit 0. Code 8
+  in modes 6, 8 and 9 reads open status and sets that byte and status to
+  1 and 3/5/4 respectively when open, else both zero. Every non-null
+  context is released. The candidate-list helper is hooked; its own
+  behavior is checked by `chat_ime.py` above.
+- `FUN_0047b090` is IME **initialization**, rather than a key handler. It
+  registers four window handlers from table `0x712f4c`, obtains and stores
+  the mode at `0x7bb5dc`, and only modes 6, 7, 8, 9 and 12 proceed to
+  the `FUN_0047b010` language gate. For an accepted language and non-null
+  context it clears the low words at `0x7bb5f8` and `0x7bc850`. Mode 6
+  with system language 0x411 registers seven handlers from `0x712fa8`,
+  marks `0x7bb5e1`, requests IME open, and sets enabled/status 1/3 on
+  success or 0/0 on failure. Modes 7 and 12 with language 0x412 or 0x812
+  open the IME, request conversion 1 while retaining the sentence mode,
+  read conversion back, set status to bit 0 and mark registered. If that
+  bit is clear, the old enabled byte is retained. Modes 8 and 9 clear
+  enabled, mark registered, simulate hotkey 0x10 or 0x70 if the layout is
+  not an IME, request open and set status 5 or 4. These three branches
+  register the seven handlers and every acquired context is released.
+  Other language/mode combinations leave the second table unregistered.
+- `FUN_0047b2e0` unregisters the four-handler table. If the byte at
+  `0x7bb5e1` is nonzero, it also unregisters the seven-handler table,
+  obtains the context, closes it if present, and for modes 7 and 12
+  resets conversion to zero while preserving the returned sentence mode.
+  It releases a non-null context, clears the low words at `0x7bb5f8`
+  and `0x7bc850`, and frees the candidate list at line 0x29d. The registered
+  byte itself is not cleared. With that byte zero, those additional
+  operations are skipped.
+
+The oracle scripts the language gate independently to exercise both outcomes;
+`chat_ime.py` checks that gate's own language rules. Event registration,
+formatting, callbacks and actual platform IME behavior are outside these
+checks. Re-check the instruction-level calling conventions with
+`tools/emu/disasm.py` and the three addresses; Ghidra omits register arguments
+and attributes the pushed handler count to the window getter.
