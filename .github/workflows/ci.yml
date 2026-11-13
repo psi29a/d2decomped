@@ -178,7 +178,9 @@ jobs:
           $ports = @("zlib", "stormlib")
           if ("${{ matrix.arch }}" -eq "arm64") { $ports += "openal-soft" }
           else { Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal }
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install @ports --triplet ${{ matrix.arch }}-windows --x-install-root="$deps\vcpkg"
+          # tools/vcpkg-ports: openal-soft 1.25.2 with upstream's fix for MSVC 14.52
+          # (tools/vcpkg-ports/README.md); without it the arm64 build stops in alc.cpp.
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install @ports --triplet ${{ matrix.arch }}-windows --x-install-root="$deps\vcpkg" --overlay-ports="${{ github.workspace }}\tools\vcpkg-ports"
           Get-ChildItem $deps
 
       # pkg-config for FFmpeg's .pc files (pkgconfiglite is a prebuilt binary).
