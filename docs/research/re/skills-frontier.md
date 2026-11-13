@@ -63,3 +63,13 @@ negative controls require deliberate errors in the model to be caught. The tests
 | `FUN_005da020` | EAX is required and EDI is the unit. A nonnull path and successful `FUN_00552f60` gate lead to a sequence of skill and path updates. The candidate x/y are three times the input coordinates minus twice the current coordinates; if the room lookup succeeds and its room test is nonzero it returns 0 after the earlier updates, otherwise sets the target position and path mode 8 and returns 1. | 32 cases cover missing skill/path, prerequisite failure, absent/present/blocked room, and successful setup; all callees are hooked. Checks side-effect order, target coordinates, mode and unit field. Failure after updates is not atomic. |
 | `FUN_006446c0` | Traverses the first skill-node chain, comparing each node's first dword with ESI and following +4. Returns 1 on match and 0 at end. A missing initial node calls the fatal routine and exit. | 12 cases with first-node lookup hooked, varying chain length and match position; the empty-list fatal path is not run. |
 | `FUN_00644920` | Validates skill ID and row, requires row +5 bit 2, then compares the level returned by `FUN_00644750` to unit stat 0xc. If sufficient, checks four signed row shorts +0x176/+0x178/+0x17a/+0x17c against stats 0/2/1/3 in that order. Returns 1 only when all comparisons pass. | 108 cases use a synthetic skill row and scripted level/stats; invalid IDs, enable bit, signed thresholds and each short-circuit checked. No real Skills.txt content or d2d comparison is asserted. |
+| `FUN_00645190` | Takes a selector and monster class, gets an initial mode from the table at 0x6eb348 and searches its bit in MonStats2 +0xf0 through a fallback chain. Invalid table/class or absent bit falls back 5/7→4, 6→3, 9/10/11→8, 15→2, most other values→1; mode 1 exits. | 378 cases use the 21 observed initial selector values and synthetic MonStats/MonStats2 rows, varying class and supported-mode bits. Assembly leaves the chosen mode in EAX (`0x645240`); Ghidra's `void` prototype misses this return. Selector indices outside 0–20 and real game tables are not swept. |
+
+## Limits and anomalies
+
+The two `LAB_` entries above depend on enclosing frames. Their classification
+as standalone functions in `game-functions.tsv` is a Ghidra export artefact;
+this note leaves that table untouched. Similarly, the repeated-frame loops in
+`FUN_005cdd30` and `FUN_005cf8c0` are instruction-level observations, not an
+assertion about intent or the impact in a particular animation. Both are exercised by the oracle with synthetic frame data and scripted sequence helpers. No row here says that
+d2d matches or that an observed quirk is safe to change.
