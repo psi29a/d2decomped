@@ -1201,13 +1201,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // A walk that can't set off with another act to try: the think it filed
     // (FUN_005a73e0) is dropped (FUN_00540e60(2, 0)) and the next one runs.
     std::size_t tried = 0;
-    const auto walk_or_next = [&](int off_x, int off_y) {
+    const auto set_off_or_next = [&](auto&& sets_off) {
         const auto pending = monster.next_act;
-        if (ctx.walk_to(off_x, off_y, false) || tried >= otherwise.size()) return true;
+        if (sets_off() || tried >= otherwise.size()) return true;
         monster.next_act = pending;
-        act = otherwise[tried++]();
+        const auto next = std::move(otherwise[tried++]);          // moved out: the act it makes may add its own
+        act = next();
         return false;
     };
+    const auto walk_or_next = [&](int off_x, int off_y) { return set_off_or_next([&] { return ctx.walk_to(off_x, off_y, false); }); };
     const bool acted = [&] { for (;;) switch (act.act) {
         case MonAct::idle: ctx.idle(act.n); return true;
         case MonAct::a1: ctx.use("A1", -1); return true;
@@ -1291,8 +1293,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::circle: {                                     // FUN_005df7d0
             const float side = act.x ? 1.f : -1.f, length = std::max(std::hypot(dx, dy), 0.01f), off = float(act.n) / 5;
             unit.goal_x = target->x - dy / length * off * side; unit.goal_y = target->y + dx / length * off * side;
-            ctx.set_off(false, nullptr);
-            return true;
+            if (set_off_or_next([&] { return ctx.set_off(false, nullptr); })) return true;
+            break;
         }
         case MonAct::seq:                                          // FUN_005de000: the skill's own sequence (the Greater Mummy's raise)
         case MonAct::skill: {                                      // its Sk mode's sequence (MonSeq) plays out

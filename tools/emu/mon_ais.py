@@ -312,7 +312,7 @@ def install(e):
     e.hook(0x5defe0, away, 3)
     def circle(e):                                                     # FUN_005df7d0: a step, then at the target
         sd = seed(); v = sd.step(); put(sd)
-        ok = moved() if cur["s"]["ai"] in ACT3_AIS else 1                   # Act 3's read whether it set off
+        ok = moved() if cur["s"]["ai"] in ACT3_AIS or cur["s"]["ai"] == "BloodRaven" else 1   # Act 3's and Blood Raven's read whether it set off
         out("circle", name(e.arg(0)), S32(e.arg(1)), e.arg(2), int((v & 0xff) >= 0x80), ok)
         return ok
     e.hook(0x5df7d0, circle, 3)
@@ -709,12 +709,15 @@ def outcome(s, out):
             if item[4]: to("none")
             elif not item[3] and s["ai"] in ("Terror", "Vampire"): to("idle", s["aidel"])   # flags 0: FUN_005a73e0's think aidel on
         elif k == "circle":
-            if s["ai"] in ACT3_AIS: asks.append((item[2], item[5]))
+            if s["ai"] in ACT3_AIS or s["ai"] == "BloodRaven": asks.append((item[2], item[5]))
             to("circle", item[2], item[4], item[3], item[1])
         elif k == "wander": to("wander", item[1], item[2], item[3])
         elif k == "around":
-            if s["ai"] == "Mephisto": asks.append((item[2], item[5]))
+            if s["ai"] == "Mephisto" or (len(item) > 5 and item[5] is not None): asks.append((item[2], item[5]))   # Blood Raven's (mon_ais_pace.py): where her think reads it
             to("around", item[2], item[3], item[4], item[1])
+        elif k == "home":                                                  # FUN_005dede0 (mon_ais_pace.py): a walk home, asked whether it set off
+            asks.append((0, item[3]))
+            if item[3]: to("home")
         elif k == "pace":
             if item[1]: pace[0] = item[1]
             if item[2]: pace[1] = item[2]

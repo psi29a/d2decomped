@@ -4,12 +4,12 @@ through it, upstream's mon_ais.py); edits neither. Adds scenes and hooks for wha
   Fallen          a unit dying near (FUN_00619790 room scan, FUN_00552f60 by id, FUN_005dc530 distance: all game.exe's own code but the
                   scan and the lookup), so the flee branch (pace 50, back off 12) runs; the case line carries `dying` in an unused stat word
   FallenShaman    unset skill ids made distinct (the first pass's slot labels), Skill1's usable test (FUN_005fd470) true
-  BloodRaven      her home point (kind 10 word, FUN_0058eef0), the walks home / about the target, her flag word
+  BloodRaven      her home point (kind 10 word, FUN_0058eef0), the walks home / about the target (set off or not), her flag word
   Wraith, SkeletonBow, GargoyleTrap, FoulCrowNest   re-run with the labels the first pass's mismatches turned out to be
 
 Labels normalised before the case is written (each a representation difference, stated in the trace): `keep`'s y is the move mode (always 2:
 FUN_005de6d0 pushes 2), which d2d's Think does not carry; the second target is the primary one (d2d feeds it so), so unit foe2 reads foe for
-BloodRaven and SkeletonBow.
+SkeletonBow. Blood Raven's walks home, past 20 off and her circle answer as the scene's moves do: each an ask.
 
     PYTHONPATH=<upstream tools/emu>:tools/emu D2_MPQ_DIR=<dir> python mon_ais_pace.py <ai,ai|all> <cases> <seed> --dump <dir>
     env MAI2_CMD=none1 (leader command none or 1) | two (command 2: the D8 regime) | (unset: as drawn)
@@ -17,6 +17,8 @@ Writes <dir>/mon_ais_pace_cases.inc and mon_ais_pace_names.inc for tests/monster
 import os
 import random
 import sys
+
+from unicorn.x86_const import UC_X86_REG_ESP
 
 import mon_ais as M
 import mon_ais_act1 as A
@@ -104,16 +106,19 @@ def extra_hooks(e):
         if sd.step() & 1: x = -x
         if sd.step() & 1: y = -y
         e.w32(u + 0x20, sd.lo); e.w32(u + 0x24, sd.hi)
-        cur["out"].append(("around", cur["names"].get(e.arg(0)), n, x, y))
-        return 1
+        asked = cur["s"]["ai"] == "BloodRaven" and e.r32(e.mu.reg_read(UC_X86_REG_ESP)) == 0x5e6511   # her walk past 20 off reads the answer; her 5 % one doesn't
+        ok = int(cur["moves"].random() >= cur["s"]["fails"]) if asked else 1
+        cur["out"].append(("around", cur["names"].get(e.arg(0)), n, x, y, ok if asked else None))
+        return ok
     e.hook(0x5df680, around, 2)
     def command_done(e):                                              # FUN_0058ed10: the leader's command is done: later reads find none
         cur["out"].append(("command_done",)); cur["s"]["command"] = None
         return 0
     e.hook(0x58ed10, command_done, 0)
-    def home(e):                                                      # FUN_005dede0(game, unit; x, y): a walk to the home point; set off (d2d's ponytail)
-        cur["out"].append(("home", e.arg(0), e.arg(1)))
-        return 1
+    def home(e):                                                      # FUN_005dede0(game, unit; x, y): a walk to the home point, setting off as the scene's moves do
+        ok = int(cur["moves"].random() >= cur["s"]["fails"])
+        cur["out"].append(("home", e.arg(0), e.arg(1), ok))
+        return ok
     e.hook(0x5dede0, home, 2)
 
 
@@ -126,8 +131,6 @@ def check(e, ai, cases, rng, lines, tally):
         out, ctrl, seed = M.run_game(e, s, M.AIS[ai], random.Random(rng.getrandbits(32)))
         s["command"] = command
         out = [x for x in out if x[0] != "scream"]
-        home = any(x[0] == "home" for x in out)
-        out = [x for x in out if x[0] != "home"]
         s["dying"] = ai == "Fallen" and ("pace", 50, 0) in out                    # the flee branch's pace (0x5f03a8); command_done also comes from a command word that is not 1 (0x5f068b)
         act, pace, effects, asks = M.outcome(s, out)
         if ai == "BloodRaven" and s.get("home_set"): s["free"][0] = s["home_set"]   # the case line carries the home she kept
@@ -135,9 +138,8 @@ def check(e, ai, cases, rng, lines, tally):
         if ai == "BloodRaven" and act[0] == "skill" and act[4] == 1:                  # her raise: a point (unit none); d2d keeps its offset from the target
             fx, fy = s["spots"]["foe"]; act[:] = ["skill", act[1], act[2] - fx, act[3] - fy, 0, act[5], act[6]]
         if ai == "BloodRaven" and act[0] == "circle": act[3] = 0                    # the circle's flag 1 (walk flagged 4): d2d's Think has no field for it
-        if home: act[:] = ["home", 0, 0, 0, 0, act[5], act[6]]
         if act[0] == "keep": act[3] = 0                                       # y is the move mode, always 2 (FUN_005de6d0), d2d's Think has none
-        if ai in ("BloodRaven", "SkeletonBow") and act[4] == 2: act[4] = 0   # the second target is the primary one, as ai.cpp feeds it
+        if ai == "SkeletonBow" and act[4] == 2: act[4] = 0                    # the second target is the primary one, as ai.cpp feeds it
         s["stat"][("mon", 0x2b)] = int(s["dying"])
         lines.append(M.dump_case(s, act, pace, effects, asks, ctrl, seed))
         key = (ai, "dying" if s["dying"] else "-", act[0])
