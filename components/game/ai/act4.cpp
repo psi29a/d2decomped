@@ -97,6 +97,7 @@ struct Act4Ai : ThinkCtx {
     // Diablo's and Baal's (and his clone's): the chooser's inputs, the point
     // bonus past `point_far` (Baal's 0x4b, Diablo's 0x55).
     void chooser(int point_far) {
+        const bool baal_score = point_far == 0x4b;   // FUN_005fbb00 vs Diablo's FUN_005e8530
         input.has_word = monster.has_point; input.word_x = monster.point_x; input.word_y = monster.point_y;
         input.target = true;
         input.players_looked = target->pet || target->of ? 0 : 1;
@@ -107,7 +108,7 @@ struct Act4Ai : ThinkCtx {
         const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
         const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
                               && d2d::rules::point_apart(target_x - point_x, target_y - point_y, (target->size >> 1) + 1) < point_far;
-        if (input.players_looked > 0) input.score = d2d::rules::diablo_score(pick, target->life_pct, input.in_melee, input.line_clear, point_bonus);
+        if (input.players_looked > 0) input.score = d2d::rules::diablo_score(pick, target->life_pct, input.in_melee, input.line_clear, point_bonus, !baal_score);
         input.stuck = level.blocked(unit.x, unit.y, 0x40);
         input.skill_bonus = d2d::rules::monster_skill_level(0, input.difficulty);   // FUN_00573930 +8
         input.in_chaos = level.id == d2d::rules::level_ids::kChaosSanctuary;
@@ -145,6 +146,7 @@ struct Act4Ai : ThinkCtx {
     // with the point bonus at 0x4b.
     void chooser_pick(int point_far) {
         if (!target) return;
+        const bool baal_score = point_far == 0x4b;   // FUN_005fbb00 vs Diablo's FUN_005e8530
         const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
         const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
         const auto value = [&](const Foe& foe) {
@@ -154,7 +156,7 @@ struct Act4Ai : ThinkCtx {
             const bool line = !d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
             const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
                                   && d2d::rules::point_apart(foe_x - point_x, foe_y - point_y, (foe.size >> 1) + 1) < point_far;
-            return d2d::rules::diablo_score(foe.pick, foe.life_pct, reach, line, point_bonus);
+            return d2d::rules::diablo_score(foe.pick, foe.life_pct, reach, line, point_bonus, !baal_score);
         };
         Foe* top = nullptr; int top_score = 0;
         Foe* spare = nullptr; int spare_score = 0;

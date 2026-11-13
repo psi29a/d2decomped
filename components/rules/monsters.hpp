@@ -491,9 +491,11 @@ struct DiabloPick {
 // mask 4) 75, plus 100 when Diablo is past 0x55 from his point and the
 // player inside it (FUN_005dc480), both x 5; (the hands' level x attackrank
 // / 4, state 0xb 200, the max damages / 2) x 2; 300 under 20 % life; all
-// / 22, at least 1.
-inline int diablo_score(const DiabloPick& pick, int life_pct, bool reach, bool line_clear, bool point_bonus) {
-    const int resists = ((pick.damage_resist + pick.magic_resist * 2) * 4 + (reach ? pick.cold_resist : 0) + pick.light_resist + pick.fire_resist) / 15;
+// / 22, at least 1. `cold_in_reach`: false for Baal's own copy (FUN_005fbb00,
+// chooser_pick's point_far 0x4b), which counts cold whether or not the
+// player is in reach (a mismatch traced against stock 1.14d).
+inline int diablo_score(const DiabloPick& pick, int life_pct, bool reach, bool line_clear, bool point_bonus, bool cold_in_reach = true) {
+    const int resists = ((pick.damage_resist + pick.magic_resist * 2) * 4 + (reach || !cold_in_reach ? pick.cold_resist : 0) + pick.light_resist + pick.fire_resist) / 15;
     const int closeness = (reach ? 100 : line_clear ? 75 : 0) + (point_bonus ? 100 : 0);
     const int ranked = (pick.left_level * pick.left_rank + pick.right_level * pick.right_rank) / 4;
     const int score = ((life_pct < 20 ? 100 : 0) * 3 + resists + closeness * 5 + (ranked + (pick.state_b ? 200 : 0) + pick.max_damage / 2) * 2) / 22;
