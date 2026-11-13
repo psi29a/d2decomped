@@ -45,6 +45,18 @@
 
 namespace d2d::game {
 
+namespace {
+
+// A right skill set (FUN_005701b0, from C->S 0x3c's FUN_0054be70 and the
+// weapon switch): any but skill 5 (Left Hand Swing) clears state 0x55
+// (nomanaregen, 0x5701db), the one Prayer's paid pulses set.
+constexpr int kLeftHandSwing = 5;
+void right_skill_set(Fight::Hero& hero, int skill) {
+    if (skill != kLeftHandSwing) hero.no_mana_regen = false;
+}
+
+}  // namespace
+
 auto World::spill_belt(std::uint32_t now_ms) -> void {
         const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls)];
         const int boxes = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))].boxes;
@@ -401,14 +413,18 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             auto& header = actor->character.header;
             if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's Resurrect stays with no set
             header.weapon_set ^= 1;
-            const auto kept = [&](std::uint32_t id, bool left, std::uint32_t current) {
+            // FUN_00647960 on the hands now worn (0x561a1f / 0x561a8e): its status 7 (level 0) or
+            // 2 (the weapon gate, Throw's too: skill_refused) gives way.
+            const auto usable = [&](std::uint32_t id, bool left) {
                 const auto* skill = game_data->skills.get(int(id));
-                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0 ? id : current;
+                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0
+                    && !skill_refused(*game_data, actor->character, int(id));
             };
             std::swap(header.left_skill, header.left_swap);
             std::swap(header.right_skill, header.right_swap);
-            header.left_skill = kept(header.left_skill, true, header.left_swap);
-            header.right_skill = kept(header.right_skill, false, header.right_swap);
+            header.left_skill = usable(header.left_skill, true) ? header.left_skill : header.left_swap;
+            if (usable(header.right_skill, false)) right_skill_set(*actor, int(header.right_skill));   // FUN_005701b0 at 0x561aa9
+            else header.right_skill = header.right_swap;
             const auto* right = game_data->skills.get(int(header.right_skill));
             actor->aura = right && right->aura ? int(header.right_skill) : 0;
             return;
@@ -417,6 +433,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (select->skill == kResurrectSkill && (select->left || players.size() < 2)) return;   // the right button's, in co-op
             if (select->skill == kResurrectSkill && actor->character.header.right_skill != std::uint32_t(kResurrectSkill)) actor->right_before = actor->character.header.right_skill;
             (select->left ? actor->character.header.left_skill : actor->character.header.right_skill) = std::uint32_t(select->skill);
+            if (!select->left) right_skill_set(*actor, select->skill);   // FUN_005701b0 at 0x54bee4
             if (!select->left) if (const auto* skill = game_data->skills.get(select->skill)) actor->aura = skill->aura ? select->skill : 0;
             return;
         }

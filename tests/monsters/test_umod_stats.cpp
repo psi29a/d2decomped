@@ -13,8 +13,8 @@
 //
 // Fields d2d does not model print `*`: armor% (d2d folds it into def, the effective
 // defence; --compare folds game.exe's the same way) and regen (no monster regeneration).
-#include "combat.hpp"
 #include "montypes.hpp"
+#include "rules.hpp"
 #include "uniques.hpp"
 
 #include <algorithm>

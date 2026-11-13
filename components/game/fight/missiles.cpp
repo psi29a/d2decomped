@@ -981,7 +981,8 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
         // FUN_005cf010: a player's aura costs FUN_00644b10 (mana_formula, no
         // minmana floor); with less mana its stats stay 0.
         const int cost = player_cast ? d2d::rules::mana_formula(skill, lvl) : 0;
-        if (values[kMana] < cost) return;
+        // Short of it, nothing heals, so the pulse clears state 0x55 (0x5cf262).
+        if (values[kMana] < cost) { actor->no_mana_regen = false; return; }
         const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
         int changed = 0;   // FUN_005cedc0's count (+0x40): a unit whose life it moved
         for (std::size_t i = 0; i < skill.aurastat.size(); ++i) {
@@ -998,7 +999,10 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
         }
         // Something healed: FUN_0056c110(caster, cost) takes the cost off its
         // mana (there's enough: checked above).
+        // With the cost, state 0x55 (nomanaregen) goes on with it
+        // (FUN_00639db0(caster, 0x55, 1), 0x5cf244), else off (0x5cf265).
         if (cost > 0 && changed > 0) values[kMana] -= cost;
+        if (cost > 0) actor->no_mana_regen = changed > 0;
     }
 
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {

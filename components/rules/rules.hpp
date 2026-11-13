@@ -1642,15 +1642,37 @@ struct ClassGains {
     int mana_regen = 120;                              // ManaRegen (record +0x3a): seconds to fill the mana globe
 };
 
-// The player's mana a frame (FUN_005806f0, 256ths), unless state 0x55
-// (nomanaregen) is on: max mana over ManaRegen x 25 frames (7500 when it's
-// 0), at least 1, times (100 + manarecoverybonus (27)) / 100 (FUN_00483360,
-// truncating); plus
-// manarecovery (26), flat. The caller caps it at what's missing.
-inline std::int64_t mana_per_frame(std::int64_t max_mana, int regen_seconds, int bonus_pct, int flat) {
-    const std::int64_t frames = regen_seconds * 25 != 0 ? regen_seconds * 25 : 7500;
-    const std::int64_t base = std::max<std::int64_t>(max_mana / frames, 1);
-    return base * (100 + bonus_pct) / 100 + flat;
+// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
+// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
+// product wraps); a bigger times over at most times / 16 divides it first,
+// as a bigger value over at most value / 16 does the value (each multiply
+// wrapping); else 64 bits.
+inline int mul_div(int value, int times, int over) {
+    if (over == 0) return 0;
+    if (value <= 0x100000) {
+        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
+        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
+    } else if (over <= value >> 4) {
+        return int(std::uint32_t(value / over) * std::uint32_t(times));
+    }
+    return int(std::int64_t(value) * times / over);
+}
+
+// The player's mana a frame (FUN_005806f0 up to 0x58079e, 256ths), in its
+// 32-bit math: unless state 0x55 (nomanaregen, `no_regen`: 0x580724) is
+// on, the max (FUN_00625d60) over the CharStats ManaRegen byte x 25 frames
+// (7500 when it's 0; idiv), at least 1, then MulDiv(that, 100 +
+// manarecoverybonus (27), 100) (FUN_00483360); plus manarecovery (26),
+// flat, the add wrapping. The caller caps it at what's missing.
+// tools/emu/mana_frame.py runs it against game.exe (tests/test_mana_frame.cpp).
+inline std::int64_t mana_per_frame(std::int64_t max_mana, int regen_seconds, int bonus_pct, int flat, bool no_regen = false) {
+    std::uint32_t amount = 0;
+    if (!no_regen) {
+        const int frames = regen_seconds * 25 != 0 ? regen_seconds * 25 : 7500;
+        const int base = std::max(int(std::uint32_t(max_mana)) / frames, 1);
+        amount = std::uint32_t(mul_div(base, int(std::uint32_t(bonus_pct) + 100u), 100));
+    }
+    return int(amount + std::uint32_t(flat));
 }
 
 // Spends up to n unspent stat points (stat 4) on stat (0 strength, 1
