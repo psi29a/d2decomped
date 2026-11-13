@@ -62,7 +62,9 @@ switch)
         mkdir -p "$build"
         curl -fsSLo "$build/$1.tar.gz" "$2"
         echo "$3  $build/$1.tar.gz" | sha256sum -c --quiet
-        mkdir "$build/$1" && tar -xzf "$build/$1.tar.gz" -C "$build/$1" --strip-components=1
+        # Into .part, then renamed: an interrupted tar leaves no tree a rerun takes as done.
+        rm -rf "$build/$1.part" && mkdir "$build/$1.part"
+        tar -xzf "$build/$1.tar.gz" -C "$build/$1.part" --strip-components=1 && mv "$build/$1.part" "$build/$1"
     }
     if [[ ! -f $deps/lib/libSDL3.a ]]; then
         fetch nx-sdl3-src https://github.com/devkitPro/SDL/archive/c329016c0e338ab4397ad930f83330c9fe058348.tar.gz \
