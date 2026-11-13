@@ -241,7 +241,7 @@ LoD 1.14d:
 0xCC name-field enter marker (0x70b350)
 0xD3 ladder hitbox (0x70b4a0)   ┐
 0xD4 EXPANSION checkbox y=540  ├ inside `if (DAT_007795ec == 1)` branch
-0xD5 (past table, 0x70b500)    ┘   — only registered when expansion is installed
+0xD5 (past table, 0x70b500)    ┘   — only registered in mode 1 (the server list), not by the expansion
 0xBE HARDCORE checkbox y=560   ← THE primary HC render
 0xBD HARDCORE hitbox           ← its label click zone
 0xC3 (hitbox 0x70b1a0)
@@ -266,7 +266,7 @@ Runtime flags used by init:
 |----------------|------------------------------------------------|
 | `DAT_007795d4` | Pointer to "character being created" struct    |
 | `+0x1ef` byte  | D2S Character Status: bit 2=HC, 5=Expansion, 6=Ladder |
-| `DAT_007795ec` | 1 = expansion (LoD) is installed               |
+| `DAT_007795ec` | The menu's mode, 0 to 3 (`FUN_004359d0`), not the expansion: 1 lists characters from a server, the others the save folder ([[char-select]] "Building the list") |
 | `DAT_00779da4` | Non-zero = some LoD sub-mode toggle (guards the alt-load path) |
 | `FUN_00408f20()` | Returns non-zero when expansion mode is active |
 
