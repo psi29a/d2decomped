@@ -30,7 +30,7 @@ inline int automap_cel_group(int cel) {
 }
 
 struct AutomapNode {
-    int cel = 0, x = 0, y = 0, group = -1;   // FUN_00457b00 reads +4 cel, +6 x, +8 y, and the group table at the cel
+    int cel = 0, cell_x = 0, cell_y = 0, group = -1;   // FUN_00457b00 reads +4 cel, +6 x, +8 y, and the group table at the cel
     int balance = 0;                          // +0xa: -1 left deeper, 0, 1 right deeper
     int left = -1, right = -1;                // +0xc / +0x10: node indices, -1 none
 };
@@ -39,9 +39,9 @@ class AutomapTree {
 public:
     // FUN_00457b00: puts the cell in unless it is dropped; true when it went in.
     // `group` is the cel's group (-1 none).
-    bool insert(int cel, int x, int y, int group) {
+    bool insert(int cel, int cell_x, int cell_y, int group) {
         const int made = int(nodes_.size());
-        nodes_.push_back({ cel, x, y, group, 0, -1, -1 });
+        nodes_.push_back({ cel, cell_x, cell_y, group, 0, -1, -1 });
         bool grew = false;
         if (!place(root_, made, grew)) {
             nodes_.pop_back();
@@ -98,8 +98,8 @@ private:
         }
         AutomapNode& fresh = nodes_[std::size_t(made)];
         const AutomapNode& here = nodes_[std::size_t(slot)];
-        int order = fresh.y - here.y;
-        if (order == 0) order = fresh.x - here.x;
+        int order = fresh.cell_y - here.cell_y;
+        if (order == 0) order = fresh.cell_x - here.cell_x;
         if (order == 0) {
             if (fresh.group == -1 || fresh.group == here.group) return false;
             order = fresh.cel - here.cel;

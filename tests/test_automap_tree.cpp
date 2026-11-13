@@ -31,7 +31,7 @@ std::string walks_of(const std::array<d2d::rules::AutomapTree, 4>& trees) {
         for (const auto& node : trees[list].in_order()) {
             if (!first) out += ';';
             first = false;
-            out += std::to_string(node.cel) + ',' + std::to_string(node.x) + ',' + std::to_string(node.y);
+            out += std::to_string(node.cel) + ',' + std::to_string(node.cell_x) + ',' + std::to_string(node.cell_y);
         }
     }
     return out;
@@ -46,10 +46,10 @@ int main() try {
         std::istringstream inserts(run.inserts);
         std::string item;
         while (std::getline(inserts, item, ';')) {
-            int list = 0, cel = 0, x = 0, y = 0;
-            const int fields = std::sscanf(item.c_str(), "%d:%d,%d,%d", &list, &cel, &x, &y);
+            int list = 0, cel = 0, cell_x = 0, cell_y = 0;
+            const int fields = std::sscanf(item.c_str(), "%d:%d,%d,%d", &list, &cel, &cell_x, &cell_y);
             assert(fields == 4);
-            (void)trees[std::size_t(list)].insert(cel, x, y, automap_cel_group(cel));
+            (void)trees[std::size_t(list)].insert(cel, cell_x, cell_y, automap_cel_group(cel));
         }
         const auto got = walks_of(trees);
         if (got != run.walks) std::printf("inserts %s\ngot  %s\nwant %s\n", run.inserts, got.c_str(), run.walks);
