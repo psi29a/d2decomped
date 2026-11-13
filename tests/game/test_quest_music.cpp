@@ -15,10 +15,12 @@
 #include <world.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <string>
 
 using namespace d2d::game;
 
@@ -71,6 +73,10 @@ int main() try {
     const auto& orb = std::get<ev::MusicCue>(world.actor->events[1]);
     assert(raven.sound == data->sound_index.at("music_quest_bloodraven") && raven.jingle_ms == 475 * 40 && raven.back_ms == 800 * 40 && raven.from_block);
     assert(orb.jingle_ms == 0 && orb.back_ms == 350 * 40 && !orb.from_block);
+    // Every jingle's row has a Fade Out, so one still playing at `back`
+    // fades by it (FUN_004ba890); the client's Audio::quest_music_tick.
+    for (const auto& music_row : d2d::rules::kQuestMusic)
+        if (!music_row.jingle.empty()) assert(data->sounds[std::size_t(data->sound_index.at(std::string(music_row.jingle)))].fade_out > 0);
     std::puts("quest music: World::music_cue");
     return 0;
 } catch (const std::exception& error) {

@@ -661,7 +661,9 @@ reference to it that I found). ECX game, EDX the missile unit.
   owner (a pointer comparison at 0x56b8e0); the callback has no test for
   the unit the missile struck. FUN_005ab370's stack argument (the unit
   struck, `ret 4`) is never read. The walk's flag 1 also skips a monster
-  whose MonStats flag 0x1b is set (`FUN_00457490`).
+  whose MonStats flag 0x1b is set (`FUN_00457490`, called at 0x56b97e with
+  EDX 0x1b): the `noaura` column (the loader `FUN_00651210` gives it bit
+  0x1b of record +0xc at 0x651994).
 
 Proven: `tools/emu/hit_fury.py` runs FUN_005ab370, the walk FUN_0056b7e0
 and the callback FUN_005ab2a0 for real over a room of the owner, the unit

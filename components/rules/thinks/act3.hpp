@@ -367,10 +367,9 @@ struct Act3Thinks : Thinker {
     // Skill6; under 15 off, past Normal, rand < 100 / n Skill5; under 2 ×
     // 100 / n Skill4, 3 × Skill2, else Skill1. Then under 50 - hurt % the
     // count restarts (state2 0). 3: under hurt + 80 %, under 80 - hurt % A1,
-    // else Skill3; else circles 3 (can't: wanders 12). 4: about the target 6.
-    // ponytail: about the target always sets off, so its fallback
-    // (FUN_00540e60, keep 12 / 6) isn't taken. The ask trace has no away(6)
-    // on this path, so calling it fails test_monster_ai.
+    // else Skill3; else circles 3 (can't: wanders 12). 4: about the target 6
+    // (FUN_005df530 at 0x5f7e85); can't: keeps 6 off it, 12 at most
+    // (FUN_005de6d0 at 0x5f7ea3); can't: wanders 12 (0x5f7dd1).
     Think mephisto() {
         const int hurt = std::max((100 - input.life_pct) / 5, 0);
         int& phase = *input.state3;
@@ -433,6 +432,10 @@ struct Act3Thinks : Thinker {
             phase = 0;
             set_pace(50, 0);
             auto out = think_wander(rng, 6); out.act = MonAct::around;
+            if (input.otherwise) {
+                input.otherwise->emplace_back([] { return keep_off(12, 6); });
+                input.otherwise->emplace_back([&seed = rng] { return think_wander(seed, 12); });
+            }
             return out;
         }
         }

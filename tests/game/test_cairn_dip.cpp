@@ -22,6 +22,8 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <optional>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -51,25 +53,39 @@ int main() try {
     character.items = made.items;
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 
-    World world(&*data, -1, -1);
-    world.enter(character);
-    populate_level(*data, world.fight.spawning, *stony_field);
-    world.level = stony_field;
-    world.npc_states = npc_start(*stony_field);
-    world.cain.active = true;
-    world.actor->character.items.push_back({ .code = "bkd" });      // the deciphered scroll
-    world.cain.stone_order(world.fight.spawning.quests.low, world.fight.spawning.quests.high);
-    world.actor->events.clear();
-    for (int step = 0; step < 5; ++step) {
-        const auto stone = std::ranges::find(stony_field->npcs, world.cain.order[std::size_t(step)], &Npc::object_id);
-        if (stone == stony_field->npcs.end()) { std::printf("SKIP: Stony Field has no stone %d\n", world.cain.order[std::size_t(step)]); return D2D_TEST_SKIPPED; }
-        assert(world.actor->events.empty());                          // no dip before the fifth
-        world.cain_operate(int(stone - stony_field->npcs.begin()), 1000 + std::uint32_t(step) * 40);
-    }
-    assert(world.cain.stones_done && world.actor->events.size() == 1);
-    const auto& dip = std::get<ev::AmbientDip>(world.actor->events[0]);
+    // The client dips only with a StoneAlpha (object 17) in the rooms near
+    // the player's (FUN_0065a620 at 0x46aefc): `far_off` leaves the player
+    // at the level's far corner from it.
+    const auto open_stones = [&](bool far_off) -> std::optional<std::vector<Event>> {
+        World world(&*data, -1, -1);
+        world.enter(character);
+        populate_level(*data, world.fight.spawning, *stony_field);
+        world.level = stony_field;
+        world.npc_states = npc_start(*stony_field);
+        world.cain.active = true;
+        world.actor->character.items.push_back({ .code = "bkd" });      // the deciphered scroll
+        world.cain.stone_order(world.fight.spawning.quests.low, world.fight.spawning.quests.high);
+        const auto alpha = std::ranges::find(stony_field->npcs, 17, &Npc::object_id);
+        if (alpha == stony_field->npcs.end()) return std::nullopt;
+        const float width = float(stony_field->ds1.width()), height = float(stony_field->ds1.height());
+        world.actor->player.x = far_off ? (alpha->x < width / 2 ? width - 2 : 2) : alpha->x;
+        world.actor->player.y = far_off ? (alpha->y < height / 2 ? height - 2 : 2) : alpha->y;
+        world.actor->events.clear();
+        for (int step = 0; step < 5; ++step) {
+            const auto stone = std::ranges::find(stony_field->npcs, world.cain.order[std::size_t(step)], &Npc::object_id);
+            if (stone == stony_field->npcs.end()) return std::nullopt;
+            assert(world.actor->events.empty());                          // no dip before the fifth
+            world.cain_operate(int(stone - stony_field->npcs.begin()), 1000 + std::uint32_t(step) * 40);
+        }
+        assert(world.cain.stones_done);
+        return world.actor->events;
+    };
+    const auto by_the_stones = open_stones(false), away = open_stones(true);
+    if (!by_the_stones || !away) { std::printf("SKIP: Stony Field lacks a stone\n"); return D2D_TEST_SKIPPED; }
+    assert(by_the_stones->size() == 1 && away->empty());
+    const auto& dip = std::get<ev::AmbientDip>((*by_the_stones)[0]);
     assert(dip.fade_in == 40 && dip.hold == 220 && dip.back == 40 && dip.level == d2d::rules::level_ids::kStonyField);
-    std::printf("OK: the Cairn Stones' dip, in 40, held 220, back 40, in Stony Field\n");
+    std::printf("OK: the Cairn Stones' dip, in 40, held 220, back 40, only near StoneAlpha\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

@@ -388,7 +388,7 @@ struct Audio {
         for (auto* channel : { &ambience, &ambience_old, &rain }) stop(*channel);
         world_paused = false;
         menu_paused = false;                     // left from the game menu: step_ducks fades back up
-        quest_jingle = 0;                        // a quest's jingle and hold end with the game
+        quest_jingle = quest_jingle_playing = 0;                        // a quest's jingle and hold end with the game
         quest_jingle_at = music_held_until = 0;
     }
     // A cinematic over the game: the world's sounds hold until it ends.
@@ -597,10 +597,11 @@ struct Audio {
     // A quest's music sequence (rules::QuestMusic; FUN_004dcd40, run by
     // FUN_004dcaa0): the song fades out by its Fade Out now (FUN_004ba8f0),
     // its next start set to its Block 1 cue or its beginning; the jingle
-    // `jingle_ms` on; no song until `back_ms`, when update starts the level's.
-    // ponytail: the jingle isn't faded at `back_ms` (FUN_004ba890); the
-    // shipped ones have ended by then.
-    int quest_jingle = 0;
+    // `jingle_ms` on; no song until `back_ms`, when update starts the level's
+    // and the jingle, if it still plays, fades out by its own Fade Out
+    // (FUN_004ba890: each playing sound of that row, FUN_004b9ef0(0, +0x40);
+    // a row with no Fade Out plays on).
+    int quest_jingle = 0, quest_jingle_playing = 0;
     std::uint64_t quest_jingle_at = 0, music_held_until = 0;
     void quest_music(const GameData& game_data, int jingle, std::uint64_t now, int jingle_ms, int back_ms, bool from_block) {
         if (back_ms <= 0) { play_sfx(game_data, jingle, float(music_volume) / 100.f, 0); return; }
@@ -619,8 +620,15 @@ struct Audio {
         music_held_until = now + std::uint64_t(back_ms);
     }
     void quest_music_tick(const GameData& game_data, std::uint64_t now) {
-        if (quest_jingle <= 0 || now < quest_jingle_at) return;
-        play_sfx(game_data, std::exchange(quest_jingle, 0), float(music_volume) / 100.f, 0);
+        if (quest_jingle > 0 && now >= quest_jingle_at) {
+            quest_jingle_playing = std::exchange(quest_jingle, 0);
+            play_sfx(game_data, quest_jingle_playing, float(music_volume) / 100.f, 0);
+        }
+        if (quest_jingle_playing <= 0 || quest_jingle > 0 || now < music_held_until) return;
+        const int jingle = std::exchange(quest_jingle_playing, 0);
+        const auto out = std::uint64_t(game_data.sounds[std::size_t(jingle)].fade_out) * kTickMs;
+        for (auto& channel : sfx)
+            if (channel.src && channel.sound == jingle && out > 0) fade(channel, 0.f, out);
     }
     // Where each song picks up (FUN_004dcaa0): every 125 sound ticks (5 s)
     // of play, the next Block cue point past the position — [0, block 1)
@@ -746,6 +754,12 @@ struct Audio {
             channel->fade_t1 = 0;
             if (channel == &music_old) stop(music_old);
             if (channel == &ambience_old) stop(ambience_old);
+        }
+        for (auto& channel : sfx) {              // a quest jingle fading out (quest_music_tick)
+            if (!channel.fade_t1) continue;
+            const float fraction = std::min(1.f, float(now - channel.fade_t0) / float(channel.fade_t1 - channel.fade_t0));
+            if (fraction < 1.f) set_gain(channel, channel.fade_from + (channel.fade_to - channel.fade_from) * fraction);
+            else stop(channel);
         }
         for (auto* channel : { &voice, &ui_sounds, &ambience, &rain, &quake_loop, &music, &music_old }) {
             if (!channel->src) continue;

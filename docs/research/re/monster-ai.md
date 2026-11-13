@@ -286,12 +286,12 @@ Act 3's MonAIs (levels 75..102, same table). Search type in brackets where it is
 | FetishShaman | 65 | FUN_005f9a80 | Inferno (Skill1) when the target's AI distance is under Skill1's *level* (FUN_006442a0) and state 0xc is off, its group told to attack (FUN_0058f730 command 1); a dead fetish (class 0x8d / 0x18c) within aip5 (squared): aip1 % its group sent there (command 14) and Resurrect's sequence (Skill3) when the squared distance is at most aip3 (unsquared in game.exe), else about it 10; else aip4 % circles 4. Other think FUN_005f9950: state 0xc off, toggled back |
 | ZakarumZealot | 48 | FUN_005f6e60 | spares (runs off 8, else wanders 6) a player, or a pet whose owner is one (FUN_0058f090), in act 3 (FUN_006427f0) with quest 0x15 bit 0 (FUN_0065c310); hit under aip3 % life runs off 8 once (state2 5); on 0x40 circles 4 / walks in; out of melee aip4 % runs in (mode RN, FUN_005ded20), else walks; in melee aip2 % A2 else A1, after a swing aip1 % on, else 80 % stands 10, 20 % circles 4. Pace Run / Velocity |
 | ZakarumPriest | 49 | FUN_005f72d0 | hit or in melee under 33 % life, Skill3 (teleport) every aip5 × 4 frames to a point past the target (×2, ×4 in melee); in melee aip1 % A1; Skill1 (heal) 25 % at the last zakarum (0xeb / 0xee, friendly, not converted) under 61 % within aip6 in FUN_005dd0b0 mode 1 order (FUN_005f7240, bugs.md #22); no line to the target (FUN_005dd290, mask 4): aip1 % then aip2 % Skill4 (cooldown aip5); a line: aip4 %, Skill4, then Skill2 aip3 % (cooldown 20); else 30 % circles 4, stands 20 |
-| Mephisto | 50 | FUN_005f78b0 | hurt = (100 - life %) / 5; a case kept in state3 (jump table 0x5f7ef0): 1 runs off 8 (in melee Skill3), 2 casts by his chooser (FUN_005f77c0; bugs.md #21) over the skills set in a row, past Normal Skill6 at a unit with no line or past 30, Skill5 within 15, else by thirds Skill4 / Skill2 / Skill1, every other one circling 3; 3 A1 / Skill3 / circles 3; 4 about the target 6 |
+| Mephisto | 50 | FUN_005f78b0 | hurt = (100 - life %) / 5; a case kept in state3 (jump table 0x5f7ef0): 1 runs off 8 (in melee Skill3), 2 casts by his chooser (FUN_005f77c0; bugs.md #21) over the skills set in a row, past Normal Skill6 at a unit with no line or past 30, Skill5 within 15, else by thirds Skill4 / Skill2 / Skill1, every other one circling 3; 3 A1 / Skill3 / circles 3; 4 about the target 6 (`FUN_005df530` at 0x5f7e85), and when that can't set off (0x5f7e8a) the think event is dropped (`FUN_00540e60(2, 0)`) and he keeps 6 off it, 12 at most (`FUN_005de6d0` at 0x5f7ea3), then (0x5f7dc3) wanders 12 (`FUN_005de200`) |
 | HighPriest | 85 | FUN_005e0490 | the Council: state 0 picks Skill2 at the weakest ally (itself too) under 75 % within 50 (FUN_005e0430: <= 0x4b and under its best, which starts at 0x4b), Skill1 at a corner 5 off the target (FUN_00472210, 0x6e337c), S1 within MissS1's Missiles.txt Range - 2 (FUN_0046ace0 +0x96), else circles 3 / approaches 6; state 1 shoots, stands, wanders 12 or walks in |
 | Hydra | 86 [2] | FUN_005e9e60 | past its end frame (AI control +0x14) gone (FUN_005ddfc0); within 25, 60 % Skill1; else stands 10 |
 | FetishBlowgun | 96 | FUN_005e1250 | its group's command (1 A1 at the unit, 14 a walk to it, FUN_00552f60); past aip1 about the target 6; else aip2 % breaks off (state 2: backs off 14, or 20 % circles 4); shoots its second target rand(3) + 3 thinks (none: circles 4), then circles 6 |
 
-Checked: `tools/emu/mon_ais.py` (ACT3_AIS), 5000 runs each, seed 7: `tests/mon_ais3_cases.inc`, `test_monsters`. Their inputs: FUN_005415a0 (next think event), the group leader's mode, FUN_00552f60, Skill1's level (FUN_006442a0), state 0xc, FUN_0064cb30, the zealots' spare (player / pet, act, quest bit), FUN_005dd290 / FUN_00622aa0 (line, mask 4), MissS1's range, Skill6..8, Mephisto's chooser's search; a circle (FUN_005df7d0) says whether it set off.
+Checked: `tools/emu/mon_ais.py` (ACT3_AIS), 5000 runs each, seed 7: `tests/mon_ais3_cases.inc`, `test_monsters`. Mephisto's lines are `mon_ais.py Mephisto 5000 7 --dump`'s (2026-11-13): there his about-walk and keep-walk answer as the scene's moves do, each an ask the test's next act follows (`ThinkIn::otherwise`). Their inputs: FUN_005415a0 (next think event), the group leader's mode, FUN_00552f60, Skill1's level (FUN_006442a0), state 0xc, FUN_0064cb30, the zealots' spare (player / pet, act, quest bit), FUN_005dd290 / FUN_00622aa0 (line, mask 4), MissS1's range, Skill6..8, Mephisto's chooser's search; a circle (FUN_005df7d0) says whether it set off.
 Submerge (srvstfunc 51, FUN_005cc1d0) clears unit flags 0xe; Emerge (52, FUN_005cc220) sets them: d2d `Monster::buried`.
 d2d (`ai.cpp`): a think always has a target; no pending think event is seen; command 14 isn't kept. The breath (95, FUN_005cc240 / FUN_005cc4e0): state 0xc and a flame every calc3 frames for calc2 (the fetish shaman's Inferno: 5 over 15). Each flame lasts calc1 frames, under 1 its Missiles.txt Param2 (row +0x3c) + lvl - 1, clamped 1..255 (FUN_005cc2e0, also DiabLight's via FUN_005cc690; it sets the animation rate to AnimLen (+0x178) << 8 / that, not ported): Fetish Inferno 7 + lvl - 1, Baal Inferno 12 + lvl - 1, where d2d used Range (30, 2048). Re-check: `tools/emu`, `missiles.Game()`, the record at `[[0x744304] + 0xb64] + 144 * 0x1a4`. MonFrenzy (109): a hit puts its state on (FUN_005d8c70: auralen frames, charges up to its level as the aurastats' level: velocity, attack and anim rate, `Monster::anim_pct`). The wisps' search: its room or its near list (FUN_0065a6b0, bugs.md #23). Plain casts run at any mode's action frame (FUN_0056f7f0): scattered bolts (17), missile at target (28), breath (95), Bestow / ZakarumHeal (96), MonTeleport (98, FUN_005ccc80: the free spot nearest the point), the poison nova (99, FUN_005ccd10), Hydra (144: three hydra1, Param1 frames); A wisp's SC fires MissC with its SC element. The wisps' blessing: `Fight::wisp_blessing` into the loot's magic find.
 - **Idle** (MonAI row 1, `{0, 0, FUN_005b0cd0, 0}`: search type 0, no init): the cow, chickens, rats, birds, the window / door / barricade units and the like. The think stands 200 frames (FUN_005de080(0xc8)) when the unit has a room (FUN_00620bb0); nothing else. The driver's first step still runs (stun 3, doors, FUN_005b0ff0's follow of the unit at AI control +0x0c). d2d: `monster_update`'s Idle branch.
@@ -575,6 +575,43 @@ c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-countess-
 build/ai-countess-firewall/cases > build/ai-countess-firewall/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cases build/ai-countess-firewall/cases.txt --exe "$GAME_EXE"
 ```
+
+Her think itself (`FUN_005e5c50`) walks home at three places (`FUN_005dede0`
+at 0x5e5ded, the one after the target's room test, and 0x5e5f51). Each
+returns when the walk set off; when it didn't, the think event is dropped
+(`FUN_00540e60(2, 0)`) and the think goes on down its list: the next room
+test, the 40 from home test, then the firewall and the roll. d2d's
+`countess_think` does that through `ThinkIn::otherwise` (`CountessIn::stuck`).
+`tools/emu/ai_countess_home.py` runs the think on 320 scenes (rooms, at
+home, over 40 off, the walk setting off or not, a firewall or not, melee,
+four seeds; every callee but the roll hooked) and dumps
+`tests/countess_home_cases.inc`, which `test_monster_thinks` checks act and
+seed against:
+
+```sh
+cd tools/emu && uv run python ai_countess_home.py --dump ../../tests/countess_home_cases.inc
+```
+
+Blood Raven's think (`FUN_005e6320`) reads the same answer at five walks:
+home when she or the target is 50 off it (`FUN_005dede0` at 0x5e645b), home
+again while her flag is set and she's over 5 off (0x5e64ac), the walk to a
+spot about the target past 20 off (`FUN_005df680` at 0x5e650c), the circle
+(`FUN_005df7d0(4, 1)` at 0x5e6765) and the running back-off (`FUN_005df140`
+at 0x5e67d0). Each one
+that can't set off drops the think event (`FUN_00540e60(2, 0)`) and the
+think goes on from the next test, the distance halved (12 at least) once
+she has tried to close. Her 5 % walk 12 about the target (0x5e6692) returns
+either way. Her strike is at the second target (`FUN_005ddc30` at 0x5e66ac); with none she
+circles. `tools/emu/mon_ais_pace.py` now answers those walks as the scene's
+moves do and keeps the second target as unit 2; her 120 lines in
+`tests/mon_ais_pace_cases.inc` are
+
+```sh
+cd tools/emu && uv run python mon_ais_pace.py BloodRaven 120 20261102 --dump <dir>
+```
+
+put in place of the old ones (the other thinks' lines are as they were; a
+further 3,000 at seed 99 passed `test_monster_ai` and were not kept).
 
 ## Act 5's monster skills (traced 2026-10-24)
 

@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <functional>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -297,6 +298,7 @@ int main() try {
         int back = 0, raised = 0, raven_pace = 0;
         state = 0;
         think_in = { .dist = 46, .skill = { true, true }, .state = &state, .command = &back, .state2 = &raised, .pace = &raven_pace };
+        think_in.second = true;                                                       // a second target to strike (FUN_005ddc30): with none she circles
         roll = Rng{ 5 };
         assert(mon_think("BloodRaven", think_in, roll, no_away).n == 5 && steps(5, roll) == 0 && raven_pace == 0);
         think_in.dist = 10; think_in.home_dist = 50;                                  // her own distance 50: not past it
@@ -389,6 +391,31 @@ int main() try {
         assert(countess_think(think_in, {}, path, roll).act == MonAct::point);
         think_in.home_dist = 41;
         assert(countess_think(think_in, {}, path, roll).act == MonAct::home);
+        // Against game.exe's own (tools/emu/ai_countess_home.py): a walk home
+        // that can't set off goes on down her list (ThinkIn::otherwise).
+        static constexpr const char* kCountess[] = {
+#include "countess_home_cases.inc"
+        };
+        for (const char* line : kCountess) {
+            std::istringstream fields(line);
+            int away = 0, target_away = 0, at_home = 0, home_dist = 0, walks = 0, fires = 0, melee = 0, asked = 0, want_n = 0;
+            std::uint32_t seed_low = 0, seed_high = 0, after_low = 0, after_high = 0;
+            std::string bar, want_act;
+            fields >> away >> target_away >> at_home >> home_dist >> walks >> fires >> melee >> seed_low >> seed_high >> bar >> asked >> want_act >> want_n >> after_low >> after_high;
+            assert(fields && bar == "|");
+            const std::pair<int, int> point[] = { { 1, 2 } };
+            int index = fires ? 0 : 1, last = 0;
+            std::vector<std::function<Think()>> otherwise;
+            ThinkIn scene{ .aip = { 40, 7, 30 }, .in_melee = melee != 0, .dist = 10, .state = &index, .frame = 0, .state2 = &last };
+            scene.home_dist = home_dist; scene.otherwise = &otherwise;
+            Rng seed;
+            seed.low = seed_low; seed.high = seed_high;
+            auto act = countess_think(scene, { .away = away != 0, .target_away = target_away != 0, .at_home = at_home != 0 }, point, seed);
+            assert((act.act == MonAct::home) == (asked != 0));
+            if (act.act == MonAct::home && !walks) { assert(otherwise.size() == 1); act = otherwise[0](); assert(act.act != MonAct::home); }
+            const std::string_view got = act.act == MonAct::home ? "home" : act.act == MonAct::idle ? "idle" : act.act == MonAct::a1 ? "a1" : act.act == MonAct::run ? "run" : act.act == MonAct::point ? "point" : "?";
+            assert(got == want_act && (got != "idle" || act.n == want_n) && seed.low == after_low && seed.high == after_high);
+        }
         assert(d2d::rules::monster_skill_level(10, 2) == 17);
     }
     {   // The palace guard (MonAI JarJar, FUN_005e7590): home, back to it, aside 3 north.
