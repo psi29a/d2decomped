@@ -40,6 +40,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -58,6 +59,7 @@ def main():
     state = {"weak": 0, "near": 0}
 
     def search(current):
+        """Hook: fill the search record with the scripted weak/near units."""
         record = current.arg(0)
         current.w32(record + 0x0C, weak_unit if state["weak"] else 0)
         current.w32(record + 0x14, near_unit if state["near"] else 0)

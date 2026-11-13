@@ -17,6 +17,7 @@ GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 
 
 def cpp():
+    """Build the clear-line variant of ai_baal_blocked_choice.CPP."""
     source = ai_baal_blocked_choice.CPP
     replacements = (
         ("input.reach = false; input.line_clear = false;", "input.reach = false; input.line_clear = true;"),
@@ -30,6 +31,7 @@ def cpp():
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -52,6 +54,7 @@ def main():
     machine.hook(0x620BB0, lambda current: 0, 1)
 
     def difficulty(current):
+        """Hook: feed the scripted difficulty into the think's AI params."""
         current.w32(current.mu.reg_read(UC_X86_REG_EDX) + 0x0C, state["difficulty"])
         return 0
 

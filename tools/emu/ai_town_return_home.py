@@ -29,6 +29,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -49,6 +50,7 @@ def main():
     machine.hook(0x58EFA0, lambda current: command, 2)
 
     def stand(current):
+        """Hook: record a stand action, asserting its fixed 10-frame duration."""
         if current.arg(0) != 10:
             raise AssertionError("unexpected stand duration")
         state["stands"] += 1

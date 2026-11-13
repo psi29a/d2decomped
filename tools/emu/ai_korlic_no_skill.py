@@ -36,6 +36,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -59,18 +60,22 @@ def main():
     machine.hook(0x6416D0, lambda current: 10, 2)
 
     def stand(current):
+        """Hook: record a stand action and its frame count."""
         state["action"], state["wait"] = 1, current.arg(0)
         return 0
 
     def direct(current):
+        """Hook: record a direct (chase) action."""
         state["action"] = 2
         return 1
 
     def wait(current):
+        """Hook: record the wait-frame argument."""
         state["wait"] = current.arg(0)
         return 0
 
     def attack(current):
+        """Hook: record an attack action and its kind."""
         state["action"] = current.arg(0)
         return 1
 

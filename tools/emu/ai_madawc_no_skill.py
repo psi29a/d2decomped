@@ -37,6 +37,7 @@ int main() {
 
 
 def main():
+    """Emit --cpp cases, or compare --cases against --exe and report mismatches."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpp", action="store_true")
     parser.add_argument("--cases", type=Path)
@@ -60,14 +61,17 @@ def main():
     machine.hook(0x6416D0, lambda current: state["distance"], 2)
 
     def stand(current):
+        """Hook: record a stand action and its frame count."""
         state["action"], state["value"] = 1, current.arg(0)
         return 0
 
     def approach(current):
+        """Hook: record an approach action and its byte argument."""
         state["action"], state["value"] = 2, current.arg(1) & 0xFF
         return 1
 
     def attack(current):
+        """Hook: record an attack action and its kind."""
         state["action"] = current.arg(0)
         return 1
 
