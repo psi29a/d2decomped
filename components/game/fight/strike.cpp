@@ -243,9 +243,9 @@ auto Fight::calc_env() -> d2d::rules::CalcEnv {
     }
 
 auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, false); }
-auto Fight::enemy_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, true); }
+auto Fight::enemy_auras(const Monster& monster) const -> std::vector<AuraOn> { return auras_at(monster.unit.x, monster.unit.y, true, &monster); }
 
-auto Fight::auras_at(float x, float y, bool enemy) const -> std::vector<AuraOn> {
+auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -> std::vector<AuraOn> {
         using namespace d2d::d2s;
         std::vector<AuraOn> out;
         const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv env, float from_x, float from_y) {
@@ -254,6 +254,7 @@ auto Fight::auras_at(float x, float y, bool enemy) const -> std::vector<AuraOn> 
                                     : skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura;
             if (!kind || lvl < 1) return;
             if (std::hypot(from_x - x, from_y - y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, env, skill->id, lvl))) return;
+            if (enemy && taker && !aura_takes(*skill, *taker, from_x, from_y)) return;
             out.push_back({ skill, lvl, std::move(env) });
         };
         const auto no_skills = [](int) { return 0; };

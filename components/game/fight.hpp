@@ -862,10 +862,15 @@ struct Fight {
     // subtiles of its holder, at the holder's level and calc env.
     struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
     [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
-    // The enemy auras (do 66, Holy Freeze's 81) over (x, y) cells the same
-    // way: the player's and the merc's (an Act 2 merc's Holy Freeze).
-    [[nodiscard]] std::vector<AuraOn> enemy_auras(float x, float y) const;
-    [[nodiscard]] std::vector<AuraOn> auras_at(float x, float y, bool enemy) const;
+    // The enemy auras (do 66, Holy Freeze's 81) over the monster the same
+    // way: the player's and the merc's (an Act 2 merc's Holy Freeze), each
+    // only when its aurafilter takes the monster from its holder's spot
+    // (FUN_0056b7e0 runs the aura's callback, its state and aurastats, only
+    // on a unit FUN_0056b3e0 takes): none behind a wall for 0x200, none in
+    // town, Holy Freeze's slow not on a prime evil.
+    [[nodiscard]] std::vector<AuraOn> enemy_auras(const Monster& monster) const;
+    // `taker`: for an enemy aura, the monster its filter must take.
+    [[nodiscard]] std::vector<AuraOn> auras_at(float x, float y, bool enemy, const Monster* taker = nullptr) const;
     // An enemy aura's pulse (do 66 / 81 with an EType): its element at every
     // live monster within its aurarange of (x, y), struck by `striker`.
     void enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float x, float y, const std::array<int, 4>& pierce, int striker, std::uint32_t now_ms);
@@ -1110,8 +1115,9 @@ struct Fight {
     // -> FUN_0056b3e0, aura_takes: Sanctuary undead only, Holy Freeze no
     // prime evil) with the skill's element (FUN_0056e0c0, the mastery in;
     // Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
-    // target state (+0x82) and target_of applies them while the monster is
-    // in range.
+    // target state (+0x82) and target_of (and monster_states, Holy Freeze's
+    // slow) applies them while the monster is in range and its aurafilter
+    // takes it (enemy_auras).
     // ponytail: perdelay taken as ticks (its reader isn't traced);
     // Sanctuary and Redemption's own callbacks aren't built; Sanctuary's
     // mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
