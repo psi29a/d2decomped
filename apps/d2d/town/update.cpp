@@ -471,9 +471,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // The inventory's and the character panel's close buttons (buysellbtn
         // 10, 11 held): pressed, then let go over it, shuts the panel
         // (FUN_0048edf0 at W - 80 - 0x12e, H - 0x7c; FUN_004a7d00 at 80 + 0x80, H - 0x78).
+        // The press stays the UI's: dragged off the panel, it walks nowhere.
         auto close_button = [&](bool& down, bool& open, int left, int bottom) {
             const bool over = mouse.x >= left && mouse.x < left + 0x20 && mouse.y > bottom - 0x20 && mouse.y <= bottom;
-            if (mouse.press_this_frame && over) { down = true; mouse.press_this_frame = false; }
+            if (mouse.press_this_frame && over) { down = true; press_on_ui = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && down) { down = false; if (over) open = false; mouse.release_this_frame = false; }
         };
         if (inv_open && !held) {
@@ -517,7 +518,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (tree_open && !held) {
             const auto close = skill_tree_close(character.character_class, tree_tab);
             const bool over = close.contains(mouse.x, mouse.y);
-            if (mouse.press_this_frame && over) { tree_close_down = true; mouse.press_this_frame = false; }
+            if (mouse.press_this_frame && over) { tree_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && tree_close_down) {
                 tree_close_down = false;
                 if (over) tree_open = false;
