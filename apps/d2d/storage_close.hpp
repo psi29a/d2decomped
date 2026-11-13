@@ -41,6 +41,19 @@ inline constexpr int kStoragePanelX = 80, kStoragePanelFoot = 540;
     return mouse_x > spot.left && mouse_x < spot.left + 0x28 && mouse_y > spot.bottom - 0x23 && mouse_y < spot.bottom + 5;
 }
 
+// The Cube's close button (FUN_0048edf0 state 0xe): x + 0x113, bottom
+// foot - 0x41. A press over it holds it (FUN_004927c0: 0x7bce40, frame
+// 11), a release over it shuts the Cube (FUN_0048a190 -> FUN_0048a050:
+// UI 0x1a, and C->S 0x4f {0x17} once), a hand holding an item or not.
+[[nodiscard]] constexpr StorageClose cube_close(int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
+    return { panel_x + 0x113, foot - 0x41 };
+}
+// Over it (FUN_00489fb0), every edge excluded: x + 0x113 .. x + 0x13b,
+// foot - 100 .. foot - 0x3c. Oracle: tools/emu/storage_close.py.
+[[nodiscard]] constexpr bool over_cube_close(int mouse_x, int mouse_y, int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
+    return mouse_x > panel_x + 0x113 && mouse_x < panel_x + 0x13b && mouse_y > foot - 100 && mouse_y < foot - 0x3c;
+}
+
 // The UIs the panel keys and the mini-panel's buttons open.
 inline constexpr int kUiInventory = 1, kUiCharacter = 2, kUiSkillTree = 4;
 // Does game.exe let that panel open with the stash, the Cube or a store up?

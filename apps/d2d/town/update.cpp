@@ -502,6 +502,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 mouse.release_this_frame = false;
             }
         }
+        // The Cube's, the same way (a joined game's host hears 0x4f 0x17: net.cpp).
+        if (!cube_open) cube_close_down = false;
+        else {
+            const bool over = d2d::client::over_cube_close(mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { cube_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && cube_close_down) {
+                cube_close_down = false;
+                if (over) cube_open = inv_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
             const auto close = skill_tree_close(character.character_class, tree_tab);
