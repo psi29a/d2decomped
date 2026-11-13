@@ -211,10 +211,12 @@ on its level (FUN_005404f0), 1 without a party.
    the character 6..10+ above 207 / 159 / 110 / 61 / 13 at 0x6e1668, the
    monster 6..10+ above 225 / 174 / 92 / 38 / 5 at 0x6e1694, or clvl / mlvl
    from clvl 25); Experience.txt's ExpRatio for clvl >> the MaxLvl row's
-   (FUN_0057e390); + stat 0x55 % (FUN_00483360, the truncating MulDiv with
-   shortcuts: rules::scale); a merc's capped at its level's span / 64
-   (FUN_0057e3f0). d2d: rules::kill_award, checked against game.exe by
-   tools/emu/kill_exp.py.
+   (FUN_0057e390, rules::exp_ratio_apply, checked against game.exe's own
+   ratio and shift by tools/emu/xp_ratio.py); + stat 0x55 %
+   (FUN_00483360, the truncating MulDiv with shortcuts: rules::scale); a
+   merc's capped at its level's span / 64 (FUN_0057e3f0). d2d:
+   rules::kill_award, its level-difference step checked against game.exe
+   by tools/emu/kill_exp.py.
 4. A party: FUN_0057e6c0.
 
 ### FUN_0057e6c0

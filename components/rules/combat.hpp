@@ -989,18 +989,24 @@ inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
     return factor == 256 ? exp : scale(exp, factor, 256);
 }
 
+// A kill award's ExpRatio step (FUN_0057e390): `award` unapplied outside
+// `shift` 1..31 or at 0 or less; otherwise (award >> shift) x ratio when
+// award x ratio would overflow INT32_MAX, else award x ratio >> shift.
+// Oracled bit-for-bit (game.exe's own ratio and shift, from Experience.txt
+// through TXT_Experience_GetExpRatio, FUN_00613e60): tools/emu/xp_ratio.py.
+inline std::int64_t exp_ratio_apply(std::int64_t award, int ratio, int shift) {
+    if (award <= 0 || shift < 1 || shift > 31) return award;
+    return award > (0x7fffffff >> (((ratio >> shift) + shift) & 31)) ? (award >> shift) * ratio : award * ratio >> shift;
+}
+
 // What a kill gives a unit of level `clvl` (FUN_0057e480): 1 for a kill
 // worth none, 0 at `max_level` (Experience.txt MaxLvl); else kill_exp, then
-// the level's ExpRatio (`ratios`, by level) >> `shift` (the MaxLvl row's
-// ExpRatio, FUN_0057e390: (exp >> shift) x ratio where exp x ratio would
-// overflow), then + item_addexperience % of that.
+// the level's ExpRatio (`ratios`, by level) through exp_ratio_apply, then
+// + item_addexperience % of that.
 inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<const int> ratios, int shift, int max_level) {
     if (exp < 1) return 1;
     if (clvl >= max_level) return 0;
-    auto award = int(kill_exp(exp, clvl, mlvl));
-    const int ratio = clvl >= 1 && std::size_t(clvl) < ratios.size() ? ratios[std::size_t(clvl)] : 0;
-    if (award > 0 && shift >= 1 && shift <= 31)
-        award = award > (0x7fffffff >> (((ratio >> shift) + shift) & 31)) ? (award >> shift) * ratio : award * ratio >> shift;
+    auto award = int(exp_ratio_apply(kill_exp(exp, clvl, mlvl), clvl >= 1 && std::size_t(clvl) < ratios.size() ? ratios[std::size_t(clvl)] : 0, shift));
     if (add_pct != 0) award += scale(award, add_pct, 100);
     return award;
 }

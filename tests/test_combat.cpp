@@ -27,6 +27,7 @@
 
 using namespace d2d::rules;
 
+// Runs every case below in order, or one oracle-dump mode per its first argument (--walk-rates, --get-hit, ...).
 int main(int argc, char** argv) try {
     // `--walk-rates`: the walk / run animation rate at every walk % 0..400,
     // as tools/emu/walk_rates.py prints game.exe's (`mode percent rate`).
@@ -186,6 +187,12 @@ int main(int argc, char** argv) try {
     for (const auto& [exp, clvl, mlvl, award] : std::to_array<std::array<int, 4>>({ { 1950, 48, 54, 1733 }, { 537, 61, 34, 27 }, { 3007937, 70, 78, 2699410 },
                                                                                    { 1471826, 75, 30, 74737 }, { 2188, 9, 62, 42 }, { 1741519, 3, 49, 34010 }, { 1056068, 20, 28, 379500 } }))
         assert(kill_exp(exp, clvl, mlvl) == award);
+    // FUN_0057e390's ratio/shift step, game.exe's own ratio and shift (tools/emu/xp_ratio.py 40 3):
+    // ratio shift award result, both branches (overflow and not), ratio 1024 (no-op), 0 and a negative award.
+    for (const auto& [ratio, shift, award, result] : std::to_array<std::array<long long, 4>>({ { 1024, 10, 4459, 4459 }, { 35, 10, 1796287291, 61396510 },
+                                                                                                { 1024, 10, 1543662609, 1543662592 }, { 592, 10, 0, 0 }, { 1024, 10, -2876, -2876 },
+                                                                                                { 448, 10, 1089296009, 476566720 }, { 352, 10, 4582, 1575 }, { 544, 10, 1092, 580 } }))
+        assert(exp_ratio_apply(award, int(ratio), int(shift)) == result);
     // FUN_0057e480: ExpRatio past 69 (976 at 70, >> 10), item_addexperience %, 1 for none, 0 at the cap.
     const std::vector<int> ratios(100, 1024);
     auto ratio70 = ratios; ratio70[70] = 976;
