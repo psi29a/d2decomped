@@ -229,8 +229,9 @@ those helpers are not established by this check.
   (Decrepify) in Sk1mode at the target unless he's in its aurastate
   (+0x80) or the target in its auratargetstate (+0x82), on seed(100) <
   aip1 (`LAB_005ef4fc`); else stands 10.
-- BaalToStairs (MonAI 138, `FUN_005ef620`): object 563 within 25, walked
-  at; within aip1 gone in (`FUN_0058e600`: +0x86, log 3).
+- BaalToStairs (MonAI 138, `FUN_005ef620`): object 563 within 25 inclusive
+  (`FUN_005ef5e0`: `tools/emu/ai_baal_portal_probe.py`, traced against
+  stock 1.14d), walked at; within aip1 gone in (`FUN_0058e600`: +0x86, log 3).
 - BaalTaunt (MonAI 136, `FUN_005ef710`; monster 545, a MonPreset of act 5):
   a target in mode 1 (a player or monster standing) counts up +0x14; past
   aip2 (10) it's 0 again and Skill1 Baal Taunt (284) goes at it in A1
