@@ -298,6 +298,21 @@ int main() try {
         world.actor->aura_next = 0;
         const auto kept_levels = std::move(world.fight.skill_level);
         world.fight.skill_level = [](int) { return 5; };                   // a barbarian has none
+        // Out of town (its aurafilter 0x4a283 passes over a town room, 0x2000), on the Blood Moor
+        // where six subtiles in a row are clear of mask 4 (the line, 0x200, to the monster a cell east).
+        const Level* kept_level = world.level;
+        const float kept_x = world.actor->player.x, kept_y = world.actor->player.y;
+        const auto* field = data->level(d2d::rules::level_ids::kBloodMoor);
+        assert(field);
+        bool placed = false;
+        for (int at_y = 0; at_y < field->ds1.height() * 5 && !placed; ++at_y)
+            for (int at_x = 0; at_x + 5 < field->ds1.width() * 5 && !placed; ++at_x) {
+                bool clear = true;
+                for (int step = 0; step <= 5 && clear; ++step) clear = !field->blocked_here((float(at_x + step) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04);
+                if (clear) { world.actor->player.x = (float(at_x) + 0.5f) / 5; world.actor->player.y = (float(at_y) + 0.5f) / 5; placed = true; }
+            }
+        assert(placed);
+        world.level = field;
         d2d::rules::Rng make_rng{ 3 };
         Monster frozen = make_monster(*data, int(zombie_row->second), world.actor->player.x + 1, world.actor->player.y, make_rng, 0);
         frozen.id = 0x7ffff3;
@@ -312,6 +327,8 @@ int main() try {
         for (int draw = 0; draw < 8 && replay.low != pulsed.seed.low; ++draw) last = replay.next();
         assert(replay.low == pulsed.seed.low && replay.low != before.low && pulsed.shatter == (last % 100 < 20));
         world.fight.monsters.pop_back();
+        world.level = kept_level;
+        world.actor->player.x = kept_x; world.actor->player.y = kept_y;
         world.actor->aura = 0;
         world.fight.skill_level = kept_levels;
         std::printf("OK: a chill rolls shatter on the monster's seed, Holy Freeze again after its hit\n");

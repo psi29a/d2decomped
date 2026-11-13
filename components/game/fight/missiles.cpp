@@ -943,9 +943,11 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk skips only the owner, so the unit
                 // struck gets one too; its filter is the aurafilter, else 0xa783 (tools/emu/hit_fury.py).
                 // Handed 1 as here, the walk passes a monster with MonStats noaura (flag 0x1b: 0x56b979).
+                // ponytail: a missile caster with 0x8000 is first swapped for FUN_00552fd0's unit, which isn't
+                // traced, so the default's line (0x200) runs from the missile; the 1.14d row's 0xa583 has none.
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (monsters[j].targetable() && filter_takes(filter, monsters[j]) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
+                    if (monsters[j].targetable() && filter_takes(filter, monsters[j], missile.x, missile.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }
@@ -1058,24 +1060,36 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (aura_takes(skill, monsters[i]) && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
+            if (aura_takes(skill, monsters[i], x, y) && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
     }
 
-auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool { return filter_takes(skill.aura_filter, monster); }
+auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const -> bool {
+        return filter_takes(skill.aura_filter, monster, from_x, from_y);
+    }
 
-auto Fight::filter_takes(std::uint32_t filter, const Monster& monster) const -> bool {
+auto Fight::filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const -> bool {
         if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-        return d2d::rules::aura_walk_takes(filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
-                                                                  .prime_evil = type_info.prime_evil, .ally = false });
+        const bool npc = std::size_t(monster.type) < game_data->mon_is_npc.size() && game_data->mon_is_npc[std::size_t(monster.type)];
+        // The line (0x200) only when asked: FUN_0064e260 from the walk's unit to it, mask 4, as in_reach's.
+        auto clear_line = [&] {
+            if ((filter & d2d::rules::aura_filter::kClearLine) == 0 || !level) return true;
+            auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+            const auto wall = [this](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+            return !d2d::rules::sight_blocked(sub(from_x), sub(from_y), 0, sub(monster.unit.x), sub(monster.unit.y), 0, wall);
+        };
+        return d2d::rules::aura_walk_takes(filter, { .dead = !monster.alive() && monster.mode == "DD", .dying = !monster.alive() && monster.mode != "DD",
+                                                     .undead = type_info.undead, .boss = type_info.boss_column, .prime_evil = type_info.prime_evil,
+                                                     .ally = false, .npc = npc, .unit_flag_4 = monster.targetable(), .unit_flag_8 = monster.targetable(),
+                                                     .in_town = in_town(level), .clear_line = clear_line() });
     }
 
 auto Fight::in_aura(const Monster& monster) -> bool {
         const auto* skill = game_data->skills.get(actor->aura);
-        if (!skill || !skill->aura || !aura_takes(*skill, monster)) return false;
+        if (!skill || !skill->aura || !aura_takes(*skill, monster, actor->player.x, actor->player.y)) return false;
         const int radius = d2d::rules::eval_calc(game_data->skills, skill->aurarange, calc_env(), skill->id, skill_level ? skill_level(actor->aura) : 1);
         return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius);
     }
