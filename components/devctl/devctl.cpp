@@ -23,7 +23,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
-#ifndef __vita__   // no Unix sockets there: listen() says so and stays off
+#if !defined(__vita__) && !defined(__SWITCH__)   // no Unix sockets there: listen() says so and stays off
 #include <sys/un.h>
 #endif
 #include <unistd.h>
@@ -140,8 +140,8 @@ void Channel::listen(const std::string& path) {
     if (path.empty()) return;
     if (impl_->listen_fd != kNone) close();
     ignore_sigpipe();
-#ifdef __vita__
-    std::fprintf(stderr, "[devctl] no Unix sockets on the Vita: %s not opened\n", path.c_str());
+#if defined(__vita__) || defined(__SWITCH__)
+    std::fprintf(stderr, "[devctl] no Unix sockets here: %s not opened\n", path.c_str());
 #else
     if (path.size() >= sizeof(sockaddr_un{}.sun_path)) {
         std::fprintf(stderr, "[devctl] path too long: %s\n", path.c_str());

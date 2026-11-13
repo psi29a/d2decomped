@@ -193,7 +193,7 @@ the null backend: put openal-soft's `soft_oal.dll` on `PATH` as
 `OpenAL32.dll`. The OpenAL router looks for drivers only next to the exe, in
 the working directory and in the system directory, not on `PATH`.
 
-## PS Vita
+## PS Vita and Switch
 
-No channel: the Vita has no Unix sockets, so `listen()` logs that it didn't
-open the path and d2d runs without one (`docs/d2vita.md`).
+No channel: neither has Unix sockets, so `listen()` logs that it didn't
+open the path and d2d runs without one (`docs/d2vita.md`, `docs/switch.md`).

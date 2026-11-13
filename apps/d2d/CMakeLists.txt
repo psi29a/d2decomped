@@ -126,13 +126,24 @@ if(D2D_BUNDLED_FFMPEG)
         --enable-static --disable-shared --enable-pic
         --disable-x86asm   # no nasm needed; Bink at 640x480 is cheap in C
         --enable-demuxer=bink --enable-decoder=bink,binkaudio_rdft,binkaudio_dct)
-    if(CMAKE_CROSSCOMPILING)   # MinGW for Win32, VitaSDK
+    if(CMAKE_CROSSCOMPILING)   # MinGW for Win32, VitaSDK, devkitA64
         if(WIN32)
             set(ffmpeg_os mingw32)
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Generic")
             set(ffmpeg_os none)
             # The last one wins: vita-elf-create refuses PIC's GOT relocations.
             list(APPEND ffmpeg_options --disable-pic)
+        elseif(NINTENDO_SWITCH)
+            # devkitPro's own FFmpeg says horizon, a patch of theirs. Upstream
+            # has none, so it gets libnx's flags from the toolchain (Switch.cmake)
+            # and an empty sys/sysctl.h: libnx links sysctl() but has no header,
+            # and libavutil/cpu.c calls it only where the header defines HW_NCPU.
+            set(ffmpeg_os none)
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/nx-include/sys/sysctl.h" "")
+            list(APPEND ffmpeg_options
+                "--extra-cflags=${NX_ARCH_SETTINGS} ${NX_COMMON_FLAGS} -I${CMAKE_CURRENT_BINARY_DIR}/nx-include"
+                "--extra-ldflags=${NX_ARCH_SETTINGS} ${NX_LINKER_FLAGS}"
+                "--extra-libs=${NX_STANDARD_LIBRARIES}")
         else()
             string(TOLOWER "${CMAKE_SYSTEM_NAME}" ffmpeg_os)
         endif()
@@ -331,6 +342,12 @@ if(VITA)
     set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
     vita_create_self(eboot.bin d2d UNSAFE)
     vita_create_vpk(d2d.vpk DDEC00001 eboot.bin VERSION 01.00 NAME "d2d")
+endif()
+# Nintendo Switch (devkitA64): d2d.nro for the homebrew menu (docs/switch.md).
+# ponytail: libnx's default icon; pass ICON when there's art.
+if(NINTENDO_SWITCH)
+    nx_generate_nacp(d2d.nacp NAME "d2d" AUTHOR "D2: Decomped" VERSION "${D2D_VERSION}")
+    nx_create_nro(d2d NACP d2d.nacp)
 endif()
 d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include

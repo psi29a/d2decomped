@@ -81,13 +81,19 @@ else()
     endif()
 endif()
 
-# The Vita's newlib hides POSIX (fileno, strnlen, gethostname, ftruncate)
-# from a strict -std=c++NN; glibc's g++ defines this itself.
+# newlib (the Vita's, the Switch's) hides POSIX (fileno, strnlen, gethostname,
+# ftruncate) from a strict -std=c++NN; glibc's g++ defines this itself.
 # -Wno-psabi: GCC notes every std::format call's ABI change since 9.1,
-# which a static eboot never links across.
-if(VITA)
+# which a static binary never links across.
+if(VITA OR NINTENDO_SWITCH)
     add_compile_definitions(_GNU_SOURCE)
     add_compile_options(-Wno-psabi)
+endif()
+# devkitA64's g++ registers static destructors with atexit, and GCC 15 can't
+# destroy an inline variable's temporary that way: an internal compiler error
+# on CLI11's matchBracketChars.
+if(NINTENDO_SWITCH)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fuse-cxa-atexit>)
 endif()
 
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).
