@@ -16,6 +16,7 @@ import random
 import sys
 
 import emu
+import structs
 
 
 def main():
@@ -30,8 +31,9 @@ def main():
     mark = e.brk
     for _ in range(cases):
         e.brk = mark
-        unit, path = e.alloc(0x100), e.alloc(0x200)
-        e.w32(unit, 1); e.w32(unit + 0x2c, path)
+        unit_at, path_at = e.alloc(0x100), e.alloc(0x200)
+        unit, path = e.view("unit", unit_at), e.view("path", path_at)
+        unit.type, unit.path = 1, path_at
         sub_x, sub_y = 1000 + rng.randint(-20, 20), 1000 + rng.randint(-20, 20)
         centred = rng.random() < 0.4
         x = sub_x << 16 | (0x8000 if centred else rng.randint(0, 0xffff))
@@ -45,17 +47,18 @@ def main():
         blocked.clear()
         for _ in range(rng.choice((0, 0, 2, 8, 30))):
             blocked.add((sub_x + rng.randint(-8, 8), sub_y + rng.randint(-8, 8)))
-        e.w32(path, x); e.w32(path + 4, y); e.w32(path + 0x30, unit)
-        e.w32(path + 0x24, 0); e.w32(path + 0x28, len(points)); e.w32(path + 0x34, 0x20); e.w32(path + 0x3c, 0xd)
-        e.w32(path + 0x7c, velocity)
-        for i, (px, py) in enumerate(points): e.w32(path + 0x9c + 4 * i, py << 16 | px)
-        e.call(0x64fe40, 0, ecx=path, edx=0)
+        path.x, path.x_fraction, path.y, path.y_fraction, path.owner = x >> 16, x, y >> 16, y, unit_at   # 16.16: subtile, fraction
+        path.point, path.points, path.flags, path.type, path.velocity = 0, len(points), 0x20, 0xd, velocity   # a path to follow, type 0xd
+        point_list = path_at + structs.FIELDS["path"]["point_list"][0]
+        for i, (px, py) in enumerate(points):
+            e.w32(point_list + 4 * i, py << 16 | px)
+        e.call(0x64fe40, 0, ecx=path_at, edx=0)
         frames = []
         for _ in range(60):
-            ret = e.call(0x650840, unit, 0x400)
-            frames.append((ret, e.r32(path), e.r32(path + 4), e.r32(path + 0x24)))
+            ret = e.call(0x650840, unit_at, 0x400)
+            frames.append((ret, path.x << 16 | path.x_fraction, path.y << 16 | path.y_fraction, path.point))
             if not ret:
-                assert e.r32(path + 0x28) == 0, "a walk over keeps its count"
+                assert path.points == 0, "a walk over keeps its count"
                 break
         pairs = lambda rows: "{ " + ", ".join(f"{{ {a}, {b} }}" for a, b in rows) + " }" if rows else "{}"
         steps = ", ".join(f"{{ {r}, 0x{fx:x}, 0x{fy:x}, {i} }}" for r, fx, fy, i in frames)

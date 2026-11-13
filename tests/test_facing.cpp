@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <iterator>
 #include <utility>
 
@@ -32,7 +33,7 @@ struct TurnCase {
 
 }  // namespace
 
-int main() {
+int main() try {
     int bad = 0;
     for (const auto& one : kAimCases) {
         const auto aim = d2d::rules::missile_aim(one.x, one.y, one.to_x, one.to_y);
@@ -59,4 +60,7 @@ int main() {
     if (bad) { std::fprintf(stderr, "%d cases differ\n", bad); return 1; }
     std::printf("OK: %zu aims and %zu turns as game.exe's\n", std::size(kAimCases), std::size(kTurnCases));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_facing: %s\n", error.what());
+    return 1;
 }

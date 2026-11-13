@@ -20,12 +20,6 @@ def s32(value):
     return value - (1 << 32) if value & 0x80000000 else value
 
 
-def w8(e, address, value): e.mu.mem_write(address, bytes([value & 0xff]))
-
-
-def r8(e, address): return e.mu.mem_read(address, 1)[0]
-
-
 def main():
     cases = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     rng = random.Random(0x6485f0)
@@ -50,20 +44,23 @@ def main():
         e.call(0x64fc60, x, y, to_x, to_y, ecx=out, edx=out + 8)
         print(f"    {{ 0x{x:x}, 0x{y:x}, 0x{to_x:x}, 0x{to_y:x}, {s32(e.r32(out))}, {s32(e.r32(out + 4))}, {e.r32(out + 8) & 0xff} }},")
     print("};")
-    unit, path = e.alloc(0x100), e.alloc(0x200)
-    e.w32(unit, 1); e.w32(path + 0x30, unit); e.w32(path + 0x34, 0)            # a monster's path: it turns
+    unit_at, path_at = e.alloc(0x100), e.alloc(0x200)
+    path = e.view("path", path_at)
+    e.view("unit", unit_at).type = 1
+    path.owner, path.flags = unit_at, 0                                         # a monster's path: it turns
     diff = [e.r32(0x6eb548 + 4 * i) & 0xff for i in range(64)]
     print("// kTurnCases: the facing's now and goal, then per frame a new goal (-1 none) and now / goal after the turn.")
     print("inline constexpr TurnCase kTurnCases[] = {")
     for _ in range(cases):
         now, goal = rng.randint(0, 63), rng.randint(0, 63)
-        w8(e, path + 0x64, now); w8(e, path + 0x65, goal); w8(e, path + 0x66, diff[(goal - now) & 0x3f])
+        path.facing, path.facing_goal, path.turn_step = now, goal, diff[(goal - now) & 0x3f]
         frames = []
         for _ in range(12):
             new = rng.randint(0, 63) if rng.random() < 0.25 else -1
-            if new >= 0: e.call(0x6485f0, ecx=path, edx=new)
-            e.call(0x648640, path)
-            frames.append((new, r8(e, path + 0x64), r8(e, path + 0x65)))
+            if new >= 0:
+                e.call(0x6485f0, ecx=path_at, edx=new)
+            e.call(0x648640, path_at)
+            frames.append((new, path.facing, path.facing_goal))
         steps = ", ".join(f"{{ {new}, {at}, {to} }}" for new, at, to in frames)
         print(f"    {{ {now}, {goal}, {{ {steps} }} }},")
     print("};")

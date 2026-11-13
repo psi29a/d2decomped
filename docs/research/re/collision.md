@@ -799,8 +799,8 @@ arguments), cited, not run. The functions are in the order they are met.
   - 5 a warp: `FUN_00641530` over 0x32 returns 1, over 4 walks, else `FUN_005550b0`.
   Nothing in it tests that the player is walking. d2d: the cases are ported in `walk.cpp`,
   `net.cpp` and `world/` by the doc rows that cite it (collision.md above, net-packets.md 786,
-  drlg.md 1645); the walks of these cases share the two-walk limit above, which d2d lacks. **DISAGREES**
-  only there (todo 47).
+  drlg.md 1645); the walks of these cases share the two-walk limit below, which d2d keeps for an
+  item or a warp (World's tick, `walk_pending`).
 - **`FUN_00580c20(game, unit)`: a walking or running player's frame** (a function-table entry,
   data refs at 0x732c18, 0x732c1c, 0x732c28, 0x732c5c). In order: `FUN_00553490`; state 0xd on
   gives `FUN_005c9d90`; in mode 3 with no stamina drain `FUN_0057f090` (tick.cpp's stamina);
@@ -818,13 +818,13 @@ arguments), cited, not run. The functions are in the order they are met.
   With +0x150 clear it goes idle (`FUN_0057f020(1, 0, 0)`, LAB_00580e9a) and the walk is over.
   So the server makes at most two walks for one interact packet: the second one's end finds
   +0x150 zero. The client's re-issue ("What keeps a walk to a unit going: the client") is
-  separate and has no count, so a click on an NPC or object can add more walks. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
-  travel.cpp) re-plans from the stop each tick while a step is made, with no count (todo 47;
-  how often `use_warp` tests was not re-checked here), so it **DISAGREES** in two ways. A crowded route (a stop short of the
-  point with a step made) that takes game.exe two walks takes d2d as many as it needs; a blocked one
-  ends d2d's walk at once (above, since #226), one walk where game.exe has two. And d2d tests the
-  warp's reach every tick, game.exe only when the packet comes and when a walk ends (above). Read, not run; the oracle phase would
-  call `FUN_00580c20` with a stub path.
+  separate and has no count, so a click on an NPC or object can add more walks. d2d: an item's
+  or a warp's walk that ends out of reach, blocked or not, walks once more and then goes idle
+  (World's tick, `walk_pending`, set with the walk as FUN_00548a50 sets +0x150;
+  `tests/game/test_walk_item_twice.cpp`). A walk to an NPC, object or monster re-plans from a stop
+  short of it while a step is made, with no count, as the client's re-issue does. d2d still tests
+  the warp's reach every tick, game.exe only when the packet comes and when a walk ends (above).
+  Read, not run; the oracle phase would call `FUN_00580c20` with a stub path.
 - **`FUN_005868a0(op)`: a barrel opened** (OperateFn 5; `op` +0 the game, +4 the object unit, +8
   the operator, +0xc its random seed, +0x10 the object id). Only for an object unit that is
   null or in mode 0. A player operator (`*op[2] == 0`) with a skill node

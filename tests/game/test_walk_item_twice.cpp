@@ -73,18 +73,20 @@ int main() try {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ actor->player.x + 6, actor->player.y };
     const int gold = world.loot.ground.back().id;
     world.apply(cmd::Pickup{ gold }, now);
-    assert(actor->pick_item == gold);
-    int walks = 0;
-    bool had_path = false;
+    assert(actor->pick_item == gold && actor->walk_pending);    // FUN_00548a50 sets +0x150 with the walk
+    // The second walk: pending spent as the first ends short, the pick-up kept and walking on.
+    int retries = 0;
     for (int tick = 0; tick < 300 && actor->pick_item >= 0; ++tick) {
+        const bool pending = actor->walk_pending;
         world.tick({}, now + kTickMs, now);
         now += kTickMs;
-        const bool has_path = !actor->player.path.empty();
-        if (has_path && !had_path) ++walks;
-        had_path = has_path;
+        if (pending && !actor->walk_pending) {
+            ++retries;
+            assert(actor->pick_item == gold && actor->player.walking);
+        }
     }
-    assert(actor->pick_item == -1 && !actor->player.walking);    // dropped: no third walk
-    assert(walks >= 1 && walks <= 2);
+    assert(retries == 1);
+    assert(actor->pick_item == -1 && !actor->player.walking);    // dropped at the second's end: no third walk
     assert(world.loot.index_of(gold) >= 0);                      // still lying there
     assert(on_centre(actor->player.x) && on_centre(actor->player.y));
     const float stop_x = actor->player.x, stop_y = actor->player.y;
@@ -93,7 +95,7 @@ int main() try {
         now += kTickMs;
     }
     assert(!actor->player.walking && actor->player.x == stop_x && actor->player.y == stop_y);
-    std::printf("ok: two walks to the item (%d paths), then idle\n", walks);
+    std::printf("ok: two walks to the item, then idle\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_walk_item_twice: %s\n", error.what());

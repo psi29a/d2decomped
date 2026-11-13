@@ -297,7 +297,7 @@ def compare(cases, a, b):
     missing = [k for k in rows if not (k in gb and gb[k][1] == "skip") and (k not in ga or k not in gb)]
     if missing:
         print(f"  missing results for {len(missing)} cases, first: {missing[:5]}")
-    return 1 if bad or velfail or missing or compared == 0 else 0
+    return 1 if bad or velfail or missing or compared == wrapped else 0   # none compared (all wrapped) is no pass
 
 
 if __name__ == "__main__":
