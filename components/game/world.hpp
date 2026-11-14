@@ -260,6 +260,9 @@ struct World {
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
         std::vector<int> greeted;
+        // The NPCs S->C 0x91 named at the last act change (rules::NpcReturns::due): a talk
+        // record's +0x12, its next menu greeting the return line (FUN_004b3510, FUN_004b66b0).
+        std::vector<int> returning;
         // When the Countess's death (unit event 0x25) held the player's
         // complete_tower line (FUN_004dcd40, its fifth argument 0): her
         // treasure's end (0x5c) plays it within 60 s (World::tower_treasure).
@@ -574,6 +577,8 @@ struct World {
     std::array<bool, d2d::rules::kQuestFlagCount> closed_at_join{};  // quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
+    // Its congratulations bits (the save's +0x2E5: rules::NpcReturns).
+    std::uint64_t& congrats();
     // Each act's quests at the World's quest hooks (world/quests/actN.cpp),
     // called act by act; a new act adds its file and a call at each hook.
     // The quest log's states (World::view).

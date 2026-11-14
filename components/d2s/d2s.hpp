@@ -114,6 +114,7 @@ struct Header {
         return waypoints[std::size_t(diff)][std::size_t(waypoint_index >> 3)] >> (waypoint_index & 7) & 1;
     }
     std::array<std::uint64_t, 3> intros{};                     // zero when the save has none
+    std::array<std::uint64_t, 3> congrats{};                   // the same bits: a return line owed (rules::NpcReturns)
     // 0 normal, 1 nightmare, 2 hell — the last one played.
     [[nodiscard]] int active_difficulty() const noexcept {
         for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
@@ -173,8 +174,11 @@ inline Header parse_header(std::span<const std::byte> bytes) {
         for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.quests[difficulty].data(), bytes.data() + 0x159 + difficulty * 96, 96);
     if (bytes.size() >= 0x281 + 3 * 24 && std::memcmp(bytes.data() + 0x279, "WS", 2) == 0)
         for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.waypoints[difficulty].data(), bytes.data() + 0x283 + difficulty * 24, 5);
-    if (bytes.size() >= 0x2E5 && bytes[0x2CA] == std::byte{ 'w' })
-        for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(&header.intros[difficulty], bytes.data() + 0x2CD + difficulty * 8, 8);
+    if (bytes.size() >= 0x2FD && bytes[0x2CA] == std::byte{ 'w' })
+        for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) {
+            std::memcpy(&header.intros[difficulty], bytes.data() + 0x2CD + difficulty * 8, 8);
+            std::memcpy(&header.congrats[difficulty], bytes.data() + 0x2E5 + difficulty * 8, 8);
+        }
     if (header.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(header.cls));
     return header;
 }

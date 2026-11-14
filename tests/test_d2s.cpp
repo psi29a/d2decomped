@@ -397,6 +397,7 @@ int main() try {
             {
                 d2d::d2s::Header fresh_header; fresh_header.name = "Fresh"; fresh_header.cls = std::uint8_t(d2d::d2s::kBarbarian); fresh_header.level = 1; fresh_header.status = 0x20;
                 fresh_header.appearance.fill(0xff); fresh_header.tints.fill(0xff); fresh_header.difficulty = { 0x80, 0, 0 };
+                fresh_header.intros = { 1, 2, 3 }; fresh_header.congrats = { 4, 5, std::uint64_t{ 1 } << 34 };   // FUN_00569490's +0x2CD / +0x2E5
                 d2d::d2s::Stats fresh_stats; fresh_stats.values[d2d::d2s::kStr] = 30; fresh_stats.values[d2d::d2s::kLevel] = 1; fresh_stats.values[d2d::d2s::kLife] = 55 << 8;
                 d2d::d2s::Item axe; axe.code = "hax"; axe.location = 1; axe.slot = 4; axe.quality = 2; axe.ilvl = 1;
                 axe.identified = true; axe.max_durability = axe.durability = 28;
@@ -405,6 +406,7 @@ int main() try {
                 assert(std::uint8_t(written[0x34]) == 0xff && std::uint8_t(written[0x37]) == 0xff);   // FUN_00568f20's constant
                 const auto items = d2d::d2s::parse_items(written, item_tables);
                 assert(reparsed.name == "Fresh" && reparsed.cls == 4 && reparsed.expansion() && reparsed.active_difficulty() == 0);
+                assert(reparsed.intros == fresh_header.intros && reparsed.congrats == fresh_header.congrats);
                 assert(d2d::d2s::parse_stats(written, item_tables).get(d2d::d2s::kStr) == 30);
                 assert(items.size() == 1 && items[0].code == "hax" && items[0].durability == 28 && items[0].slot == 4);
                 // game.exe steps over "if" by +0x2A (FUN_0056a710): 30 skill bytes, then "JM".

@@ -486,9 +486,22 @@ MonStats' count marks its record. FUN_004b32f0 clears +0x11 / +0x12 at a
 game's start. The host sends 0x91 from FUN_00545100 (in FUN_00537340, the
 level change, for acts 1, 2, 3, 5: the town NPC lists 0x7318b0 (6),
 0x7318c8 (11), 0x7318f4 (7), 0x731910 (7)), listing those for which
-FUN_00572470 says so: a per-class callback from the table 0x732738
-({class, fn}, `DAT_00732734` rows) run on the player's quest record.
-Those callbacks aren't followed.
+FUN_00572470 says so: the player's congratulations bit for the class
+(pcdata +0x60 + difficulty × 4, its second bitfield: the save's +0x2E5,
+FUN_00572530), by the table 0x732738 ({class, bit}, `DAT_00732734` = 35
+rows; a class not in it takes bit 0), LSB first (masks 0x6ce268). Nothing
+is sent when none is set. The bits are set a whole town at a time by
+FUN_00544fa0 (FUN_00572420 per class), on the first trip out of an act by
+its end: Warriv (FUN_005467e0, quest 7 bit 0 clear) the camp's (list 0),
+Meshif (quest 15 bit 0 clear) Lut Gholein's (1), the hellgate
+(FUN_00546ac0, from the Durance's third level, word 0x17 bit 0 clear)
+Kurast's (2). Tyrael's portal (FUN_005b5880, OperateFn 73) sets word
+0x1c itself and marks none; FUN_005467e0's Tyrael branch (word 0x1c bit
+0 clear) would mark Lut Gholein's again but can't run (bugs.md #116).
+Harrogath's list (4) is never marked. The return line's C→S 0x4d {u16 class} (FUN_004785b0(0x4d))
+clears the bit (handler FUN_0054c690 → FUN_005724c0, FUN_00410b50).
+d2d: `rules::NpcReturns` (town_npcs.hpp), `Player::returning`, set at
+the act change (`World::set_act`); `tests/game/test_npc_returns.cpp`.
 
 ## Distance (FUN_004b9a00, FUN_004ba020, FUN_004dfc20)
 

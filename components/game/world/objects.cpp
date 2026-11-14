@@ -24,6 +24,7 @@
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
+#include <town_npcs.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -425,6 +426,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                     for (const char* code : { "qey", "qhr", "qbr", "qf1", "qf2" }) take_carried(code);
                 }
                 d2d::rules::quest::set(bits, 0x17, 0); d2d::rules::quest::set(bits, 0x17, 13);
+                d2d::rules::NpcReturns::mark(congrats(), 2);                       // FUN_00544fa0(2): Kurast's
                 movie = 4;                                                         // S->C 0x61 {4}: Act04start
             }
             set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kPandemoniumFortress));

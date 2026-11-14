@@ -221,7 +221,10 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
         std::memcpy(bytes.data() + 0x283 + difficulty * 24, header.waypoints[difficulty].data(), 5);
     }
     if (!has_template) { bytes[0x2C9] = std::byte{ 0x01 }; std::memcpy(bytes.data() + 0x2CA, "w4", 2); }   // 01 77 34 00: 0x34 the size
-    for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(bytes.data() + 0x2CD + difficulty * 8, &header.intros[difficulty], 8);
+    for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) {
+        std::memcpy(bytes.data() + 0x2CD + difficulty * 8, &header.intros[difficulty], 8);
+        std::memcpy(bytes.data() + 0x2E5 + difficulty * 8, &header.congrats[difficulty], 8);
+    }
 
     // Stats: those that aren't zero, by id, in their CSvBits widths; the
     // level always.

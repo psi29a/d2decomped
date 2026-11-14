@@ -19,6 +19,7 @@
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
+#include <town_npcs.hpp>
 
 #include <algorithm>
 #include <array>
@@ -264,10 +265,12 @@ auto World::leave_town(const Level* from) -> void {
     }
 
 // The save's act (its difficulty byte: 0x80 and the act in the low bits):
-// game.exe starts the next game in that act's town.
+// game.exe starts the next game in that act's town. The act's town NPCs
+// owed a return line come as S->C 0x91 (FUN_00537340 -> FUN_00545100).
 auto World::set_act(int act) -> void {
         auto& difficulty = actor->character.header.difficulty[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))];
         difficulty = std::uint8_t((difficulty & ~7) | 0x80 | act);
+        actor->returning = d2d::rules::NpcReturns::due(congrats(), act);
     }
 
 auto World::death_penalty(std::uint32_t now_ms) -> void {

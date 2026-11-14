@@ -25,6 +25,7 @@
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <town_npcs.hpp>
 
 #include <algorithm>
 #include <array>
@@ -236,6 +237,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                         for (const char* code : { "msf", "vip" }) take_carried(code);
                     }
                     d2d::rules::quest::set(quests(), 15, 0); d2d::rules::quest::set(quests(), 15, 13);
+                    d2d::rules::NpcReturns::mark(congrats(), 1);                   // FUN_00544fa0(1): Lut Gholein's
                     movie = 3;                                                     // S->C 0x61 {3}: Act03start
                 }
                 set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kKurastDocks));
@@ -251,7 +253,10 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (hc_idx != d2d::rules::monster_ids::kWarriv || !quest::bit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             const Level* lut_gholein = game_data->level(d2d::rules::level_ids::kLutGholein);
             if (!lut_gholein || lut_gholein->start.first < 0) { d2d::log::warn("Lut Gholein didn't build; the caravan stays"); return true; }
-            if (!quest::bit(quests(), 7, 0)) { d2d::rules::quest::set(quests(), 7, 0); d2d::rules::quest::set(quests(), 7, 13); movie = 2; }   // S->C 0x61 {2}: Act02start
+            if (!quest::bit(quests(), 7, 0)) {                                 // S->C 0x61 {2}: Act02start; FUN_00544fa0(0): the camp's
+                d2d::rules::quest::set(quests(), 7, 0); d2d::rules::quest::set(quests(), 7, 13); movie = 2;
+                d2d::rules::NpcReturns::mark(congrats(), 0);
+            }
             set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kLutGholein));
             // The arrival's level change runs the quests' enter hooks: Andariel's
             // (the Rogues get Cain if he's still caged, FUN_00596de0 / FUN_00597310).
