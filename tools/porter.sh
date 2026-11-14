@@ -100,6 +100,14 @@ android)
     ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
     tools=$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)
     android_jar=$(ls -d "$sdk"/platforms/* | sort -V | tail -1)/android.jar
+    # Before anything is fetched or compiled: an older NDK ignores the 16 KB
+    # flag below and says nothing, an older zipalign has no -P.
+    at_least() {   # dir major what: the version a folder is named for
+        local version=${1##*/}
+        [[ ${version%%.*} -ge $2 ]] || { echo "tools/porter.sh: android needs $3 $2 or later, found $1" >&2; exit 1; }
+    }
+    at_least "$ndk" 27 "NDK"
+    at_least "$tools" 35 "build-tools"
     ndk_args=(-DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" -DANDROID_ABI=arm64-v8a
         -DANDROID_PLATFORM=android-26 -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON)
     deps=$PWD/$build/deps

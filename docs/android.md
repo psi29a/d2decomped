@@ -11,9 +11,11 @@ it is not a supported platform yet.
 | Android | `d2d.apk` (arm64-v8a, Android 8 up, debug-signed) | `tools/porter.sh android` |
 
 Locally: `make android`, with the Android SDK in `$ANDROID_HOME` (default
-`~/Library/Android/sdk`) holding an `ndk/`, a `build-tools/` and a
+`~/Library/Android/sdk`) holding an `ndk/` 27 or later (16 KB pages), a
+`build-tools/` 35 or later (its `zipalign` aligns for them) and a
 `platforms/android-35` or later (what SDL 3.4.16's Java is built against),
-and a JDK. No CI job builds it yet.
+and a JDK. The script stops at once on an older NDK or build-tools. No CI job
+builds it yet.
 
 ## How it is put together
 
