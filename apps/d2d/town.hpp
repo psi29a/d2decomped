@@ -506,6 +506,8 @@ struct Town {
     std::string touch_item_hint;
     int touch_selected = skillpad::kEmpty;
     bool touch_attack_used = false;
+    std::int64_t touch_ground_finger = -1;
+    float touch_ground_x = 0, touch_ground_y = 0;
     PadPick touch_attack_pick;
     int touch_assign = skillpad::kUnset;
     std::string touch_feedback;

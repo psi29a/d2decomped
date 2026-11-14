@@ -69,7 +69,7 @@ auto Town::load_keys() -> void {
         load_skill_sheet(character.name);
         load_touch_sheet(character.name);
         touch_input.clear(); touch_input.alternate = false; touch_player = {};
-        touch_item_finger = -1; touch_item = touch_stock = -1; touch_item_hint.clear();
+        touch_item_finger = -1; touch_ground_finger = -1; touch_item = touch_stock = -1; touch_item_hint.clear();
         touch_selected = skillpad::kEmpty; touch_assign = skillpad::kUnset;
     }
 

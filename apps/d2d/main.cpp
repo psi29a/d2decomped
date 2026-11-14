@@ -491,6 +491,37 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
     }
 }
 
+
+// Map the window safe area into the 800-wide touch layout. A full-window safe
+// rect leaves the existing 12px margin alone.
+void apply_safe_inset(const Window& win) {
+#if SDL_VERSION_ATLEAST(3, 4, 0)
+    SDL_Rect area{};
+    int win_w = 0, win_h = 0;
+    if (!win.window || !SDL_GetWindowSafeArea(win.window, &area)
+        || !SDL_GetWindowSize(win.window, &win_w, &win_h) || win_w <= 0 || win_h <= 0 || win.view_w <= 0) {
+        touch::safe_inset = {};
+        return;
+    }
+    const float scale = std::min(float(win_w) / float(win.view_w), float(win_h) / float(kScreenHeight));
+    if (scale <= 0.f) return;
+    const float off_x = (float(win_w) - float(win.view_w) * scale) / 2.f;
+    const float off_y = (float(win_h) - float(kScreenHeight) * scale) / 2.f;
+    const float safe_left = (float(area.x) - off_x) / scale;
+    const float safe_top = (float(area.y) - off_y) / scale;
+    const float safe_right = (float(area.x + area.w) - off_x) / scale;
+    const float safe_bottom = (float(area.y + area.h) - off_y) / scale;
+    const float ui_x = (float(win.view_w) - float(kScreenWidth)) / 2.f;
+    touch::safe_inset.left = std::max(0.f, safe_left - ui_x);
+    touch::safe_inset.top = std::max(0.f, safe_top);
+    touch::safe_inset.right = std::max(0.f, ui_x + float(kScreenWidth) - safe_right);
+    touch::safe_inset.bottom = std::max(0.f, float(kScreenHeight) - safe_bottom);
+#else
+    // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
+    (void)win;
+#endif
+}
+
 /**
  * Run the interactive window loop, routing SDL and controller input to the current screen. Touch
  * gestures and character-selection cursor ownership are resolved before gameplay and UI updates.
@@ -525,6 +556,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Window win;
     win.scale_mode = g_scale_mode;
     if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen, g_widescreen, g_widescreen ? 1066 : 0)) { SDL_Quit(); return 1; }
+    apply_safe_inset(win);
     // A set cap is the sleep's alone: a present held to the next refresh after it would miss the rate.
     if (g_fps_cap > 0) SDL_SetRenderVSync(win.renderer, 0);
     SentryFrameAttachment crash_frame;
@@ -1214,6 +1246,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
                 g_view_width = want;
             }
+            apply_safe_inset(win);
         }
         const std::uint32_t t_after_input = std::uint32_t(SDL_GetTicks());
         current_phase.store(std::uint32_t(MainPhase::Render),
