@@ -994,7 +994,17 @@ the level seed, as outdoors).
    redone.
 3. **Preset by links** (FUN_006709b0): mask 1 left, 8 above, 2 right, 4
    below; act 1 caves (LevelType 3) take def 0x34 + mask (53 Cave W … 67
-   Cave NSEW), file −1; this clears the room's special flag (flags & 2).
+   Cave NSEW), file −1. The stack flag sets the preset's flags bit 1 (value
+   2, the special mark) when 0 and clears it otherwise; a def of 0 writes
+   nothing. EBX is the room, EAX comes back as the room, and a LevelType
+   outside the 20 it handles (3 4 7 8 0xa 0xd 0xe 0xf 0x11 0x12 0x13 0x16
+   0x17 0x18 0x19 0x1c 0x20..0x23) is fatal (FUN_00408090(0x160)). Others:
+   def = mask + 0x6c, 0xa7, 0xcd, 0x101, 0x12d, 0x19d, 0x1e1, 0x1fd, 0x2f1,
+   0x298, 0x2c0, 0x344, 0x422 for types 4 7 8 0xa 0xd 0x11 0x12 0x13 0x16
+   0x18 0x19 0x1c 0x22; tables for 0xe 0xf 0x17 0x20 0x23. Run:
+   `tools/emu/drlg_room_helpers.py` (11,088 cases, all types; its model
+   reads the tables from game.exe, FUN_00670810 runs for real); no d2d
+   comparison.
 4. **Special rooms** (LevelType 3, FUN_00672550): k = rand & 3; records
    `{def to replace, def to set, file, side}` at 0x6ef8a8 + 0x10 k (the
    entrance: 60→86 below, 54→84 left, 56→85 above, 53→83 right), then

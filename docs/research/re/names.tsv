@@ -1548,7 +1548,9 @@ address	name	evidence
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
 0066f990	outdoor_substitution_groups	LvlSub BordType 0 draws FUN_0045c3e0(seed +0x1c4, groups) and stops at the first group FUN_0066f690 places; else tries every group; previous border -1 becomes 0x3e
 006707a0	lvlsub_stamp_by_mask	LvlSub row of lookup id +0x30 (FUN_0061fa90), per set bit of mask +0x38: FUN_006704e0, then FUN_00670170 (CheckAll 0) or FUN_0066ff50
+006709b0	maze_pick_room_preset	EBX room, stack flag (ret 4): mask of its link directions (0 left 1, 1 above 8, 2 right 2, 3 below 4) + a base or table per LevelType (+0x1c0; 3 gives 0x34 + mask) into the preset's def, file -1; flag 0 sets preset flags bit 1, else clears it; other types fatal; EAX = room
 00670d70	maze_alloc_room_ex	new maze room (FUN_0066b3e0, type 2) sized from its level's LvlMaze SizeX / SizeY; FUN_00670880 failing frees it (FUN_0066c100) and gives 0; else links, picks presets if asked, adds to the level
+00670de0	maze_alloc_room_prescribed	ECX source room, EAX side, stack def, file, flag: FUN_0066b3e0 room sized from LvlMaze, FUN_00670880 fails -> FUN_0066c100, 0; else link, insert, flag: FUN_006709b0 on the source, then the new room flags |= 2 and def / file as given; returns the new room
 00670e70	maze_alloc_room_and_pick	orphan: FUN_00670d70 then the source's (flag set) and the new room's preset (FUN_006709b0); no call, jump or pointer
 00673b10	maze_initialize_level	level +0x14 = LvlMaze row of level id +0x1d0 (FUN_0061f490), then tail-calls FUN_00642d10(DRLG +0x1b4, level)
 00675f80	outplace_corner_border_coords	orphan: EAX level rect, ECX output rect, EDX variant, stack corner 0..7: x / y beside the rect, variant 1 shifts by half the size and 8
