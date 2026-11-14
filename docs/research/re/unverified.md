@@ -21,7 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
-| Maze room preset picker (all LevelTypes, link masks, flag; fatal default) and prescribed-neighbour helper (5 room callees hooked, FUN_006709b0 real); 13,392 cases; no d2d parity claim | `FUN_006709b0`, `FUN_00670de0`; `tools/emu/drlg_room_helpers.py --exe /path/to/game.exe --mutation-check` | [drlg.md](drlg.md), [drlg-barracks.md](drlg-barracks.md) |
+| Maze room preset picker (LevelTypes 0..0x25 and out-of-range values, link masks, flag; fatal default) and prescribed-neighbour helper (5 room callees hooked, FUN_006709b0 real); 13,392 cases; no d2d parity claim | `FUN_006709b0`, `FUN_00670de0`; `tools/emu/drlg_room_helpers.py --exe /path/to/game.exe --mutation-check` | [drlg.md](drlg.md), [drlg-barracks.md](drlg-barracks.md) |
 | SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Blood Raven log-send filter: all 16 flag combinations at three difficulties with lookup, bit test and sender hooked; no d2d parity check | `FUN_00590830`; `tools/emu/quest_burial_log.py` | [quests-act1.md](quests-act1.md) "Quest-log send filter" |

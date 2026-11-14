@@ -4,7 +4,7 @@
     uv run python drlg_room_helpers.py --exe /path/to/game.exe [--mutation-check]
 
 FUN_006709b0 (EBX room, stack flag; ret 4) runs for real on every LevelType
-the function reads (0..0x24 and a few larger values: the 21 table or
+the function reads (0..0x25 and four larger values: the 20 table or
 arithmetic cases and the fatal default), every 4-bit link mask (links in
 list order, plus links whose direction is out of range), both flag values,
 and the level +0x1d0 values its special cases compare. The model reads the
@@ -22,7 +22,7 @@ are not claimed. FUN_006709b0 runs for real when flag is set. Checked: the
 callee order and arguments, the copied dimensions seen by the placement, the
 def / file / special-bit write on the new room, the source's preset (def
 0x34 + link mask) and the return value.
-`--mutation-check` breaks the model in 12 ways and also overwrites each
+`--mutation-check` breaks the model in 9 ways (7 model defects, 2 targets) and also overwrites each
 target's first byte with `ret` in a fresh emulator.
 """
 import argparse
@@ -40,10 +40,6 @@ MUT = set()
 BASE_SP = emu.STACK + emu.STACK_SIZE - 0x1000
 M32 = 0xFFFFFFFF
 SENTINEL = (0x1111, 0x2222, 0x3333)
-# The level types the function accepts: 3, 4, 7, 8, 0xa, 0xd, 0xe, 0xf, 0x11..0x13,
-# 0x16..0x19, 0x1c, 0x20..0x23 (read from the jump table at 0x670be8 for this run's check).
-KNOWN_TYPES = (3, 4, 7, 8, 0xa, 0xd, 0xe, 0xf, 0x11, 0x12, 0x13, 0x16, 0x17, 0x18,
-               0x19, 0x1c, 0x20, 0x21, 0x22, 0x23)
 ADD = {3: 0x34, 4: 0x6c, 7: 0xa7, 8: 0xcd, 0xa: 0x101, 0xd: 0x12d, 0x11: 0x19d,
        0x12: 0x1e1, 0x13: 0x1fd, 0x16: 0x2f1, 0x18: 0x298, 0x19: 0x2c0, 0x1c: 0x344,
        0x22: 0x422}
@@ -114,7 +110,7 @@ class Rig:
         self.log = []
         self.cases = 0
 
-    def hook(self, address, name, nstack, result=0, check=None):
+    def hook(self, address, name, nstack, result=0):
         """Replace a callee: log (name, ecx, edx, esi, ebx, stack words) and return result."""
         engine = self.engine
 
@@ -202,7 +198,7 @@ def preset_case(rig, room, level, preset, dims, objects, level_type, level_1d0, 
     if mut("flag_sense"):
         effective_flag = 0 if flag else 1
     try:
-        result = engine.call(0x6709b0, flag, regs={"ebx": room})
+        result = engine.call(0x6709b0, flag, regs={"ebx": room}, limit=100000)
     except Fatal:
         assert expected == "fatal", f"unexpected fatal at type {level_type:#x}"
         assert ("string", 0x160) in rig.log and rig.log[-1][:2] == ("fatal", 0x6cc837)
@@ -215,7 +211,6 @@ def preset_case(rig, room, level, preset, dims, objects, level_type, level_1d0, 
     assert expected != "fatal", f"type {level_type:#x} should be fatal"
     assert result == room, f"EAX {result:#x} is not the room"
     assert engine.mu.reg_read(UC_X86_REG_ESP) == BASE_SP, "stack not popped by ret 4"
-    new_flags = flags_before
     if expected is None:
         STATS["zero_def"] += 1
         assert (engine.r32(preset), engine.r32(preset + 4)) == SENTINEL[:2]
@@ -283,7 +278,7 @@ def run_neighbor(rig):
         engine.w32(room + 0x40, 0)
         accepted[0] = 1
         result = engine.call(0x670de0, definition, file_arg, flag, ecx=source,
-                             regs={"eax": side})
+                             regs={"eax": side}, limit=100000)
         assert result == room
         assert engine.mu.reg_read(UC_X86_REG_ESP) == BASE_SP, "stack not popped by ret 0xc"
         want_dims = (height, width) if mut("dims") else (width, height)
@@ -313,7 +308,7 @@ def run_neighbor(rig):
             engine.w32(preset + 12, flags_before)
         accepted[0] = 0 if not mut("accept") else 1
         result = engine.call(0x670de0, definition, file_arg, flag, ecx=source,
-                             regs={"eax": side})
+                             regs={"eax": side}, limit=100000)
         assert result == 0, f"rejected call returned {result:#x}"
         assert engine.mu.reg_read(UC_X86_REG_ESP) == BASE_SP
         assert [row[0] for row in rig.log] == ["alloc", "place", "free"], rig.log
