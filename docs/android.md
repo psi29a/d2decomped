@@ -12,7 +12,8 @@ it is not a supported platform yet.
 
 Locally: `make android`, with the Android SDK in `$ANDROID_HOME` (default
 `~/Library/Android/sdk`) holding an `ndk/`, a `build-tools/` and a
-`platforms/`, and a JDK. No CI job builds it yet.
+`platforms/android-35` or later (what SDL 3.4.16's Java is built against),
+and a JDK. No CI job builds it yet.
 
 ## How it is put together
 
@@ -28,7 +29,8 @@ Locally: `make android`, with the Android SDK in `$ANDROID_HOME` (default
 ## Where its files go
 
 The app's own folder, `Android/data/io.github.psi29a.d2decomped/files/` on
-the shared storage, which needs no permission. `d2d.cfg`, `d2d.log` and
+the shared storage, which needs no permission. The one permission the app
+has is `INTERNET`, for TCP/IP games. `d2d.cfg`, `d2d.log` and
 `save/` go there, and so do the MPQs from your own Diablo II until there is
 a first-run screen to pick them:
 
@@ -56,6 +58,7 @@ is stopped.
   `d2d.log`.
 - The game draws at 800x600 with black bars, under the status bar.
 - Touch is a left mouse button: no right click, no virtual controls.
-- Pause and resume, rotation, audio focus and a 16 KB device are untested.
+- Pause and resume, rotation, audio focus, joining a TCP/IP game and a
+  16 KB device are untested.
   So is every real phone and tablet.
 - No crash reports (as every `D2D_GAME_ONLY` build).
