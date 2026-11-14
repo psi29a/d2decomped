@@ -620,7 +620,7 @@ def check_chat(exe):
     for script in scripts:
         script.setdefault("corrupt", False)
         total += run_chat(exe, script)
-    for number in range(12):
+    for _ in range(12):
         kinds = [rng.randrange(0, 6) for _ in range(8)]
         counts = [rng.choice((0, 1, 1, 2, 3, 5, 6, 7, 9)) for _ in range(8)]
         script = dict(initial=[], messages=list(zip(kinds, counts)), tick=rng.randrange(M32 + 1),
@@ -760,10 +760,10 @@ def main():
             except Mismatch:
                 print(f"caught: {name} ({function})")
             except ModelGuard as error:
-                raise SystemExit(f"error: mutation {name} broke the model, not the comparison: {error}")
+                raise SystemExit(f"error: mutation {name} broke the model, not the comparison: {error}") from error
             except SystemExit as error:
                 if str(error).startswith("emu:"):
-                    raise SystemExit(f"error: emulator fault under mutation {name}: {error}")
+                    raise SystemExit(f"error: emulator fault under mutation {name}: {error}") from error
                 raise
             else:
                 raise SystemExit(f"mutation {name} was not caught")
