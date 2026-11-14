@@ -704,6 +704,10 @@ owner on the killer's stat list: only a killer that is not a player and has a st
 Evidence: `uv run --project tools/emu python tools/emu/disasm.py 63a690`,
 `uv run --project tools/emu python tools/emu/disasm.py 63a130`,
 `python3 tools/ghidra/fn.py 00625bb0`.
+`FUN_0063a130` itself runs in `tools/emu/items_objects_helpers.py` (EAX = unit,
+EBX = set; `FUN_00625bb0` hooked and its argument asserted): 12 cases over word
+counts 0 to 65, with the shared bit in the first, last and one-past-the-last
+word, and a unit with no list. Not compared with d2d.
 d2d: not ported (no minion's owner in the loot code, drops.md "Not ours yet").
 
 ### The kill's drop roll (`FUN_005a6600`)

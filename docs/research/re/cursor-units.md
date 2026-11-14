@@ -488,8 +488,10 @@ condition is d2d's co-op addition.
 ### The kept label's draw (`FUN_00453060`, 0x453060, 150 bytes)
 
 The reader of the kept text of `FUN_00452be0` / `FUN_00452d20`. `FUN_00453060()`
-(one caller, the frame's `FUN_00456ee0`; read from the disassembly, no
-oracle run). Nothing when the text at 0x7a2c80 is empty (`FUN_00526800`).
+(one caller, the frame's `FUN_00456ee0`; read from the disassembly and run:
+`tools/emu/ui_label.py` runs it with the width and height getters hooked
+and diffs 2004 anchors, widths, heights and screen sizes against the rule
+below. The decompile hides the x: `FUN_00502320` takes it in EDX). Nothing when the text at 0x7a2c80 is empty (`FUN_00526800`).
 Otherwise, with W = the text's width in the current font
 (`FUN_00501820` = `FUN_005017d0`, the glyph widths) + 8 and
 H = the font's line height (`FUN_00501a40`, byte +10 of its header;
@@ -503,7 +505,9 @@ frontend-text-box.md) + 7:
 - then the text buffer is cleared (`_memset`, 0xa0 bytes), so the label is
   one frame's.
 
-The width kept at 0x7a2d28 is not read here. d2d: not ported.
+The anchor (0x7a2d20, 0x7a2d24) sits right after the 0xa0-byte text buffer,
+so the `_memset` leaves it; the oracle also checks that both anchor coordinates survive the clear. The width kept at 0x7a2d28 is not read here.
+d2d: not ported. Re-check: `cd tools/emu && uv run python ui_label.py`.
 
 ### The frame of cels (`FUN_00452e50`, 0x452e50, 518 bytes)
 

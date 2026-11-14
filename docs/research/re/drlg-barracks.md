@@ -100,6 +100,14 @@ if flag: set_def(next_to)                       // def from links, file -1, spec
 n.special = 1; n.def = def; n.file = file
 ```
 No merge (FUN_00670c70), no set_def(n).
+`set_def(next_to)` is FUN_006709b0 with EBX = ECX source and flag 1 (clears
+its special bit). The new room gets flags |= 2, def and file. Returns the
+new room, 0 on rejection; `ret 0xc`. `tools/emu/drlg_room_helpers.py` runs
+it for real (2,304 cases: dimensions copied before FUN_00670880, callee
+order and register / stack arguments, the source's def 0x34 + mask via the
+real FUN_006709b0, rejection frees the room). FUN_0066b3e0, FUN_00670880,
+FUN_0066c100, FUN_0066b5e0 and FUN_0066b970 are hooked, not claimed; no d2d
+comparison.
 
 ### FUN_0066b790(ECX room, EDX level, side, 0)
 
