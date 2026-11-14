@@ -904,7 +904,9 @@ The multiply is a 32-bit signed `imul` and the division truncates toward zero.
 So the value is a velocity (missiles.md puts Vel/VelLev at those offsets;
 monster-ai.md and collision.md already call it velocity), not Range
 (`+0x96`); the "range" wording above is a
-mislabel, and what `FUN_0056d400` does with the argument was not traced.
+mislabel. `FUN_0056d400` puts a non-zero argument in the maker's params
+[10] with flag 4 (missiles.md "Making it"): the velocity of all 64, in
+place of the row's at the missile's own level.
 Run for real on three synthetic rows (the first with VelLev 0), 43 cases, nothing
 hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 
