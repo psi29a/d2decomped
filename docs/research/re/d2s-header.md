@@ -51,4 +51,4 @@ to 0 when it would pass its cap: `clvl x 10000` for the purse
 (`FUN_00622e70`), 2,500,000 for the stash (`FUN_00623460`); a value equal to
 the cap is kept. `World::take_character` does the same, so a save edited past
 either cap enters a game with that gold at 0. Oracle: `tools/emu/fl_gold.py`
-(539 cases, `test_game --load-gold`; its row is in `tools/emu/README.md`).
+(539 cases, `test_load_gold --load-gold`; its row is in `tools/emu/README.md`).

@@ -3,7 +3,7 @@
 
     uv run python fl_gold.py gen > cases.tsv
     uv run python fl_gold.py game cases.tsv > game.tsv
-    ../../build/tests/test_game --load-gold cases.tsv | grep -E '^[A-Za-z_][A-Za-z_0-9]* -?[0-9]+( -?[0-9]+){1}$' > d2d.tsv
+    ../../build/tests/test_load_gold --load-gold cases.tsv | grep -E '^[A-Za-z_][A-Za-z_0-9]* -?[0-9]+( -?[0-9]+){1}$' > d2d.tsv
     diff game.tsv d2d.tsv
     uv run python fl_gold.py limits       # FUN_00622e70 / FUN_00623460 for clvl 1..99
 

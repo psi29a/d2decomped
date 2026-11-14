@@ -310,33 +310,6 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
-    // `--load-gold CASES`: the purse and stash gold a character enters a game with (World::enter),
-    // as tools/emu/fl_gold.py prints game.exe's loader FUN_0056b180 -> FUN_0056af80 (0x56afb4..0x56b00f).
-    // A case is `id level gold bank`; per case `id gold bank`.
-    if (argc > 2 && std::string_view(argv[1]) == "--load-gold") {
-        std::ifstream cases(argv[2]);
-        if (!cases) { std::fprintf(stderr, "load-gold: cannot open %s\n", argv[2]); return 1; }
-        d2d::rules::Rng made_rng(7);
-        auto made = new_character(*data, 4, "Headless", false, true, made_rng);
-        std::string id;
-        std::int64_t level = 0, gold = 0, bank = 0;
-        while (cases >> id >> level >> gold >> bank) {
-            using namespace d2d::d2s;
-            Character saved;
-            saved.character_class = 4;
-            saved.name = "Headless";
-            saved.header = made.header;
-            saved.stats = made.stats;
-            saved.items = made.items;
-            saved.panel = panel_stats(*data, saved.header, saved.items, saved.stats);
-            saved.stats.values[kLevel] = level; saved.stats.values[kGold] = gold; saved.stats.values[kGoldBank] = bank;
-            World world(&*data, -1, -1);
-            world.enter(saved);
-            const auto& got = world.actor->character.stats.values;
-            std::printf("%s %lld %lld\n", id.c_str(), static_cast<long long>(got[kGold]), static_cast<long long>(got[kGoldBank]));
-        }
-        return 0;
-    }
     // `--waypoint-refuse CASES`: the camp's waypoint used to the Cold Plains
     // (cmd::Waypoint, C->S 0x49), the cases of tools/emu/wp_refuse.py
     // (game.exe's FUN_0054d750 -> FUN_0054c5d0). Each level change is an
@@ -1353,21 +1326,6 @@ int main(int argc, char** argv) try {
         assert(hero.character.stats.values[kLife] == 95 * 256);
         hero.character = before;
         std::printf("OK: a save's life and mana are kept on entering a game\n");
-    }
-    // A saved purse or stash over its cap is 0 on entering a game, one under or at it is kept (FUN_0056af80
-    // through FUN_0053ff00; tools/emu/fl_gold.py runs it against World::enter).
-    {
-        const auto before = hero.character;
-        auto saved = before;
-        using namespace d2d::d2s;
-        saved.stats.values[kLevel] = 4; saved.stats.values[kGold] = 40000; saved.stats.values[kGoldBank] = 2500000;
-        world.take_character(saved);
-        assert(hero.character.stats.values[kGold] == 40000 && hero.character.stats.values[kGoldBank] == 2500000);
-        saved.stats.values[kGold] = 40001; saved.stats.values[kGoldBank] = 2500001;
-        world.take_character(saved);
-        assert(hero.character.stats.values[kGold] == 0 && hero.character.stats.values[kGoldBank] == 0);
-        hero.character = before;
-        std::printf("OK: a save's gold over its cap is 0 on entering a game\n");
     }
     const auto poisoned = [&] { return std::ranges::any_of(hero.regen, &Fight::Regen::poison); };
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
