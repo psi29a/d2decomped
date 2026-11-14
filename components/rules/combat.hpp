@@ -496,6 +496,17 @@ inline int get_hit_ticks(int frames, int speed, int fhr) {
     return std::max(held, 1) + 1;
 }
 
+// The block animation's rate, 1/256 frames a tick (FUN_00623f50's block branch, 0x62403d..0x624084, a player's mode 9):
+// the AnimData speed x (50 + the effective FBR, FUN_00621740's 120 v / (120 + v) of stat 102, + 50 with Holy Shield's
+// state 0x65) / 100, at least 1. Its length is the get-hit's (FUN_005539b0): block_ticks. Negative FBR: not read (U).
+inline int block_rate(int speed, int fbr, bool holy_shield) {
+    return std::max(speed * (50 + effective_speed(fbr) + (holy_shield ? 50 : 0)) / 100, 1);
+}
+inline int block_ticks(int frames, int speed, int fbr, bool holy_shield) {
+    const int held = frames > 0 ? (frames * 256 - 1) / block_rate(speed, fbr, holy_shield) : 0;
+    return std::max(held, 1) + 1;
+}
+
 // The frame game.exe's client draws `tick` ticks into a get-hit (tick 0 the
 // mode set): the client steps the unit's 8.8 frame position by its rate a
 // tick while position + rate stays under frames x 256 (FUN_004b1280 on the

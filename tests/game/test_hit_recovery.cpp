@@ -23,6 +23,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -52,6 +53,18 @@ Character make_hero(const GameData& data, int cls, const std::string& weapon) {
 
 int main(int argc, char** argv) try {
     const bool grid = argc > 1 && std::strcmp(argv[1], "--block-length") == 0;
+    if (!grid) {
+        // The block rate and length (FUN_00623f50's block branch, FUN_005539b0): a Paladin's PABL1HS (3 frames at 256) holds 6 ticks at FBR 0 and 3 at FBR 86 (13 / 32 / 86 are
+        // the breakpoints), with Holy Shield's state 0.5 x the rate more: 3 ticks at FBR 0..85 and 2 from 86.
+        using d2d::rules::block_rate;
+        using d2d::rules::block_ticks;
+        assert(block_rate(256, 0, false) == 128 && block_rate(256, 0, true) == 256 && block_rate(1, 0, false) == 1 && block_rate(0, 0, false) == 1);
+        for (const auto& [fbr, ticks] : { std::pair{ 0, 6 }, { 12, 6 }, { 13, 5 }, { 31, 5 }, { 32, 4 }, { 85, 4 }, { 86, 3 }, { 300, 3 } })
+            assert(block_ticks(3, 256, fbr, false) == ticks);
+        for (const auto& [fbr, ticks] : { std::pair{ 0, 3 }, { 85, 3 }, { 86, 2 }, { 300, 2 } })
+            assert(block_ticks(3, 256, fbr, true) == ticks);
+        assert(block_ticks(0, 256, 0, false) == 2 && block_ticks(5, 256, 0, false) == 10);   // no frames: the end event's floor of 2 ticks
+    }
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir) { std::printf("SKIP: D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
     const fs::path data_dir = mpq_dir;
@@ -100,6 +113,20 @@ int main(int argc, char** argv) try {
             }
         return 0;
     }
+    // A Paladin with a sword: PABL1HS at FBR 0 holds the block 6 ticks, 3 with Holy Shield's state.
+    {
+        auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+        World world(&*data, -1, -1);
+        world.enter(hero);
+        world.actor->character.appearance = data->look_of(hero.items);
+        world.fight.update_fighters(1000 * kTickMs);
+        std::uint32_t now = 1000 * kTickMs;
+        std::string record; unsigned frames = 0, speed = 0;
+        assert(block(world, 0, false, now, record, frames, speed) == 6 && frames == 3 && speed == 256);
+        assert(block(world, 0, true, now, record, frames, speed) == 3);
+        assert(block(world, 86, false, now, record, frames, speed) == 3 && block(world, 86, true, now, record, frames, speed) == 2);
+    }
+    std::printf("test_hit_recovery: block length matches game.exe's (Paladin breakpoints)\n");
     return 0;
 } catch (const std::exception& e) {
     std::fprintf(stderr, "test_hit_recovery: %s\n", e.what());

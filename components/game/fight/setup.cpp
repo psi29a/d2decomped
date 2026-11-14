@@ -475,8 +475,8 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             // FUN_00463390, re-testing after its step, ends the mode a tick before the server.
             len = d2d::game::get_hit_ms(anim, actor->player_combat.fhr);
         } else if (mode == kModeBL && anim.frames) {
-            const int shown = d2d::rules::speed_frames(int(anim.frames), actor->player_combat.fbr);
-            len = std::uint32_t(shown) * anim.ms_per_frame();
+            // FUN_00623f50's block branch: the rate adds 50 with Holy Shield's state, then the get-hit's end event.
+            len = std::uint32_t(d2d::rules::block_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.fbr, state_of("holyshield") != nullptr)) * 40;
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
         actor->action_ms = strike ? *strike : std::uint32_t(float(anim.action_ms()) / actor->prate);
