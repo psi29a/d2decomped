@@ -339,7 +339,7 @@ def main():
     options = parser.parse_args()
     if not options.mutation_check:
         total = 0
-        for name, address, runner in TARGETS:
+        for name, _address, runner in TARGETS:
             rig = Rig(options.exe)
             runner(rig)
             print(f"ok: {name}: {rig.cases} cases")
@@ -364,7 +364,7 @@ def main():
     for name, address, runner in TARGETS:
         try:
             runner(Rig(options.exe, target=address))
-        except Exception:
+        except (AssertionError, RuntimeError, Fatal):
             caught += 1
             print(f"mutation target {name}: caught")
         else:
