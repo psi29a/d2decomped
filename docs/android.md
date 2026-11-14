@@ -14,8 +14,16 @@ Locally: `make android`, with the Android SDK in `$ANDROID_HOME` (default
 `~/Library/Android/sdk`) holding an `ndk/` 27 or later (16 KB pages), a
 `build-tools/` 35 or later (its `zipalign` aligns for them) and a
 `platforms/android-35` or later (what SDL 3.4.16's Java is built against),
-and a JDK. The script stops at once on an older NDK or build-tools. No CI job
-builds it yet.
+and a JDK. The script stops at once on an older NDK or build-tools.
+`$ANDROID_NDK_HOME`, when set, names the NDK to use.
+
+CI builds it on every code change: the `Android` job, as the `android`
+artifact. A release has it as `d2d-<version>-android.apk`.
+
+Each build signs with a debug key of its own, so Android won't install one
+build over another: uninstall the old one first, which deletes the app's
+folder with the MPQs and the saves in it (copy `save/` off with `adb pull`
+before).
 
 ## How it is put together
 
@@ -63,4 +71,6 @@ is stopped.
 - Pause and resume, rotation, audio focus, joining a TCP/IP game and a
   16 KB device are untested.
   So is every real phone and tablet.
+- One signing key kept for every release, so a new build installs over the
+  old one and keeps its folder.
 - No crash reports (as every `D2D_GAME_ONLY` build).
