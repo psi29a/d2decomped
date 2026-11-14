@@ -212,9 +212,23 @@ of `.\UNIT\CUnit.cpp`). `names.tsv` has the rows. Planted model defects
 (61) are each caught by `--mutation-check`; stock game.exe 1.14d only.
 
 Layout the oracle settled: the client keeps two hash tables of units,
-table A `0x7a5e70` and table B `0x7a5270` (role labels unverified, see
-unverified.md), each six unit types of 0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
+table A `0x7a5e70` and table B `0x7a5270`, each six unit types of 0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
 type at `+0`, its id at `+0xc`, the bucket is `id & 0x7f`.
+
+Which units go where (read in Ghidra, not run): the insert `FUN_00463a50`
+picks table B when unit flag `+0xc4 & 0x200000` is set, else table A
+(`00463b06`..`00463b36`). Units the server sends are table A's, with the
+server's GUID: S→C 0x9c (`0x45eb10`, action 0 `FUN_004c25b0`) and 0x9d
+(`0x45ec70`, action 0x16 `FUN_004c2340`) build their item through
+`FUN_004c0f20` / `FUN_004c0ff0` → `FUN_004661c0` → `FUN_00465fd0`, which
+stores the packet's id at `+0xc`, sets no `0x200000`, and inserts through
+`FUN_00465f20`; a parse failure removes it from table A (`FUN_00465ee0`).
+Units the client makes itself are table B's: `FUN_00466730` takes the id
+from the client's own counter `DAT_00711f30` and ORs `0x600000` into `+0xc4`
+(critters.md, the ambient critters). So table A is the "server-side" table
+and table B the "client-side" one, as `0x7a5e70` / `0x7a5270` are labelled
+in collision.md. The Redivivus name `UNITS_FindServerSideUnit` for
+`FUN_004639b0` is the wrong way round: it searches table B.
 
 | Function | What it does |
 |---|---|

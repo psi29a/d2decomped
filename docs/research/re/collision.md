@@ -2022,8 +2022,8 @@ with no preceding ECX/EDX move: the unit arrives in **EAX**, like
 `FUN_004656c0` above, but with its own stack frame here (`PUSH
 EBP`/`MOV EBP,ESP`)): calls `FUN_00463a50()` first (no visible
 argument either; not traced). When that returns 0, it looks up the
-unit's own type/id in the client's hash table A (`0x7a5e70`, already
-described in `units.md`'s "Client-side units" section): **EAX** the
+unit's own type/id in the client's hash table A (`0x7a5e70`, the units
+the server's packets make; `units.md` "Client-side units"): **EAX** the
 bucket (`id & 0x7f`), **EDX** the table (`0x7a5e70 + type * 0x200`),
 **ECX** the id, stack the type — the exact signature `units.md:223`
 already gives for `FUN_00463940`, confirmed again here in disassembly.
