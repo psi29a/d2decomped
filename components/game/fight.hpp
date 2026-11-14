@@ -1144,9 +1144,9 @@ struct Fight {
     // mode (DD a corpse, any other without life dying), MonStats npc, unit
     // flags 4 and 8 as `targetable` (flags 0xe), the level a town, and a
     // clear line, mask 4, when the filter asks.
-    // ponytail: 0x20000 (FUN_00622c40) is never in melee and 0x80000
-    // (state 0x56) never just hit here: no Skills.txt row sets either,
-    // in_reach makes its own melee test.
+    // 0x20000 (in melee, FUN_00622c40) and 0x80000 (not in state 0x56) aren't
+    // filled in: none of 1.14d's 357 Skills.txt rows has either in its
+    // aurafilter, nor do the two filters written out here (0xa783, 0x8783).
     [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
