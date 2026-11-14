@@ -54,6 +54,62 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `+0x18b8` / `+0x18bc` | armtype, composit | `+0x18c4` / `+0x18c8` | inventory, belts |
 | `+0x19d0` / `+0x19d8` | chartemplate, arena | `+0x19f8` | cubemain |
 
+## Cited DATATBLS oracles
+
+`tools/emu/datatbls_probe.py` checks the zero-row path in 19 cited functions:
+`FUN_00612600`, `00612750`, `00613260`, `0061de00`, `0061ebb0`, `0061f500`,
+`00633730`, `00633f40`, `006342b0`, `00636b70`, `00637a00`,
+`00638630`, `00638ae0`, `00638d80`, `006552e0`, `00656930`,
+`00658520`, `00658720`, `00659c60`. For 18 loaders it runs game.exe 1.14d
+with CompileTxt hooked to return zero rows and compares table names, record
+sizes, the complete field schemas (names, types, sizes, offsets and linker
+addresses) against SHA-256 digests recorded from game.exe, link creation
+lines and the return or fatal outcome. For `FUN_00612600`, the row count is
+passed as zero and no CompileTxt call occurs. These checks cover the named
+paths; other populated-row algorithms remain cited until checked separately.
+
+The same oracle also checks the no-write readback of `FUN_00613e90` (the
+reader is hooked, with a scripted pointer and byte count), the
+`DATA\\GLOBAL\\EXCEL\\demo.bin` open call of `FUN_00639420` (the open
+helper returns failure without touching the filesystem), and the nested
+free-call order of `FUN_0065a190` with all table globals zero.
+
+Its `--writeback` case checks `FUN_00613e90` with the compile flag and an
+existing table: `fopen("DATA\\GLOBAL\\EXCEL\\demo.bin", "wb")`, one
+`fwrite` of 0x20 bytes, `fclose`, the pool free at DataTbls.cpp line 0x275,
+and the binary readback at line 0x27a. The file calls are hooked, so no file
+is created; the readback supplies a scripted pointer and size.
+
+`--populated-check` adds a one-row case for 18 of the loaders.
+It checks their compile calls, link lines and return or fatal value; derived
+row fields and side arrays are generally not asserted by that case. The gems
+case sets the row's item index to 1 and checks that Items row 0 gets -1 at
+`+0xf0`, row 1 gets gem index 0, and the gem string id at `+0x2c` is written.
+The gamble case checks fatal line 0x7e0 for an unknown item code.
+
+The itemtypes case hooks the link insertion, then checks one matrix dword
+(`0x96c834`) with bit 0 set and a stride of one dword (`0x96c830`).
+The montype case checks the same one-dword stride (`0x96c878`) but its bit 0
+stays clear: its is-a helper returns 0 for target type 0, unlike ItemTypes.
+`--matrix` checks two zero-filled type rows: ItemTypes' two matrix dwords are
+`1, 3` (type 0 matches both, type 1 matches itself); MonType's are `0, 2`
+(type 0 matches neither, type 1 matches itself). The ItemTypes link insertion
+is hooked; the matrix builders and is-a walks run in game.exe.
+The monseq case checks a one-entry index: its first pointer is the row, and
+both per-sequence counts are 1.
+
+`--strings` checks `FUN_00612600` over two rows with stride 0x40 and field
+offset 0x10: it clears eight bytes in each field, resolves one string per
+row, then calls the copier with the resolved pointer and size 8.
+
+`--superuniques` gives `FUN_006552e0` one row for each hcIdx 0..65 plus a
+later duplicate of hcIdx 0. The 66-word index at `0x96c710` keeps the first
+row for each id and the loader records all 67 rows.
+
+`--monseq` gives `FUN_00659c60` three rows with sequence ids 0, 0, 1. Its
+index has two entries: the first row pointer with both counters 2, then the
+third row pointer with both counters 1.
+
 ## DataTbls.cpp
 
 | Address | What |
@@ -111,15 +167,16 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 
 | Address | What |
 |---|---|
-| `FUN_00633540` | Frees the items tables (link, rows `0x96ca5c`, the index `0x96ca78`; lines 0x1c8, 0x1cb) |
+| `FUN_00633540` | Frees the items link first, then non-null rows `0x96ca5c` and index `0x96ca78` (lines 0x1c8, 0x1cb); clears the rows pointer but leaves the index pointer in place. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00633590` | The items count's address (`0x96ca58`) |
 | `FUN_006335a0` | The items index word n (fatal 0x1e2); -1 out of range |
-| `FUN_006336a0` | A column callback: a number, else a name in skills, montype or states. Used through pointers by five loaders |
+| `FUN_006336a0` | Column callback: a leading minus or decimal digit uses signed `_atol`; an empty value writes zero, and a null destination writes nothing. Other names search skills, montype, then states links. Numeric and empty branches verified by `tools/emu/item_tbls.py` |
 | `FUN_00633730` | Loads magicsuffix, magicprefix and automagic (0x90 each) into one array (line 0x297), names to .tbl at `+0x20` |
-| `FUN_00633ea0` | Frees it (0x2b7) |
+| `FUN_00633ea0` | Frees the magic affix array at `0x96ca80` only when non-null (line 0x2b7), then clears its pointer. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00633f40` | Loads raresuffix and rareprefix (0x48) into one array (0x2f4), names at `+0xc` |
 | `FUN_00634220` | Frees it (0x30b) |
 | `FUN_00634250` | The rare affix count's address |
+| `FUN_00634260` | Rare affix row n is 1-based: n from 1 through count returns table + `0x48 * (n - 1)`; a missing table is fatal at line 0x31f. Verified by `tools/emu/item_tbls.py` |
 | `FUN_006342b0` | Loads uniqueitems (0x14c; more than 0x7ffe is fatal, 0x37c): the row number at `+0`, the name link, the name's string at `+0x22` (0x1507 when missing) |
 | `FUN_00634d90` | Frees uniqueitems |
 | `FUN_00636730` | Frees sets and setitems |
@@ -127,6 +184,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_00636b00` / `FUN_00636b10` / `FUN_00636b20` | Free / count address / row (fatal 0x4f2, 0x4f3) |
 | `FUN_00636b70` | Loads gems (0xc0): the letter's string at `+0x2c`; each gem's item (`+0x28`) gets its gem row in Items `+0xf0` (-1 for the rest) |
 | `FUN_006372a0` | Frees gems |
+| `FUN_006372c0` | Gem row n: for n below count except -1, returns table + `0xc0 * n`; this includes other negative indices. A missing table is fatal at line 0x563. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00637320` | Loads books (0x20) |
 | `FUN_00637490` / `FUN_006374a0` | Free / count address |
 | `FUN_00637500` | Loads lowqualityitems (0x22), the name's string at `+0x20` |
@@ -135,17 +193,17 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_006378f0` | Frees it |
 | `FUN_006379d0` | qsort compare on the word at `+2` (descpriority) |
 | `FUN_00637a00` | Loads itemstatcost (0x144; more than 0x1ff is fatal, 0x6b6; `+0x140` of row 0 the bits per stat, 1..8): the op chains (op 1..13 base stats link their derived stats, flags at `+0x51..+0x55`), then the stats with a descpriority sorted into `0x96c808` (line 0x748) |
-| `FUN_006385d0` | Frees it (0x763) |
+| `FUN_006385d0` | Frees non-null itemstatcost rows, link, then sorted index (line 0x763); clears rows, link, count and sorted count, but leaves the sorted pointer. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00638630` | Loads properties (0x2e) |
-| `FUN_00638aa0` | Frees it |
+| `FUN_00638aa0` | Passes properties rows `0x96bcd4` to `FUN_006125c0`, then link `0x96bcd8` to `FUN_006bd0b0`, including null values; leaves both globals in place. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00638ae0` | Loads gamble (0xc): each code's Items row and level (Items `+0xfd`, fatal 0x7e0), sorted by level into `0x96cab4` (0x7db), and the first row past each level 1..99 at `0x96cabc` |
 | `FUN_00638c80` | Frees it (0x80d) |
 | `FUN_00638cd0` | Is ItemTypes row a one of b (its Equiv1 / Equiv2 walked; returns 0 when more than 0x7c entries remain after a pop) |
 | `FUN_00638d80` | Loads itemtypes (0xe4) and builds the is-a bit matrix `0x96c834` (rows of `0x96c830` dwords, line 0x893) that `FUN_00629b50` reads |
-| `FUN_006393e0` | Frees it (0x8a7) |
+| `FUN_006393e0` | Unconditionally frees the ItemTypes matrix (line 0x8a7), then table rows and link; leaves their globals unchanged. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00639420` | Does `DATA\GLOBAL\EXCEL\<name><ext>` open (`FUN_00516e46`). Caller `FUN_006394a0` |
 | `FUN_00639c90` / `FUN_00639cb0` | Free runes / its count address |
-| `FUN_00639cc0` | Writes runes row n (0x120 bytes), growing the array (line 0x95b) |
+| `FUN_00639cc0` | Writes runes row n (0x120 bytes), growing the array (line 0x95b). For the first row, bin mode allocates 0x124 bytes, writes count 1 before the row and passes `0xfffffffc` as the old pointer to realloc when the table pointer is null. For later n it preserves old rows, zeroes rows skipped since the old count, copies row n and sets count to n + 1. Verified by `tools/emu/item_tbls.py` (the realloc copy uses the hook's model) |
 
 ## MonsterTbls.cpp
 
@@ -329,7 +387,7 @@ in `__security_check_cookie`).
 | Oracle | Functions |
 |---|---|
 | `monster_tbls.py` | `FUN_00653d60`, `00653ed0`, `00653f10`, `00653f50`, `00653f90`, `00654010`, `00654080`, `006540c0`, `00654410`, `00654dd0`, `00654fc0`, `00654fe0`, `00655710`, `00656390`, `00656440`, `00656900`, `00656f90`, `00658460`, `00659b40`, `00659b80`, `00659c30` |
-| `item_tbls.py` | `FUN_00633590`, `006335a0`, `00634250`, `00636b10`, `00636b20`, `006374a0`, `00637490`, `006375b0`, `006375c0`, `006379d0`, `00638c80`, `00638cd0`, `00639c90`, `00639cb0` |
+| `item_tbls.py` | `FUN_00633540`, `00633590`, `006335a0`, `006336a0`, `00633ea0`, `00634250`, `00634260`, `00636b10`, `00636b20`, `006372c0`, `00637490`, `006374a0`, `006375b0`, `006375c0`, `006379d0`, `006385d0`, `00638aa0`, `00638c80`, `00638cd0`, `006393e0`, `00639c90`, `00639cb0`, `00639cc0` |
 | `lvl_tbls.py` | `FUN_0061ddf0`, `0061e440`, `0061e470`, `0061e4a0`, `0061ea90`, `0061eaa0`, `0061eae0`, `0061eb40`, `0061f030`, `0061f0b0`, `0061f0e0`, `0061f300`, `0061f310`, `0061f480`, `0061f490`, `0061fa90`, `0061fc10`, `0061fc80`, `006200d0` |
 
 ### Loaders and getters (`monster_loaders.py`)
