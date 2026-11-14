@@ -1570,6 +1570,12 @@ address	name	evidence
 00678df0	goal_dir_bytes	thiscall (out, a, b): out[0..2] = bytes 0x6f1648 + 3 * FUN_00678c10(a, b), widened (collision.md "Is a subtile blocked for a unit")
 00679b30	path_smooth_points	step packed source to destination (limit +0x18) by FUN_00678d70 triplet + path +0x98, FUN_006793e0, table 0x6f1798; stores turn points at path +0x9c, count at +0x28
 0067db00	outroom_spawn_preset_if_flagged	grid flags (FUN_0067c570, wild +0x2c) bit 0x400: FUN_006743c0 with preset, direction +1 for level 0x6e else -1; returns 1
+00688bbd	crt_decode_pointer	DecodePointer from the CRT's TLS table (+0x1fc) or GetProcAddress(KERNEL32, "DecodePointer"); returns the argument when absent (crt.md)
+00688d96	crt_getptd_noexit	_getptd_noexit: TLS thread block, __calloc_crt(1, 0x214) on first use, +0 thread id, +4 = -1; keeps GetLastError (crt.md)
+00689635	crt_invalid_parameter	_invalid_parameter: decodes DAT_0096de70, JMP EAX to the handler, else FUN_0069a28d(2) and a tail jump to __invoke_watson (crt.md)
+006896ad	crt_errno	_errno: FUN_00688d96() + 8, else 0x0074a1d8 (crt.md)
+006896c0	crt_doserrno	__doserrno: FUN_00688d96() + 0xc, else 0x0074a1dc (crt.md)
+0069a28d	crt_debugger_hook	_crt_debugger_hook: writes 0 to DAT_00993b20, the argument unread (crt.md)
 006be3c0	qs_flush_queues	every class head/tail cleared, records freed
 006be450	qs_client_count	+0x880
 006be470	qs_is_local	+0x86c is 1 or 2
