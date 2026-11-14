@@ -20,6 +20,14 @@ When a room comes up on the client (`FUN_0044c750`: once per room, room
   free for the critter's size (MonStats2 +8) under mask 0x3f11; then
   `FUN_00466730` makes it (id from the client counter `DAT_00711f30`,
   unit flags 0x600000, the client unit table 0x7a5270).
+  `FUN_00466730` (ECX, EDX and three stack words) steps `DAT_00711f30`
+  (0xffffffff wraps to 0). Type 1 (stack word 2) builds a 7-dword record
+  (counter, ECX, EDX, stack word 1, 0, 0, 1) and calls `FUN_00466360`.
+  Any other type asks `FUN_00620290(0, type)` for a record, returns when
+  there is none, else ORs 0x600000 into its +0xc4 and calls
+  `FUN_00465fd0(counter, ECX, stack 1, type, stack 3, 0)`.
+  `tools/emu/ui_client_helpers.py` runs it for 48 cases with those three
+  callees hooked (they log their arguments); no d2d comparison.
 
 Levels (cmon / cpct): camp chicken 30; Act 1 / 2 dungeons rat 30 + bat 30
 (sewers, Ancient Tunnels: bat 100) + scorpion 20 in Act 2; Act 2 outdoors

@@ -677,6 +677,19 @@ ids).
   taken as a left panel open **(?)**), baselines 20 + 15 a line (0x5f
   when `FUN_004538d0` **(?)**), each on a dark box (`FUN_0046efd0`: x − 5,
   baseline − 14, the width + 10, 16 high, colour 0, mode 1).
+  `FUN_0049e3a0` (ECX text, EDX kind byte): a 0x26-byte node from
+  `FUN_0040b380` (line 0xd46): six line pointers at +0, a u16 line count
+  (at most 6) at +0x18, the kind at +0x1a, the expiry at +0x1e, next at
+  +0x22. The queue head is `DAT_007bf1e4`, its count a u16 at
+  `DAT_007bf1e8`; a head chain of a different length than count - 1 is a
+  fatal error (`FUN_00681e09(-1)`). Lines past six are freed; one line of
+  kind 4 also goes to the ignore list's vtable slot +0x18. When the queue's
+  lines total more than 18 one head is dropped (once, not repeatedly) and
+  the count goes back. `tools/emu/ui_client_helpers.py` runs it for 113
+  cases with the allocator, free, line wrapper, font, draw and refresh
+  callees, GetTickCount and the fatal report hooked (the wrapper returns a
+  scripted line list); the ignore list's own work, wrapping and d2d are not
+  checked.
 - **The chat edit box** (`FUN_0047b720`, `.\UI\chat.cpp`; UI flag 5 is
   the box open, `FUN_00455f20(5, 1)` shuts it while `DAT_007a0620` **(?)**):
   FontInGameChat (0xd); a dark box (`FUN_0046efd0` colour 0, mode 1) at

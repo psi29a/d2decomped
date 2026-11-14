@@ -70,7 +70,9 @@ fails. It doesn't try another mode.
 path"). The two disagree for `-opengl`, `-rave` and `-d3d -w`: the driver
 is software (3 or 1) and the light path is the 3D one (4 or more).
 [bugs.md](bugs.md) #106. What a software driver draws with that table was
-not followed.
+not followed. `FUN_00477730` is that six-byte read: `ui_client_helpers.py`
+returns nine synthetic values of the global unchanged (including
+`0xffffffff`); option setup and d2d are not covered.
 
 ## The window and the resolution
 
@@ -208,6 +210,21 @@ those are what the 3D modes add.
 | `+0xcc` | `FUN_004f68b0` | Glide only: copies two blocks (0x1000 and 0x4800 bytes) in, from `FUN_00475b20` when `DAT_007b9564` is set; Direct3D and software `ret 8`. Not followed | `0x5126f0` `ret 8` |
 | `+0xd0` | `FUN_004f65a0` | One pixel, inside a 0x50 margin; no caller | `0x5123b0` |
 | `+0xd4` | `FUN_004f5d50` | Flush the 3D floor, subtile and texture caches. 3D only | `0x510130` `ret` |
+
+**Frame pacing (`FUN_004f6190`, slots `+0x1c` and `+0x20`).** With a clock
+`FUN_004f6130` (a double), a last-frame time `DAT_007c9368`, a carry
+`DAT_007c9360` and a first-call flag (bit 0 of `DAT_007c9370`; the first call
+reads the clock to set the last time): elapsed = now - last. When elapsed is
+not above the double at `0x6dc670` (5.0), v = 5.0 - elapsed + carry, the
+whole milliseconds are `trunc(v)` and the carry becomes v minus them. The
+call sleeps (`Sleep(ms)`) only for 1..5 ms, then reads the clock again and
+subtracts the overshoot `(after - now) - ms` from the carry; below 1 or above
+5 ms the carry is cleared and it does not sleep. Elapsed above 5.0 skips the
+sleep and the carry update. Then last = the clock, slot `+0x1c`, slot
+`+0x20`, return 1. It reads no video mode. `tools/emu/ui_client_helpers.py`
+runs it for 130 clock scripts (the x87 maths and the CRT's float to int run
+for real; the clock, `Sleep` and the two driver slots are hooked). Real
+timing, the clock's own conversion and d2d's pacing are not checked.
 
 ## What the 3D drivers add
 

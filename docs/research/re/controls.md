@@ -19,6 +19,12 @@ second. Keys are Windows virtual keys. `0xffff` is none, and
 up and wheel down. A copy at `0x7a6b18` is what Cancel goes back to
 (`FUN_00469d20` saves it, `FUN_00469d50` restores it).
 
+`FUN_00469aa0` (ECX function, EDX slot) scans the 114 records in order and
+returns the key of the first record with both fields equal in the low word,
+`0xffff` when none; a record just past the 114th is not read. Run in
+game.exe by `tools/emu/ui_client_helpers.py` (2,743 cases, no callee, no d2d
+comparison).
+
 The functions (0..0x38) have handlers in a 12-byte table at `0x712698`:
 `{press, release, flag}`. Run (0x22), Stand Still (0x24) and Show Items
 (0x25) have a release handler and are held; Screen Shot (0x2a) has only
@@ -73,6 +79,17 @@ A label names slot 1's key (`FUN_0046a530(f, 1)`). The skill picker's
 (`FUN_004a8df0`) is drawn only when slot 1 has a key; the belt's
 (`FUN_00499040`) when either slot has one, so a key in slot 0 alone
 reads "None" (bugs.md #48; `keys::label_key`).
+
+`FUN_0046a530` (ECX function, EDX slot) repeats `FUN_00469aa0`'s scan inline,
+then switches on key - 8 (jump table `0x46a6bc`, byte table `0x46a73c`).
+32 keys tail-jump to the string getter `FUN_00524a30` with ECX a string
+id: 8 0xf2c, 0x10 0xf2f, 0x11 0xf30, 0x1b 0xf1e, 0x21 0xf34, 0x22 0xf35,
+0x2c..0x2e 0xf37..0xf39, 0x60..0x6b 0xf3b..0xf46, 0x6c 0xf48, 0x6d 0xf47
+(the pair is crossed), 0x6f 0xf49, 0x90 0xf2b, 0x91 0xf4a, 0x100..0x104
+0xf15..0xf19. Every other key, and no binding, tail-jumps to `FUN_00469de0`
+with ECX and EDX unchanged. `ui_client_helpers.py` runs it on keys 0..0x200
+and the 16-bit extremes (520 cases) with `FUN_00524a30` and `FUN_00469de0`
+hooked to log their registers; `FUN_00469de0` itself is not run there.
 
 ## The screen
 
