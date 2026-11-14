@@ -666,7 +666,10 @@ reference to it that I found). ECX game, EDX the missile unit.
 - FUN_005ab370 hands the walk the owner in EDX (0x5ab4cf), and the walk
   uses that unit three ways: its rooms are the owner's room
   (`FUN_00620bb0` at 0x56b815) and that room's near list
-  (`FUN_00619790`); it is `FUN_0056b3e0`'s caster (ECX at 0x56b95c), so
+  (`FUN_00619790`), walked in the list's order (EBX at 0x56b8cd), each
+  room's units from its `+0x74` head along `+0xe8` (newest first), with
+  `FUN_0056b770`'s per-room reach test, which lets every room by
+  (bugs.md); it is `FUN_0056b3e0`'s caster (ECX at 0x56b95c), so
   the filter's line (0x200, in the default 0xa783) runs from the owner
   while the reach is measured from the missile's x, y; and it is skipped.
 - The walker skips only the unit handed to it in EDX, which here is the
@@ -693,10 +696,11 @@ d2d: matches. `Fight::burst` case 20 no longer skips `missile.target`
 and tests each monster with the aurafilter, else 0xa783 (`filter_takes`,
 aura_filter.hpp), its line from the owner (the hero, or its merc for a
 merc's missile); with no owner (`hero_of` finds none) nothing is sent.
+It walks the monsters in the owner's room and its near list
+(`near_rooms`, `room_of`), each room's newest first (`rules::room_order`).
 `test_lightning_fury` checks it against the oracle's cases, and a wall
-between the owner and a monster the missile sees stops the bolt. ponytail:
-the walk's rooms (the owner's and its near list) aren't modelled: d2d
-walks every monster in reach.
+between the owner and a monster the missile sees stops the bolt, and a
+monster in reach of the bolt but in no room near the owner's gets none.
 
 ## Server hit function 21 — FUN_005ab500 (Battle Cry)
 

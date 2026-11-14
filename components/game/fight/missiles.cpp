@@ -950,16 +950,28 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 // 0xa783) runs from the owner, the reach from the missile; its filter is the aurafilter, else
                 // 0xa783 (tools/emu/hit_fury.py). Handed 1 as here, the walk passes a monster with MonStats
                 // noaura (flag 0x1b: 0x56b979).
-                // ponytail: the walk's rooms are the owner's room and its near list (FUN_00620bb0 of the
-                // owner at 0x56b815, FUN_00619790), so a burst far from its thrower finds no one in other
-                // rooms; d2d walks every monster in reach.
+                // Its rooms are the owner's room and that room's near list (FUN_00620bb0 of the owner at
+                // 0x56b815, FUN_00619790), in the list's order, each room's units newest first (room +0x74,
+                // next +0xe8): a monster in reach of a bolt thrown far, but in no room near the thrower's,
+                // gets none. FUN_0056b770's per-room reach test lets every room by (bugs.md).
+                std::vector<int> rooms;
+                std::vector<d2d::rules::RoomUnit> units;
+                if (level) {
+                    for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, from.x, from.y))
+                        if (room_level == level) rooms.push_back(near_room);
+                    units.reserve(monsters.size());
+                    for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable() });
+                }
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
-                for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
-                    if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)
-                        && filter_takes(filter, monsters[j], from.x, from.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura) {
-                        sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
+                for (const int index : d2d::rules::room_order(units, rooms)) {
+                    if (count <= 0) break;
+                    const auto& monster = monsters[std::size_t(index)];
+                    if (std::hypot(monster.unit.x - missile.x, monster.unit.y - missile.y) * 5 <= float(burst_radius)
+                        && filter_takes(filter, monster, from.x, from.y) && !game_data->monsters.types[std::size_t(monster.type)].no_aura) {
+                        sub_at(missile.x, missile.y, monster.unit.x - missile.x, monster.unit.y - missile.y);
                         --count;
                     }
+                }
                 break;
             }
             case 22: {

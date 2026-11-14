@@ -4,7 +4,8 @@
 // (FUN_0056b7e0) of sHitPar1 subtiles (else aurarange, at least 1) that sends up to sHitPar2 (else calc1, at
 // least 1) sub-missiles (FUN_005ab2a0), one to each unit its filter takes: the skill's aurafilter, else
 // 0xa783. The walk is handed the owner (FUN_00552fd0; none, no burst): it skips only the owner, so the
-// unit the bolt struck gets one too, and the filter's line (0x200) runs from the owner. Each case against
+// unit the bolt struck gets one too, and the filter's line (0x200) runs from the owner. It walks the
+// owner's room and its near list, in order, each room's units newest first. Each case against
 // game.exe's own, tools/emu/hit_fury.py (Missiles.txt row 206).
 
 #include <ai.hpp>
@@ -80,7 +81,8 @@ int main() try {
     assert(fallen >= 0);
     d2d::rules::Rng monster_rng{ 3 };
     fight.monsters.clear();
-    for (const auto& [subtile_x, subtile_y] : { std::array{ 101, 200 }, std::array{ 100, 203 }, std::array{ 110, 200 } }) {
+    // Oldest first: the room's list (room +0x74, newest first) is the oracle's order, the struck unit at its head.
+    for (const auto& [subtile_x, subtile_y] : { std::array{ 110, 200 }, std::array{ 100, 203 }, std::array{ 101, 200 } }) {
         Monster monster = make_monster(*data, fallen, centre(subtile_x), centre(subtile_y), monster_rng, 0);
         assert(monster.targetable());
         fight.monsters.push_back(std::move(monster));
@@ -100,7 +102,7 @@ int main() try {
         bolt.caster = owned ? hero.id : hero.id + 1;       // a player no longer in the game: no owner
         bolt.x = centre(at_x);
         bolt.y = centre(at_y);
-        bolt.target = 0;                                   // it struck the first monster
+        bolt.target = 2;                                   // it struck the newest monster
         fight.pending.clear();
         fight.burst(bolt, now);
         return bolt;
@@ -164,13 +166,36 @@ int main() try {
     info.hit_par2 = 3;
     hero.player.x = centre(wall_x - 3);
     hero.player.y = centre(wall_y);
+    const auto near_owner = [&](int at_x, int at_y) {
+        return std::ranges::contains(near_rooms(*data, open, hero.player.x, hero.player.y), std::pair<const Level*, int>{ &open, room_of(open, centre(at_x), centre(at_y)) });
+    };
+    assert(near_owner(wall_x + 3, wall_y));                // only the line stops it
     burst(info, true, wall_x + 3, wall_y + 2);
     assert(fight.pending.empty());
     hero.player.x = centre(wall_x + 3);
     hero.player.y = centre(wall_y + 2);
     burst(info, true, wall_x + 3, wall_y + 2);
     assert(fight.pending.size() == 1);
-    std::printf("OK: Lightning Fury's hit sends one to the unit it struck too, through the aurafilter, its line from the owner, as game.exe's (FUN_005ab370)\n");
+    // The rooms are the owner's (FUN_00620bb0 of the owner, 0x56b815) and its near list: a monster in reach
+    // of the bolt, in a room the thrower's list doesn't hold, gets none. No line asked (0xa583).
+    skill.aura_filter = 0xa583;
+    int far_x = -1, far_y = -1;
+    for (int at_y = 0; at_y < height && far_x < 0; ++at_y)
+        for (int at_x = 0; at_x + 1 < width && far_x < 0; ++at_x)
+            if (room_of(open, centre(at_x), centre(at_y)) >= 0 && !near_owner(at_x, at_y)) {
+                far_x = at_x;
+                far_y = at_y;
+            }
+    assert(far_x >= 0);
+    fight.monsters.clear();
+    fight.monsters.push_back(make_monster(*data, fallen, centre(far_x), centre(far_y), monster_rng, 0));
+    burst(info, true, far_x + 1, far_y);
+    assert(fight.pending.empty());
+    hero.player.x = centre(far_x + 1);
+    hero.player.y = centre(far_y);
+    burst(info, true, far_x + 1, far_y);
+    assert(fight.pending.size() == 1);
+    std::printf("OK: Lightning Fury's hit sends one to the unit it struck too, through the aurafilter, its line from the owner, in the owner's rooms, as game.exe's (FUN_005ab370)\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_lightning_fury: %s\n", error.what());
