@@ -111,6 +111,7 @@ struct ItemBase {
     int version = 0;                                   // version (+0xf6): 100 an expansion item
     std::string type2;                                 // type2 (+0x120)
     int hit_class = 0;                                 // weapons.txt "hit class" (sound_ids::hit_class): its swing and impact sounds
+    std::string wclass;                                // weapons.txt wclass (the item record's +0xc0 class key): attack_start_frame's row
     int min_misdam = 0, max_misdam = 0;                // weapons.txt minmisdam / maxmisdam: a thrown one's (stats 159 / 160)
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.

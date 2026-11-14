@@ -496,6 +496,31 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. Not ported: the player's own frames
   (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
 
+## A player's attack swing: the start frame and the strike tick (FUN_00623b10, FUN_005539b0)
+
+V (`tools/emu/swing_start.py`, game.exe's functions run natively, 11,270 cells of `test_swing_start --swing-start`).
+
+- `FUN_005539b0` files a mode's events from `start = FUN_00623b10(unit) << 8`: it walks the animation at the unit's rate (+0x4c) and
+  files the action event (an AnimData flag byte, 1, 2 or 4) on the tick its frame is reached and the end event (type 1) when the
+  position reaches frames x 256. In closed form, from the tick the mode starts: strike `max(1, ceil(256 (flag - start) / rate))`, end
+  `max(1, ceil(256 (frames - start) / rate))` (`rules::frame_tick`, `attack_ticks`, `attack_action_tick`). The strike is that tick
+  itself; it is not the flag frame scaled by the rounded swing length.
+- `FUN_00623b10` is 0 for a monster and for a player mode other than A1 and A2 (S3 and S4 only for a Barbarian or Assassin (`FUN_006235a0`, a class test),
+  whose table entries are 0 anyway). For A1 and A2 it takes the weapon in hand (`FUN_00623990`: slot 4, else slot 5, a weapon that is not broken and whose requirements are met,
+  `FUN_0063c9b0` -> `FUN_0062a4e0`), its class key (`FUN_00629fe0`: weapons.txt `wclass`
+  through the 8-entry map at 0x7446a0: bow 1, 1hs 2, 1ht 3, stf 4, 2hs 5, 2ht 6, xbw 7, ht1 12; nothing in hand 0; a key the map lacks also 0) and reads the
+  dword at `0x6e8e60 + 4 (row x 7 + player class)`. Only an Amazon and a Sorceress are not 0: 1 barehanded, 2 with a 1hs, 1ht, stf, 2hs
+  or 2ht weapon, 0 with a bow, crossbow or claws (`rules::attack_start_frame`, `kAttackStart`; `swing_start.py table` prints it).
+- d2d played the whole animation (no start frame) and scaled the action frame by the rounded swing length: an Amazon or Sorceress
+  swing was 1 to 3 ticks too long (815 of 840 cells with a start frame), its strike 1 to 4 ticks late; the other classes' swing length
+  was right but its strike one tick late in 1,068 of 8,120 cells (1,176 of the 10,430 cells without a start frame).
+- d2d applies the start frame to a plain swing and to a skill whose `anim` is A1 (Power Strike, Charged Strike, Lightning Strike, Fend,
+  the bow skills; `Fight::set_pmode`), as game.exe does. A skill whose `anim` is TH (a throw: d2d plays the A1 record) gets the strike rule
+  only, start 0, as the game's TH mode has; its record is still d2d's A1. Jab and Impale (`anim` SQ, `start_sequence`) keep their length.
+- The end event's floor in game.exe is 2 ticks (`frame + max(n, 1) + 1`), not 1: the two differ only when one tick covers the whole rest of the
+  animation (rate >= 256 (frames - start)), which no player record reaches; d2d's closed form gives the same for the real records.
+- U: which frames the client draws for a swing that starts in; d2d keeps drawing the whole animation over the shorter swing.
+
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 
 The damage record (ints): [9] cold, [10] / [0xb] poison per tick (256ths

@@ -106,6 +106,12 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, actor->character.stats, gains,
                                           int(actor->character.panel.defense), res, boots, throwing);
+        {   // The swing starts by the weapon in hand: slot 4 else slot 5, a weapon, not broken and its requirements met (FUN_0063c9b0 -> FUN_0062a4e0,
+            // the `weapon` chosen above), else nothing.
+            const auto base = weapon ? game_data->rules.item_base.find(weapon->code) : game_data->rules.item_base.end();
+            if (!weapon || base != game_data->rules.item_base.end())
+                fighter.attack_start = d2d::rules::attack_start_frame(actor->character.character_class, weapon ? std::string_view(base->second.wclass) : std::string_view{});
+        }
         {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
             const int diff = actor->character.header.active_difficulty();
             const std::int64_t penalty = actor->character.header.expansion() ? game_data->resist_penalty[std::size_t(diff)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
@@ -581,11 +587,11 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
 
 auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && missile_skill(*skill)) {   // Magic Arrow: the bow's action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
             return;
         }
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); start_delay(now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); start_delay(now_ms); }
             return;
         }
         if (!actor->seq.empty()) {
@@ -609,7 +615,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             return;
         }
         if (actor->pstruck || actor->attack_mon < 0
-            || now_ms < actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) return;
+            || now_ms < actor->player.mode_ms + action_at()) return;
         actor->pstruck = true;
         do_sounds(now_ms);
         const int struck = actor->attack_mon;

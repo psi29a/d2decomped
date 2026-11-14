@@ -436,6 +436,10 @@ auto Fight::play_player_hit(std::uint32_t now_ms) -> void {
         }
     }
 
+auto Fight::action_at() const -> std::uint32_t {
+        return attack_mode(actor->pmode) ? actor->action_ms : std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate);
+    }
+
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
@@ -444,9 +448,16 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->player.path.clear();
         const auto& anim = player_anim(mode);
         std::uint32_t len = anim.length_ms();
+        std::optional<std::uint32_t> strike;   // an attack's action tick in ms
         if (attack_mode(mode) && anim.frames) {
-            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
+            // An Amazon's or Sorceress's plain swing starts frames in (FUN_00623b10); a skill that swings another record (a throw plays A1 here) does not.
+            const auto* swing_row = game_data->skills.get(actor->swing_skill);
+            const bool plain = actor->swing_skill == 0 || (swing_row && swing_row->anim == "A1");
+            const int start = mode == kModeA1 && plain ? actor->player_combat.attack_start : 0;
+            const int rate = int(anim.speed ? anim.speed : 256), sias = actor->player_combat.sias + chill_rate(now_ms);
+            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), rate, actor->player_combat.ias, actor->player_combat.wsm, sias, start);
             len = std::uint32_t(ticks) * 40;
+            if (anim.action >= 0) strike = std::uint32_t(d2d::rules::attack_action_tick(anim.action, rate, actor->player_combat.ias, actor->player_combat.wsm, sias, start)) * 40;
             // The swing (FUN_004cc5b0: A1 / A2, a Barbarian's S3, an Assassin's S4): its weapon_* that many frames in.
             // A sequence plays in SQ (0x12), which the dispatcher leaves silent (the table at 0x4cc74c).
             const int cls = actor->character.character_class;
@@ -468,7 +479,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             len = std::uint32_t(shown) * anim.ms_per_frame();
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
-        actor->action_ms = std::uint32_t(float(anim.action_ms()) / actor->prate);
+        actor->action_ms = strike ? *strike : std::uint32_t(float(anim.action_ms()) / actor->prate);
         if (mode == kModeSC && anim.frames && anim.action >= 0)
             actor->action_ms = std::uint32_t(d2d::rules::cast_action_ticks(anim.action, int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;

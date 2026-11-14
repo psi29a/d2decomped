@@ -18,6 +18,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -63,6 +64,7 @@ struct Fighter {
     bool knockback = false;
     bool prevent_heal = false;                      // stat 117 (item_preventheal)
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
+    int attack_start = 0;                           // the frame an A1 swing starts on with this weapon (attack_start_frame)
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
     int sias = 0;           // stat 68 attackrate the states give (auras, skills): added raw, not diminished (FUN_00623f50, 0x6241e7)
@@ -204,9 +206,43 @@ inline int attack_speed(int rate, int ias, int wsm, int sias = 0) {
     const int eias = std::clamp(effective_speed(ias) - wsm + sias, -85, 75);
     return std::max(rate * (100 + eias) / 100, 1);
 }
-inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0) {
-    const int speed = attack_speed(rate, ias, wsm, sias);
-    return (256 * frames + speed - 1) / speed;
+// The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame `start` and
+// plays `speed` / 256 frames a tick: FUN_005539b0 files the strike there, max(1, ceil(256 (frame - start) / speed)), and the end of the swing
+// (game.exe's floor for the end is 2 ticks: the two differ only when one tick covers the rest of the animation, no player record's case)
+// (tools/emu/swing_start.py runs it).
+inline int frame_tick(int frame, int start, int speed) {
+    return std::max(1, (256 * (frame - start) + speed - 1) / speed);
+}
+inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0) {
+    return frame_tick(frames, start, attack_speed(rate, ias, wsm, sias));
+}
+// The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
+inline int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0) {
+    return frame_tick(action, start, attack_speed(rate, ias, wsm, sias));
+}
+
+// The frame a player's A1 or A2 swing starts on (FUN_00623b10, 0x623b88 .. 0x623bfa; every other mode and a monster start on frame 0):
+// the weapon in hand (FUN_00623990) gives its class key (FUN_00629fe0: the weapons.txt wclass through the map at 0x7446a0), which picks
+// a row of the table at 0x6e8e60, one dword a player class (d2s order). Only an Amazon and a Sorceress start in: frame 1 barehanded,
+// frame 2 with a one-hand sword or thrusting weapon, a staff or a two-hand sword or thrusting weapon, 0 with a bow, crossbow or claws.
+// A class key the map lacks gets row 0 (FUN_00629fe0, 0x62a040), the nothing-in-hand row: no vanilla weapon has one.
+struct AttackStart { std::string_view wclass; std::array<int, 7> by_class; };
+inline constexpr std::array<AttackStart, 9> kAttackStart = {{
+    { "",    { 1, 1, 0, 0, 0, 0, 0 } },   // row 0: nothing in hand
+    { "bow", { 0, 0, 0, 0, 0, 0, 0 } },   // row 1
+    { "1hs", { 2, 2, 0, 0, 0, 0, 0 } },   // row 2
+    { "1ht", { 2, 2, 0, 0, 0, 0, 0 } },   // row 3
+    { "stf", { 2, 2, 0, 0, 0, 0, 0 } },   // row 4
+    { "2hs", { 2, 2, 0, 0, 0, 0, 0 } },   // row 5
+    { "2ht", { 2, 2, 0, 0, 0, 0, 0 } },   // row 6
+    { "xbw", { 0, 0, 0, 0, 0, 0, 0 } },   // row 7
+    { "ht1", { 0, 0, 0, 0, 0, 0, 0 } },   // row 12
+}};
+inline int attack_start_frame(int player_class, std::string_view wclass) {
+    if (player_class < 0 || std::size_t(player_class) >= 7) return 0;
+    for (const auto& row : kAttackStart)
+        if (row.wclass == wclass) return row.by_class[std::size_t(player_class)];
+    return kAttackStart.front().by_class[std::size_t(player_class)];
 }
 
 // Frame count after a speed stat (FCR / FHR / FBR) shortens `base_frames`:

@@ -551,6 +551,9 @@ struct Fight {
     // speed; a cast takes cast_ticks (FCR), get-hit and block recover
     // faster with FHR / FBR (rules::speed_frames on the base frame count).
     void set_pmode(int mode, std::uint32_t now_ms);
+    // ms from the mode's start to its action frame: an attack's is the tick FUN_005539b0 files it on (attack_action_tick), any other mode's the
+    // action frame scaled by prate.
+    [[nodiscard]] std::uint32_t action_at() const;
     // Impact and the class cry (FUN_004cc410). A hit too small for mode 4 still
     // plays them: the client's command 0x13 calls FUN_004cc5b0 with mode 0x13,
     // and that slot is the same struck handler. It does not change pmode.
