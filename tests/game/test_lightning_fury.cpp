@@ -3,7 +3,8 @@
 // Hit function 20, Lightning Fury (FUN_005ab370), through the REAL Fight::burst: an area walk
 // (FUN_0056b7e0) of sHitPar1 subtiles (else aurarange, at least 1) that sends up to sHitPar2 (else calc1, at
 // least 1) sub-missiles (FUN_005ab2a0), one to each unit its filter takes: the skill's aurafilter, else
-// 0xa783. The walk skips only the owner, so the unit the bolt struck gets one too. Each case against
+// 0xa783. The walk is handed the owner (FUN_00552fd0; none, no burst): it skips only the owner, so the
+// unit the bolt struck gets one too, and the filter's line (0x200) runs from the owner. Each case against
 // game.exe's own, tools/emu/hit_fury.py (Missiles.txt row 206).
 
 #include <ai.hpp>
@@ -13,6 +14,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
@@ -60,13 +62,17 @@ int main() try {
     auto& fight = world->fight;
     const std::uint32_t now = 1000 * kTickMs;
 
-    // game.exe's walk (tools/emu/hit_fury.py): the missile on subtile (100, 200), in the room the unit it
-    // struck (101, 200), another monster (100, 203) and one out of reach (110, 200).
-    struct Made { int row, hit_par1, hit_par2; std::uint32_t aura_filter; int aurarange, calc1; std::uint32_t filter; int made; std::array<int, 6> spots; };
+    // game.exe's walk (tools/emu/hit_fury.py): the missile on subtile (100, 200), in the room its owner
+    // (98, 200), the unit it struck (101, 200), another monster (100, 203) and one out of reach (110, 200).
+    struct Made { int row, hit_par1, hit_par2; std::uint32_t aura_filter; int aurarange, calc1; std::uint32_t filter; int made; std::array<int, 6> spots; int owned; };
     static constexpr Made kMade[] = {
 #include "hit_fury_cases.inc"
     };
     const auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+    assert(fight.heroes.size() == 1);
+    auto& hero = *fight.heroes.front();
+    hero.player.x = centre(98);
+    hero.player.y = centre(200);
     const int skill_id = data->skills.by_name.at("Lightning Fury");
     assert(skill_id == 35);
     auto& skill = const_cast<d2d::rules::Skill&>(*data->skills.get(skill_id));
@@ -85,14 +91,15 @@ int main() try {
         return nullptr;
     }();
     assert(fury_row && data->missiles.count(fury_row->hit_sub) == 1);
-    const auto burst = [&](GameData::MissileInfo& info) {
+    const auto burst = [&](GameData::MissileInfo& info, bool owned = true, int at_x = 100, int at_y = 200) {
         Missile bolt;
         bolt.info = &info;
         bolt.skill = skill_id;
         bolt.level = 1;
         bolt.friendly = true;
-        bolt.x = centre(100);
-        bolt.y = centre(200);
+        bolt.caster = owned ? hero.id : hero.id + 1;       // a player no longer in the game: no owner
+        bolt.x = centre(at_x);
+        bolt.y = centre(at_y);
         bolt.target = 0;                                   // it struck the first monster
         fight.pending.clear();
         fight.burst(bolt, now);
@@ -106,8 +113,8 @@ int main() try {
         skill.aura_filter = want.aura_filter;
         skill.aurarange.code = { { d2d::rules::Calc::Const, want.aurarange } };
         skill.calc[0].code = { { d2d::rules::Calc::Const, want.calc1 } };
-        assert(want.filter == (want.aura_filter != 0 ? want.aura_filter : 0xa783));
-        const auto bolt = burst(info);
+        assert(want.owned != 1 || want.filter == (want.aura_filter != 0 ? want.aura_filter : 0xa783));
+        const auto bolt = burst(info, want.owned == 1);
         assert(int(fight.pending.size()) == want.made);
         for (std::size_t k = 0; k < fight.pending.size(); ++k) {
             const auto& got = fight.pending[k];
@@ -119,7 +126,7 @@ int main() try {
         }
         ++checked;
     }
-    assert(checked == 64);
+    assert(checked == 66);
     // The filter is FUN_0056b3e0's (aura_filter.hpp): one for corpses only takes none of the living three.
     auto info = *fury_row;
     info.hit_par1 = 4;
@@ -136,7 +143,34 @@ int main() try {
     fight.monsters[1].type = int(no_aura - data->monsters.types.begin());
     burst(info);
     assert(all == 2 && fight.pending.size() == 1);
-    std::printf("OK: Lightning Fury's hit sends one to the unit it struck too, through the aurafilter, as game.exe's (FUN_005ab370)\n");
+    // The line (0x200 in the default 0xa783) runs from the owner, not the missile: FUN_0056b7e0 hands
+    // FUN_0056b3e0 its own unit as the caster (0x56b95c), the owner here. A wall between the owner and the
+    // monster stops it; one the missile sees past doesn't help.
+    const auto wall = [&](int at_x, int at_y) { return open.blocked(centre(at_x), centre(at_y), 0x04); };
+    const auto sees = [&](int from_x, int from_y, int to_x, int to_y) { return !d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, wall); };
+    const int width = open.ds1.width() * 5, height = open.ds1.height() * 5;
+    int wall_x = -1, wall_y = -1;
+    for (int at_y = 0; at_y < height && wall_x < 0; ++at_y)
+        for (int at_x = 3; at_x + 3 < width && wall_x < 0; ++at_x)
+            if (wall(at_x, at_y) && !wall(at_x - 3, at_y) && !wall(at_x + 3, at_y) && !wall(at_x + 3, at_y + 2)
+                && !sees(at_x - 3, at_y, at_x + 3, at_y) && sees(at_x + 3, at_y + 2, at_x + 3, at_y)) {
+                wall_x = at_x;
+                wall_y = at_y;
+            }
+    assert(wall_x >= 0);
+    fight.monsters.clear();
+    fight.monsters.push_back(make_monster(*data, fallen, centre(wall_x + 3), centre(wall_y), monster_rng, 0));
+    info.hit_par1 = 4;
+    info.hit_par2 = 3;
+    hero.player.x = centre(wall_x - 3);
+    hero.player.y = centre(wall_y);
+    burst(info, true, wall_x + 3, wall_y + 2);
+    assert(fight.pending.empty());
+    hero.player.x = centre(wall_x + 3);
+    hero.player.y = centre(wall_y + 2);
+    burst(info, true, wall_x + 3, wall_y + 2);
+    assert(fight.pending.size() == 1);
+    std::printf("OK: Lightning Fury's hit sends one to the unit it struck too, through the aurafilter, its line from the owner, as game.exe's (FUN_005ab370)\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_lightning_fury: %s\n", error.what());

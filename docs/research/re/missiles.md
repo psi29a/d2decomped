@@ -648,6 +648,12 @@ reference to it that I found). ECX game, EDX the missile unit.
   (short at +0x24) >= 0, the skill (`FUN_0064a280` id, `FUN_0064a210`
   level, from the missile's data block) must be in the skills table, and
   the owner (`FUN_00552fd0`) must exist. Otherwise it returns 1.
+  `FUN_00552fd0` (fastcall: ECX game, EDX unit) returns 0 for a null unit
+  or one whose `+0xc8` bit 0x400 (shr 0xa, and 1) is clear; else
+  `FUN_00552f60(game, type = unit +0x94, id = unit +0x98)`, the unit of
+  that type and id: the head at `game + [0x6e10e0 + type x 4] + (id & 0x7f)
+  x 4` (type 5 at `game + 0x1b20`, above 5 none), then `+0xe4` links until
+  `+0xc` is the id, 0 when none (`ret 4`).
 - Radius: the missile row's sHitPar1 (+0x4c) when >= 1, else
   `FUN_00646ca0(owner, skill +0x64 (aurarange), id, level)`; at least 1 only
   on the calc path (a result below 1 becomes 1).
@@ -657,6 +663,12 @@ reference to it that I found). ECX game, EDX the missile unit.
   ".\MISSILES\MissMode.cpp", 0xec3)` walks the units in range and makes one
   sub-missile each (FUN_005ab2a0) until the count is served. Returns **3**
   (damage, end).
+- FUN_005ab370 hands the walk the owner in EDX (0x5ab4cf), and the walk
+  uses that unit three ways: its rooms are the owner's room
+  (`FUN_00620bb0` at 0x56b815) and that room's near list
+  (`FUN_00619790`); it is `FUN_0056b3e0`'s caster (ECX at 0x56b95c), so
+  the filter's line (0x200, in the default 0xa783) runs from the owner
+  while the reach is measured from the missile's x, y; and it is skipped.
 - The walker skips only the unit handed to it in EDX, which here is the
   owner (a pointer comparison at 0x56b8e0); the callback has no test for
   the unit the missile struck. FUN_005ab370's stack argument (the unit
@@ -665,19 +677,26 @@ reference to it that I found). ECX game, EDX the missile unit.
   EDX 0x1b): the `noaura` column (the loader `FUN_00651210` gives it bit
   0x1b of record +0xc at 0x651994).
 
-Proven: `tools/emu/hit_fury.py` runs FUN_005ab370, the walk FUN_0056b7e0
-and the callback FUN_005ab2a0 for real over a room of the owner, the unit
-struck, another monster and one out of reach (row 206, sHitPar1 0 / 4,
-sHitPar2 0..3, aurafilter 0 / 0xa583, four calc pairs): the struck unit
-gets the first sub-missile, the owner none, the filter handed on is the
-aurafilter, else 0xa783.
+Proven: `tools/emu/hit_fury.py` runs FUN_005ab370, the owner's lookup
+FUN_00552fd0 / FUN_00552f60, the walk FUN_0056b7e0 and the callback
+FUN_005ab2a0 for real over a room of the owner, the unit struck, another
+monster and one out of reach (row 206, sHitPar1 0 / 4, sHitPar2 0..3,
+aurafilter 0 / 0xa583, four calc pairs): the struck unit gets the first
+sub-missile, the owner none, the filter handed on is the aurafilter, else
+0xa783, and the walk's room and the filter's caster are the owner on every
+case. With the missile's bit 0x400 clear, or set with an id no unit has, it
+returns 1 and walks nothing.
 
 Re-check (in tools/emu): `uv run python hit_fury.py`, `uv run python disasm.py 56b7e0`.
 
 d2d: matches. `Fight::burst` case 20 no longer skips `missile.target`
 and tests each monster with the aurafilter, else 0xa783 (`filter_takes`,
-aura_filter.hpp); `test_lightning_fury` checks it against the oracle's
-cases. ponytail: the MonStats flag 0x1b skip isn't read.
+aura_filter.hpp), its line from the owner (the hero, or its merc for a
+merc's missile); with no owner (`hero_of` finds none) nothing is sent.
+`test_lightning_fury` checks it against the oracle's cases, and a wall
+between the owner and a monster the missile sees stops the bolt. ponytail:
+the walk's rooms (the owner's and its near list) aren't modelled: d2d
+walks every monster in reach.
 
 ## Server hit function 21 — FUN_005ab500 (Battle Cry)
 

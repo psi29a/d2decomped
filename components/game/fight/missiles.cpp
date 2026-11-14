@@ -938,17 +938,25 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
             }
             case 20: {
                 if (!sub) break;
+                // FUN_00552fd0: the missile's owner (its +0xc8 bit 0x400, then FUN_00552f60 on its +0x94
+                // type and +0x98 id); with none FUN_005ab370 returns 1 and nothing is sent.
+                const Hero* owner = hero_of(missile.caster);
+                if (!owner) break;
+                const UnitState& from = missile.by_merc && owner->merc ? owner->merc->unit : owner->player;
                 const int burst_radius = radius(missile_info.hit_par1, skill->aurarange);
                 int count = radius(missile_info.hit_par2, skill->calc[0]);
-                // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk skips only the owner, so the unit
-                // struck gets one too; its filter is the aurafilter, else 0xa783 (tools/emu/hit_fury.py).
-                // Handed 1 as here, the walk passes a monster with MonStats noaura (flag 0x1b: 0x56b979).
-                // ponytail: a missile caster with 0x8000 is first swapped for FUN_00552fd0's unit, which isn't
-                // traced, so the default's line (0x200) runs from the missile; the 1.14d row's 0xa583 has none.
+                // FUN_005ab370 -> FUN_0056b7e0 -> FUN_005ab2a0: the walk is handed the owner, so it skips only
+                // the owner and the unit struck gets one too, and FUN_0056b3e0's line (0x200, in the default
+                // 0xa783) runs from the owner, the reach from the missile; its filter is the aurafilter, else
+                // 0xa783 (tools/emu/hit_fury.py). Handed 1 as here, the walk passes a monster with MonStats
+                // noaura (flag 0x1b: 0x56b979).
+                // ponytail: the walk's rooms are the owner's room and its near list (FUN_00620bb0 of the
+                // owner at 0x56b815, FUN_00619790), so a burst far from its thrower finds no one in other
+                // rooms; d2d walks every monster in reach.
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (std::size_t j = 0; j < monsters.size() && count > 0; ++j)
                     if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(burst_radius)
-                        && filter_takes(filter, monsters[j], missile.x, missile.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura) {
+                        && filter_takes(filter, monsters[j], from.x, from.y) && !game_data->monsters.types[std::size_t(monsters[j].type)].no_aura) {
                         sub_at(missile.x, missile.y, monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y);
                         --count;
                     }
