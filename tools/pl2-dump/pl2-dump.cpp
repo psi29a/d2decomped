@@ -21,6 +21,10 @@ int main(int argc, char** argv) try {
     std::vector<std::byte> bytes;
     bytes.reserve(input.size());
     for (const char value : input) bytes.push_back(std::byte(value));
+    if (table == "maxblend" && bytes.size() < d2d::palette::Pl2::kMaxBlendOff + 256u * 256u) {   // Pl2 leaves the table empty then
+        std::fprintf(stderr, "pl2-dump: %zu bytes, too short for the max-blend table\n", bytes.size());
+        return 1;
+    }
     const d2d::palette::Pl2 pl2(bytes);
     for (unsigned foreground = 0; foreground < 256; ++foreground) {
         for (unsigned background = 0; background < 256; ++background) {
