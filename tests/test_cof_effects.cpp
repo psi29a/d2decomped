@@ -21,7 +21,7 @@ int main() {
         case 0: assert(trans == 0); break;
         case 1: assert(trans == 1); break;
         case 2: assert(trans == 2); break;
-        case 3: assert(trans == 2 + sample.percent / 25); break;   // blit_dcc_frame: trans 3..5 draw a quarter, half, three quarters of the sprite
+        case 3: assert(trans == 2 + sample.percent / 25); break;   // blit_dcc_frame: trans 3..5 draw palette::alpha_blend at 0x3f / 0x7f / 0xbf (test_pl2_blends)
         case 4: assert(trans == 6); break;                         // blit_dcc_frame: trans 6 is palette::max_component_blend (test_pl2_max_blend)
         default: assert(trans == 0); break;
         }
