@@ -7,7 +7,7 @@ The helpers run for real; the tables and units are built by hand in the
 emulator and each result (return value, memory written, arguments handed to
 callees) is compared with a Python model of the decompile.
 
-  FUN_00663270  missile range: byte 0x9a + byte 0x9b * level / 8 (signed, 32-bit
+  FUN_00663270  missile velocity: byte 0x9a + byte 0x9b * level / 8 (signed, 32-bit
                 multiply, truncating division) from the missile table at
                 0x96c794 (count 0x96c79c, rows of 0x1a4). Nothing is hooked.
   FUN_00645c10  Skills.txt row +0x158 / +0x15c forwarded to FUN_00645b20 with
@@ -42,6 +42,9 @@ STAT_ROW = 0x144
 ASSERT_FILE = 0x6E30AC           # ".\SKILLS\SkillDruid.cpp"
 
 mutation = None
+
+
+CALL_LIMIT = 100000      # instruction cap so a looping mutation fails instead of hanging
 
 
 class Mismatch(Exception):
@@ -89,27 +92,27 @@ def skill_tables(engine, rows, stat_rows=0, stat_count=0):
 
 # ---------------------------------------------------------------- FUN_00663270
 
-def range_model(rows, count, ident, level):
+def velocity_model(rows, count, ident, level):
     """Model of FUN_00663270: rows is a list of (byte 0x9a, byte 0x9b)."""
-    if mut("range_bound_le"):
+    if mut("velocity_bound_le"):
         valid = 0 <= ident <= count
     else:
         valid = 0 <= ident < count
     if not valid:
         return 0
     base, scale = rows[ident % len(rows)]
-    if mut("range_swap_bytes"):
+    if mut("velocity_swap_bytes"):
         base, scale = scale, base
     product = scale * level
-    if not mut("range_no_wrap"):
+    if not mut("velocity_no_wrap"):
         product = signed32(product)
     quotient = abs(product) // 8 * (-1 if product < 0 else 1)
-    if mut("range_floor_div"):
+    if mut("velocity_floor_div"):
         quotient = product // 8
-    return signed32(base + quotient + (1 if mut("range_plus_one") else 0))
+    return signed32(base + quotient + (1 if mut("velocity_plus_one") else 0))
 
 
-def check_range(engine):
+def check_velocity(engine):
     """FUN_00663270 on three synthetic missile rows; returns the case count."""
     rows = [(3, 0), (7, 1), (255, 255)]
     table = engine.alloc(len(rows) * 0x1A4)
@@ -121,14 +124,14 @@ def check_range(engine):
     levels = (-2147483648, -100, -9, -8, -7, -1, 0, 1, 7, 8, 9, 100, 2147483647)
     for ident in (0, 1, 2):
         for level in levels:
-            actual = signed32(engine.call(0x663270, ident, level))
-            expect(actual, range_model(rows, len(rows), ident, level), f"range id {ident} level {level}")
+            actual = signed32(engine.call(0x663270, ident, level, limit=CALL_LIMIT))
+            expect(actual, velocity_model(rows, len(rows), ident, level), f"velocity id {ident} level {level}")
             cases += 1
     for ident in (-1, 3, 2147483647):
-        expect(engine.call(0x663270, ident, 10), range_model(rows, len(rows), ident, 10), f"range id {ident}")
+        expect(engine.call(0x663270, ident, 10, limit=CALL_LIMIT), velocity_model(rows, len(rows), ident, 10), f"velocity id {ident}")
         cases += 1
     engine.w32(MISSILE_TABLE, 0)          # a null table makes row 0 a null row
-    expect(engine.call(0x663270, 0, 10), 0, "range null row")
+    expect(engine.call(0x663270, 0, 10, limit=CALL_LIMIT), 0, "velocity null row")
     return cases + 1
 
 
@@ -153,7 +156,7 @@ def check_interp(engine):
     for skill, pair in ((0, (11, 22)), (1, (33, 44))):
         for level in (1, 2, 20, 2147483647):
             calls.clear()
-            actual = engine.call(0x645C10, level, skill)
+            actual = engine.call(0x645C10, level, skill, limit=CALL_LIMIT)
             expected_pair = (22, 11) if mut("interp_swap_fields") else pair
             expect(actual, (level * 3 + 1) & 0xFFFFFFFF, f"interp return skill {skill} level {level}")
             expect(calls, [(level, *expected_pair)], f"interp args skill {skill} level {level}")
@@ -161,14 +164,14 @@ def check_interp(engine):
     for level, skill in ((0, 0), (-1, 0), (-2147483648, 1), (1, -1), (1, 2), (1, 2147483647)):
         calls.clear()
         guarded = mut("interp_allow_zero") and level == 0
-        actual = engine.call(0x645C10, level, skill)
+        actual = engine.call(0x645C10, level, skill, limit=CALL_LIMIT)
         if guarded:
             expect(calls, [(0, 11, 22)], "interp mutated zero level")
         expect((actual, calls), (0, []), f"interp reject level {level} skill {skill}")
         cases += 1
     engine.w32(engine.r32(SKILL_TABLES) + 0xB98, 0)     # null row table: id 0 is a null row
     calls.clear()
-    expect((engine.call(0x645C10, 5, 0), calls), (0, []), "interp null row")
+    expect((engine.call(0x645C10, 5, 0, limit=CALL_LIMIT), calls), (0, []), "interp null row")
     return cases + 1
 
 
@@ -217,7 +220,7 @@ def check_damage(engine):
                 engine.w32(actor + 0x24, seed[1])
                 engine.w32(damage + 8, start)
                 engine.w32(damage + 4, 0xAAAAAAAA)
-                engine.call(0x56E170, skill, 55, ecx=actor, edx=damage)
+                engine.call(0x56E170, skill, 55, ecx=actor, edx=damage, limit=CALL_LIMIT)
                 bound = high - low + (1 if mut("damage_inclusive") else 0)
                 rolled, new_seed = seed_draw(seed, bound)
                 base = 0 if mut("damage_no_min") else low
@@ -232,12 +235,12 @@ def check_damage(engine):
         engine.w32(actor + 0x20, seed[0])
         engine.w32(actor + 0x24, seed[1])
         engine.w32(damage + 8, 100)
-        engine.call(0x56E170, skill, 55, ecx=actor, edx=damage)
+        engine.call(0x56E170, skill, 55, ecx=actor, edx=damage, limit=CALL_LIMIT)
         expect((engine.r32(damage + 8), calls, engine.r32(actor + 0x20)), (100, [], seed[0]), f"damage reject {skill}")
         cases += 1
     engine.w32(engine.r32(SKILL_TABLES) + 0xB98, 0)     # null row table: id 0 is a null row
     engine.w32(damage + 8, 100)
-    engine.call(0x56E170, 0, 55, ecx=actor, edx=damage)
+    engine.call(0x56E170, 0, 55, ecx=actor, edx=damage, limit=CALL_LIMIT)
     expect((engine.r32(damage + 8), calls), (100, []), "damage null row")
     return cases + 1
 
@@ -296,32 +299,32 @@ def check_aura(engine):
         expected.pop()
     for ident in (7, 1):                 # the row argument wins; the id is only passed to the evaluator
         events.clear()
-        engine.call(0x5C6CC0, explicit, ident, 4, ecx=actor, edx=stats)
+        engine.call(0x5C6CC0, explicit, ident, 4, ecx=actor, edx=stats, limit=CALL_LIMIT)
         want = [(kind, (args[0], args[1], ident, args[3]) if kind == "calc" else args) for kind, args in expected]
         expect(events, want, f"aura explicit row id {ident}")
         cases += 1
     # no row: the row of skill id 1 from the Skills.txt table
     put_row(base + SKILL_ROW, (3, -1, -1, -1, -1, 68))
     events.clear()
-    engine.call(0x5C6CC0, 0, 1, 6, ecx=actor, edx=stats)
+    engine.call(0x5C6CC0, 0, 1, 6, ecx=actor, edx=stats, limit=CALL_LIMIT)
     expect(events, [("calc", (actor, 100, 1, 6)), ("add", (stats, 3, 9, 0)),
                     ("calc", (actor, 105, 1, 6)), ("add", (stats, 68, 11, 0)), ("set", (stats, 69, 11, 0)),
                     ("unit", (actor, ASSERT_FILE, 0xF8))], "aura table row")
     cases += 1
     for ident in (-1, 3, 2147483647):
         events.clear()
-        engine.call(0x5C6CC0, 0, ident, 6, ecx=actor, edx=stats)
+        engine.call(0x5C6CC0, 0, ident, 6, ecx=actor, edx=stats, limit=CALL_LIMIT)
         expect(events, [], f"aura reject id {ident}")
         cases += 1
     for unit, target in ((0, stats), (actor, 0)):
         events.clear()
-        engine.call(0x5C6CC0, explicit, 1, 6, ecx=unit, edx=target)
+        engine.call(0x5C6CC0, explicit, 1, 6, ecx=unit, edx=target, limit=CALL_LIMIT)
         expect(events, [], f"aura null unit {unit} stats {target}")
         cases += 1
     events.clear()                       # a zero evaluation adds nothing, even for stat 68
     values[100] = 0
     put_row(explicit, (68, -1, -1, -1, -1, -1))
-    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats)
+    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats, limit=CALL_LIMIT)
     zero = [("calc", (actor, 100, 1, 6)), ("unit", (actor, ASSERT_FILE, 0xF8))]
     if mut("aura_zero_adds"):
         zero.insert(1, ("add", (stats, 68, 0, 0)))
@@ -330,21 +333,22 @@ def check_aura(engine):
     events.clear()                       # a null stat table makes stat row 0 a null row
     put_row(explicit, (0, -1, -1, -1, -1, -1))
     engine.w32(tables + 0xBCC, 0)
-    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats)
+    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats, limit=CALL_LIMIT)
     expect(events, [("unit", (actor, ASSERT_FILE, 0xF8))], "aura null stat row")
     cases += 1
     events.clear()                       # stat id 69: below the count, written to a row of the real table
     engine.w32(tables + 0xBCC, engine.alloc(STAT_ROW * 70))
     put_row(explicit, (69, -1, -1, -1, -1, -1))
     values[100] = 3
-    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats)
-    expect(events[:2], [("calc", (actor, 100, 1, 6)), ("add", (stats, 69, 3, 0))], "aura stat 69 alone")
+    engine.call(0x5C6CC0, explicit, 1, 6, ecx=actor, edx=stats, limit=CALL_LIMIT)
+    expect(events, [("calc", (actor, 100, 1, 6)), ("add", (stats, 69, 3, 0)),
+                    ("unit", (actor, ASSERT_FILE, 0xF8))], "aura stat 69 alone")
     return cases + 1
 
 
 CHECKS = (
-    ("FUN_00663270", 0x663270, check_range, ("range_bound_le", "range_swap_bytes", "range_no_wrap",
-                                              "range_floor_div", "range_plus_one")),
+    ("FUN_00663270", 0x663270, check_velocity, ("velocity_bound_le", "velocity_swap_bytes", "velocity_no_wrap",
+                                              "velocity_floor_div", "velocity_plus_one")),
     ("FUN_00645c10", 0x645C10, check_interp, ("interp_swap_fields", "interp_allow_zero")),
     ("FUN_0056e170", 0x56E170, check_damage, ("damage_inclusive", "damage_no_min")),
     ("FUN_005c6cc0", 0x5C6CC0, check_aura, ("aura_set_all", "aura_skip_unit_check", "aura_zero_adds")),
@@ -368,7 +372,7 @@ def main():
                 except Mismatch:
                     print(f"caught: {name} {defect or 'target replaced by ret'}")
                     caught += 1
-                except RuntimeError as err:          # emulator fault (a `ret` leaves the stack unbalanced)
+                except (RuntimeError, SystemExit) as err:    # emulator fault or fatal call (a `ret` leaves the stack unbalanced)
                     print(f"caught: {name} {defect or 'target replaced by ret'} ({str(err)[:40]})")
                     caught += 1
                 else:

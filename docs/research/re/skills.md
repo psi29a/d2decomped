@@ -903,7 +903,7 @@ count `0x96c79c`, rows of `0x1a4`) and answers byte `+0x9a` (Vel) plus byte
 The multiply is a 32-bit signed `imul` and the division truncates toward zero.
 So the value is a velocity (missiles.md puts Vel/VelLev at those offsets;
 monster-ai.md and collision.md already call it velocity), not Range
-(`+0x96`); the "range" wording above and at the do-36 line below is a
+(`+0x96`); the "range" wording above is a
 mislabel, and what `FUN_0056d400` does with the argument was not traced.
 Run for real on three synthetic rows (the first with VelLev 0), 43 cases, nothing
 hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
@@ -1043,8 +1043,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 - **38** (FUN_005d3e80): the skill's physical (FUN_0056e170) and element
   (FUN_0056e0c0) on everything within prgcalc n subtiles of the target
   (FUN_0056b7e0, aurafilter). **36** (FUN_005d4db0): a nova of the
-  count's missile round the target (FUN_0056d400), range FUN_00663270 +
-  calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
+  count's missile round the target (FUN_0056d400), FUN_00663270 (Vel +
+  VelLev x level / 8, a velocity) + calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
   map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
   stands the count's missile at the target (`Fight::prg`). **41**
