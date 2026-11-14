@@ -1354,6 +1354,21 @@ int main(int argc, char** argv) try {
         hero.character = before;
         std::printf("OK: a save's life and mana are kept on entering a game\n");
     }
+    // A saved purse or stash over its cap is 0 on entering a game, one under or at it is kept (FUN_0056af80
+    // through FUN_0053ff00; tools/emu/fl_gold.py runs it against World::enter).
+    {
+        const auto before = hero.character;
+        auto saved = before;
+        using namespace d2d::d2s;
+        saved.stats.values[kLevel] = 4; saved.stats.values[kGold] = 40000; saved.stats.values[kGoldBank] = 2500000;
+        world.take_character(saved);
+        assert(hero.character.stats.values[kGold] == 40000 && hero.character.stats.values[kGoldBank] == 2500000);
+        saved.stats.values[kGold] = 40001; saved.stats.values[kGoldBank] = 2500001;
+        world.take_character(saved);
+        assert(hero.character.stats.values[kGold] == 0 && hero.character.stats.values[kGoldBank] == 0);
+        hero.character = before;
+        std::printf("OK: a save's gold over its cap is 0 on entering a game\n");
+    }
     const auto poisoned = [&] { return std::ranges::any_of(hero.regen, &Fight::Regen::poison); };
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
     // A monster's curse on the player is a self state's aurastats: Weaken's
