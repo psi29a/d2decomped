@@ -887,7 +887,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   Charged Bolt): calc1 missiles at the target, each with FUN_005c9290
   steering it. Do 22 (**FUN_005c9b50** → FUN_0056d400, the novas): 64
   missiles toward the offsets in 0x6e1288 / 0x6e1388, lasting
-  FUN_00663270 (the row's range) + calc1. A row with no Skill (Multiple
+  FUN_00663270 (Vel + VelLev x level / 8, a velocity: see the note below) +
+  calc1. A row with no Skill (Multiple
   Shot's) carries the weapon's damage at its SrcDamage (96).
   Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
   their struck list, so a monster takes one hit from it. Not yet: the
@@ -895,6 +896,17 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   other do functions
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
+
+`FUN_00663270(missile id, level)` reads the Missiles.txt row (table `0x96c794`,
+count `0x96c79c`, rows of `0x1a4`) and answers byte `+0x9a` (Vel) plus byte
+`+0x9b` (VelLev) x level / 8, 0 for an id outside the count or a null row.
+The multiply is a 32-bit signed `imul` and the division truncates toward zero.
+So the value is a velocity (missiles.md puts Vel/VelLev at those offsets;
+monster-ai.md and collision.md already call it velocity), not Range
+(`+0x96`); the "range" wording above is a
+mislabel, and what `FUN_0056d400` does with the argument was not traced.
+Run for real on three synthetic rows (the first with VelLev 0), 43 cases, nothing
+hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 
 ### Auras (phase 5, part 1)
 - An aura skill's do runs on its pulse: **65** (FUN_005cf010, friendly:
@@ -1031,8 +1043,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - **38** (FUN_005d3e80): the skill's physical (FUN_0056e170) and element
   (FUN_0056e0c0) on everything within prgcalc n subtiles of the target
   (FUN_0056b7e0, aurafilter). **36** (FUN_005d4db0): a nova of the
-  count's missile round the target (FUN_0056d400), range FUN_00663270 +
-  calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
+  count's missile round the target (FUN_0056d400), FUN_00663270 (Vel +
+  VelLev x level / 8, a velocity) + calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
   map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
   stands the count's missile at the target (`Fight::prg`). **41**
@@ -2224,6 +2236,12 @@ level <= 0 or a bad id, else FUN_00645b20(level, par1, par2) / (level, par3,
 par4) (diminishing returns); FUN_00644750 answers the signed short `+0x174`
 (reqlevel) plus the unit's own level in the skill, `0x7fffffff` for a bad id.
 FUN_00644750 has no null-unit check, unlike FUN_006447b0.
+`FUN_00645c10(level, id)` is the same shape as FUN_00645b70 / FUN_00645bc0:
+0 for level <= 0, an id outside `0 <= id < count` or a null row, else
+FUN_00645b20(level, dword `+0x158`, dword `+0x15c`) (which Skills.txt
+columns those are was not traced). Run with
+FUN_00645b20 hooked and its arguments logged, 15 cases:
+`tools/emu/skills_combat_helpers.py`. The interpolation and d2d are not compared.
 
 **A unit's skill levels**: FUN_006447b0 (fastcall unit, id) the level `+0x28` of
 FUN_006439b0(unit, id, -1), 0 for none. FUN_00644300 adds FUN_00644180's

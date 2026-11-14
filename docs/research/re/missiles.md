@@ -694,6 +694,20 @@ states count at `PTR_DAT_00744304 + 0xc4`):
 3. `put_state` (`FUN_005c6cc0`'s caller chain, `d2d_states_put_state`)
    and, when it takes, `FUN_005c6cc0(skill, id, level)` (the aurastats).
 
+`FUN_005c6cc0` (ECX the unit, EDX the stat list; stack: skill row or 0, id,
+level) does nothing for a null unit or list, or with no row and an id outside
+the skills count. For each of the six slots (stat ids as shorts at row
+`+0x54`, calc offsets at `+0x68`) whose stat id is `0 <= id <` the stat-table
+count (`+0xbd4`) with a non-null stat row (`+0xbcc`, rows of `0x144`) it
+evaluates `FUN_00646ca0(unit, calc, id, level)` (the passed id, even with a row
+given), and for a nonzero value adds it with `FUN_006270b0(list, stat, value,
+0)`; stat 68 (0x44) also sets 69 (0x45) to it through `FUN_00627150`.
+It ends with `FUN_00623f50(unit, ".\SKILLS\SkillDruid.cpp", 0xf8)` on every
+non-rejected call. Run with those four callees hooked and their arguments
+logged, 11 cases (row given and from the table, bad ids, null unit / list, a
+zero value, a null stat row): `tools/emu/skills_combat_helpers.py`. The callees
+and d2d are not compared.
+
 Returns **0** when the filter passed, else 1.
 
 Re-check: `python3 tools/ghidra/fn.py 005ab500`.

@@ -651,8 +651,10 @@ jobs:
             "$d2d_binary" "$crashpad_handler"
 
   # d2d alone for D2Vita (docs/d2vita.md): a Win32 Game.exe (MinGW) and a
-  # PS Vita VPK (VitaSDK); and a Switch NRO (devkitA64, docs/switch.md).
-  # Each built by tools/porter.sh in its container.
+  # PS Vita VPK (VitaSDK); a Switch NRO (devkitA64, docs/switch.md); and an
+  # Android APK (docs/android.md). Each built by tools/porter.sh, in its
+  # container; Android on the runner itself, with the SDK, NDK and JDK that
+  # GitHub's image carries (no image: no container).
   # ponytail: no ccache or FFmpeg cache; add them if these become the slow jobs.
   ports:
     name: ${{ matrix.name }}
@@ -681,6 +683,9 @@ jobs:
             name: Nintendo Switch
             artifact: switch
             image: devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282
+          - target: android
+            name: Android
+            artifact: android
     steps:
       # Before the checkout: without git it downloads a tarball, and
       # git describe has no tags to stamp the version from.
@@ -711,13 +716,23 @@ jobs:
           echo "SDL3_MINGW=$PWD/deps/SDL3-$SDL3_VERSION" >> "$GITHUB_ENV"
           echo "OPENAL_MINGW=$PWD/deps/openal-soft-$OPENAL_VERSION-bin" >> "$GITHUB_ENV"
 
+      - name: Install dependencies (Android)
+        if: matrix.target == 'android'
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
+
       - name: Build
         run: tools/porter.sh ${{ matrix.target }}
 
+      # Named as the packages are: d2d-0.12.0-switch.zip, no v. Android's is
+      # the APK itself, which a phone installs as it is.
       - name: Zip
         run: |
-          zip="$PWD/build/d2d-$(git describe --tags --always)-${{ matrix.artifact }}.zip"
-          cd build/ports/${{ matrix.target }} && cmake -E tar cf "$zip" --format=zip -- *
+          name="$PWD/build/d2d-$(git describe --tags --always | sed 's/^v//')-${{ matrix.artifact }}"
+          if [ "${{ matrix.target }}" = android ]; then
+            cp build/ports/android/d2d.apk "$name.apk"
+          else
+            cd build/ports/${{ matrix.target }} && cmake -E tar cf "$name.zip" --format=zip -- *
+          fi
 
       # Pull requests too, unlike the packages: a few MB, and a pull
       # request's is the only one to try on a Vita or Switch before the merge.
@@ -726,7 +741,7 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
-          path: build/d2d-*-${{ matrix.artifact }}.zip
+          path: build/d2d-*-${{ matrix.artifact }}.*
           if-no-files-found: error
 
   # The one check the main ruleset requires: green when every job above
