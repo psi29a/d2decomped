@@ -720,7 +720,24 @@ jobs:
         if: matrix.target == 'android'
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
 
+      # main and tags sign with the release key, when the repository has one:
+      # a pull request's APK (and a fork's, which gets no secrets) is signed
+      # with a debug key. The key file stays outside the checkout.
+      - name: Release key (Android)
+        if: matrix.target == 'android' && github.event_name == 'push'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+          else
+            echo "::notice::ANDROID_KEYSTORE_B64 is not configured; the APK is signed with a debug key."
+          fi
+
       - name: Build
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ matrix.target == 'android' && github.event_name == 'push' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
         run: tools/porter.sh ${{ matrix.target }}
 
       # Named as the packages are: d2d-0.12.0-switch.zip, no v. Android's is

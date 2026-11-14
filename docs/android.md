@@ -20,10 +20,15 @@ and a JDK. The script stops at once on an older NDK or build-tools.
 CI builds it on every code change: the `Android` job, as the `android`
 artifact. A release has it as `d2d-<version>-android.apk`.
 
-Each build signs with a debug key of its own, so Android won't install one
-build over another: uninstall the old one first, which deletes the app's
-folder with the MPQs and the saves in it (copy `save/` off with `adb pull`
-before).
+Android installs a build over another only when one key signed both.
+CI's builds of `main` and of a tag are signed with the release key, the
+repository's `ANDROID_KEYSTORE_B64` (a PKCS12 file, base64) and
+`ANDROID_KEYSTORE_PASSWORD` secrets; `tools/porter.sh` takes the file's path
+in `$ANDROID_KEYSTORE` and the password in `$ANDROID_KEYSTORE_PASSWORD`.
+Without them (a local build, a pull request's) it is a debug key of that
+build's own. Going from one key to another means uninstalling first, which
+deletes the app's folder with the MPQs and the saves in it (copy `save/` off
+with `adb pull` before).
 
 ## How it is put together
 
@@ -71,6 +76,4 @@ is stopped.
 - Pause and resume, rotation, audio focus, joining a TCP/IP game and a
   16 KB device are untested.
   So is every real phone and tablet.
-- One signing key kept for every release, so a new build installs over the
-  old one and keeps its folder.
 - No crash reports (as every `D2D_GAME_ONLY` build).

@@ -19,6 +19,8 @@
 #   android $ANDROID_HOME (default ~/Library/Android/sdk) with an ndk/, a
 #          build-tools/ and a platforms/ in it, and a JDK; it fetches SDL3 and
 #          OpenAL Soft's source itself. No Gradle: aapt2, javac, d8, apksigner.
+#          $ANDROID_KEYSTORE and $ANDROID_KEYSTORE_PASSWORD sign with a
+#          release key (docs/android.md); without them, a debug key.
 set -euo pipefail
 target=${1:?usage: tools/porter.sh win32|vita|switch|android}
 build=build/port-$target
@@ -150,12 +152,19 @@ android)
     "$strip" -o "$apk/lib/arm64-v8a/libSDL3.so" "$deps/lib/libSDL3.so"
     (cd "$apk" && zip -q -0 d2d.apk classes.dex lib/arm64-v8a/*.so)
     "$tools/zipalign" -f -P 16 4 "$apk/d2d.apk" "$apk/aligned.apk"
-    # A debug key of this build's own: adb installs it, no store takes it.
-    # ponytail: a new key each clean build, so one build won't install over
-    # another; a kept release key (a CI secret) when that matters.
-    [[ -f $build/debug.keystore ]] || keytool -genkeypair -keystore "$build/debug.keystore" -storepass android \
-        -keypass android -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=d2d debug"
-    "$tools/apksigner" sign --ks "$build/debug.keystore" --ks-pass pass:android --out "$out/d2d.apk" "$apk/aligned.apk"
+    # The release key when there is one ($ANDROID_KEYSTORE, a PKCS12 file,
+    # and its password in $ANDROID_KEYSTORE_PASSWORD; CI's main and tags):
+    # Android installs a build over another only when one key signed both.
+    # Else a debug key of this build folder's own, which adb installs.
+    if [[ -n ${ANDROID_KEYSTORE:-} ]]; then
+        : "${ANDROID_KEYSTORE_PASSWORD:?the password of \$ANDROID_KEYSTORE}"
+        key=(--ks "$ANDROID_KEYSTORE" --ks-type PKCS12 --ks-pass env:ANDROID_KEYSTORE_PASSWORD)
+    else
+        [[ -f $build/debug.keystore ]] || keytool -genkeypair -keystore "$build/debug.keystore" -storepass android \
+            -keypass android -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=d2d debug"
+        key=(--ks "$build/debug.keystore" --ks-pass pass:android)
+    fi
+    "$tools/apksigner" sign "${key[@]}" --out "$out/d2d.apk" "$apk/aligned.apk"
     rm -f "$out/d2d.apk.idsig"
     ;;
 *)
