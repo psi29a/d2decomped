@@ -7,6 +7,7 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <automap_cells.hpp>
 #include <automap_miniature.hpp>
 #include <automap_scroll.hpp>
 #include <d2s.hpp>

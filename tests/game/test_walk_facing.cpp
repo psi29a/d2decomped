@@ -31,7 +31,7 @@ int main() try {
     assert(unit.facing.goal == goal && unit.facing.now == 32 + step);
     assert(unit.dir == missile_direction(unit.facing.now, 16));
     int frames = 0;
-    while (follow_path(level, unit, 0x400)) assert(++frames < 60);
+    while (follow_path(level, unit, 0x400)) { ++frames; assert(frames < 60); }
     assert(unit.facing.now == goal && unit.dir == missile_direction(goal, 16));
     return 0;
 } catch (const std::exception& error) {

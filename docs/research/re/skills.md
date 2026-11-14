@@ -939,9 +939,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   aurastats in `update_fighters` (resists added over the panel, to 95),
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
-  range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
-  the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  range and taken by the aurafilter, as Holy Freeze's slow in
+  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits. Not yet: perdelay's reader
+  (taken as ticks), the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
   slow (its cold chills), Sanctuary's mana and its state 0x55
   (FUN_005cf3a0), the aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
@@ -968,11 +968,15 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   - Sanctuary 0xe786: undead that aren't bosses;
   - Holy Freeze 0x4a283: no prime evil.
 
-  d2d: `rules::aura_filter_takes` (`Fight::aura_takes`) in `enemy_pulse`
+  d2d: `rules::aura_filter_takes` is FUN_0056b3e0 on a monster, every bit
+  (below); `rules::aura_walk_takes` adds FUN_0056b7e0's own part (0 is
+  0x583, 0x2000 skips town rooms). `Fight::aura_takes` in `enemy_pulse`
   and `in_aura`, so a friendly aura's auratargetstate isn't drawn on a
-  monster. Not read: 0x80 / 0x400 (unit flags +0xc4 & 4 / & 8), 0x100 and
-  FUN_0056b7e0's 0x2000 (town rooms), 0x200 (line of sight,
-  FUN_0064e260), 0x20000 (FUN_00622c40), 0x80000 (state 0x56).
+  monster. `Fight::filter_takes` gives it the monster's mode (DD a corpse,
+  any other without life dying), MonStats npc, `targetable` for unit
+  flags 4 and 8 (flags 0xe), the level a town, and the line from the
+  walk's unit, mask 4 (in_reach's); never in melee (0x20000) nor just hit
+  (0x80000), which no Skills.txt row asks.
   Re-check: `python3 tools/ghidra/fn.py 0056b3e0` (and 0056b7e0, 005cf010,
   005cf3a0, 005d0920); the rows from Skills.txt's aurafilter column.
 - **FUN_0056b3e0 whole: the other unit types and the order** (cited,
@@ -998,15 +1002,19 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   set; 0x80000 fails a target in state 0x56; 0x200 passes only when both
   units have a room and `FUN_0064e260` over their two positions
   (`FUN_0045adf0` / `FUN_0045ae20`, mask 4) returns 0 (a missing room
-  fails); no 0x200 → pass. d2d's
-  `aura_filter_takes` agrees on the monster bits it lists, with these
-  differences: it has no player / object / item / missile branches (an aura
-  only ever strikes a `Monster` here), no mode-0 exclusion for a monster
-  (`Fight::aura_takes` passes `dead = !alive()`; game.exe tells mode 0 and
-  0xc apart and passes only 0xc when 0x1000 is set), and 0x10000 does not
-  fail the MonStats +0xd bit 0 monsters. Those two are the DISAGREES (not
-  played out: no aura in the 1.14d rows above sets 0x1000, and which
-  monsters carry +0xd bit 0 is not read here).
+  fails); no 0x200 → pass. MonStats +0xd bit 0 is the **npc** column:
+  FUN_00651210's MonStats column table names "npc" (0x6ec678, the entry at
+  0x0065181c) with bit 8 of the dword at +0xc (inTown bit 0xa, lUndead 0xb,
+  interact 9 in the same table), and FUN_0056b3e0 tests it against the
+  mask byte at 0x6ce268 (1).
+  **Verified for a monster** tested by a caster that isn't a missile:
+  `tools/emu/aura_filter.py` runs FUN_0056b3e0 for real on 200,000 cases
+  (the modes, the unit flags, the npc byte and every bit's order; its
+  predicates hooked) and `test_aura_filter` matches each; the old
+  `aura_filter_takes` got 23,340 wrong (dying taken by 0x1000, npcs taken
+  by 0x10000, the unit-flag, town, melee, state and line bits unread).
+  d2d has no player / object / item / missile branches (an aura only ever
+  strikes a `Monster` here), and no missile caster.
 - A monster's curse or enemy-aura lowering of a resistance whose base is
   100 or more counts a fifth, truncated toward 0 (FUN_005c3540, from the
   callbacks of do 30, 65 and 66): `apply_target_stats` takes the base.
@@ -1344,7 +1352,10 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   at calc1 % (calc2 champion, calc3 unique, calc4 boss). **51**
   (FUN_005d76e0, Mind Blast): physical and stun within aurarange (or
   prgcalc), conversion through FUN_005d7680. **20** (FUN_005c9800 ->
-  FUN_005c96a0, Static Field): calc1 % of life within aurarange. **55**
+  FUN_005c96a0, Static Field): calc1 % of life within aurarange; its walk
+  (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
+  Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
+  or in town isn't struck (`Fight::spot`, `filter_takes`). **55**
   (FUN_005c4df0, Corpse Explosion): the corpse's max life (FUN_006538a0) x
   calc1..calc2 %, half fire half physical, within aurarange / 2. **63**
   (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**

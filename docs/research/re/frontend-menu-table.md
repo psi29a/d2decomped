@@ -169,6 +169,67 @@ the LoD positions with or without the expansion. It doesn't draw the
 0x115 version text. Its SINGLE PLAYER opens character select even when
 the save folder has no `.d2s`.
 
+## Button labels (`FUN_00500db0`, `FUN_00500c50`)
+
+A kind 6 record becomes a button with `FUN_00501290`; its draw is
+`FUN_00500db0` (control `+0x1c`). The control has x at `+0xc`, the bottom
+y at `+0x10`, the width at `+0x14`, the height at `+0x18` and the label
+at `+0x64`. After the chrome, the draw picks the label's font by the
+button's height (`0x500f7f`) and how far the baseline drops:
+
+| Height | Font (`+0x60`) | Drop |
+|---|---|---|
+| 0x23 and up | 9, FontExocet10 | 4 |
+| 0x20 | 10, FontRidiculous | 3 |
+| 0x15 to 0x22, but not 0x20 | 10, FontRidiculous | 2 |
+| up to 0x14 | 10, FontRidiculous | 1 |
+
+The font names come from the table at `0x6dc980` (`FUN_005013a0`; 9 is
+`0x6dc910`, 10 is `0x6dc900`), under `DATA\LOCAL\FONT\LATIN\`. The
+draw clears the colour `+0x264` to 0 every frame (`0x500fba`), so a
+label never changes colour on hover, press or when disabled. It then
+calls `FUN_00500c50(drop)` when the label isn't empty.
+
+`FUN_00500c50` sets the font (`FUN_00502ef0`). It reads the font's height,
+byte 10 of its `.tbl` (`FUN_00501a40`; `FUN_00501580` keeps the file at
+slot `+8`). It gets the label's width with `FUN_00501820`, then:
+
+- x = `+0xc` + (width `+0x14` − label width) / 2, or `+0xc` when the
+  label is wider than the button;
+- the baseline = `+0x10` − (height `+0x18` − font height) / 2 + drop;
+- pressed (`+0x44` and `+0x48`, or `+0x4c`: the same test that picks
+  the chrome's pressed frames), x − 2 and baseline + 2.
+
+With flag 0x40 at `+0x40` (`0x500cb4`) the button has two lines: the
+label at `+0x10` − 2 × ((height − font height) / 3) + drop, and the
+string with id `+0x270` (`FUN_00524a30`) under it at `+0x10` −
+(height − font height) / 3 + drop, each centred on its own width and
+both moved when pressed. The halvings and thirds round toward zero. `FUN_00502360` → `FUN_00501c30` draws
+the label at that point: colour 0, not centred again (0), mode 4 (not
+traced). Each glyph's frame is placed with its bottom row on the baseline
+(`FUN_004f64b0`).
+
+The heights in the `.tbl` header: FontExocet10 10, FontRidiculous 7. The
+capitals' frames: FontExocet10 is 18 rows, with ink in rows 2 to 14, and
+FontRidiculous is 14 rows, with ink in rows 4 to 12. On the title:
+
+| Buttons | Box rows | Baseline | Capitals' rows |
+|---|---|---|---|
+| SINGLE PLAYER (bottom 324, h 0x23) | 290..324 | 324 − 12 + 4 = 316 | 301..313 |
+| Gateway (bottom 391, h 0x19) | 367..391 | 391 − 9 + 2 = 384 | 375..383 |
+
+BATTLE.NET, OTHER MULTIPLAYER and EXIT follow the 0x23 row, and CREDITS
+and CINEMATICS the 0x19 row, at their own bottoms.
+
+d2d draws every frontend button's label this way (`draw_button_label`,
+apps/d2d/frontend.cpp, with `button_label_spot` in
+components/font/button_label.hpp). It used to draw them in Font16, whose
+capitals in the Sky palette are mostly index 31 (196, 196, 196) where
+FontExocet10's are mostly index 15 (12, 12, 8) with 29, 31 and 32, and
+3 to 5 rows low, with a gold hover and no press offset. It still greys a
+disabled button's label; game.exe keeps colour 0 there and draws the
+chrome in mode 1 (not traced).
+
 ## Interpretation — layout convention
 
 Working hypothesis after cross-checking the sprite dimensions:
@@ -187,7 +248,7 @@ Working hypothesis after cross-checking the sprite dimensions:
   `(0, 599, 800, 600)`. Earlier notes said top-left; that put EXIT at
   y=568..603 (off-screen) and overlapped BATTLE.NET (y=366, h=35) with
   GATEWAY (y=391, h=25). Bottom-left stacks them flush. d2d converts with
-  `rec_top()` in apps/d2d/main.cpp. The label centres inside.
+  `rec_top()` in apps/d2d/main.cpp. The label sits as "Button labels" says.
 
 ## Follow-ups
 

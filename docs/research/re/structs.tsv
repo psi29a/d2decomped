@@ -160,6 +160,22 @@ static_path	0x04	u32	screen_x	the static unit's screen x FUN_00620900 reads for 
 static_path	0x08	u32	screen_y	the static unit's screen y FUN_00620900 reads for types 2, 4 and 5	tools/emu/units_small.py:989
 static_path	0x0c	u32	x	object or item unit's x coordinate	docs/research/re/ai-control.md:27
 static_path	0x10	u32	y	object or item unit's y coordinate	docs/research/re/ai-control.md:27
+storm_event_level	0x00	ptr	buckets	Storm event_level buckets	docs/research/re/source-module.md
+storm_event_level	0x04	u32	count	Storm event_level count	docs/research/re/source-module.md
+storm_event_level	0x08	u32	state	Storm event_level state	docs/research/re/source-module.md
+storm_event_level	0x0c	ptr	previous	Storm event_level previous	docs/research/re/source-module.md
+storm_event_node	0x00	u32	tag	Storm event_node tag	docs/research/re/source-module.md
+storm_event_node	0x04	u32	window	Storm event_node window	docs/research/re/source-module.md
+storm_event_node	0x0c	ptr	level	Storm event_node level	docs/research/re/source-module.md
+storm_event_node	0x10	ptr	next	Storm event_node next	docs/research/re/source-module.md
+storm_handler	0x0c	ptr	next	Storm handler next	docs/research/re/source-module.md
+storm_message	0x00	u32	window	Storm message window	docs/research/re/source-module.md
+storm_message	0x04	u32	message	Storm message message	docs/research/re/source-module.md
+storm_message	0x08	u32	wparam	Storm message wparam	docs/research/re/source-module.md
+storm_message	0x0c	u32	lparam	Storm message lparam	docs/research/re/source-module.md
+storm_message	0x10	u32	notification	Storm message notification	docs/research/re/source-module.md
+storm_message	0x18	u32	result	Storm message result	docs/research/re/source-module.md
+storm_message	0x1c	u32	handled	Storm message handled	docs/research/re/source-module.md
 unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/object_ids.hpp:10
 unit	0x04	u32	class	its row: MonStats, objects.txt, Missiles, ...	tools/emu/life_apply.py:50
 unit	0x0c	u32	id	unit ID used in a minion list	docs/research/re/ai-control.md:81

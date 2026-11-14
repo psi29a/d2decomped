@@ -4,7 +4,9 @@
 // FUN_0056b3e0, rules/aura_filter.hpp), with the game's MPQs (D2_MPQ_DIR;
 // the 1.14d ones with D2_PATCH_INSTALLER): Might (0x12003) is over no
 // monster, so its auratargetstate isn't drawn on one; Conviction is;
-// Sanctuary takes the undead only, Holy Freeze no prime evil.
+// Sanctuary takes the undead only, Holy Freeze no prime evil; it and
+// Static Field only in a clear line (0x200, mask 4); in town none takes a
+// monster (0x100, 0x2000).
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -12,6 +14,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -57,6 +60,25 @@ int main() try {
     world.enter(character);
     auto& fight = world.fight;
     auto& actor = *world.actor;
+    const Level* town = world.level;
+    assert(town && town->id == 1);
+
+    // Out of town, on a copy of the Blood Moor to wall in: the player on a
+    // row of six subtiles clear of mask 4, a monster a cell (5 subtiles) east.
+    Level moor = *data->level(d2d::rules::level_ids::kBloodMoor);
+    const int width = moor.ds1.width() * 5, height = moor.ds1.height() * 5;
+    const auto open = [&](int at_x, int at_y) { return (moor.walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x04) == 0; };
+    int row_x = -1, row_y = -1;
+    for (int at_y = 0; at_y < height && row_x < 0; ++at_y)
+        for (int at_x = 0; at_x + 5 < width && row_x < 0; ++at_x) {
+            bool clear = true;
+            for (int step = 0; step <= 5 && clear; ++step) clear = open(at_x + step, at_y);
+            if (clear) { row_x = at_x; row_y = at_y; }
+        }
+    assert(row_x >= 0);
+    world.level = &moor;
+    actor.player.x = (float(row_x) + 0.5f) / 5;
+    actor.player.y = (float(row_y) + 0.5f) / 5;
     fight.skill_level = [](int) { return 1; };
 
     const auto beside = [&](const char* monster_id) {
@@ -80,9 +102,51 @@ int main() try {
     std::printf("OK: Conviction is over the living ones\n");
 
     // The pulse's filter: Sanctuary the undead, Holy Freeze not Diablo.
-    assert(fight.aura_takes(*sanctuary, zombie) && !fight.aura_takes(*sanctuary, fallen));
-    assert(!fight.aura_takes(*holy_freeze, diablo) && fight.aura_takes(*holy_freeze, fallen));
+    const float from_x = actor.player.x, from_y = actor.player.y;
+    assert(fight.aura_takes(*sanctuary, zombie, from_x, from_y) && !fight.aura_takes(*sanctuary, fallen, from_x, from_y));
+    assert(!fight.aura_takes(*holy_freeze, diablo, from_x, from_y) && fight.aura_takes(*holy_freeze, fallen, from_x, from_y));
     std::printf("OK: Sanctuary takes the undead, Holy Freeze no prime evil\n");
+
+    // Static Field (its walk on the caster with aurafilter 0x8783, 0x200)
+    // strikes the monster a cell east; behind a wall, not.
+    const auto* static_field = skill("Static Field");
+    assert(static_field->aura_filter == 0x8783);
+    const Fight::Caster caster{ from_x, from_y, 1, -1, 0, 0 };
+    const auto field_hits = [&] {
+        fight.monsters.clear();
+        Monster target = fallen;
+        target.hit_points = target.stats.hit_points = 1000;
+        fight.monsters.push_back(target);
+        fight.spot(*static_field, 1000, caster);
+        return fight.monsters.back().hit_points < 1000;
+    };
+    assert(field_hits());
+    // The player's Holy Freeze slows (velocitypercent, aurastat 67) only a
+    // monster its filter takes: the fallen in a clear line, not Diablo
+    // (0x40000).
+    actor.aura = holy_freeze->id;
+    const auto slowed = [&](const Monster& one) {
+        fight.monsters.clear();
+        fight.monsters.push_back(one);
+        fight.monster_states(1000);
+        return fight.monsters.back().speed_pct < 0;
+    };
+    assert(slowed(fallen) && !slowed(diablo));
+
+    // A wall subtile (mask 4) between them: Holy Freeze's 0x200 fails, its
+    // pulse and its slow; Conviction (0xa583) has no line test.
+    moor.walk[std::size_t(row_y) * std::size_t(width) + std::size_t(row_x + 2)] |= 0x04;
+    assert(!fight.aura_takes(*holy_freeze, fallen, from_x, from_y) && fight.aura_takes(*conviction, fallen, from_x, from_y));
+    assert(!slowed(fallen));
+    assert(!field_hits());
+    fight.monsters.clear();
+    actor.aura = conviction->id;
+    std::printf("OK: Holy Freeze (its pulse and slow) and Static Field need a clear line, Conviction doesn't\n");
+
+    // In town: Conviction's 0x100 and 0x2000 take no monster.
+    world.level = town;
+    assert(!fight.aura_takes(*conviction, fallen, from_x, from_y) && !fight.in_aura(fallen));
+    std::printf("OK: no aura takes a monster in town\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

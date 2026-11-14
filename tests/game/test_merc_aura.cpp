@@ -12,6 +12,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -98,6 +99,23 @@ int main() try {
     std::printf("OK: the merc's Prayer heals the player and itself on its pulse\n");
 
     // Its Holy Freeze (do 81): -dm34 velocity and attack rate on a monster near it, its cold pulse.
+    // Out of town (its aurafilter 0x4a283 passes over a town room, 0x2000), on the Blood Moor
+    // where eleven subtiles in a row are clear of mask 4: the line (0x200) from the merc to the
+    // monster a cell past it.
+    const Level* town = world.level;
+    const Level* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(moor);
+    int row_x = -1, row_y = -1;
+    for (int at_y = 0; at_y < moor->ds1.height() * 5 && row_x < 0; ++at_y)
+        for (int at_x = 0; at_x + 10 < moor->ds1.width() * 5 && row_x < 0; ++at_x) {
+            bool clear = true;
+            for (int step = 0; step <= 10 && clear; ++step) clear = !moor->blocked_here((float(at_x + step) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04);
+            if (clear) { row_x = at_x; row_y = at_y; }
+        }
+    assert(row_x >= 0);
+    world.level = moor;
+    actor.player.x = (float(row_x) + 0.5f) / 5; actor.player.y = (float(row_y) + 0.5f) / 5;
+    actor.merc->unit.x = actor.player.x + 1; actor.merc->unit.y = actor.player.y;
     const int holy_freeze = data->skills.by_name.at("Holy Freeze");
     actor.merc_ids[0] = holy_freeze; actor.merc_levels[0] = 6;
     actor.merc_aura = holy_freeze;
@@ -114,7 +132,14 @@ int main() try {
     chilled.unit.x = actor.merc->unit.x + 40;
     fight.monster_states(3000);
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
-    std::printf("OK: the merc's Holy Freeze slows the monsters near it and its pulse hurts them\n");
+    // In town its pulse takes no monster.
+    world.level = town;
+    chilled.unit.x = actor.merc->unit.x + 1;
+    chilled.hit_points = 100000;
+    actor.merc_aura_next = 0;
+    fight.aura_pulse(3000);
+    assert(chilled.hit_points == 100000);
+    std::printf("OK: the merc's Holy Freeze slows the monsters near it and its pulse hurts them, out of town\n");
 
     // An antidote fed to the merc (FUN_005bef90 / FUN_005beda0): its poison gone, +50 poison resist on it.
     actor.merc_poison_until = 999999;

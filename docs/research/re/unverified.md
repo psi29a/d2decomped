@@ -22,6 +22,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | What | Traced in | Doc |
 |---|---|---|
 | Chat IME lifecycle: 1,248 scoped notification, initialization and shutdown cases with OS and registration calls scripted; no d2d parity claim | `FUN_0047ae00`, `FUN_0047b090`, `FUN_0047b2e0`; `tools/emu/chat_ime_lifecycle.py` | [chat.md](chat.md) |
+| SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Blood Raven log-send filter: all 16 flag combinations at three difficulties with lookup, bit test and sender hooked; no d2d parity check | `FUN_00590830`; `tools/emu/quest_burial_log.py` | [quests-act1.md](quests-act1.md) "Quest-log send filter" |
 | Cain scroll-loss rewind: item count, state gates, tree lookup and transition calls; 15 synthetic cases with callees hooked, no d2d parity check | `FUN_00592c80`, `FUN_00592bd0`; `tools/emu/quest_cain_rewind.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |

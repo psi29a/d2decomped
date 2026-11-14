@@ -56,6 +56,9 @@ public:
 
     [[nodiscard]] const dc6::Sprite& sheet() const noexcept { return sheet_; }
     [[nodiscard]] int line_height() const noexcept { return line_height_; }
+    // Byte 10 of the .tbl, the height game.exe centres a button label by
+    // (FUN_00501a40).
+    [[nodiscard]] int tbl_height() const noexcept { return tbl_height_; }
     [[nodiscard]] std::size_t glyph_count() const noexcept { return glyphs_.size(); }
 
     // Nullptr when the char isn't in the font — caller decides whether to
@@ -159,7 +162,8 @@ private:
             || bytes[2] != std::byte{0x6f} || bytes[3] != std::byte{0x21}
             || bytes[4] != std::byte{0x01})
             throw std::runtime_error("font: bad magic");
-        // 7 unknown header bytes follow, then 256 * 14 records.
+        // 7 header bytes follow (byte 10 the font's height), then 256 * 14 records.
+        tbl_height_ = std::uint8_t(bytes[10]);
         std::size_t offset = kHdr;
         while (offset + kRec <= bytes.size()) {
             Glyph glyph;
@@ -181,6 +185,7 @@ private:
     std::unordered_map<std::uint16_t, Glyph> glyphs_;
     dc6::Sprite sheet_;
     int         line_height_ = 0;
+    int         tbl_height_ = 0;
 };
 
 // The edit box's wrap (FUN_00502970, Src/D2WinFont.cpp). One byte is one

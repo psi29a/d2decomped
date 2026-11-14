@@ -103,7 +103,7 @@ int main(int argc, char** argv) try {
         Monster made = make_monster(*data, type->second, 10, 10, rng, 0);
         made.unit.x = hero.player.x + away.first * 0.6f; made.unit.y = hero.player.y + away.second * 0.6f;
         fight.monsters.clear();
-        fight.add_monster(Monster(made));
+        fight.add_monster(std::move(made));
         fight.knock_back(fight.monsters.back(), hero.player.x, hero.player.y, 1000);
         return fight.monsters.back();
     };

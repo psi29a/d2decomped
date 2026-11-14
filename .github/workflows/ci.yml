@@ -178,7 +178,9 @@ jobs:
           $ports = @("zlib", "stormlib")
           if ("${{ matrix.arch }}" -eq "arm64") { $ports += "openal-soft" }
           else { Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal }
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install @ports --triplet ${{ matrix.arch }}-windows --x-install-root="$deps\vcpkg"
+          # tools/vcpkg-ports: openal-soft 1.25.2 with upstream's fix for MSVC 14.52
+          # (tools/vcpkg-ports/README.md); without it the arm64 build stops in alc.cpp.
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install @ports --triplet ${{ matrix.arch }}-windows --x-install-root="$deps\vcpkg" --overlay-ports="${{ github.workspace }}\tools\vcpkg-ports"
           Get-ChildItem $deps
 
       # pkg-config for FFmpeg's .pc files (pkgconfiglite is a prebuilt binary).
@@ -189,13 +191,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # The image's Strawberry Perl already has a pkg-config on PATH (it
+          # says 0.26) that CMake's FindPkgConfig doesn't take: with the feed
+          # down (504, 2026-11-13) it passed for pkgconfiglite, so it doesn't count.
+          function Test-PkgConfig { (Get-Command pkg-config -ErrorAction SilentlyContinue) -and ((pkg-config --version) -ne '0.26') }
           foreach ($try in 1..3) {
             choco install pkgconfiglite -y --no-progress
-            if (Get-Command pkg-config -ErrorAction SilentlyContinue) { break }
+            if (Test-PkgConfig) { break }
             Write-Host "pkg-config not installed (try $try of 3)"
             Start-Sleep -Seconds (20 * $try)
           }
-          if (-not (Get-Command pkg-config -ErrorAction SilentlyContinue)) { throw "pkg-config is missing: the Chocolatey install failed 3 times" }
+          if (-not (Test-PkgConfig)) { throw "pkg-config is missing: the Chocolatey install failed 3 times" }
           pkg-config --version
 
       - name: Set up Ninja (Windows)
@@ -385,11 +391,26 @@ jobs:
           $zip = Get-Item build\d2d-*.zip
           if ($zip.Name -notlike "*-Windows-$processor.zip") { throw "$($zip.Name) isn't named for $processor" }
           Expand-Archive $zip.FullName "$env:RUNNER_TEMP\package" -Force
+          # Microsoft's own redist for this architecture passes as it is: its
+          # arm64 folder has a vcruntime140_1.dll that isn't AA64 (run
+          # 43476586761), which CMake's InstallRequiredSystemLibraries ships.
+          $arch = "${{ matrix.arch }}"
+          $redist = if ($env:VCToolsRedistDir) { Get-ChildItem (Join-Path $env:VCToolsRedistDir $arch) -Recurse -Filter *.dll } else { @() }
           $wrong = Get-ChildItem "$env:RUNNER_TEMP\package" -Recurse -Include *.exe, *.dll |
-            Where-Object { -not ((dumpbin /headers $_.FullName) -match "^\s*$machine machine") }
+            Where-Object { -not ((dumpbin /headers $_.FullName) -match "^\s*$machine machine") } |
+            Where-Object {
+              $file = $_
+              $hash = (Get-FileHash $file.FullName).Hash
+              $theirs = $redist | Where-Object { $_.Name -eq $file.Name -and (Get-FileHash $_.FullName).Hash -eq $hash }
+              if ($theirs) {
+                $header = (dumpbin /headers $file.FullName) -match 'machine \(' | Select-Object -First 1
+                Write-Host "$($file.Name): from Microsoft's $arch redist, not $machine`: $header"
+              }
+              -not $theirs
+            }
           $wrong | ForEach-Object { Write-Host "::error::not $machine`: $($_.FullName)" }
           if ($wrong) { exit 1 }
-          Write-Host "$($zip.Name): every binary is $machine"
+          Write-Host "$($zip.Name): every binary is $machine, or Microsoft's redist as shipped"
 
       - name: Upload Sentry debug information
         if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'

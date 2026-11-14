@@ -36,7 +36,7 @@ int main() try {
     unit.x = Fine::centre(2); unit.y = Fine::centre(20);
     unit.path = { { float(Fine::centre(-5)), float(Fine::centre(20)) } };
     int frames = 0;
-    while (follow_path(here, unit, 0x1000)) assert(++frames < 20);
+    while (follow_path(here, unit, 0x1000)) { ++frames; assert(frames < 20); }
     assert(unit.x.subtile() == -5 && unit.y.subtile() == 20 && !here.inside(unit.x, unit.y));
 
     // A missile's step into subtile -1 lists it as -1 too (the subtiles it entered, +0x1d8).

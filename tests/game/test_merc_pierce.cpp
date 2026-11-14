@@ -18,6 +18,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -42,7 +43,7 @@ int main() try {
     belt.slot = d2d::d2s::body_location::kBelt;
     belt.props.push_back({ .stat = d2d::d2s::kItemPierce, .value = 20 });
     belt.props.push_back({ .stat = d2d::d2s::kSkillPierce, .value = 40 });
-    hero.character.merc_items.push_back(belt);
+    hero.character.merc_items.push_back(std::move(belt));
     hero.merc_pierce_idx = 1;                                           // {1, 666} under 60: 3 draws land
     hero.pierce_idx = 1;
     hero.psum[d2d::d2s::kSkillPierce] = 40;
@@ -66,7 +67,7 @@ int main() try {
     monster.type = 0;
     monster.hit_points = 100;
     monster.stats.hit_points = 100;
-    fight.monsters.push_back(monster);
+    fight.monsters.push_back(std::move(monster));
     for (int left = 2; left >= 0; --left) assert(!fight.skill_missile_hits(arrow, 0, 7000) && arrow.pierce == left);
     assert(fight.skill_missile_hits(arrow, 0, 7000));
 
