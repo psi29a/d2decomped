@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Video driver option and frame pacing: `FUN_00477730` returns its global whole; `FUN_004f6190` on 130 scripted clocks (first-call init, the 5.0 skip, 1..5 ms sleep window, carry and overshoot correction, slot order) with the clock, `Sleep` and the two driver slots hooked; real timing and d2d pacing not checked | `FUN_00477730`, `FUN_004f6190`; `tools/emu/ui_client_helpers.py --mutation-check` | [video-drivers.md](video-drivers.md) |
 | Key binding lookup and key-name dispatch: all 114 records, first match, miss as 0xffff; the 32 special keys' string ids and the hand-off to `FUN_00469de0` with ECX and EDX kept; 2,743 + 520 cases against a Python model, `FUN_00524a30` and `FUN_00469de0` hooked; no d2d parity claim | `FUN_00469aa0`, `FUN_0046a530`; `tools/emu/ui_client_helpers.py --mutation-check` | [controls.md](controls.md) |
 | SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
