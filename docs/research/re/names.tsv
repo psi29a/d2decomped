@@ -106,6 +106,8 @@ address	name	evidence
 00465ee0	unit_remove_table_a	ECX id, EDX type: FUN_00465e80 on table A (0x7a5e70) + type * 0x200, bucket id & 0x7f; verified by unit_client.py
 00465f00	unit_remove_table_b	ECX id, EDX type: FUN_00465e80 on table B (0x7a5270) + type * 0x200, bucket id & 0x7f; verified by unit_client.py
 004661c0	unit_create	ECX id, EDX class, stack x, y, type, mode: FUN_00620290(0, type); a unit gets FUN_00465fd0 (EAX unit, EBX = the first stack argument, then ECX, EDX, the other three, 0); 0 when none; verified by unit_client.py
+00469aa0	keyconfig_key_of	ECX function, EDX slot: the key (low word) of the first of the 114 records at 0x7a6f90 that matches, else 0xffff (controls.md; ui_client_helpers.py)
+0046a530	keyconfig_key_label	ECX function, EDX slot: 32 keys tail-jump to FUN_00524a30 with a string id, any other key or none to FUN_00469de0 with ECX, EDX kept (controls.md; ui_client_helpers.py)
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
