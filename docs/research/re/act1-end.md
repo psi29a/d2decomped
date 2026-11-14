@@ -788,6 +788,13 @@ switch obj.mode:
          FUN_00554120(player, 2, objId)    // interact: +0x64=id, +0x68=2, +0x6c=1
 return 1
 ```
+`FUN_00554120(unit, type, id)` (stdcall, `ret 0xc`): when the byte at `+0x6c` is 0 it
+stores `+0x64 = id`, `+0x68 = type`, `+0x6c = 1`; otherwise it changes nothing, and for
+a player (unit type 0) with a name from `FUN_006221a0` it formats "Player %s attempted
+to operate while busy" into a local buffer that nothing reads. Oracle
+`tools/emu/items_objects_helpers.py`: idle and busy (1, 255) units of type 0 and 1
+run the real code (the cookie check, `FUN_006221a0` and the sprintf are hooked and
+recorded; the format string and name argument are asserted). Not compared with d2d.
 Object events (table 0x6e19b0):
 - ev1 = FUN_00581490: if mode == 1 and Mode2 (+0x141) exists, set mode 2. If HasCollision2 (+0x122) == 0, FUN_00623830.
 - ev0 = FUN_00581700: mode 1 → 2, then re-queue ev0 at +15 + rand%35 (seed FUN_00546fa0, LCG 0x6ac690c5).
