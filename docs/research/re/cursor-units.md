@@ -231,7 +231,7 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   `FUN_00467a70`; otherwise `FUN_004623c0` + `FUN_00461840`, a walk to the
   click's spot. So a left click on a converted monster walks there,
   as on empty ground, unless shift is held: then it is the attack in
-  place (`FUN_00461700(0)`), as on empty ground. `FUN_004623c0`'s own glue
+  place (`FUN_00461700(0)`), as on empty ground. `FUN_00461700` itself is run on game.exe by `tools/emu/attack_command.py`: with the argument 0 it never looks at the shift flag, so the spot command is 5 (left, 8 for the alternate) and 0xc (right, 0xf), the same code a plain click sends; at a unit shift and the alternate pick 6 / 7 / 9 / 0xa (left) and 0xd / 0xe / 0x10 / 0x11 (right). `FUN_004623c0`'s own glue
   (the held-frame throttle at 7 frames / 280 ms, rejecting a move when
   either axis distance is 0x100 or more or both axes are under 1, the
   per-flag minimum step) and `FUN_00461840`'s (a failed
