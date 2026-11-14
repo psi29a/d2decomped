@@ -160,7 +160,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Book skill-count delta (`FUN_0055c070`; callees hooked) | `uv run python item_book_count_delta.py --exe /path/to/game.exe` | `ok: 36 book skill-count delta cases (callees hooked)` |
 | Book skill-count add/remove (`FUN_0055c110`; callees hooked) | `uv run python item_book_count_update.py --exe /path/to/game.exe` | `ok: 10 book skill-count add/remove cases (callees hooked)` |
 | Item lifecycle: replenishment scheduling, expiry deadlines and runeword cleanup (synthetic callees; original control flow/accessor writes, no d2d comparison) | `uv run python item_lifecycle.py` | 48 scheduling, 288 expiry and 8 cleanup cases pass |
-| DATATBLS ItemTbls.cpp helpers (14 functions: FUN_00633590 ... 00639cb0; `--mutation-check` 14 ways) | `uv run python item_tbls.py` | `ok: 2078 ItemTbls helper cases` |
+| DATATBLS ItemTbls.cpp helpers (23 functions: FUN_00633540 ... 00639cc0; `--mutation-check` 27 ways) | `uv run python item_tbls.py` | `ok: 2764 ItemTbls helper cases` |
 | ITEMS small functions: stubs, wrappers, item-data and Items-row getters, fatal class-id getters, item free, container count, set-item row (39 functions, FUN_0055d930 ... FUN_0062a900; EAX upper bits, callee log, `ret n`; `--mutation-check` 20 ways) | `uv run python items_traces.py` | `ok: 3120 ITEMS small function cases` |
 | A knockback's pace (FUN_00623f50's KB velocity 0x1000; FUN_0064fe40, FUN_00650090: a subtile a frame, the snap at the path's end) | `uv run python knock_pace.py gen 2000 7 > cases.tsv; uv run python knock_pace.py game cases.tsv > g.txt; ../../build/tests/test_knockback --knock-pace cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python knock_pace.py compare g.txt d.txt` | `frame mismatches 0 velocity not 0x1000 0`, the step gap under 655 |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
@@ -328,6 +328,71 @@ Needs `bin/game.exe` beside the MPQs (the launcher puts it there) and a
 built `build/tools/mpq-cat/mpq-cat`. The MPQ folder is found as d2d finds
 it: `$D2_MPQ_DIR`, else `data =` in d2d.cfg (`~/.config/d2d/` on Linux,
 `~/Library/Preferences/d2d/` on macOS), else the macOS launcher's setting.
+The small oracles using `_monster_world.py` can instead read a local 1.14d
+executable directly via `D2_GAME_EXE=/path/to/Game.exe`; its SHA-256 is checked.
+`datatbls_cited_suite.py` runs the cited DATATBLS oracles below in one
+Python process (`D2_GAME_EXE=/path/to/Game.exe .venv/bin/python
+datatbls_cited_suite.py`). It starts no child process and reads no MPQ.
+`datatbls_probe.py` uses that path to check 22 DATATBLS entry paths: 19
+zero-row paths, the zero-state monster freer, the excel filename opener and
+the no-write binary readback. For its 18 loaders it checks the complete
+CompileTxt field schema against hashes recorded from game.exe.
+`datatbls_probe.py --populated [hex-address]`
+prints a diagnostic one-row run with hooked CompileTxt; it does not claim a
+match and is useful for constructing table-specific fixtures.
+`datatbls_probe.py --writeback` checks the flagged binary write/readback
+sequence with all file calls hooked; it writes no file.
+`datatbls_probe.py --writeback-fail` checks the failed-open path, which
+still frees the source table and reads the binary table back.
+`datatbls_probe.py --readback-present` and `--readback-null` check that
+either a clear compile flag or a null source skips the write path.
+`datatbls_probe.py --strings` checks `FUN_00612600` over two synthetic rows,
+with string resolution and copying hooked.
+`datatbls_probe.py --strings-missing` checks the null-resolver branch and
+its UTF-16 `<>` fallback source.
+`datatbls_charstats.py` checks the real CharStats caller's 0xc4-byte row
+stride, source key at `+0x20` and 0x10-byte destination at `+0`.
+`datatbls_leveldefs.py` checks the integrated `FUN_0061de00` call into the
+LevelDefs Portal row array builder.
+`datatbls_probe.py --superuniques` checks all 66 hcIdx index slots and a
+duplicate row in `FUN_006552e0`.
+`datatbls_probe.py --monseq` checks a three-row, two-group MonSeq index.
+`datatbls_probe.py --matrix` checks the two-row ItemTypes and MonType
+is-a matrices with the ItemTypes link insertion hooked.
+`datatbls_probe.py --populated-check` checks 18 one-row paths against their
+compile calls, link lines and return or fatal result; the gems case also
+checks the Item row assignments, and the itemtypes case checks its one-row
+bit matrix. The probe also checks fifteen direct table, row-count and link
+destinations on its zero-row and one-row paths.
+`datatbls_code_tables.py` checks both `FUN_00612750` compile-flag branches,
+all sixteen code-table field schemas and destinations, and the two persistent
+row counts.
+`datatbls_lvlsub.py` checks `FUN_0061f500`'s Type index, cache flags,
+expansion gate and missing-DS1 fatal path.
+`datatbls_lvlprest.py` checks `FUN_0061ebb0`'s six-file walk, expansion
+gate, slash conversion and DS1 cache slots.
+`datatbls_affixes.py` checks the populated magic and rare affix merges,
+string-ID writes, segment pointers and source-table releases.
+`datatbls_uniqueitems.py` checks row numbering, link calls, missing-string
+fallback and the 0x7ffe row-count limit of `FUN_006342b0`.
+`datatbls_gems.py` checks the gem letter lookup and row-ordered Items
+reverse-index writes of `FUN_00636b70`.
+`datatbls_superuniques.py` checks the 66 hcIdx slots, missing-ID fatal path
+and 512-row cap of `FUN_006552e0`.
+`datatbls_monseq.py` checks duplicate, gapped and out-of-order MonSeq group
+IDs and the first-row pointers and counts in `FUN_00659c60`.
+`datatbls_gamble.py` checks the populated gamble sort, derived Items levels
+and indices, and all 99 level cuts in `FUN_00638ae0`; the equal-level case
+is frozen in `tests/test_datatbls_gamble.cpp` against d2d's sort.
+`datatbls_itemstatcost.py` checks the bit-width clamp, operation-link
+initialization, selected op and parameter-stat branches, signed priority
+sort and count guard of `FUN_00637a00`.
+`datatbls_type_matrices.py` checks 33x33 ItemTypes and MonType matrices,
+including a cross-word Equiv1 bit.
+`datatbls_excel_open.py` checks both file-open outcomes and the conditional
+close of `FUN_00639420`, with I/O hooked.
+`datatbls_monster_release.py` checks 49 synthetic pointer states through
+`FUN_0065a190`'s conditional frees and global writes.
 The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
 `~/Downloads/Diablo II + LoD/patch/LODPatch_114d.exe`.
 
