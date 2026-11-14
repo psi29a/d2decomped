@@ -729,6 +729,7 @@ address	name	evidence
 005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
 00548a50	player_walk_to_unit_queued	EBX unit, ECX game, EDI type, ESI id, stack marker (-1, or -2 when FUN_00548b00's fourth argument is set): FUN_00580a70 mode 3 then FUN_00641f20 sets pending +0x150 = 1, +0x154 marker, +0x158 type, +0x15c id (collision.md "The pending interact's fields")
 00548b00	player_interact_unit	ECX player, EDX type 0..5, stack id, to_cursor, game: within 0x33 of unit_distance, by type: 0 player (corpse FUN_0057fb70), 1 NPC (talk FUN_00573020), 2 object (FUN_00584540), 4 item (FUN_00563560 / FUN_0055cf50), 5 warp (FUN_005550b0); out of reach walks by FUN_00548a50 (collision.md "The pending interact's fields")
+00554120	unit_set_interaction	stdcall (unit, type, id): if byte +0x6c is 0, +0x64 = id, +0x68 = type, +0x6c = 1; else nothing (a busy player logs a sprintf to a dead buffer) (act1-end.md "Operate")
 00556b60	item_roll_sockets	(EDI item, drop record, roll +0x6d difficulty): quality >= 2, hasinv, not stackable; most = FUN_0062bc20 cut to 3 / 4 / 6; rand(100) < 33 on the item's seed; count seed field % most + 1 (version 100+), flag 0x800, FUN_0062bcb0
 00556e80	item_type_fixups	(EAX item, EDI drop record): ItemTypes 0xd FUN_00556a60; 0x28 / 7 item data +0x28 = record +0x40 or *record +4 (7 also flag 0x10000); 0x16 / 0x12 books row into item data +0x3e; then FUN_005c1260
 00556f60	item_roll_quality	(item, record): forced quality at record +0x30 in an expansion item, else ItemRatio row by FUN_00637910, tries 7..2 by rand(b - past / d), else 3 or 1 by record +0x80 & 0x40 (drops.md "The quality roll")
@@ -1166,6 +1167,7 @@ address	name	evidence
 00622830	monster_weapon	FUN_0063c9b0 on unit +0x60
 00622dc0	unit_622d00_set	FUN_00622d00 != 0
 00622de0	unit_missing_vitals_cost	missing life + mana >> 8, times stat 0xc >> 2
+00622e70	unit_stat12_x10000	FUN_00625480(unit, 12, 0) * 10000, 32-bit (party.md "Gold picked up")
 00622e90	units_stub_ret8	ret 8; touches nothing (stubs.md)
 00622ea0	player_keep_right_skill	player data +0x70/+0x78 (Units.cpp 0x13f6, 0x13fa)
 00622f10	player_keep_left_skill	player data +0x74/+0x7c (Units.cpp 0x1405, 0x1409)
@@ -1322,6 +1324,7 @@ address	name	evidence
 00639cb0	runes_count_ptr	returns &0x96ca98
 00639cc0	runes_set_row	0x120-byte rows (ItemTbls.cpp 0x95b)
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
+0063a130	state_words_intersect	EAX unit, EBX set: any shared bit between FUN_00625bb0 words and the set over (count [+0xc4] + 31) / 32 words (drops.md "Does a unit have a state of one set")
 0063a690	unit_has_state_of_set144	stdcall (unit): any bit of the unit's state words (FUN_00625bb0) in the set at [0x744304] +0x144, over (count [+0xc4] + 31) / 32 words, via FUN_0063a130 (drops.md "Does a unit have a state of one set")
 0063a970	inv_grid_unlink	unlinks item data +0x6c/+0x70 from a grid and clears its cells (Inventory.cpp 0x199)
 0063aaf0	inv_remove_item	clears item data +0x5c/+0x68/+0x69, inventory +0x20 or +0x28 count, wielded id +0x1c

@@ -105,6 +105,9 @@
 #ifdef __vita__
 #include <SDL3/SDL_main.h>   // SDL's main runs ours on a 512 KB stack
 #endif
+#ifdef __ANDROID__
+#include <SDL3/SDL_main.h>   // SDL's activity calls ours as SDL_main
+#endif
 
 using namespace d2d::client;
 
@@ -1917,6 +1920,12 @@ int main(int argc, char** argv) {
     }
 #endif
 
+#ifdef __ANDROID__
+    // No HOME there: the app's own external folder
+    // (Android/data/<package>/files), which needs no permission and which
+    // adb can fill (docs/android.md).
+    if (const char* files = SDL_GetAndroidExternalStoragePath(); files && *files) setenv("D2D_USER_DIR", files, 0);
+#endif
     // Per-user dir, thirdeye layout (components/userdir): d2d.cfg, save/,
     // screenshots/. Config loads global -> ./ -> user, later wins.
     const fs::path user_dir = d2d::userdir::user_dir("d2d");
@@ -2044,7 +2053,7 @@ int main(int argc, char** argv) {
         const char* env = std::getenv("D2_MPQ_DIR");
         const char* base = SDL_GetBasePath();
         std::error_code cwd_ec;
-#if defined(__vita__) || defined(__SWITCH__)
+#if defined(__vita__) || defined(__SWITCH__) || defined(__ANDROID__)
         if (cfg["data"].empty()) cfg["data"] = user_dir.string();   // the MPQs' folder there (userdir.hpp)
 #endif
         const auto found = d2d::install::resolve_data_dir(data_dir_str, env ? env : "", base ? fs::path(base) : fs::path{},

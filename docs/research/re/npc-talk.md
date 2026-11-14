@@ -87,6 +87,67 @@ or 0x13 falls through, and any other EDI returns 0), `00454ed1`
   the top 18 px or the bottom are drawn partially (`FUN_00501df0`).
 - **End**: the speech ends once `offset_px > max(lines - 1, 1) * 18 + 0x70`.
 
+## UI state functions run in the emulator
+
+`tools/emu/ui_state.py` runs each of these for real with every callee hooked
+to log its registers and stack arguments, so the call order and the globals
+written are the claim. The sequences come from the disassembly, because the
+decompile drops register arguments and, once, invents one.
+
+- `FUN_0049f900` returns `[0x7bf250]` (the gossip list); `FUN_004a0000`
+  returns `[0x7bf0a4] != 0`.
+- `FUN_0049f8c0` (the 0x76 packet handler; ECX = the packet): the decompile
+  shows no arguments, the disassembly loads `EDX = byte [ECX + 1]` (unit
+  type) and `ECX = dword [ECX + 2]` (unit id) for `FUN_00463990`, the unit
+  lookup. A found unit has `+0xa4` released through `FUN_006611a0(0, +0xa4)`
+  when set, and zeroed either way; no unit does nothing more.
+- `FUN_0049f960` (speech close), in order: `FUN_00467430(0)`; `[0x7bf0a4]`
+  set: `FUN_0049d370` (EAX = its first dword), `FUN_0040b3c0` of it (line
+  0x68e), cleared; `[0x7bf260]` set: `FUN_004b9610` (ECX = it) and, when that
+  returns nonzero, `FUN_004b9ef0(0, 4)`, the dword cleared; `[0x7bf24b]`
+  cleared; `[0x7bf27c] == 1` (exactly 1; 2 is left alone): cleared and
+  `FUN_00451e10(ECX = [0x7c8cbc], EDX = 0x722600, 7)`; `[0x7bf230]` set:
+  `FUN_004786a0(CL = 0x31, EDX = -1, word [0x7bf212])`, cleared.
+  **`FUN_004f59a0` is not called with 7**: it is `mov eax, [0x7c8cbc]; ret`
+  and the 7 pushed before it is `FUN_00451e10`'s stack argument (`ret 4`), so
+  the decompile's `FUN_004f59a0(7)` is a misreading. The same pair sits in
+  `FUN_004a0770`.
+- `FUN_004a0680` (reset the speech state): frees the gossip list
+  (`FUN_006612a0`), the speech record `[0x7bf0a4]` and the second record
+  `[0x7bf1a8]` (the latter also frees a second block, line 0x6e4), calls
+  `FUN_004b8020` for `[0x7bf1b0]`, the box object's destructor (vtable slot
+  0, argument 1) for `[0x7bf1b4]`, then `FUN_0049fe10`, `FUN_00467430(0)` and
+  `FUN_0049d4d0` on `0x7bf1e4`, `0x7bf1ea`, `0x7bf1f0`; each global is zeroed
+  and `[0x7bf24b]` too.
+- `FUN_004a0770` (EAX = a record, one stack argument; the per-frame step):
+  a nonzero argument writes `2` to `[EAX + 0x16]` and returns 0. Otherwise
+  `FUN_00514cc0` (the master volume) and, when `[0x7bf24b]` is set,
+  `FUN_004b95c0`: that flag with `FUN_004b95c0` zero and the volume nonzero
+  returns 1 at once. Else `[0x7bf24b] = 0`, and `FUN_0049d5a0` (the box's
+  draw) returning 0 returns 1. When it returns nonzero: `[0x7bf1bc] = 1`; a
+  record in `[0x7bf0a4]` with `[0x7bf20a]` clear is freed through
+  `FUN_0049d410`; `FUN_0049f960`; a callback at `[0x7bf258]` takes
+  (ECX = `[0x7bf25c]`, EDX = 0, 0) and its answer is returned; with none,
+  `[0x7bf1c4] == 1` is cleared, else `[0x7bf20a]` set calls
+  `FUN_004b3d10(ECX = [0x7bf202])`; then `FUN_00453ae0`, `[0x7bf20a] = 0`,
+  `FUN_00467430(0)`, the `[0x7bf27c]` pair above, and returns 0.
+- `FUN_00453d90` calls, in order, `FUN_0049c0a0`, `4a7aa0`, `4aa920`,
+  `4a8a30`, `4b8720`, `487990`, `498e80`, `48a600`, `4a3050`, `4939b0`,
+  `457640`, `47e720`: all with no arguments. `FUN_00453de0` calls `49c0f0`,
+  `4a7ad0`, `4aa980`, `4a8c00`, `4a3020`, `4b32f0`, `4b91f0`, `4a0010`,
+  `492f90`, then `FUN_00478a00` for each of `[0x7a2794]`, `[0x7a2894]`,
+  `[0x7a2898]` that is set (zeroing it), then `47e750` and `468070`.
+- `FUN_00453ee0`: `[0x7a27b4]` set: `FUN_0046aa20(ECX = 1, EDX = 1)`,
+  cleared; `[0x7a27a8]` set: its vtable slot 0x2c result goes to
+  `[0x7a2a68]` (before anything is freed); `[0x7a27a0]` set:
+  `FUN_004b8020`, cleared; then the objects at `[0x7a27a4]`, `[0x7a27a8]`,
+  `[0x7a27ac]`, `[0x7a27b0]` get their destructor (slot 0, argument 1) in
+  that order and are zeroed; last `[0x7a279c]`: 0 tail-calls `FUN_004a7a80`,
+  1 to 4 `FUN_00489880`, anything else returns.
+
+What these functions' callees do was not traced here; the oracle hooks them.
+Re-check: `cd tools/emu && uv run python ui_state.py`.
+
 ## d2d
 
 - Topics, submenu and scrolling are as above.
