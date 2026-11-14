@@ -8,6 +8,8 @@
 //               Windows  Documents\My Games\<app>
 //               PS Vita  ux0:data/d2vita/1.14d/ (D2Vita's game folder, any app)
 //               Switch   sdmc:/switch/<app>/ (the homebrew folder)
+//               Android  the app's own external folder: d2d's main sets
+//                        D2D_USER_DIR to it (docs/android.md)
 //   global dir  macOS    /Library/Preferences/<app>/
 //               Linux    /etc/<app>/
 //               Windows  Program Files\<app>

@@ -652,9 +652,9 @@ jobs:
 
   # d2d alone for D2Vita (docs/d2vita.md): a Win32 Game.exe (MinGW) and a
   # PS Vita VPK (VitaSDK); and a Switch NRO (devkitA64, docs/switch.md).
-  # Each built by tools/d2vita.sh in its container.
+  # Each built by tools/porter.sh in its container.
   # ponytail: no ccache or FFmpeg cache; add them if these become the slow jobs.
-  d2vita:
+  ports:
     name: ${{ matrix.name }}
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -712,12 +712,12 @@ jobs:
           echo "OPENAL_MINGW=$PWD/deps/openal-soft-$OPENAL_VERSION-bin" >> "$GITHUB_ENV"
 
       - name: Build
-        run: tools/d2vita.sh ${{ matrix.target }}
+        run: tools/porter.sh ${{ matrix.target }}
 
       - name: Zip
         run: |
           zip="$PWD/build/d2d-$(git describe --tags --always)-${{ matrix.artifact }}.zip"
-          cd build/d2vita/${{ matrix.target }} && cmake -E tar cf "$zip" --format=zip -- *
+          cd build/ports/${{ matrix.target }} && cmake -E tar cf "$zip" --format=zip -- *
 
       # Pull requests too, unlike the packages: a few MB, and a pull
       # request's is the only one to try on a Vita or Switch before the merge.
@@ -733,7 +733,7 @@ jobs:
   # passed or was skipped for a docs-only change.
   ci-ok:
     name: CI ok
-    needs: [changes, build, tidy, flatpak, d2vita]
+    needs: [changes, build, tidy, flatpak, ports]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -747,7 +747,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build
-      - d2vita
+      - ports
       - flatpak
       - tidy
     runs-on: ubuntu-latest
