@@ -1067,6 +1067,10 @@ struct Fight {
     // ponytail: a wall or the end of its range doesn't set it off; a row
     // with no Skill uses no physical columns (MinDamage..) or synergy.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
+    // A missile with no skill on monster i: the merc's plain arrow, its bow's
+    // blow. A LastCollide row passes the unit it struck last (FUN_005a8730);
+    // a Pierce row with a charge left flies on, as skill_missile_hits'.
+    bool plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A skill missile's damage on monster i: with a weapon share (the
     // skill's SrcDam, or a row with no Skill its SrcDamage) the weapon's
     // blow at that share, attack rating rolled; else a sure hit (ToHit rows

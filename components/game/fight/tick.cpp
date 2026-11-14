@@ -299,6 +299,20 @@ auto Fight::zealots_spare() const -> bool {
         return d2d::rules::quest::bit(actor->character.header.quests[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))], 0x15, 0);
     }
 
+auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
+        auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(monster_index), missile.level, rng);
+        if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
+        land(monster_index, blow, false, now_ms, merc_foe_id());
+        monster_return_fire(monster_index, missile, true, now_ms);
+        missile.last_hit = int(monster_index);
+        // FUN_005adf10 -> FUN_005ada80: a charge left flies on, one fewer, while the merc has skill_pierce or item_pierce.
+        if (missile.info && missile.info->pierce && missile.pierce > 0 && pierce_armed(true)) {
+            --missile.pierce;
+            return false;
+        }
+        return true;
+    }
+
 auto Fight::near_players(float x, float y) const -> bool {
         return std::ranges::any_of(heroes, [&](const Hero* hero) { return std::abs(x - hero->player.x) < 30 && std::abs(y - hero->player.y) < 30; });
     }
@@ -479,11 +493,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (missile.info && (missile.info->next_hit || missile.info->last_unit_rule()) && missile.last_hit_ms == now_ms) return false;
                         continue;
                     }
-                    auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(i), missile.level, rng);
-                    if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
-                    land(i, blow, false, now_ms, merc_foe_id());   // a plain missile: the merc's arrow
-                    monster_return_fire(i, missile, true, now_ms);
-                    return true;
+                    if (missile.info && missile.info->last_collide && missile.last_hit == int(i)) continue;
+                    return plain_missile_hits(missile, i, now_ms);
                 }
                 return false;
             }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); },

@@ -71,6 +71,15 @@ int main() try {
     for (int left = 2; left >= 0; --left) assert(!fight.skill_missile_hits(arrow, 0, 7000) && arrow.pierce == left);
     assert(fight.skill_missile_hits(arrow, 0, 7000));
 
+    // Its plain arrow (no skill): the same charges, spent a hit; the last flies no further.
+    row.last_collide = true;
+    Missile plain{ &row, 0, 0, 1, 0, 0, 7000, 8000, {} };
+    plain.friendly = true; plain.by_merc = true;
+    fight.seed_pierce(plain, true);
+    assert(plain.pierce == 3);
+    for (int left = 2; left >= 0; --left) assert(!fight.plain_missile_hits(plain, 0, 7000) && plain.pierce == left && plain.last_hit == 0);
+    assert(fight.plain_missile_hits(plain, 0, 7000));
+
     hero.character.merc_items.clear();
     hero.psum[d2d::d2s::kSkillPierce] = 40;
     hero.psum[d2d::d2s::kItemPierce] = 20;
