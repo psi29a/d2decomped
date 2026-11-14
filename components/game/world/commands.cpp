@@ -751,14 +751,37 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // path"); the hover is FUN_00465c60's.
         const auto* target = monster_index >= 0 ? &fight.monsters[std::size_t(monster_index)] : nullptr;
         const bool live = target && target->targetable() && !target->ally_not_interact(*game_data, level->id);
+        // Attack at a spot (the click's FUN_00461700(0) -> C->S 0x05 / 0x08 -> FUN_00549ad0): its start
+        // (srvstfunc 1, FUN_0056ca40) asks for no target, only a bow's ammo, so the player swings where
+        // it stands, turned to the spot; the do (FUN_0056f070) has no unit to hit. A bow's or a thrown
+        // weapon's goes as its missile (cast_missile). Only with no unit named: the client's null target
+        // (the ground, shift); a held click on a converted monster walks (cursor-units.md).
+        // ponytail: the click's own pick of an enemy by the spot (Skills.txt SearchEnemyXY, FUN_00467880)
+        // isn't made, and another melee skill at a spot (Bash with shift) isn't swung: their starts aren't traced.
+        const auto attack_spot = [&] {
+            const auto* attack = game_data->skills.get(0);
+            actor->interact_npc = actor->pick_item = -1;
+            if (attack && fight.missile_skill(*attack)) {
+                if (fight.cast_missile(0, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
+                return;
+            }
+            if (actor->pmode >= 0 || fight.dead()) return;
+            actor->attack_mon = -1;
+            actor->attack_skill = 0;
+            actor->attack_charge = {};
+            actor->player.walking = false;
+            actor->player.dir = direction16(use_skill.x - actor->player.x, use_skill.y - actor->player.y);
+            (void)fight.start_swing(now_ms);
+        };
         if (skill && !skill->in_town && !in_moor) {
             if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
             else class_cue("not_in_town_2", now_ms);
-        } else if (!live && fight.ask(use_skill.skill, now_ms) != use_skill.skill) {
+        } else if (const int goes = live ? use_skill.skill : fight.ask(use_skill.skill, now_ms); goes != use_skill.skill) {
             // FUN_004610c0 at the click (FUN_004625b0's calls); at a unit it asks once in reach
             // (FUN_00461c70, or the walk's end: start_swing). FUN_00467880 only picks the target.
-            // ponytail: Attack in its place at a spot (FUN_00461700(0)) isn't swung.
+            // Attack in the skill's place (AttackNoMana) goes at the spot; a refusal swings nothing.
             actor->attack_mon = -1;
+            if (goes == 0 && use_skill.unit < 0) attack_spot();
         } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) { actor->player.walking = false; actor->interact_npc = -1; }
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
@@ -776,6 +799,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         } else if (skill && !live && fight.summon_skill(*skill) && in_moor) {        // Raise Skeleton: the corpse there
             actor->interact_npc = actor->pick_item = -1;
             if (fight.cast_summon(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
+        } else if (skill && !live && use_skill.skill == 0 && use_skill.unit < 0) {
+            attack_spot();
         } else if (live) {                                                   // walk up to it, then attack
             actor->target_x = use_skill.x; actor->target_y = use_skill.y;
             actor->player.walking = true;

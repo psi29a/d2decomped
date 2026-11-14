@@ -13,6 +13,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <protocol.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -135,6 +136,20 @@ int main() try {
     actor->pmode = -1;
     actor->attack_skill = kMight;
     assert(!fight.start_swing(now));
+
+    // Attack at a spot (FUN_0056ca40 asks for no target): a swing where she stands, turned to it. Jab with
+    // no spear at a spot goes as Attack too; Might (refused) swings nothing.
+    const auto at_spot = [&](int skill) {
+        actor->pmode = -1;
+        actor->attack_skill = kJab;
+        const Order order{ actor->id, cmd::UseSkill{ skill, actor->player.x + 3, actor->player.y, -1, true, -1 } };
+        world->tick({ &order, 1 }, now, now - kTickMs);
+        return actor->pmode;
+    };
+    assert(at_spot(0) == kModeA1 && actor->attack_mon == -1 && actor->attack_skill == 0 && !actor->player.walking);
+    assert(actor->player.dir == direction16(3, 0));
+    assert(at_spot(kJab) == kModeA1 && actor->swing_skill == 0);
+    assert(at_spot(kMight) < 0);
 
     std::printf("test_skill_ready: ok\n");
     return 0;

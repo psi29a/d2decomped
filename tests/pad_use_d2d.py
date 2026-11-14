@@ -375,6 +375,9 @@ if controller_ux:
     face(float(drop[5]), float(drop[6])); frames(15)
     assert int(state()["items"]) == before, "held Attack turned into pickup after the kill"
     cmd("pad 0 a up"); frames(3)
+    # The hold swings Attack at the air (World's attack at a spot); the World takes no command
+    # till that swing ends, so the fresh press comes after it.
+    until("the held swing over", lambda: state()["pmode"] == "-")
     press("a")
     until("fresh Attack/Use picks up the rune", lambda: int(state()["items"]) == before + 1)
     shrines = [line.split("\t") for line in cmd("debug objects").splitlines() if "\tshrine\t" in line]
