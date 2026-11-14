@@ -205,9 +205,23 @@ label at `+0x10` − 2 × ((height − font height) / 3) + drop, and the
 string with id `+0x270` (`FUN_00524a30`) under it at `+0x10` −
 (height − font height) / 3 + drop, each centred on its own width and
 both moved when pressed. The halvings and thirds round toward zero. `FUN_00502360` → `FUN_00501c30` draws
-the label at that point: colour 0, not centred again (0), mode 4 (not
-traced). Each glyph's frame is placed with its bottom row on the baseline
-(`FUN_004f64b0`).
+the label at that point: colour 0, not centred again (0), draw mode 4.
+Each glyph's frame is placed with its bottom row on the baseline
+(`FUN_004f64b0`, the renderer's slot `+0x88`, DirectDraw `FUN_005120a0`).
+
+The slot hands the mode to `FUN_00511d70` (`0x512113`), which picks the
+blend table from `DAT_007c9150`: mode 0 → `[2]`, 1 → `[1]`, 2 → `[0]`,
+3 → `[0x41]`, 4 → `[0x42]`, 6 → `[0x43]`, and 5 none. `FUN_004fb010`
+fills that array: `[0..2]` the 75/25, 50/50 and 25/75 alpha tables
+(`0x7ee468`, `0x7fe468`, `0x80e468`), `[0x41]` the additive table
+(`0x7de468`), `[0x42]` the multiplicative one (`0x821b68`) and `[0x43]`
+the max-component one (`0x831b68`) (pl2.md has the PL2 offsets). So a
+label is multiplied onto the chrome: each channel fg × bg / 255, snapped
+to the nearest palette colour (`FUN_00605aa0`). FontExocet10's light
+pixels (indices 29 to 32) nearly vanish into the grey chrome, and its
+dark core (index 15) stays. A disabled button's chrome (mode 1, the
+chrome's draw through slot `+0x84`, `FUN_00511fb0`, which picks its table
+the same way) goes through the 50/50 alpha table.
 
 The heights in the `.tbl` header: FontExocet10 10, FontRidiculous 7. The
 capitals' frames: FontExocet10 is 18 rows, with ink in rows 2 to 14, and
@@ -226,9 +240,11 @@ apps/d2d/frontend.cpp, with `button_label_spot` in
 components/font/button_label.hpp). It used to draw them in Font16, whose
 capitals in the Sky palette are mostly index 31 (196, 196, 196) where
 FontExocet10's are mostly index 15 (12, 12, 8) with 29, 31 and 32, and
-3 to 5 rows low, with a gold hover and no press offset. It still greys a
-disabled button's label; game.exe keeps colour 0 there and draws the
-chrome in mode 1 (not traced).
+3 to 5 rows low, opaque, with a gold hover and no press offset. It now
+multiplies the label onto the chrome in RGB, without the table's snap to
+the palette. It still greys a disabled button's label and draws its
+chrome opaque; game.exe keeps colour 0 there and draws the chrome
+through the 50/50 alpha table.
 
 ## Interpretation — layout convention
 
