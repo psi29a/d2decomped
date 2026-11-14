@@ -95,10 +95,13 @@ dead, +0xac freed, +0xb0 prisoner ids (3 × 5), +0x108 cage emptied,
   (`FUN_00620870`, then `+2`), in the room near the player's that holds it
   (`FUN_00463740`, 0x5889ef), made there by `FUN_00555230` (0x588a13)
   with no collision test: an object's make (jump table 0x5554e8 entry 2,
-  0x5553aa -> `FUN_0054f5d0`) returns the unit whatever stands there, and
-  `FUN_00555230` is null only when `FUN_00620290` is, which never fails
-  (it allocates). So the fallbacks after it (the door's own x, 0x588a3b;
-  `FUN_00545340(2, 0x8000, .., 100)`, 0x588a65) never run (stubs.md).
+  0x5553aa -> `FUN_0054f5d0`) returns the unit whatever stands there.
+  `FUN_00555230` checks `FUN_00620290` for null. The latter clears its
+  allocation before returning; with a null pool-allocation result injected,
+  that clear faults instead of returning null (`units.md`, "Unit allocation").
+  Real pool exhaustion is not tested. The subsequent fallback spots are the
+  door's own x (0x588a3b) and `FUN_00545340(2, 0x8000, .., 100)`'s free
+  spot (0x588a65); their failure-path reachability remains unverified.
 - The portal's opener: every cage up and made = dead + freed: ≥ 12 freed
   → log 3, bits 13, 1 and 5 / 6 / 7 (15 / 14 / 12..13); else bit 14. Not
   all: bit 4, log 2.
