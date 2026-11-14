@@ -44,7 +44,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_0055e9a0` | `return 0`, the body of C→S 0x22 (`FUN_0054b380`) | stub | the packet changes nothing there | not ported | itemmode.md |
 | `FUN_0055f4f0` | ItemMode.cpp callback | stub (`ret 4`) | eight calls return without an item-mode action | not ported | "ItemMode stub" below |
 | `FUN_0055fb80` | a gamble pick with GambleUber / GambleUltra upgrades | orphan (no call, jump or pointer) | — | not ported | itemmode.md |
-| `FUN_00561b00`'s page-2 branch | `FUN_00568770` for a swap on page 2 | dead | page 2 is refused earlier in the same function | not ported | itemmode.md "C→S handlers' bodies" 0x1f |
+| `FUN_00561b00`'s page-2 branch | `FUN_00568770` for a swap on page 2 | dead | page 2 is refused earlier in the same function; what `FUN_00568770` does when called is run by `tools/emu/trade_swap.py` | not ported | itemmode.md "C→S handlers' bodies" 0x1f |
 | `FUN_00570530` | a monster AI restore (calls the AI toggle) | orphan | — | not ported | monster-ai.md "Curse thinks and other thinks" |
 | `LAB_00587830` | InitFn 70 (table 0x731bc0) | stub (`return`) | nothing happens when the object's room comes up | nothing | quests-act5.md "InitFns 66..70" |
 | `FUN_005888d0`'s fallback spots | a5q2's cage portal made again at the door's own x (0x588a3b), then at `FUN_00545340(2, 0x8000, .., 100)`'s free spot (0x588a65), when the first make fails | suspected unreachable | the first make, an object's `FUN_00555230` at door x + 2, has no collision test; an injected null allocation faults inside `FUN_00620290`, and real pool exhaustion is not tested | not ported (act5.cpp: the portal at door x + 2) | quests-act5.md "Rescue on Mount Arreat" |
