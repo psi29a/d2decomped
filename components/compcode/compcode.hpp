@@ -339,14 +339,16 @@ inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, 
     });
     return layers;
 }
-// A tint byte's colormap set and colour; false for none (FUN_005038d0:
-// byte - 1, Transform 0 is Transform 8's colormaps).
+// A tint byte's colormap set and colour; false for none. `packed` is the d2s
+// byte; FUN_005066c0 stores it minus one and FUN_005038d0 maps the stored byte:
+// Transform 0 is Transform 8's colormaps, colour > 20 and Transforms 3, 4 (and
+// 9 up) have none (tools/emu/tint_colormap.py).
 struct Tint { int transform = 0, colour = 0; };
 inline bool tint_of(std::uint8_t packed, Tint& tint) {
     if (packed == 0xff || packed == 0) return false;
     tint.transform = (packed - 1) >> 5; tint.colour = (packed - 1) & 31;
     if (tint.transform == 0) tint.transform = 8;   // the wrap
-    return tint.colour < 21;
+    return tint.colour < 21 && tints_with(tint.transform);
 }
 
 }  // namespace d2d::compcode

@@ -41,6 +41,23 @@ the viewer behind it (the row was taken as the DCC direction).
 - Frame: `FUN_005feb80` returns no cell when the frame is at or past the
   DCC's frames per direction (the cache record +0x24): that layer draws
   nothing on those frames, the others do.
+  Run for real (`tools/emu/sprite_frame_block.py`, 30,000 random blobs, 4
+  mutants caught): `FUN_005feb80` (EAX = the decoded sprite buffer,
+  ECX = the draw state, stack: the frame data) compares the frame, as an
+  unsigned, with **byte +4 of the buffer** (`FUN_005fec50` hands it the
+  buffer `FUN_0040a9e0` returns, the cache record's +0x3c; the record's
+  own +0x24 is a copy `FUN_005ff760` takes from the raw file's +0x18: not
+  shown equal to buffer +4 here). It is 0 for a frame at or past it. The
+  direction: state mode (+8) 2 is 0, mode 4 the state's +0x40, anything
+  else (and mode 6 with flag +4 & 2) `FUN_00600c90(state +0x40, byte
+  +3 - 1)`; a direction at or above byte +3 - 1 (signed) is 0 too, so byte
+  +3 holds the directions plus one. Direction offsets are at +0xc + 4 *
+  direction (negative: 0); each frame block must start with a zero dword
+  and have width, height (+4, +8) up to 0x100, the next block is at
+  `+0x23 + [+0x1c] + [+0x14]` on (negative: 0, even after the wanted block),
+  and the wanted frame's block comes back. Not run: real DCC buffers, and
+  the d2d side (`world_view`'s `past_cof` and the layer frame test are not
+  diffed against it).
 - In the data: 29 paladin pieces (tower shield `pashtorwlhth` 8 frames
   in a 10-frame walk; claymore, flail, polearm walks; throws) and the
   Frozen Horror's death (`f0`, 13 of 14): bugs.md #29.
