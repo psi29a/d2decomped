@@ -291,15 +291,19 @@ quarters. The shares are from the data, not from `FUN_00605880`'s weights.
 In the 1,064 COFs of the listfile, transparent layers use effect 1
 (monster tokens LG and E9, layer 1), 3 (239 layers) and 6 (layer 8 of
 monster token EG's COFs and object token PY's). d2d's `draw_mode`
-(world_view.hpp) matches 0..5; effect 6 is the greater of each RGB channel,
-and the PL2 table at +0x5b500 is still unread (deviations.md
-approximation 9).
+(world_view.hpp) matches all seven. Effect 6's table is `FUN_00605b70`'s:
+the sprite weighted by its own greatest channel,
+`(screen * (255 - w) + sprite * w) / 255` with `w = max(r, g, b)` of the
+sprite (../formats/pl2.md). `blit_dcc_frame` draws it with
+`palette::max_component_blend` in RGB, as it does the other tables
+(deviations.md approximation 1).
 
 Re-check:
 
 ```sh
 cd tools/emu && uv run python cof_effects.py | diff - ../../tests/cof_effect_cases.inc
 cmake --build build --target test_cof_effects && build/tests/test_cof_effects
+cmake --build build --target test_pl2_max_blend && build/tests/test_pl2_max_blend
 ```
 
 The unit graphics record, the COF caches and the motion offsets around the

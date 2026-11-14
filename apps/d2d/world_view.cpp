@@ -595,7 +595,10 @@ bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                 const int mode = trans - 2;
                 pixel[0] = std::uint8_t((pixel[0] * (4 - mode) + colour.r * mode) / 4); pixel[1] = std::uint8_t((pixel[1] * (4 - mode) + colour.g * mode) / 4); pixel[2] = std::uint8_t((pixel[2] * (4 - mode) + colour.b * mode) / 4);
             }
-            else if (trans == 6) { pixel[0] = std::max(pixel[0], colour.r); pixel[1] = std::max(pixel[1], colour.g); pixel[2] = std::max(pixel[2], colour.b); }  // the greater of each channel
+            else if (trans == 6) {                                     // weighted by the file colour's greatest channel (PL2 +0x5b500)
+                const auto mixed = d2d::palette::max_component_blend({ pixel[0], pixel[1], pixel[2], 0xFF }, colour, d2d::palette::max_component_weight(pal.entries()[idx]));
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
+            }
             else { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
             pixel[3] = 0xFF;
             wrote = true;
