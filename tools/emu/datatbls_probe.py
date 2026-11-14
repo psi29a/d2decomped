@@ -5,7 +5,11 @@ Usage: D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py [hex-add
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --populated [hex-address]
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --populated-check
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --writeback
+       D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --writeback-fail
+       D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --readback-present
+       D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --readback-null
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --strings
+       D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --strings-missing
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --superuniques
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --monseq
        D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_probe.py --matrix
@@ -18,7 +22,10 @@ need separate oracles.
 `--populated` is a diagnostic pass with one zero-filled row and no assertions.
 `--populated-check` asserts the stable one-row paths in POPULATED_RETURNS.
 `--writeback` checks the compile-mode write and readback with file I/O hooked.
+`--writeback-fail` checks the failed-open branch and unconditional free/readback.
+`--readback-present` and `--readback-null` check both sides of the write gate.
 `--strings` checks the two-row string-field loop with the resolver and copier hooked.
+`--strings-missing` exercises the missing-key fallback with the same row shape.
 `--superuniques` checks all 66 hcIdx slots and a duplicate using synthetic rows.
 `--monseq` checks two sequence groups across three synthetic rows.
 `--matrix` compares two-row ItemTypes and MonType is-a bit matrices.
@@ -90,6 +97,27 @@ SCHEMA_DIGESTS = {
     0x659C60: "471355918f8603a0a61f1c86df837dff7c8e8cdc4dc686e47122d7a62f024304",
 }
 
+# Direct CompileTxt destination slots (table pointer, row count, link pointer).
+# Combined loaders and derived arrays have their own checks below or in the
+# populated follow-up oracles.
+DESTINATIONS = {
+    0x612750: (0x96BCAC, 0x96BCB4, 0x96BCB0),
+    0x613260: (0x96C7F4, 0x96C7F8, None),
+    0x61DE00: (0x96C890, None, None),
+    0x61EBB0: (0x96C894, 0x96C898, None),
+    0x61F500: (0x96CA10, 0x96CA14, None),
+    0x6342B0: (0x96C854, 0x96C858, 0x96C850),
+    0x636B70: (0x96CA94, 0x96CA90, None),
+    0x637A00: (0x96C7FC, 0x96C804, 0x96C800),
+    0x638630: (0x96BCD4, 0x96BCDC, 0x96BCD8),
+    0x638D80: (0x96C828, 0x96C82C, 0x96C824),
+    0x6552E0: (0x96C704, 0x96C70C, 0x96C708),
+    0x656930: (0x96C6B4, 0x96C6BC, 0x96C6B8),
+    0x658520: (0x96C86C, 0x96C870, 0x96C868),
+    0x658720: (0x96C860, 0x96C864, 0x96C85C),
+    0x659C60: (0x96C7A8, 0x96C7B0, 0x96C7AC),
+}
+
 
 def cstring(rig, value):
     """Allocate a terminated string for a real game.exe call."""
@@ -108,19 +136,25 @@ def main():
     """Run each function independently and compare its scripted entry path."""
     check_populated = "--populated-check" in sys.argv[1:]
     populated = "--populated" in sys.argv[1:] or check_populated
-    writeback = "--writeback" in sys.argv[1:]
-    strings = "--strings" in sys.argv[1:]
+    open_failure = "--writeback-fail" in sys.argv[1:]
+    writeback = "--writeback" in sys.argv[1:] or open_failure
+    readback_present = "--readback-present" in sys.argv[1:]
+    readback_null = "--readback-null" in sys.argv[1:]
+    missing_strings = "--strings-missing" in sys.argv[1:]
+    strings = "--strings" in sys.argv[1:] or missing_strings
     superuniques = "--superuniques" in sys.argv[1:]
     monseq = "--monseq" in sys.argv[1:]
     matrix_check = "--matrix" in sys.argv[1:]
     schema_digests = "--schema-digests" in sys.argv[1:]
     addresses = [value for value in sys.argv[1:] if value not in
                  ("--populated", "--populated-check", "--writeback", "--strings", "--superuniques",
-                  "--monseq", "--matrix", "--schema-digests")]
+                  "--monseq", "--matrix", "--schema-digests", "--writeback-fail", "--strings-missing",
+                  "--readback-present", "--readback-null")]
     selected = [int(value, 16) for value in addresses] if addresses else (
         [0x638D80, 0x658520] if matrix_check else [0x659C60] if monseq else
         [0x6552E0] if superuniques else [0x612600] if strings else
-        [0x613E90] if writeback else POPULATED_RETURNS if check_populated else SPECS)
+        [0x613E90] if writeback or readback_present or readback_null else
+        POPULATED_RETURNS if check_populated else SPECS)
     for address in selected:
         tables, columns, link_line = SPECS[address]
         if populated and not tables:
@@ -131,6 +165,7 @@ def main():
         rig.rows = 2 if matrix_check else 3 if monseq else 67 if superuniques else 1 if populated else 0
         rig.table = rig.m.alloc(0x5000 if populated or superuniques or matrix_check else 0x200)
         rig.links = [rig.m.alloc(4) for _ in range(128 if populated else 8)]
+        first_link = rig.links[0]
         rig.ids = [0] * 128 if populated else []
         if superuniques and address == 0x6552E0:
             for index in range(67):
@@ -143,12 +178,12 @@ def main():
                 """Return a synthetic string for each record field."""
                 target = current.mu.reg_read(loaders.mw.REGISTERS["ecx"])
                 rig.log.append(("resolve", target))
-                return rig.table + 0x180
+                return 0 if missing_strings else rig.table + 0x180
             def copy_text(current, rig=rig):
                 """Record destination, source and size without copying game data."""
                 target = current.mu.reg_read(loaders.mw.REGISTERS["ecx"])
                 source = current.mu.reg_read(loaders.mw.REGISTERS["edx"])
-                rig.log.append(("copy", target, source, current.arg(0)))
+                rig.log.append(("copy", target, source, current.arg(0), rig.m.read(source, 16)))
                 return target
             rig.m.hook(0x524E20, resolve, 0)
             rig.m.hook(0x526790, copy_text, 1)
@@ -171,11 +206,11 @@ def main():
                 rig.log.append(("readback", current.arg(0), size_pointer, current.arg(3)))
                 return rig.table
             rig.m.hook(0x612280, readback, 4)
-            if writeback:
+            if writeback or readback_present or readback_null:
                 def fopen(current, rig=rig):
                     """Record the path and return a synthetic writable stream."""
                     rig.log.append(("fopen", current.cstr(current.arg(0)), current.cstr(current.arg(1))))
-                    return rig.table + 0x100
+                    return 0 if open_failure or readback_present or readback_null else rig.table + 0x100
                 def fwrite(current, rig=rig):
                     """Record the byte count and stream without touching the disk."""
                     rig.log.append(("fwrite", current.arg(0), current.arg(1), current.arg(2), current.arg(3)))
@@ -199,10 +234,10 @@ def main():
             outputs = [rig.m.alloc(4) for _ in range(3)]
             for output in outputs:
                 rig.m.w32(output, 0)
-            if writeback:
+            if writeback or readback_present:
                 rig.m.w32(outputs[0], rig.table)
                 rig.m.w32(outputs[1], 0x20)
-            rig.m.w32(0x96C8B4, 1 if writeback else 0)
+            rig.m.w32(0x96C8B4, int(writeback or readback_null))
             args, edx = tuple(outputs), name
         if strings and address == 0x612600:
             edx = 2
@@ -213,6 +248,16 @@ def main():
                 raise
             print(f"{address:08x}: one row: {type(error).__name__}: {error}")
             continue
+        if address in DESTINATIONS:
+            table_slot, count_slot, link_slot = DESTINATIONS[address]
+            require(rig.m.r32(table_slot) == rig.table,
+                    f"{address:08x}: table destination {table_slot:#x} differs")
+            if count_slot is not None:
+                require(rig.m.r32(count_slot) == rig.rows,
+                        f"{address:08x}: count destination {count_slot:#x} differs")
+            if link_slot is not None:
+                require(rig.m.r32(link_slot) == first_link,
+                        f"{address:08x}: link destination {link_slot:#x} differs")
         if populated:
             calls = [entry for entry in rig.log if entry[0] in ("compile", "link", "unload", "link-free")]
             if check_populated:
@@ -309,10 +354,16 @@ def main():
         if strings and address == 0x612600:
             resolver = [entry for entry in rig.log if entry[0] == "resolve"]
             copies = [entry for entry in rig.log if entry[0] == "copy"]
-            require(len(resolver) == 2 and copies ==
-                    [("copy", rig.table + 0x10, rig.table + 0x180, 8),
-                     ("copy", rig.table + 0x50, rig.table + 0x180, 8)],
+            require(len(resolver) == 2 and
+                    [(entry[1], entry[3]) for entry in copies] ==
+                    [(rig.table + 0x10, 8), (rig.table + 0x50, 8)],
                     f"{address:08x}: field loop calls {rig.log}")
+            require(all(entry[2] != 0 and (missing_strings or entry[2] == rig.table + 0x180)
+                        for entry in copies),
+                    f"{address:08x}: string source pointers {copies}")
+            if missing_strings:
+                require(all(entry[4].startswith(b"<\0>\0\0\0") for entry in copies),
+                        f"{address:08x}: missing-key fallback strings {copies}")
             require(rig.m.read(rig.table + 0x10, 8) == bytes(8) and
                     rig.m.read(rig.table + 0x50, 8) == bytes(8) and
                     rig.m.read(rig.table, 0x10) == bytes([0xA5]) * 0x10,
@@ -330,16 +381,23 @@ def main():
             require(len(reads) == 1 and reads[0][1] == 0x6DCC68 and reads[0][3] == 0x27A,
                     f"{address:08x}: readback call {reads}")
             if writeback:
-                want = [("fopen", "DATA\\GLOBAL\\EXCEL\\demo.bin", "wb"),
-                        ("fwrite", rig.table, 0x20, 1, rig.table + 0x100),
-                        ("fclose", rig.table + 0x100),
-                        ("free", 0, rig.table, ".\\DATATBLS\\DataTbls.cpp", 0x275, 0),
-                        reads[0]]
+                want = [("fopen", "DATA\\GLOBAL\\EXCEL\\demo.bin", "wb")]
+                if not open_failure:
+                    want += [("fwrite", rig.table, 0x20, 1, rig.table + 0x100),
+                             ("fclose", rig.table + 0x100)]
+                want += [("free", 0, rig.table, ".\\DATATBLS\\DataTbls.cpp", 0x275, 0), reads[0]]
                 require(rig.log == want, f"{address:08x}: writeback calls {rig.log} != {want}")
+            elif readback_present or readback_null:
+                require(rig.log == [reads[0]],
+                        f"{address:08x}: write gate should skip file calls: {rig.log}")
         branch = {0x613E90: "binary readback", 0x639420: "excel file open",
                   0x65A190: "zero-state unload"}.get(address, "zero rows")
+        if address == 0x613E90 and writeback:
+            branch = "failed-open writeback and readback" if open_failure else "writeback and readback"
+        if address == 0x613E90 and (readback_present or readback_null):
+            branch = "readback with write gate closed"
         if strings and address == 0x612600:
-            branch = "two string fields"
+            branch = "two missing string fields" if missing_strings else "two string fields"
         if superuniques and address == 0x6552E0:
             branch = "66 hcIdx slots and duplicate"
         if monseq and address == 0x659C60:

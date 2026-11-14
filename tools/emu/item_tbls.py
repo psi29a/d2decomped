@@ -57,6 +57,7 @@ written directly (no MPQ is read); the rig is monster_tbls.py's.
 requires each to fail.
 """
 import random
+import re
 import struct
 import sys
 
@@ -364,19 +365,22 @@ def check_cited_rows(rig, rng):
     require(got == want and not rig.log, f"gem row {index}/{count}: {got} != {want}")
 
 
-def check_column_value(rig, rng):
+def check_column_value(rig, rng, raw=None):
     """Check the numeric and empty branches of the affix column callback."""
     machine = rig.m
     for address in COLUMN_LINKS:
         machine.w32(address, 0)
-    raw = rng.choice((b"", b"0", b"25", b"-18", b"-1", b"9876", b"?"))
+    if raw is None:
+        raw = rng.choice((b"", b"0", b"25", b"-18", b"-1", b"9876", b"?",
+                          b"25tail", b"-18x", b"-foo", b"+7", b" 8"))
     text_ptr = rig.array(raw + b"\0")
     record = machine.alloc(32)
     offset = rng.choice((0, 4, 12, 28))
     machine.w32(record + offset, 0xA5A5A5A5)
     destination = rng.choice((0, record))
     got = rig.go(COLUMN_VALUE, offset, 0, 0, 0, ecx=text_ptr, edx=destination)
-    number = int(raw) if raw and raw[:1] in b"-0123456789" else 0
+    numeric_prefix = re.match(rb"-?[0-9]+", raw)
+    number = int(numeric_prefix.group(0)) if numeric_prefix else 0
     if mut("column-negative-positive") and number < 0:
         number = -number
     want = 0xA5A5A5A5 if not destination or (mut("column-empty-keeps") and not raw) else number & MASK
@@ -399,6 +403,35 @@ def check_column_value(rig, rng):
     want = rig.link_value & MASK if searched and rig.link_value >= 0 else 0
     require(got[0] == "ret" and rig.log == want_log and machine.r32(record + offset) == want,
             f"column link search: {rig.log} != {want_log}; value {machine.r32(record + offset):#x} != {want:#x}")
+
+
+def check_column_cascade(rig, rng):
+    """Check that a failed skills/monster link falls through to the next link."""
+    text_ptr = rig.array(b"known_name\0")
+    record = rig.m.alloc(20)
+    links = (0x1234, 0x2345, 0x3456)
+    for slot, link in zip(COLUMN_LINKS, links):
+        rig.m.w32(slot, link)
+    scenarios = (((-1, -1, 7), 7, links),
+                 ((-1, 2, 99), 2, links[:2]),
+                 ((0, 2, 99), 0, links[:1]),
+                 ((-1, -1, -1), 0, links))
+    for answers, expected_value, visited in scenarios:
+        remaining = list(answers)
+
+        def find(current, remaining=remaining):
+            """Return a different signed result from each successive link."""
+            rig.log.append(("link-find", current.arg(0), current.arg(1), current.arg(2)))
+            return remaining.pop(0) & MASK
+
+        rig.m.hook(0x6BD3C0, find, 3)
+        rig.m.w32(record + 12, 0xA5A5A5A5)
+        got = rig.go(COLUMN_VALUE, 12, 0, 0, 0, ecx=text_ptr, edx=record)
+        wanted_log = [("link-find", link, text_ptr, 0) for link in visited]
+        require(got[0] == "ret" and rig.log == wanted_log and
+                rig.m.r32(record + 12) == expected_value and len(remaining) == len(links) - len(visited),
+                f"column link cascade {answers}: {got}, {rig.log}, {rig.m.r32(record + 12):#x}")
+    rig.logger(0x6BD3C0, 3, "link-find", ret=lambda _current: rig.link_value & MASK, regs=())
 
 
 def check_rune_append(rig, rng):
@@ -451,6 +484,32 @@ def check_rune_gap(rig, rng):
             f"rune gap grow: {rig.log}")
 
 
+def check_rune_replace(rig, rng):
+    """Replace a row below the current count without growth or count change."""
+    machine = rig.m
+    binary = rng.choice((0, 1))
+    count = rng.randrange(2, 6)
+    row_index = rng.randrange(count)
+    old_rows = [rng.randbytes(0x120) for _ in range(count)]
+    new_row = rng.randbytes(0x120)
+    initial = (struct.pack("<I", count) if binary else b"") + b"".join(old_rows)
+    old_base = rig.array(initial)
+    source = rig.array(new_row)
+    machine.w32(RUNE_COUNT, count)
+    machine.w32(RUNE_TABLE, old_base + (4 if binary else 0))
+    machine.w32(BIN_FLAG, binary)
+    got = rig.go(RUNE_APPEND, row_index, source)
+    expected = old_rows[:]
+    expected[row_index] = new_row
+    require(got[0] == "ret" and machine.r32(RUNE_COUNT) == count and not rig.log,
+            f"rune replacement {row_index} of {count}: {got}, {rig.log}")
+    require(machine.r32(RUNE_TABLE) == old_base + (4 if binary else 0) and
+            bytes(machine.read(machine.r32(RUNE_TABLE), count * 0x120)) == b"".join(expected),
+            "rune replacement changed another row or table pointer")
+    if binary:
+        require(machine.r32(old_base) == count, "rune replacement changed binary header")
+
+
 def check_repeated_frees(rig, rng):
     """Check the release calls a second unload makes with dangling globals."""
     machine = rig.m
@@ -490,7 +549,10 @@ def run_all():
     plan += [(check_index_word, 300), (lambda r, g: check_row(r, g, QUALITY_ROW, QUALITY), 300),
              (lambda r, g: check_row(r, g, LOWQ_ROW, LOWQ), 300), (check_compare, 300), (check_isa, 800),
              (check_frees, 60), (check_cited_frees, 60), (check_cited_rows, 300), (check_column_value, 100),
-             (check_rune_append, 60), (check_rune_gap, 60), (check_repeated_frees, 40)]
+             (check_column_cascade, 1), (check_rune_append, 60), (check_rune_gap, 60),
+             (check_rune_replace, 60), (check_repeated_frees, 40)]
+    plan += [(lambda r, g, raw=raw: check_column_value(r, g, raw), 1)
+             for raw in (b"25tail", b"-18x", b"-foo", b"+7", b" 8")]
     cases = 0
     for check, rounds in plan:
         for _ in range(rounds):

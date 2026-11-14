@@ -56,6 +56,10 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 
 ## Cited DATATBLS oracles
 
+`tools/emu/datatbls_cited_suite.py` runs the 15 focused populated-path
+oracles, the 11 `datatbls_probe.py` modes, and the ItemTbls helper oracle
+on a local stock 1.14d executable. It does not open MPQs or host files.
+
 `tools/emu/datatbls_probe.py` checks the zero-row path in 19 cited functions:
 `FUN_00612600`, `00612750`, `00613260`, `0061de00`, `0061ebb0`, `0061f500`,
 `00633730`, `00633f40`, `006342b0`, `00636b70`, `00637a00`,
@@ -79,6 +83,12 @@ existing table: `fopen("DATA\\GLOBAL\\EXCEL\\demo.bin", "wb")`, one
 `fwrite` of 0x20 bytes, `fclose`, the pool free at DataTbls.cpp line 0x275,
 and the binary readback at line 0x27a. The file calls are hooked, so no file
 is created; the readback supplies a scripted pointer and size.
+`--writeback-fail` gives `fopen` a null result: it skips `fwrite` and
+`fclose`, still frees the source table, and still calls binary readback.
+`--readback-present` keeps the compile flag clear with a nonnull source;
+`--readback-null` sets the flag but leaves the source null. Both skip the
+file calls and go directly to binary readback, establishing the two-part
+write gate.
 
 `--populated-check` adds a one-row case for 18 of the loaders.
 It checks their compile calls, link lines and return or fatal value; derived
@@ -101,6 +111,23 @@ both per-sequence counts are 1.
 `--strings` checks `FUN_00612600` over two rows with stride 0x40 and field
 offset 0x10: it clears eight bytes in each field, resolves one string per
 row, then calls the copier with the resolved pointer and size 8.
+`--strings-missing` makes the resolver return null; the same loop passes
+UTF-16 `<>` as the fallback source to the copier for each row. The resolver
+and final copier are hooked, while the fallback construction runs in
+game.exe.
+`datatbls_charstats.py` runs the `FUN_00613260` caller with zero, one and
+three synthetic 0xc4-byte rows. Each row resolves a key at `+0x20`, clears
+the 0x10-byte destination at `+0`, then copies the resolved UTF-16 text or
+the same `<>` fallback to `+0`. This distinguishes the source offset from
+the destination offset; the direct `FUN_00612600` oracle supplies both
+offsets separately. CompileTxt, resolution and final copying are hooked.
+
+`datatbls_leveldefs.py` runs `FUN_0061de00` through its real call to
+`FUN_0061dd00` with synthetic LevelDefs rows. A nonzero Portal dword at
+`+0x8c` contributes that row number to the `0x96c9f4` array in row order;
+`0x96c9f8` holds the count. The array allocation at LvlTbls.cpp line
+0x16c is exactly four bytes per flagged row. When no row is flagged the
+prior array pointer remains untouched. CompileTxt is hooked.
 
 `--superuniques` gives `FUN_006552e0` one row for each hcIdx 0..65 plus a
 later duplicate of hcIdx 0. The 66-word index at `0x96c710` keeps the first
@@ -109,6 +136,119 @@ row for each id and the loader records all 67 rows.
 `--monseq` gives `FUN_00659c60` three rows with sequence ids 0, 0, 1. Its
 index has two entries: the first row pointer with both counters 2, then the
 third row pointer with both counters 1.
+
+The follow-up oracles use synthetic populated tables and run the original
+post-CompileTxt code. `datatbls_code_tables.py` checks `FUN_00612750` with
+the compile flag clear and set: compcode is unconditional, while the flag
+enables fifteen more code tables (playerclass through events) in source order.
+The oracle checks all sixteen table and link destinations, the two persistent
+word counts, complete field-schema digests, and the source lines passed to
+link creation for zero, one and three scripted rows. `datatbls_probe.py`
+also checks fifteen direct loader
+table pointers, row counts and link destinations on its zero-row and one-row
+paths.
+
+`datatbls_lvlsub.py` runs `FUN_0061f500` on LvlSub Type sequences. Its
+index has `max(Type) + 1` dwords when the maximum is positive, starts at
+zero, and a transition to a different Type stores that row number in that
+Type's slot. A later transition to the same Type overwrites its prior slot.
+Either loader cache flag allocates one pointer per row; the stock expansion
+predicate calls the DS1 cache acquisition for every row in expansion mode,
+or only rows with Expansion zero in classic mode. A cached DS1 whose `+0x4c`
+word is zero is fatal at LvlTbls.cpp line 0x3c8. The cache oracle hooks
+file-name normalization, allocation and DS1 acquisition, and checks the
+loader's flags, gate and fatal response.
+
+`datatbls_lvlprest.py` checks `FUN_0061ebb0` over three 0x1b0-byte rows,
+with six filename slots at `+0x44 + 0x3c*n` each. In classic mode it walks
+only rows whose Expansion dword at `+0x20` is zero; in expansion mode it
+walks every row. It calls `FUN_0061e4a0` on all six filenames of each
+eligible row, changing `/` to `\\` in multi-character names. With the
+loader's cache flag set it allocates 0x18 bytes per row, then acquires a DS1
+only for names longer than one character into that row's matching cache
+slot. Storm allocation and DS1 acquisition are hooked; name normalization
+runs in game.exe.
+
+`datatbls_affixes.py` checks the post-CompileTxt arrays of `FUN_00633730`
+and `FUN_00633f40` with distinct source tables: magic suffix, prefix and
+automagic (0x90-byte records), and rare suffix and prefix (0x48-byte
+records). The source tables are copied in that order into one array; the
+segment pointers are byte offsets from its base, each merged record receives
+its looked-up string ID at `+0x20` or `+0xc`, and the temporary source
+tables are released in compile order. It checks zero and varying row counts.
+
+`datatbls_uniqueitems.py` checks `FUN_006342b0`: each 0x14c-byte row receives
+its zero-based word number at `+0`, is offered to the name link at `+2`, and
+gets a string ID at `+0x22`; zero from the string lookup becomes 0x1507.
+Counts 0x7fff and 0x8000 are fatal at ItemTbls.cpp line 0x37c, before a row
+is read. The link insertion and string lookup are hooked.
+
+`datatbls_gems.py` checks `FUN_00636b70` with four synthetic gem sets. It
+views the same dword at `+0x28` as three letter bytes for the string lookup
+and as a signed Items row index. ASCII space bytes become zero in the
+temporary lookup key. The Items `+0xf0` reverse index is updated in row
+order: for each gem row n, Items row n first becomes -1, then a nonnegative
+index read from the gem row receives n. A later reset can overwrite an
+earlier gem mapping. The string lookup is hooked.
+
+`datatbls_superuniques.py` checks `FUN_006552e0` at 65, 66, 512, 513
+and 600 rows, plus zero. The loader clamps a count above 511 to 512,
+initializes all 66 short hcIdx slots to -1, records the first row for each
+id 0..65, and rejects a missing slot at MonsterTbls.cpp line 0x782.
+IDs 66 and above do not enter the index. CompileTxt is hooked.
+
+`datatbls_monseq.py` checks `FUN_00659c60` on empty, duplicate, gapped and
+out-of-order sequence rows. It allocates `(last row's sequence + 1) * 0xc`
+bytes; each populated index entry points at that sequence's first row and
+both counters equal the number of rows carrying the ID. Absent IDs leave a
+zero entry. The fixture keeps all IDs at most the last row's ID because
+the loader does not size the array from the maximum over all rows.
+
+`datatbls_gamble.py` checks `FUN_00638ae0` on distinct item codes and levels.
+The Items row's byte `+0xfd` becomes the gamble row level at `+4`, the looked
+up Items index becomes its dword `+8`, and the original qsort reorders the
+0xc-byte source rows in place by level. The sorted Items indices are copied
+to `0x96cab4`; for each level 1..99, `0x96cabc` holds the first sorted row
+whose level is greater, or the row count when none is greater. Its source
+table is then freed. The oracle also freezes one equal-level qsort result:
+levels `(5, 5, 1, 5, 1, 99)` sort their row indices to `(2, 4, 3, 1, 0, 5)`.
+Equal levels do not keep input order in this case. CompileTxt and item-code
+lookup are hooked. `tests/test_datatbls_gamble.cpp` applies that frozen
+six-row order to d2d's `rules::gamble_by_level`.
+
+`datatbls_itemstatcost.py` checks `FUN_00637a00` with populated rows. Row 0's
+`+0x140` dword selects 1..8 stat bits; values outside that range become 6,
+and `0x96c8a0` becomes the corresponding low-bit mask. Each row's 0x40-word
+operation-link list at `+0x5e` starts at -1. Operations 1..13 can add the
+source row number to an in-range target row's first free link; operations 4
+and 5 also set the source marker at `+0x53`. Operation zero and values over
+13 become zero. A nonzero byte at `+0x36` selects the row for the signed
+`+0x34` priority sort; the sorted row-number array is at `0x96c808`.
+Counts 512 and above are fatal at ItemTbls.cpp line 0x6b6. The oracle has
+one fixture for the three parameter-stat slots: source row 0 points to
+target rows 7, 9 and 11. Each target receives a six-byte back-reference
+and its `+0x52` marker; the source gains flag bits `0xe0` at `+4` and bit
+`0x01` at `+5`.
+
+`datatbls_type_matrices.py` checks `FUN_00638d80` and `FUN_00658520` on
+33 rows, crossing a 32-bit word boundary. Both allocate two dwords per
+source row and set its own bit for source ids 1..32. ItemTypes also sets
+target bit 0 for every source row; MonType leaves bit 0 clear. An Equiv1
+link from row 1 to row 32 sets the second matrix word in both loaders.
+The ItemTypes link insertion is hooked, while the is-a walks run in game.exe.
+
+`datatbls_excel_open.py` checks `FUN_00639420` with two names/extensions and
+both open results. It formats `DATA\\GLOBAL\\EXCEL\\<name><extension>`,
+passes mode 1 to `FUN_00516e46`, and calls `FUN_00516e84` only when the open
+returns nonzero. Both file callees are hooked, so no host path is opened.
+
+`datatbls_monster_release.py` checks `FUN_0065a190` with all zero, all
+nonzero, isolated guards and mixed pointer states. It records the five nested
+free calls and the ordered table/link releases. It conditionally clears
+`0x96c814`, `0x96c704`, `0x96c87c`, `0x96c880`, `0x96c6bc` and `0x96c7a4`;
+it always clears `0x96c70c`, `0x96c884`, `0x96c6a8` and `0x96c864`.
+Other tested source pointers remain set after release. The callees are
+hooked; the oracle checks the loader's own pointer guards and writes.
 
 ## DataTbls.cpp
 
@@ -170,7 +310,7 @@ third row pointer with both counters 1.
 | `FUN_00633540` | Frees the items link first, then non-null rows `0x96ca5c` and index `0x96ca78` (lines 0x1c8, 0x1cb); clears the rows pointer but leaves the index pointer in place. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00633590` | The items count's address (`0x96ca58`) |
 | `FUN_006335a0` | The items index word n (fatal 0x1e2); -1 out of range |
-| `FUN_006336a0` | Column callback: a leading minus or decimal digit uses signed `_atol`; an empty value writes zero, and a null destination writes nothing. Other names search skills, montype, then states links. Numeric and empty branches verified by `tools/emu/item_tbls.py` |
+| `FUN_006336a0` | Column callback: a leading minus or decimal digit uses signed `_atol` (so `25tail` gives 25 and `-18x` gives -18); an empty value writes zero, and a null destination writes nothing. A leading `+` or space enters name lookup, not the numeric branch. Other names search skills, montype, then states links in that order, continuing after negative results and accepting the first nonnegative one. `tools/emu/item_tbls.py` checks numeric, empty and staged link-fallback cases |
 | `FUN_00633730` | Loads magicsuffix, magicprefix and automagic (0x90 each) into one array (line 0x297), names to .tbl at `+0x20` |
 | `FUN_00633ea0` | Frees the magic affix array at `0x96ca80` only when non-null (line 0x2b7), then clears its pointer. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00633f40` | Loads raresuffix and rareprefix (0x48) into one array (0x2f4), names at `+0xc` |
@@ -203,7 +343,7 @@ third row pointer with both counters 1.
 | `FUN_006393e0` | Unconditionally frees the ItemTypes matrix (line 0x8a7), then table rows and link; leaves their globals unchanged. Verified by `tools/emu/item_tbls.py` |
 | `FUN_00639420` | Does `DATA\GLOBAL\EXCEL\<name><ext>` open (`FUN_00516e46`). Caller `FUN_006394a0` |
 | `FUN_00639c90` / `FUN_00639cb0` | Free runes / its count address |
-| `FUN_00639cc0` | Writes runes row n (0x120 bytes), growing the array (line 0x95b). For the first row, bin mode allocates 0x124 bytes, writes count 1 before the row and passes `0xfffffffc` as the old pointer to realloc when the table pointer is null. For later n it preserves old rows, zeroes rows skipped since the old count, copies row n and sets count to n + 1. Verified by `tools/emu/item_tbls.py` (the realloc copy uses the hook's model) |
+| `FUN_00639cc0` | Writes runes row n (0x120 bytes), growing the array (line 0x95b) only when n is at least the current count. For the first row, bin mode allocates 0x124 bytes, writes count 1 before the row and passes `0xfffffffc` as the old pointer to realloc when the table pointer is null. For later n it preserves old rows, zeroes rows skipped since the old count, copies row n and sets count to n + 1. An in-range n replaces only that row without growth or count change. Verified by `tools/emu/item_tbls.py` (the realloc copy uses the hook's model) |
 
 ## MonsterTbls.cpp
 
