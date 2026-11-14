@@ -70,6 +70,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | DrlgGrid.cpp grid helpers (18 functions, FUN_0067c430 ... FUN_0067ce00; `--mutation-check` 4 ways) | `uv run python drlg_grid.py` | `ok: 1440 DrlgGrid.cpp helper cases` |
 | Drlg.cpp level teardown and room-at-point search (FUN_00642010, FUN_00642c30; `--mutation-check` 3 ways) | `uv run python drlg_level.py` | `ok: 240 Drlg.cpp level teardown and room search cases` |
 | Drlg.cpp tile cache, neighbour free, knockback, LvlSub loader and sweep, A* box (6 functions, FUN_00642a30 ... FUN_0067ad00; `--mutation-check` 8 ways) | `uv run python drlg_mid.py` | `ok: 900 Drlg.cpp tile cache and neighbour free cases` |
+| Maze room preset picker and prescribed-neighbour helper (FUN_006709b0 for LevelTypes 0..0x25 and out-of-range values, every link mask and both flags; FUN_00670de0 with its room callees hooked; `--mutation-check` 9 ways) | `uv run python drlg_room_helpers.py --exe /path/to/game.exe` | `ok: 13392 DRLG room helper cases; branches {...}` |
 | Record, table and packed-point helpers (16 functions across Preset, DrlgRoom, DrlgLogic, Maze; `--mutation-check` 3 ways) | `uv run python drlg_misc.py` | `ok: 1600 small DRLG helper (records and tables) cases` |
 | Record, teardown and list helpers, round two (10 functions across Preset, DrlgRoom, DrlgLogic, Maze, Level; FUN_006660b0 ... FUN_0067d680; `--mutation-check` 6 ways) | `uv run python drlg_more.py` | `ok: 800 DRLG record, teardown and list helper cases` |
 | Outdoors.cpp, level-link and distance helpers (15 functions, FUN_00673fe0 ... FUN_00678d30; `--mutation-check` 3 ways) | `uv run python drlg_outdoor.py` | `ok: 1200 Outdoors.cpp and distance helper cases` |
@@ -208,6 +209,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest state cleanup (`FUN_00543800`, allocator and buffer free hooked; `--mutation-check` three ways) | `uv run python quest_destroy.py` | `ok: 24 quest state cleanup cases` |
 | Quest list cleanup (`FUN_00543590`, allocator hooked; `--mutation-check` three ways) | `uv run python quest_free_list.py` | `ok: 24 quest list cleanup cases` |
 | Quest frontier accessors (nine functions, lookup hooked; `--mutation-check` nine ways) | `uv run python quest_frontier.py` | `ok: 216 quest frontier cases` |
+| Four small unit helpers (FUN_00622e70, FUN_0063a130, FUN_0062a0a0, FUN_00554120; stat, state-list, item-flag, name and sprintf callees hooked; `--mutation-check` 11 ways) | `uv run python items_objects_helpers.py --exe /path/to/Game.exe` | `ok: 31 cases over 4 functions` |
 | Quest item and party check (`FUN_00591cd0`, callees hooked; `--mutation-check` three ways) | `uv run python quest_horadric_party.py` | `ok: 48 quest item party cases` |
 | Quest callback wrapper (`FUN_005b30e0`, receiver hooked; `--mutation-check` three ways) | `uv run python quest_izual_forward.py` | `ok: 24 quest callback wrapper cases` |
 | Quest level warning (`FUN_00545cd0`, lookups and warning hooked; `--mutation-check` three ways) | `uv run python quest_level_warning.py` | `ok: 72 quest level warning cases` |

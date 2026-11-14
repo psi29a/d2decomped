@@ -413,3 +413,60 @@ isn't traced. d2d: `Unit::highlight`, last frame's hovered unit.
 Found on the way: `FUN_00476ea0` loads `Data\Global\Monsters\RandTransforms.dat`
 (0x1e00: 30 colour tables for monsters) and `GreenBlood.dat` (256, the
 censored blood, when a unit's +0x1a2 is set and a setting file says '1').
+
+## Static-light shadow cache (`FUN_004750f0`)
+
+The function takes the light record in ESI and no stack arguments. Radius is
+signed: 0, negative, or at least 0x100 returns without touching the scratch
+buffer. A valid radius first clears **0x1000 bytes** at `0x7a8a50`, not the
+whole 0x4000-byte, 64×64 dword buffer. Unit type 6 returns after that clear;
+a missing unit does too. The byte at light +8 selects unit lookup
+`FUN_00463990` (zero) or `FUN_004639b0` (nonzero), with type in EDX and ID
+in ECX. A found unit without a room takes fatal line 0x414.
+
+For a found room, `FUN_0045adf0` / `FUN_0045ae20` supply the unit's
+subtile coordinates. The function calls `FUN_0064cb30(room, x, y, 0x22)`
+4,096 times, row-major over the 64×64 square from unit x−32, y−32; it
+stores 16 if the result's low 16 bits are nonzero, otherwise 0, in the
+collision table at `0x7aca50`. It runs the original `FUN_00474b50` /
+`FUN_00474c00` over rings 2 through `radius >> 3`, then requires the light's
+cache-ready dword +0x2c to be zero (fatal line 0x454 otherwise) and its
+cache pointer +0x30 nonzero (fatal line 0x455 otherwise). It copies a
+square of `((radius * 2) >> 3) + 1` dwords per side, starting at
+`(32 - (radius >> 3), 32 - (radius >> 3))` in the shadow scratch table,
+then sets +0x2c to 1. Each row of the scratch source has 64 dwords.
+
+`tools/emu/static_light_cache.py` checks 22 full-grid cases against an
+independent Python model, nine early/fatal cases, and three wrapper lifecycle
+calls. Collision, lookup, room, coordinate, allocation and draw helpers are
+scripted; the real shadow-propagation helpers run. The script checks all
+4,096 collision arguments in every full case, the entire collision and
+shadow tables, the cache bytes, cache guards, call order, and stack/return
+state. With a synthetic scratch table prefilled with 7, the uncleared
+portion survives and can appear in the copied window. This shows what the
+function does with that input, not that such a scratch state arises in play.
+`FUN_004755a0` builds once, reuses the same bytes after collision changes,
+and frees/rebuilds on the tested radius change; its draw is hooked. There
+is no d2d comparison or live-game reachability claim.
+
+A synthetic non-multiple-of-eight radius exposes a separate size mismatch:
+`FUN_004755a0` allocates `(2 * (radius >> 3) + 1)^2` dwords, while the
+copy above can require a larger square. Four guarded cases at radii 4, 20,
+23 and 252 write respectively 12, 44, 44 and 508 bytes beyond the allocation
+requested from the scripted allocator. The script provides extra guard
+storage so no host memory is at risk. `FUN_00474160` initializes current
+and target radius as eight times an integer, and the tested wrapper adjusts
+current radius by eight; whether another stock path can supply a
+non-multiple radius remains untraced. Do not infer a reachable gameplay bug
+from the synthetic inputs.
+
+Re-check with:
+
+```sh
+cd tools/emu
+uv run python static_light_cache.py --exe /path/to/Game.exe --mutation-check
+```
+
+The oracle requires the 1.14d executable hash and catches four planted model
+mutations. It needs no MPQs. The existing per-frame d2d approximation and
+its gameplay impact are not reverified by these stock-only checks.

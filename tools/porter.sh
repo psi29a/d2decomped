@@ -100,7 +100,8 @@ android)
     # ponytail: a debug-signed APK from the SDK's own tools; a Gradle project
     # when there's a release to sign or a second ABI to carry.
     sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
-    ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
+    # $ANDROID_NDK_HOME when set (GitHub's runners: their default NDK), else the newest.
+    ndk=${ANDROID_NDK_HOME:-$(ls -d "$sdk"/ndk/* | sort -V | tail -1)}
     tools=$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)
     android_jar=$(ls -d "$sdk"/platforms/* | sort -V | tail -1)/android.jar
     # Before anything is fetched or compiled: an older NDK ignores the 16 KB
@@ -150,6 +151,8 @@ android)
     (cd "$apk" && zip -q -0 d2d.apk classes.dex lib/arm64-v8a/*.so)
     "$tools/zipalign" -f -P 16 4 "$apk/d2d.apk" "$apk/aligned.apk"
     # A debug key of this build's own: adb installs it, no store takes it.
+    # ponytail: a new key each clean build, so one build won't install over
+    # another; a kept release key (a CI secret) when that matters.
     [[ -f $build/debug.keystore ]] || keytool -genkeypair -keystore "$build/debug.keystore" -storepass android \
         -keypass android -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=d2d debug"
     "$tools/apksigner" sign --ks "$build/debug.keystore" --ks-pass pass:android --out "$out/d2d.apk" "$apk/aligned.apk"
