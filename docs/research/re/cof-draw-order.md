@@ -108,8 +108,11 @@ bit 0 for them), so the two agree apart from that last stem. This
 replaces the list in earlier notes, which left out 0x209, the objects and
 the +0x10 test, and put 0x2c0 with the second group. Overlay row 0x7a
 (`mephisto`) is a `.dc6` too.
-`FUN_005fe990` loads it, and a file that isn't there is fatal
-(error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
+`FUN_005fe990` loads it; a file that isn't there is not fatal: the open
+returns handle 0 and the cached header comes back with bit 0 set
+(`tools/emu/cof_layer_file.py` runs both functions on game.exe: path
+strings over random records, then the header, offset table, cache hit and
+the fatal lines 0x418, 0x444 and 0x449). d2d tries `.dcc` then `.dc6` (the same files) and draws
 the other layers when neither is there, so it needs none of these rules;
 `Scene::overlay_sprite` (apps/d2d/scene/render.cpp) reads row 0x7a's
 `.dc6` through that fallback.
