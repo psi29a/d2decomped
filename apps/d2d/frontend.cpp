@@ -40,10 +40,12 @@ static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& s
 
 // A kind 6 button's label (FUN_00500db0 / FUN_00500c50, frontend-menu-table.md
 // "Button labels"): FontExocet10 or FontRidiculous by the button's height,
-// bottom-anchored on its baseline, 2 left and 2 down when pressed, and
-// never recoloured on hover. `label2` is a second line under the first.
+// bottom-anchored on its baseline, multiplied onto the chrome (draw mode
+// 4), 2 left and 2 down when pressed, and never recoloured on hover.
+// `label2` is a second line under the first.
 // ponytail: game.exe keeps a disabled button's label in colour 0 and
-// draws its chrome in mode 1 (not traced); d2d greys the label by `shade`.
+// draws its chrome through the 50/50 alpha table (mode 1); d2d greys the
+// label by `shade` and draws the chrome opaque.
 static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
                               const d2d::palette::Palette& pal, const Button& button,
                               std::string_view label, bool pressed, int shade = 255,
@@ -59,7 +61,7 @@ static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scen
                                                        font.measure(text), font.tbl_height(), pressed, lines, line);
         const auto tint = std::uint8_t(shade);
         font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, spot.x, spot.baseline,
-                                  text, tint, tint, tint);
+                                  text, tint, tint, tint, /*multiply=*/true);
     }
 }
 

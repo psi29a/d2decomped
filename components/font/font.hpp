@@ -110,18 +110,24 @@ public:
 
     // FUN_00501a80 hands glyphs to FUN_004f64b0 at a bottom-left anchor.
     // Unlike draw_tinted, each frame's own height determines its top.
+    // `multiply`: draw mode 4, the renderer's slot 0x42 (FUN_00511d70),
+    // which FUN_004fb010 points at the PL2's multiplicative table: each
+    // channel fg * bg / 255 (FUN_00605aa0). A button label draws so.
+    // ponytail: the table snaps that to the nearest palette colour; this
+    // keeps the RGB product.
     int draw_tinted_baseline(std::vector<std::uint8_t>& framebuffer,
                              std::uint32_t framebuffer_width, std::uint32_t framebuffer_height,
                              const palette::Palette& palette, int x, int baseline,
                              std::string_view text, std::uint8_t tint_red,
-                             std::uint8_t tint_green, std::uint8_t tint_blue) const {
+                             std::uint8_t tint_green, std::uint8_t tint_blue,
+                             bool multiply = false) const {
         for (unsigned char letter : text) {
             const auto* glyph = find(letter);
             if (!glyph) continue;
             const auto& frame = sheet_.frame(0, glyph->frame);
             blit_glyph_tinted(framebuffer, framebuffer_width, framebuffer_height, palette, frame,
                              x + frame.offset_x, baseline + frame.offset_y - int(frame.height) + 1,
-                             tint_red, tint_green, tint_blue, 0, 1 << 30);
+                             tint_red, tint_green, tint_blue, 0, 1 << 30, multiply);
             x += glyph->width;
         }
         return x;
@@ -134,7 +140,7 @@ private:
                                   const dc6::Frame& frame,
                                   int dst_x, int dst_y,
                                   std::uint8_t tint_red, std::uint8_t tint_green, std::uint8_t tint_blue,
-                                  int clip_y0, int clip_y1) {
+                                  int clip_y0, int clip_y1, bool multiply = false) {
         for (std::uint32_t glyph_y = 0; glyph_y < frame.height; ++glyph_y) {
             const int pixel_y = dst_y + int(glyph_y);
             if (pixel_y < 0 || std::uint32_t(pixel_y) >= fbH || pixel_y < clip_y0 || pixel_y >= clip_y1) continue;
@@ -145,9 +151,18 @@ private:
                 if (idx == 0) continue;
                 const auto colour = pal[idx];
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * fbW + std::uint32_t(pixel_x)) * 4];
-                pixel[0] = std::uint8_t(int(colour.r) * tint_red / 255);
-                pixel[1] = std::uint8_t(int(colour.g) * tint_green / 255);
-                pixel[2] = std::uint8_t(int(colour.b) * tint_blue / 255);
+                const int red = int(colour.r) * tint_red / 255;
+                const int green = int(colour.g) * tint_green / 255;
+                const int blue = int(colour.b) * tint_blue / 255;
+                if (multiply) {
+                    pixel[0] = std::uint8_t(red * pixel[0] / 255);
+                    pixel[1] = std::uint8_t(green * pixel[1] / 255);
+                    pixel[2] = std::uint8_t(blue * pixel[2] / 255);
+                    continue;
+                }
+                pixel[0] = std::uint8_t(red);
+                pixel[1] = std::uint8_t(green);
+                pixel[2] = std::uint8_t(blue);
                 pixel[3] = colour.a;
             }
         }
