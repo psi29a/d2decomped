@@ -57,7 +57,7 @@ zero/sign extended; callers must not assume a clean full EAX.
 | `FUN_00629f20` | Get 32-bit word D `+0x0c`; null unit, wrong type or null D is fatal. |
 | `FUN_00629fe0` | Resolve the unit class (−1 for null), assert on missing R, then search `0x7446e0` eight-byte entries at `0x7446a0` for R `+0xc0`. Return the matched entry's ushort `+4` in AX; no match gives AX=0. Upper EAX is not a defined result. |
 | `FUN_0062a060` | Class-ID predicate R byte `+0x139` nonzero; missing row is fatal. |
-| `FUN_0062a0a0` | Require nonnull type-4 unit; forward its class to `FUN_0062a060` and retain EAX despite Ghidra's void declaration. |
+| `FUN_0062a0a0` | Require nonnull type-4 unit; forward its class to `FUN_0062a060` and retain EAX despite Ghidra's void declaration. `tools/emu/items_objects_helpers.py` runs it with `FUN_0062a060` hooked: the class is forwarded and EAX returned whole, and a null unit (assert 0x1162) or another type (0x1163) reaches the hooked fatal path. d2d is not compared. |
 | `FUN_0062a180` | Read byte R `+0x13c`; null unit, wrong type or missing row is fatal. |
 | `FUN_0062a250` | Register helper: EAX carries a group in 1..8 and ECX an unsigned value in 0..20. Return their packed byte `(group << 5) + value`; invalid input gives AL=0. Group 8 wraps in the byte result. |
 | `FUN_0062a2b0` | Unit in EAX: resolve its class (−1 when null), assert on missing R, then zero-extend byte R `+0x143`. There is no unit-type guard. |

@@ -7,7 +7,7 @@ the cinematics.
 
 | Build | Files | Made by |
 |---|---|---|
-| Switch | `d2d.nro` | `tools/d2vita.sh switch` (devkitA64) |
+| Switch | `d2d.nro` | `tools/porter.sh switch` (devkitA64) |
 
 CI builds it on every code change: the `Nintendo Switch` job, as the `switch`
 artifact. A release has it as a zip. Locally, with Docker: `make switch`.
@@ -15,7 +15,7 @@ artifact. A release has it as a zip. Locally, with Docker: `make switch`.
 ## Libraries
 
 devkitPro packages SDL2 alone, and its `openal-soft` plays through SDL2,
-whose `SDL_` names clash with SDL3's in one binary. So `tools/d2vita.sh`
+whose `SDL_` names clash with SDL3's in one binary. So `tools/porter.sh`
 builds two of them from source, pinned by SHA-256:
 
 - SDL3 from devkitPro's `switch-sdl-3.4` branch (unreleased): video on

@@ -245,7 +245,10 @@ Called from FUN_0055c850 when the gold has no player owner. Members =
 the picker's party alive on its level (FUN_005404f0).
 
 - Fewer than 2: the picker takes what their purse holds (FUN_00622e70:
-  level x 10000); the rest stays on the ground.
+  level x 10000); the rest stays on the ground. `FUN_00622e70` asks
+  `FUN_00625480(unit, 12, 0)` and multiplies by 10000 in 32 bits (it wraps);
+  `tools/emu/items_objects_helpers.py` runs it with the getter hooked
+  (7 values, arguments asserted). Not compared with d2d.
 - Otherwise share = gold / members; every other member alive on the level
   (mode not 0, not 0x11) gets min(share, room) (FUN_00540650), the rest
   coming back to the picker, who takes what fits; what doesn't stays.
