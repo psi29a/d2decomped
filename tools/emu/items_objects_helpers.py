@@ -234,7 +234,7 @@ def main():
                 print(f"mutation {name} @{patch[0]:x}: caught")
             except SystemExit as stop:
                 if str(stop).startswith("emu:"):
-                    raise SystemExit(f"mutation {name} @{patch[0]:x}: emulator fault, not a check failure: {stop}")
+                    raise SystemExit(f"mutation {name} @{patch[0]:x}: emulator fault, not a check failure: {stop}") from None
                 caught += 1
                 print(f"mutation {name} @{patch[0]:x}: caught")
             else:
