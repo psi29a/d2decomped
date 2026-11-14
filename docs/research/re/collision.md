@@ -1030,7 +1030,7 @@ EAX); read the asm for them.
   (class id at unit +4, table `PTR_DAT_00744304` +0xa78, 0x1a8 a row, count
   at +0xa80) gives the path mask (path +0x50): row +0xd bit 0x40 (flying)
   0x1804; else row +0xc bit 8 (opendoors) 0x3401, else 0x3c01. Only caller
-  `FUN_00649d00` (a unit of type 1, not the 0x26 class). d2d: reads the same, cited from the decompile, no oracle run, as
+  `FUN_00649d00` (a unit of type 1, not the 0x26 class; `tools/emu/path_make.py` runs both on game.exe over every MonStats row). d2d: reads the same, as
   `UnitShape::monster` (gamedata.hpp:60-69, masks 0x1804 / 0x3401 / 0x3c01
   in that precedence: flying first). A unit of 0, or a class id out of
   range, makes the row pointer 0 and the next line reads address 0xd: no
