@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Skill and missile helpers: Vel + VelLev x level / 8 (a velocity, not the range its callers' notes called it), Skills.txt interpolation wrapper, physical-damage roll with the real seed draw, aurastats slot loop; synthetic rows, with FUN_00645b20, FUN_00647bc0, FUN_00647d00, FUN_00646ca0, FUN_006270b0, FUN_00627150 and FUN_00623f50 hooked and logged; no d2d parity claim | `FUN_00663270`, `FUN_00645c10`, `FUN_0056e170`, `FUN_005c6cc0`; `tools/emu/skills_combat_helpers.py --mutation-check` | [skills.md](skills.md), [combat.md](combat.md), [missiles.md](missiles.md) |
 | SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Blood Raven log-send filter: all 16 flag combinations at three difficulties with lookup, bit test and sender hooked; no d2d parity check | `FUN_00590830`; `tools/emu/quest_burial_log.py` | [quests-act1.md](quests-act1.md) "Quest-log send filter" |

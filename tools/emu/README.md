@@ -46,6 +46,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Battle.net message queue (four BnMessQueue.cpp routines, stock x86 with allocator and locks scripted) | `uv run python bnqueue.py` | `ok: queue FIFO, zero length, limits, string truncation, clear and reuse` |
 | Battle.net BnSend.cpp, the 28 packet senders, reply copiers and readers (FUN_0051ac20 ... FUN_0051be20; `--mutation-check` 11 ways) | `uv run python bnsend.py` | `ok: 2016 BnSend cases over 23 checks` |
 | A boss's death (MonUMod 22 by class, FUN_005dfbf0's area, pick and delay, mod 21's FUN_005a3aa0) | `uv run python boss_deaths.py` | `ok` |
+| Missile velocity, skill interpolation wrapper, physical-damage roll and aurastats loop (FUN_00663270, FUN_00645c10, FUN_0056e170, FUN_005c6cc0; callees hooked as listed in the script; `--mutation-check` 16 ways) | `uv run python skills_combat_helpers.py` | `ok: 105 synthetic cases over 4 functions` |
 | When a Sorceress self cast pays its mana and runs its action frame (with a get-hit cut) | `uv run python cast_mana.py gen 1 > cases.tsv; uv run python cast_mana.py game cases.tsv > g.txt; ../../build/tests/test_cast_mana --cast-mana cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Cast speed and cast length (FCR 0..400) | `uv run python cast_rates.py > g.txt; ../../build/tests/test_combat --cast-rates \| diff g.txt -` | no output |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |

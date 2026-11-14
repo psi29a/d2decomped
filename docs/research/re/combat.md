@@ -745,6 +745,18 @@ flag.
   the two pieces it combines are already ported separately and the
   combiner adds no logic.
 
+`FUN_0056e170(skill, level)` (ECX the caster, EDX the damage record) does
+nothing for an id outside `0 <= id < count` or a null row. Otherwise it
+takes FUN_00647bc0 (the minimum, by its use below) and FUN_00647d00 (the
+maximum), both called as (unit, skill, level, 0); then
+FUN_0045c3e0 on the caster's seed (`+0x20`) with bound `max - min` (so
+the roll is `0..max-min-1`: the maximum itself never comes up; a bound under 1
+gives 0 and leaves the seed alone); and adds `min + roll` to the record's `+8`.
+The decompile hides the bound argument (it is EDX at the call; seen in the
+disassembly, `0056e1c1`). Run with FUN_00647bc0 / FUN_00647d00 hooked (logged,
+scripted results) and the real seed draw, 36 cases:
+`tools/emu/skills_combat_helpers.py`. Their formulas and d2d are not compared.
+
 d2d: no function of its own for the +0xac list; nothing in `ai.cpp` or
 `fight.hpp` was found keeping a per-(caster, target) record list, so this
 is cited, not matched. Not a behavioural difference by itself — the
