@@ -155,6 +155,17 @@ skill_entry	0x28	u32	level	the stored base level (FUN_006442a0, FUN_00647540)	to
 skill_entry	0x30	u32	quantity	a scroll or tome's count (FUN_00647640: usable above 0)	tools/emu/skill_status.py:119
 skill_entry	0x34	i32	item	the charged item's id, -1 for the character's own skill	tools/emu/skill_status.py:120
 skill_entry	0x38	u32	charges	an item entry's charges (FUN_00647540: usable above 0)	tools/emu/skill_status.py:121
+static_light	0x00	u32	unit_type	unit type or 6 for none	docs/research/re/lighting.md:417
+static_light	0x04	u32	unit_id	unit id	docs/research/re/lighting.md:417
+static_light	0x08	u8	alternate_lookup	select alternate unit lookup when nonzero	docs/research/re/lighting.md:417
+static_light	0x0c	u32	category	light category, 2 for cached shadow	docs/research/re/lighting.md:417
+static_light	0x10	i32	x	light x in eighths of a subtile	docs/research/re/lighting.md:417
+static_light	0x14	i32	y	light y in eighths of a subtile	docs/research/re/lighting.md:417
+static_light	0x18	i32	radius	current radius in eighths of a subtile	docs/research/re/lighting.md:417
+static_light	0x1c	i32	target_radius	desired radius in eighths of a subtile	docs/research/re/lighting.md:417
+static_light	0x20	u32	frozen	nonzero prevents position refresh	docs/research/re/lighting.md:417
+static_light	0x2c	u32	cache_ready	nonzero after cache initialization	docs/research/re/lighting.md:433
+static_light	0x30	ptr	cache	cached shadow buffer	docs/research/re/lighting.md:433
 static_path	0x00	ptr	room	the room the static unit (object, item, warp) is in	tools/emu/units_small.py:989
 static_path	0x04	u32	screen_x	the static unit's screen x FUN_00620900 reads for types 2, 4 and 5	tools/emu/units_small.py:989
 static_path	0x08	u32	screen_y	the static unit's screen y FUN_00620900 reads for types 2, 4 and 5	tools/emu/units_small.py:989
