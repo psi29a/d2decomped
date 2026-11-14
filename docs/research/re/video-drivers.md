@@ -220,11 +220,11 @@ whole milliseconds are `trunc(v)` and the carry becomes v minus them. The
 call sleeps (`Sleep(ms)`) only for 1..5 ms, then reads the clock again and
 subtracts the overshoot `(after - now) - ms` from the carry; below 1 or above
 5 ms the carry is cleared and it does not sleep. Elapsed above 5.0 skips the
-sleep and the carry update. Then last = the clock, slot `+0x1c`, slot `+0x20`, return 1. It reads
-no video mode. `tools/emu/ui_client_helpers.py` runs it for 130 clock
-scripts (the x87 maths and the CRT's float to int run for real; the clock,
-`Sleep` and the two driver slots are hooked). Real timing, the clock's
-own conversion and d2d's pacing are not checked.
+sleep and the carry update. Then last = the clock, slot `+0x1c`, slot
+`+0x20`, return 1. It reads no video mode. `tools/emu/ui_client_helpers.py`
+runs it for 130 clock scripts (the x87 maths and the CRT's float to int run
+for real; the clock, `Sleep` and the two driver slots are hooked). Real
+timing, the clock's own conversion and d2d's pacing are not checked.
 
 ## What the 3D drivers add
 

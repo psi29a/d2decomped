@@ -55,6 +55,8 @@ if not __debug__:
 
 GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 M32 = 0xFFFFFFFF
+# Instruction cap for every emulated call (the longest, the 114-record key scan, needs about 2,000).
+CALL_LIMIT = 100000
 
 KEY_TABLE = 0x7A6F90
 KEY_RECORDS = 114
@@ -78,6 +80,10 @@ mutation = None
 
 class Mismatch(Exception):
     """A check disagreed with the model."""
+
+
+class ModelGuard(Exception):
+    """The model or its script broke an internal assumption (not a game-vs-model difference)."""
 
 
 def require(condition, message):
@@ -132,17 +138,16 @@ def check_key_of(engine):
     cases = 0
     unique = [(1000 + index, index + 1, 10 + index) for index in range(KEY_RECORDS)]
     sentinel = unique + [(7777, 0x1234, 77)]
-    engine.mu.mem_write(KEY_TABLE + KEY_RECORDS * KEY_RECORD_SIZE, struct.pack("<IHI", 7777, 0x1234, 77))
     write_bindings(engine, unique)
     # The record just past the 114th must not be scanned.
     engine.mu.mem_write(KEY_TABLE + KEY_RECORDS * KEY_RECORD_SIZE, struct.pack("<IHI", 7777, 0x1234, 77))
     for index, (action, _, slot) in enumerate(unique):
         for query_action, query_slot in ((action, slot), (action, slot + 1), (action + 1, slot)):
-            got = engine.call(0x469AA0, ecx=query_action, edx=query_slot) & 0xFFFF
+            got = engine.call(0x469AA0, ecx=query_action, edx=query_slot, limit=CALL_LIMIT) & 0xFFFF
             want = model_key_of(unique, query_action, query_slot)
             require(got == want, f"unique {index} ({query_action}, {query_slot}): game {got:#x} model {want:#x}")
             cases += 1
-    got = engine.call(0x469AA0, ecx=7777, edx=77) & 0xFFFF
+    got = engine.call(0x469AA0, ecx=7777, edx=77, limit=CALL_LIMIT) & 0xFFFF
     require(got == model_key_of(sentinel, 7777, 77) == 0xFFFF, f"sentinel past the table: {got:#x}")
     cases += 1
     rng = random.Random(0x469AA0)
@@ -155,7 +160,7 @@ def check_key_of(engine):
             records = records + [(99, 0x5555, 9)] * (KEY_RECORDS - len(records))
         for _ in range(6):
             action, slot = rng.randrange(6), rng.randrange(4)
-            got = engine.call(0x469AA0, ecx=action, edx=slot) & 0xFFFF
+            got = engine.call(0x469AA0, ecx=action, edx=slot, limit=CALL_LIMIT) & 0xFFFF
             want = model_key_of(records, action, slot)
             require(got == want, f"random {case} ({action}, {slot}): game {got:#x} model {want:#x}")
             cases += 1
@@ -192,14 +197,14 @@ def check_key_label(engine):
         records = [(action + 1, 0x41, slot), (action, key, slot), (action, 0x1B, slot)]
         write_bindings(engine, records)
         del log[:]
-        engine.call(0x46A530, ecx=action, edx=slot)
+        engine.call(0x46A530, ecx=action, edx=slot, limit=CALL_LIMIT)
         want = model_key_label(key, action, slot)
         require(log == want, f"key {key:#x}: game {log} model {want}")
         cases += 1
     write_bindings(engine, [(1, 0x1B, 0)])
     for action, slot in ((2, 0), (1, 1), (0, 0)):
         del log[:]
-        engine.call(0x46A530, ecx=action, edx=slot)
+        engine.call(0x46A530, ecx=action, edx=slot, limit=CALL_LIMIT)
         want = model_key_label(0xFFFF, action, slot)
         require(log == want, f"no binding ({action}, {slot}): game {log} model {want}")
         cases += 1
@@ -214,7 +219,7 @@ def check_driver_option(engine):
     for value in (0, 1, 3, 4, 5, 7, 0x12345678, 0x80000000, M32):
         engine.w32(0x712CCC, value)
         want = value & 0xFF if broken("driver_low_byte") else value
-        got = engine.call(0x477730)
+        got = engine.call(0x477730, limit=CALL_LIMIT)
         require(got == want, f"driver option {value:#x}: game {got:#x} model {want:#x}")
         cases += 1
     return cases
@@ -233,9 +238,11 @@ def model_pace(flag, last, carry, clocks, threshold):
     used = 0
 
     def clock():
+        """Next scripted clock value, standing in for FUN_004f6130."""
         nonlocal used
         used += 1
-        require(used <= len(clocks), "model reads more clocks than the script holds")
+        if used > len(clocks):
+            raise ModelGuard("model reads more clocks than the script holds")
         return clocks[used - 1]
 
     if not flag & 1:
@@ -265,7 +272,7 @@ def model_pace(flag, last, carry, clocks, threshold):
     return flag, last, carry, sleeps, used
 
 
-def run_pace(engine, flag, last, carry, clocks, threshold):
+def run_pace(engine, flag, last, carry, clocks):
     """One FUN_004f6190 call in the emulator; returns the same tuple as model_pace plus the event log."""
     events = []
     cell = engine.alloc(8)
@@ -274,6 +281,7 @@ def run_pace(engine, flag, last, carry, clocks, threshold):
     extra = [0]
 
     def feed(uc, address, size, user):
+        """Code hook at FUN_004f6130: load the next scripted clock into the cell it reads."""
         if used[0] < len(queue):
             uc.mem_write(cell, struct.pack("<d", queue[used[0]]))
         else:
@@ -295,9 +303,10 @@ def run_pace(engine, flag, last, carry, clocks, threshold):
     engine.w32(PACE_FLAG, flag)
     engine.mu.mem_write(PACE_LAST, struct.pack("<d", last))
     engine.mu.mem_write(PACE_CARRY, struct.pack("<d", carry))
-    result = engine.call(0x4F6190)
+    result = engine.call(0x4F6190, limit=CALL_LIMIT)
     require(result == 1, f"FUN_004f6190 returned {result}")
-    require(extra[0] == 0, f"{extra[0]} clock reads past the script")
+    if extra[0]:
+        raise ModelGuard(f"{extra[0]} clock reads past the script")
     return (engine.r32(PACE_FLAG), struct.unpack("<d", engine.read(PACE_LAST, 8))[0],
             struct.unpack("<d", engine.read(PACE_CARRY, 8))[0], events, used[0])
 
@@ -321,9 +330,7 @@ def check_pace(exe):
         (1, 100.0, 0.0, [99.0, 104.75]),                     # clock went backwards: elapsed -1, v 6
         (0x80, 3.0, 0.0, [10.0, 11.0, 13.0, 13.0]),          # flag bits above bit 0 kept
     ]
-    cases = []
-    for flag, last, carry, clocks in fixed:
-        cases.append((flag, last, carry, clocks))
+    cases = list(fixed)
     for _ in range(120):
         flag = rng.choice((0, 1, 0x80, 0x81))
         last = rng.randrange(0, 400) / 4
@@ -336,9 +343,10 @@ def check_pace(exe):
         cases.append((flag, last, carry, clocks))
     count = 0
     for flag, last, carry, clocks in cases:
-        want = model_pace(flag, last, carry, clocks, threshold)
+        # Padding lets a defective model read extra clocks; the clock-read count then differs from the game.
+        want = model_pace(flag, last, carry, clocks + [clocks[-1]] * 4, threshold)
         engine = new_engine(exe)
-        got = run_pace(engine, flag, last, carry, clocks, threshold)
+        got = run_pace(engine, flag, last, carry, clocks)
         # The model's list of clocks it needs is what the game consumed.
         want_events = [("sleep", ms) for ms in want[3]] + [("end",), ("present",)]
         if broken("pace_callback_order"):
@@ -383,51 +391,63 @@ def run_chat(exe, spec):
     stopped = []
 
     def allocate(machine):
+        """Hook for the Storm allocator FUN_0040b380: log the call, hand out the next pooled node."""
         log.append(("alloc", reg(machine, UC_X86_REG_ECX), machine.arg(0), machine.arg(1), reg(machine, UC_X86_REG_EDX)))
         node = pool[next_node[0]]
         next_node[0] += 1
         return node
 
     def free(machine):
+        """Hook for the Storm free FUN_0040b3c0: log the call."""
         log.append(("free", reg(machine, UC_X86_REG_ECX), machine.arg(0), machine.arg(1)))
         return 0
 
     def wrap(machine):
+        """Hook for the line wrapper FUN_00502970: log, report the scripted line count, return the list head."""
         log.append(("wrap", reg(machine, UC_X86_REG_ECX), machine.arg(0)))
         machine.w32(reg(machine, UC_X86_REG_EDX), len(pending_lines))
         return pending_lines[0][0] if pending_lines else machine.alloc(8)
 
     def font(machine):
+        """Hook for the font setter FUN_00502ef0: log, return a font handle when asked for font 0xD."""
         log.append(("font", reg(machine, UC_X86_REG_ECX)))
         return 0x5150 if reg(machine, UC_X86_REG_ECX) == 0xD else 0
 
     def simple(name):
+        """Make a hook that logs its registers under name (FUN_0049dbc0, FUN_0049d490, FUN_004b9a00, FUN_0049e340)."""
         def run(machine):
+            """Log the call with ECX, EDX and EDI."""
             log.append((name, reg(machine, UC_X86_REG_ECX), reg(machine, UC_X86_REG_EDX), reg(machine, UC_X86_REG_EDI)))
             return 0
         return run
 
     def draw_state(machine):
+        """Hook for FUN_004538d0: log, return the scripted draw-state flag."""
         log.append(("state", reg(machine, UC_X86_REG_ECX)))
         return spec["alloc_flag"]
 
     def ignore_object(machine):
+        """Hook for FUN_00611560: log, return the fake ignore-list object."""
         log.append(("ignore_list",))
         return ignore_obj
 
     def ignore_call(machine):
+        """Hook for the ignore object's vtable slot (0x4F6250): log ECX and both stack arguments."""
         log.append(("ignore_call", reg(machine, UC_X86_REG_ECX), machine.arg(0), machine.arg(1)))
         return 0
 
     def copy_text(machine):
+        """Hook for FUN_005263e0 (text copy): log ECX, EDX and the stack size argument."""
         log.append(("copy", reg(machine, UC_X86_REG_ECX), reg(machine, UC_X86_REG_EDX), machine.arg(0)))
         return 0
 
     def vcall(machine):
+        """Hook for the view object's vtable slot (0x4F6270) that FUN_0049e3a0 calls: log ECX."""
         log.append(("view_call", reg(machine, UC_X86_REG_ECX)))
         return 0
 
     def fatal(machine):
+        """Hook for the fatal report FUN_00681e09: log, then stop the emulator."""
         log.append(("fatal", machine.arg(0)))
         stopped.append(True)
         machine.mu.emu_stop()
@@ -496,13 +516,10 @@ def run_chat(exe, spec):
         for index, (list_node, _) in enumerate(line_nodes):
             engine.w32(list_node + 4, line_nodes[index + 1][0] if index + 1 < count else 0)
         pending_lines.extend(line_nodes)
-        if not pending_lines:
-            pending_lines.append((0, 0))
-            del pending_lines[:]
         del log[:]
         want_node = pool[next_node[0]] if next_node[0] < len(pool) else None
         tick[0] = (spec["tick"] + 1000 * message_index) & M32
-        engine.call(0x49E3A0, ecx=text, edx=kind)
+        engine.call(0x49E3A0, ecx=text, edx=kind, limit=CALL_LIMIT)
         require(want_node is not None, "node pool exhausted")
         shown = min(count, line_cap())
         want = [("alloc", NODE_SIZE, 0xD46, 0, 0x6DA13C), ("font", 0xD),
@@ -523,25 +540,20 @@ def run_chat(exe, spec):
             trigger = kind in (3, 4) and shown == 1
         if trigger:
             want += [("copy", 0x0, 0, 0x100)]
-        want_log_head = want
-        # the ignore path logs copy (ECX = buffer, EDX = text) then the list and the call
-        new_entry = {"node": want_node, "lines": shown}
-        queue.append(new_entry)
+        queue.append({"node": want_node, "lines": shown})
         total = sum(entry["lines"] for entry in queue)
         old_head = queue[0]["node"]
         over = total > (19 if broken("chat_limit_19") else 18)
         counter = counter + 1
-        want_tail = []
         if over:
             queue.pop(0)
             if not broken("chat_counter_not_restored"):
                 counter -= 1
-        want_tail.append(("show", want_node, None, None))
         # Compare in two parts: everything up to the show call exactly, then the rest.
         index_show = next((i for i, entry in enumerate(log) if entry[0] == "show"), None)
         require(index_show is not None, "FUN_0049dbc0 not called")
         got_head = log[:index_show]
-        head_want = [entry for entry in want_log_head if entry[0] != "copy"]
+        head_want = [entry for entry in want if entry[0] != "copy"]
         require([entry for entry in got_head if entry[0] not in ("copy", "ignore_list", "ignore_call")] == head_want,
                 f"message {message_index} up to show: game {got_head} model {head_want}")
         ignore_events = [entry[0] for entry in got_head if entry[0] in ("copy", "ignore_list", "ignore_call")]
@@ -577,8 +589,6 @@ def run_chat(exe, spec):
             want_string = line_nodes[index][1] if index < shown else 0
             require(string == want_string, f"node line {index}: {string:#x} model {want_string:#x}")
         require(engine.r32(node + 0x22) == 0, "new node's next not null")
-        if len(queue) > 1 or (not over and len(queue) >= 1):
-            pass
         # queue chain from the head
         chain = []
         cursor = engine.r32(QUEUE_HEAD)
@@ -600,12 +610,12 @@ def check_chat(exe):
     rng = random.Random(0x49E3A0)
     total = 0
     scripts = [
-        dict(initial=[], messages=[(2, 0), (3, 1)], seed=1, tick=1000, width=0x1E0, alloc_flag=0, object=False),
-        dict(initial=[], messages=[(4, 1), (4, 2), (3, 1), (4, 1)], seed=2, tick=0xFFFFF000, width=0x280, alloc_flag=1, object=True),
-        dict(initial=[], messages=[(1, 7), (1, 6), (2, 3), (2, 6), (2, 6), (5, 1)], seed=3, tick=5, width=0x100, alloc_flag=1, object=False),
-        dict(initial=[3, 4, 5], messages=[(1, 6), (0, 2)], seed=4, tick=77, width=0x300, alloc_flag=0, object=True),
-        dict(initial=[6, 6, 5], messages=[(1, 1), (1, 1)], seed=5, tick=9, width=0x200, alloc_flag=1, object=True),
-        dict(initial=[2, 2], messages=[(1, 1)], seed=6, tick=9, width=0x200, alloc_flag=1, object=True, corrupt=True),
+        dict(initial=[], messages=[(2, 0), (3, 1)], tick=1000, width=0x1E0, alloc_flag=0, object=False),
+        dict(initial=[], messages=[(4, 1), (4, 2), (3, 1), (4, 1)], tick=0xFFFFF000, width=0x280, alloc_flag=1, object=True),
+        dict(initial=[], messages=[(1, 7), (1, 6), (2, 3), (2, 6), (2, 6), (5, 1)], tick=5, width=0x100, alloc_flag=1, object=False),
+        dict(initial=[3, 4, 5], messages=[(1, 6), (0, 2)], tick=77, width=0x300, alloc_flag=0, object=True),
+        dict(initial=[6, 6, 5], messages=[(1, 1), (1, 1)], tick=9, width=0x200, alloc_flag=1, object=True),
+        dict(initial=[2, 2], messages=[(1, 1)], tick=9, width=0x200, alloc_flag=1, object=True, corrupt=True),
     ]
     for script in scripts:
         script.setdefault("corrupt", False)
@@ -613,7 +623,7 @@ def check_chat(exe):
     for number in range(12):
         kinds = [rng.randrange(0, 6) for _ in range(8)]
         counts = [rng.choice((0, 1, 1, 2, 3, 5, 6, 7, 9)) for _ in range(8)]
-        script = dict(initial=[], messages=list(zip(kinds, counts)), seed=100 + number, tick=rng.randrange(M32 + 1),
+        script = dict(initial=[], messages=list(zip(kinds, counts)), tick=rng.randrange(M32 + 1),
                       width=rng.randrange(0x100, 0x400), alloc_flag=rng.randrange(2), object=bool(rng.randrange(2)), corrupt=False)
         total += run_chat(exe, script)
     return total
@@ -638,16 +648,19 @@ def check_critter(exe):
                 engine.w32(row + 0xC4, flags)
 
                 def record_type1(machine, log=log):
+                    """Hook for FUN_00466360 (type 1 path): log the record words, EDX and four stack arguments."""
                     record = reg(machine, UC_X86_REG_ECX)
                     log.append(("type1", tuple(machine.r32(record + 4 * field) for field in range(7)),
                                 reg(machine, UC_X86_REG_EDX), tuple(machine.arg(index) for index in range(4))))
                     return 0
 
                 def allocate(machine, log=log, row=row, found=found):
+                    """Hook for FUN_00620290 (unit allocator): log, return the row or 0."""
                     log.append(("alloc", machine.arg(0), machine.arg(1)))
                     return row if found else 0
 
                 def init(machine, log=log):
+                    """Hook for FUN_00465fd0 (unit init): log its six stack arguments."""
                     log.append(("init", tuple(machine.arg(index) for index in range(6))))
                     return 0
 
@@ -657,7 +670,7 @@ def check_critter(exe):
                 engine.w32(CRITTER_COUNTER, counter)
                 ecx, edx = rng.randrange(M32 + 1), rng.randrange(M32 + 1)
                 first, third = rng.randrange(M32 + 1), rng.randrange(M32 + 1)
-                engine.call(0x466730, first, kind, third, ecx=ecx, edx=edx)
+                engine.call(0x466730, first, kind, third, ecx=ecx, edx=edx, limit=CALL_LIMIT)
                 new = 0 if (counter + 1) & M32 == (0xFFFFFFFE if broken("critter_wrap_early") else M32) else (counter + 1) & M32
                 if broken("critter_no_wrap") and (counter + 1) & M32 == M32:
                     new = M32
@@ -746,6 +759,12 @@ def main():
                 run_check(function, exe)
             except Mismatch:
                 print(f"caught: {name} ({function})")
+            except ModelGuard as error:
+                raise SystemExit(f"error: mutation {name} broke the model, not the comparison: {error}")
+            except SystemExit as error:
+                if str(error).startswith("emu:"):
+                    raise SystemExit(f"error: emulator fault under mutation {name}: {error}")
+                raise
             else:
                 raise SystemExit(f"mutation {name} was not caught")
             finally:
