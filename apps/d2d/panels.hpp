@@ -6,6 +6,7 @@
 #include "scene.hpp"
 
 #include <ai.hpp>
+#include <automap_cells.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <dc6.hpp>
@@ -257,15 +258,15 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // One automap per Levels.txt Layer: the town and the act 1 wilderness
 // share layer 0, so the map shows them together; cells sit in act
 // coordinates.
-// A cell goes in its list's tree (FUN_00457b00) unless one sits at its
-// (x, y) already that it matches: same cel group (0x711258 -> 0x7a3150),
-// or it has none.
+// A cell goes in its list's tree (FUN_00457b00; rules/automap_cells.hpp)
+// unless the one it meets at its (x, y) has its cel group (0x711258 ->
+// 0x7a3150), or it has none.
 // Saved next to the character (d2s_automap.hpp): load_automap reads the
 // layer's cells in, save_automap appends the ones added since.
 struct Automap {
     struct Cell { int cel, x, y; int list = 0; bool saved = false; };   // list: 0 floors, 1 walls, 2 units, 3 miniatures
     std::vector<Cell> cells;
-    std::set<std::tuple<int, int, int, int>> placed;               // list, y, x, cel group (-1 none)
+    std::array<d2d::rules::AutomapTree, 4> trees;                  // each list's cell tree (FUN_00457b00), which admits a cell
     int cel_file = 0;                                              // list 3's: 0 none, 1..3 a town's miniature (layer +4)
     bool open = false;
     bool add(const Cell& cell);
@@ -288,12 +289,8 @@ struct Automap {
     std::vector<std::string> lines;
 };
 
-// Interchangeable cels (0x711258, cel then group).
-inline constexpr int kCelGroups[][2] = {
-    {0,0},{1,0},{2,0},{3,0},{6,1},{7,1},{8,1},{11,2},{12,2},{13,3},{14,3},{20,4},{38,4},{21,5},{39,5},{46,6},{47,6},
-    {48,6},{49,6},{51,7},{52,7},{53,7},{54,7},{60,8},{70,8},{61,9},{71,9},{120,10},{169,10},{171,10},{121,11},{170,11},
-    {172,11},{257,12},{258,12},{259,12},{266,13},{267,13},{337,14},{338,14},{472,15},{473,15},{474,15},{475,15},
-    {520,16},{521,16},{522,16},{533,17},{534,17} };
+// Interchangeable cels (0x711258, cel then group): rules/automap_cells.hpp.
+inline constexpr const auto& kCelGroups = d2d::rules::kAutomapCelGroups;
 // The player mark's outline (0x6d6638), half-scale steps.
 inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
 
