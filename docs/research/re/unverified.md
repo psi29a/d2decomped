@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Ambient critter make: counter wrap, type 1 record, unit allocation and the 0x600000 flags; 48 cases with `FUN_00466360`, `FUN_00620290` and `FUN_00465fd0` hooked; no d2d parity claim | `FUN_00466730`; `tools/emu/ui_client_helpers.py --mutation-check` | [critters.md](critters.md) |
 | Chat line queue: node layout, 6-line cap, expiry, append, one-head eviction past 18 lines, counter fatal and the kind-4 ignore-list hand-off; 113 cases with allocator, wrapper, UI callees and fatal report hooked; no d2d parity claim | `FUN_0049e3a0`; `tools/emu/ui_client_helpers.py --mutation-check` | [net-packets.md](net-packets.md) |
 | Video driver option and frame pacing: `FUN_00477730` returns its global whole; `FUN_004f6190` on 130 scripted clocks (first-call init, the 5.0 skip, 1..5 ms sleep window, carry and overshoot correction, slot order) with the clock, `Sleep` and the two driver slots hooked; real timing and d2d pacing not checked | `FUN_00477730`, `FUN_004f6190`; `tools/emu/ui_client_helpers.py --mutation-check` | [video-drivers.md](video-drivers.md) |
 | Key binding lookup and key-name dispatch: all 114 records, first match, miss as 0xffff; the 32 special keys' string ids and the hand-off to `FUN_00469de0` with ECX and EDX kept; 2,743 + 520 cases against a Python model, `FUN_00524a30` and `FUN_00469de0` hooked; no d2d parity claim | `FUN_00469aa0`, `FUN_0046a530`; `tools/emu/ui_client_helpers.py --mutation-check` | [controls.md](controls.md) |
