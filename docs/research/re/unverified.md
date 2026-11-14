@@ -21,6 +21,8 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Tint colormap lookup: stored byte >> 5 and & 0x1f, Transform 0 as 8, none for colour > 20 and Transforms 3, 4, 9 up; 520 cases; found d2d's `tint_of` gave 3 / 4 colormaps (fixed) | `FUN_005038d0` (caller `FUN_00503ba0`), `FUN_005066c0` store read; `tools/emu/tint_colormap.py`, `tests/test_compcode_tint.cpp` | [compcode.md](compcode.md) "Tints" |
+| Sprite frame finder: no cell at or past the buffer's frame count, direction choice, frame block walk checks; 30,000 cases with `FUN_00600c90` hooked; no d2d parity check | `FUN_005feb80`, `FUN_005fec50`; `tools/emu/sprite_frame_block.py` | [cof-draw-order.md](cof-draw-order.md) "A layer shorter than its COF" |
 | SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Blood Raven log-send filter: all 16 flag combinations at three difficulties with lookup, bit test and sender hooked; no d2d parity check | `FUN_00590830`; `tools/emu/quest_burial_log.py` | [quests-act1.md](quests-act1.md) "Quest-log send filter" |

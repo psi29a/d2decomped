@@ -184,10 +184,22 @@ no colour or Transform 0, 3 or 4. The colour (FUN_0062c100):
   no worn item holds a gem.
 
 Transform 8 wraps past the byte (uld white → 0x01, uth dark purple →
-0x13), on purpose: the reader, `FUN_005038d0`, takes byte − 1, colour =
-the low 5 bits, and sends Transform 0 to Transform 8's colormaps (bugs.md
-#12, not a bug). `FUN_005066c0` (character select) stores the tints as
-byte − 1 the same way. All 20 real saves' tints match (test_d2s,
+0x13), on purpose: `FUN_005066c0` (character select) stores each tint as
+byte − 1 (0xff stays), and the reader, `FUN_005038d0`, takes that stored
+byte: colour = the low 5 bits, Transform = the byte >> 5 (arithmetic),
+and it sends Transform 0 to Transform 8's colormaps (bugs.md #12, not a
+bug).
+
+`FUN_005038d0` run for real (`tools/emu/tint_colormap.py`, 520 cases: every
+stored byte, 8 wider values, every d2s byte through the minus one): it
+returns `0x842710 + (Transform * 0x69 + colour) * 0x100`, Transform 0
+as 8; none (0) for a colour above 20 and for Transforms 3, 4 and 9 up.
+Its one caller, `FUN_00503ba0` (call at 0x503dad), skips a stored 0xff.
+d2d's `compcode::tint_of` gave Transform 3 / 4 colormaps for the 42 d2s
+bytes 0x61..0x75 and 0x81..0x95 where game.exe has none (the oracle found
+it; fixed with `tints_with`: `tints()` never writes such a byte, a
+hand-edited save could). The minus-one store in `FUN_005066c0` is read, not
+run; its other tint-byte writers are not traced. All 20 real saves' tints match (test_d2s,
 `compcode::tints`).
 
 The automod id is 1-based into AutoMagic (FUN_00633ee0 looks every
