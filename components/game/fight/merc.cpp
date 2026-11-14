@@ -220,6 +220,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         auto& unit = actor->merc->unit;
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
+            // Stat 0x148 + 1 for each client sent its turn to NU (FUN_00597e20's mode 1 branch, a call a client from FUN_00598220).
+            if (mode == "NU") actor->merc_pierce_idx += std::uint32_t(std::ranges::count_if(heroes, [&](const Hero* hero) { return std::abs(unit.x - hero->player.x) < 30 && std::abs(unit.y - hero->player.y) < 30; }));
             if (!unit.walking) unit.path.clear();
             // The merc's FHR is its items' (merc_fighter): no 1.14d Skills.txt aurastat or passivestat
             // is item_fastergethitrate (stat 99), so no state of its changes it.

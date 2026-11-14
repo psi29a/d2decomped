@@ -386,8 +386,9 @@ struct Fight {
         // the skill (and level) its attack mode carries (-1: a plain blow).
         std::array<int, 6> merc_ids{}, merc_levels{};
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
-        // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles).
-        // ponytail: nothing bumps it (FUN_00597e20's default branch isn't read).
+        // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
+        // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
+        // ponytail: a client given the unit anew while it's in NU (FUN_00571f90) adds 1 too; not counted.
         std::uint32_t merc_pierce_idx = 0;
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
