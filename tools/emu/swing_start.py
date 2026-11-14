@@ -146,6 +146,8 @@ def compare(path):
     print("%d cells  %s" % (cells, "same" if not bad else "%d differ (end %d, strike %d)" % (bad, sum(c["end"] for c in by.values()), sum(c["strike"] for c in by.values()))))
     if stat["closed form: strike differs"] or stat["closed form: end differs"]:
         raise SystemExit("the closed form does not match game.exe's events")
+    if cells == 0:
+        raise SystemExit("no comparable cells in %s: an empty or fully skipped file is not a pass" % path)
     return 1 if bad else 0
 
 
