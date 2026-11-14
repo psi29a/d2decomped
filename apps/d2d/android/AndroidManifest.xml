@@ -4,7 +4,7 @@
      libSDL3.so and then the game, libmain.so. INTERNET is for TCP/IP games
      (Android refuses a socket without it, and asks the user nothing for it).
      No storage permission: the MPQs sit in the app's own folder.
-     tools/d2vita.sh android packages it. -->
+     tools/porter.sh android packages it. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.psi29a.d2decomped">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />

@@ -8,7 +8,7 @@ it is not a supported platform yet.
 
 | Build | Files | Made by |
 |---|---|---|
-| Android | `d2d.apk` (arm64-v8a, Android 8 up, debug-signed) | `tools/d2vita.sh android` |
+| Android | `d2d.apk` (arm64-v8a, Android 8 up, debug-signed) | `tools/porter.sh android` |
 
 Locally: `make android`, with the Android SDK in `$ANDROID_HOME` (default
 `~/Library/Android/sdk`) holding an `ndk/`, a `build-tools/` and a
@@ -35,7 +35,7 @@ has is `INTERNET`, for TCP/IP games. `d2d.cfg`, `d2d.log` and
 a first-run screen to pick them:
 
 ```sh
-adb install build/d2vita/android/d2d.apk
+adb install build/ports/android/d2d.apk
 adb shell am start -n io.github.psi29a.d2decomped/org.libsdl.app.SDLActivity   # once: makes the folder
 adb push /path/to/diablo2/*.mpq /sdcard/Android/data/io.github.psi29a.d2decomped/files/
 ```

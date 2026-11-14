@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# d2d alone, for D2Vita (docs/d2vita.md) and the Switch (docs/switch.md),
-# into build/d2vita/<target>/:
-#   tools/d2vita.sh win32   Game.exe, SDL3.dll, OpenAL32.dll (MinGW i686)
-#   tools/d2vita.sh vita    eboot.bin, d2d.vpk (VitaSDK)
-#   tools/d2vita.sh switch  d2d.nro (devkitA64)
-#   tools/d2vita.sh android d2d.apk (Android NDK, arm64; docs/android.md)
-# Runs where its toolchain is: CI's d2vita jobs, or the Makefile's Docker.
+# d2d alone, for the ports: D2Vita (docs/d2vita.md), the Switch
+# (docs/switch.md) and Android (docs/android.md), into build/ports/<target>/:
+#   tools/porter.sh win32   Game.exe, SDL3.dll, OpenAL32.dll (MinGW i686)
+#   tools/porter.sh vita    eboot.bin, d2d.vpk (VitaSDK)
+#   tools/porter.sh switch  d2d.nro (devkitA64)
+#   tools/porter.sh android d2d.apk (Android NDK, arm64; docs/android.md)
+# Runs where its toolchain is: CI's ports jobs, or the Makefile's Docker.
 #   win32  i686-w64-mingw32-g++-posix and a MinGW zlib (Debian/Ubuntu:
 #          g++-mingw-w64-i686-posix, libz-mingw-w64-dev), gcc and make for
 #          FFmpeg's configure and build; $SDL3_MINGW and
@@ -20,9 +20,9 @@
 #          build-tools/ and a platforms/ in it, and a JDK; it fetches SDL3 and
 #          OpenAL Soft's source itself. No Gradle: aapt2, javac, d8, apksigner.
 set -euo pipefail
-target=${1:?usage: tools/d2vita.sh win32|vita|switch|android}
-build=build/d2vita-$target
-out=build/d2vita/$target
+target=${1:?usage: tools/porter.sh win32|vita|switch|android}
+build=build/port-$target
+out=build/ports/$target
 mkdir -p "$out"
 common=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DD2D_GAME_ONLY=ON -DD2D_BUNDLED_STORMLIB=ON)
 
@@ -145,7 +145,7 @@ android)
     rm -f "$out/d2d.apk.idsig"
     ;;
 *)
-    echo "tools/d2vita.sh: $target: win32, vita, switch or android" >&2
+    echo "tools/porter.sh: $target: win32, vita, switch or android" >&2
     exit 2
     ;;
 esac
