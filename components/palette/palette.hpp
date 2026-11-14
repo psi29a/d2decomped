@@ -166,6 +166,18 @@ private:
     std::array<Rgba, 256> entries_{};
 };
 
+// COF draw effect 6's blend (PL2 +0x5b500, FUN_00605b70): the sprite's
+// greatest channel is its opacity, so black leaves the screen and a full
+// channel covers it. Each channel is (screen * (255 - w) + sprite * w) / 255,
+// truncated; game.exe stores the nearest palette entry of that colour.
+[[nodiscard]] constexpr int max_component_weight(const Rgba& sprite) noexcept {
+    return std::max({ int(sprite.r), int(sprite.g), int(sprite.b) });
+}
+[[nodiscard]] constexpr Rgba max_component_blend(const Rgba& screen, const Rgba& sprite, int weight) noexcept {
+    const auto mix = [weight](int under, int over) { return std::uint8_t((under * (255 - weight) + over * weight) / 255); };
+    return Rgba{ mix(screen.r, sprite.r), mix(screen.g, sprite.g), mix(screen.b, sprite.b), 0xFF };
+}
+
 // PL2 colormap file. We currently parse:
 //   * base 256 RGBA at offset 0                    → base_palette()
 //   * additive[256][256] at offset 0x33500         → additive(fg, bg)
@@ -177,15 +189,16 @@ private:
 // of the two — palette-preserving, unlike direct RGB addition which drifts
 // off the palette and looks off-key.
 //
-// blend50 is game.exe's installed 0x7fe468 (FUN_004fb1e0): tools/emu pl2.py
-// diffs it (docs/research/formats/pl2.md). The other tables (the 75 / 25 %
-// alphas, multiply, max-component at 0x5b500) have no caller here yet.
+// blend50 is game.exe's installed 0x7fe468 (FUN_004fb1e0) and max_blend its
+// 0x831b68: tools/emu pl2.py diffs both (docs/research/formats/pl2.md). The
+// other tables (the 75 / 25 % alphas, multiply) have no caller here yet.
 class Pl2 {
 public:
     static constexpr std::size_t kFileSize        = 443175;
     static constexpr std::size_t kBaseOff         = 0;
     static constexpr std::size_t kAdditiveOff     = 0x33500;
     static constexpr std::size_t kBlend50Off      = 0x13500;
+    static constexpr std::size_t kMaxBlendOff     = 0x5b500;   // max_component_blend's table
     // The 13 text colours' index shifts (FUN_004fb1e0 copies PL2 +0x6b627
     // to 0x7d5668 and hands it to the driver: a glyph's index i draws as
     // shift[colour][i]); their RGBs at +0x6b600 (0x7d563c).
@@ -208,6 +221,8 @@ public:
             additive_[i] = std::uint8_t(bytes[kAdditiveOff + i]);
             blend50_[i]  = std::uint8_t(bytes[kBlend50Off  + i]);
         }
+        if (bytes.size() >= kMaxBlendOff + 256u * 256u)
+            for (std::size_t i = 0; i < 256u * 256u; ++i) max_blend_[i] = std::uint8_t(bytes[kMaxBlendOff + i]);
         if (bytes.size() >= kTextShiftOff + 13u * 256u)
             for (std::size_t i = 0; i < 13u * 256u; ++i) text_shift_[i] = std::uint8_t(bytes[kTextShiftOff + i]);
     }
@@ -231,11 +246,16 @@ public:
     [[nodiscard]] std::uint8_t blend50(std::uint8_t foreground, std::uint8_t background) const noexcept {
         return blend50_[std::size_t(foreground) * 256 + background];
     }
+    // The renderer reads T[screen * 256 + sprite] (FUN_00608110).
+    [[nodiscard]] std::uint8_t max_blend(std::uint8_t screen, std::uint8_t sprite) const noexcept {
+        return max_blend_[std::size_t(screen) * 256 + sprite];
+    }
 
 private:
     std::array<Rgba, 256>            base_{};
     std::array<std::uint8_t, 65536>  additive_{};
     std::array<std::uint8_t, 65536>  blend50_{};
+    std::array<std::uint8_t, 65536>  max_blend_{};
     std::array<std::uint8_t, 13 * 256> text_shift_{};
 };
 

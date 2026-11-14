@@ -50,6 +50,16 @@ For the alpha tables, `FUN_00605880` computes each output colour as
 base-palette entry with `FUN_00605210`. Thus the three weights `0xbf`,
 `0x7f`, and `0x3f` select approximately 75%, 50%, and 25% row contribution.
 
+`FUN_00605b70` builds the `0x5b500` table the same way, but the weight is
+per colour: for each outer colour `s` it takes `w = max(s.r, s.g, s.b)`, and
+each cell is the nearest base entry of `(other * (255 - w) + s * w) / 255`
+per channel (unsigned, truncated). The outer colour is the column, the low
+byte of the index, as in `FUN_00605880`. The renderer reads
+`T[screen * 256 + sprite]` (`FUN_00608110`, cof-draw-order.md "Draw
+effects"), so the sprite's greatest channel is its own opacity: black
+leaves the screen as it was, and any full channel covers it. It is COF draw
+effect 6 (`FUN_006c8250` mode 6 picks `0x831b68`).
+
 ## d2d comparison
 
 `Pl2::additive()` uses the correct `0x33500` table. An emulator dump of
@@ -62,11 +72,17 @@ max-component-weighted table, until 2026-11-03 (51,800 Act 1 cells off).
 The method has no runtime caller yet; its diagonal-identity test passes for
 either table, so only the oracle identifies it.
 
+`Pl2::max_blend()` reads `0x5b500` (installed at `0x831b68`) and matches it
+in all 65,536 cells of each of Acts 1–4. `tests/test_pl2_max_blend.cpp`
+rebuilds the table from `palette::max_component_blend` and
+`Palette::nearest` (`FUN_00605210`) for each act's file, and no cell
+differs, so the formula above is the whole of it.
+
 Reproduce the Act 1 oracle comparison:
 
 ```sh
 cmake --build build --target mpq-cat pl2-dump
-for table in additive blend50; do
+for table in additive blend50 maxblend; do
   (cd tools/emu && uv run python pl2.py "$table" 1) > ".cache/pl2-oracle-${table}.txt"
   build/tools/mpq-cat/mpq-cat "$D2_MPQ_DIR" 'data\global\palette\act1\pal.pl2' \
     | build/tools/pl2-dump/pl2-dump "$table" > ".cache/pl2-d2d-${table}.txt"
