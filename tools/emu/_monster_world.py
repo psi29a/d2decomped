@@ -11,6 +11,7 @@ that checks the bytes the `ret n` popped) and `drive` (the command line with
 """
 import argparse
 import hashlib
+import os
 import struct
 import sys
 from pathlib import Path
@@ -54,7 +55,8 @@ class World:
 
     def __init__(self):
         """Build the machine and hook the allocator; the log starts empty."""
-        exe = Path(emu.data_path()) / "bin" / "game.exe"
+        override = os.environ.get("D2_GAME_EXE")
+        exe = Path(override) if override else Path(emu.data_path()) / "bin" / "game.exe"
         require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d (1.14.3.71)")
         original = emu.Emu._bad
         emu.Emu._bad = silent_bad
