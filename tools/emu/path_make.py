@@ -199,7 +199,7 @@ def run(exe):
         try:
             run_case(machine, rig, rows, 1, cls, 5, 5, 0, 0)
         except RuntimeError as error:
-            if "00648" not in str(error) and "0064" not in str(error):
+            if not str(error).startswith("emu fault at 006484af:"):
                 raise AssertionError(f"class {cls:#x} faulted elsewhere: {error}") from None
             cases += 1
             continue
