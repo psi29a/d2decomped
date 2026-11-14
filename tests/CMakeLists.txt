@@ -56,6 +56,16 @@ foreach(test_source ${d2d_test_sources})
     list(APPEND d2d_cpp_tests ${name})
 endforeach()
 
+# `test_game --load-gold` on a case file that cannot be opened must exit nonzero and say so
+# (an oracle diff of two empty files would otherwise pass).
+if (TARGET test_game)
+    add_test(NAME test_game_load_gold_missing_cases
+        COMMAND test_game --load-gold ${CMAKE_CURRENT_BINARY_DIR}/no-such-cases.tsv)
+    set_tests_properties(test_game_load_gold_missing_cases PROPERTIES
+        PASS_REGULAR_EXPRESSION "load-gold: cannot open"
+        SKIP_RETURN_CODE ${d2d_skip_code})
+endif()
+
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 # Python3_EXECUTABLE rather than `python3`: Windows installs it as python.exe.
 find_package(Python3 COMPONENTS Interpreter)
