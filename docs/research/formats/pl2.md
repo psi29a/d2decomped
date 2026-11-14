@@ -46,9 +46,17 @@ All lookup tables contain palette indices. A 256 × 256 table occupies
 `0x81e468`, and text colours/shifts to `0x7d563c` / `0x7d5668`.
 
 For the alpha tables, `FUN_00605880` computes each output colour as
-`column * (255 - weight) / 255 + row * weight / 255`, then finds the nearest
-base-palette entry with `FUN_00605210`. Thus the three weights `0xbf`,
-`0x7f`, and `0x3f` select approximately 75%, 50%, and 25% row contribution.
+`(row * (255 - weight) + column * weight) / 255` per channel (unsigned,
+truncated), then finds the nearest base-palette entry with `FUN_00605210`.
+The weighted colour is the outer loop's, stored as the column (the low byte
+of the index), which the renderer's `T[screen * 256 + sprite]` makes the
+sprite. Thus the three weights `0xbf`, `0x7f`, and `0x3f` give the sprite
+about 75%, 50%, and 25%. `FUN_006059b0` (additive) takes each channel's sum,
+255 at most, and `FUN_00605aa0` (multiply) `row * column / 255`.
+`tests/test_pl2_blends.cpp` rebuilds all five tables this way from each of
+Acts 1–4's files, and no cell differs; d2d's `palette::alpha_blend`,
+`additive_blend` and `multiply_blend` are these colours before the nearest
+lookup.
 
 `FUN_00605b70` builds the `0x5b500` table the same way, but the weight is
 per colour: for each outer colour `s` it takes `w = max(s.r, s.g, s.b)`, and

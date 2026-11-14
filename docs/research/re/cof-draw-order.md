@@ -286,7 +286,8 @@ of the PL2 (`FUN_006c8000` keeps it at 0x98a040):
 The row writer (`FUN_00608110`, through `FUN_00608540`) reads
 `T[screen * 256 + sprite]`. Fitted against the installed act 1 palette,
 table 0's screen share is a quarter, table 1's a half, table 2's three
-quarters. The shares are from the data, not from `FUN_00605880`'s weights.
+quarters. `FUN_00605880`'s sprite weights agree: `0xbf`, `0x7f` and `0x3f`
+over 255 (../formats/pl2.md, `tests/test_pl2_blends.cpp`).
 
 In the 1,064 COFs of the listfile, transparent layers use effect 1
 (monster tokens LG and E9, layer 1), 3 (239 layers) and 6 (layer 8 of

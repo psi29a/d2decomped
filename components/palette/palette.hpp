@@ -166,16 +166,35 @@ private:
     std::array<Rgba, 256> entries_{};
 };
 
-// COF draw effect 6's blend (PL2 +0x5b500, FUN_00605b70): the sprite's
-// greatest channel is its opacity, so black leaves the screen and a full
-// channel covers it. Each channel is (screen * (255 - w) + sprite * w) / 255,
-// truncated; game.exe stores the nearest palette entry of that colour.
+// The PL2 blend tables' colours (docs/research/formats/pl2.md). game.exe
+// stores the nearest palette entry (FUN_00605210) of each; d2d draws the
+// colour itself (deviations.md approximation 1). Each channel is truncated.
+//
+// Alpha (FUN_00605880): (screen * (255 - w) + sprite * w) / 255. The three
+// tables' sprite weights, +0x3500 / +0x13500 / +0x23500.
+inline constexpr int kAlphaThreeQuarters = 0xbf, kAlphaHalf = 0x7f, kAlphaQuarter = 0x3f;
+[[nodiscard]] constexpr Rgba alpha_blend(const Rgba& screen, const Rgba& sprite, int weight) noexcept {
+    const auto mix = [weight](int under, int over) { return std::uint8_t((under * (255 - weight) + over * weight) / 255); };
+    return Rgba{ mix(screen.r, sprite.r), mix(screen.g, sprite.g), mix(screen.b, sprite.b), 0xFF };
+}
+// Additive, +0x33500 (FUN_006059b0): the sum, 255 at most.
+[[nodiscard]] constexpr Rgba additive_blend(const Rgba& screen, const Rgba& sprite) noexcept {
+    const auto mix = [](int under, int over) { return std::uint8_t(std::min(255, under + over)); };
+    return Rgba{ mix(screen.r, sprite.r), mix(screen.g, sprite.g), mix(screen.b, sprite.b), 0xFF };
+}
+// Multiply, +0x43500 (FUN_00605aa0): screen * sprite / 255.
+[[nodiscard]] constexpr Rgba multiply_blend(const Rgba& screen, const Rgba& sprite) noexcept {
+    const auto mix = [](int under, int over) { return std::uint8_t(under * over / 255); };
+    return Rgba{ mix(screen.r, sprite.r), mix(screen.g, sprite.g), mix(screen.b, sprite.b), 0xFF };
+}
+// COF draw effect 6's blend (PL2 +0x5b500, FUN_00605b70): alpha with the
+// sprite's greatest channel as its weight, so black leaves the screen and a
+// full channel covers it.
 [[nodiscard]] constexpr int max_component_weight(const Rgba& sprite) noexcept {
     return std::max({ int(sprite.r), int(sprite.g), int(sprite.b) });
 }
 [[nodiscard]] constexpr Rgba max_component_blend(const Rgba& screen, const Rgba& sprite, int weight) noexcept {
-    const auto mix = [weight](int under, int over) { return std::uint8_t((under * (255 - weight) + over * weight) / 255); };
-    return Rgba{ mix(screen.r, sprite.r), mix(screen.g, sprite.g), mix(screen.b, sprite.b), 0xFF };
+    return alpha_blend(screen, sprite, weight);
 }
 
 // PL2 colormap file. We currently parse:
