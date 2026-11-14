@@ -52,8 +52,8 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 | Address | What |
 |---|---|
 | `FUN_006205a0` | A unit's collision size: player 2; monster MonStats2 `+9` SizeY (`FUN_00451fe0` by class, 0 if not found; the field is a signed char, sign-extended); object its data row's `+0xd4` SizeY; missile Missiles `+0x18a` Size (`FUN_0046ace0` by class, 0 if not found; an unsigned byte); item 1; any other type 0. No null check. Oracle: `tools/emu/units_small.py check_unit_size_y` (collision.md cites it from the caller side; d2d loads the same MonStats2/Objects SizeY fields at gamedata time, gamedata.cpp:154/674, instead of dispatching per unit at runtime) |
-| `FUN_00620900` | A unit's target coordinates (unit, out point): types 0 (player), 1 (monster), 3 (missile) and anything past 5 take the dynamic path's ScreenPos (`FUN_006489c0`/`FUN_006489d0`, path `+8`/`+0xc`); types 2 (object), 4 (item) and 5 (tile) take the static path's own `+4`/`+8` screen x/y instead. 0x7e7 null. Oracle: `tools/emu/units_small.py check_target_coords`. (unit-sounds.md's citation doesn't give the per-type split; this is it, read from the decompile) |
 | `FUN_006205a0` | A unit's footprint height in subtiles (stdcall; null asserts, 0x74b): a player 2, an item 1; a monster its MonStats2 SizeY (`FUN_00451fe0`, byte `+9`, signed; the loader `FUN_006571a0` maps SizeY to 9), an object its objects.txt SizeY (`*(+0x14)` `+0xd4`; loader `FUN_0063f690`, 0x63f89a), a missile its Missiles.txt Size (`FUN_0046ace0`, byte `+0x18a`, unsigned; loader `FUN_00661b20`, 0x662f94); 0 for a row not found or any other type. The width is `FUN_00620510` (`+8`, `+0xd0`). d2d: `rules::unit_size_y`, checked by `tools/emu/unit_size.py` |
+| `FUN_00620900` | A unit's target coordinates (unit, out point): types 0 (player), 1 (monster), 3 (missile) and anything past 5 take the dynamic path's ScreenPos (`FUN_006489c0`/`FUN_006489d0`, path `+8`/`+0xc`); types 2 (object), 4 (item) and 5 (tile) take the static path's own `+4`/`+8` screen x/y instead. 0x7e7 null. Oracle: `tools/emu/units_small.py check_target_coords`. (unit-sounds.md's citation doesn't give the per-type split; this is it, read from the decompile) |
 | `FUN_006219c0` | An object's Objects.txt `+0x120 + mode`; 1 for others |
 | `FUN_00621a70` | An object's Objects.txt `+0x13a`, 0 for others |
 | `FUN_00621ac0` | Objects.txt `+0x13c` == 1 (not an object: fatal 0xe1e) |
@@ -241,3 +241,30 @@ Not covered: the callees themselves (`FUN_004ac7e0`, `FUN_004add90`,
 `FUN_0046f1c0` ... are hooked and logged, not run), `FUN_00464d20` /
 `00464d90` (inventory walk), `FUN_00466820` / `004667f0` (preset units).
 No original bug found in these.
+
+## Unit allocation (`FUN_00620290`)
+
+The two stack arguments are the memory-pool pointer and unit type (`ret 8`).
+The allocator `FUN_0040b430` is called with ECX = pool, EDX = 0xf4,
+`.\\UNITS\\Units.cpp`, line 0x66e and flag 0. Its result is passed directly
+to the CRT clear for 0xf4 bytes, then unit +0 is set to type and +8 to pool.
+For type 1 only, a second allocation uses the same pool, size 0x60, line
+0x67b and flag 0; its pointer is stored at unit +0x14 and the block is
+cleared. The function returns the first pointer; no other unit bytes are
+set. The allocation and clear calls are visible at `0x6202a4–0x6202ec`.
+
+`tools/emu/unit_allocate.py` runs the original function and CRT clear on
+240 type/pool combinations with the pool allocator hooked to return
+poisoned guarded blocks. It checks all block bytes, guard bytes, allocation
+arguments, return address and stack cleanup. Two model mutations are caught.
+Three additional cases inject null at the first or second allocation: all
+fault on the null write inside the CRT (`0x681f4f`), rather than returning
+null. In the second-allocation case the already-zeroed unit retains type 1,
+the pool, and a null data pointer at the fault. This is an injected-failure
+result: the real pool allocator and its exhaustion/error handling are not
+run, so it does not establish what a real out-of-memory event does. The
+script compares stock code to Python expectations, not to a d2d port.
+
+Re-check with `cd tools/emu && uv run python unit_allocate.py --exe
+/path/to/Game.exe --mutation-check`; the executable's 1.14d SHA-256 is
+checked before execution. No MPQs are needed.

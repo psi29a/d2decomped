@@ -8,13 +8,13 @@ FFmpeg's Bink decoder is in both, for the cinematics.
 
 | Build | Files | Made by |
 |---|---|---|
-| Win32 | `Game.exe`, `SDL3.dll`, `OpenAL32.dll` | `tools/d2vita.sh win32` (MinGW i686) |
-| PS Vita | `eboot.bin`, `d2d.vpk` | `tools/d2vita.sh vita` (VitaSDK) |
+| Win32 | `Game.exe`, `SDL3.dll`, `OpenAL32.dll` | `tools/porter.sh win32` (MinGW i686) |
+| PS Vita | `eboot.bin`, `d2d.vpk` | `tools/porter.sh vita` (VitaSDK) |
 
 CI builds both on every code change: the `D2Vita (Win32)` and
 `D2Vita (PS Vita)` jobs, as the `d2vita-win32` and `d2vita-vita` artifacts. A
-release has them as zips. Locally, with Docker: `make d2vita` and
-`make d2vita-win32` (the Makefile has what they fetch).
+release has them as zips. Locally, with Docker: `make vita` and
+`make win32` (the Makefile has what they fetch).
 
 ## Win32: Game.exe
 

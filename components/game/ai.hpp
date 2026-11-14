@@ -1333,8 +1333,9 @@ std::string merc_name(const GameData& game_data, const GameData::Merc& merc, int
 
 }  // namespace d2d::game
 
-// A Fine prints as its cells (the logs, devctl).
+// A Fine prints as its cells (the logs, devctl). Any context: libc++ 18
+// (the Android NDK's) tests formattable with one that isn't format_context.
 template <>
 struct std::formatter<d2d::game::Fine> : std::formatter<float> {
-    auto format(d2d::game::Fine fine, std::format_context& context) const { return std::formatter<float>::format(float(fine), context); }
+    auto format(d2d::game::Fine fine, auto& context) const { return std::formatter<float>::format(float(fine), context); }
 };

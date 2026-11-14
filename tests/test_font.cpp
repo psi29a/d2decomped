@@ -4,14 +4,19 @@
 #include <dc6.hpp>
 #include <font.hpp>
 #include <mpq.hpp>
+#include <palette.hpp>
 
+#include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -61,6 +66,41 @@ int main() try {
 
     // A missing code returns nullptr.
     assert(font.find(0xFFFF) == nullptr);
+
+    // The button label fonts' .tbl heights (byte 10, FUN_00501a40), and
+    // their multiply draw (mode 4): onto white it is the plain draw, onto
+    // black it leaves black, onto grey it never lightens.
+    auto load = [&](const char* name) {
+        const std::string base = std::string(R"(data\local\FONT\LATIN\)") + name;
+        return d2d::font::Font(mpq.read(base + ".tbl"), d2d::dc6::Sprite(mpq.read(base + ".dc6")));
+    };
+    assert(font.tbl_height() == 10);
+    const auto exocet10 = load("FontExocet10");
+    assert(exocet10.tbl_height() == 10);
+    assert(load("FontRidiculous").tbl_height() == 7);
+    std::array<d2d::palette::Rgba, 256> ramp{};
+    for (std::size_t index = 0; index < 256; ++index)
+        ramp[index] = { std::uint8_t(index), std::uint8_t(index), std::uint8_t(index), 255 };
+    const d2d::palette::Palette grey(ramp);
+    constexpr std::uint32_t kSide = 40;
+    auto drawn = [&](std::uint8_t under, bool multiply) {
+        std::vector<std::uint8_t> pixels(std::size_t(kSide) * kSide * 4, under);
+        exocet10.draw_tinted_baseline(pixels, kSide, kSide, grey, 2, 30, "SO", 255, 255, 255, multiply);
+        return pixels;
+    };
+    assert(drawn(255, true) == drawn(255, false));
+    for (std::uint8_t value : drawn(0, true)) assert(value == 0);
+    const auto plain = drawn(128, false);
+    const auto multiplied = drawn(128, true);
+    bool changed = false;
+    for (std::size_t index = 0; index < plain.size(); index += 4) {
+        assert(multiplied[index] <= 128);
+        if (multiplied[index] != 128) {
+            changed = true;
+            assert(multiplied[index] == plain[index] * 128 / 255);
+        }
+    }
+    assert(changed);
 
     std::printf("OK\n");
     return 0;
