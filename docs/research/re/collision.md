@@ -957,7 +957,9 @@ Read from the code, no oracle or packet log.
   - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
 
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
-wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
+wait. Its spot is `rules::click_spot`'s, the least distance and the dead zone as above, with
+the run bit `view.running` and stamina left (FUN_0044bec0: the run key `0x7a065c` or the
+toggle `0x7a0660`; FUN_00462d00 tests stat 10). `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
 that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
 is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.

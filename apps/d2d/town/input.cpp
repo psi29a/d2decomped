@@ -29,6 +29,7 @@
 #include "store.hpp"
 #include "ui.hpp"
 
+#include <click_spot.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
@@ -74,8 +75,23 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
         const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
         const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
+        // A walk on the ground (FUN_004623c0): in whole subtiles from the unit's,
+        // the spot goes out to a least distance (3 a press, 4 held, 5 running;
+        // rules::click_spot), and none goes on the unit's own subtile. The run
+        // bit is the run key or toggle with stamina left (FUN_0044bec0,
+        // FUN_00462d00), as the run button draws it.
+        const auto ground_move = [&](bool press, std::vector<Command>& into) {
+            const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+            const bool run = view.running && character.stats.values[d2d::d2s::kStamina] > 0;
+            const std::uint32_t flags = (press ? d2d::rules::kClickPress : d2d::rules::kClickHeld) | (run ? d2d::rules::kClickRun : 0);
+            const int click_x = subtile(world_x), click_y = subtile(world_y);
+            const auto spot = d2d::rules::click_spot(subtile(view.player.x), subtile(view.player.y), click_x, click_y, flags);
+            if (!spot) return;
+            if (spot->x == click_x && spot->y == click_y) into.push_back(cmd::Move{ world_x, world_y, press });
+            else into.push_back(cmd::Move{ (float(spot->x) + 0.5f) / 5.f, (float(spot->y) + 0.5f) / 5.f, press });   // the spot's subtile centre
+        };
         if (view.ghost) {                                    // a ghost only walks
-            if (mouse.press_this_frame || mouse.down) out.push_back(cmd::Move{ world_x, world_y, mouse.press_this_frame });
+            if (mouse.press_this_frame || mouse.down) ground_move(mouse.press_this_frame, out);
             return out;
         }
         const int hovered_monster_index = hovered_monster();
@@ -87,14 +103,14 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
                      || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
             else if (function_held(keys::kStandStill)) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });   // 0x7a0664: no step, the skill there
-            else out.push_back(cmd::Move{ world_x, world_y, true });
+            else ground_move(true, out);
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
             if (const int attacked = view.monster(view.attack); attacked >= 0 && view.monsters[std::size_t(attacked)].alive())
                 out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, true, view.attack_skill == skillbar.left ? skillbar.left_item : -1 });
             else if (function_held(keys::kStandStill))
                 out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });
             else if (!hold_interact)                         // with an interact queued the hold does nothing (FUN_00462a20, LAB_00462b1d)
-                out.push_back(cmd::Move{ world_x, world_y, false });
+                ground_move(false, out);
         }
         if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {   // co-op: the body nearest the click
             if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
