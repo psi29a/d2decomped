@@ -223,9 +223,9 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         const int from_act = act();
         level = destination;
         leave_town(from);
-        if (act() != from_act) {                      // a new act (the caravan, a waypoint): its vendors stock anew; the save starts there
+        if (act() != from_act) {                      // a new act (the caravan, a waypoint): its vendors stock anew; each save starts there
             stocks.clear();
-            set_act(act());
+            each_player([&](Player&) { set_act(act()); });   // the party crosses with the mover (bring_party below)
         }
         actor->player.x = free_x; actor->player.y = free_y;
         actor->player.walking = false; actor->player.path.clear();

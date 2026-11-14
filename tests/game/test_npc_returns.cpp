@@ -5,13 +5,15 @@
 // FUN_00545100), and its NPC greets with its return line (kind 2) at its next
 // menu, which clears its bit (C->S 0x4d, FUN_005724c0). Already greeted this
 // stay in town (+0x15 clear), the name is taken but nothing plays and the bit
-// stays (FUN_004b66b0, 0x4b68f3..0x4b690e). Needs the data; SKIPs without it.
+// stays (FUN_004b66b0, 0x4b68f3..0x4b690e). A shared crossing sets each player's act.
+// Needs the data; SKIPs without it.
 
 #include <character.hpp>
 #include <character_store.hpp>
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>
 #include <sound_ids.hpp>
@@ -95,6 +97,18 @@ int main() try {
     world.set_act(0);
     heard = talk();                                                  // named, but +0x15 is clear: no line, the bit stays
     assert(heard.empty() && !std::ranges::contains(actor->returning, kGheed) && (world.congrats() >> NpcReturns::bit_of(kGheed) & 1) == 1);
+
+    // A shared crossing: the party goes with the mover (bring_party), so the partner's save takes
+    // the new act too, and Lut Gholein's names come to it as to the mover.
+    auto partner = character;
+    partner.name = "Partner";
+    auto& second = world.join(partner);
+    NpcReturns::mark(second.character.header.congrats[0], 1);
+    world.act_as(*world.players.front());
+    const Level* lut_gholein = data->level(d2d::rules::level_ids::kLutGholein);
+    assert(lut_gholein && lut_gholein->start.first >= 0 && world.actor != &second);
+    world.arrive(lut_gholein, lut_gholein->start.first, lut_gholein->start.second, "a test");
+    assert((second.character.header.difficulty[0] & 7) == 1 && second.returning.size() == 11);
 
     std::printf("test_npc_returns: ok\n");
     return 0;
