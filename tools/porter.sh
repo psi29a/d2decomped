@@ -30,7 +30,10 @@ fetch() {   # name url sha256: the tarball unpacked into $build/name
     [[ -d $build/$1 ]] && return
     mkdir -p "$build"
     curl -fsSLo "$build/$1.tar.gz" "$2"
-    echo "$3  $build/$1.tar.gz" | sha256sum -c --quiet
+    # CMake's, not sha256sum -c: macOS's own takes no list on stdin.
+    local sum
+    sum=$(cmake -E sha256sum "$build/$1.tar.gz")
+    [[ ${sum%% *} == "$3" ]] || { echo "tools/porter.sh: $1.tar.gz: SHA-256 ${sum%% *}, not $3" >&2; exit 1; }
     # Into .part, then renamed: an interrupted tar leaves no tree a rerun takes as done.
     rm -rf "$build/$1.part" && mkdir "$build/$1.part"
     tar -xzf "$build/$1.tar.gz" -C "$build/$1.part" --strip-components=1 && mv "$build/$1.part" "$build/$1"
