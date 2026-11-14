@@ -106,7 +106,6 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Gfx.cpp record allocation FUN_0046ebb0 (pool allocator hooked; `--mutation-check` 3 ways) | `uv run python engine_gfx_alloc.py` | `ok: 24 ENGINE graphics allocation cases` |
 | Gfx.cpp frees and bundle open FUN_0046eb70, FUN_0046ec10, FUN_0046f370, FUN_0046f3f0, FUN_0046f440, FUN_0046f310, FUN_0046e150 (pool and loaders hooked; `--mutation-check` 6 ways) | `uv run python engine_gfx_free.py` | `ok: 672 ENGINE graphics free cases` |
 | Small Gfx.cpp / GfxUtil.cpp helpers: COF list, layer flags, overlay test, cache getters, COF header layer lookups, token and row helpers, the unused list helpers (FUN_0046e100 ... FUN_0046f9d0, FUN_004da720 ... FUN_004db1c0; `--mutation-check` 11 ways) | `uv run python engine_gfx_small.py` | `ok: 816 ENGINE Gfx.cpp / GfxUtil.cpp helper cases` |
-| Four small unit helpers (FUN_00622e70, FUN_0063a130, FUN_0062a0a0, FUN_00554120; stat, state-list, item-flag, name and sprintf callees hooked; `--mutation-check` 11 ways) | `uv run python items_objects_helpers.py --exe /path/to/Game.exe` | `ok: 31 cases over 4 functions` |
 | Item cel draw FUN_0046ee80 (request, load, draw and overlay calls hooked; `--mutation-check` 3 ways) | `uv run python engine_item_cel.py` | `ok: 1500 ENGINE item cel cases` |
 | Item cel name FUN_004dabc0 and transparency FUN_004db360 (item tables hooked; `--mutation-check` 4 ways) | `uv run python engine_item_gfx.py` | `ok: 1600 ENGINE item gfx cases` |
 | GfxUtil layer predicates FUN_004dae60, FUN_004daf70 (row lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_layer_info.py` | `ok: 1200 ENGINE layer info cases` |
@@ -204,6 +203,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest state cleanup (`FUN_00543800`, allocator and buffer free hooked; `--mutation-check` three ways) | `uv run python quest_destroy.py` | `ok: 24 quest state cleanup cases` |
 | Quest list cleanup (`FUN_00543590`, allocator hooked; `--mutation-check` three ways) | `uv run python quest_free_list.py` | `ok: 24 quest list cleanup cases` |
 | Quest frontier accessors (nine functions, lookup hooked; `--mutation-check` nine ways) | `uv run python quest_frontier.py` | `ok: 216 quest frontier cases` |
+| Four small unit helpers (FUN_00622e70, FUN_0063a130, FUN_0062a0a0, FUN_00554120; stat, state-list, item-flag, name and sprintf callees hooked; `--mutation-check` 11 ways) | `uv run python items_objects_helpers.py --exe /path/to/Game.exe` | `ok: 31 cases over 4 functions` |
 | Quest item and party check (`FUN_00591cd0`, callees hooked; `--mutation-check` three ways) | `uv run python quest_horadric_party.py` | `ok: 48 quest item party cases` |
 | Quest callback wrapper (`FUN_005b30e0`, receiver hooked; `--mutation-check` three ways) | `uv run python quest_izual_forward.py` | `ok: 24 quest callback wrapper cases` |
 | Quest level warning (`FUN_00545cd0`, lookups and warning hooked; `--mutation-check` three ways) | `uv run python quest_level_warning.py` | `ok: 72 quest level warning cases` |

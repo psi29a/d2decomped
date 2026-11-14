@@ -8,7 +8,7 @@ Runs game.exe's own code for FUN_00622e70 (stat 12 times 10000), FUN_0063a130
 FUN_0062a0a0 (type-4 item guard that forwards its class to FUN_0062a060) and
 FUN_00554120 (store an interaction id and type on an idle unit). Hooked, not
 claimed: FUN_00625480 (stat getter), FUN_00625bb0 (state word list), FUN_0062a060
-(item flag), FUN_00408090 / FUN_00408a60 / FUN_00681e09 (fatal-error path, recorded),
+(item flag), FUN_00408090 / FUN_00408a60 (fatal-error path, recorded),
 FUN_006221a0 (player name), the `_sprintf` at 0x6823fd (recorded) and the security
 cookie check FUN_00681a48. The hooks record their arguments and the checks assert
 them. d2d is not compared.
@@ -27,6 +27,7 @@ if not __debug__:
 
 STATE_TABLES = 0x744304
 STATE_COUNT = 0xC4
+CALL_LIMIT = 100000      # instruction cap so a looping mutation fails instead of hanging
 
 
 class Fatal(Exception):
@@ -47,7 +48,7 @@ def check_gold(engine):
     values = (0, 1, 99, 2147483647, 0xFFFFFFFF, 0x80000000, 214749)
     for value in values:
         stat[0] = value
-        assert engine.call(0x622E70, 0x12345678) == (value * 10000) & 0xFFFFFFFF, value
+        assert engine.call(0x622E70, 0x12345678, limit=CALL_LIMIT) == (value * 10000) & 0xFFFFFFFF, value
     assert seen == [(0x12345678, 12, 0)] * len(values), seen
     return len(values)
 
@@ -87,10 +88,10 @@ def check_state(engine):
         for index in range(3):
             engine.w32(bits + 4 * index, state[index])
             engine.w32(mask + 4 * index, wanted[index])
-        assert engine.call(0x63A130, regs={"eax": unit, "ebx": mask}) == expected, (count, state, wanted)
+        assert engine.call(0x63A130, regs={"eax": unit, "ebx": mask}, limit=CALL_LIMIT) == expected, (count, state, wanted)
     state_ptr[0] = 0
     engine.w32(tables + STATE_COUNT, 33)
-    assert engine.call(0x63A130, regs={"eax": unit, "ebx": mask}) == 0
+    assert engine.call(0x63A130, regs={"eax": unit, "ebx": mask}, limit=CALL_LIMIT) == 0
     assert asked == [unit] * (len(cases) + 1), asked
     return len(cases) + 1
 
@@ -122,13 +123,13 @@ def check_item(engine):
     for unit_class in (123, 0, 0xFFFFFFFF):
         engine.w32(item, 4)
         engine.w32(item + 4, unit_class)
-        assert engine.call(0x62A0A0, item) == 0x87654321
+        assert engine.call(0x62A0A0, item, limit=CALL_LIMIT) == 0x87654321
     assert classes == [123, 0, 0xFFFFFFFF] and not fatal, (classes, fatal)
     guards = ((0, 0x1162), (item, 0x1163))
     engine.w32(item, 1)
     for unit, line in guards:
         try:
-            engine.call(0x62A0A0, unit)
+            engine.call(0x62A0A0, unit, limit=CALL_LIMIT)
         except Fatal:
             pass
         else:
@@ -165,7 +166,7 @@ def check_interaction(engine):
             engine.w32(unit + 0x64, 0x11111111)
             engine.w32(unit + 0x68, 0x22222222)
             engine.mu.mem_write(unit + 0x6C, bytes((busy,)))
-            engine.call(0x554120, unit, 2, 42)
+            engine.call(0x554120, unit, 2, 42, limit=CALL_LIMIT)
             expected = (42, 2, 1) if not busy else (0x11111111, 0x22222222, busy)
             actual = (engine.r32(unit + 0x64), engine.r32(unit + 0x68), engine.read(unit + 0x6C, 1)[0])
             assert actual == expected, (unit_type, busy, actual)
@@ -175,7 +176,7 @@ def check_interaction(engine):
     name = engine.put(b"Hero\0")
     name_ptr[0] = name
     engine.mu.mem_write(unit + 0x6C, b"\x01")
-    engine.call(0x554120, unit, 2, 42)
+    engine.call(0x554120, unit, 2, 42, limit=CALL_LIMIT)
     assert prints == [("Player %s attempted to operate while busy\n", name)], prints
     assert engine.r32(unit + 0x64) == 0x11111111
     return cases + 1
@@ -228,7 +229,12 @@ def main():
         for patch in MUTATIONS[name]:
             try:
                 run_check(options.exe, check, (patch,))
-            except (AssertionError, RuntimeError, Fatal, SystemExit):
+            except (AssertionError, RuntimeError, Fatal):
+                caught += 1
+                print(f"mutation {name} @{patch[0]:x}: caught")
+            except SystemExit as stop:
+                if str(stop).startswith("emu:"):
+                    raise SystemExit(f"mutation {name} @{patch[0]:x}: emulator fault, not a check failure: {stop}")
                 caught += 1
                 print(f"mutation {name} @{patch[0]:x}: caught")
             else:
