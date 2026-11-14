@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Unit and object helpers: stat 12 times 10000 (32-bit), state-word intersection over (count + 31) / 32 words, type-4 item guard, interaction fields on an idle or busy unit; 31 synthetic cases with the stat, state-list, item-flag, player-name, sprintf and fatal-exit callees hooked and recorded; no d2d parity claim | `FUN_00622e70`, `FUN_0063a130`, `FUN_0062a0a0`, `FUN_00554120`; `tools/emu/items_objects_helpers.py --mutation-check` | [party.md](party.md), [drops.md](drops.md), [items-common-trace.md](items-common-trace.md), [act1-end.md](act1-end.md) |
 | SOURCE: 21 formerly cited functions; 1,446 scoped stock-code calls covering memory, event wrappers/levels, bignum operations, bitmap routing and error-report gates; no d2d parity claim | `tools/emu/source_cited.py`; per-function coverage and limitations in the linked table | [source-module.md](source-module.md) |
 | Cain scroll count: both item lookups and 32-bit count increment, 16 cases with lookup hooked; no d2d parity check | `FUN_00592b90`; `tools/emu/quest_cain_scroll_count.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Blood Raven log-send filter: all 16 flag combinations at three difficulties with lookup, bit test and sender hooked; no d2d parity check | `FUN_00590830`; `tools/emu/quest_burial_log.py` | [quests-act1.md](quests-act1.md) "Quest-log send filter" |
