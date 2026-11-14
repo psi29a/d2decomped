@@ -139,12 +139,12 @@ def main():
             rig.write(rig.table, struct.pack("<h4xh4xh4x", 0, 0, 1))
         if strings and address == 0x612600:
             rig.write(rig.table, bytes([0xA5]) * 0x100)
-            def resolve(current):
+            def resolve(current, rig=rig):
                 """Return a synthetic string for each record field."""
                 target = current.mu.reg_read(loaders.mw.REGISTERS["ecx"])
                 rig.log.append(("resolve", target))
                 return rig.table + 0x180
-            def copy_text(current):
+            def copy_text(current, rig=rig):
                 """Record destination, source and size without copying game data."""
                 target = current.mu.reg_read(loaders.mw.REGISTERS["ecx"])
                 source = current.mu.reg_read(loaders.mw.REGISTERS["edx"])
@@ -164,7 +164,7 @@ def main():
         if address == 0x639420:
             rig.logger(0x516E46, 2, "open", ret=0)
         if address == 0x613E90:
-            def readback(current):
+            def readback(current, rig=rig):
                 """Return a scripted binary table and size to the caller."""
                 size_pointer = current.arg(1)
                 current.w32(size_pointer, 0x1234)
@@ -172,15 +172,15 @@ def main():
                 return rig.table
             rig.m.hook(0x612280, readback, 4)
             if writeback:
-                def fopen(current):
+                def fopen(current, rig=rig):
                     """Record the path and return a synthetic writable stream."""
                     rig.log.append(("fopen", current.cstr(current.arg(0)), current.cstr(current.arg(1))))
                     return rig.table + 0x100
-                def fwrite(current):
+                def fwrite(current, rig=rig):
                     """Record the byte count and stream without touching the disk."""
                     rig.log.append(("fwrite", current.arg(0), current.arg(1), current.arg(2), current.arg(3)))
                     return current.arg(2)
-                def fclose(current):
+                def fclose(current, rig=rig):
                     """Record the stream close without touching the disk."""
                     rig.log.append(("fclose", current.arg(0)))
                     return 0
@@ -280,7 +280,9 @@ def main():
         require(result == expected if len(expected) == 2 else result[0] == expected[0],
                 f"{address:08x}: result {result} != {expected}")
         if superuniques and address == 0x6552E0:
-            slots = struct.unpack("<66h", rig.m.read(0x96C710, 132))
+            raw_slots = rig.m.read(0x96C710, 132)
+            require(len(raw_slots) == 132, f"{address:08x}: short hcIdx index")
+            slots = struct.unpack("<66h", raw_slots)
             require(rig.m.r32(0x96C70C) == 67 and slots == tuple(range(66)),
                     f"{address:08x}: hcIdx first-row index differs")
         if monseq and address == 0x659C60:
