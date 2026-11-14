@@ -244,7 +244,7 @@ def main():
         try:
             result = rig.go(address, *args, ecx=ecx, edx=edx)
         except Exception as error:
-            if not populated:
+            if not populated or check_populated:
                 raise
             print(f"{address:08x}: one row: {type(error).__name__}: {error}")
             continue

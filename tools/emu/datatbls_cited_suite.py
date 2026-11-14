@@ -49,11 +49,13 @@ PROBE_MODES = (
 
 def main():
     """Run each oracle and all probe modes, restoring the caller's argv."""
-    for module_name in ORACLES:
-        importlib.import_module(module_name).main()
-    probe = importlib.import_module("datatbls_probe")
+    require(len(sys.argv) == 1, f"suite takes no arguments: {sys.argv[1:]}")
     saved_argv = sys.argv[:]
     try:
+        for module_name in ORACLES:
+            sys.argv = [f"{module_name}.py"]
+            importlib.import_module(module_name).main()
+        probe = importlib.import_module("datatbls_probe")
         for mode in PROBE_MODES:
             sys.argv = ["datatbls_probe.py", *mode]
             probe.main()
