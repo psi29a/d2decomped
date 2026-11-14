@@ -934,7 +934,15 @@ Read from the code, no oracle or packet log.
   went on, 280 ms (LAB_00462537, LAB_00462542). A stopped player goes at once. Nothing goes if the
   spot is 0x100 or more away on an axis, or under 1 on both (LAB_00462482).
 - **How near.** The spot goes out to a least distance (FUN_00474080, LAB_004624d9): a
-  press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1).
+  press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1); a release 0,
+  and 3 with none of the three. The step is in whole subtiles from the unit's own (its
+  path's GetXPos / GetYPos). FUN_00474080 is an octagon's distance,
+  `(longer * 0x3d7 + shorter * 0x197) >> 10`, taken as 1 under 2. Nearer than the
+  least, the scale `least / distance` is stored as a 32-bit float (0x4624e3) and each
+  axis is `step * scale` truncated (FUN_00682fd0, CVTTSD2SI). The distance runs short,
+  so a press 2 subtiles straight out walks 6 (10 running), and 3 out walks 4.
+  `tools/emu/click_spot.py` runs it for every step within 12 subtiles and at the 0x100
+  edges, for each flag set; `rules::click_spot` matches all 3,894 (`test_click_spot`).
 
   FUN_004623c0's throttle and clamp above, and FUN_00461840's path-then-send
   glue (LAB_00461879's FUN_00481030 call fires only once PATH_CalculatePath,

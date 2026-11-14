@@ -59,6 +59,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
+| Where a click on the ground walks to (FUN_004623c0's least distance: FUN_00474080, the flags' 3 / 4 / 5, the x87 scale, the dead zone; every step within 12 subtiles and the 0x100 edges, six flag sets) | `uv run python click_spot.py \| diff - ../../tests/click_spot_cases.inc`; then `test_click_spot` | no diff; `3894 cases, 0 differ` |
 | GAME Clients.cpp client records: field accessors, id and name table lookups, save upload buffer, packet queue, client constructor (30 functions and the getter at 0x538230: FUN_005381f0 ... 00539a30; `--mutation-check` 62 ways) | `uv run python clients_small.py` | `ok: 56770 CLIENTS record, lookup, upload and constructor calls checked` |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
