@@ -4,7 +4,7 @@
 Usage: D2_GAME_EXE=/path/to/Game.exe .venv/bin/python datatbls_cited_suite.py
 
 This imports the persistent oracle modules and runs them in one Python
-process. It launches no subprocess and reads no MPQ. Each module lists its
+process. It starts no child process and reads no MPQ. Each module lists its
 hooked callees and exact fixture scope; passing the suite does not assert
 unrestricted game-data parity.
 """
