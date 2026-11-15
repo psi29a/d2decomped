@@ -302,6 +302,8 @@ ReadFile, `FUN_004069d0` WriteFile, `FUN_004069f0` SetFilePointer.
   was read), all four `.ma0..3` deleted, slot 0.
 - `.ma<slot>` is opened read/write, OPEN_ALWAYS, and its handle returned.
 
+Run on game.exe by `tools/emu/automap_index.py` (400 scripted file systems: the subfolder fallback, found / not found / reset, `next` 0..3, 4, 5, 6 and negative; bugs.md #40).
+
 So the last four seeds keep their maps. A character keeps its seed game
 after game (drlg.md), so the map stays until the seed changes.
 

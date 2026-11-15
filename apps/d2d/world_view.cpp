@@ -589,13 +589,20 @@ bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
             if (pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
             auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
-            if (trans == 1) { pixel[0] = std::uint8_t(std::min(255, pixel[0] + colour.r)); pixel[1] = std::uint8_t(std::min(255, pixel[1] + colour.g)); pixel[2] = std::uint8_t(std::min(255, pixel[2] + colour.b)); }
-            else if (trans == 2) { pixel[0] = std::uint8_t(pixel[0] * colour.r / 255); pixel[1] = std::uint8_t(pixel[1] * colour.g / 255); pixel[2] = std::uint8_t(pixel[2] * colour.b / 255); }
-            else if (trans >= 3 && trans <= 5) {                       // a quarter, half, three quarters of the layer
-                const int mode = trans - 2;
-                pixel[0] = std::uint8_t((pixel[0] * (4 - mode) + colour.r * mode) / 4); pixel[1] = std::uint8_t((pixel[1] * (4 - mode) + colour.g * mode) / 4); pixel[2] = std::uint8_t((pixel[2] * (4 - mode) + colour.b * mode) / 4);
+            const d2d::palette::Rgba under{ pixel[0], pixel[1], pixel[2], 0xFF };
+            if (trans == 1 || trans == 2) {                            // PL2 additive / multiply
+                const auto mixed = trans == 1 ? d2d::palette::additive_blend(under, colour) : d2d::palette::multiply_blend(under, colour);
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
             }
-            else if (trans == 6) { pixel[0] = std::max(pixel[0], colour.r); pixel[1] = std::max(pixel[1], colour.g); pixel[2] = std::max(pixel[2], colour.b); }  // the greater of each channel
+            else if (trans >= 3 && trans <= 5) {                       // a quarter, half, three quarters of the layer (PL2 +0x23500 / +0x13500 / +0x3500)
+                constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
+                const auto mixed = d2d::palette::alpha_blend(under, colour, weights[trans - 3]);
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
+            }
+            else if (trans == 6) {                                     // weighted by the file colour's greatest channel (PL2 +0x5b500)
+                const auto mixed = d2d::palette::max_component_blend(under, colour, d2d::palette::max_component_weight(pal.entries()[idx]));
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
+            }
             else { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
             pixel[3] = 0xFF;
             wrote = true;
