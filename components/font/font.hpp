@@ -112,8 +112,9 @@ public:
     // Unlike draw_tinted, each frame's own height determines its top.
     // `multiply`: draw mode 4, the renderer's slot 0x42 (FUN_00511d70),
     // which FUN_004fb010 points at the PL2's multiplicative table: each
-    // channel fg * bg / 255 (FUN_00605aa0), stored as the nearest palette
-    // entry (FUN_00605210, palette::nearest). A button label draws so.
+    // channel fg * bg / 255 (FUN_00605aa0). A button label draws so.
+    // ponytail: the table snaps that to the nearest palette colour; this
+    // keeps the RGB product.
     int draw_tinted_baseline(std::vector<std::uint8_t>& framebuffer,
                              std::uint32_t framebuffer_width, std::uint32_t framebuffer_height,
                              const palette::Palette& palette, int x, int baseline,
@@ -154,10 +155,9 @@ private:
                 const int green = int(colour.g) * tint_green / 255;
                 const int blue = int(colour.b) * tint_blue / 255;
                 if (multiply) {
-                    const auto snapped = pal[pal.nearest(red * pixel[0] / 255, green * pixel[1] / 255, blue * pixel[2] / 255)];
-                    pixel[0] = snapped.r;
-                    pixel[1] = snapped.g;
-                    pixel[2] = snapped.b;
+                    pixel[0] = std::uint8_t(red * pixel[0] / 255);
+                    pixel[1] = std::uint8_t(green * pixel[1] / 255);
+                    pixel[2] = std::uint8_t(blue * pixel[2] / 255);
                     continue;
                 }
                 pixel[0] = std::uint8_t(red);
