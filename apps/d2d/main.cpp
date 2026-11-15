@@ -1120,7 +1120,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (tcpip.box_open) buttons({ &tcpip.box_ok, &tcpip.box_cancel });
                     else buttons({ &tcpip.join, &tcpip.host, &tcpip.cancel });
                 } else if (screen == Screen::CharCreate) {
-                    for (const auto& position : kClassPos) points.push_back({ position.x, position.y - 50 });   // ponytail: a spot up each figure, not its frame's box
+                    // Each figure's idle frame 0 box, its centre: where a click picks it (class_under, FUN_005003a0).
+                    for (std::size_t index = 0; index < std::size(kClassPos); ++index) {
+                        const auto& position = kClassPos[index];
+                        const auto* idle = scene ? &scene->class_anims[index][0] : nullptr;
+                        if (!idle || idle->frames_per_direction() == 0) { points.push_back({ position.x, position.y - 50 }); continue; }
+                        const auto& frame = idle->frame(0, 0);
+                        points.push_back({ position.x + frame.offset_x + int(frame.width) / 2,
+                                           position.y + frame.offset_y - int(frame.height) / 2 });
+                    }
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
                     if (csu.confirm_delete) buttons({ &csu.popup_no, &csu.popup_yes });
