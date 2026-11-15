@@ -4,6 +4,7 @@
 // (FUN_0054dc40) or the put (FUN_00554ea0) failing fails the follow.
 #include <merc.hpp>
 #include <pets.hpp>
+#include <rules.hpp>
 
 #include <cassert>
 #include <cstdio>
