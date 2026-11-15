@@ -301,7 +301,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 0xc), read_u16(packet, 0xe));
             if (const auto target = units.find(key(packet[7], read_u32(packet, 8))); target != units.end() && &target->second != &unit)
-                walk(unit, target->second.x, target->second.y);   // ponytail: to where the target was, not following it
+                walk(unit, target->second.x, target->second.y);   // once, to where it is: a player's path doesn't follow (FUN_00480780)
             unit.running = packet[6] == 0x18;
         }
         break;
