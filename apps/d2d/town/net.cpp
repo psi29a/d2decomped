@@ -483,15 +483,15 @@ auto Town::net_overlay() -> void {
             if (found == net_monsters.end()) {
                 found = net_monsters.emplace(unit.id, make_monster(*scene, unit.cls, cell_x(unit.x), cell_y(unit.y), rng, net_game->difficulty)).first;
                 // The host's boss as its 0xac says: name, colour, mods. An act
-                // boss (Andariel, Blood Raven) comes as unique with name seed 0:
-                // a boss still, under its MonStats name.
-                // ponytail: a rolled unique with seed 0 keeps its plain name too (1 in 65536).
+                // boss (Andariel, Blood Raven) comes as unique with no mods: a
+                // boss still, under its MonStats name, as game.exe's client runs
+                // the naming mod handlers only for a nonempty list (FUN_004ad020).
                 using d2d::rules::Boss;
                 const Boss kind = unit.boss_flags & 4 ? Boss::superunique : unit.boss_flags & 2 ? Boss::unique : unit.boss_flags & 1 ? Boss::champion : unit.boss_flags & 8 ? Boss::minion : Boss::none;
                 if (kind != Boss::none) {
                     const auto plain_name = found->second.npc.name;
                     make_boss(*scene, found->second, kind, unit.mods, unit.super, unit.name_seed, net_game->difficulty, rng);
-                    if (kind == Boss::unique && unit.name_seed == 0) found->second.npc.name = plain_name;
+                    if (kind == Boss::unique && unit.mods.empty()) found->second.npc.name = plain_name;
                 }
             }
             auto& monster = found->second;

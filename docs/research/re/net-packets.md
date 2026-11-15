@@ -168,7 +168,9 @@ The tail, in order:
 The bits are LSB-first. d2d reads the boss (`s2c::monster_boss`, checked
 on Lord De Seis's: row 37, mods 5 / 30 / 22) and names the host's monster
 with `make_boss`; an act boss (Andariel, Blood Raven) comes as unique
-with name seed 0 and keeps its own name. A rolled unique has both
+with name seed 0 and no mods, and keeps its own name: the client's mod
+pass (`FUN_004ad020`, which runs the naming handler `FUN_004ac870`)
+returns at once when the mod list's first byte (monster data +0x1c) is 0. A rolled unique has both
 champion and unique set.
 
 The client makes the monster (`FUN_00466360`), then sets stat 7 = 0x8000
