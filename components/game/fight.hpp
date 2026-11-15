@@ -972,7 +972,9 @@ struct Fight {
     // weapon when the player hits, one worn armour when the player is hit —
     // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
     // / gloves 2) among the slots holding armour.
-    // ponytail: the rolls take d2d's rng, not the unit's seed.
+    // The slot and weight draws (FUN_0045c3e0 twice) and FUN_00559e30's
+    // % 100 step the unit's seed (+0x20) in game.exe, d2d's rng here:
+    // deviations.md approximation 18.
     void wear_weapon(std::uint32_t now_ms);
     void wear_armor(std::uint32_t now_ms);
     // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
