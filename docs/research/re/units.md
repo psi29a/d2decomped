@@ -212,9 +212,33 @@ of `.\UNIT\CUnit.cpp`). `names.tsv` has the rows. Planted model defects
 (61) are each caught by `--mutation-check`; stock game.exe 1.14d only.
 
 Layout the oracle settled: the client keeps two hash tables of units,
-table A `0x7a5e70` and table B `0x7a5270` (role labels unverified, see
-unverified.md), each six unit types of 0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
+table A `0x7a5e70` and table B `0x7a5270`, each six unit types of 0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
 type at `+0`, its id at `+0xc`, the bucket is `id & 0x7f`.
+
+Which units go where (read in Ghidra, not run): the insert `FUN_00463a50`
+picks table B when unit flag `+0xc4 & 0x200000` is set, else table A
+(`00463b06`..`00463b36`). On the paths read, the server's units go to
+table A with the server's GUID, and the client's own to table B:
+- S→C 0x9c (`0x45eb10`, action 0 `FUN_004c25b0`) and 0x9d (`0x45ec70`,
+  action 0x16 `FUN_004c2340`), an item: `FUN_004c0f20` / `FUN_004c0ff0` →
+  `FUN_004661c0` → `FUN_00465fd0`, which stores the packet's id at `+0xc`,
+  sets no `0x200000`, and inserts through `FUN_00465f20`; a parse failure
+  removes it from table A (`FUN_00465ee0`). Table A.
+- S→C 0xac (`0x711ce0`: `FUN_0045f190`), a monster: `FUN_00466360` with its
+  last argument 0 (`PUSH 0x0` at `0045f404`). `FUN_00466360` ORs `0x600000`
+  into `+0xc4` only when that argument is non-zero, then inserts through
+  `FUN_00465f20`. Table A.
+- The client's own units, `FUN_00466730` (critters.md, the ambient
+  critters): the id from the client's counter `DAT_00711f30`; a monster
+  (type 1) through `FUN_00466360` with the last argument 1 (`PUSH EDI`,
+  EDI = 1, at `00466763`), any other type with `0x600000` ORed into `+0xc4`
+  (`004667bf`) before `FUN_00465fd0`. Table B.
+
+Not traced: the other S→C packets that make units (objects, players,
+missiles, warps). On the paths above, table A is the "server-side" table
+and table B the "client-side" one, as collision.md labels `0x7a5e70` /
+`0x7a5270`. The Redivivus name `UNITS_FindServerSideUnit` for
+`FUN_004639b0` is the wrong way round: it searches table B.
 
 | Function | What it does |
 |---|---|
