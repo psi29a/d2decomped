@@ -635,7 +635,9 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (layer_index == 0) edges(words, 0x84);
             else for (auto& tile_word : words) tile_word |= std::uint32_t(layer_index) << 18;   // FUN_0067c590
             walk(words, &orients, false);
-            // ponytail: the room's own cells, not game.exe's 8x8 cells of the whole DS1.
+            // FUN_00667970 scans the whole DS1 once and flags its 8x8 cell (x / 8,
+            // y / 8; cell 0 for a one-room preset); FUN_00667ed0's rooms are those
+            // cells, so the room's own cells flag the same (drlg.md "Presets").
             for (int y = 0; y < room.height; ++y)
                 for (int x = 0; x < room.width; ++x) {
                     const auto tile_word = words[std::size_t(y * slice_w + x)];
