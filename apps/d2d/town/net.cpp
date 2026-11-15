@@ -421,9 +421,10 @@ auto Town::net_overlay() -> void {
         };
         // A host monster's (or our merc's) unit command as a mode
         // (DAT_006da4d8, net-packets.md "The unit command"): dying plays DT
-        // once, then lies DD; an act plays its mode, then stands or walks again.
-        // ponytail: an act lasts 600 ms, not its animation's length.
-        auto host_mode = [&](const NetGame::Unit& unit) -> std::string_view {
+        // once, then lies DD; an act plays its mode for its animation's length,
+        // then stands or walks again: the host sends decisions, not frames, and
+        // the client plays the mode it sets (FUN_004aff60).
+        auto host_mode = [&](const NetGame::Unit& unit, const auto& npc) -> std::string_view {
             static constexpr std::array<std::string_view, 0x1e> kCommandMode = {
                 "WL", "WL", "", "", "SC", "SC", "GH", "NU", "DT", "DD", "A1", "A1", "S1", "S1", "S2", "S2",
                 "A2", "A2", "BL", "", "KB", "SQ", "SQ", "RN", "RN", "S1", "S3", "S3", "S4", "S4" };
@@ -431,7 +432,10 @@ auto Town::net_overlay() -> void {
             const std::string_view commanded = unit.mode >= 0 && std::size_t(unit.mode) < kCommandMode.size() ? kCommandMode[std::size_t(unit.mode)] : "";
             if (unit.mode == 8 || unit.mode == 9) return unit.mode == 8 && since < 1500 ? "DT" : "DD";
             if (unit.life == 0) return "DD";
-            if (!commanded.empty() && commanded != "WL" && commanded != "NU" && since < 600) return commanded;
+            if (!commanded.empty() && commanded != "WL" && commanded != "NU") {
+                const auto& anim = scene->npc_anim(npc, commanded);   // a mode it lacks (no frames): none
+                if ((anim.frames != 0 || anim.cof_frames != 0) && since < anim.length_ms()) return commanded;
+            }
             return unit.moving ? "WL" : "NU";
         };
         for (const auto& [unit_key, unit] : net_game->units) {
@@ -473,7 +477,7 @@ auto Town::net_overlay() -> void {
                     view.merc->unit.x = cell_x(unit.x);
                     view.merc->unit.y = cell_y(unit.y);
                     view.merc->unit.walking = unit.moving;
-                    if (const auto mode = host_mode(unit); mode != view.merc->mode) { view.merc->mode = mode; view.merc->unit.mode_ms = world_ms; }
+                    if (const auto mode = view.merc->npc ? host_mode(unit, *view.merc->npc) : view.merc->mode; mode != view.merc->mode) { view.merc->mode = mode; view.merc->unit.mode_ms = world_ms; }
                 }
                 continue;
             }
@@ -500,7 +504,7 @@ auto Town::net_overlay() -> void {
             monster.unit.x = cell_x(unit.x);
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
-            monster.mode = host_mode(unit);
+            monster.mode = host_mode(unit, monster.npc);
             if (monster.mode != monster.last_mode) monster.unit.mode_ms = world_ms;   // the animation starts over
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             monster.host_states = host_states(unit.states);

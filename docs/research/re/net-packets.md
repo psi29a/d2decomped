@@ -998,6 +998,9 @@ rest, and a d2d client talking to it must too.
   sets the mode (`DAT_006da4d8`), the path (`FUN_00648cf0`) and walks it
   with its own pathing, frame by frame. There is no interpolation
   buffer: a correcting form re-paths from where the unit is.
+  d2d plays a host monster's (or its merc's) act mode for that mode's
+  animation length (`Scene::npc_anim`), then stands or walks again
+  (`Town::net_overlay`).
 - **Animation is the client's.** Modes come as commands; the frame
   pacing, the COF / AnimData timing, where an attack's frame falls are
   local (d2d already does this from its tables). The host's hits come as
