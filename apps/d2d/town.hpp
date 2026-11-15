@@ -494,8 +494,13 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
-    /** True when touch hides the classic bottom HUD for a clear field (see touch::g_touch_classic_hud). */
+    /** Touch on and classic PC bottom bar suppressed (independent of panels/automap). */
+    [[nodiscard]] bool touch_hides_classic_hud() const;
+    /** Field thumb cluster (move/skills/attack); false during panels, NPC, store, speech, or fullscreen map. */
+    [[nodiscard]] bool touch_shows_field_controls() const;
+    /** @deprecated Use touch_shows_field_controls for field chrome; touch_hides_classic_hud for HUD. */
     [[nodiscard]] bool touch_compact_field() const;
+    void drive_touch_hold(float seconds);
     touch::Input touch_input;
     PadPlayer touch_player;
     std::map<std::string, skillpad::Sheet> touch_sheets;
@@ -506,6 +511,8 @@ struct Town {
     float touch_item_x = 0, touch_item_y = 0;
     int touch_panel_state = 0;
     bool touch_sold = false;
+    hold_confirm::Hold touch_hold;
+    float touch_hold_fraction = 0.f;
     std::string touch_item_hint;
     int touch_selected = skillpad::kEmpty;
     bool touch_attack_used = false;

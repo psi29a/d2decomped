@@ -27,17 +27,23 @@ inline SafeInset safe_inset;
 inline bool g_touch_classic_hud = false;
 inline constexpr int kTouchTreeRight = 488;
 inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
+/** Scales corner chips and field controls (deviation candidate: touch_ui_scale). */
+inline constexpr float kUiScale = 1.2f;
+inline constexpr int kNpcLinePad = 14;
 
 // Nominal sizes (positions filled in layout_boxes).
 inline constexpr float kBeltSize = 48.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 inline constexpr Box kCancel{ 260, 140, 280, 64 };
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
-    Box move, attack, page, cancel, menu, skills_bar, map, done, interact, quest_track;
+    Box move, move_visual, attack, page, cancel, menu, skills_bar, map, done, interact, quest_track;
     std::array<Box, 4> skills{}, belts{};
 };
+
+inline float ui_scale(float value) { return value * kUiScale; }
 
 inline Box anchor_box(float width, float height, bool left, bool top) {
     constexpr float kPad = 6.f;
@@ -61,31 +67,35 @@ inline Box placed(Box box) {
 /** Immortal-style thumb layout with edge anchoring. */
 inline Layout layout_boxes() {
     Layout out;
-    out.move = anchor_box(148.f, 168.f, true, false);
-    out.attack = anchor_box(kAttackSize, kAttackSize, false, false);
+    const float belt = ui_scale(kBeltSize), skill = ui_scale(kSkillSize), attack = ui_scale(kAttackSize), page = ui_scale(kPageSize);
+    out.move = anchor_box(ui_scale(kMoveHitW), ui_scale(kMoveHitH), true, false);
+    out.move_visual = { out.move.x + (out.move.width - ui_scale(kMoveVisualW)) * .5f,
+                        out.move.y + (out.move.height - ui_scale(kMoveVisualH)) * .5f,
+                        ui_scale(kMoveVisualW), ui_scale(kMoveVisualH) };
+    out.attack = anchor_box(attack, attack, false, false);
     const float ax = out.attack.x, ay = out.attack.y;
     // Page on the attack button's top, not tucked into its lower-left corner.
-    out.page = { ax + 28.f, ay - 52.f, kPageSize, kPageSize };
-    out.menu = anchor_box(48.f, 48.f, true, true);
-    out.skills_bar = { out.menu.x, out.menu.y + 52.f, 48.f, 48.f };
-    out.done = anchor_box(52.f, 48.f, false, true);
-    out.map = { out.done.x, out.done.y + 56.f, 52.f, 48.f };
-    out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
+    out.page = { ax + ui_scale(28.f), ay - ui_scale(52.f), page, page };
+    out.menu = anchor_box(ui_scale(48.f), ui_scale(48.f), true, true);
+    out.skills_bar = { out.menu.x, out.menu.y + ui_scale(52.f), ui_scale(48.f), ui_scale(48.f) };
+    out.done = anchor_box(ui_scale(52.f), ui_scale(48.f), false, true);
+    out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
+    out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, ui_scale(172.f), ui_scale(148.f) };
     out.cancel = placed(kCancel);
     // Column sits fully above the skill arc (its bottom clears skill 3's top).
-    const float pot_x = ax - 98.f;
+    const float pot_x = ax - ui_scale(98.f);
     for (int index = 0; index < 4; ++index)
-        out.belts[std::size_t(index)] = { pot_x, ay - 414.f + float(index) * (kBeltSize + 10.f), kBeltSize, kBeltSize };
+        out.belts[std::size_t(index)] = { pot_x, ay - ui_scale(414.f) + float(index) * (belt + ui_scale(10.f)), belt, belt };
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
-    out.skills[0] = { ax - 103.f, ay + 7.f, kSkillSize, kSkillSize };
-    out.skills[1] = { ax - 186.f, ay - 64.f, kSkillSize, kSkillSize };
-    out.skills[2] = { ax - 104.f, ay - 134.f, kSkillSize, kSkillSize };
-    out.skills[3] = { ax - 24.f, ay - 174.f, kSkillSize, kSkillSize };
-    out.interact = { ax - 268.f, ay - 48.f, 56.f, 56.f };
+    out.skills[0] = { ax - ui_scale(103.f), ay + ui_scale(7.f), skill, skill };
+    out.skills[1] = { ax - ui_scale(186.f), ay - ui_scale(64.f), skill, skill };
+    out.skills[2] = { ax - ui_scale(104.f), ay - ui_scale(134.f), skill, skill };
+    out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
+    out.interact = { ax - ui_scale(268.f), ay - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
     return out;
 }
 
-inline constexpr float kStickOuter = 76.f, kStickInner = 26.f, kSkillRing = 34.f;
+inline constexpr float kStickOuter = 52.f, kStickInner = 22.f, kSkillRing = 34.f;
 
 inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
     const auto chrome = layout_boxes();

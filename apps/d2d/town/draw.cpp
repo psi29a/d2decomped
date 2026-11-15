@@ -82,6 +82,7 @@ auto Town::open_menu(int npc) -> void {
                 ? resurrect_line(*scene, character.header.merc_type, character.header.merc_name,
                                  d2d::rules::merc_resurrect_cost(d2d::rules::merc_stats(scene->rules, character.header.merc_type, character.header.merc_exp).level))
                 : std::string());
+        if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
     }
 
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
@@ -260,7 +261,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool pad_target = pad_playing && pad_field() && focus_id() == hero.id;
         if (pad_target) hover_x = hover_y = -1;
         automap_frame();
-        const bool touch_compact = touch_compact_field();
+        const bool touch_compact = touch_hides_classic_hud();
         const bool pad_bar = !touch_enabled && skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
         auto belt_names = belt_key_names;
         if (pad_bar) {
@@ -332,7 +333,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
         view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
         draw_hold_cue(framebuffer);
-        if ((!coop_hud_hidden() || skillbar.picking) && (!touch_compact_field() || skillbar.picking != 0))
+        if ((!coop_hud_hidden() || skillbar.picking) && (!touch_hides_classic_hud() || skillbar.picking != 0))
             skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {

@@ -231,3 +231,16 @@ input when a tome can identify another carried item. The existing inventory
 right-click dispatch is reused; this is an input UX correction, not a new retail
 parity claim. `pad_identify_classic_d2d` and `pad_identify_d2d` drive both presets
 through actual controller input with and without unidentified targets.
+
+## Touch field UX (Immortal-style)
+
+Touch layout uses logical 800×600 with `touch::kUiScale` (default 1.2) on corner
+chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
+and skill bar whenever touch is on (including automap, NPC speech, and shop);
+`touch_shows_field_controls()` is only true on the open field without panels.
+The move stick uses a large `move` hit box with a smaller `move_visual` ring.
+NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
+taps route through ordinary menu hit tests with extra row padding. Skill
+assignment highlights the four field slots in gold. Inventory long-press reuses
+`hold_confirm` (fill belt, equip, shop sell) and cancels when the finger moves
+more than 14px before drag.

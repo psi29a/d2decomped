@@ -558,6 +558,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // sells the item.
         bool item_click = false;
         drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
+        if (touch_enabled) drive_touch_hold(frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && (mouse.press_this_frame || (pad_playing && mouse.rpress_this_frame))) {
             if (pad_playing) mouse.rpress_this_frame = false;
@@ -909,7 +910,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk
             menu_press = true;                            // ... and its release (a store button under it)
-            const int line_index = npc_menu.line_at(mouse.x, mouse.y);
+            const int line_index = npc_menu.line_at(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);
             const auto action = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].action : NpcMenuState::kClose;
             const int npc_menu_arg = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].arg : -1;
             const int who = npc_menu.npc;
@@ -927,8 +928,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, screen_x, screen_y, npc_quest);
+                if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespec) {
                 npc_menu = open_respec_menu(*scene, who, screen_x, screen_y);
+                if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kCaravan) {
