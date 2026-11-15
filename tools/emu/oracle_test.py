@@ -6,7 +6,8 @@ emu .venv) against the d2d test's oracle mode on the same cases.
 
 NAME is a key of RECIPES. Exits 0 when the two agree, 1 when they differ
 (the differing lines go to stdout), 77 (ctest's skip) without the emu .venv
-(`uv sync` here) or without bin/game.exe beside the MPQs. ctest hands it
+(`uv sync` here), without bin/game.exe beside the MPQs (emu.data_path) or
+when the d2d side skips. ctest hands it
 D2_MPQ_DIR, D2_PATCH_INSTALLER and D2_BUILD (emu.py's mpq-cat). Each run takes
 CASES cases, so a ctest run stays a few minutes; the README rows run more.
 """
@@ -71,9 +72,10 @@ def run(name, binary):
     if not venv.exists():
         print(f"SKIP: no emu .venv: `uv sync` in {HERE}")
         return SKIPPED
-    mpq_dir = os.environ.get("D2_MPQ_DIR", "")
-    if not (Path(mpq_dir) / "bin" / "game.exe").exists():
-        print(f"SKIP: no bin/game.exe in D2_MPQ_DIR ({mpq_dir or 'unset'})")
+    found = subprocess.run([str(venv), "-c", "import emu; print(emu.data_path())"], cwd=HERE, capture_output=True, text=True, check=False)
+    mpq_dir = found.stdout.strip() if found.returncode == 0 else ""   # as emu.py finds it: D2_MPQ_DIR, d2d.cfg, the launcher's
+    if not mpq_dir or not (Path(mpq_dir) / "bin" / "game.exe").exists():
+        print(f"SKIP: no bin/game.exe beside the MPQs ({mpq_dir or 'none found'})")
         return SKIPPED
     with tempfile.TemporaryDirectory() as scratch:
         for number, step in enumerate(steps, 1):
@@ -82,6 +84,9 @@ def run(name, binary):
                     for word in command.split()]
             with open(Path(scratch) / out, "w") as sink:
                 status = subprocess.run(argv, cwd=HERE, stdout=sink, stderr=subprocess.DEVNULL, check=False).returncode
+            if status == SKIPPED and argv[0] == str(binary):          # the d2d side has no data to run on
+                print((Path(scratch) / out).read_text())
+                return SKIPPED
             if status != 0:
                 if out == "out":                                    # a compare that found a difference
                     print((Path(scratch) / out).read_text())

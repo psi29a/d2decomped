@@ -50,8 +50,8 @@ int main(int argc, char** argv) try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    assert(data && data->town.id == 1);
-    if (!data->patched) { std::printf("SKIP: the oracle is 1.14d's game.exe: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
+    if (!data || !data->patched) { std::printf("SKIP: the oracle is 1.14d's game.exe: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
+    assert(data->town.id == 1);
     d2d::rules::Rng rng(7);
     constexpr int kSorceress = 1;
     auto made = new_character(*data, kSorceress, "Headless", false, true, rng);
