@@ -46,6 +46,15 @@
 #include <QVBoxLayout>
 #include <QWizard>
 #include <QWizardPage>
+#ifdef Q_OS_ANDROID
+#include <QDirIterator>
+#include <QGuiApplication>
+#include <QJniEnvironment>
+#include <QJniObject>
+#include <QPalette>
+#include <QScreen>
+#include <QtCore/qcoreapplication_platform.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -149,7 +158,21 @@ static QString normalize_pick(const QString& picked) {
 }
 
 // Steam sets this for games started from Gaming Mode / Big Picture.
+#ifndef Q_OS_ANDROID
 static bool steam_gamepad_ui() { return qEnvironmentVariableIsSet("SteamGamepadUI"); }
+#endif
+
+#ifdef Q_OS_ANDROID
+// d2d's user dir there, and the MPQs' folder (docs/android.md): the app's own
+// external folder, what SDL_GetAndroidExternalStoragePath() gives d2d.
+static QString android_files_dir() {
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    const QJniObject dir = context.callObjectMethod("getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;",
+                                                    static_cast<jobject>(nullptr));
+    QJniEnvironment().checkAndClearExceptions();
+    return dir.isValid() ? dir.callObjectMethod("getAbsolutePath", "()Ljava/lang/String;").toString() : QString{};
+}
+#endif
 
 static QFileDialog::Options macos_dlg_opts() {
 #ifdef Q_OS_MACOS
@@ -488,6 +511,10 @@ public:
 
         // --- installs found on this machine --------------------------------
         found_ = new QListWidget(this);
+#ifdef Q_OS_ANDROID
+        found_->setTextElideMode(Qt::ElideMiddle);   // the long /storage/... path, not the window, gives way
+        found_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+#endif
         auto* use = new QPushButton(tr("Use selected"), this);
         connect(use, &QPushButton::clicked, this, [this] {
             const int row = found_->currentRow();
@@ -495,7 +522,22 @@ public:
                 choose(installs_[std::size_t(row)], QString::fromStdString("detected:" + installs_[std::size_t(row)].source));
         });
         connect(found_, &QListWidget::itemDoubleClicked, use, &QPushButton::click);
+#ifdef Q_OS_ANDROID
+        connect(found_, &QListWidget::itemClicked, use, &QPushButton::click);   // a tap, not a double tap
+#endif
         // Search more places = Browse: the pick joins the list, checked.
+#ifdef Q_OS_ANDROID
+        // Android's picker hands out content:// URIs, which StormLib can't
+        // open: the game's files are copied into the app's own folder.
+        auto* more = new QPushButton(tr("Copy game files..."), this);
+        connect(more, &QPushButton::clicked, this, [this] {
+            const QString picked = QFileDialog::getExistingDirectory(this, tr("Your Diablo II folder"));
+            if (!picked.isEmpty()) importFolder(picked);
+        });
+        // ponytail: the ISO wizard reads std::filesystem paths, which a
+        // content:// pick isn't; copy the ISOs' MPQs on a PC instead.
+        install_->setVisible(false);
+#else
         auto* more = new QPushButton(tr("Search more places..."), this);
         connect(more, &QPushButton::clicked, this, [this] {
             QFileDialog dlg(this, tr("Game data directory"), path_);
@@ -506,6 +548,7 @@ public:
             const auto sel = dlg.selectedFiles();
             if (!sel.isEmpty()) browsed(sel.first());
         });
+#endif
         auto* rescan = new QPushButton(tr("Rescan"), this);
         connect(rescan, &QPushButton::clicked, this, &MainWindow::scan);
         foundBox_ = new QWidget(this);   // always shown: Rescan lives here
@@ -531,7 +574,7 @@ public:
         // Linux only: Steam's non-Steam-game list, plus its library art.
         addToSteam_ = new QPushButton(tr("Add to Steam"), this);
         addToSteam_->setToolTip(tr("Adds D2Decomp to Steam's library with its artwork, or updates it if it's already there."));
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
         addToSteam_->setVisible(!d2d::steam::account_configs(to_path(QDir::homePath())).empty());
 #else
         addToSteam_->setVisible(false);
@@ -587,6 +630,12 @@ public:
         crashNotes_->setMaxLength(2048);
         crashNotes_->setPlaceholderText(tr("Optional context for this run; sent only if it crashes"));
         crashNotes_->setEnabled(crashReports_->isChecked());
+#ifdef Q_OS_ANDROID
+        // d2d there is D2D_GAME_ONLY: no crash reports. Always fullscreen.
+        crashReports_->setVisible(false);
+        crashNotes_->setVisible(false);
+        fullscreen_->setVisible(false);
+#endif
 
         launch_ = new QPushButton(tr("Launch"), this);
         launch_->setDefault(true);
@@ -612,8 +661,18 @@ public:
         root->setSpacing(0);
         auto* hero = new QLabel(this);
         QPixmap banner(":/hero.png");
+#ifdef Q_OS_ANDROID
+        // The screen's narrow side, at its own density: a phone held upright is
+        // narrower than kWindowWidth, and the banner sets the window's minimum width.
+        const QScreen* screen = QGuiApplication::primaryScreen();
+        const QSize available = screen->availableSize();
+        banner = banner.scaledToWidth(int(std::min(available.width(), available.height()) * screen->devicePixelRatio()),
+                                      Qt::SmoothTransformation);
+        banner.setDevicePixelRatio(screen->devicePixelRatio());
+#else
         banner = banner.scaledToWidth(2 * kWindowWidth, Qt::SmoothTransformation);
         banner.setDevicePixelRatio(2.0);
+#endif
         hero->setPixmap(banner);
         root->addWidget(hero);
         auto* layout = new QVBoxLayout;
@@ -621,7 +680,11 @@ public:
         root->addLayout(layout);
 
         layout->addWidget(foundBox_);
+#ifdef Q_OS_ANDROID
+        auto* statusRow = new QVBoxLayout;   // a phone upright has no room beside the status
+#else
         auto* statusRow = new QHBoxLayout;
+#endif
         statusRow->addWidget(status_, 1);
         statusRow->addWidget(fix_);
         layout->addLayout(statusRow);
@@ -641,8 +704,15 @@ public:
         optionsRow->addSpacing(12);
         optionsRow->addWidget(skipVideo_);
         optionsRow->addStretch();
+#ifdef Q_OS_ANDROID
+        layout->addLayout(optionsRow);
+        optionsRow = new QHBoxLayout;   // Scaling on its own row: "Skip intro movies" ran into it upright
+#endif
         optionsRow->addWidget(new QLabel(tr("Scaling:"), this));
         optionsRow->addWidget(scaleMode_);
+#ifdef Q_OS_ANDROID
+        optionsRow->addStretch();
+#endif
         layout->addLayout(optionsRow);
 
         auto* btnRow = new QHBoxLayout;
@@ -662,8 +732,10 @@ public:
         footer->addWidget(upgrade_);
         layout->addLayout(footer);
 
+#ifndef Q_OS_ANDROID   // there the window is the whole screen
         setFixedWidth(kWindowWidth);
         resize(kWindowWidth, 490);
+#endif
 
         loadSettings();
         refresh();
@@ -724,6 +796,9 @@ private:
         skipVideo_->setChecked(cfg["video"] == "0");
         scaleMode_->setCurrentIndex(std::max(0, scaleMode_->findData(QString::fromStdString(cfg["scalemode"]))));   // unset: Pixel art, d2d's default
         source_ = settings.value("game/source", "manual").toString();
+#ifdef Q_OS_ANDROID
+        adoptLodPatch();
+#endif
         const QSignalBlocker crashReportsQuiet(crashReports_);
         crashReports_->setChecked(settings.value("privacy/sendCrashReports", false).toBool());
         crashNotes_->setEnabled(crashReports_->isEnabled() && crashReports_->isChecked());
@@ -759,6 +834,10 @@ private:
         status_->setStyleSheet("color: gray;");
         QThreadPool::globalInstance()->start([this] {
             auto detected = d2d::install::detect(d2d::install::system_environment(false));
+#ifdef Q_OS_ANDROID
+            // The app's own folder: where the copy below (or adb) puts the MPQs.
+            if (auto own = d2d::install::classify(d2d::userdir::user_dir("d2d"), "app folder")) detected.push_back(std::move(*own));
+#endif
             QMetaObject::invokeMethod(this, [this, found = std::move(detected)]() mutable { onDetected(std::move(found)); },
                                       Qt::QueuedConnection);
         });
@@ -832,6 +911,9 @@ private:
         const bool outside = !install.patch_mpq.empty() && install.patch_mpq.parent_path() != install.dir;
         patch_path_ = outside ? from_path(install.patch_mpq) : QString{};
         path_ = from_path(install.dir);
+#ifdef Q_OS_ANDROID
+        adoptLodPatch();
+#endif
         persist();
         fillList();
         refresh();
@@ -989,8 +1071,17 @@ private:
         QFileDialog dlg(this, tr("LODPatch_114d.exe"), QDir::homePath(), tr("Patch installer (*.exe *.mpq)"));
         dlg.setFileMode(QFileDialog::ExistingFile);
         dlg.setOptions(macos_dlg_opts() | dlg.options());
+#ifdef Q_OS_ANDROID
+        dlg.setNameFilters({});   // Android's picker filters by MIME type, and an .exe has none it knows
+#endif
         if (dlg.exec() != QDialog::Accepted || dlg.selectedFiles().isEmpty()) return;
+#ifdef Q_OS_ANDROID
+        // A content:// URI: copied beside the MPQs, where d2d can open it.
+        const QString picked = copyIntoApp({ dlg.selectedFiles().first() });
+        if (picked.isEmpty()) return;
+#else
         const QString picked = dlg.selectedFiles().first();
+#endif
         if (!picked.endsWith(".mpq", Qt::CaseInsensitive)) {
             try {
                 (void)d2d::mpq::Archive::installer(to_path(picked));
@@ -1052,6 +1143,22 @@ private:
     // raises its own window (window.hpp) so it lands in front.
     bool launch() {
         if (!persist()) return false;
+#ifdef Q_OS_ANDROID
+        // SDL's activity, in its own process (":game", the manifest): Back
+        // after d2d quits returns here. d2d reads the rest from d2d.cfg.
+        const QJniObject context = QNativeInterface::QAndroidApplication::context();
+        QJniObject intent("android/content/Intent");
+        intent.callObjectMethod("setClassName", "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;",
+                                context.object(), QJniObject::fromString("org.libsdl.app.SDLActivity").object<jstring>());
+        constexpr jint kNewTask = 0x10000000;   // Intent.FLAG_ACTIVITY_NEW_TASK: the context isn't an activity
+        intent.callObjectMethod("addFlags", "(I)Landroid/content/Intent;", kNewTask);
+        context.callMethod<void>("startActivity", "(Landroid/content/Intent;)V", intent.object());
+        if (QJniEnvironment().checkAndClearExceptions()) {
+            QMessageBox::warning(this, tr("Launch"), tr("Could not start d2d."));
+            return false;
+        }
+        return true;
+#else
         const QString engine = engineBinaryPath();
         auto* process = new QProcess(qApp);
         process->setProgram(engine);
@@ -1082,6 +1189,7 @@ private:
         }
         if (wait) hide(); else close();
         return true;
+#endif
     }
 
     void fetchPatch() {
@@ -1142,6 +1250,9 @@ private:
     // d2d beside the launcher, beside the macOS .app bundle, or in the
     // build tree (apps/launcher → apps/d2d, incl. MSVC's Release/ dirs).
     static QString engineBinaryPath() {
+#ifdef Q_OS_ANDROID
+        return QStringLiteral("d2d");   // libmain.so in this APK, started by launch()
+#else
         const QDir dir(QCoreApplication::applicationDirPath());
 #ifdef Q_OS_WIN
         const QString name = "d2d.exe";
@@ -1153,7 +1264,84 @@ private:
             if (info.isFile() && info.isExecutable()) return info.canonicalFilePath();
         }
         return {};
+#endif
     }
+
+#ifdef Q_OS_ANDROID
+    // Every D2*.MPQ and LODPatch_114d.exe under `tree` (a content:// folder
+    // pick) into the app's folder, which then is the install.
+    void importFolder(const QString& tree) {
+        QStringList sources;
+        for (QDirIterator entry(tree, QDir::Files, QDirIterator::Subdirectories); entry.hasNext();) {
+            entry.next();
+            const QString name = entry.fileName();
+            if (!mpq_target(name.toStdString()).empty() || name.compare("LODPatch_114d.exe", Qt::CaseInsensitive) == 0)
+                sources << entry.filePath();
+        }
+        if (sources.isEmpty()) {
+            QMessageBox::warning(this, tr("No game files"), tr("No D2*.MPQ files in %1.").arg(tree));
+            return;
+        }
+        if (copyIntoApp(sources).isEmpty()) return;   // cancelled or failed: already said
+        browsed(from_path(d2d::userdir::user_dir("d2d")));   // choose() takes a copied LODPatch_114d.exe
+    }
+
+    // No patch layer yet and LODPatch_114d.exe beside the MPQs (copied or
+    // pushed there): that's the one. Android only: a PC install keeps its own.
+    void adoptLodPatch() {
+        if (!patch_path_.isEmpty()) return;
+        const QDir dir(path_);
+        const auto found = dir.entryList({ "LODPatch_114d.exe" }, QDir::Files);   // any case
+        if (!found.isEmpty()) patch_path_ = dir.filePath(found.first());
+    }
+
+    // Copies `sources` (content:// URIs) into the app's folder under their
+    // own names, MPQs lower-cased as the wizard does; a file already there
+    // at the same size is kept. The last one's copy, or empty on cancel or
+    // a failed copy.
+    // ponytail: copies on the UI thread, the dialog's setValue keeps it
+    // drawn; a worker thread if a slow card makes it stutter.
+    QString copyIntoApp(const QStringList& sources) {
+        const QString dest = from_path(d2d::userdir::user_dir("d2d"));
+        QDir().mkpath(dest);
+        qint64 total = 0;
+        for (const auto& source : sources) total += QFileInfo(source).size();
+        QProgressDialog dialog(tr("Copying game files..."), tr("Cancel"), 0, 1000, this);
+        dialog.setWindowModality(Qt::WindowModal);
+        dialog.setMinimumDuration(0);
+        qint64 done = 0;
+        QString last;
+        for (const auto& source : sources) {
+            const QString name = QFileInfo(source).fileName();
+            const auto lower = mpq_target(name.toStdString());
+            const QString target = dest + '/' + (lower.empty() ? name : QString::fromStdString(lower));
+            QFile input(source), output(target + ".part");
+            const qint64 size = QFileInfo(source).size();
+            dialog.setLabelText(tr("Copying %1...").arg(name));
+            last = target;
+            if (QFileInfo(target).size() == size) { done += size; continue; }
+            if (!input.open(QIODevice::ReadOnly) || !output.open(QIODevice::WriteOnly)) {
+                QMessageBox::warning(this, tr("Copy failed"), tr("Could not copy %1.").arg(name));
+                return {};
+            }
+            QByteArray chunk;
+            while (!(chunk = input.read(1 << 20)).isEmpty()) {
+                if (output.write(chunk) != chunk.size()) break;
+                done += chunk.size();
+                dialog.setValue(total ? int(done * 1000 / total) : 0);
+                if (dialog.wasCanceled()) { output.remove(); return {}; }
+            }
+            output.close();
+            if (output.error() != QFileDevice::NoError || QFileInfo(output.fileName()).size() != size
+                || (QFile::exists(target) && !QFile::remove(target)) || !output.rename(target)) {
+                output.remove();
+                QMessageBox::warning(this, tr("Copy failed"), tr("Could not copy %1 (is the device full?).").arg(name));
+                return {};
+            }
+        }
+        return last;
+    }
+#endif
 
     void startUpdateCheck() {
         const QString url = QString::fromUtf8(d2::kUpdateApiUrl);
@@ -1211,12 +1399,41 @@ private:
 // ===========================================================================
 int main(int argc, char** argv) try {
     QApplication app(argc, argv);
+#ifdef Q_OS_ANDROID
+    // Android's own style drew the list white under the theme's white text,
+    // and its checkboxes as dots: Fusion, dark, draws both readably.
+    QApplication::setStyle("Fusion");
+    QPalette dark;
+    dark.setColor(QPalette::Window, QColor(24, 24, 24));
+    dark.setColor(QPalette::WindowText, Qt::white);
+    dark.setColor(QPalette::Base, QColor(40, 40, 40));
+    dark.setColor(QPalette::AlternateBase, QColor(48, 48, 48));
+    dark.setColor(QPalette::Text, Qt::white);
+    dark.setColor(QPalette::Button, QColor(56, 56, 56));
+    dark.setColor(QPalette::ButtonText, Qt::white);
+    dark.setColor(QPalette::Highlight, QColor(128, 24, 24));
+    dark.setColor(QPalette::HighlightedText, Qt::white);
+    dark.setColor(QPalette::Disabled, QPalette::Text, Qt::gray);
+    dark.setColor(QPalette::Disabled, QPalette::ButtonText, Qt::gray);
+    dark.setColor(QPalette::Disabled, QPalette::WindowText, Qt::gray);
+    QApplication::setPalette(dark);
+#endif
     QApplication::setWindowIcon(QIcon(":/d2d.png"));
     QApplication::setOrganizationName("D2Decomp");
     QApplication::setApplicationName("D2 Launcher");
 
+#ifdef Q_OS_ANDROID
+    // d2d.cfg where d2d's main looks (components/userdir), before anything reads it.
+    if (const QString files = android_files_dir(); !files.isEmpty())
+        qputenv("D2D_USER_DIR", files.toUtf8());
+#endif
+
     MainWindow window;
+#ifdef Q_OS_ANDROID
+    window.showMaximized();
+#else
     if (!steam_gamepad_ui() || !window.launchForSteam()) window.show();
+#endif
     return app.exec();
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
