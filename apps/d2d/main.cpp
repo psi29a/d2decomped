@@ -553,14 +553,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
                    SDL_GetRendererName(win.renderer));
     // The title shows while finish_scene loads the rest (only the menus'
-    // part of the scene is read here); then the menus take input.
-    // ponytail: input waits too (a few hundred ms); clicks in that time are dropped.
+    // part of the scene is read here); then the menus take input. Only a quit
+    // is taken off SDL's queue meanwhile: a click waits there for the menus.
     // (Black when the startup videos come first, or another screen was asked for.)
     const bool title_first = (g_start_screen.empty() && !g_video) || g_start_screen == "title";
     const auto boot_title = scene && title_first ? std::optional<TitleUI>(title_ui(*scene, g_coop_lobby)) : std::nullopt;
     while (loading.valid() && loading.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
+        SDL_PumpEvents();
         SDL_Event event;
-        while (SDL_PollEvent(&event)) if (event.type == SDL_EVENT_QUIT) quit = true;
+        while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) quit = true;
         if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()));
         SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
         SDL_RenderClear(win.renderer);
