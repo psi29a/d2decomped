@@ -1780,7 +1780,9 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 1 / 2 / 3 / 4 / 8 value, 5 / 6 / 7 min / max / % damage, 9 / 22 / 24
 // param, 10 skill tab (class*3+tab -> class<<3|tab), 11 chance to cast
 // (param skill<<6 | level, value chance, 5 if none), 12 random skill
-// (param min..max, value param), 19 charges (FUN_0065f6a0: of c = min
+// (param min..max, value param), 18 by time (FUN_0065f870: the period,
+// param 0..3, + ((max + 256) << 10 | (min + 256)) << 2, each 0..1023;
+// returns the max part), 19 charges (FUN_0065f6a0: of c = min
 // rand(c - c/8) + c/8 + 1 now, value now | c<<8), 20 indestructible
 // (stat 152), 21 class skills, 36 the param drawn, value the func's val.
 // With `on` (the item the mods land on, FUN_0065fec0's kind 1 superior)
@@ -1794,7 +1796,7 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
 // ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
 // -max levels past req). Codes match whatever their case.
-// ponytail: 18 (by time) is dropped; sockets (14) only draws; 5 / 6 don't
+// ponytail: sockets (14) only draws; 5 / 6 don't
 // clamp a negative to the base (kept by max damage, not min); without
 // `on` (affixes) damage is one-hand, charges full and 11 / 19 off ilvl 1.
 struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
@@ -1898,6 +1900,13 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
                 if (result != 0 && stat == kMaxDamage) damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, result);
                 else put(stat, 0, result);
                 break;
+            case 18: {                                     // FUN_0065f870: by time, at param 0
+                if (stat < 0) break;
+                const int low = std::clamp(mod.min + 256, 0, 1023), high = std::clamp(mod.max + 256, 0, 1023);
+                put(stat, 0, std::clamp(par, 0, 3) + (high * 1024 + low) * 4);
+                result = high;
+                break;
+            }
             case 19: {
                 if (stat < 0) break;
                 const int level = skill_level();
