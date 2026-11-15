@@ -849,7 +849,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   freeze) 331, poison 332; none for magic.
 - Missile record: +0x0c pSrvDoFunc (table 0x73c768), **+0x0e pSrvHitFunc
   (table 0x73c840)**, +0x10 pSrvDmgFunc (0x73c960); +0x38.. Param1..5,
-  +0x4c.. sHitPar1..3 (FUN_0064b340's operand order).
+  +0x4c.. sHitPar1..3, +0x58.. CltParam1..5, +0x6c.. cHitPar1..3 (the
+  Missiles loader list; FUN_0064b340's operands 0..4, 10..12, 5..9 and
+  13..15, pairs 33..36 on CltParam1..4 and 39 / 40 on cHitPar1 / 2).
 - Hit function 1 (**FUN_005a9a70**, Fire Ball): radius = sHitPar1, else
   the skill's calc1; FUN_0056bad0 → FUN_0056b7e0 hits every unit whose
   squared subtile distance is within radius². The record is rolled ONCE

@@ -359,6 +359,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
         missile_info.damage_rate = number("DamageRate");
         missile_info.hit_par3 = number("sHitPar3");
+        missile_info.param5 = number("Param5");
+        for (std::size_t slot = 0; slot < missile_info.clt_params.size(); ++slot) missile_info.clt_params[slot] = number("CltParam" + std::to_string(slot + 1));
+        for (std::size_t slot = 0; slot < missile_info.clt_hit_pars.size(); ++slot) missile_info.clt_hit_pars[slot] = number("cHitPar" + std::to_string(slot + 1));
         missile_info.sub_loop = number("SubLoop"); missile_info.sub_start = number("SubStart"); missile_info.sub_stop = number("SubStop");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // miss(row, op)'s misscalc operands (FUN_0064b340): a Missiles.txt row's
-// Param1..4, sHitPar1..3, dParam1 / 2, Range + LevRange x lvl and the
+// Param1..5, CltParam1..5, sHitPar1..3, cHitPar1..3, dParam1 / 2, Range + LevRange x lvl and the
 // pairs by level (a + b x (lvl - 1), dm FUN_00645b20). No game data.
 
 #include <gamedata.hpp>
@@ -21,6 +21,7 @@ int main() try {
     row.param1 = 10; row.param2 = 30; row.param3 = 3; row.param4 = 4;
     row.hit_par1 = 11; row.hit_par2 = 12; row.hit_par3 = 13;
     row.dmg_par1 = 50; row.dmg_par2 = 200;
+    row.param5 = 5; row.clt_params = { 21, 22, 23, 24, 25 }; row.clt_hit_pars = { 31, 32, 33 };
     row.range = 10; row.lev_range = 2;
     game_data.skills.names.missiles["bolt"] = 9;
     const d2d::rules::CalcEnv env;
@@ -35,7 +36,12 @@ int main() try {
     assert(operand(31, 1) == 3);
     assert(operand(37, 3) == 35 && operand(41, 2) == 250);
     assert(operand(42, 5) == 125);                       // 50 + 150 x 50 / 100
-    assert(operand(5, 5) == 0 && operand(24, 5) == 0);   // CltParam1, damn: not loaded / built
+    assert(operand(4, 5) == 5);
+    assert(operand(5, 5) == 21 && operand(9, 5) == 25);   // CltParam1, CltParam5 (+0x58, +0x68)
+    assert(operand(13, 5) == 31 && operand(15, 5) == 33);   // cHitPar1, cHitPar3 (+0x6c, +0x74)
+    assert(operand(33, 3) == 65 && operand(35, 3) == 71 && operand(39, 3) == 95);   // a + b x (lvl - 1)
+    assert(operand(34, 1) == 21 && operand(36, 1) == 23 && operand(40, 1) == 31);   // dm at level 1: a
+    assert(operand(24, 5) == 0);                         // damn: not built
     assert(skill_text::miss_operand(game_data, env, 0, 8, 0, 5) == 0);   // no such row
     return 0;
 } catch (const std::exception& error) {

@@ -102,14 +102,14 @@ inline int desc_missile_operand(const GameData& game_data, const d2d::rules::Cal
     return missile ? missile_elem(game_data, *missile, env, skill.id, lvl, max) : 0;
 }
 
-// A misscalc.txt operand of a Missiles.txt row (FUN_0064b340): par1..par4
-// (+0x38..), shp1..3 (sHitPar, +0x4c..), dParam1 / 2 (+0x78 / +0x7c), lvl,
-// edmn / edmx (>> 8), edln, edns / edxs (256ths), Range + LevRange x lvl,
-// and pairs as a + b x (lvl - 1) or dm (FUN_00645b20) by level.
-// ponytail: Param5, CltParam1..5 and cHitPar1..3 (codes 4..9, 13..15 and the
-// pairs 33..36, 39 / 40) aren't loaded, and damn..dmxs (24..27, the physical
-// part, FUN_0064af20 / 0064aff0) isn't built: they read 0. No vanilla
-// SkillDesc miss() line reads them (Royal Strike's wants edns / edxs).
+// A misscalc.txt operand of a Missiles.txt row (FUN_0064b340): par1..par5
+// (+0x38..+0x48), CltParam1..5 (+0x58..+0x68), shp1..3 (sHitPar, +0x4c..),
+// cHitPar1..3 (+0x6c..+0x74), dParam1 / 2 (+0x78 / +0x7c), lvl, edmn /
+// edmx (>> 8), edln, edns / edxs (256ths), Range + LevRange x lvl, and
+// pairs as a + b x (lvl - 1) or dm (FUN_00645b20) by level.
+// ponytail: damn..dmxs (24..27, the physical part, FUN_0064af20 / 0064aff0)
+// isn't built: they read 0. No vanilla SkillDesc miss() line reads them
+// (Royal Strike's wants edns / edxs).
 inline int miss_operand(const GameData& game_data, const d2d::rules::CalcEnv& env, int skill_id, int missile_id, int code, int lvl) {
     const auto& names = game_data.skills.names.missiles;
     const auto named = std::ranges::find_if(names, [&](const auto& entry) { return entry.second == missile_id; });
@@ -121,9 +121,12 @@ inline int miss_operand(const GameData& game_data, const d2d::rules::CalcEnv& en
         case 1: return missile->param2;
         case 2: return missile->param3;
         case 3: return missile->param4;
+        case 4: return missile->param5;
+        case 5: case 6: case 7: case 8: case 9: return missile->clt_params[std::size_t(code - 5)];
         case 10: return missile->hit_par1;
         case 11: return missile->hit_par2;
         case 12: return missile->hit_par3;
+        case 13: case 14: case 15: return missile->clt_hit_pars[std::size_t(code - 13)];
         case 16: return missile->dmg_par1;
         case 17: return missile->dmg_par2;
         case 18: return lvl;
@@ -135,8 +138,14 @@ inline int miss_operand(const GameData& game_data, const d2d::rules::CalcEnv& en
         case 30: return d2d::rules::calc_dm(missile->param1, missile->param2, lvl);
         case 31: return linear(missile->param3, missile->param4);
         case 32: return d2d::rules::calc_dm(missile->param3, missile->param4, lvl);
+        case 33: return linear(missile->clt_params[0], missile->clt_params[1]);
+        case 34: return d2d::rules::calc_dm(missile->clt_params[0], missile->clt_params[1], lvl);
+        case 35: return linear(missile->clt_params[2], missile->clt_params[3]);
+        case 36: return d2d::rules::calc_dm(missile->clt_params[2], missile->clt_params[3], lvl);
         case 37: return linear(missile->hit_par1, missile->hit_par2);
         case 38: return d2d::rules::calc_dm(missile->hit_par1, missile->hit_par2, lvl);
+        case 39: return linear(missile->clt_hit_pars[0], missile->clt_hit_pars[1]);
+        case 40: return d2d::rules::calc_dm(missile->clt_hit_pars[0], missile->clt_hit_pars[1], lvl);
         case 41: return linear(missile->dmg_par1, missile->dmg_par2);
         case 42: return d2d::rules::calc_dm(missile->dmg_par1, missile->dmg_par2, lvl);
         default: return 0;

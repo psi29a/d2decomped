@@ -796,6 +796,9 @@ struct GameData {
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
                          int hit_par3 = 0;      // sHitPar3: hit 2's sub-missiles' sub loops (FUN_005a9d80 -> FUN_005a9370's [0xd])
+                         // Param5 (+0x48), CltParam1..5 (+0x58..+0x68), cHitPar1..3 (+0x6c..+0x74):
+                         // what misscalc reads of them (FUN_0064b340, skill_text::miss_operand).
+                         int param5 = 0; std::array<int, 5> clt_params{}; std::array<int, 3> clt_hit_pars{};
                          // SubLoop, SubStart, SubStop (+0x180..+0x182): made with create flag 8, its Range runs on by
                          // (SubStop - SubStart) x [0xd] when SubLoop (FUN_0059fa30).
                          int sub_loop = 0, sub_start = 0, sub_stop = 0;
