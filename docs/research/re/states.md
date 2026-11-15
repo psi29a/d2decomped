@@ -54,6 +54,25 @@ the duplicate-clock guard. Captured from stock 1.14d, SHA-256
 REA dossier: `ev_9c7994bddc33d76bd8f3b6013765032d1dc9160ba35344f3e90da8a6fe8263cd`
 (static trace; the emulator supplies execution evidence).
 
+## Rotating overlays (kind 8)
+
+A state's overlay maker (`FUN_004d9920`) makes
+its overlay1 / overlay2 as kind 3, or as kind 8 tagged with the state
+(+0x38) when the state is in the flag list at data tables +0xd0 (bit 1,
+`FUN_0063a210`; the column's name is not traced). A unit shows one
+state's kind-8 overlays at a time (+0x3c visible, +8 a frame count):
+
+- A new one (`FUN_0046def0`) takes the visibility and count of another
+  kind-8 overlay of the same state; else, with another state's showing,
+  it starts hidden; else it shows from count 0.
+- Each tick (`FUN_00470c30` case 8) an overlay whose state is gone ends;
+  the shown one counts to 50 (0x32), then `FUN_0046df40` hides that
+  state's and shows the next higher state id's (the lowest when none is
+  higher). Removing a kind-8 overlay (`FUN_0046e040`) rotates too.
+- The draw (`FUN_0046e1b0` / `FUN_0046e300`) skips a kind 8 without +0x3c.
+
+d2d draws every active state's overlays together (town.hpp `StateClock`).
+
 ## Worn items
 
 `itemtype` and `itemtrans`: while the state is on, worn items of that type

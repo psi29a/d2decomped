@@ -96,6 +96,12 @@ auto Town::update_hotkey_names() -> void {
         for (int slot = 0; slot < 16; ++slot)
             skillbar.hotkey_names[std::size_t(slot)] = name(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8, false);
         for (int slot = 0; slot < 4; ++slot) belt_key_names[std::size_t(slot)] = name(keys::kBelt1 + slot, true);   // the belt's (FUN_00499040)
+        for (int slot = 1; slot >= 0; --slot) {    // the run button's hover (FUN_00497300): slot 1, then slot 0
+            const auto key = keys::key_of(key_table, keys::kToggleRun, slot);
+            const auto key_name_id = keys::name_id(key);
+            run_key_names[std::size_t(1 - slot)] = key == keys::kNone ? std::string{}
+                                                 : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
+        }
     }
 
 // Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.
@@ -175,8 +181,7 @@ auto Town::clear_screen() -> void {
 // The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
 // it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
 // The Party screen's roster (FUN_0049a640): the other players of the
-// joined game, by unit id.
-// ponytail: game.exe's roster keeps the order they joined in.
+// joined game, in the regrouped roster's order (PartyPanel::order).
 auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
@@ -200,7 +205,8 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
             row.area = area_name(unit.area);
             rows.push_back(std::move(row));
         }
-        std::ranges::sort(rows, {}, &PartyPanel::Row::id);
+        const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
+        PartyPanel::order(rows, self != net_game->units.end() ? self->second.party : 0xffff);
         return rows;
     }
 

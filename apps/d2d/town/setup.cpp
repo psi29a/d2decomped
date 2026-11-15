@@ -68,6 +68,8 @@ auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> 
             return false;
         }
         if (local && !net_game && local->merc && view.merc) view.merc->fhr = local->merc->fhr;   // the wire has none: a local game keeps what World::view() computed
+        if (local && !net_game && local->party_pets.size() == view.party_pets.size())             // nor a party merc's
+            for (std::size_t i = 0; i < view.party_pets.size(); ++i) view.party_pets[i].fhr = local->party_pets[i].fhr;
         if (lan_client) lan_take_npcs();
         level = view.level;
         if (net_game) net_overlay();

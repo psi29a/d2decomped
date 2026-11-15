@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <string_view>
 #include <utility>
 
@@ -71,6 +72,9 @@ public:
         : view_(view), seed_(seed), area_at_(area_at), try_move_(try_move) {}
     PetAct act{ .kind = PetAct::Kind::failed };
     MercMove ctx;                                                 // FUN_005a6260: only what's not 0 is set
+    // Mode 3's spot in the owner's room and the put (FUN_0054dc40, FUN_00463740,
+    // FUN_00554ea0), done at once: false fails the follow. None: it always lands.
+    std::function<bool()> teleport;
 
     void pace(int type, int pct, int steps) {
         if (type) ctx.type = type;
@@ -118,7 +122,11 @@ public:
         // A run (FUN_005deeb0): RN, a walk in state 0x3c (decrepify).
         const int move_mode = run && !view_.slowed ? kMonsterRun : kMonsterWalk;
         const int pet_x = view_.x, pet_y = view_.y, own_x = view_.owner_x, own_y = view_.owner_y, end_x = view_.end_x, end_y = view_.end_y;
-        if (mode == 3) { act = { .kind = PetAct::Kind::teleport }; return true; }   // ponytail: d2d's teleport always lands
+        if (mode == 3) {
+            if (teleport && !teleport()) return false;
+            act = { .kind = PetAct::Kind::teleport };
+            return true;
+        }
         if (mode == 0) {
             static constexpr std::array<std::pair<int, int>, 8> kAhead{ { { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 }, { 1, 0 }, { 1, 1 } } };
             int eighth = ((direction64(own_x, own_y, end_x, end_y) + 4) >> 3) & 7;
@@ -214,11 +222,12 @@ private:
 // none found marks it unreachable and 70 in 100 wanders 4, else stands 10.
 // No foe: it wanders 4. `area_at(from_x, from_y, x, y)` as PetFollow's
 // (FUN_0061b130); `try_move(move)` sets off, true when it finds a path
-// (`move.foe`: at the foe).
+// (`move.foe`: at the foe); `teleport` as PetFollow's.
 template <class AreaAt, class TryMove>
-PetAct necropet_think(const PetView& view, Rng& seed, AreaAt&& area_at, TryMove&& try_move) {
+PetAct necropet_think(const PetView& view, Rng& seed, AreaAt&& area_at, TryMove&& try_move, std::function<bool()> teleport = {}) {
     using Kind = PetAct::Kind;
     PetFollow brain(view, seed, area_at, try_move);
+    brain.teleport = std::move(teleport);
     const int pet_x = view.x, pet_y = view.y;
     const int gap = merc_gap(pet_x, pet_y, view.size, view.owner_x, view.owner_y);
     if (gap > 0x32) { brain.follow(3, false, 0, 0); return brain.act; }

@@ -619,15 +619,18 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         npc.trap = d2d::rules::roll_trap(std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1, rgn);
     }
     if (objects.get(row, "InitFn") == "27") npc.trap = rgn.next() % 1000 <= 0x14c ? 3 : 0;   // a goo pile (FUN_0054fc50): trap 3, 333 in 1000
-    // The gold placeholder (InitFn 28, FUN_0054f8c0): ON, then 1..9 piles
-    // at rand(4), rand(4) subtiles off it, where free in its room.
-    // ponytail: only its seed steps; the piles (FUN_00559300) aren't dropped and it stays NU (a dummy: nothing draws it).
-    if (objects.get(row, "InitFn") == "28")
+    // The gold placeholder (InitFn 28, FUN_0054f8c0): ON (its first call,
+    // FUN_00624690 mode 2), then 1..9 piles at rand(4), rand(4) subtiles
+    // off it, where free in its room.
+    // ponytail: only its seed steps; the piles (FUN_00559300) aren't dropped.
+    const char* init_mode = nullptr;
+    if (objects.get(row, "InitFn") == "28") {
+        init_mode = "ON";
         for (int piles = rgn(9) + 1; piles > 0; --piles) { rgn.next(); rgn.next(); }
+    }
     // Act 4's (quests-act4.md "Act 4's other objects"): the hell brazier (InitFn 34, FUN_005500f0)
     // lights (mode 1) on an odd step of the object seed; the skeleton spawns (26) take mode 1;
     // the hellfires (22, FUN_0054fb40) mode 2 when objects.txt's +0x141 is set and +0x13f isn't.
-    const char* init_mode = nullptr;
     if (objects.get(row, "InitFn") == "34" && (rgn.next() & 1)) init_mode = "OP";
     if (objects.get(row, "InitFn") == "26") init_mode = "OP";
     // The fissures (InitFn 58, FUN_0054fdb0): a step, their first eruption (event 8) that % 250 + 25 frames on
@@ -957,10 +960,10 @@ std::vector<d2d::drlg::Area> areas_of(const d2d::drlg::BuiltRoom& room) {
 // (tools/emu diff_drlg.py <level> units, rooms in $ORDER), its spawn areas
 // too (diff_drlg.py game: the game seed through the monsters); the object
 // groups follow as the rooms populate (room_objects, on these seeds).
-// ponytail: the whole level is laid again (Debug ~15 ms for the Stony
-// Field) each time rooms come up, where game.exe lays only the new ones;
-// the result is the same (rooms laid later never change earlier ones),
-// only slower. Lay one at a time (level_room_tiles' state kept) if that hitches.
+// The whole level is laid again (Debug ~15 ms for the Stony Field) each
+// time rooms come up, where game.exe lays only the new ones: the same
+// result (rooms laid later never change earlier ones), only slower; not a
+// fidelity gap. Lay one at a time (level_room_tiles' state kept) if it hitches.
 void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data, const Spawning* spawning) {
     if (!level.assets) return;
     auto outside = game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};

@@ -286,7 +286,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -442,31 +442,14 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             if (coop_player.roster) roster_top += draw_roster_at(framebuffer, *scene, *coop_player.roster, roster_x, roster_top, coop_player.colour) + 4;
     }
 
-// Chat text broken at spaces into lines no wider than `width` (a longer
-// word by characters).
-// ponytail: FUN_0049e3a0 calls FUN_00502970 too. These lines still break
-// on spaces. The edit box uses wrap_edit_box.
+// Chat text wrapped as the edit box's (FUN_00502970, width `width`): FUN_0049e3a0
+// calls it on the message after setting the font, as the edit box does.
 auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
-    std::vector<std::string> wrapped{ std::string{} };
-    std::size_t start = 0;
-    while (start < text.size()) {
-        const auto end = std::min(text.find(' ', start), text.size());
-        const auto word = text.substr(start, end - start);
-        const auto joined = wrapped.back().empty() ? word : wrapped.back() + " " + word;
-        if (!wrapped.back().empty() && font.measure(joined) > width) wrapped.push_back(word);
-        else wrapped.back() = joined;
-        while (wrapped.back().size() > 1 && font.measure(wrapped.back()) > width) {   // a word wider than the box: cut by characters
-            auto& line = wrapped.back();
-            std::size_t fits = 1;
-            while (fits + 1 < line.size() && font.measure(line.substr(0, fits + 1)) <= width) ++fits;
-            std::string rest = line.substr(fits);
-            line.resize(fits);
-            wrapped.push_back(std::move(rest));
-        }
-        start = end + 1;
-    }
-    return wrapped;
+    return d2d::font::wrap_edit_box(text, width, [&](unsigned char code) {
+        if (const auto* glyph = font.find(code)) return int(glyph->width);
+        return 0;
+    });
 }
 
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
@@ -602,8 +585,10 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
 // player of +3; a death (6) names the killer by +7: 0 a player (the
 // second name), 1 a monster (MonStats NameStr of +3; a SuperUnique's,
 // +0x18 its row, when set), 2 an object (an Exploding Barrel, 0xb).
-// ponytail: 0xb / 0xf / 0x11 / 0x12 (realm news, SOJ, Diablo Walks the
-// Earth) aren't shown; nor an object's own name in a death.
+// 0xf (realm going down, 0xe43) and 0x11 (SOJs sold, 0x2afc) format
+// their string with +3 (FUN_005269d0's %d / %u); 0x12 is 0x2afd as is.
+// ponytail: 0xb (0x69b) isn't shown, nor an object's own name in a death;
+// 0x12's sound (FUN_0061c240) and FUN_00476a80(10000, 4000) aren't run.
 auto Town::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
@@ -648,7 +633,24 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
     case 9: return text(0xfcf);
     case 0xa: return event.name.empty() ? text(0x1027) : event.name + text(0x1026);
     case 0xd: return event.name + text(0xe44);
+    case 0xf:
+    case 0x11: {                                               // the first %d / %u takes +3, %% is one %
+        const auto pattern = text(event.event == 0xf ? 0xe43 : 0x2afc);
+        std::string line;
+        bool numbered = false;
+        for (std::size_t at = 0; at < pattern.size(); ++at) {
+            if (pattern[at] != '%' || at + 1 >= pattern.size()) { line += pattern[at]; continue; }
+            const char spec = pattern[++at];
+            if (spec == '%') line += '%';
+            else if ((spec == 'd' || spec == 'u') && !numbered) {
+                line += spec == 'd' ? std::to_string(std::int32_t(event.argument)) : std::to_string(event.argument);
+                numbered = true;
+            }
+        }
+        return line;
+    }
     case 0x10: return text(0x2a38);
+    case 0x12: return text(0x2afd);
     default: return {};
     }
 }
@@ -692,7 +694,8 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // registry's PopupHireling) is 1.
 // A joined game's summons are the host's: its pet list (0x7a), ours by owner.
 // ponytail: their life is the unit's (0x0c hits), not the list's +0x1c,
-// whose sender isn't traced.
+// which 0x7f with +1 = 0 sets (FUN_00479010, net-packets.md); NetGame
+// keeps only a player's 0x7f.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn

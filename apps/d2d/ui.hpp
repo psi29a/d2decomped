@@ -196,16 +196,17 @@ struct NpcMenuState {
         if (list) for (const auto& row : list->rows) counts.push_back(int(!row.lines[0].empty()) + int(!row.lines[1].empty()));
         return counts;
     }
-    // Index of the selectable line under (mx, my), or -1.
-    // ponytail: how the window's own hover finds "cancel" (its line 0x13b
-    // high reaches over the list) isn't traced; d2d gives the list box the mouse first.
+    // Index of the selectable line under (mx, my), or -1 (FUN_004b7180,
+    // through FUN_004b7200 on a move): x + 0xf < mx < x + width - 0xf and
+    // baseline - 0xb < my < baseline + 4, edges out, the first match. Only
+    // that band counts, not the line's height: the hire window's "cancel"
+    // (0x13b high) is taken at its baseline alone, below the list box.
     [[nodiscard]] int line_at(int mouse_x, int mouse_y) const {
-        if (npc < 0 || mouse_x < x || mouse_x >= x + box_width) return -1;
-        if (list && d2d::rules::list_contains(list->box, mouse_x, mouse_y)) return -1;
+        if (npc < 0 || mouse_x <= x + 0xf || mouse_x >= x + box_width - 0xf) return -1;
         int base = y;
         for (std::size_t i = 0; i < lines.size(); ++i) {
             base += lines[i].height;
-            if (!lines[i].header && mouse_y > base - lines[i].height && mouse_y <= base) return int(i);
+            if (!lines[i].header && mouse_y > base - 0xb && mouse_y < base + 4) return int(i);
         }
         return -1;
     }
@@ -267,7 +268,8 @@ int talk_topic(const NpcTalk& talk, bool intro, int cls, d2d::rules::Rng& rng,
 // and rising by (ms/4)*rate/1024 px. Done once the offset passes
 // (lines-1)*18 + 112. A line that meets the box is drawn for the glyph
 // rows inside it (FUN_00501df0); one clear of the box is not drawn.
-// ponytail: no voice.
+// The voice is the string's sound in the table at 0x72b0e0 (FUN_004e0650,
+// speech_sound.hpp), started with the speech (town/update.cpp).
 struct Speech {
     int npc = -1;
     std::vector<std::string> lines;

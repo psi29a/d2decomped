@@ -288,11 +288,11 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
             const int top = std::max(line.max, line.min + 1);
             // FUN_004e96e0: "%d-%d", and past 9999 "%s%d-%dK" (max only) or
-            // "%s%dK-%dK" (min too). The figure before K is the value / 1000.
-            // ponytail: char-panel.md does not say what that %s is, so no prefix.
+            // "%s%dK-%dK" (min too). The figure before K is (value + 500) /
+            // 1000; the %s is 0x6cc837, an empty string.
             std::string range = std::to_string(line.min) + "-" + std::to_string(top);
-            if (line.min > 9999) range = std::to_string(line.min / 1000) + "K-" + std::to_string(top / 1000) + "K";
-            else if (top > 9999) range = std::to_string(line.min) + "-" + std::to_string(top / 1000) + "K";
+            if (line.min > 9999) range = std::to_string((line.min + 500) / 1000) + "K-" + std::to_string((top + 500) / 1000) + "K";
+            else if (top > 9999) range = std::to_string(line.min) + "-" + std::to_string((top + 500) / 1000) + "K";
             const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
             text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
         }
@@ -427,9 +427,14 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     const bool on_run = over_run_button(mouse_x, mouse_y);
     at_bottom(scene.run_button, (hud.running ? 2 : 0) + (hud.run_down && on_run ? 1 : 0), width / 2 - 0x91, height - 10);
     if (on_run) {
-        auto special = str(0x1052);
-        if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, "R");
-        hovers.push_back({ width / 2 - 0x91, height - 0x17, { str(0x1053) + special, kWhite } });
+        auto text = str(0x1053);
+        for (const auto& key : hud.run_keys) {
+            if (key.empty()) continue;
+            auto special = str(0x1052);
+            if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, key);
+            text += special;
+        }
+        hovers.push_back({ width / 2 - 0x91, height - 0x17, { std::move(text), kWhite } });
     }
     // Stamina (FUN_004975b0): 102 px when full, in the palette entry nearest
     // its colour (FUN_004fb180), at three quarters (draw mode 2); over its
@@ -500,7 +505,8 @@ bool over_run_button(int mouse_x, int mouse_y) {
 // when none are left; drawn only while not hidden (FUN_004a6a00 /
 // FUN_004a6d50), so on screen that's points and panel shut. The panel
 // state (FUN_0045ae90): 1 right open, 2 left, 3 both.
-// ponytail: UI 0x16's cases (with the inventory / tree) aren't kept.
+// Their UI 0x16 (party) with UI 1 / 4 cases are both sides open, which
+// left_open && right_open already hides (the party is a left panel).
 LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open) {
     const int width = int(kScreenWidth);
     LevelButtons out;
@@ -652,11 +658,17 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
         const auto tip = string_id(scene, on_accept ? 0x1023 : 0x1022);
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, mouse_x - scene.font.measure(tip) / 2, mouse_y - 30, tip);
     }
-    // The bars over each grid (the art's): their name and gold; ours.
-    // ponytail: placed by eye on the art, not traced.
-    centred({ 98, 70, 222, 88 }, with);
+    // The bars over each grid (FUN_0048edf0's trade branch): their name and
+    // gold at bottom 0x1b + 60, ours at 0xf2 + 60 (y as these boxes centre
+    // them); each name loses its last letter while wider than 0x70.
+    // ponytail: x placed by eye on the art (the asm's x not read).
+    auto fitted = [&](std::string name) {
+        while (!name.empty() && scene.font.measure(name) > 0x70) name.pop_back();
+        return name;
+    };
+    centred({ 98, 70, 222, 88 }, fitted(with));
     if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
-    centred({ 98, 286, 222, 304 }, our_name);
+    centred({ 98, 286, 222, 304 }, fitted(our_name));
     if (typing) centred(kOurGold, *typing + "_");
     else if (our_gold) centred(kOurGold, std::to_string(our_gold));
 }

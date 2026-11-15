@@ -498,6 +498,7 @@ struct Skill {
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
     std::string srvoverlay;                // srvoverlay (+0x4e): an Overlay.txt name, played once on its unit (FUN_00621e40)
     int prgdam = 0;
+    std::string seqtrans;                  // +0x12: the mode a sequence counts as (SC: FUN_006216e0 times it as a cast)
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<ServerDoFunction, 3> prgfunc{};   // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     std::array<Calc, 3> prgcalc;           // prgcalc1..3 (+0x38..): by the charges held (FUN_005d3da0)

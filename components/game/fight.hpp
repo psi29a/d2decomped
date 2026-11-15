@@ -886,7 +886,8 @@ struct Fight {
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
         std::int64_t item_def = 0, per_level = 0;
     };
-    [[nodiscard]] MercGear merc_gear() const;
+    [[nodiscard]] MercGear merc_gear(const Hero& hero) const;   // any player's merc (a party member's FHR)
+    [[nodiscard]] MercGear merc_gear() const { return merc_gear(*actor); }
     // Its maximum life with its gear.
     [[nodiscard]] int merc_max_life() const;
 

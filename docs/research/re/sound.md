@@ -207,10 +207,10 @@ sound plays at Bink's own level whatever the master slider says.
 
 d2d: rules/sound_start.hpp has the rules and the ducks; `ducked_mix`
 ducks a world sound's volume before its distance mix, as above. Sounds
-not placed in the world (UI, voice, ambience, music) carry a float gain
-with their fades and take the ducks, master and music as multipliers,
-not this chain's integer steps (a placed sound takes master in its
-integer volume). audio.hpp keeps
+not placed in the world (UI, voice, ambience, music) carry their volume
+as a gain with their fades; audio.hpp's `unplaced_volume` takes it back
+to 0..255 and runs this chain's integer steps on it too (a sound played
+by path, with no Sounds.txt row, takes only the sliders). audio.hpp keeps
 a sound tick per 40 ms and, per channel, the group's first row and the
 unit it plays on (`unit_key` in game/cues.hpp: the hero, a monster, an
 object or a missile). Compound joins the playing instance and adds the

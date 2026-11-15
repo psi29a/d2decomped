@@ -217,10 +217,10 @@ private:
 // ASCII letter or digit, and 1 for any other byte. FUN_005028e0 with
 // flag 1 then drops one leading space. No such break: the line is the
 // longest prefix that fits, and one glyph if even that is over.
-// ponytail: those ids also return 0 for the 16-bit units 0x2026, 0x3001,
-// 0x3002, 0xff01, 0xff0c, 0xff0e, 0xff1f, 0xff61, 0xff64, and for
-// 0xff10..0xff19, 0xff21..0xff3a and 0xff41..0xff5a. A byte unit never
-// holds them.
+// FUN_00526d30 also returns 0 there for the 16-bit units 0x2026, 0x3001,
+// 0x3002, 0xff01, 0xff0c, 0xff0e, 0xff1f, 0xff61, 0xff64, 0xff10..0xff19,
+// 0xff21..0xff3a and 0xff41..0xff5a; a byte unit never holds them, so the
+// byte test above is the whole of it here.
 template <class GlyphWidth>
 auto wrap_edit_box(std::string_view text, int box_width, GlyphWidth glyph_width, int language_id = 0) -> std::vector<std::string> {
     auto space_unit = [](unsigned char code) {

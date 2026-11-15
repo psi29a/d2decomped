@@ -76,8 +76,9 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // its cast overlay once from when the client first saw it (StateClock).
 // Overlay lights are stamped by frame_light. These overlay kinds don't
 // use LoopWaitTime (FUN_00470c30: only kind 6 waits).
-// ponytail: kind 8 rotates the visible state's overlays after 50 ticks
-// (FUN_0046def0 / 0046df40); d2d draws the active states together.
+// ponytail: kind 8 (states in flag list +0xd0) shows one state's overlays
+// at a time, rotating every 50 ticks (FUN_0046df40, states.md "Rotating
+// overlays"); d2d draws the active states together.
 struct StateClock {
     struct Seen { std::uint32_t start = 0, last = 0; float x = 0, y = 0; bool off = false; };
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
@@ -171,7 +172,8 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // A light's radius moves toward a new one 8 eighths (a subtile) a frame
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
-// ponytail: light quality is taken as high (2: shadows on).
+// Light quality is always high (2: shadows on): deviations.md #4
+// (game.exe drops it by frame rate, FUN_00475780).
 // `player_at`: where the player stands when it isn't the camera's point (local co-op's camera).
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0,
@@ -483,6 +485,7 @@ struct Town {
     // gear, passives, masteries, states).
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
     std::array<std::string, 4> belt_key_names{};
+    std::array<std::string, 2> run_key_names{};    // Toggle Run's keys by name, slot 1 then 0 (update_hotkey_names)
     bool menu_press = false;                       // an NPC menu took this press: the store ignores it till it's let go   // Use Belt 1..4's keys by name (update_hotkey_names)
     [[nodiscard]] int pad_panel() const;
     void pad_tab(int step);

@@ -71,7 +71,10 @@ below it, so the call order is bottom to top. Top line first (d2d
 | Ethereal (Cannot be Repaired), Socketed (N) | `FUN_00484b10` | 22745, 3453 | blue |
 
 Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
-line (`FUN_00486670`), time-of-day stats 268-273, charged skill details.
+line (`FUN_00486670`), charged skill details. Time-of-day stats (268-303,
+Properties `*/time`) are on no 1.14d item: no UniqueItems, SetItems, Sets,
+Runes, CubeMain, Automagic, Gems or QualityItems row names one, and the
+MagicSuffix rows that do (of Dawn, of Sunlight) have spawnable 0.
 
 ## Sockets
 

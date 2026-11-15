@@ -72,6 +72,9 @@ constexpr float kWalkSubtilesPerSec = d2d::game::cells_per_sec(6) * 5;   // a pl
 constexpr float kWalkReach = 40;
 // A run: velocitypercent + run * 100 / walk - 100 (FUN_00620e80), every class's 9 / 6.
 constexpr float kRunSubtilesPerSec = d2d::game::cells_per_sec(9) * 5;
+// A walking monster's path to a unit is rebuilt every second client frame
+// (40 ms each) toward where the target is then (FUN_004b13a0 -> FUN_00649210).
+constexpr std::uint32_t kFollowRepathMs = 80;
 
 } // namespace
 
@@ -235,6 +238,12 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
     // (FUN_004aff60). Players at a walk.
     for (auto& [unit_key, unit] : units) {
         if (!unit.moving) continue;
+        if (unit.follow != 0 && steady_ms() - unit.follow_ms >= kFollowRepathMs) {
+            unit.follow_ms = steady_ms();
+            // A target that's gone is dropped and the old path kept (FUN_00648b90(path, 0)).
+            if (const auto target = units.find(unit.follow); target != units.end()) { unit.goal_x = target->second.x; unit.goal_y = target->second.y; }
+            else unit.follow = 0;
+        }
         const bool known = unit.type == 1 && unit.cls >= 0 && std::size_t(unit.cls) < monster_velocity.size();
         const float per_sec = known ? d2d::game::cells_per_sec(float(monster_velocity[std::size_t(unit.cls)])) * 5 * float(unit.velocity_pct) / 100.f
                               : unit.running ? kRunSubtilesPerSec : kWalkSubtilesPerSec;
@@ -253,8 +262,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         unit.id = id;
         return unit;
     };
-    auto place = [](Unit& unit, float x, float y) { unit.x = unit.goal_x = x; unit.y = unit.goal_y = y; unit.moving = false; };
-    auto walk = [](Unit& unit, float x, float y) { unit.goal_x = x; unit.goal_y = y; unit.moving = true; };
+    auto place = [](Unit& unit, float x, float y) { unit.x = unit.goal_x = x; unit.y = unit.goal_y = y; unit.moving = false; unit.follow = 0; };
+    auto walk = [](Unit& unit, float x, float y) { unit.goal_x = x; unit.goal_y = y; unit.moving = true; unit.follow = 0; };
     const std::size_t size = packet.size();
     switch (packet[0]) {
     case 0x01: if (size >= 2) difficulty = packet[1]; break;
@@ -292,7 +301,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 0xc), read_u16(packet, 0xe));
             if (const auto target = units.find(key(packet[7], read_u32(packet, 8))); target != units.end() && &target->second != &unit)
-                walk(unit, target->second.x, target->second.y);   // ponytail: to where the target was, not following it
+                walk(unit, target->second.x, target->second.y);   // once, to where it is: a player's path doesn't follow (FUN_00480780)
             unit.running = packet[6] == 0x18;
         }
         break;
@@ -381,7 +390,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (owner == self_id) { own_items[id] = std::move(parsed->item); break; }
         // Another player's: what they wear is their look. A swap (7, 9)
         // sends only the incoming item, so it pushes out that slot's old one.
-        // ponytail: the weapon switch (0x17) isn't followed; slots 0xb / 0xc aren't drawn.
+        // The weapon switch (0x17, FUN_004c3980) is the same: the item's
+        // old self and its slot's go, it goes in. Slots 0xb / 0xc aren't
+        // drawn; game.exe redoes the look only for 4 / 5.
         auto& worn = unit_at(0, owner).worn;
         std::erase_if(worn, [&](const auto& entry) { return entry.first == id || entry.second.slot == parsed->item.slot; });
         if (parsed->item.location == d2d::d2s::item_location::kEquipped) worn[id] = std::move(parsed->item);
@@ -593,8 +604,11 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             auto& unit = unit_at(1, read_u32(packet, 1));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
             if (const auto pct = std::int16_t(read_u16(packet, 0x12)); pct != 0) unit.velocity_pct = pct;
-            if (const auto target = units.find(key(packet[0xa], read_u32(packet, 0xb))); target != units.end() && &target->second != &unit)
-                walk(unit, target->second.x, target->second.y);   // ponytail: to where the target was, not following it
+            if (const auto target = units.find(key(packet[0xa], read_u32(packet, 0xb))); target != units.end() && &target->second != &unit) {
+                walk(unit, target->second.x, target->second.y);   // then followed (kFollowRepathMs)
+                unit.follow = target->first;
+                unit.follow_ms = steady_ms();
+            }
         }
         break;
     case 0x6d:   // monster stops at x, y

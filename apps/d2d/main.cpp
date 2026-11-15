@@ -554,14 +554,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
                    SDL_GetRendererName(win.renderer));
     // The title shows while finish_scene loads the rest (only the menus'
-    // part of the scene is read here); then the menus take input.
-    // ponytail: input waits too (a few hundred ms); clicks in that time are dropped.
+    // part of the scene is read here); then the menus take input. Only a quit
+    // is taken off SDL's queue meanwhile: a click waits there for the menus.
     // (Black when the startup videos come first, or another screen was asked for.)
     const bool title_first = (g_start_screen.empty() && !g_video) || g_start_screen == "title";
     const auto boot_title = scene && title_first ? std::optional<TitleUI>(title_ui(*scene, g_coop_lobby)) : std::nullopt;
     while (loading.valid() && loading.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
+        SDL_PumpEvents();
         SDL_Event event;
-        while (SDL_PollEvent(&event)) if (event.type == SDL_EVENT_QUIT) quit = true;
+        while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) quit = true;
         if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()));
         SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
         SDL_RenderClear(win.renderer);
@@ -1120,7 +1121,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (tcpip.box_open) buttons({ &tcpip.box_ok, &tcpip.box_cancel });
                     else buttons({ &tcpip.join, &tcpip.host, &tcpip.cancel });
                 } else if (screen == Screen::CharCreate) {
-                    for (const auto& position : kClassPos) points.push_back({ position.x, position.y - 50 });   // ponytail: a spot up each figure, not its frame's box
+                    // Each figure's idle frame 0 box, its centre: where a click picks it (class_under, FUN_005003a0).
+                    for (std::size_t index = 0; index < std::size(kClassPos); ++index) {
+                        const auto& position = kClassPos[index];
+                        const auto* idle = scene ? &scene->class_anims[index][0] : nullptr;
+                        if (!idle || idle->frames_per_direction() == 0) { points.push_back({ position.x, position.y - 50 }); continue; }
+                        const auto& frame = idle->frame(0, 0);
+                        points.push_back({ position.x + frame.offset_x + int(frame.width) / 2,
+                                           position.y + frame.offset_y - int(frame.height) / 2 });
+                    }
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
                     if (csu.confirm_delete) buttons({ &csu.popup_no, &csu.popup_yes });
@@ -1796,7 +1805,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const bool seat_colour = coop_game && std::ranges::count_if(gamepads.pads(), [](const Gamepads::Pad& pad) { return !pad.built_in; }) >= 2;
                 const auto& lead = kSeatColours[std::size_t(std::clamp(town.focus_colour(), 0, 3))];
                 const auto& hand_pal = seat_colour ? tinted(pal, lead[0], lead[1], lead[2]) : pal;
-                // ponytail: the plain hand only; a held item or identify pick is drawn into the frame.
+                // The OS cursor carries the plain hand only; a held item or identify pick is
+                // drawn into the frame, as game.exe draws every cursor (deviations.md row 19).
                 os_cursor = g_hw_cursor && win.pointer_at(mouse.x, mouse.y) && win.show_cursor(frame, hand_pal);
                 if (!os_cursor)
                     blit_sprite(framebuffer, frame, hand_pal, mouse.x + cursor_dx + frame.offset_x,

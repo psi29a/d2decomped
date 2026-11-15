@@ -97,7 +97,8 @@ auto World::view() const -> View {
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
             if (player.get() == actor || !here(*player)) continue;   // split levels: this level's party
             if (player->merc && player->merc_npc)                  // its life isn't shown (our own pets' portraits only)
-                view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable" });
+                view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable", 100, -1, 0,
+                                            int(fight.merc_gear(*player).sum[std::size_t(d2d::d2s::kFasterGetHitRate)]) });
             for (const auto& pet : player->pets)
                 if (pet.where == level) {
                     const auto* skill = game_data->skills.get(pet.skill);

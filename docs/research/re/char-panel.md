@@ -93,7 +93,9 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
   0x72d7f8. Both need FUN_004d9fc0 (usable) in {0, 1, 6, 8}.
 - **Damage**: "Damage" in font6 at +1, then the descdam handler draws the
   value at +2 through FUN_004e96e0: max raised to min + 1 if not above
-  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999); font16, or
+  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999, each K figure
+  `(value + 500) / 1000`, the `%s` the empty string at 0x6cc837: the byte
+  before "Diablo 2.EXE" at 0x6cc838 in game-strings.tsv); font16, or
   font6 one pixel up when 11/7 of its font6 width overflows `x1 - x0`.
   - 1 (0x4ea170; Attack): two weapons (FUN_006235a0: barbarian /
     assassin) -> FUN_004e99f0, else FUN_004ea010.
@@ -328,6 +330,10 @@ stat 5 ≤ 0, on when > 0 and the tree (UI 4) is shut. The panel state
 | hit box (`FUN_004a6580` / `FUN_004a6630`) | x < mx < x+34, H−139 < my < H−102 | x < mx < x+33, H−138 < my < H−102 |
 | held flag | `0x7c02e4` | `0x7c02e8` |
 
+UI 0x16 is the party, a left panel (menu.md), and UI 1 / 4 are the right
+ones, so its rows are a both-sides case the first test already hides;
+d2d's `level_buttons` keeps only the both-sides test for them.
+
 The label (`FUN_00502320`, colour 0, the frame's current font) is
 centred on the socket: x + 1 + socketW/2 − textW/2; drawn always. Then
 levelsocket frame 0 at (x, bottom H−105), level frame 0, or 1 while held
@@ -511,7 +517,10 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   (`0x7bcbf4`, and `0x7bcbe4` nonzero: `FUN_00487000` sets both when the hand is
   empty) is kind 1, except cursor mode 8 (`DAT_007a6af0`, `FUN_00468830`) with
   Items.txt Transmogrify clear (`FUN_0062a0a0`, `+0x139`), which is kind 0
-  (`0x48417a`). Otherwise kind 0 when `FUN_0062eaf0` fails, item flag 0x4
+  (`0x48417a`). Mode 8 never happens: only `FUN_00468040` sets it (EDX
+  non-zero gives 8, else 7), its two calls (`0x488c96`, `0x488fda`) both
+  clear EDX first, and every other store to `DAT_007a6af0` is 1..6
+  (stubs.md). Otherwise kind 0 when `FUN_0062eaf0` fails, item flag 0x4
   (`FUN_006280a0` at `0x48424f`), `FUN_004c2240` at `0x48425a` (ECX is the item:
   `FUN_00625760(item, 2)`, a child stat list whose flags have bit 2, or the
   client player in state 0x36), or `FUN_0062a4e0` returns 0 (flags 0x100 /

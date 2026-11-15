@@ -4,7 +4,9 @@
 // its key there (the level's id, a missile's name, the merc's hireling
 // type, a fire's index) — GameData is the same on every machine.
 // Decoded animation modes are interned, so the views stay valid.
-// ponytail: whole views every tick (no deltas); a unit's look as strings.
+// Each tick goes as what changed since the client's last View (ViewEncoder);
+// a unit's look goes as strings, not table indices: docs/design/multiplayer.md
+// lists that under "Still to change" (d2d's own wire, not game.exe's).
 #pragma once
 
 #include "ai.hpp"
@@ -181,7 +183,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         std::string merc_type;
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
-        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); }
+        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); }
         chunk.u8(view.merc_sheet.has_value());             // the Hireling screen's numbers
         if (const auto& sheet = view.merc_sheet) {
             chunk.i32(sheet->level).i32(sheet->str).i32(sheet->dex).i32(sheet->min).i32(sheet->max).i32(sheet->defense).i32(sheet->life).i32(sheet->max_life).i32(sheet->cls);
@@ -409,8 +411,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto type = input.str();
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
-            // ponytail: the wire carries no FHR: a joined game's merc is drawn with 0 (its get-hit's frames); a local game restores it after this (Town::publish).
-            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode };
+            const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (town/view.cpp)
+            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr };
         }
         view.merc_sheet.reset();
         if (byte()) {

@@ -24,6 +24,23 @@ video-drivers.md):
 Playback goes through the renderer's vtable (`+0x38`,
 `FUN_004f5d90(path, mode, …)`).
 
+## Playback (`FUN_0050fdf0`, one frame `FUN_0050fd10`)
+
+`_BinkSetSoundSystem(_BinkOpenDirectSound)`, then `_BinkOpen` on the file
+handle (flags 0x800000, plus 0x30000000 / 0x10000000 / 0x40000000 for
+modes 1 / 2 / 3). The loop runs while the last frame isn't done
+(`DAT_00880c18`) or less than 500 ms have passed since it began
+(`GetTickCount`), and no quit is pending (`DAT_007c9144`). With no window
+message waiting, `_BinkWait` decides: 0 shows a frame (`_BinkDoFrame`,
+`_BinkCopyToBuffer` into the locked surface, then `_BinkNextFrame`,
+except on the last frame (Bink +0xc equal to +8), which sets
+`DAT_00880c18` instead), otherwise `Sleep(1)`. Messages
+0x201 / 0x204 / 0x207 (left / right / middle button down) and 0x102
+(WM_CHAR) end the video; 0x12 (WM_QUIT) marks it done. The timing and the
+sound's sync are binkw32's (`_BinkWait`), not game.exe's: d2d paces frames
+by the wall clock against their pts and queues the audio as it decodes
+(deviations.md approximation 17).
+
 Other videos: `Act02start` / `Act03start` / `Act04start` / `Act04end` /
 `D2x_Out_%s.bik` (act transitions and the LoD ending), plus the
 Cinematics menu (`CinematicsSelection[EXP]` panels).

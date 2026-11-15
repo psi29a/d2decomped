@@ -539,6 +539,17 @@ inline int cast_ticks(int frames, int rate, int fcr) {
     return std::max((256 * frames + speed - 1) / speed - 1, 1);
 }
 
+// Client ticks a cast sequence lasts (anim SQ with seqtrans SC: Lightning, Chain
+// Lightning). FUN_00621260 sets the countdown (+0x48) to the sequence's step count
+// x 256 (0x62129a) and the mode ends once it is <= 0: ceil(256 x steps / speed),
+// with no step skipped as a plain cast's is, at the cast speed (FUN_006216e0 says yes
+// for a mode 0x12 whose skill's +0x12 is 10).
+inline int cast_sequence_ticks(int steps, int rate, int fcr) {
+    if (steps <= 0) return 0;
+    const int speed = std::max(cast_speed(rate, fcr), 1);
+    return (256 * steps + speed - 1) / speed;
+}
+
 // The tick of a cast mode's action frame, counted from its start: the animation scheduler
 // (FUN_005539b0) files the event on the first tick whose position (steps of the cast speed
 // from 0) reaches the frame (tools/emu/cast_mana.py runs game.exe's code for it, V run, for the
@@ -980,9 +991,10 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     // a hireling, else 400. FUN_0057c1e0 takes each damage field above 0 to
     // v x pct / 100 (FUN_00483360) before the absorbs and reductions. Its
     // other pairs (a player or a hireling or pet on a player 17, hireling on
-    // hireling 25) don't come up here.
+    // hireling 25) don't come up here. The table's +0x20 flag is set on the
+    // poison damage row (8, +0x28) but not the poison length's (7, +0x2c).
     // ponytail: a hireling on a MonStats boss takes the hit context's +0x38
-    // (untraced); the poison field isn't scaled.
+    // (untraced).
     const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
     const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
     taken.raw = pair_scaled(taken.raw);
@@ -998,7 +1010,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
         switch (element.type) {
             case 2: if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); [[fallthrough]];
             case 0: case 1: case 4: if (roll > 0) taken.element_raw[std::size_t(element.type)] += roll; break;
-            case 3: if (const int per = resisted(roll * 10, defender.res[3]); per >= taken.poison) { taken.poison = per; taken.poison_ticks = resisted(element.dur * 2, defender.plr); } break;
+            case 3: if (const int per = resisted(pair_scaled(roll * 10), defender.res[3]); per >= taken.poison) { taken.poison = per; taken.poison_ticks = resisted(element.dur * 2, defender.plr); } break;
             default: break;   // types above 4 have no field in the record
         }
     }
@@ -1018,7 +1030,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     taken.damage = int(total >> 8);
     taken.frac = int(total & 255);
     if (attacker.poison_max > 0)
-        if (const int per = resisted(rng.range(attacker.poison_min, attacker.poison_max), defender.res[3]); per >= taken.poison) {
+        if (const int per = resisted(pair_scaled(rng.range(attacker.poison_min, attacker.poison_max)), defender.res[3]); per >= taken.poison) {
             taken.poison = per; taken.poison_ticks = resisted(attacker.poison_len, defender.plr);
         }
     return taken;

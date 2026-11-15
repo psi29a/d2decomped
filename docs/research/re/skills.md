@@ -879,7 +879,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (Charged Bolt 17, Teeth 8, Multiple Shot, Guided Arrow, ...), srvstfunc 4
   arrows (Fire / Cold Arrow), the other hit functions (Glacial Spike 13,
   Holy Bolt 7, Frozen Orb), explosions on walls, the delay, FCR
-  breakpoints, SQ casting (Lightning casts as SC), the missile's light.
+  breakpoints, the missile's light. SQ casting: see "Cast rate" below (a
+  seqtrans SC sequence runs its steps at the cast speed).
 - Part 2: srvstfunc 4 (**FUN_005da8b0**) only checks the ammo
   (FUN_0056c4e0), so the Amazon's arrows and javelins take the same path
   (Fire / Cold / Ice Arrow, Poison Javelin, Lightning Bolt). Do 8
@@ -1542,8 +1543,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   reaching a unit FUN_00554de0 calls an ally gives it the state too
   (FUN_005d8290: the caster's auralen and level, aurastats FUN_005c6cc0).
   d2d: `merc_cry` (Shout's armor %, Battle Orders' life % on the merc),
-  a pet's buffs (`Pet::bo_life`, its armor %), those within the missile's
-  reach as it's cast.
+  a pet's buffs (`Pet::bo_life`, its armor %), each as a missile of the
+  nova crosses its subtiles (`Fight::missile_tick`, `missile_struck`).
 - **Leap** (start 40, FUN_005d9d50; do 77, FUN_005da370): the point pulled
   back to aurarangecalc subtiles (FUN_005d9a10, FUN_006417f0), a free spot
   (mask 0x1c09, three tries) reached in a line (FUN_00645910, 0x804) within
@@ -1582,9 +1583,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   After each create, FUN_004efc20(0x118) reads that skill's Param2
   (+0x14c) and FUN_0064a710 stores it plus 1. 37 does that for every
   missile. 143 does it only when the missile row is 0x238. The path
-  callback is FUN_005d40f0 for 37 (range capped at 77, velocity 10, then
-  a straight route) and FUN_005d4680 for 143 (the same cap, then a wobble).
-  d2d: `Fight::prg` aims the row's own velocity straight at the offset.
+  callback is FUN_005d40f0 for 37 (range capped at 77, path type 10 by
+  FUN_00648cf0, then a straight route by FUN_00649970) and FUN_005d4680
+  for 143 (the same cap and type, then a wobble it writes point by point).
+  The 10 is the path type (collision.md "Path types"), not a velocity.
+  d2d: `Fight::prg` caps the range at 77 and aims the row's own velocity
+  straight at the offset, 143 too (no wobble).
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
   roll is stored as x = 0x14. d2d: `rules::release_spread_offset`
@@ -1713,6 +1717,16 @@ and per-class base frames, not a table. What's stored:
     least one. A sequence is over when its countdown (+0x48) is <= 0
     (`FUN_00621260` sets it to the sequence's step count x 256, 0x62129a):
     ceil(256 x steps / speed) ticks, no minus one (see the Lightning notes).
+  - The sequence's step (`FUN_00623e00`, +0x30 set) moves the position (+0x38,
+    from 0) and takes the countdown down by +0x3c, which the cast branch sets to
+    the same speed as +0x4c; `FUN_00621210` -> `FUN_00663410` reports the
+    events of the steps passed. Lightning / Chain Lightning (sequence 12, 19
+    steps, event 1 on step 7, SC frames) last ceil(256 x 19 / speed) ticks:
+    19/18/17/16/15/14/13/12/11 at FCR 0/7/15/23/35/52/78/117/194 for speed 256,
+    the published Lightning table. Port: `rules::cast_sequence_ticks`,
+    `Fight::set_pmode`'s SC branch (Skills.txt `seqtrans`, record +0x12, as
+    `FUN_006216e0` tests it); `tests/test_cast_sequence.cpp`. The frames are
+    drawn spread over the hold, not step by step.
   - Checked: `tools/emu/cast_rates.py` runs the cast branch and the end test on
     game.exe for FCR 0..400 at AnimData speeds 208 and 256 and the SC frame
     counts below; `test_combat --cast-rates` prints d2d's in the same form and
@@ -2175,10 +2189,14 @@ cited module, not a quoted assert.
   book (0x16) whose stat reads 0 is added as 1. d2d: `skillbar.hpp`
   `listed` (ListRow -1 off; a ListRow 4 skill when the carried quantity is
   above 0, on inventory, cube, stash, belt, cursor or worn). The SkillDesc
-  `+6` de-duplication is not ported. Neither is flag bit 8 (`FUN_004c6140`
-  sets it when the client grants a skill the local player didn't have), nor
-  the book that comes in with quantity stat 0 (d2d treats a stored 0 as none
-  left).
+  `+6` de-duplication is not ported. Nor is the book that comes in with
+  quantity stat 0 (d2d treats a stored 0 as none left). Flag bit 8 needs no
+  port: `FUN_004c6140` (the skill start, from `FUN_004c6eb0` /
+  `FUN_004c6f40` / `FUN_004c6660`) sets it only on a node it
+  has just added (`FUN_006439b0` found none, `FUN_00647110` made one) for
+  the local player (`FUN_00463dd0`) with no item (owner -1), so the picker
+  never lists a skill the player only started. d2d's start adds no skill:
+  the picker's level comes from the save and the stats alone.
 - **FUN_004aa7e0**(): the picker rebuild. Zeroes `0x7c0300` (0x3c5 bytes),
   sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then calls
   `FUN_004aa3a0` twice on one side (the asm in the paragraph above).

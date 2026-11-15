@@ -313,7 +313,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         for (const auto& line : town.npc_menu.lines) {
             base += line.height;
             out += line.text + "\t" + std::to_string(town.npc_menu.x + town.npc_menu.box_width / 2) + "\t"
-                 + std::to_string(base - line.height / 2) + "\n";
+                 + std::to_string(base - 4) + "\n";
         }
         if (const auto& list = town.npc_menu.list) {   // the list box's rows shown, after the lines: each row's first line
             const auto counts = town.npc_menu.list_lines();

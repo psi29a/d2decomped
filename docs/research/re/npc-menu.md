@@ -101,6 +101,13 @@ selectable): baselines 0x15 and 0x150 down (`FUN_004b8100`).
 `FUN_004b8370(window, 1)` sets menu mode 1: the hovered line draws in
 colour 3, without focus16. `FUN_004b7c00` hangs the list box on the
 window; `FUN_004b8100` draws it after the box.
+The line under the mouse (`FUN_004b7180`, kept at +0x44 and +0x48 by
+`FUN_004b7200` on a move, -1 off every line): a selectable line (+0x174)
+whose x + 0xf < mouse x < x + width − 0xf and baseline − 0xb < mouse y <
+baseline + 4, edges out, the first. Only that band counts, whatever the
+line's height, so "cancel" (0x13b high) is taken near its baseline, below
+the list box (box bottom H / 2 + 0x78, cancel's band from H / 2 + 0x82).
+d2d: `NpcMenuState::line_at`, `tests/test_npc_menu_hover.cpp`.
 
 **The list box** (D2Win's ListBoxImplementation, vtable 0x6daaec,
 `FUN_004bf650`; the hire window's `FUN_004bf8f0((W − 490) / 2, H / 2 −

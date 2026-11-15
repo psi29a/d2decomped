@@ -168,7 +168,9 @@ The tail, in order:
 The bits are LSB-first. d2d reads the boss (`s2c::monster_boss`, checked
 on Lord De Seis's: row 37, mods 5 / 30 / 22) and names the host's monster
 with `make_boss`; an act boss (Andariel, Blood Raven) comes as unique
-with name seed 0 and keeps its own name. A rolled unique has both
+with name seed 0 and no mods, and keeps its own name: the client's mod
+pass (`FUN_004ad020`, which runs the naming handler `FUN_004ac870`)
+returns at once when the mod list's first byte (monster data +0x1c) is 0. A rolled unique has both
 champion and unique set.
 
 The client makes the monster (`FUN_00466360`), then sets stat 7 = 0x8000
@@ -258,6 +260,16 @@ which of 0x69..0x6c isn't settled **(?)**.
 is that stat: `FUN_004aff60` adds the difference to 0x43 when it isn't
 0. The host sent 70 / 75 for walks and 125 / 130 for runs in Act 1
 Normal (1513 moves, 2026-10-05).
+
+**A move to a unit follows it for a monster, not a player.** The
+monster's command (`FUN_004aff60`, cmds 0 / 0x18 and 1 / 0x17) sets unit
+`+0xc8` bit 13 (`FUN_006491b0(unit, 1)`); its frame step `FUN_004b13a0`,
+in mode 1, looks the path's target up again by type and GUID (gone: the
+target is cleared, `FUN_00648b90(path, 0)`, and the path kept) and calls
+`FUN_00649210`, which every second frame rebuilds the path toward the
+target if it isn't reached (`FUN_00650540`, `FUN_00650350(unit, 1)`).
+`FUN_00649210` has no other caller, so a player's 0x10 (`FUN_00461250`
+cmd 0 / 0x18 → `FUN_00480780`) paths once, to where the target was.
 
 **The server sends one packet per decision, never per step.** A move
 names the goal (and, in the correcting forms, where the unit is now);
@@ -750,7 +762,13 @@ ids).
 - **0x75 party roster** (13; `FUN_0047a850`): +1 u32 id, +5 u16 party,
   +7 u16 level, +9, +11 u16 **(?)**.
 - **0x7f party member** (10): +1 u8 is player, +2 u16 life %, +4 u32 id,
-  +8 u16 area.
+  +8 u16 area. Handler `0x45e990` (table row at `0x711ac4`: handler,
+  size 0xa): +1 nonzero calls `FUN_0047a0d0(id, life, area)`; +1 zero
+  calls `FUN_00479010(id, life, area)`, which sets the pet list node's
+  +0x1c to the life and +0x10 to the area, and for a PetType 7 node (the
+  merc) whose unit is known sets its life (stat 6) to max life x life /
+  100. So the sender (`FUN_0053cdf0`, +1 0 for a non-player) feeds the
+  portraits' pet life.
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags. One
   sender is `FUN_0053de20` (ECX unused, EDX the first id, stack the
@@ -996,6 +1014,9 @@ rest, and a d2d client talking to it must too.
   sets the mode (`DAT_006da4d8`), the path (`FUN_00648cf0`) and walks it
   with its own pathing, frame by frame. There is no interpolation
   buffer: a correcting form re-paths from where the unit is.
+  d2d plays a host monster's (or its merc's) act mode for that mode's
+  animation length (`Scene::npc_anim`), then stands or walks again
+  (`Town::net_overlay`).
 - **Animation is the client's.** Modes come as commands; the frame
   pacing, the COF / AnimData timing, where an attack's frame falls are
   local (d2d already does this from its tables). The host's hits come as

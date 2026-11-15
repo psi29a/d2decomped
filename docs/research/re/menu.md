@@ -106,6 +106,14 @@ oracle run); their names first came from D2BS's UI enum:
   under the store's inventory, drawn anyway. Oracle:
   `tools/emu/panel_keys.py`. d2d: `client::panel_key_refused`,
   `Town::toggle_inventory` / `toggle_character` / `toggle_skill_tree`.
+- The trade screen's bars (`FUN_0048edf0`, the trade branch after the
+  buttons, `0x7bcbf0` = 0xb with `0x7bcb04` set): the two names are copied
+  (`FUN_00403040`, 0x17 chars) and each loses its last char while
+  `FUN_00501820` (width) is over 0x70; drawn through `FUN_00502320` at
+  bottom 0x1b - `0x7a285c` and 0xf2 - `0x7a285c` (87 / 302 at 800x600).
+  The gold values (`FUN_004b90f0` / `FUN_004b9100`, formatted with
+  `DAT_006d57bc` into 0xf chars) go to the same two bottoms. The x
+  (a register argument) and the font were not read. d2d: `draw_trade`.
 - The stash's close button (`FUN_0048edf0` state 0xc..0xd): buysellbtn
   10, 11 while `0x7bce38` holds it, at x + 0x113, bottom foot - 0x41
   (`FUN_00486b00`), the expansion stash at x + 0x110, foot - 0x40. The

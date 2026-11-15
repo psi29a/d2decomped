@@ -189,11 +189,13 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
         flash(scene, out.back(), view.merc->flash_overlay, view.merc->flash_at);
     }
-    // ponytail: a party member's merc (party_pets, "hireable") in GH has no FHR here: its get-hit plays at the plain rate and loops.
+    // A party member's merc (party_pets, "hireable") gets hit at its own FHR, as ours.
     for (const auto* pets : { &view.pets, &view.party_pets })
         for (const auto& pet : *pets) {
             out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
             out.back().hold = pet.mode == "DT";
+            if (pets == &view.party_pets && pet.pettype == "hireable" && pet.mode == "GH")
+                out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), pet.fhr));
             flash(scene, out.back(), pet.flash_overlay, pet.flash_at);
         }
     // A joined game's other players, in what they wear (0x9d), walking,

@@ -56,11 +56,12 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
 // cursor (0x7bcbf4 with 0x7bcbe4 set). FUN_00483960's colours are the nearest
 // palette entry of (0x80, 0, 0), (0, 0x80, 0), (0, 0, 0x80), (0x80, 0x40, 0x40);
 // the first, third and fourth are act 1's 0x08 / 0xea / 0x4d, and green is
-// that lookup on the palette in use.
-// ponytail: cursor mode 8 (DAT_007a6af0) with Items.txt Transmogrify clear
-// (FUN_0062a0a0, +0x139) is red, not green. draw_inventory does not know that
-// cursor, a child stat list flagged 2, or the player in state 0x36. A cursor
-// item kept off the drawn list is not seen either.
+// that lookup on the palette in use. Its red for cursor mode 8 with
+// Items.txt Transmogrify clear (0x48417a) never runs: mode 8 is only
+// FUN_00468040 with EDX set, and both its calls clear EDX (stubs.md).
+// ponytail: draw_inventory does not know a child stat list flagged 2, or
+// the player in state 0x36. A cursor item kept off the drawn list is not
+// seen either.
 inline void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer,
                        const std::array<int, 4>& rect, const d2d::d2s::Header* header = nullptr, bool under_cursor = false,
                        bool stat_list_flag_2 = false, bool player_state_36 = false) {
@@ -155,8 +156,10 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   H-27), draw mode 2; gold (FUN_004fb180(f4, c0, 4c)), red under 25 px,
 //   blue over max.
 //   hover (FUN_00502280, centred, bottom): "Stamina: %d / %d" at W/2-76,
-//   H-52; "Experience: %u / %u" at W/2-146, H-51; "Run (key)" at W/2-145,
-//   H-23 (FUN_00497300). FUN_00502280 only keeps the text: the frame's
+//   H-52; "Experience: %u / %u" at W/2-146, H-51; "Run" at W/2-145,
+//   H-23 (FUN_00497300), then 0x1052 " (%s)" with the key's name for
+//   each bound key of Toggle Run (0x23), slot 1's then slot 0's (0x49735d,
+//   0x4973b6): `run_keys`. FUN_00502280 only keeps the text: the frame's
 //   FUN_00503000 draws it after the mini-panel (FUN_00456ee0), so with
 //   `hovers` set they go there to be drawn as late. Globes (FUN_00498120):
 //   "Life: %d / %d" / "Mana: %d / %d" plain, centred on 65 / W-80,
@@ -165,7 +168,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // The maxima include what's worn (Fight::item_max).
 // The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
 // the client's frame (`frame`, 25 a second).
-// ponytail: no skill icons; the run key shown is R, not the hotkey's binding.
+// ponytail: no skill icons.
 struct HudHover { int centre = 0, bottom = 0; TextLine line; };   // a bar's hover text, centred on `centre`
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
              std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
@@ -175,7 +178,8 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              std::vector<HudHover>* hovers = nullptr;    // set: the bars' hover texts go here, for the frame's late draw (draw_hud_hovers); null: drawn at once
              int life_preview = 0, mana_preview = 0;     // View::life_preview / mana_preview: the potions' preview fill
              bool life_text = false, mana_text = false;  // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
-             int holy_shield = 0; };                     // effective Holy Shield level while state 0x65 is on, else 0 (FUN_00485be0)
+             int holy_shield = 0;                        // effective Holy Shield level while state 0x65 is on, else 0 (FUN_00485be0)
+             std::array<std::string, 2> run_keys{}; };   // Toggle Run's keys by name, slot 1 then slot 0; empty: unbound (FUN_00497300)
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);

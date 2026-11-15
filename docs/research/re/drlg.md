@@ -1029,6 +1029,13 @@ the level seed, as outdoors).
    +0x1cc), a special keeps the roll. FUN_00667ed0 then makes the rooms:
    one when the preset is under 13×13, else one per 8×8 block (rows, then
    columns), each allocated in turn.
+   Before that FUN_00667970 walks every wall layer of the whole DS1 once:
+   a warp wall (orientation 10/11, style < 8, sequence 0 / 4 or hidden)
+   ORs 0x10 << style into the 8×8 cell (x / 8, y / 8) it lies in (cell 0
+   when FUN_00667ed0's last argument makes one room), and style 30..33
+   tiles go on the level's start list (+0x1d8). Each room takes its own
+   cell's flags, so d2d's walk of each room's own cells
+   (`room_tiles.hpp`, `vis` / `starts`) gives the same rooms the same bits.
 
 **Act 2's mazes** (FUN_00673b30 by LevelType; 2026-10-10):
 
