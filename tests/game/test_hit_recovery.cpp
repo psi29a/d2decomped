@@ -53,7 +53,7 @@ Character make_hero(const GameData& data, int cls, const std::string& weapon) {
     const d2d::d2s::Item* proto = character.items.empty() ? nullptr : &character.items.front();
     d2d::d2s::Item put = proto ? *proto : d2d::d2s::Item{};
     std::erase_if(character.items, [](const auto& item) { return item.location == 1 && (item.slot == 4 || item.slot == 5); });
-    if (!weapon.empty()) { put.code = weapon; put.location = 1; put.slot = 4; character.items.push_back(put); }
+    if (!weapon.empty()) { put.code = weapon; put.location = 1; put.slot = 4; character.items.push_back(std::move(put)); }
     character.panel = panel_stats(data, character.header, character.items, character.stats);
     return character;
 }

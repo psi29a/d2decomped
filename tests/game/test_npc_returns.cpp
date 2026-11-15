@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -100,7 +101,7 @@ int main() try {
 
     // A shared crossing: the party goes with the mover (bring_party), so the partner's save takes
     // the new act too, and Lut Gholein's names come to it as to the mover.
-    auto partner = character;
+    auto partner = std::move(character);
     partner.name = "Partner";
     auto& second = world.join(partner);
     NpcReturns::mark(second.character.header.congrats[0], 1);

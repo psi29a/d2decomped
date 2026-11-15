@@ -932,7 +932,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
         const int mode = list == 3 && fade == 1 ? 5 : mode_of(x, bottom);
         constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
-        const int weight = mode == 5 ? 255 : weights[mode];         // the cel's share over what's there (PL2 alpha tables, pl2.md)
+        const int weight = mode < 3 ? weights[mode] : 255;           // the cel's share over what's there (PL2 alpha tables, pl2.md)
         for (int row = 0; row < int(frame.height); ++row)
             for (int column = 0; column < int(frame.width); ++column) {
                 const int pixel_x = x + column, pixel_y = top + row;
