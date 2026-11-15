@@ -1253,10 +1253,18 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   which the stat init (FUN_00573cb0 -> FUN_006538a0) and the per-mode
   damage (FUN_005a4f50) take as written; Align 1 (row +0x4c, read in the
   emulator: necroskeleton 1, skeleton1 0) skips the players' life bonus
-  (FUN_00573930). The Druid's and Raven's rows have no damage: d2d gives
-  them the skill's physical (MinDam + MinLevDam). Not traced where
-  game.exe does: not in the summon (FUN_005c6910 / FUN_005c7390,
-  FUN_005c49e0, FUN_005c4470) nor FUN_005a4f50.
+  (FUN_00573930). The Druid's and Raven's rows have no damage. MonStats
+  SkillDamage (+0xa8 in the 0x1a8-byte row, the column table's
+  "SkillDamage" entry) names a skill on four rows: druidhawk Raven,
+  spiritwolf / fenris / druidbear their Summon skill. FUN_005a4f50 first
+  calls FUN_0056e050 (ECX the monster): with an owner (FUN_0058f0d0) and
+  SkillDamage in 1..the skill count, FUN_0056e000 (EDI the owner, ESI the
+  skill, from the asm) gives {FUN_00647bc0 >> 8, FUN_00647d00 >> 8,
+  FUN_006449f0} at FUN_00644aa0's level (the owner's, its bonus in, at
+  least 0), and each mode's min, max and to-hit (stats 0x15 / 0x16 /
+  0x13) add them. d2d (`summon_one`, `test_raven_skill_damage`) adds the
+  cast skill's at the cast's level to A1, A2 and S1 and their to-hits
+  for a row with no A1 damage; SkillDamage itself isn't loaded.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
