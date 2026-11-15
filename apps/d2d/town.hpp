@@ -539,6 +539,7 @@ struct Town {
     int touch_bind_slot = -1;
     int touch_bind_wheel_at = 0;
     int touch_bind_wheel_page = 0;
+    bool touch_bind_hit = false;
     std::int64_t touch_bind_finger = -1;
     float touch_bind_origin_x = 0, touch_bind_origin_y = 0;
     void touch_rebuild_bind_wheel();
@@ -548,6 +549,8 @@ struct Town {
     [[nodiscard]] int touch_bound_skill(int slot) const;
     [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
+    /** Facing plus resolve_skill: swipe-aim when directional or when pad_pick has no monster. */
+    void touch_refresh_skill_aim();
     void drive_touch();
     void draw_touch(std::vector<std::uint8_t>& framebuffer);
     void load_touch_sheet(const std::string& name);

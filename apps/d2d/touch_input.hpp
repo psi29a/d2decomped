@@ -52,8 +52,8 @@ inline constexpr float kChipSize = 48.f, kChipGap = 8.f;
 inline constexpr float kBeltSize = 48.f, kBeltGap = 6.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
 /** Four arc skills, then the large attack chip (controller RT / sheet.main). */
 inline constexpr int kSkillButtons = 4, kAttackBind = 4;
-/** Life/mana sit this far under the 2x2 chip block, as a fraction of chip height (¼–½). */
-inline constexpr float kBarGapChip = 0.35f, kBarBlockH = 48.f;
+/** Life, then stamina|XP, then mana sit this far under the 2x2 chip block, as a fraction of chip height (¼–½). */
+inline constexpr float kBarGapChip = 0.35f, kBarBlockH = 64.f;
 inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 /** Finger movement that turns an item tap into a drag-and-drop pickup. */
@@ -268,6 +268,11 @@ inline constexpr float kStickOuter = 52.f, kStickInner = 22.f, kSkillRing = 34.f
 inline bool chip_hit(float x, float y) {
     const auto chrome = layout_boxes();
     return chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y);
+}
+
+/** Drag-aim when the skill is directional, or when the pad has no monster in focus. */
+[[nodiscard]] inline bool swipe_aims(bool dragged, bool directional, bool has_focus) {
+    return dragged && (directional || !has_focus);
 }
 
 /** Bind editor destination: 0..3 skill rings, `kAttackBind` for the large chip, else -1. */

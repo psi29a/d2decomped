@@ -2,9 +2,11 @@
 // test-links:
 // test-includes: apps/d2d
 // Actual touch adapter: independent fingers, latched page/skill, safe cancellation.
+#include "skillpad.hpp"
 #include "touch_input.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -235,6 +237,27 @@ int main() try {
     assert(input.aiming && input.dragged);
     input.event(7, Phase::Up, field.attack.x - 40.f, field.attack.y - 40.f, attack_fire);
     assert(input.casts.size() == 1 && input.casts[0].skill == 54 && !input.attack_down);
+    assert(kBarBlockH >= 64.f);
+    assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + gap_bars + kBarBlockH);
+    assert(!swipe_aims(false, true, false));
+    assert(swipe_aims(true, true, true));
+    assert(swipe_aims(true, false, false));
+    assert(!swipe_aims(true, false, true));
+    {
+        using d2d::client::skillpad::bind_wheel_pick;
+        using d2d::client::skillpad::bind_wheel_skill;
+        using d2d::client::skillpad::kBindWheelRx;
+        using d2d::client::skillpad::kBindWheelRy;
+        using d2d::client::skillpad::kEmpty;
+        const std::array ids{ 0, 6, 7, 8, 9, 54, 36, 42, 61 };
+        const auto hub = bind_wheel_pick(0.f, 0.f, int(ids.size()), 0, 0);
+        assert(!hub.hit && bind_wheel_skill(ids, hub) == kEmpty);
+        const float angle = d2d::client::skillpad::wedge_center(5, 8);
+        const auto late = bind_wheel_pick(std::cos(angle) * kBindWheelRx, std::sin(angle) * kBindWheelRy, int(ids.size()), 0, 0);
+        assert(late.hit && late.index == 5 && bind_wheel_skill(ids, late) == 54);
+        const auto none = bind_wheel_pick(40.f, 0.f, 0, 0, 0);
+        assert(!none.hit);
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

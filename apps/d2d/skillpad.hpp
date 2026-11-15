@@ -220,6 +220,36 @@ struct WheelPage { int start = 0, shown = 0; };
     return page;
 }
 
+// Touch bind wheel: pick the nearest drawn icon, else the wedge of a drag
+// from the hub. `hit` is false on an empty list or a tap in the hub, so a
+// lift does not write skill 0 (Attack) from a stale highlight.
+struct WheelPick { int index = -1; int page_start = 0; bool hit = false; };
+inline constexpr float kBindWheelRx = 110.f, kBindWheelRy = 90.f, kBindWheelIconR = 28.f, kBindWheelHub = 24.f;
+
+[[nodiscard]] inline WheelPick bind_wheel_pick(float dx, float dy, int count, int highlight, int page_start) {
+    const WheelPage page = wheel_page(count, highlight, kWheelShown, page_start);
+    WheelPick pick;
+    pick.page_start = page.start;
+    if (count <= 0 || page.shown <= 0) return pick;
+    int best = -1;
+    float best_d = kBindWheelIconR;
+    for (int slot = 0; slot < page.shown; ++slot) {
+        const float angle = wedge_center(slot, page.shown);
+        const float dist = std::hypot(dx - std::cos(angle) * kBindWheelRx, dy - std::sin(angle) * kBindWheelRy);
+        if (dist < best_d) { best_d = dist; best = slot; }
+    }
+    if (best < 0) best = wedge(dx, dy, page.shown, kBindWheelHub);
+    if (best < 0) return pick;
+    pick.hit = true;
+    pick.index = std::clamp(page.start + best, 0, count - 1);
+    return pick;
+}
+
+[[nodiscard]] inline int bind_wheel_skill(std::span<const int> ids, const WheelPick& pick) {
+    if (!pick.hit || pick.index < 0 || pick.index >= int(ids.size())) return kEmpty;
+    return ids[std::size_t(pick.index)];
+}
+
 // The set latched when a slot was pressed. Holding the modifier afterwards
 // does not retarget that hold. -1 when the button is up.
 struct HoldSet {
