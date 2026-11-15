@@ -33,7 +33,7 @@ All lookup tables contain palette indices. A 256 × 256 table occupies
 | `0x05A500` | `0x100` | Green tone ramps | `FUN_00605f00` |
 | `0x05A600` | `0x100` | Blue tone ramps | `FUN_00605f00` |
 | `0x05A700` | `0xE00` | 14 additional shifts; semantics not yet named | Contiguous loader block |
-| `0x05B500` | `0x10000` | Max-component-weighted blend, **not** 50/50 alpha | `FUN_00605b70` |
+| `0x05B500` | `0x10000` | Each sprite colour over each screen colour, weighted by the sprite's greatest channel (cof-draw-order.md), **not** 50/50 alpha | `FUN_00605b70` |
 | `0x06B500` | `0x100` | Darkened colour shift, each channel scaled to two thirds | `FUN_00605b70` |
 | `0x06B600` | `0x27` | 13 text colours, three bytes each | `FUN_00606930` copies 39 bytes |
 | `0x06B627` | `0xD00` | 13 text-colour index shifts | `FUN_00605d20` builds the last 12; loader copies all 13 |
