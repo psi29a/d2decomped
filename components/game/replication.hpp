@@ -4,7 +4,9 @@
 // its key there (the level's id, a missile's name, the merc's hireling
 // type, a fire's index) — GameData is the same on every machine.
 // Decoded animation modes are interned, so the views stay valid.
-// ponytail: whole views every tick (no deltas); a unit's look as strings.
+// Each tick goes as what changed since the client's last View (ViewEncoder);
+// a unit's look goes as strings, not table indices: docs/design/multiplayer.md
+// lists that under "Still to change" (d2d's own wire, not game.exe's).
 #pragma once
 
 #include "ai.hpp"
