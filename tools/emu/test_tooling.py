@@ -12,12 +12,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import emu
 from cast_mana import animdata_records, cut_cases, pay_tick
 from mpq_cache import MpqCache
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESI
+try:
+    import emu
+    from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESI
+except ModuleNotFoundError:
+    emu = None
 
 
+@unittest.skipIf(emu is None, "emulator dependencies are installed by uv sync")
 class CallRegisterTests(unittest.TestCase):
     class FakeUnicorn:
         def __init__(self):
