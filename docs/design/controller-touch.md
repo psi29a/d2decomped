@@ -244,3 +244,7 @@ taps route through ordinary menu hit tests with extra row padding. Skill
 assignment highlights the four field slots in gold. Inventory long-press reuses
 `hold_confirm` (fill belt, equip, shop sell) and cancels when the finger moves
 more than 14px before drag.
+
+Pass 4 adds stacked corner chips (Inv / Skl / Quest / Bind) with layout gaps, icon-centered
+skill rings, a wider move capture toward interact, vendor panel on the right when trading,
+panel-safe chip relocation, and a Bind editor (slot pick then radial skill wheel, Done to save).

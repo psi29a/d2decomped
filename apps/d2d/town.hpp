@@ -521,6 +521,17 @@ struct Town {
     PadPick touch_attack_pick, touch_interact_pick;
     int touch_assign = skillpad::kUnset;
     std::string touch_feedback;
+    enum class TouchBindPhase { Off, PickSlot, PickSkill };
+    TouchBindPhase touch_bind = TouchBindPhase::Off;
+    int touch_bind_slot = -1;
+    int touch_bind_wheel_at = 0;
+    int touch_bind_wheel_page = 0;
+    std::int64_t touch_bind_finger = -1;
+    float touch_bind_origin_x = 0, touch_bind_origin_y = 0;
+    void touch_rebuild_bind_wheel();
+    void touch_open_bind();
+    void touch_close_bind();
+    [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
     void drive_touch();
     void draw_touch(std::vector<std::uint8_t>& framebuffer);

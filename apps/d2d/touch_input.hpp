@@ -32,16 +32,21 @@ inline constexpr float kUiScale = 1.2f;
 inline constexpr int kNpcLinePad = 14;
 
 // Nominal sizes (positions filled in layout_boxes).
+inline constexpr float kChipSize = 48.f, kChipGap = 8.f;
 inline constexpr float kBeltSize = 48.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 inline constexpr Box kCancel{ 260, 140, 280, 64 };
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
-    Box move, move_visual, attack, page, cancel, menu, skills_bar, map, done, interact, quest_track;
+    Box move, move_visual, attack, page, cancel, menu, skills_bar, quest, bind, map, done, interact, quest_track;
     std::array<Box, 4> skills{}, belts{};
 };
+
+/** Panel open: move corner chips off the left inventory column. */
+inline float panel_chrome_x() { return float(kTouchTreeRight) + 8.f + safe_inset.left; }
 
 inline float ui_scale(float value) { return value * kUiScale; }
 
@@ -76,11 +81,15 @@ inline Layout layout_boxes() {
     const float ax = out.attack.x, ay = out.attack.y;
     // Page on the attack button's top, not tucked into its lower-left corner.
     out.page = { ax + ui_scale(28.f), ay - ui_scale(52.f), page, page };
-    out.menu = anchor_box(ui_scale(48.f), ui_scale(48.f), true, true);
-    out.skills_bar = { out.menu.x, out.menu.y + ui_scale(52.f), ui_scale(48.f), ui_scale(48.f) };
+    const float chip = ui_scale(kChipSize), gap = ui_scale(kChipGap);
+    out.menu = anchor_box(chip, chip, true, true);
+    out.skills_bar = { out.menu.x, out.menu.y + out.menu.height + gap, chip, chip };
+    out.quest = { out.menu.x, out.skills_bar.y + out.skills_bar.height + gap, chip, chip };
+    out.bind = { out.menu.x, out.quest.y + out.quest.height + gap, chip, chip };
     out.done = anchor_box(ui_scale(52.f), ui_scale(48.f), false, true);
     out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
-    out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, ui_scale(172.f), ui_scale(148.f) };
+    const float track_y = out.bind.y + out.bind.height + gap;
+    out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
     out.cancel = placed(kCancel);
     // Column sits fully above the skill arc (its bottom clears skill 3's top).
     const float pot_x = ax - ui_scale(98.f);
@@ -92,6 +101,9 @@ inline Layout layout_boxes() {
     out.skills[2] = { ax - ui_scale(104.f), ay - ui_scale(134.f), skill, skill };
     out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
     out.interact = { ax - ui_scale(268.f), ay - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
+    const float move_right = std::min(out.interact.x + out.interact.width + 16.f, out.skills[2].x - 8.f);
+    out.move.width = std::max(out.move.width, move_right - out.move.x);
+    out.move.height = std::max(out.move.height, 600.f - safe_inset.bottom - out.move.y);
     return out;
 }
 
@@ -100,7 +112,7 @@ inline constexpr float kStickOuter = 52.f, kStickInner = 22.f, kSkillRing = 34.f
 inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
     const auto chrome = layout_boxes();
     if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chrome.menu.contains(x, y)) return true;
-    if (chrome.quest_track.contains(x, y)) return true;
+    if (chrome.quest.contains(x, y) || chrome.bind.contains(x, y)) return true;
     if (interact_chrome && chrome.interact.contains(x, y)) return true;
     if (chrome.skills_bar.contains(x, y) || chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)) return true;
     for (const auto& box : chrome.skills)

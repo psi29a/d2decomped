@@ -24,7 +24,7 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
                             std::int64_t gold);
 
 // The store item under the cursor (index into the open tab), or -1.
-int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y);
+int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y, int panel_x = kCharPanelX);
 
 std::array<int, 4> store_button_frames(const Store& store);
 
@@ -44,7 +44,7 @@ inline constexpr std::uint16_t kTabString[4] = { 0xfc4, 0xfc5, 0xfc5, 0xfc7 };
 // string centred on x 80 + its table x, bottom 440; Repair all's (0x276f)
 // with what it would cost.
 void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer,
-                const std::vector<d2d::d2s::Item>* items = nullptr);
+                const std::vector<d2d::d2s::Item>* items = nullptr, int panel_x = kCharPanelX);
 
 // Gold readouts (FUN_00488100, docs/research/re/store.md), font16 white,
 // baselines at 800x600: the inventory's carried gold (stat 14) at x 508,

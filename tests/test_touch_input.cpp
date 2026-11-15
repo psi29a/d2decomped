@@ -60,11 +60,13 @@ int main() try {
     input.event(-2, Phase::Up, 736, 536);
     assert(!input.attack_down);
     assert(!chrome_hit(400, 300));
-    assert(!chrome_hit(390, 454));
-    assert(chrome_hit(390, 454, true)); // kInteract only blocks field taps when visible
+    assert(!chrome_hit(200, 200));
+    assert(chrome_hit(391, 455, true)); // kInteract only blocks field taps when visible
     // layout_boxes positions depend on safe_inset and kUiScale only, not on pad_field().
     safe_inset = {};
     const auto field = layout_boxes();
+    assert(field.skills_bar.y >= field.menu.y + field.menu.height + 4.f);
+    assert(field.move.contains(field.move_visual.x + field.move_visual.width * .5f, field.move_visual.y + field.move_visual.height * .5f));
     assert(field.menu.x < 20.f && field.done.x + field.done.width > 740.f);
     assert(field.attack.x + field.attack.width > 790.f && field.attack.y + field.attack.height > 590.f);
     const auto centre = [](Box box) { return std::pair{ box.x + box.width * .5f, box.y + box.height * .5f }; };

@@ -324,6 +324,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
                 if (chat_typing) chat_typing.reset();                         // a chat line being typed first
+                else if (touch_bind != TouchBindPhase::Off) { touch_close_bind(); touch_input.clear(); }
                 else if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; touch_input.clear(); }
                 else if (identify_with >= 0) identify_with = -1;
                 else if (gold_box) gold_box.reset();                          // then the gold box
@@ -970,7 +971,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (store.npc >= 0 && npc_menu.npc < 0 && !menu_press) {
             static constexpr int kBtnX[4] = { 116, 169, 221, 273 };
             for (int i = 0; i < 4; ++i) {
-                const int button_x = kCharPanelX - 1 + kBtnX[i], button_y = 476 - 32 + 1;
+                const int store_x = touch_store_panel_x();
+                const int button_x = store_x - 1 + kBtnX[i], button_y = 476 - 32 + 1;
                 const bool hovered = mouse.x >= button_x && mouse.x < button_x + 32 && mouse.y >= button_y && mouse.y < button_y + 32;
                 if (hovered && mouse.down) store.pressed[std::size_t(i)] = true;
                 if (hovered && mouse.release_this_frame && i < 2) store.mode = store.mode == i + 1 ? 0 : i + 1;
@@ -986,13 +988,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 }
             }
             if (mouse.press_this_frame && mouse.y >= 60 && mouse.y <= 90
-                && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320)
-                store.tab = (mouse.x - kCharPanelX) / 80;
+                && mouse.x >= touch_store_panel_x() && mouse.x < touch_store_panel_x() + 320)
+                store.tab = (mouse.x - touch_store_panel_x()) / 80;
             // Right-click on stock buys; with Buy or Sell toggled on,
             // a left click buys the stock item / sells your item. Shift +
             // right click on a multibuy item fills (FUN_004b2650: mouse
             // flag 4, Items +0x1a5).
-            const int store_index = store_item_at(*scene, store, mouse.x, mouse.y);
+            const int store_index = store_item_at(*scene, store, mouse.x, mouse.y, touch_store_panel_x());
             if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
@@ -1017,7 +1019,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // Waypoint panel: tabs switch acts, cancel (or the row of the
         // level you're in) closes it.
         if (waypoint.open) {
-            const bool on_cancel = mouse.x >= kCharPanelX + 0x111 && mouse.x < kCharPanelX + 0x111 + 0x24
+            const bool store_x = touch_store_panel_x();
+            const bool on_cancel = mouse.x >= store_x + 0x111 && mouse.x < store_x + 0x111 + 0x24
                                 && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
             waypoint.cancel_down = on_cancel && mouse.down;
             if (mouse.press_this_frame) {

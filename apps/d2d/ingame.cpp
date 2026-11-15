@@ -10,6 +10,7 @@
 #include "panels.hpp"
 #include "scene.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "tile_blit.hpp"
 #include "ui.hpp"
 #include "watchdog.hpp"
@@ -387,7 +388,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         auto draw_store_panel = [&] {
             if (store && store->npc >= 0)
             {
-                draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory);
+                const int store_x = hud.touch_store_right ? touch::kTouchStorePanelX : kCharPanelX;
+                draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory, store_x);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
             }
         };
