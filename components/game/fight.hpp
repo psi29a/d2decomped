@@ -529,8 +529,8 @@ struct Fight {
     // of double: rules::potion_amount) over their length, joined with
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
-    // ponytail: the doubling rolls d2d's rng, not the player's own seed
-    // (it matters once machines share a game: networking).
+    // The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
+    // on d2d's rng here (rules::potion_amount): deviations.md approximation 18.
     void drink(int col, std::uint32_t now_ms);
     // Shift with the key: the merc drinks it (FUN_00562390 with the merc
     // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
