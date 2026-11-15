@@ -585,7 +585,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const d2d::d2s::Item* belt_item = nullptr;
         for (const auto& item : character.items)
             if (item.location == d2d::d2s::item_location::kBelt && item.column == index) { belt_item = &item; break; }
-        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .55f, 90);
+        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .48f, 70);
         const bool has_icon = belt_item && scene->item_sprite(*belt_item);
         button(belt, has_icon ? "" : std::to_string(index + 1), false, true, false, !has_icon);
         if (belt_item) {
@@ -611,7 +611,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto* info = scene->skills.get(target.skill);
         const touch::Box skill_box = chrome.skills[std::size_t(index)];
         const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
-        halo(skill_cx, skill_cy, touch::kSkillRing + 10, 90);
+        halo(skill_cx, skill_cy, touch::kSkillRing + 4, 70);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
         const bool has_icon = info && info->icon >= 0;
         const std::string skill_label = has_icon ? "" : info ? (info->name.size() > 6 ? info->name.substr(0, 5) + "." : info->name) :

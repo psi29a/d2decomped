@@ -426,8 +426,8 @@ if touch_ux:
     cmd("debug stat 7 256000"); cmd("debug stat 6 256000"); frames(5)
     pixel_x, pixel_y = skill_panel(aimed)
     tap(pixel_x, pixel_y)
-    tap(636, 506)
-    tap(636, 506)
+    tap(630, 514)
+    tap(630, 514)
     screenshot("touch-assignment-corpse.png" if corpse_ux else "touch-assignment.png")
     tap(768, 30); tap(768, 30)  # Done, then Back from the tree
     cmd("debug goto 2"); frames(20)
@@ -440,7 +440,7 @@ if touch_ux:
     # Aiming and cancellation travel through injected SDL finger events.
     mana = state()["mana"]
     finger(1, "down", 90, 460); finger(1, "move", 140, 460)
-    finger(2, "down", 636, 506)
+    finger(2, "down", 630, 514)
     assert state()["touch_aiming"] == "1" and state()["touch_skill"] == str(aimed), cmd("state")
     if corpse_ux:
         assert int(state()["touch_target"]) >= 0, "corpse skill did not select a corpse"
@@ -455,13 +455,13 @@ if touch_ux:
     # Sidecar-style pointer input can operate the overlay without SDL fingers.
     cmd("click 674 570"); frames(4)
     assert state()["touch_page"] == "0", "pointer click did not switch touch page"
-    finger(2, "down", 636, 506)
+    finger(2, "down", 630, 514)
     cmd("key i"); frames(5)
     finger(2, "up", 640, 500)
     assert state()["touch_aiming"] == "0" and state()["mana"] == mana, "opening a panel committed the pending skill"
     screenshot("touch-inventory.png")
     tap(768, 30)
-    finger(2, "down", 636, 506)
+    finger(2, "down", 630, 514)
     if not corpse_ux:
         finger(2, "move", 640, 500)
     preview = tuple(map(float, state()["touch_point"].split(",")))

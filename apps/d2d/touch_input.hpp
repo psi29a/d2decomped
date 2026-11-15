@@ -71,14 +71,14 @@ inline Layout layout_boxes() {
     out.map = { out.done.x, out.done.y + 56.f, 52.f, 48.f };
     out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
     out.cancel = placed(kCancel);
-    const float pot_x = ax - 72.f;
+    const float pot_x = ax - 86.f;
     for (int index = 0; index < 4; ++index)
-        out.belts[std::size_t(index)] = { pot_x, ay - 292.f + float(index) * (kBeltSize + 6.f), kBeltSize, kBeltSize };
-    out.skills[0] = { ax - 98.f, ay - 28.f, kSkillSize, kSkillSize };
-    out.skills[1] = { ax - 128.f, ay - 102.f, kSkillSize, kSkillSize };
-    out.skills[2] = { ax - 88.f, ay - 174.f, kSkillSize, kSkillSize };
-    out.skills[3] = { ax - 18.f, ay - 218.f, kSkillSize, kSkillSize };
-    out.interact = { ax - 168.f, ay - 88.f, 56.f, 56.f };
+        out.belts[std::size_t(index)] = { pot_x, ay - 272.f + float(index) * (kBeltSize + 10.f), kBeltSize, kBeltSize };
+    out.skills[0] = { ax - 104.f, ay - 20.f, kSkillSize, kSkillSize };
+    out.skills[1] = { ax - 148.f, ay - 92.f, kSkillSize, kSkillSize };
+    out.skills[2] = { ax - 96.f, ay - 168.f, kSkillSize, kSkillSize };
+    out.skills[3] = { ax - 24.f, ay - 224.f, kSkillSize, kSkillSize };
+    out.interact = { ax - 172.f, ay - 72.f, 56.f, 56.f };
     return out;
 }
 

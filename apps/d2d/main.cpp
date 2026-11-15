@@ -514,25 +514,24 @@ void apply_safe_inset(const Window& win) {
     const float ui_x = (float(win.view_w) - float(kScreenWidth)) / 2.f;
     const float band_left = ui_x;
     const float band_right = ui_x + float(kScreenWidth);
-    // One-sided notch in landscape: do not shrink both edges when the safe rect still spans the band.
-    constexpr float kMaxInsetSide = 96.f;
+    constexpr float kMaxInsetSide = 48.f;
     auto clamp_side = [kMaxInsetSide](float value) { return std::clamp(value, 0.f, kMaxInsetSide); };
-    const float left_from_safe = std::max(0.f, safe_left - band_left);
-    const float right_from_safe = std::max(0.f, band_right - safe_right);
-    const float span = std::max(0.f, safe_right - safe_left);
-    if (span + 1.f >= float(kScreenWidth)) {
-        touch::safe_inset.left = clamp_side(left_from_safe);
-        touch::safe_inset.right = clamp_side(right_from_safe);
-    } else {
-        // Safe rect narrower than the UI band: keep only the stronger horizontal inset.
-        if (left_from_safe >= right_from_safe) {
-            touch::safe_inset.left = clamp_side(left_from_safe);
-            touch::safe_inset.right = 0.f;
-        } else {
-            touch::safe_inset.left = 0.f;
-            touch::safe_inset.right = clamp_side(right_from_safe);
+    float left_from_safe = std::max(0.f, safe_left - band_left);
+    float right_from_safe = std::max(0.f, band_right - safe_right);
+    // Map safe-area through the letterboxed logical view when SDL exposes it.
+    if (win.renderer) {
+        SDL_FRect drawn{};
+        if (SDL_GetRenderLogicalPresentationRect(win.renderer, &drawn) && drawn.w > 0.f && drawn.h > 0.f) {
+            const float touch_left = (std::max(float(area.x), drawn.x) - drawn.x) / drawn.w * float(win.view_w);
+            const float touch_right = (std::min(float(area.x + area.w), drawn.x + drawn.w) - drawn.x) / drawn.w * float(win.view_w);
+            left_from_safe = std::max(0.f, touch_left - band_left);
+            right_from_safe = std::max(0.f, band_right - touch_right);
         }
     }
+    // Landscape notch: pad only the intruded edge; never both at once (crushes the cluster).
+    touch::safe_inset.left = touch::safe_inset.right = 0.f;
+    if (left_from_safe >= right_from_safe && left_from_safe > 0.f) touch::safe_inset.left = clamp_side(left_from_safe);
+    else if (right_from_safe > 0.f) touch::safe_inset.right = clamp_side(right_from_safe);
     touch::safe_inset.top = clamp_side(std::max(0.f, safe_top));
     touch::safe_inset.bottom = clamp_side(std::max(0.f, float(kScreenHeight) - safe_bottom));
 #else
