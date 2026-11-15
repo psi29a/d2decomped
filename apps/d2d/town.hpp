@@ -483,6 +483,7 @@ struct Town {
     // gear, passives, masteries, states).
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
     std::array<std::string, 4> belt_key_names{};
+    std::array<std::string, 2> run_key_names{};    // Toggle Run's keys by name, slot 1 then 0 (update_hotkey_names)
     bool menu_press = false;                       // an NPC menu took this press: the store ignores it till it's let go   // Use Belt 1..4's keys by name (update_hotkey_names)
     [[nodiscard]] int pad_panel() const;
     void pad_tab(int step);

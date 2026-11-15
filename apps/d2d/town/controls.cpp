@@ -96,6 +96,12 @@ auto Town::update_hotkey_names() -> void {
         for (int slot = 0; slot < 16; ++slot)
             skillbar.hotkey_names[std::size_t(slot)] = name(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8, false);
         for (int slot = 0; slot < 4; ++slot) belt_key_names[std::size_t(slot)] = name(keys::kBelt1 + slot, true);   // the belt's (FUN_00499040)
+        for (int slot = 1; slot >= 0; --slot) {    // the run button's hover (FUN_00497300): slot 1, then slot 0
+            const auto key = keys::key_of(key_table, keys::kToggleRun, slot);
+            const auto key_name_id = keys::name_id(key);
+            run_key_names[std::size_t(1 - slot)] = key == keys::kNone ? std::string{}
+                                                 : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
+        }
     }
 
 // Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.

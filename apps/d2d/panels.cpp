@@ -427,9 +427,14 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     const bool on_run = over_run_button(mouse_x, mouse_y);
     at_bottom(scene.run_button, (hud.running ? 2 : 0) + (hud.run_down && on_run ? 1 : 0), width / 2 - 0x91, height - 10);
     if (on_run) {
-        auto special = str(0x1052);
-        if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, "R");
-        hovers.push_back({ width / 2 - 0x91, height - 0x17, { str(0x1053) + special, kWhite } });
+        auto text = str(0x1053);
+        for (const auto& key : hud.run_keys) {
+            if (key.empty()) continue;
+            auto special = str(0x1052);
+            if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, key);
+            text += special;
+        }
+        hovers.push_back({ width / 2 - 0x91, height - 0x17, { std::move(text), kWhite } });
     }
     // Stamina (FUN_004975b0): 102 px when full, in the palette entry nearest
     // its colour (FUN_004fb180), at three quarters (draw mode 2); over its
