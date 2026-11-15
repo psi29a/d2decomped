@@ -5,6 +5,7 @@
 // player's, so World::view can give each party merc its get-hit rate.
 // No game data: the gear is typed in.
 
+#include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
