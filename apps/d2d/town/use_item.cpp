@@ -64,7 +64,7 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
         std::erase_if(keys, [](SDL_Keycode key) { return key == SDLK_ESCAPE || key == SDLK_SPACE; });
         if (!use_item.open()) return;
     }
-    const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+    const Scene::InvLayout lay = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
     const bool in_inventory = inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320 && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432;
     const int close_x = lay.panel_x + 0x12, close_bottom = lay.panel_y + 416;
     const bool on_close_box = inv_open && mouse.x >= close_x && mouse.x < close_x + 0x20 && mouse.y > close_bottom - 0x20 && mouse.y <= close_bottom;

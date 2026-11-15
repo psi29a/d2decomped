@@ -259,7 +259,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool pad_target = pad_playing && pad_field() && focus_id() == hero.id;
         if (pad_target) hover_x = hover_y = -1;
         automap_frame();
-        const bool pad_bar = skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
+        const bool pad_bar = !touch_enabled && skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
         auto belt_names = belt_key_names;
         if (pad_bar) {
             const auto name = [&](pad::Action action) -> std::string {
@@ -286,7 +286,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, touch_enabled && inv_open }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -294,7 +294,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         if (scene->store_buttons.frames_per_direction() > 11) {     // the close buttons, over their panels
             const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
-            const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+            const auto lay = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
             if (inv_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, inv_close_down ? 11 : 10), pal, lay.panel_x + 0x12, lay.panel_y + 416);
             if (char_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, char_close_down ? 11 : 10), pal, kCharPanelX + 0x80, kCharPanelY + 420);
             if (stash_open && !cube_open) {

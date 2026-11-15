@@ -642,7 +642,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
 // The inventory item under the cursor, or nullptr. Not the stash, the cube or the belt.
 auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
         if (!scene || !inv_open) return nullptr;
-        const auto& inventory = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        const auto& inventory = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         for (const auto& item : character.items) {
             if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
             const auto rect = grid_rect(*scene, inventory, item);

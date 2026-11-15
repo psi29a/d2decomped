@@ -58,6 +58,23 @@ std::string touch_interact_label(const Town& town, const Town::PadPick& pick) {
 
 } // namespace
 
+Scene::InvLayout Town::touch_inv_layout() const {
+    const int cls = std::max(character.character_class, 0);
+    if (!scene) return {};
+    Scene::InvLayout lay = scene->inv_layout[std::size_t(cls)];
+    if (!touch_enabled || !inv_open) return lay;
+    const int dx = touch::kTouchInvPanelX - lay.panel_x, dy = touch::kTouchInvPanelY - lay.panel_y;
+    lay.panel_x += dx;
+    lay.panel_y += dy;
+    lay.grid_x += dx;
+    lay.grid_y += dy;
+    for (auto& slot : lay.slots) {
+        slot[0] += dx;
+        slot[1] += dy;
+    }
+    return lay;
+}
+
 /**
  * Load the named character touch assignments independently of controller positions. Remove the
  * cached sheet if its sidecar cannot be opened.
@@ -346,14 +363,23 @@ void Town::drive_touch() {
         touch_player.face_x = face.x; touch_player.face_y = face.y;
     }
     pad_walk(touch_player, view.player, false, true, out);
-    touch_attack_pick = pad_pick(touch_player, view.player, true);
+    touch_attack_pick = pad_pick(touch_player, view.player, false);
     touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
-    if (touch_input.attack_press) touch_attack_used = false;
-    if (touch_input.attack_down && !touch_attack_used) {
-        const auto picked = touch_input.attack_press ? touch_attack_pick : pad_pick(touch_player, view.player, false);
-        if (picked.kind == PadPick::kItem) { send(cmd::Pickup{ picked.id }); touch_attack_used = true; }
-        else if (picked.kind == PadPick::kThing) { send(cmd::Interact{ picked.id }); touch_attack_used = true; }
-        else if (picked.kind == PadPick::kMonster) send(cmd::UseSkill{ 0, picked.x, picked.y, picked.id, true, -1 });
+    if (touch_input.attack_down && scene) {
+        const auto* attack_info = scene->skills.get(0);
+        if (attack_info && !attack_info->passive && skill_known(character.name, 0)) {
+            const bool swing = skillpad::swings({ attack_info->leftskill, !attack_info->srvmissile.empty(), attack_info->range });
+            const bool moving = touch_player.move.aim || touch_player.move.active;
+            const PadPick pick = pad_pick(touch_player, view.player, false, pad_aim(0, moving));
+            if (pick.kind == PadPick::kMonster) {
+                touch_player.target = pick.id;
+                out(cmd::UseSkill{ 0, pick.x, pick.y, pick.id, swing, -1 });
+            } else {
+                touch_player.target = -1;
+                const UnitState& unit = view.player;
+                out(cmd::UseSkill{ 0, unit.x + touch_player.face_x * 3.f, unit.y + touch_player.face_y * 3.f, -1, swing, -1 });
+            }
+        }
     }
     if (touch_input.belt >= 0) send(cmd::UseBelt{ touch_input.belt });
     for (const auto& target : touch_input.casts) cast_resolved(touch_player, target);
@@ -376,23 +402,13 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         pixel[1] = std::uint8_t(pixel[1] * scale);
         pixel[2] = std::uint8_t(pixel[2] * scale);
     };
-    const auto panel = [&](touch::Box box, std::uint8_t alpha = 190) {
-        for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y)
-            for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x)
+    const auto halo = [&](float centre_x, float centre_y, float radius, std::uint8_t alpha = 110) {
+        for (int pixel_y = int(centre_y - radius); pixel_y <= int(centre_y + radius); ++pixel_y)
+            for (int pixel_x = int(centre_x - radius); pixel_x <= int(centre_x + radius); ++pixel_x) {
+                if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
+                if (std::hypot(float(pixel_x) - centre_x, float(pixel_y) - centre_y) > radius) continue;
                 darken(pixel_x, pixel_y, alpha);
-        const auto edge = [&](int pixel_x, int pixel_y) {
-            if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) return;
-            auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-            pixel[0] = std::min(255, int(pixel[0]) + 28); pixel[1] = std::min(255, int(pixel[1]) + 22); pixel[2] = std::min(255, int(pixel[2]) + 8);
-        };
-        for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
-            edge(pixel_x, int(box.y));
-            edge(pixel_x, int(box.y + box.height) - 1);
-        }
-        for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y) {
-            edge(int(box.x), pixel_y);
-            edge(int(box.x + box.width) - 1, pixel_y);
-        }
+            }
     };
     const auto ring = [&](float centre_x, float centre_y, float radius, bool faint = false) {
         for (int pixel_y = int(centre_y - radius - 1); pixel_y <= int(centre_y + radius + 1); ++pixel_y)
@@ -426,7 +442,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, label,
                          gold ? 255 : active ? 255 : 199, gold ? 220 : active ? 220 : 179, gold ? 100 : 119);
     };
-    button(touch::placed(touch::kDone), touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done" : pad_field() ? "Menu" : "Back");
+    button(touch::placed(touch::kDone), touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done" : pad_field() ? "..." : "Back", false, false);
     if (touch_assign != skillpad::kUnset) {
         button(touch::placed(touch::kMenu), "Assign Inventory");
         button(touch::placed(touch::kPage), touch_input.alternate ? "II" : "I");
@@ -442,10 +458,12 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         return;
     }
     if (tree_open) {
+        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
         if (touch_selected >= 0) button(touch::placed({ 410, 545, 240, 50 }), "Assign to touch button");
         return;
     }
     if (!pad_field()) {
+        if (inv_open) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 36, "Inventory . Done closes");
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 75,
             identify_with >= 0 ? "Tap an unidentified item . Back cancels" : touch_item_hint);
         return;
@@ -455,30 +473,38 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const int skill = found == touch_sheets.end() ? skillpad::kEmpty : found->second.slot(touch_input.alternate, index);
         touch_previews[std::size_t(index)] = resolve_skill(touch_player, skill);
     }
-    panel(touch::placed(touch::kPanelLeft));
-    panel(touch::placed(touch::kPanelRight));
-    button(touch::placed(touch::kMenu), "Inventory");
-    button(touch::placed(touch::kSkillsBar), "Skills");
-    button(touch::placed(touch::kMap), automap.open ? "Map*" : "Map");
-    const touch::Box move_pad = touch::placed(touch::kMove);
+    const touch::Layout chrome = touch::layout_boxes();
+    button(chrome.menu, "Inv", false, true);
+    button(chrome.skills_bar, "Skl", false, true);
+    button(chrome.map, automap.open ? "M*" : "Map", false, true);
+    const touch::Box move_pad = chrome.move;
     const float stick_x = move_pad.x + move_pad.width * .5f;
     const float stick_y = move_pad.y + move_pad.height * .55f;
+    halo(stick_x, stick_y, touch::kStickOuter + 6);
     ring(stick_x, stick_y, touch::kStickOuter);
     ring(stick_x, stick_y, touch::kStickInner, true);
     ring(stick_x + touch_input.move_x * 38, stick_y + touch_input.move_y * 38, 18);
-    button(touch::placed(touch::kAttack), "Atk", false, true);
-    button(touch::placed(touch::kPage), touch_input.alternate ? "II" : "I");
+    for (int index = 0; index < 4; ++index) {
+        const touch::Box belt = chrome.belts[std::size_t(index)];
+        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .55f, 90);
+        button(belt, std::to_string(index + 1), false, true);
+    }
+    const touch::Box attack_box = chrome.attack;
+    halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .55f);
+    button(attack_box, "Atk", touch_input.attack_down, true);
+    button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
     if (touch_interact_visible(touch_interact_pick)) {
-        const touch::Box interact = touch::placed(touch::kInteract);
+        const touch::Box& interact = chrome.interact;
+        halo(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .62f, 130);
         ring(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .48f, true);
         button(interact, touch_interact_label(*this, touch_interact_pick), true, true, true);
     }
     for (int index = 0; index < 4; ++index) {
-        button(touch::placed(touch::kBelts[index]), std::to_string(index + 1));
         const auto& target = touch_previews[std::size_t(index)];
         const auto* info = scene->skills.get(target.skill);
-        const touch::Box skill_box = touch::placed(touch::kSkills[index]);
+        const touch::Box skill_box = chrome.skills[std::size_t(index)];
         const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
+        halo(skill_cx, skill_cy, touch::kSkillRing + 10, 90);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
         button(skill_box, info ? info->name : target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-",
                info && info->id == view.aura, true);

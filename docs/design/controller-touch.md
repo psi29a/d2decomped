@@ -48,8 +48,12 @@ Enable `--touch-controls` or `touch_controls = 1` in d2d.cfg. This is an SDL
 input prototype, not an Android/iOS packaging or device-support claim. Coordinates
 follow the game's existing logical viewport. Use landscape for this prototype.
 
-- Left movement area, fixed large Attack/Use, four skill buttons, and a
-  one-tap I/II page switch. Belt buttons are available on either page.
+- Left movement area, dedicated contextual Interact, attack-only primary button,
+  four skill buttons, and a one-tap I/II page switch. Belt buttons are available
+  on either page.
+- Top chrome is edge-pinned (inventory and skills top-left; map and menu
+  top-right). Field controls sit in the bottom corners; the center stays clear.
+  Inventory on touch hugs the left edge of the view.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing
   them. Done returns to the panel; Back closes it.

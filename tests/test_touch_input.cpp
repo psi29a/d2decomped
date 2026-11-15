@@ -19,37 +19,37 @@ int main() try {
     input.event(1, Phase::Down, 110, 450);
     input.event(1, Phase::Move, 175, 450);
     assert(input.move_x == 1 && input.move_y == 0);
-    input.event(2, Phase::Down, 590, 520, fire);
-    input.event(2, Phase::Move, 640, 500);
+    input.event(2, Phase::Down, 630, 526, fire);
+    input.event(2, Phase::Move, 660, 500);
     assert(input.aiming && input.dragged && input.casts.empty());
-    input.event(3, Phase::Down, 600, 248);
+    input.event(3, Phase::Down, 624, 332);
     assert(input.alternate && input.move_x == 1 && input.preview.skill == 54);
     input.event(2, Phase::Cancel, 610, 450);
     assert(!input.aiming && input.casts.empty() && input.move_x == 1);
-    input.event(2, Phase::Down, 590, 520, fire);
-    input.event(2, Phase::Up, 600, 200);
+    input.event(2, Phase::Down, 630, 526, fire);
+    input.event(2, Phase::Up, 380, 170);
     assert(input.casts.empty() && input.move_x == 1); // visible cancel region
-    input.event(2, Phase::Down, 590, 520, fire);
+    input.event(2, Phase::Down, 630, 526, fire);
     input.event(1, Phase::Up, 175, 450);
     assert(input.aiming && input.casts.empty() && input.move_x == 0);
-    input.event(2, Phase::Up, 590, 520);
+    input.event(2, Phase::Up, 630, 526);
     assert(input.casts.size() == 1 && input.casts[0].skill == 54 && input.casts[0].unit == 7);
     input.frame();
     input.event(1, Phase::Down, 110, 450);
     input.event(1, Phase::Move, 155, 450);
     input.event(2, Phase::Down, 590, 520, fire, true);
     assert(input.casts.empty()); // even self casts are cancellable until lift
-    input.event(2, Phase::Cancel, 590, 520);
+    input.event(2, Phase::Cancel, 630, 526);
     assert(input.casts.empty() && input.move_x > 0);
-    input.event(2, Phase::Down, 590, 520, fire);
+    input.event(2, Phase::Down, 630, 526, fire);
     input.clear(); // a panel/focus change invalidates all pending gestures
-    input.event(2, Phase::Up, 590, 520);
+    input.event(2, Phase::Up, 630, 526);
     assert(input.casts.empty() && input.move_x == 0 && !input.aiming);
-    input.event(3, Phase::Down, 710, 516);
+    input.event(3, Phase::Down, 724, 528);
     assert(input.attack_press && input.attack_down);
     input.frame();
     assert(!input.attack_press && input.attack_down);
-    input.event(3, Phase::Up, 710, 516);
+    input.event(3, Phase::Up, 724, 528);
     assert(!input.attack_down);
     // Single-pointer adapters have a separate valid owner, not the no-finger sentinel.
     input.clear();
@@ -57,8 +57,8 @@ int main() try {
     assert(input.attack_down);
     input.event(-2, Phase::Up, 710, 516);
     assert(!input.attack_down);
-    assert(!chrome_hit(495, 228, false));
-    assert(chrome_hit(495, 228, true)); // kInteract only blocks field taps when visible
+    assert(!chrome_hit(400, 300));
+    assert(chrome_hit(572, 400, true)); // kInteract only blocks field taps when visible
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

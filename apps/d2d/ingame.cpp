@@ -2,6 +2,8 @@
 // Definitions for ingame.hpp: the in-game frame and the rain.
 #include "ingame.hpp"
 
+#include "touch_input.hpp"
+
 #include <overlays.hpp>
 
 #include "common.hpp"
@@ -358,7 +360,19 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         auto draw_inventory_panel = [&] {
             if (inventory && class_idx >= 0 && class_idx < 7)
             {
-                draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
+                Scene::InvLayout layout = scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])];
+                if (hud.touch_inv_anchor) {
+                    const int dx = touch::kTouchInvPanelX - layout.panel_x, dy = touch::kTouchInvPanelY - layout.panel_y;
+                    layout.panel_x += dx;
+                    layout.panel_y += dy;
+                    layout.grid_x += dx;
+                    layout.grid_y += dy;
+                    for (auto& slot : layout.slots) {
+                        slot[0] += dx;
+                        slot[1] += dy;
+                    }
+                }
+                draw_inventory(framebuffer, scene, layout, *inventory,
                                mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
             }

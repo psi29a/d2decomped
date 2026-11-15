@@ -469,7 +469,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
-        const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        const Scene::InvLayout lay = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         // The inventory's and the character panel's close buttons (buysellbtn
         // 10, 11 held): pressed, then let go over it, shuts the panel
         // (FUN_0048edf0 at W - 80 - 0x12e, H - 0x7c; FUN_004a7d00 at 80 + 0x80, H - 0x78).
