@@ -260,7 +260,7 @@ struct World {
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
         std::vector<int> greeted;
-        // The NPCs S->C 0x91 named at the last act change (rules::NpcReturns::due): a talk
+        // The NPCs S->C 0x91 named at the last arrival in a town (rules::NpcReturns::due): a talk
         // record's +0x12, its next menu greeting the return line (FUN_004b3510, FUN_004b66b0).
         std::vector<int> returning;
         // When the Countess's death (unit event 0x25) held the player's
@@ -726,6 +726,7 @@ struct World {
     d2d::d2s::Header save_header();
     const std::vector<d2d::d2s::Item>* saved_corpse();   // the corpse's items a save keeps
     void set_act(int act);
+    void owe_returns(const Level& town);
     void show_palace();
 
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest

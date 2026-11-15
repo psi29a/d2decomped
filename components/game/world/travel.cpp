@@ -73,6 +73,7 @@ auto World::cross_level() -> void {
                     for (auto& pet : player.pets) pet.target = -1;
                     act1_enter(*level); act2_enter(*level); act3_enter(*level); act4_enter(*level); act5_enter(*level);
                     player.on_level = neighbour.level;
+                    owe_returns(*neighbour.level);
                     d2d::log::info("{}: level {} at ({:.1f}, {:.1f})", player.character.name, level_name(*neighbour.level), player.player.x, player.player.y);
                 });
                 return;
@@ -90,6 +91,7 @@ auto World::cross_level() -> void {
             fight.enter(level);
             loot.enter(level);
             leave_town(from);
+            each_player([&](Player&) { owe_returns(*level); });
             swap_npcs(from);
             d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), float(actor->player.x), float(actor->player.y));
             return;
@@ -119,6 +121,7 @@ auto World::go_alone(const Level* destination, float arrive_x, float arrive_y, c
             actor->events.push_back(ev::LevelChanged{ from, true });
             act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from);   // swap_npcs' hooks, theirs alone
             if (const int to_act = d2d::rules::level_ids::act_of(destination->id); to_act != d2d::rules::level_ids::act_of(from->id)) set_act(to_act);
+            if (destination != from) owe_returns(*destination);
             actor->on_level = destination;
             actor->player.x = free_x; actor->player.y = free_y;
             actor->player.walking = false; actor->player.path.clear();
@@ -227,6 +230,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             stocks.clear();
             each_player([&](Player&) { set_act(act()); });   // the party crosses with the mover (bring_party below)
         }
+        if (from != level) each_player([&](Player&) { owe_returns(*level); });
         actor->player.x = free_x; actor->player.y = free_y;
         actor->player.walking = false; actor->player.path.clear();
         actor->target_x = free_x; actor->target_y = free_y;
@@ -265,12 +269,17 @@ auto World::leave_town(const Level* from) -> void {
     }
 
 // The save's act (its difficulty byte: 0x80 and the act in the low bits):
-// game.exe starts the next game in that act's town. The act's town NPCs
-// owed a return line come as S->C 0x91 (FUN_00537340 -> FUN_00545100).
+// game.exe starts the next game in that act's town.
 auto World::set_act(int act) -> void {
         auto& difficulty = actor->character.header.difficulty[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))];
         difficulty = std::uint8_t((difficulty & ~7) | 0x80 | act);
-        actor->returning = d2d::rules::NpcReturns::due(congrats(), act);
+    }
+
+// Each arrival in a town from another level (FUN_005380d0 -> FUN_00537340, not
+// a game's start: FUN_005381f0 sets the client's room first) names the town's
+// NPCs owed a return line, S->C 0x91 (FUN_00545100). Act 4's has none.
+auto World::owe_returns(const Level& town) -> void {
+        if (in_town(&town)) actor->returning = d2d::rules::NpcReturns::due(congrats(), d2d::rules::level_ids::act_of(town.id));
     }
 
 auto World::death_penalty(std::uint32_t now_ms) -> void {

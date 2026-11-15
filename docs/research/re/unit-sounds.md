@@ -500,8 +500,14 @@ Kurast's (2). Tyrael's portal (FUN_005b5880, OperateFn 73) sets word
 0 clear) would mark Lut Gholein's again but can't run (bugs.md #116).
 Harrogath's list (4) is never marked. The return line's C→S 0x4d {u16 class} (FUN_004785b0(0x4d))
 clears the bit (handler FUN_0054c690 → FUN_005724c0, FUN_00410b50).
-d2d: `rules::NpcReturns` (town_npcs.hpp), `Player::returning`, set at
-the act change (`World::set_act`); `tests/game/test_npc_returns.cpp`.
+FUN_00537340's callers are FUN_005380d0 (the room change, when the
+client's last room +0x1b4 was on another level) and FUN_0053aec0 (a warp
+to another act), so 0x91 comes on every arrival in a town from another
+level, within an act too. A game's start sends none: FUN_005394a0 calls
+FUN_005381f0 (0x539577), which sets +0x1b4 to the start room before
+FUN_005380d0 first runs. d2d: `rules::NpcReturns` (town_npcs.hpp),
+`Player::returning`, set on each arrival in a town (`World::owe_returns`);
+`tests/game/test_npc_returns.cpp`.
 
 ## Distance (FUN_004b9a00, FUN_004ba020, FUN_004dfc20)
 

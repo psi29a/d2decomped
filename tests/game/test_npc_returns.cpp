@@ -85,7 +85,7 @@ int main() try {
     const auto is_return = [&](int sound) { return sound >= greeting->back && sound < greeting->back + std::max(data->sounds[std::size_t(greeting->back)].group, 1); };
 
     NpcReturns::mark(world.congrats(), 0);                           // Warriv's first trip
-    world.set_act(0);                                                // back into Act 1: 0x91 names the camp's six
+    world.owe_returns(town);                                         // back in the camp: 0x91 names its six
     assert(actor->returning.size() == 6);
     auto heard = talk();
     assert(heard.size() == 1 && is_return(heard[0]));
@@ -94,7 +94,7 @@ int main() try {
     assert(heard.empty());
 
     NpcReturns::mark(world.congrats(), 0);
-    world.set_act(0);
+    world.owe_returns(town);
     heard = talk();                                                  // named, but +0x15 is clear: no line, the bit stays
     assert(heard.empty() && !std::ranges::contains(actor->returning, kGheed) && (world.congrats() >> NpcReturns::bit_of(kGheed) & 1) == 1);
 
