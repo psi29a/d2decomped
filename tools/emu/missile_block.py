@@ -125,6 +125,8 @@ def parse(lines, who):
             vals = tuple(int(x) for x in f[1:])
             if f[0] == "B" and vals[3] not in (0, 1):
                 raise ValueError
+            if f[0] == "K" and not 0 <= vals[1] <= vals[2] > 0:
+                raise ValueError    # a trial result has trials > 0 and 0 <= blocked <= trials
         except (ValueError, KeyError):
             die("%s line %d malformed: %r" % (who, k, line.strip()))
         if vals[0] in cells:
@@ -180,7 +182,8 @@ def selftest():
         return False
 
     ok = [not fails(gl, dl), fails(gl, dl[:2]), fails(gl[:2], dl), fails(gl, dl + [dl[0]]), fails(gl, ["K 1 x", dl[1], dl[2]]), fails([], dl), fails(gl, []),
-          fails(gl, ["B 1 0 0 0 0"] + dl[1:]), fails(["K 1 0 400"] + gl[1:], dl)]
+          fails(gl, ["B 1 0 0 0 0"] + dl[1:]), fails(["K 1 0 400"] + gl[1:], dl),
+          fails(gl, ["K 1 0 0"] + dl[1:]), fails(gl, [dl[0], "K 2 401 400", dl[2]])]
     ok.append(judge(parse(gl, "game"), parse(["K 1 5 400", dl[1], dl[2]], "d2d"), lambda s: None)[1] == 1)
     ok.append(judge(parse(gl, "game"), parse([dl[0], "K 2 0 400", dl[2]], "d2d"), lambda s: None)[1] == 1)
     ok.append(judge(parse(gl, "game"), parse(["N 1", dl[1], dl[2]], "d2d"), lambda s: None) == (1, 0))     # a row d2d does not load is listed, not judged
