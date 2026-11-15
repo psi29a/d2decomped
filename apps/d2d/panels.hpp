@@ -56,11 +56,12 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
 // cursor (0x7bcbf4 with 0x7bcbe4 set). FUN_00483960's colours are the nearest
 // palette entry of (0x80, 0, 0), (0, 0x80, 0), (0, 0, 0x80), (0x80, 0x40, 0x40);
 // the first, third and fourth are act 1's 0x08 / 0xea / 0x4d, and green is
-// that lookup on the palette in use.
-// ponytail: cursor mode 8 (DAT_007a6af0) with Items.txt Transmogrify clear
-// (FUN_0062a0a0, +0x139) is red, not green. draw_inventory does not know that
-// cursor, a child stat list flagged 2, or the player in state 0x36. A cursor
-// item kept off the drawn list is not seen either.
+// that lookup on the palette in use. Its red for cursor mode 8 with
+// Items.txt Transmogrify clear (0x48417a) never runs: mode 8 is only
+// FUN_00468040 with EDX set, and both its calls clear EDX (stubs.md).
+// ponytail: draw_inventory does not know a child stat list flagged 2, or
+// the player in state 0x36. A cursor item kept off the drawn list is not
+// seen either.
 inline void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer,
                        const std::array<int, 4>& rect, const d2d::d2s::Header* header = nullptr, bool under_cursor = false,
                        bool stat_list_flag_2 = false, bool player_state_36 = false) {

@@ -517,7 +517,10 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   (`0x7bcbf4`, and `0x7bcbe4` nonzero: `FUN_00487000` sets both when the hand is
   empty) is kind 1, except cursor mode 8 (`DAT_007a6af0`, `FUN_00468830`) with
   Items.txt Transmogrify clear (`FUN_0062a0a0`, `+0x139`), which is kind 0
-  (`0x48417a`). Otherwise kind 0 when `FUN_0062eaf0` fails, item flag 0x4
+  (`0x48417a`). Mode 8 never happens: only `FUN_00468040` sets it (EDX
+  non-zero gives 8, else 7), its two calls (`0x488c96`, `0x488fda`) both
+  clear EDX first, and every other store to `DAT_007a6af0` is 1..6
+  (stubs.md). Otherwise kind 0 when `FUN_0062eaf0` fails, item flag 0x4
   (`FUN_006280a0` at `0x48424f`), `FUN_004c2240` at `0x48425a` (ECX is the item:
   `FUN_00625760(item, 2)`, a child stat list whose flags have bit 2, or the
   client player in state 0x36), or `FUN_0062a4e0` returns 0 (flags 0x100 /
