@@ -44,7 +44,9 @@ address	name	evidence
 00452e50	boxpieces_frame	ECX rect {x0, y0, x1, y1}: cels of the file at 0x7a2798 round it in four runs (n % 6 + 2, n % 6 + 0x10, n % 3 + 10, n % 3 + 0xd) and corners 0, 1, 8, 9 (cursor-units.md "The frame of cels")
 00453060	kept_label_draw	no args: draws the text kept at 0x7a2c80 (FUN_00452be0 mode 1) centred on 0x7a2d20 at 0x7a2d24 + 2 - 2, clamped to the screen, then clears it (cursor-units.md "The kept label's draw")
 00453100	death_screen_draw	no args: the local player dead (FUN_00464820): youdiedhardcore / youdiedinst cels at H/2 - 0x5e, +0x30, then red Font30 lines 0x13e8 (hardcore) or 0x13e6 with stat 0xaf, and 0x13e7 above difficulty 0; sets 0x7a2890 (cursor-units.md "The death screen")
+00453a90	ui_flag_get	ECX index: returns the exact dword at 0x7a27c0 + index * 4, with no bounds check (client-frontier.md)
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
+00457460	unit_flags_c4_toggle	ECX unit, EDX mask, stack enabled: nonnull unit +0xc4 OR mask when enabled is nonzero, else AND inverse mask; null is a no-op (client-frontier.md)
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4b0	skill_row	ECX skill id: id*0x23c + [0x744304]+0xb98, 0 when id < 0 or >= [0x744304]+0xba0; no assert (cited, decompile only; skills.md "Iron Maiden's event function")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
@@ -268,13 +270,13 @@ address	name	evidence
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
 0049e3a0	chat_line_add	ECX text, EDX kind: wrapped to <= 6 lines in a 0x26 node (expiry tick + 10000), appended to the queue DAT_007bf1e4, one head dropped past 18 lines (net-packets.md; ui_client_helpers.py)
 004a0000	speech_box_open	12 bytes, no args: xor eax,eax / cmp dword [0x7bf0a4],eax / setnz al / ret. 1 when the speech record is set (npc-talk.md)
+004a7080	centered_glyph_draw	ECX left, EDX colour, stack right/text/final: measures text and centres it in the inclusive range only when it fits, then FUN_00502320(text, x, colour, final, 0) (client-frontier.md)
 004a89d0	skill_desc_record	Skills row index -> SkillDesc record: Skills +0x194 in [0, tables+0xb94), record tables+0xb8c + n*0x120, else 0 (char-panel.md)
 004a9ae0	skill_count_search_2	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
 004a9b30	skill_count_search_3	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
 004a9d70	hotkeys_unbind_skill	(skill record, count): with count < 1 clears every hotkey slot (0x7c06c8 / 0x7c07b8 / 0x7c0768) bound to a skill id in the picker array 0x7c04e0 equal to the record's id, then FUN_004786a0(-1); skills.md "Skill list accessors and the hotkey sweep"
 004a9df0	hotkeys_unbind_empty	() sweeps the player's skill list, records with +8 & 0x10: FUN_004a9d70(record, node count); empty list asserts (line 0x47d); called by FUN_0048ffe0; skills.md "Skill list accessors and the hotkey sweep"
 004aa160	hotkeys_default_fill	() binds up to 16 non-passive picker slots (of 60) to the next free hotkey slots via FUN_004aa0f0; empty list asserts (line 0x524); no caller in game-calls.tsv (cited); skills.md "Skill list accessors and the hotkey sweep"
-004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #109)
 004ade40	monster_mod_dispatch_0	ECX unit: FUN_004add90(unit, 0, 0); verified by unit_client.py
 004ade50	monster_mod_dispatch_1	ECX unit: FUN_004add90(unit, 0, 1); verified by unit_client.py
 004ade60	monster_mod_dispatch_2	ECX unit: FUN_004add90(unit, 0, 2); verified by unit_client.py
@@ -292,6 +294,9 @@ address	name	evidence
 004ae3a0	monster_type_test_02	ECX unit: a monster gives FUN_004ac7e0(unit, 2), else 0; verified by unit_client.py
 004ae4f0	unit_client_event_hook	ECX unit, naked EAX event code: two jump tables dispatching client-side event codes; callers FUN_004ae8d0, FUN_004aedd0; collision.md "A per-event client hook"
 004afbc0	monstats2_mode_flag_test	ECX unit, naked EAX struct {+0 bit index, +4 gate}: tests a MonStats2 row's +0x104 byte array via FUN_00451fe0; two call sites in FUN_004aff60; collision.md "A per-mode MonStats2 flag test"
+004b3500	store_gamble_mode	no args: returns the exact dword at 0x7c0db0; store code treats nonzero as gamble mode (client-frontier.md)
+004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #109)
+004b9590	sound_handle_playing	ECX nonzero sound handle: first matching record in the 0x7c5458 list has state +0x30 exactly 1; missing/zero handle returns 0 (client-frontier.md)
 004c6ac0	skill_client_start	fastcall (unit, ...), caller FUN_0045d5e0: state list + stat set to the level, start-function table 0x727ba8 per level; skills.md "Stat-list helpers and skill starts" (table meaning not read)
 004c7630	unit_command_on_target	fastcall (unit, target): builds the unit command {0, -1, target type, target id, 1, 0, 0} (type 6 / id -1 for none) and runs FUN_00480c10 with 1; returns 1; caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
