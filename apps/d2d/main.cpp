@@ -516,7 +516,7 @@ void apply_safe_inset(const Window& win) {
     const float band_right = ui_x + float(kScreenWidth);
     // One-sided notch in landscape: do not shrink both edges when the safe rect still spans the band.
     constexpr float kMaxInsetSide = 96.f;
-    auto clamp_side = [](float value) { return std::clamp(value, 0.f, kMaxInsetSide); };
+    auto clamp_side = [kMaxInsetSide](float value) { return std::clamp(value, 0.f, kMaxInsetSide); };
     const float left_from_safe = std::max(0.f, safe_left - band_left);
     const float right_from_safe = std::max(0.f, band_right - safe_right);
     const float span = std::max(0.f, safe_right - safe_left);
