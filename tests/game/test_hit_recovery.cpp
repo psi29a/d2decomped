@@ -9,6 +9,11 @@
 //   `--hit-modes`: one big hit on a Paladin standing in each of modes DT..SQ (0..18) with a hold running, then in a knockback
 //   slide (19, drawn as GH with `knock` set): `M mode after restarted` (the mode right after the hit, and 1 when the hold's
 //   end moved; the cells FUN_0057edd0 answers for GH).
+//   `--interrupt`: one big hit on a Paladin whose used skill is every Skills.txt row d2d parsed, in each swing or cast mode with its
+//   hold queued, with no state and with state 0x36 (a Leap or Whirlwind under way): `I skill mode own state after kicks seq smove`
+//   (own 1 when the mode is the one the swing table plays that skill in; kicks, seq, smove 0 when the swing's repeats, sequence and
+//   movement are gone), and the barrel kick (swing_skill 0 in KK, what World::operate leaves): `B kick_id after`;
+//   `tools/emu/interrupt_swing.py game` and `compare` check them against FUN_0057eec0.
 //   no argument: the rules (block_rate, block_ticks) and, with the game data (D2_MPQ_DIR), a Paladin's block and the get-hit hold.
 
 #include <ai.hpp>
@@ -21,6 +26,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <sequences.hpp>
 #include <world.hpp>
 
 #include <array>
@@ -31,6 +37,8 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -63,7 +71,8 @@ Character make_hero(const GameData& data, int cls, const std::string& weapon) {
 int main(int argc, char** argv) try {
     const bool grid = argc > 1 && std::strcmp(argv[1], "--block-length") == 0;
     const bool restart = argc > 1 && std::strcmp(argv[1], "--restart") == 0;
-    if (!grid && !restart) {
+    const bool interrupt = argc > 1 && std::strcmp(argv[1], "--interrupt") == 0;
+    if (!grid && !restart && !interrupt) {
         // The block rate and length (FUN_00623f50's block branch, FUN_005539b0): a Paladin's PABL1HS (3 frames at 256) holds 6 ticks at FBR 0 and 3 at FBR 86 (13 / 32 / 86 are
         // the breakpoints), with Holy Shield's state 0.5 x the rate more: 3 ticks at FBR 0..85 and 2 from 86.
         using d2d::rules::block_rate;
@@ -188,6 +197,52 @@ int main(int argc, char** argv) try {
         int first = 0, second = 0;
         two_hits(first, second);
         std::printf("R %d %d\n", first, second);
+        return 0;
+    }
+    if (interrupt) {
+        // One big hit on a Paladin whose used skill is every Skills.txt row d2d parsed, in each swing or cast mode with its hold queued: `I skill mode own state after kicks seq smove`, with and without state 0x36.
+        static const d2d::rules::SeqFrame one_frame{};
+        const auto kick = data->skills.by_name.find("Kick");
+        assert(kick != data->skills.by_name.end());
+        // One big hit on a Paladin whose swing_skill is `id`, in `mode` with its hold queued; `fly` puts a Leap or Whirlwind under way (state 0x36).
+        const auto hit = [&](int id, int mode, bool fly, std::uint32_t pmode_until = 0) {
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            auto world = std::make_unique<World>(&*data, -1, -1);
+            world->enter(hero);
+            world->fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world->actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            actor.swing_skill = id;
+            actor.pmode = mode;
+            actor.pmode_until = pmode_until ? pmode_until : start_ms + 10 * 40;
+            actor.kicks_left = 3;
+            actor.seq = std::span<const d2d::rules::SeqFrame>(&one_frame, 1);
+            actor.smove.active = true;
+            actor.smove.fly = fly;
+            world->fight.hurt_side(side, start_ms + 40);
+            return world;
+        };
+        for (int id = 0; id < 400; ++id) {
+            const auto* row = data->skills.get(id);
+            if (!row) continue;
+            // The mode d2d plays the skill in: its own swing for a melee row (swing_mode), SC for a cast row, A1 for the rest (a throw, a bolt).
+            const int own_mode = row->anim == "SC" ? kModeSC : row->anim == "KK" ? kModeKK : row->anim == "S1" ? kModeS1 : row->anim == "S3" ? kModeS3 : row->anim == "S4" ? kModeS4 : kModeA1;
+            for (const int mode : { kModeA1, kModeA2, kModeSC, 11, kModeKK, kModeS1, kModeS3, kModeS4 })
+                for (const int state : { 0, 1 }) {
+                    const auto world = hit(id, mode, state == 1);
+                    const auto& actor = *world->actor;
+                    std::printf("I %d %d %d %d %d %d %d %d\n", id, mode, mode == own_mode ? 1 : 0, state, actor.pmode, actor.kicks_left, actor.seq.empty() ? 0 : 1, actor.smove.active ? 1 : 0);
+                }
+        }
+        // The barrel kick (World::operate, objects.cpp: swing_skill 0, pmode KK): game.exe starts it with the unit's skill 1, Kick.
+        {
+            const auto world = hit(0, kModeKK, false);
+            std::printf("B %d %d\n", kick->second, world->actor->pmode);
+        }
         return 0;
     }
     // A Paladin with a sword: PABL1HS at FBR 0 holds the block 6 ticks, 3 with Holy Shield's state.
