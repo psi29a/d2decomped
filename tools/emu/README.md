@@ -327,6 +327,9 @@ Good: `level 2: 20/20 seeds match game.exe`.
 The rest of this page is the reference for every oracle and for adding
 your own.
 
+ctest runs thirteen of these (the tests that print `SKIP: an oracle mode`)
+through `oracle_test.py` on 2000 cases each; tests/README.md.
+
 ## Setup
 
 ```
