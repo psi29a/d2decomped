@@ -950,7 +950,14 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (belt_item) {
             if (const auto* spr = scene->item_sprite(*belt_item); spr && spr->frames_per_direction() > 0) {
                 const auto& frame = spr->frame(0, 0);
-                blit_sprite(framebuffer, frame, scene->item_pal(*belt_item, palette), int(belt.x) + 8, int(belt.y) + 8);
+                const auto& item_pal = scene->item_pal(*belt_item, palette);
+                const float max_w = belt.width * .80f, max_h = belt.height * .80f;
+                if (float(frame.width) > max_w || float(frame.height) > max_h)
+                    blit_frame_scaled(belt, frame, item_pal, std::min(max_w / float(std::max(1u, frame.width)), max_h / float(std::max(1u, frame.height))));
+                else {
+                    const auto origin = touch::centred_blit_origin(belt, float(frame.width), float(frame.height));
+                    blit_sprite(framebuffer, frame, item_pal, int(origin.first), int(origin.second));
+                }
             }
         }
     }
