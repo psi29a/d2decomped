@@ -342,7 +342,9 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         if (actor->seq.empty()) return;
         const auto& attack_anim = player_anim(kModeA1);
         start_move(*game_data->skills.get(actor->swing_skill), now_ms);
-        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
+        const auto* skill = game_data->skills.get(actor->swing_skill);   // skill_sequence() found it: a sequence skill's row
+        const int sias = actor->player_combat.sias + chill_rate(now_ms) + d2d::rules::sequence_sias(skill->use_attack_rate, skill->seqtrans);
+        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, sias);
         actor->pmode_until = now_ms + std::uint32_t(ticks) * 40;
         actor->seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(actor->seq.size()), 1);
         actor->prate = 1.f;

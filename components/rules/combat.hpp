@@ -521,6 +521,15 @@ inline int get_hit_frame(int frames, int rate, int tick) {
     return std::min(tick, held) * rate / 256;
 }
 
+// A player's attack sequence (mode SQ, 0x12) runs 30 points slower than its attack rate: FUN_00623f50's attack branch takes 30 off the
+// percent (0x624290..0x62429b: unit type 0, mode 0x12, sub esi, 0x1e) before the clamp to 15..175. The branch is the one FUN_00621580 picks for
+// a skill whose UseAttackRate is set (record +6 against the mask at 0x6ce274); FUN_006216e0 sends a skill whose seqtrans is SC (Lightning,
+// Chain Lightning) to the cast branch, which has no such term. tools/emu/seq_rate.py runs the function on every sequence record.
+inline constexpr int kSequenceRatePenalty = 30;
+inline int sequence_sias(bool use_attack_rate, std::string_view seqtrans) {
+    return use_attack_rate && seqtrans != "SC" ? -kSequenceRatePenalty : 0;
+}
+
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row
 // at 0x6e8e3c): AnimData speed x min(100 + effective FCR, 175) / 100, clamped

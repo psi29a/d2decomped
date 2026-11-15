@@ -36,6 +36,48 @@ using namespace d2d::game;
 
 namespace {
 
+// game.exe's answers (tools/emu/seq_rate.py compare printed the same ticks): class, skill, weapon code, IAS, WSM, skill speed, steps, AnimData speed,
+// the sequence's ticks; the comment: what d2d gave before the sequence took 30 points off its rate.
+struct Frozen { int cls; const char* skill; const char* weapon; int ias, wsm, sias, steps, speed, ticks; };
+constexpr Frozen kFrozen[] = {
+    { 6, "Blades of Ice", "ktr", 80, 30, 40, 12, 208, 12 },   // parent 10
+    { 6, "Blades of Ice", "", 80, 10, 0, 12, 256, 12 },   // parent 9
+    { 6, "Blades of Ice", "", 200, 30, 40, 12, 256, 8 },   // parent 7
+    { 6, "Blades of Ice", "ktr", 200, -30, 40, 12, 208, 9 },   // parent 9
+    { 6, "Claws of Thunder", "", 0, 10, 20, 12, 256, 16 },   // parent 11
+    { 6, "Claws of Thunder", "ktr", 20, 10, 20, 12, 208, 16 },   // parent 12
+    { 6, "Claws of Thunder", "", 80, 0, -50, 12, 256, 18 },   // parent 13
+    { 6, "Claws of Thunder", "", 100, -30, 40, 12, 256, 7 },   // parent 7
+    { 4, "Double Swing", "ssd", 80, 30, 40, 17, 256, 14 },   // parent 11
+    { 4, "Double Swing", "ssd", 20, -10, 40, 17, 256, 13 },   // parent 11
+    { 4, "Double Swing", "spr", 10, -10, -50, 17, 256, 44 },   // parent 25
+    { 4, "Double Swing", "lxb", 150, 0, 40, 17, 256, 10 },   // parent 10
+    { 4, "Double Throw", "dgr", 80, 30, 20, 12, 256, 12 },   // parent 9
+    { 4, "Double Throw", "spr", 20, -30, 40, 12, 256, 8 },   // parent 7
+    { 4, "Double Throw", "sbw", 0, 0, -50, 12, 256, 61 },   // parent 24
+    { 4, "Double Throw", "ssd", 200, -30, 20, 12, 256, 7 },   // parent 7
+    { 6, "Dragon Claw", "ktr", 60, 0, 40, 12, 208, 10 },   // parent 9
+    { 6, "Dragon Claw", "", 80, 0, -50, 12, 256, 18 },   // parent 13
+    { 6, "Dragon Claw", "", 0, -10, 20, 12, 256, 12 },   // parent 10
+    { 6, "Dragon Claw", "", 200, -10, 40, 12, 256, 7 },   // parent 7
+    { 6, "Fists of Fire", "ktr", 10, -10, 0, 12, 208, 17 },   // parent 13
+    { 6, "Fists of Fire", "", 100, 0, 0, 12, 256, 10 },   // parent 8
+    { 6, "Fists of Fire", "", 40, 10, -50, 12, 256, 31 },   // parent 18
+    { 6, "Fists of Fire", "ktr", 150, -30, 0, 12, 208, 9 },   // parent 9
+    { 4, "Frenzy", "ssd", 100, -10, 20, 17, 256, 12 },   // parent 10
+    { 4, "Frenzy", "", 100, 10, 0, 17, 256, 15 },   // parent 12
+    { 4, "Frenzy", "ssd", 60, -30, 0, 17, 256, 13 },   // parent 11
+    { 4, "Frenzy", "lxb", 80, -30, 40, 17, 256, 10 },   // parent 10
+    { 0, "Impale", "", 80, 10, 40, 13, 256, 9 },   // parent 8
+    { 0, "Impale", "", 100, -30, -50, 13, 256, 13 },   // parent 10
+    { 0, "Impale", "", 0, -30, -50, 13, 256, 26 },   // parent 17
+    { 0, "Impale", "", 30, -30, 40, 13, 256, 8 },   // parent 8
+    { 0, "Jab", "dgr", 10, 30, 40, 18, 256, 21 },   // parent 16
+    { 0, "Jab", "dgr", 20, -10, -50, 18, 256, 39 },   // parent 24
+    { 0, "Jab", "", 200, 10, -50, 13, 256, 16 },   // parent 12
+    { 0, "Jab", "", 200, -10, 40, 13, 256, 8 },   // parent 8
+};
+
 struct Cell {
     int steps = 0, speed = 0, ticks = 0;
     bool found = false;
@@ -65,6 +107,14 @@ struct Hero {
 
 int main(int argc, char** argv) try {
     const bool grid = argc > 1 && std::strcmp(argv[1], "--seq-rate") == 0;
+    if (!grid) {
+        // The 30 points (FUN_00623f50 0x624290..0x62429b) for a UseAttackRate sequence that is not a cast (seqtrans SC: FUN_006216e0), and what they do to a length.
+        using d2d::rules::sequence_sias;
+        assert(sequence_sias(true, "A1") == -30 && sequence_sias(true, "SQ") == -30 && sequence_sias(true, "SC") == 0 && sequence_sias(false, "A1") == 0);
+        assert(d2d::rules::attack_ticks(13, 256, 0, 0, sequence_sias(true, "A1")) == 19 && d2d::rules::attack_ticks(13, 256, 0, 0) == 13);   // Jab with bare hands
+        assert(d2d::rules::attack_ticks(17, 256, 0, 0, sequence_sias(true, "A1")) == 25 && d2d::rules::attack_ticks(17, 256, 0, 0) == 17);   // Frenzy
+        assert(d2d::rules::attack_speed(256, 0, 0, sequence_sias(true, "A1")) == 179 && d2d::rules::attack_speed(256, 0, 0, -85) == 38);        // the floor of 15 percent
+    }
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir) { std::printf("SKIP: D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
     const fs::path data_dir = mpq_dir;
@@ -133,7 +183,24 @@ int main(int argc, char** argv) try {
             }
         return 0;
     }
-    std::printf("test_seq_rate: no cells to check yet\n");
+    int checked = 0;
+    for (const auto& frozen : kFrozen) {
+        Hero hero(*data, frozen.cls, frozen.weapon);
+        World world(&*data, -1, -1);
+        world.enter(hero.character);
+        world.actor->character.appearance = data->look_of(hero.character.items);
+        world.fight.update_fighters(1000 * kTickMs);
+        std::uint32_t now = 1000 * kTickMs;
+        const auto found = data->skills.by_name.find(frozen.skill);
+        assert(found != data->skills.by_name.end());
+        const auto cell = one(world, int(found->second), frozen.ias, frozen.wsm, frozen.sias, now);
+        if (!cell.found || cell.steps != frozen.steps || cell.speed != frozen.speed || cell.ticks != frozen.ticks)
+            std::printf("FAIL: class %d %s '%s' ias %d wsm %d sias %d: %d steps at %d lasts %d ticks, game.exe's %d at %d lasts %d\n", frozen.cls, frozen.skill, frozen.weapon, frozen.ias,
+                        frozen.wsm, frozen.sias, cell.steps, cell.speed, cell.ticks, frozen.steps, frozen.speed, frozen.ticks);
+        assert(cell.found && cell.steps == frozen.steps && cell.speed == frozen.speed && cell.ticks == frozen.ticks);
+        ++checked;
+    }
+    std::printf("test_seq_rate: %d cells match game.exe\n", checked);
     return 0;
 } catch (const std::exception& e) {
     std::fprintf(stderr, "test_seq_rate: %s\n", e.what());

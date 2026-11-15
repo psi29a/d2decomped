@@ -638,7 +638,8 @@ struct Fight {
     // the weapon class) at the attack's speed; with no frames for the
     // weapon it swings once.
     // ponytail: the sequence's rate taken as the class's A1 (animdata)
-    // through attack_ticks; seqinput / seqtrans aren't read.
+    // through attack_ticks, 30 points slower for a UseAttackRate skill
+    // (rules::sequence_sias); seqinput isn't read.
     void start_sequence(std::uint32_t now_ms);
     [[nodiscard]] std::span<const d2d::rules::SeqFrame> skill_sequence() const;   // the swing skill's frames for the weapon, none for a plain mode
     // The movement a moving skill starts with (its srvstfunc):
