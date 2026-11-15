@@ -378,7 +378,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // The screen's pad plays the screen's player (local co-op: a partner's while they have it).
         const Send to_world = [this](const Command& command) { send(command); };
         const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
-        const bool touch_field_walk = touch_enabled && touch_shows_field_controls();
+        const bool touch_field_walk = touch_enabled && last_device == touch::LastDevice::Touch && touch_shows_field_controls();
         if (!touch_field_walk)
             pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
         else if (pad.walking) {

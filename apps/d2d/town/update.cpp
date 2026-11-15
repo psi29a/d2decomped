@@ -1075,7 +1075,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
-        if (touch_enabled && pad_field() && !touch_pointer.active) {
+        if (touch_enabled && last_device == touch::LastDevice::Touch
+            && (touch_item_drag || (pad_field() && !touch_pointer.active))) {
             mouse.down = false;
             mouse.press_this_frame = false;
         }

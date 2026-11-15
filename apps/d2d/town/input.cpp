@@ -70,8 +70,9 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             return out;
         }
         if (over_ui) return out;
-        if (touch_enabled && pad_field() && !touch_pointer.active) {
-            // Touch stick and ground taps own locomotion; a stale synthetic mouse would keep click-to-walk alive.
+        if (touch_enabled && last_device == touch::LastDevice::Touch) {
+            // Touch stick and ground taps own locomotion; a leftover mouse packet must not click-to-walk.
+            if (!(pad_field() && !touch_pointer.active)) return out;
             const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
             const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
             const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;

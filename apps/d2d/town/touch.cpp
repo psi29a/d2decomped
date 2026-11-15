@@ -65,7 +65,7 @@ std::string touch_interact_label(const Town& town, const Town::PadPick& pick) {
 } // namespace
 
 auto Town::touch_hides_classic_hud() const -> bool {
-    return touch_enabled && !touch::g_touch_classic_hud;
+    return touch::touch_hud_visible(touch_enabled, last_device, touch::g_touch_classic_hud);
 }
 
 auto Town::touch_shows_field_controls() const -> bool {
@@ -618,7 +618,7 @@ void Town::drive_touch_hold(float seconds) {
  * pickup.
  */
 void Town::drive_touch() {
-    if (!touch_enabled) return;
+    if (!touch_enabled || last_device != touch::LastDevice::Touch) return;
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
                             (char_open ? 4000 : 0) + (game_menu.open ? 8000 : 0) + (skillbar.picking ? 16000 : 0);
     if (panel_state != touch_panel_state) {
@@ -667,7 +667,7 @@ void Town::drive_touch() {
  * skill preview and current item hints without committing gameplay actions.
  */
 void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
-    if (!touch_enabled || !scene || !have_world) return;
+    if (!touch_hides_classic_hud() || !scene || !have_world) return;
     touch::Layout chrome = touch::layout_boxes();
     const auto& font = scene->font_small;
     const auto& palette = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;

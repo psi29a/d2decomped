@@ -262,7 +262,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (pad_target) hover_x = hover_y = -1;
         automap_frame();
         const bool touch_compact = touch_hides_classic_hud();
-        const bool pad_bar = !touch_enabled && skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
+        const bool pad_bar = pad_playing && skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
         auto belt_names = belt_key_names;
         if (pad_bar) {
             const auto name = [&](pad::Action action) -> std::string {

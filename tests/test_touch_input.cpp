@@ -121,6 +121,13 @@ int main() try {
     assert(chip_hit(field.bind.x + 2.f, field.bind.y + 2.f));
     assert(!chip_hit(field.move.x + 8.f, field.move.y + 8.f));
     assert(!chrome_hit(400, 80, false, false));
+    assert(touch_hud_visible(true, LastDevice::Touch, false));
+    assert(!touch_hud_visible(true, LastDevice::Gamepad, false));
+    assert(!touch_hud_visible(true, LastDevice::MouseKeyboard, false));
+    assert(!touch_hud_visible(true, LastDevice::Touch, true));
+    assert(touch_owns_locomotion(LastDevice::Touch, 1, false));
+    assert(touch_owns_locomotion(LastDevice::Touch, 0, true));
+    assert(!touch_owns_locomotion(LastDevice::Gamepad, 1, true));
     const auto icon_at = centred_blit_origin({ 10.f, 20.f, 100.f, 80.f }, 40.f, 20.f);
     assert(std::abs(icon_at.first - 40.f) < 0.01f && std::abs(icon_at.second - 50.f) < 0.01f);
     const float attack_scale = fit_icon_scale(96.f, 96.f, 48.f, 48.f, 0.10f);

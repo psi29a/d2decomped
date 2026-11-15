@@ -494,7 +494,8 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
-    /** Touch on and classic PC bottom bar suppressed (independent of panels/automap). */
+    touch::LastDevice last_device = touch::LastDevice::MouseKeyboard;
+    /** Touch on, last device is a finger/Pencil, and classic PC bottom bar suppressed. */
     [[nodiscard]] bool touch_hides_classic_hud() const;
     /** Field thumb cluster (move/skills/attack); false during panels, NPC, store, or speech. Automap overlay keeps it. */
     [[nodiscard]] bool touch_shows_field_controls() const;

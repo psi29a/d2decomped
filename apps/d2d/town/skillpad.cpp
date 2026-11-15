@@ -127,7 +127,8 @@ auto Town::present_skill_pad() -> void {
     ensure_skill_sheet(focused().character.name);
     skillbar.panel_shortcuts_open = mini.open && !(left_panel_open() && mini_right());
     skillbar.portal_available = portal_tome(focused().character.name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
-    skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open && (!touch_enabled || skillbar.picking == 3 || skill_strip >= 0);
+    skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open
+        && (!touch_hides_classic_hud() || skillbar.picking == 3 || skill_strip >= 0);
     skillbar.wheel_on = false;
     skillbar.strip_on = false;
     skillbar.legend_on = false;

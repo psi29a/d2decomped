@@ -26,6 +26,17 @@ struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
 
 inline bool g_touch_classic_hud = false;
+
+/** Last physical device that drove this seat. Touch HUD shows only for Touch. */
+enum class LastDevice { Gamepad, MouseKeyboard, Touch };
+
+[[nodiscard]] inline bool touch_hud_visible(bool enabled, LastDevice last, bool classic_hud = false) {
+    return enabled && last == LastDevice::Touch && !classic_hud;
+}
+
+[[nodiscard]] inline bool touch_owns_locomotion(LastDevice last, int fingers, bool item_drag) {
+    return last == LastDevice::Touch && (fingers > 0 || item_drag);
+}
 /** Unused vendor-split leftover; trade/repair and inventory use classic panel X. */
 inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
 /** Scales corner chips and field controls (deviation candidate: touch_ui_scale). */
