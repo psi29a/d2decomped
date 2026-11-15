@@ -126,6 +126,7 @@ if (D2_SAVES_DIR)
 endif()
 if (d2d_test_env)
     set_tests_properties(${d2d_cpp_tests} PROPERTIES ENVIRONMENT "${d2d_test_env}")
+    set_tests_properties(test_load_gold_missing_cases PROPERTIES ENVIRONMENT "${d2d_test_env}")   # loads the tables before the cases file
     if (TARGET d2d AND Python3_Interpreter_FOUND)
         set_tests_properties(smoke_d2d coop_d2d coop_lobby_d2d keyboard_bindings_d2d pad_identify_classic_d2d pad_identify_d2d pad_controls_ux_d2d pad_portal_d2d pad_seed_d2d pad_skill_use_d2d pad_use_d2d touch_controls_d2d touch_corpse_d2d ${d2d_quest_tests} PROPERTIES ENVIRONMENT "${d2d_test_env}")
     endif()
