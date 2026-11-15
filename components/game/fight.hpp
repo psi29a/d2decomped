@@ -649,6 +649,8 @@ struct Fight {
     // The swing's animation: KK for kicks, S1 for Smite, else A1.
     // ponytail: SQ sequences play A1.
     [[nodiscard]] int swing_mode() const;
+    [[nodiscard]] bool skill_in_use() const;     // the unit's mode holds a used skill (FUN_00620250 non-null): a swing or a cast
+    [[nodiscard]] bool hit_interrupts() const;   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
     // What the swing's skill adds to the blow: the Bash family's toht,
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
     // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
@@ -1283,6 +1285,7 @@ struct Fight {
     void pay(const d2d::rules::Skill& skill, int lvl);
     void owe(const d2d::rules::Skill& skill, int lvl);
     void settle_cast();
+    void cancel_swing();
     // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
     // dm34, attackrate dm56) are taken at that level.

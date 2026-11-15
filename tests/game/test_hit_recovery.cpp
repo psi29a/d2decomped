@@ -282,6 +282,63 @@ int main(int argc, char** argv) try {
         world.fight.hurt_side(side, start_ms + 40);
         assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until < start_ms + 40 * 40);
     }
+    // A hit interrupts a swing whose skill's `interrupt` is set and leaves Zeal and Smite alone (FUN_0057eec0 through FUN_005809d0): Attack and Sacrifice
+    // go to a get-hit and lose the repeats, the sequence and the movement of the swing.
+    {
+        const auto id_of = [&](const char* name) { for (int id = 0; id < 400; ++id) if (const auto* row = data->skills.get(id); row && row->name == name) return id; return -1; };
+        for (const auto& [name, interrupted] : { std::pair{ "Attack", true }, { "Sacrifice", true }, { "Zeal", false }, { "Smite", false } }) {
+            const int id = id_of(name);
+            assert(id >= 0);
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            World world(&*data, -1, -1);
+            world.enter(hero);
+            world.fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world.actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            actor.swing_skill = id;
+            actor.pmode = world.fight.swing_mode();
+            actor.pmode_until = start_ms + 10 * 40;
+            actor.kicks_left = 3;
+            world.fight.hurt_side(side, start_ms + 40);
+            assert((actor.pmode == kModeGH) == interrupted);
+            assert((actor.kicks_left == 0) == interrupted);
+        }
+    }
+    // State 0x36 (a Leap Attack in flight) and the barrel kick refuse the hit though their skills' `interrupt` is set or the swing has no skill id
+    // (FUN_0057eec0: the state is its first test, 0x57eec7; the barrel kicks with the unit's skill 1, Kick, whose `interrupt` is blank).
+    {
+        const auto id_of = [&](const char* name) { return data->skills.by_name.at(name); };
+        const auto struck = [&](int id, int mode, bool flying) {
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            World world(&*data, -1, -1);
+            world.enter(hero);
+            world.fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world.actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            actor.swing_skill = id;
+            actor.pmode = mode;
+            actor.pmode_until = start_ms + 10 * 40;
+            actor.smove.active = true;
+            actor.smove.fly = flying;
+            world.fight.hurt_side(side, start_ms + 40);
+            return std::pair{ actor.pmode, actor.smove.active };
+        };
+        const int leap_attack = id_of("Leap Attack");
+        assert(data->skills.get(leap_attack)->interrupt);                      // it is the state alone that protects it
+        assert(struck(leap_attack, kModeA1, true) == std::pair(int(kModeA1), true));   // in flight: the swing and its movement go on
+        assert(struck(leap_attack, kModeA1, false).first == kModeGH);          // the same swing on the ground (its landing) is interrupted
+        assert(struck(id_of("Attack"), kModeA1, true) == std::pair(int(kModeA1), true));   // the state, not the skill: Attack under way refuses too
+        assert(struck(0, kModeKK, false).first == kModeKK);                    // the barrel kick: swing_skill 0, KK (World::operate)
+        assert(struck(id_of("Kick"), kModeKK, false).first == kModeKK);
+    }
     std::printf("test_hit_recovery: block length and the get-hit hold match game.exe's\n");
     return 0;
 } catch (const std::exception& e) {

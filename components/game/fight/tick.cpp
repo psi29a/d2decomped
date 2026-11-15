@@ -577,6 +577,34 @@ auto Fight::curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env
         return stats;
     }
 
+// FUN_005809d0 starts a get-hit only if FUN_0057edd0 (the modes) and FUN_0057eec0 (the used skill) both agree. The second refuses a unit
+// whose used skill's Skills.txt `interrupt` is clear (Zeal, Smite, Charge, Jab, Strafe, Fend, Whirlwind, Frenzy, Concentrate, Kick, the
+// scrolls and tomes); the used-skill pointer lives from the skill's start to the end of its swing or cast (idle, walk and run clear it),
+// so only a swing or a cast is held by it. FUN_0057edd0 allows a get-hit from A1, A2, SC, TH, and from KK while its end event is queued.
+auto Fight::skill_in_use() const -> bool {
+        constexpr int kModeTH = 11;
+        return attack_mode(actor->pmode) || actor->pmode == kModeA2 || actor->pmode == kModeSC || actor->pmode == kModeTH;
+    }
+
+auto Fight::hit_interrupts() const -> bool {
+        if (uninterruptable()) return false;   // state 0x36 is FUN_0057eec0's first test (0x57eec7): a Leap, Leap Attack or Whirlwind under way refuses every new mode
+        if (!skill_in_use()) return true;
+        const auto* used = game_data->skills.get(actor->swing_skill);
+        // The barrel kick (World::operate) swings KK with no skill id; game.exe starts it with the unit's skill 1, Kick (FUN_005868a0 -> FUN_00580a70), whose `interrupt` is blank.
+        if (actor->pmode == kModeKK && actor->swing_skill == 0)
+            if (const auto kick = game_data->skills.by_name.find("Kick"); kick != game_data->skills.by_name.end()) used = game_data->skills.get(kick->second);
+        return !used || used->interrupt;
+    }
+
+// A swing or cast that a get-hit cut off: nothing of it goes on (its repeats, sequence and movement), as when it ends.
+auto Fight::cancel_swing() -> void {
+        actor->kicks_left = 0;
+        actor->seq = {};
+        actor->seq_loop = false;
+        actor->smove = {};
+        actor->item_charge = {};
+    }
+
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike), its poison (apply_regen)
         if (side[1].poison > 0 && side[1].poison_ticks > 0) {       // one at a time: a new one at least as strong replaces it (FUN_0057ac50)
@@ -729,9 +757,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
         const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
         // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
-        // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide.
+        // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide. A swing or cast is cut only if its skill allows it (FUN_0057eec0).
         const bool get_hit_running = actor->pmode == kModeGH && !actor->knock;
-        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL && !get_hit_running && !knocked_now) {
+        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && hit_interrupts() && actor->pmode != kModeBL && !get_hit_running && !knocked_now) {
+            if (skill_in_use()) cancel_swing();   // the swing's queued strike is gone with its mode
             actor->knock.reset();
             set_pmode(kModeGH, now_ms);
         }
