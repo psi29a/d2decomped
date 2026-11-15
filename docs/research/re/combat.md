@@ -313,7 +313,10 @@ d2d matches both, and the one-poison-at-a-time rule.
   `FUN_0057c1e0` (0x57c214 on) scales each damage field of the record
   (table 0x732980's 12 rows, those with +0x20 set) above 0 by it
   (`FUN_00483360`, × pct / 100) before the absorb events and the
-  reduction.
+  reduction. +0x20 is set on rows 0-4 (physical +0x08, fire +0x10,
+  lightning +0x1c, cold +0x24, magic +0x20), 8 (poison damage +0x28) and
+  9-11 (+0x38, +0x3c, +0x40); not on 5-7 (cold length +0x30, freeze
+  length +0x34, poison length +0x2c), read from game.exe's bytes.
 - Deadly strike (stat 141), critical strike (stat 337) and mastery crit
   (`macr`) are **separate** rolls against rand(100); any one doubles the
   physical damage.
