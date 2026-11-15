@@ -52,6 +52,7 @@ inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 /** Finger movement that turns an item tap into a drag-and-drop pickup. */
 inline constexpr float kItemDragSlop = 14.f;
+inline constexpr std::uint32_t kBeltDoubleTapMs = 280;
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
@@ -261,8 +262,8 @@ struct Target { int skill = -1, unit = -1; float x = 0, y = 0; bool left = false
 class Input {
 public:
     bool alternate = false, attack_down = false, attack_press = false;
-    bool menu = false, done = false;
-    int belt = -1, destination = -1;
+    bool menu = false, done = false, belt_quick = false;
+    int belt = -1, belt_armed = -1, destination = -1;
     float move_x = 0, move_y = 0;
     bool aiming = false, dragged = false, stationary = false;
     float origin_x = 0, origin_y = 0, aim_x = 0, aim_y = 0;
@@ -283,12 +284,13 @@ public:
         move_x = move_y = 0;
         aiming = dragged = attack_down = attack_press = false;
         casts.clear();
-        belt = destination = -1;
-        menu = done = false;
+        belt = belt_armed = destination = -1;
+        belt_quick = menu = done = false;
+        belt_last_ = -1; belt_ms_ = 0;
     }
-    void frame() { attack_press = menu = done = false; belt = destination = -1; casts.clear(); }
+    void frame() { attack_press = menu = done = false; belt = destination = -1; belt_quick = false; casts.clear(); }
 
-    void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false) {
+    void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false, std::uint32_t now_ms = 0) {
         const auto chrome = layout_boxes();
         if (phase == Phase::Cancel) {
             if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }
@@ -306,7 +308,14 @@ public:
             }
             if (chrome.menu.contains(x, y)) { menu = true; return; }
             for (int index = 0; index < 4; ++index)
-                if (chrome.belts[std::size_t(index)].contains(x, y)) { belt = index; return; }
+                if (chrome.belts[std::size_t(index)].contains(x, y)) {
+                    const bool quick = belt_last_ == index && now_ms >= belt_ms_ && now_ms - belt_ms_ <= kBeltDoubleTapMs
+                        && !item_dragged(belt_x_, belt_y_, x, y);
+                    if (quick) { belt = index; belt_quick = true; belt_armed = -1; }
+                    else { belt_armed = index; belt = -1; belt_quick = false; }
+                    belt_last_ = index; belt_ms_ = now_ms; belt_x_ = x; belt_y_ = y;
+                    return;
+                }
             if (chrome.move.contains(x, y) && movement_ < 0) { movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; }
             else if (chrome.attack.contains(x, y) && attack_ < 0) { attack_ = finger; attack_press = attack_down = true; }
             else if (skill_ < 0)
@@ -340,6 +349,9 @@ public:
 private:
     std::int64_t movement_ = -1, skill_ = -1, attack_ = -1;
     float move_origin_x_ = 0, move_origin_y_ = 0;
+    int belt_last_ = -1;
+    std::uint32_t belt_ms_ = 0;
+    float belt_x_ = 0, belt_y_ = 0;
 };
 
 } // namespace d2d::client::touch

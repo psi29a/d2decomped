@@ -589,6 +589,75 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         }
         return false; // other panels use their ordinary pointer input
     }
+    const auto belt_potion = [&](std::string_view code) {
+        return potion_code(code) || (scene && scene->rules.potions.contains(std::string(code)));
+    };
+    const auto belt_can_fill = [&] {
+        if (!scene) return false;
+        auto trial = character.items;
+        const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+        for (const auto& carried : character.items) {
+            if (carried.location != d2d::d2s::item_location::kStored || !belt_potion(carried.code)) continue;
+            auto copy = trial;
+            if (d2d::rules::auto_belt(scene->rules, copy, carried.id, boxes)) return true;
+        }
+        return false;
+    };
+    const auto belt_do_fill = [&] {
+        if (!scene) return;
+        auto trial = character.items;
+        const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+        std::vector<int> moved;
+        for (const auto& carried : character.items)
+            if (carried.location == d2d::d2s::item_location::kStored && belt_potion(carried.code)
+                && d2d::rules::auto_belt(scene->rules, trial, carried.id, boxes)) moved.push_back(carried.id);
+        for (const int id : moved) send(cmd::AutoBelt{ id });
+    };
+    if (touch_sheet.open && touch_sheet.belt_index >= 0) {
+        if (phase == touch::Phase::Down) {
+            if (chrome.belts[std::size_t(touch_sheet.belt_index)].contains(x, y)) {
+                send(cmd::UseBelt{ touch_sheet.belt_index });
+                touch_sheet = {};
+                return true;
+            }
+            const auto hit = touch_sheet.hit(x, y);
+            if (hit == touch::ItemAction::Cancel || hit == touch::ItemAction::None) {
+                if (hit == touch::ItemAction::Cancel || !touch_sheet.contains(x, y)) touch_sheet = {};
+                return true;
+            }
+            if (hit == touch::ItemAction::Confirm) {
+                if (touch_sheet.chosen == touch::ItemAction::Use) send(cmd::UseBelt{ touch_sheet.belt_index });
+                else if (touch_sheet.chosen == touch::ItemAction::Fill) belt_do_fill();
+                touch_sheet = {};
+                return true;
+            }
+            if (hit == touch_sheet.chosen && touch_sheet.confirming) {
+                if (hit == touch::ItemAction::Use) send(cmd::UseBelt{ touch_sheet.belt_index });
+                else if (hit == touch::ItemAction::Fill) belt_do_fill();
+                touch_sheet = {};
+                return true;
+            }
+            touch_sheet.chosen = hit;
+            touch_sheet.confirming = true;
+            touch_item_hint = "Tap Confirm";
+            return true;
+        }
+        return phase != touch::Phase::Move;
+    }
+    if (phase == touch::Phase::Down) {
+        for (int index = 0; index < 4; ++index)
+            if (chrome.belts[std::size_t(index)].contains(x, y)) {
+                const d2d::d2s::Item* belt_item = nullptr;
+                for (const auto& item : character.items)
+                    if (item.location == d2d::d2s::item_location::kBelt && item.column == index) { belt_item = &item; break; }
+                const bool can_fill = belt_can_fill();
+                if (!belt_item && !can_fill) return true;
+                touch_sheet = touch::make_item_sheet(belt_item != nullptr, false, false, can_fill);
+                touch_sheet.belt_index = index;
+                touch_item_hint = "Tap Use or Fill, then Confirm. Second tap on the slot uses.";
+                return true;
+            }
+    }
     if (phase == touch::Phase::Down && chrome.map.contains(x, y)) {
         touch_input.clear();
         automap.open = !automap.open;
@@ -738,7 +807,7 @@ void Town::drive_touch() {
             }
         }
     }
-    if (touch_input.belt >= 0) send(cmd::UseBelt{ touch_input.belt });
+    if (touch_input.belt >= 0) send(cmd::UseBelt{ touch_input.belt }); // belt_quick from the adapter; field tap uses the sheet
     for (const auto& target : touch_input.casts) cast_resolved(touch_player, target);
 
 }
