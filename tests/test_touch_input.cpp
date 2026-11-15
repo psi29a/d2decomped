@@ -106,7 +106,10 @@ int main() try {
     assert(std::abs(field.belts[1].x - field.belts[3].x) < 1.f);
     assert(field.belts[1].x >= field.belts[0].x + field.belts[0].width - 1.f);
     assert(std::abs(field.belts[0].y - field.belts[1].y) < 1.f);
-    assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + kBarsBelowChip + kBarBlockH);
+    const float chip_h = ui_scale(kChipSize);
+    const float gap_bars = bar_gap();
+    assert(gap_bars >= 0.25f * chip_h && gap_bars <= 0.5f * chip_h);
+    assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + gap_bars + kBarBlockH);
     const float grid_w = 2.f * field.belts[0].width + ui_scale(kBeltGap);
     assert(std::abs(field.belts[1].x - (field.map.x + field.map.width - grid_w)) < 1.f);
     const auto overlap = [](Box left, Box right) {

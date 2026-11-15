@@ -34,8 +34,8 @@ inline constexpr int kNpcLinePad = 14;
 // Nominal sizes (positions filled in layout_boxes).
 inline constexpr float kChipSize = 48.f, kChipGap = 8.f;
 inline constexpr float kBeltSize = 48.f, kBeltGap = 6.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
-/** Life/mana sit this far under the 2x2 chip block; quest track starts after the bar block. */
-inline constexpr float kBarsBelowChip = 10.f, kBarBlockH = 48.f;
+/** Life/mana sit this far under the 2x2 chip block, as a fraction of chip height (¼–½). */
+inline constexpr float kBarGapChip = 0.35f, kBarBlockH = 48.f;
 inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 /** Finger movement that turns an item tap into a drag-and-drop pickup. */
@@ -50,6 +50,7 @@ struct Layout {
 };
 
 inline float ui_scale(float value) { return value * kUiScale; }
+inline float bar_gap() { return kBarGapChip * ui_scale(kChipSize); }
 
 enum class ItemAction { None, Use, Sell, Buy, Confirm, Cancel };
 
@@ -135,7 +136,7 @@ inline Layout layout_boxes() {
     out.bind = { out.skills_bar.x, out.quest.y, chip, chip };
     out.done = anchor_box(ui_scale(52.f), ui_scale(48.f), false, true);
     out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
-    const float track_y = out.bind.y + out.bind.height + kBarsBelowChip + kBarBlockH;
+    const float track_y = out.bind.y + out.bind.height + bar_gap() + kBarBlockH;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
     out.cancel = placed(kCancel);
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
