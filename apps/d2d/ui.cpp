@@ -163,6 +163,8 @@ void layout_npc_menu_touch(const Scene& scene, NpcMenuState& menu) {
     menu.box_height += 20;
     for (auto& line : menu.lines) line.x = line.width < menu.box_width ? (menu.box_width - line.width + 1) / 2 : 0;
     const float margin = 10.f + touch::safe_inset.bottom;
+    const int max_height = std::max(44, int(600.f - margin - touch::safe_inset.top - 10.f));
+    if (menu.box_height > max_height) menu.box_height = max_height;
     menu.y = int(600.f - margin - float(menu.box_height));
     const float usable = 800.f - touch::safe_inset.left - touch::safe_inset.right;
     menu.x = int(touch::safe_inset.left + (usable - float(menu.box_width)) * .5f);

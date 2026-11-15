@@ -320,6 +320,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
                                top, hovered_name, colour[0], colour[1], colour[2]);
         }
+        const bool dim_automap = automap && !automap->covered && hud.touch_compact && automap->open;
+        if (dim_automap && wide)
+            for (std::size_t index = 0; index + 2 < world.size(); index += 4) {
+                world[index] = std::uint8_t(world[index] * 3 / 4);
+                world[index + 1] = std::uint8_t(world[index + 1] * 3 / 4);
+                world[index + 2] = std::uint8_t(world[index + 2] * 3 / 4);
+            }
         if (wide)
             for (std::size_t y = 0; y < kScreenHeight; ++y)
                 std::copy_n(world.begin() + std::ptrdiff_t((y * std::size_t(world_w) + std::size_t(off)) * 4), kScreenWidth * 4,
@@ -336,7 +343,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // FUN_0045ae90 isn't 3). Round the camera less the panel's quarter, which
         // the map makes its own (rules::automap_scroll).
         if (automap && !automap->covered) {
-            if (hud.touch_compact && automap->open) {
+            if (dim_automap && !wide) {
                 for (std::size_t index = 0; index < framebuffer.size(); index += 4) {
                     framebuffer[index] = std::uint8_t(framebuffer[index] * 3 / 4);
                     framebuffer[index + 1] = std::uint8_t(framebuffer[index + 1] * 3 / 4);

@@ -121,8 +121,10 @@ struct SnapGrid {
     const float dx = mouse_x < left ? left - mouse_x : (mouse_x > right ? mouse_x - right : 0.f);
     const float dy = mouse_y < top ? top - mouse_y : (mouse_y > bottom ? mouse_y - bottom : 0.f);
     if (dx > grid.box_w || dy > grid.box_h) return false;
-    col = std::clamp(col, 0, grid.cols - 1);
-    row = std::clamp(row, 0, grid.rows - 1);
+    const int max_col = std::max(0, grid.cols - std::max(grid.item_w, 1));
+    const int max_row = std::max(0, grid.rows - std::max(grid.item_h, 1));
+    col = std::clamp(col, 0, max_col);
+    row = std::clamp(row, 0, max_row);
     return true;
 }
 
@@ -194,9 +196,9 @@ inline Layout layout_boxes() {
                         out.move.y + (out.move.height - ui_scale(kMoveVisualH)) * .5f,
                         ui_scale(kMoveVisualW), ui_scale(kMoveVisualH) };
     out.attack = anchor_box(attack, attack, false, false);
-    const float ax = out.attack.x, ay = out.attack.y;
+    const float attack_x = out.attack.x, attack_y = out.attack.y;
     // Page on the attack button's top, not tucked into its lower-left corner.
-    out.page = { ax + ui_scale(28.f), ay - ui_scale(52.f), page, page };
+    out.page = { attack_x + ui_scale(28.f), attack_y - ui_scale(52.f), page, page };
     const float chip = ui_scale(kChipSize), gap = ui_scale(kChipGap);
     out.menu = anchor_box(chip, chip, true, true);
     out.skills_bar = { out.menu.x + chip + gap, out.menu.y, chip, chip };
@@ -207,10 +209,10 @@ inline Layout layout_boxes() {
     const float track_y = out.bind.y + out.bind.height + bar_gap() + kBarBlockH;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
-    out.skills[0] = { ax - ui_scale(103.f), ay + ui_scale(7.f), skill, skill };
-    out.skills[1] = { ax - ui_scale(186.f), ay - ui_scale(64.f), skill, skill };
-    out.skills[2] = { ax - ui_scale(104.f), ay - ui_scale(134.f), skill, skill };
-    out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
+    out.skills[0] = { attack_x - ui_scale(103.f), attack_y + ui_scale(7.f), skill, skill };
+    out.skills[1] = { attack_x - ui_scale(186.f), attack_y - ui_scale(64.f), skill, skill };
+    out.skills[2] = { attack_x - ui_scale(104.f), attack_y - ui_scale(134.f), skill, skill };
+    out.skills[3] = { attack_x - ui_scale(24.f), attack_y - ui_scale(174.f), skill, skill };
     float skill_top = out.skills[0].y;
     for (const auto& skill_box : out.skills) skill_top = std::min(skill_top, skill_box.y);
     // 2x2 under Map, shifted one column left so the right pots clear Map.
@@ -229,7 +231,7 @@ inline Layout layout_boxes() {
         const int col = index % 2, row = index / 2;
         out.belts[std::size_t(index)] = { pot_x + float(col) * (belt + pot_gap), pot_y0 + float(row) * (belt + pot_gap), belt, belt };
     }
-    out.interact = { ax - ui_scale(268.f), ay - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
+    out.interact = { attack_x - ui_scale(268.f), attack_y - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
     const float move_right = std::min(out.interact.x + out.interact.width + 16.f, out.skills[2].x - 8.f);
     out.move.width = std::max(out.move.width, move_right - out.move.x);
     out.move.height = std::max(out.move.height, 600.f - safe_inset.bottom - out.move.y);
@@ -271,6 +273,7 @@ public:
     std::vector<Target> casts;
 
     [[nodiscard]] bool move_held() const { return movement_ >= 0; }
+    [[nodiscard]] bool owns(std::int64_t finger) const { return finger == movement_ || finger == attack_ || finger == skill_; }
 
     /** Drop ownership for a finger that lifted (routes that skip event() must call this). */
     void release_finger(std::int64_t finger) {

@@ -66,7 +66,7 @@ int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse
     const auto& tab = store.tabs[std::size_t(store.tab)];
     for (std::size_t i = 0; i < tab.size(); ++i) {
         const auto [width, height] = d2d::rules::item_size(scene.rules, tab[i].code);
-        const int x = panel_x + 96 + tab[i].column * 29, y = 123 + tab[i].row * 29;
+        const int x = panel_x + (96 - kCharPanelX) + tab[i].column * 29, y = 123 + tab[i].row * 29;
         if (mouse_x >= x && mouse_x < x + width * 29 && mouse_y >= y && mouse_y < y + height * 29) return int(i);
     }
     return -1;
@@ -125,7 +125,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
     }
     // Stock, Monster2 grid.
     Scene::InvLayout layout;
-    layout.grid_x = 96; layout.grid_y = 123; layout.box_w = layout.box_h = 29;
+    layout.grid_x = panel_x + (96 - kCharPanelX); layout.grid_y = 123; layout.box_w = layout.box_h = 29;
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : store.tabs[std::size_t(store.tab)]) {

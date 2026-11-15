@@ -946,11 +946,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 // While touch is last, keep those packets as owner -2 so a leftover mouse
                 // packet cannot hand the seat to keyboard/mouse.
                 const bool touch_last = town.last_device == touch::LastDevice::Touch;
-                if (touch_last && (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT) {
-                    const auto phase = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? touch::Phase::Down : touch::Phase::Up;
-                    if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                const bool pointer_held = town.touch_input.owns(-2);
+                if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT) {
+                    const bool down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+                    if ((down && touch_last) || (!down && (touch_last || pointer_held))) {
+                        const auto phase = down ? touch::Phase::Down : touch::Phase::Up;
+                        if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                    }
                 }
-                if (touch_last && event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
+                if ((touch_last || pointer_held) && event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
                     if (town.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
                 if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
                     event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
@@ -969,9 +973,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             gamepads.handle_event(event);
             const bool touch_mouse = (event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID)
                 || ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID);
+            const bool touch_busy = town.touch_enabled && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
             if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
-                && !touch_mouse
-                && !(town.touch_enabled && (town.last_device == touch::LastDevice::Touch || town.touch_fingers > 0 || town.touch_pointer.active))) {
+                && !touch_mouse && !touch_busy) {
                 pad_in_use = false; mouse_took_over = true;
                 if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
             }
@@ -1156,7 +1160,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 if (town.touch_pointer.release) { mouse.down = false; mouse.release_this_frame = true; }
                 town.touch_pointer.press = town.touch_pointer.release = false;
             }
-            const bool pad_field = screen == Screen::InGame && pad_in_use && town.last_device == touch::LastDevice::Gamepad && town.pad_field();
+            const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field()
+                && (!town.touch_enabled || town.last_device == touch::LastDevice::Gamepad);
             const bool touch_owns_pointer = town.touch_enabled && town.last_device == touch::LastDevice::Touch
                 && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
             if (pad_field != pad_was_field && !mouse_took_over && !touch_owns_pointer && town.last_device != touch::LastDevice::Touch)

@@ -1023,8 +1023,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // Waypoint panel: tabs switch acts, cancel (or the row of the
         // level you're in) closes it.
         if (waypoint.open) {
-            const bool store_x = touch_store_panel_x();
-            const bool on_cancel = mouse.x >= store_x + 0x111 && mouse.x < store_x + 0x111 + 0x24
+            const int panel_x = touch_store_panel_x();
+            const bool on_cancel = mouse.x >= panel_x + 0x111 && mouse.x < panel_x + 0x111 + 0x24
                                 && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
             waypoint.cancel_down = on_cancel && mouse.down;
             if (mouse.press_this_frame) {

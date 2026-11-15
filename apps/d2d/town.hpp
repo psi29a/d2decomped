@@ -521,6 +521,7 @@ struct Town {
     TouchPointer touch_pointer;
     touch::ItemSheet touch_sheet;
     hold_confirm::Hold touch_hold;
+    bool touch_hold_edge = false;
     float touch_hold_fraction = 0.f;
     std::string touch_item_hint;
     int touch_selected = skillpad::kEmpty;

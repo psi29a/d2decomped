@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 /**
  * Exercise independent touch ownership, page latching, safe cancellation and attack press/hold
@@ -144,9 +145,10 @@ int main() try {
         int col = -8, row = -8;
         assert(snap_grid_cell(grid, 395.f, 160.f, col, row));
         assert(col == 0 && row >= 0 && row < 4);
-        const auto at = snap_grid_point(grid, col, row);
+        const auto snapped = snap_grid_point(grid, col, row);
         int col2 = -8, row2 = -8;
-        assert(snap_grid_cell(grid, at.first, at.second, col2, row2) && col2 == col && row2 == row);
+        assert(snap_grid_cell(grid, snapped.first, snapped.second, col2, row2) && col2 == col && row2 == row);
+        assert(snap_grid_cell(grid, 680.f, 160.f, col, row) && col == grid.cols - grid.item_w);
         assert(!snap_grid_cell(grid, 200.f, 160.f, col, row));
     }
     assert(!item_dragged(10.f, 10.f, 12.f, 10.f));
