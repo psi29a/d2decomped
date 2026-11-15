@@ -138,9 +138,10 @@ struct ItemTables {
     std::unordered_set<std::string> quest_difficulty;   // quest and questdiffcheck (ItemsTxt +0x12a / +0x12b)
     // Normal quality's extra bits (FUN_0062cbe0, by FUN_00629bb0 on the
     // item's type then its type2): ItemTypes row 13 (charm), and row 40
-    // (body part) but not row 7 (a player's). Empty without ItemTypes.
-    std::unordered_set<std::string> charms, body_parts;
-    static constexpr int kCharmType = 13, kBodyPartType = 40, kPlayerBodyPartType = 7;
+    // (body part) but not row 7 (a player's), and rows 22 (scroll) or 18
+    // (book): their 5 bits. Empty without ItemTypes.
+    std::unordered_set<std::string> charms, body_parts, books;
+    static constexpr int kCharmType = 13, kBodyPartType = 40, kPlayerBodyPartType = 7, kScrollType = 22, kBookType = 18;
 
     static ItemTables from(const txt::Table& isc, const txt::Table& armor_t,
                            const txt::Table& weapons_t, const txt::Table& misc_t,
@@ -196,6 +197,7 @@ struct ItemTables {
                 const auto item_is = [&](int ancestor) { return is_a(type, ancestor) || is_a(type2, ancestor); };
                 if (item_is(kCharmType)) item_tables.charms.insert(code);
                 if (item_is(kBodyPartType) && !item_is(kPlayerBodyPartType)) item_tables.body_parts.insert(code);
+                if (item_is(kScrollType) || item_is(kBookType)) item_tables.books.insert(code);
             }
         };
         std::unordered_set<std::string> misc;
@@ -369,7 +371,7 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
                         (parsed.charm_prefix ? parsed.prefix : parsed.suffix) = int(bits.read(11));
                     }
                     if (item_tables.body_parts.contains(parsed.code)) parsed.qsub = int(bits.read(10));
-                    if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));   // ponytail: by code, not ItemTypes 18 / 22
+                    if (item_tables.books.contains(parsed.code)) parsed.tome = int(bits.read(5));
                     break;
                 default: break;
             }
