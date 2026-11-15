@@ -59,6 +59,11 @@ int main() try {
     assert(!input.attack_down);
     assert(!chrome_hit(400, 300));
     assert(chrome_hit(572, 400, true)); // kInteract only blocks field taps when visible
+    safe_inset = {};
+    const auto field = layout_boxes();
+    assert(field.menu.x < 20.f && field.done.x + field.done.width > 740.f);
+    assert(field.attack.x + kAttackSize > field.skills[0].x);
+    assert(std::abs(field.belts[0].x - (field.attack.x - 72.f)) < 1.f);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

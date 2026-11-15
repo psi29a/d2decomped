@@ -491,17 +491,16 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
     }
 }
 
-
-// Map the window safe area into the 800-wide touch layout. A full-window safe
-// rect leaves the existing 12px margin alone.
+// Map the window safe area into the centre 800-wide touch band (logical px).
+// Widescreen spare columns live outside that band; touch input and draw_touch
+// stay 800-wide, so insets are only within [0, 800].
 void apply_safe_inset(const Window& win) {
 #if SDL_VERSION_ATLEAST(3, 4, 0)
     SDL_Rect area{};
     int win_w = 0, win_h = 0;
     if (!win.window || !SDL_GetWindowSafeArea(win.window, &area)
-        || !SDL_GetWindowSize(win.window, &win_w, &win_h) || win_w <= 0 || win_h <= 0 || win.view_w <= 0) {
+        || !SDL_GetWindowSizeInPixels(win.window, &win_w, &win_h) || win_w <= 0 || win_h <= 0 || win.view_w <= 0) {
         touch::safe_inset = {};
-        touch::view_gutter = {};
         return;
     }
     const float scale = std::min(float(win_w) / float(win.view_w), float(win_h) / float(kScreenHeight));
@@ -513,11 +512,29 @@ void apply_safe_inset(const Window& win) {
     const float safe_right = (float(area.x + area.w) - off_x) / scale;
     const float safe_bottom = (float(area.y + area.h) - off_y) / scale;
     const float ui_x = (float(win.view_w) - float(kScreenWidth)) / 2.f;
-    touch::view_gutter.left = touch::view_gutter.right = std::max(0.f, ui_x);
-    touch::safe_inset.left = std::max(0.f, safe_left - ui_x);
-    touch::safe_inset.top = std::max(0.f, safe_top);
-    touch::safe_inset.right = std::max(0.f, ui_x + float(kScreenWidth) - safe_right);
-    touch::safe_inset.bottom = std::max(0.f, float(kScreenHeight) - safe_bottom);
+    const float band_left = ui_x;
+    const float band_right = ui_x + float(kScreenWidth);
+    // One-sided notch in landscape: do not shrink both edges when the safe rect still spans the band.
+    constexpr float kMaxInsetSide = 96.f;
+    auto clamp_side = [](float value) { return std::clamp(value, 0.f, kMaxInsetSide); };
+    const float left_from_safe = std::max(0.f, safe_left - band_left);
+    const float right_from_safe = std::max(0.f, band_right - safe_right);
+    const float span = std::max(0.f, safe_right - safe_left);
+    if (span + 1.f >= float(kScreenWidth)) {
+        touch::safe_inset.left = clamp_side(left_from_safe);
+        touch::safe_inset.right = clamp_side(right_from_safe);
+    } else {
+        // Safe rect narrower than the UI band: keep only the stronger horizontal inset.
+        if (left_from_safe >= right_from_safe) {
+            touch::safe_inset.left = clamp_side(left_from_safe);
+            touch::safe_inset.right = 0.f;
+        } else {
+            touch::safe_inset.left = 0.f;
+            touch::safe_inset.right = clamp_side(right_from_safe);
+        }
+    }
+    touch::safe_inset.top = clamp_side(std::max(0.f, safe_top));
+    touch::safe_inset.bottom = clamp_side(std::max(0.f, float(kScreenHeight) - safe_bottom));
 #else
     // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
     (void)win;

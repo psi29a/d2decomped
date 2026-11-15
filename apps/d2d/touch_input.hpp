@@ -20,11 +20,7 @@ struct Box {
     [[nodiscard]] bool contains(float point_x, float point_y) const { return point_x >= x && point_x < x + width && point_y >= y && point_y < y + height; }
 };
 
-// Letterbox gutters (logical px), set from main.cpp from view_w vs 800.
-struct ViewGutter { float left = 0, right = 0; };
-inline ViewGutter view_gutter;
-
-// Extra inset past gutters from SDL safe area.
+// Extra inset within the centre 800x600 touch band (main.cpp from SDL safe area).
 struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
 
@@ -46,8 +42,8 @@ struct Layout {
 inline Box anchor_box(float width, float height, bool left, bool top) {
     constexpr float kPad = 6.f;
     Box box{ 0, 0, width, height };
-    if (left) box.x = view_gutter.left + safe_inset.left + kPad;
-    else box.x = 800.f - view_gutter.right - safe_inset.right - width - kPad;
+    if (left) box.x = safe_inset.left + kPad;
+    else box.x = 800.f - safe_inset.right - width - kPad;
     if (top) box.y = safe_inset.top + kPad;
     else box.y = 600.f - safe_inset.bottom - height - kPad;
     return box;
@@ -73,7 +69,7 @@ inline Layout layout_boxes() {
     out.skills_bar = { out.menu.x, out.menu.y + 52.f, 48.f, 48.f };
     out.done = anchor_box(52.f, 48.f, false, true);
     out.map = { out.done.x, out.done.y + 56.f, 52.f, 48.f };
-    out.quest_track = { view_gutter.left + safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
+    out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
     out.cancel = placed(kCancel);
     const float pot_x = ax - 72.f;
     for (int index = 0; index < 4; ++index)
