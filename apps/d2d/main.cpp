@@ -491,6 +491,48 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
     }
 }
 
+// Map the window safe area into the centre 800-wide touch band (logical px).
+// Widescreen spare columns live outside that band; touch input and draw_touch
+// stay 800-wide, so insets are only within [0, 800].
+void apply_safe_inset(const Window& win) {
+#if SDL_VERSION_ATLEAST(3, 4, 0)
+    SDL_Rect area{};
+    float left = 0, top = 0, right = 0, bottom = 0;
+    // Safe area is window points. RenderCoordinatesFromWindow lands in the
+    // logical view, same as the touch path. Pairing those points with
+    // SizeInPixels clamped a false inset and slid corner HUD inward.
+    if (!win.window || !win.renderer || !SDL_GetWindowSafeArea(win.window, &area)
+        || !SDL_RenderCoordinatesFromWindow(win.renderer, float(area.x), float(area.y), &left, &top)
+        || !SDL_RenderCoordinatesFromWindow(win.renderer, float(area.x + area.w), float(area.y + area.h), &right, &bottom)
+        || win.view_w <= 0) {
+        touch::safe_inset = {};
+        return;
+    }
+    const float band_left = (float(win.view_w) - float(kScreenWidth)) / 2.f;
+    const float band_right = band_left + float(kScreenWidth);
+    const float left_from_safe = std::max(0.f, left - band_left);
+    const float right_from_safe = std::max(0.f, band_right - right);
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    // The landscape notch sits in the widescreen gutter, outside this band.
+    // A few points of sliver, plus the home indicator. Keep leftover left and right.
+    constexpr float kMaxHorizontal = 20.f;
+    constexpr float kMaxVertical = 36.f;
+#else
+    constexpr float kMaxHorizontal = 48.f;
+    constexpr float kMaxVertical = 48.f;
+#endif
+    auto clamp_h = [kMaxHorizontal](float value) { return std::clamp(value, 0.f, kMaxHorizontal); };
+    auto clamp_v = [kMaxVertical](float value) { return std::clamp(value, 0.f, kMaxVertical); };
+    touch::safe_inset.left = clamp_h(left_from_safe);
+    touch::safe_inset.right = clamp_h(right_from_safe);
+    touch::safe_inset.top = clamp_v(std::max(0.f, top));
+    touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
+#else
+    // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
+    (void)win;
+#endif
+}
+
 /**
  * Run the interactive window loop, routing SDL and controller input to the current screen. Touch
  * gestures and character-selection cursor ownership are resolved before gameplay and UI updates.
@@ -525,6 +567,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Window win;
     win.scale_mode = g_scale_mode;
     if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen, g_widescreen, g_widescreen ? 1066 : 0)) { SDL_Quit(); return 1; }
+    apply_safe_inset(win);
     // A set cap is the sleep's alone: a present held to the next refresh after it would miss the rate.
     if (g_fps_cap > 0) SDL_SetRenderVSync(win.renderer, 0);
     SentryFrameAttachment crash_frame;
@@ -756,6 +799,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
     town.touch_enabled = g_touch_controls;
+    if (g_touch_controls) town.last_device = touch::LastDevice::Touch;
     if (g_lan_host_port > 0) {
         if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
             town.lan_host.emplace(std::move(*listening));
@@ -891,20 +935,29 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             if (town.touch_enabled && screen == Screen::InGame) {
-                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) { town.touch_input.clear(); town.touch_item_finger = -1; }
+                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+                    town.touch_input.clear(); town.touch_item_finger = -1; town.touch_fingers = 0;
+                    town.touch_pointer = {}; town.touch_sheet = {}; town.touch_item_drag = false;
+                }
                 if ((event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
                     ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID)) continue;
                 // Sidecar/Pencil may arrive as a single pointer rather than SDL fingers.
-                // Reserve a distinct owner; never synthesize a second finger.
+                // While touch is last, keep those packets as owner -2 so a leftover mouse
+                // packet cannot hand the seat to keyboard/mouse.
+                const bool touch_last = town.last_device == touch::LastDevice::Touch;
+                const bool pointer_held = town.touch_input.owns(-2);
                 if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT) {
-                    const auto phase = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? touch::Phase::Down : touch::Phase::Up;
-                    if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                    const bool down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+                    if ((down && touch_last) || (!down && (touch_last || pointer_held))) {
+                        const auto phase = down ? touch::Phase::Down : touch::Phase::Up;
+                        if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                    }
                 }
-                if (event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
+                if ((touch_last || pointer_held) && event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
                     if (town.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
                 if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
                     event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
-                    pad_in_use = true;
+                    town.last_device = touch::LastDevice::Touch;
                     const auto phase = event.type == SDL_EVENT_FINGER_DOWN ? touch::Phase::Down : event.type == SDL_EVENT_FINGER_UP ? touch::Phase::Up
                                      : event.type == SDL_EVENT_FINGER_MOTION ? touch::Phase::Move : touch::Phase::Cancel;
                     const float touch_x = event.tfinger.x - view_off, touch_y = event.tfinger.y;
@@ -917,8 +970,18 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
             }
             gamepads.handle_event(event);
-            if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
-            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) pad_in_use = false;
+            const bool touch_mouse = (event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID)
+                || ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID);
+            const bool touch_busy = town.touch_enabled && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
+            if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+                && !touch_mouse && !touch_busy) {
+                pad_in_use = false; mouse_took_over = true;
+                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+            }
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
+                pad_in_use = false;
+                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+            }
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
             // the right; not while typing or in Configure Controls, where it's a key to bind.
@@ -1066,7 +1129,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                     || pad_actions.snap_x != 0 || pad_actions.snap_y != 0 || pad_actions.trade_press || pad_actions.tab_step != 0
                                     || pad_actions.skill_picker || pad_actions.recentre_cursor || pad_actions.focus_step != 0 || pad_actions.skill_busy;
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
-            if (pad_active) pad_in_use = true;
+            if (pad_active) {
+                pad_in_use = true;
+                if (town.touch_enabled) town.last_device = touch::LastDevice::Gamepad;
+            }
             town.skill_actions = pad_actions;
             if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
                 pad_actions.click_press = false;
@@ -1086,20 +1152,33 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 pad_actions.click_release = false;
             }
             // In the field a pad plays without a cursor: its buttons hit what is in reach (Town::pad_act).
-            const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field();
-            if (pad_field != pad_was_field && !mouse_took_over) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
+            if (town.touch_pointer.active || town.touch_pointer.press || town.touch_pointer.release) {
+                mouse.x = int(town.touch_pointer.x);
+                mouse.y = int(town.touch_pointer.y);
+                if (town.touch_pointer.press) { mouse.down = true; mouse.press_this_frame = true; }
+                if (town.touch_pointer.release) { mouse.down = false; mouse.release_this_frame = true; }
+                town.touch_pointer.press = town.touch_pointer.release = false;
+            }
+            const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field()
+                && (!town.touch_enabled || town.last_device == touch::LastDevice::Gamepad);
+            const bool touch_owns_pointer = town.touch_enabled && town.last_device == touch::LastDevice::Touch
+                && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
+            if (pad_field != pad_was_field && !mouse_took_over && !touch_owns_pointer && town.last_device != touch::LastDevice::Touch)
+                { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
             pad_was_field = pad_field;
             // A menu opening puts the pad's cursor on the choice to start from.
-            const auto pad_focus = screen == Screen::InGame && pad_in_use && !mouse_took_over ? town.pad_focus() : std::nullopt;
+            const auto pad_focus = screen == Screen::InGame && pad_in_use && town.last_device == touch::LastDevice::Gamepad
+                && !mouse_took_over && !touch_owns_pointer ? town.pad_focus() : std::nullopt;
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             if (screen != Screen::CharSelect || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || pad_actions.focus_step != 0) roster_navigation = false;
             if (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty)
                 for (const auto key : pad_actions.keys)
                     if (key == pad::Key::Up || key == pad::Key::Down || key == pad::Key::Left || key == pad::Key::Right) roster_navigation = true;
-            pad_cursor_hidden = pad_field || roster_navigation;
-            town.pad_playing = pad_in_use;
-            town.pad_cue = pad_field && !town.pad_config.skill_buttons && !town.touch_enabled;
+            pad_cursor_hidden = pad_field || roster_navigation
+                || (town.touch_enabled && town.last_device == touch::LastDevice::Touch && !town.held);
+            town.pad_playing = pad_in_use && town.last_device == touch::LastDevice::Gamepad;
+            town.pad_cue = pad_field && !town.pad_config.skill_buttons && town.last_device == touch::LastDevice::Gamepad;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
             const int label_pad = seats.label_pad(coop_game, ui_seat);
             town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
@@ -1194,6 +1273,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                 pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press,
                                 pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y }
                 : Town::PadMove{};
+            if (town.touch_enabled && town.last_device == touch::LastDevice::Touch && town.pad_field()) town.pad.move = {};
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
@@ -1214,6 +1294,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
                 g_view_width = want;
             }
+            apply_safe_inset(win);
         }
         const std::uint32_t t_after_input = std::uint32_t(SDL_GetTicks());
         current_phase.store(std::uint32_t(MainPhase::Render),
@@ -2040,7 +2121,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, touch_classic_hud); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int fps_cap = cfg.contains("fps_cap") ? std::atoi(cfg["fps_cap"].c_str()) : 0;
     app.add_option("--fps-cap", fps_cap, "Frames a second at most, 0 = the display's refresh (also `fps_cap =` in d2d.cfg)")
@@ -2172,6 +2253,7 @@ int main(int argc, char** argv) {
             { "splash_centre", &g_splash_centre }, // rain splashes and mud bubbles centred on their water
             { "unit_slide", &g_unit_slide },       // units slide between ticks, not step at 25 Hz
             { "hwcursor", &g_hw_cursor },          // the gauntlet as the OS cursor, not drawn into the frame
+            { "touch_classic_hud", &d2d::client::touch::g_touch_classic_hud },   // touch: keep the PC bottom bar on the field
         };
         if (const auto mode = scale_mode_named(cfg["scalemode"])) g_scale_mode = *mode;
         std::string_view rest = toggles;
@@ -2188,7 +2270,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, touch_classic_hud; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";

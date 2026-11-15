@@ -183,6 +183,26 @@ inline constexpr int kWheelShown = 8;       // icons on the ring at once; the re
     return std::min(count - 1, page * kWheelShown + highlight % kWheelShown);
 }
 
+/** Page the 8-icon bind wheel when the highlight wraps last→first or first→last. */
+inline void wrap_bind_page(int& page, int& highlight, int local, int prev_local, int total) {
+    if (total <= 0) { page = 0; highlight = 0; return; }
+    page = std::clamp(page, 0, (total - 1) / kWheelShown * kWheelShown);
+    const int shown = std::min(kWheelShown, total - page);
+    if (shown <= 0) { page = 0; highlight = 0; return; }
+    local = std::clamp(local, 0, shown - 1);
+    if (total > shown && prev_local == shown - 1 && local == 0) {
+        page = std::min(page + kWheelShown, (total - 1) / kWheelShown * kWheelShown);
+        highlight = page;
+        return;
+    }
+    if (page > 0 && prev_local == 0 && local == shown - 1) {
+        page = std::max(0, page - kWheelShown);
+        highlight = page + std::min(kWheelShown, total - page) - 1;
+        return;
+    }
+    highlight = page + local;
+}
+
 // The icons actually drawn. `start` is the previous window. The highlight
 // stays inside it; a highlight that walks off the end pulls the window along.
 struct WheelPage { int start = 0, shown = 0; };
@@ -198,6 +218,36 @@ struct WheelPage { int start = 0, shown = 0; };
     if (highlight >= start + page.shown) start = highlight - page.shown + 1;
     page.start = start;
     return page;
+}
+
+// Touch bind wheel: pick the nearest drawn icon, else the wedge of a drag
+// from the hub. `hit` is false on an empty list or a tap in the hub, so a
+// lift does not write skill 0 (Attack) from a stale highlight.
+struct WheelPick { int index = -1; int page_start = 0; bool hit = false; };
+inline constexpr float kBindWheelRx = 110.f, kBindWheelRy = 90.f, kBindWheelIconR = 28.f, kBindWheelHub = 24.f;
+
+[[nodiscard]] inline WheelPick bind_wheel_pick(float dx, float dy, int count, int highlight, int page_start) {
+    const WheelPage page = wheel_page(count, highlight, kWheelShown, page_start);
+    WheelPick pick;
+    pick.page_start = page.start;
+    if (count <= 0 || page.shown <= 0) return pick;
+    int best = -1;
+    float best_d = kBindWheelIconR;
+    for (int slot = 0; slot < page.shown; ++slot) {
+        const float angle = wedge_center(slot, page.shown);
+        const float dist = std::hypot(dx - std::cos(angle) * kBindWheelRx, dy - std::sin(angle) * kBindWheelRy);
+        if (dist < best_d) { best_d = dist; best = slot; }
+    }
+    if (best < 0) best = wedge(dx, dy, page.shown, kBindWheelHub);
+    if (best < 0) return pick;
+    pick.hit = true;
+    pick.index = std::clamp(page.start + best, 0, count - 1);
+    return pick;
+}
+
+[[nodiscard]] inline int bind_wheel_skill(std::span<const int> ids, const WheelPick& pick) {
+    if (!pick.hit || pick.index < 0 || pick.index >= int(ids.size())) return kEmpty;
+    return ids[std::size_t(pick.index)];
 }
 
 // The set latched when a slot was pressed. Holding the modifier afterwards

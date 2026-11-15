@@ -29,6 +29,15 @@ int main() try {
     assert(skillpad::next_page(8, 19, 1) == 16);
     assert(skillpad::next_page(16, 19, 1) == 0);
     assert(skillpad::next_page(0, 19, -1) == 16);
+    {
+        int page = 0, highlight = 7;
+        skillpad::wrap_bind_page(page, highlight, 0, 7, 16);
+        assert(page == 8 && highlight == 8);
+        skillpad::wrap_bind_page(page, highlight, 7, 0, 16);
+        assert(page == 0 && highlight == 7);
+        skillpad::wrap_bind_page(page, highlight, 3, 7, 16);
+        assert(page == 0 && highlight == 3);
+    }
     assert(skillpad::stable_wedge(.1f, .1f, 8, 3) == 3);
     for (int index = 0; index < 8; ++index) {
         const float angle = skillpad::wedge_center(index, 8);

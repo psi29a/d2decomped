@@ -9,6 +9,7 @@
 #include "scene.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "watchdog.hpp"
 #include "world_view.hpp"
@@ -319,6 +320,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
                                top, hovered_name, colour[0], colour[1], colour[2]);
         }
+        const bool dim_automap = automap && !automap->covered && hud.touch_compact && automap->open;
+        if (dim_automap && wide)
+            for (std::size_t index = 0; index + 2 < world.size(); index += 4) {
+                world[index] = std::uint8_t(world[index] * 3 / 4);
+                world[index + 1] = std::uint8_t(world[index + 1] * 3 / 4);
+                world[index + 2] = std::uint8_t(world[index + 2] * 3 / 4);
+            }
         if (wide)
             for (std::size_t y = 0; y < kScreenHeight; ++y)
                 std::copy_n(world.begin() + std::ptrdiff_t((y * std::size_t(world_w) + std::size_t(off)) * 4), kScreenWidth * 4,
@@ -335,6 +343,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // FUN_0045ae90 isn't 3). Round the camera less the panel's quarter, which
         // the map makes its own (rules::automap_scroll).
         if (automap && !automap->covered) {
+            if (dim_automap && !wide) {
+                for (std::size_t index = 0; index < framebuffer.size(); index += 4) {
+                    framebuffer[index] = std::uint8_t(framebuffer[index] * 3 / 4);
+                    framebuffer[index + 1] = std::uint8_t(framebuffer[index + 1] * 3 / 4);
+                    framebuffer[index + 2] = std::uint8_t(framebuffer[index + 2] * 3 / 4);
+                }
+            }
             const float unshift = float(d2d::rules::panel_view_shift(automap->panel_side, world_w)) / kIsoW;
             draw_automap(framebuffer, scene, *automap, cam_x - unshift + float(level.world_x), cam_y + unshift + float(level.world_y));
         }
@@ -358,7 +373,19 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         auto draw_inventory_panel = [&] {
             if (inventory && class_idx >= 0 && class_idx < 7)
             {
-                draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
+                Scene::InvLayout layout = scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])];
+                if (hud.touch_inv_anchor) {
+                    const int dx = touch::kTouchInvPanelX - layout.panel_x, dy = touch::kTouchInvPanelY - layout.panel_y;
+                    layout.panel_x += dx;
+                    layout.panel_y += dy;
+                    layout.grid_x += dx;
+                    layout.grid_y += dy;
+                    for (auto& slot : layout.slots) {
+                        slot[0] += dx;
+                        slot[1] += dy;
+                    }
+                }
+                draw_inventory(framebuffer, scene, layout, *inventory,
                                mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
             }
@@ -366,7 +393,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         auto draw_store_panel = [&] {
             if (store && store->npc >= 0)
             {
-                draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory);
+                const int store_x = hud.touch_store_right ? touch::kTouchStorePanelX : kCharPanelX;
+                draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory, store_x);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
             }
         };
@@ -388,7 +416,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             }
         }
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
-        if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
+        if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms, hud.touch_compact);
         if (hud_stats && !hud.hidden) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
         if (belt && !hud.hidden) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
                             belt_popup, hud.belt_keys, hud.pad_bar, &sell_price);

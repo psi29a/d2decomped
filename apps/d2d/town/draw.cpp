@@ -81,6 +81,7 @@ auto Town::open_menu(int npc) -> void {
                 ? resurrect_line(*scene, character.header.merc_type, character.header.merc_name,
                                  d2d::rules::merc_resurrect_cost(d2d::rules::merc_stats(scene->rules, character.header.merc_type, character.header.merc_exp).level))
                 : std::string());
+        if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
     }
 
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
@@ -259,7 +260,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool pad_target = pad_playing && pad_field() && focus_id() == hero.id;
         if (pad_target) hover_x = hover_y = -1;
         automap_frame();
-        const bool pad_bar = skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
+        const bool touch_compact = touch_hides_classic_hud();
+        const bool pad_bar = pad_playing && skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
         auto belt_names = belt_key_names;
         if (pad_bar) {
             const auto name = [&](pad::Action action) -> std::string {
@@ -285,8 +287,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
-                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() || touch_compact,
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -294,7 +296,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         if (scene->store_buttons.frames_per_direction() > 11) {     // the close buttons, over their panels
             const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
-            const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+            const auto lay = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
             if (inv_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, inv_close_down ? 11 : 10), pal, lay.panel_x + 0x12, lay.panel_y + 416);
             if (char_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, char_close_down ? 11 : 10), pal, kCharPanelX + 0x80, kCharPanelY + 420);
             if (stash_open && !cube_open) {
@@ -330,7 +332,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
         view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
         draw_hold_cue(framebuffer);
-        if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
+        if ((!coop_hud_hidden() || skillbar.picking) && (!touch_hides_classic_hud() || skillbar.picking != 0))
+            skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
             std::vector<d2d::d2s::Item> theirs;
@@ -357,11 +360,12 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         quest_log_was_open = quest_log.open;
         if (quest_log.open && draw_quest_log(framebuffer, *scene, quest_log, quest_bits(), quest_state(), frame_ms, character.expansion, mouse.x, mouse.y))
             questdone_sound = true;                    // cursor_questdone
+        const int tree_panel_right = kTreeR;
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
-                            skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
+                            skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y, tree_panel_right);
         if (tree_open && scene->store_buttons.frames_per_direction() > 11) {
-            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const auto close = skill_tree_close(character.character_class, tree_tab, tree_panel_right);
             const auto& frame = scene->store_buttons.frame(0, tree_close_down ? 11 : 10);
             // FUN_004ab530 supplies the cel's bottom-left; sprite offsets are not a new hit box.
             blit_sprite(framebuffer, frame, scene->act_pal.entries().empty() ? scene->pal : scene->act_pal,
@@ -369,7 +373,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         if (tree_open && pad_config.skill_buttons && pad_playing && !skillbar.picking) {
             const int tree_class = std::max(character.character_class, 0);
-            const int index = skill_at(*scene, tree_class, tree_tab, mouse.x, mouse.y);
+            const int index = skill_at(*scene, tree_class, tree_tab, mouse.x, mouse.y, tree_panel_right);
             const auto& ids = scene->skills.class_ids[std::size_t(tree_class)];
             if (index >= 0 && std::size_t(index) < ids.size() && skill_known(character.name, ids[std::size_t(index)]))
                 scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 420, 548,
@@ -377,14 +381,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
-        draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
-        draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
+        if (!touch_compact) {
+            draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
+            draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
+        }
         const bool left_open = left_panel_open();
-        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, true);
+        if (!coop_hud_hidden() && !touch_compact) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, true);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
-        if (int button_x = 0; !coop_hud_hidden())
+        if (int button_x = 0; !coop_hud_hidden() && !touch_compact)
             if (const int kind = mini.hovered(left_open, mini_right(), mouse.x, mouse.y, button_x); kind >= 0) {
                 static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
                 std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));

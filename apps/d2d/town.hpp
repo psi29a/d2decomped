@@ -473,6 +473,7 @@ struct Town {
     [[nodiscard]] std::optional<PadFocus> pad_focus() const;
     [[nodiscard]] std::vector<pad::Point> pad_snap_points() const;
     [[nodiscard]] const d2d::d2s::Item* bag_at(int mouse_x, int mouse_y) const;
+    [[nodiscard]] Scene::InvLayout touch_inv_layout() const;
     void pad_trade(int mouse_x, int mouse_y);
     void pad_drop(int mouse_x, int mouse_y);
     void drive_pad_hold(Mouse& mouse, float seconds);
@@ -493,23 +494,63 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
+    touch::LastDevice last_device = touch::LastDevice::MouseKeyboard;
+    /** Touch on, last device is a finger/Pencil, and classic PC bottom bar suppressed. */
+    [[nodiscard]] bool touch_hides_classic_hud() const;
+    /** Field thumb cluster (move/skills/attack); false during panels, NPC, store, or speech. Automap overlay keeps it. */
+    [[nodiscard]] bool touch_shows_field_controls() const;
+    /** @deprecated Use touch_shows_field_controls for field chrome; touch_hides_classic_hud for HUD. */
+    [[nodiscard]] bool touch_compact_field() const;
+    void drive_touch_hold(float seconds);
     touch::Input touch_input;
     PadPlayer touch_player;
     std::map<std::string, skillpad::Sheet> touch_sheets;
     std::array<touch::Target, 4> touch_previews{};
     std::int64_t touch_item_finger = -1;
-    int touch_item = -1, touch_stock = -1;
+    int touch_item = -1, touch_stock = -1, touch_fingers = 0;
     std::uint32_t touch_item_start = 0;
     float touch_item_x = 0, touch_item_y = 0;
     int touch_panel_state = 0;
     bool touch_sold = false;
+    bool touch_item_drag = false;
+    int touch_identify_target = -1;
+    struct TouchPointer {
+        bool active = false, press = false, release = false;
+        float x = 0, y = 0;
+    };
+    TouchPointer touch_pointer;
+    touch::ItemSheet touch_sheet;
+    hold_confirm::Hold touch_hold;
+    bool touch_hold_edge = false;
+    float touch_hold_fraction = 0.f;
     std::string touch_item_hint;
     int touch_selected = skillpad::kEmpty;
+    int touch_learn_skill = -1;
+    int touch_tree_tap_skill = -1;
+    std::uint32_t touch_tree_tap_ms = 0;
     bool touch_attack_used = false;
-    PadPick touch_attack_pick;
+    std::int64_t touch_ground_finger = -1;
+    float touch_ground_x = 0, touch_ground_y = 0;
+    PadPick touch_attack_pick, touch_interact_pick;
     int touch_assign = skillpad::kUnset;
     std::string touch_feedback;
+    enum class TouchBindPhase { Off, PickSlot, PickSkill };
+    TouchBindPhase touch_bind = TouchBindPhase::Off;
+    int touch_bind_slot = -1;
+    int touch_bind_wheel_at = 0;
+    int touch_bind_wheel_page = 0;
+    bool touch_bind_hit = false;
+    std::int64_t touch_bind_finger = -1;
+    float touch_bind_origin_x = 0, touch_bind_origin_y = 0;
+    void touch_rebuild_bind_wheel();
+    void touch_open_bind();
+    void touch_close_bind();
+    void touch_apply_bind(int slot, int skill);
+    [[nodiscard]] int touch_bound_skill(int slot) const;
+    [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
+    /** Facing plus resolve_skill: swipe-aim when directional or when pad_pick has no monster. */
+    void touch_refresh_skill_aim();
     void drive_touch();
     void draw_touch(std::vector<std::uint8_t>& framebuffer);
     void load_touch_sheet(const std::string& name);

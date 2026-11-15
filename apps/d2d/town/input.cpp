@@ -27,6 +27,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 
 #include <click_spot.hpp>
@@ -70,6 +71,21 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             return out;
         }
         if (over_ui) return out;
+        if (touch_enabled && last_device == touch::LastDevice::Touch) {
+            // Touch stick and ground taps own locomotion; a leftover mouse packet must not click-to-walk.
+            if (!(pad_field() && !touch_pointer.active)) return out;
+            const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
+            const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
+            const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
+            const int hovered_monster_index = hovered_monster();
+            const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
+            if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {
+                if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
+            } else if (mouse.rpress_this_frame) {
+                out.push_back(cmd::UseSkill{ skillbar.right, world_x, world_y, live ? view.monsters[std::size_t(hovered_monster_index)].id : -1, false, skillbar.right_item });
+            }
+            return out;
+        }
         // Screen -> world: invert the iso projection around the player,
         // who sits at (kW/2, kViewY).
         const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
@@ -127,7 +143,8 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
-            && !skillbar.picking && skill_strip < 0 && touch_assign == skillpad::kUnset && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+            && !skillbar.picking && skill_strip < 0 && touch_assign == skillpad::kUnset && touch_bind == TouchBindPhase::Off && !chat_typing && !gold_box
+            && !(net_game && net_game->trade.state != 0);
     }
 
 auto Town::mini_right() const -> bool {
@@ -642,7 +659,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
 // The inventory item under the cursor, or nullptr. Not the stash, the cube or the belt.
 auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
         if (!scene || !inv_open) return nullptr;
-        const auto& inventory = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        const auto& inventory = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         for (const auto& item : character.items) {
             if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
             const auto rect = grid_rect(*scene, inventory, item);
@@ -654,7 +671,7 @@ auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
 // A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
 auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         if (store.npc < 0 || !scene) return;
-        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
+        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
 
 /**
@@ -726,7 +743,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
                               && query.store_mode != 1 && query.store_mode != 3;
         if (pad_playing && pad_config.skill_buttons && query.shop && query.hand_empty && scene &&
-            store_item_at(*scene, store, mouse.x, mouse.y) >= 0) {
+            store_item_at(*scene, store, mouse.x, mouse.y, touch_store_panel_x()) >= 0) {
             const auto& pair = pad_config.bindings[pad::Action::Trade];
             const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
             if (button != pad::Bindings::kNone)

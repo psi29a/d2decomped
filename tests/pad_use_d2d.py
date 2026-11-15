@@ -426,10 +426,10 @@ if touch_ux:
     cmd("debug stat 7 256000"); cmd("debug stat 6 256000"); frames(5)
     pixel_x, pixel_y = skill_panel(aimed)
     tap(pixel_x, pixel_y)
-    tap(500, 565)
-    tap(565, 470)
+    tap(631, 541)
+    tap(631, 541)
     screenshot("touch-assignment-corpse.png" if corpse_ux else "touch-assignment.png")
-    tap(720, 32); tap(720, 32)  # Done, then Back from the tree
+    tap(768, 30); tap(768, 30)  # Done, then Back from the tree
     cmd("debug goto 2"); frames(20)
     cmd("debug kill"); frames(40)
     if corpse_ux:
@@ -439,34 +439,34 @@ if touch_ux:
         cmd(f"debug warp {float(bodies[0][1]) + 2} {bodies[0][2]}"); frames(10)
     # Aiming and cancellation travel through injected SDL finger events.
     mana = state()["mana"]
-    finger(1, "down", 100, 430); finger(1, "move", 160, 430)
-    finger(2, "down", 565, 470)
+    finger(1, "down", 90, 460); finger(1, "move", 140, 460)
+    finger(2, "down", 631, 541)
     assert state()["touch_aiming"] == "1" and state()["touch_skill"] == str(aimed), cmd("state")
     if corpse_ux:
         assert int(state()["touch_target"]) >= 0, "corpse skill did not select a corpse"
-    finger(2, "move", 630, 450)
+    finger(2, "move", 636, 450)
     screenshot("touch-corpse-aim.png" if corpse_ux else "touch-teleport-aim.png")
-    finger(2, "cancel", 630, 450)
+    finger(2, "cancel", 636, 450)
     assert state()["touch_aiming"] == "0" and state()["touch_move"] != "0.000000,0.000000", "cancellation interrupted movement"
     assert state()["mana"] == mana, "cancelled skill spent mana"
-    finger(3, "down", 680, 280); finger(3, "up", 680, 280)
+    finger(3, "down", 746, 466); finger(3, "up", 746, 466)
     assert state()["touch_page"] == "1" and state()["touch_move"] != "0.000000,0.000000", "page switch interrupted movement"
-    finger(1, "up", 160, 430)
+    finger(1, "up", 140, 460)
     # Sidecar-style pointer input can operate the overlay without SDL fingers.
-    cmd("click 680 280"); frames(4)
+    cmd("click 746 466"); frames(4)
     assert state()["touch_page"] == "0", "pointer click did not switch touch page"
-    finger(2, "down", 565, 470)
+    finger(2, "down", 631, 541)
     cmd("key i"); frames(5)
-    finger(2, "up", 630, 450)
+    finger(2, "up", 640, 500)
     assert state()["touch_aiming"] == "0" and state()["mana"] == mana, "opening a panel committed the pending skill"
     screenshot("touch-inventory.png")
-    tap(720, 32)
-    finger(2, "down", 565, 470)
+    tap(768, 30)
+    finger(2, "down", 631, 541)
     if not corpse_ux:
-        finger(2, "move", 610, 480)
+        finger(2, "move", 640, 500)
     preview = tuple(map(float, state()["touch_point"].split(",")))
     before_cast = players()["Alpha"][:2]
-    finger(2, "up", 610 if not corpse_ux else 565, 480 if not corpse_ux else 470)
+    finger(2, "up", 640 if not corpse_ux else 590, 500 if not corpse_ux else 520)
     frames(35)
     if corpse_ux:
         assert state()["pets"] != "-", "touch corpse skill did not raise a minion"
@@ -499,7 +499,7 @@ if touch_ux:
         assert int(state()["unid"]) == before - 1, "touch identify target was not applied"
         tap(*item_point(portal))
         until("touch opened a portal", lambda: any(line.startswith("0\t") for line in cmd("debug portals").splitlines()))
-        tap(720, 32)
+        tap(768, 30)
         cmd("debug goto 1"); frames(20)
         akara = next(line.split("\t") for line in cmd("npcs").splitlines() if line.startswith("Akara\t"))
         cmd(f"debug warp {float(akara[5]) + 1} {akara[6]}"); frames(6)
@@ -535,12 +535,12 @@ if touch_ux:
         frames(50)
         assert int(state()["items"]) == before, "cancelled touch hold sold an item"
         cmd(f"click {pixel_x} {pixel_y} down"); frames(3)
-        tap(720, 32)
+        tap(768, 30)
         assert state()["touch_item_finger"] == "-1", "closing the shop kept the item pointer"
         frames(50)
         cmd(f"click {pixel_x} {pixel_y} up"); frames(3)
         assert int(state()["items"]) == before, "closing the shop committed a pointer sale"
-        tap(720, 32)
+        tap(768, 30)
     print("ok: touch assignment, independent page/movement, aim/cancel, actual cast, tomes and separate buy/sell where applicable")
     sys.exit(0)
 

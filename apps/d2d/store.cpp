@@ -62,11 +62,11 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
     return menu;
 }
 
-int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y) {
+int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y, int panel_x) {
     const auto& tab = store.tabs[std::size_t(store.tab)];
     for (std::size_t i = 0; i < tab.size(); ++i) {
         const auto [width, height] = d2d::rules::item_size(scene.rules, tab[i].code);
-        const int x = 96 + tab[i].column * 29, y = 123 + tab[i].row * 29;
+        const int x = panel_x + (96 - kCharPanelX) + tab[i].column * 29, y = 123 + tab[i].row * 29;
         if (mouse_x >= x && mouse_x < x + width * 29 && mouse_y >= y && mouse_y < y + height * 29) return int(i);
     }
     return -1;
@@ -78,26 +78,26 @@ std::array<int, 4> store_button_frames(const Store& store) {
 }
 
 void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer,
-                const std::vector<d2d::d2s::Item>* items) {
+                const std::vector<d2d::d2s::Item>* items, int panel_x) {
     if (store.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     if (scene.store_panel.frames_per_direction() >= 4) {
         const auto& frame = scene.store_panel.frame(0, 0);
-        blit_sprite(framebuffer, frame, pal, kCharPanelX, kCharPanelY);
-        blit_sprite(framebuffer, scene.store_panel.frame(0, 1), pal, kCharPanelX + int(frame.width), kCharPanelY);
-        blit_sprite(framebuffer, scene.store_panel.frame(0, 2), pal, kCharPanelX, kCharPanelY + int(frame.height));
-        blit_sprite(framebuffer, scene.store_panel.frame(0, 3), pal, kCharPanelX + int(frame.width), kCharPanelY + int(frame.height));
+        blit_sprite(framebuffer, frame, pal, panel_x, kCharPanelY);
+        blit_sprite(framebuffer, scene.store_panel.frame(0, 1), pal, panel_x + int(frame.width), kCharPanelY);
+        blit_sprite(framebuffer, scene.store_panel.frame(0, 2), pal, panel_x, kCharPanelY + int(frame.height));
+        blit_sprite(framebuffer, scene.store_panel.frame(0, 3), pal, panel_x + int(frame.width), kCharPanelY + int(frame.height));
     }
     for (int i = 0; i < 4; ++i) {
         const bool active = i == store.tab;
         if (scene.store_tabs.frames_per_direction() >= 8) {
             const auto& frame = scene.store_tabs.frame(0, std::uint32_t(active ? i : i + 4));
-            blit_sprite(framebuffer, frame, pal, kCharPanelX + 80 * i, 90 - int(frame.height) + 1);
+            blit_sprite(framebuffer, frame, pal, panel_x + 80 * i, 90 - int(frame.height) + 1);
         }
         const std::string label = string_id(scene, kTabString[i]);
         const int width = scene.font.measure(label);
         const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
-        const int x = kCharPanelX + kTabLabelX[i] - width / 2, y = 79 - cell + 1;
+        const int x = panel_x + kTabLabelX[i] - width / 2, y = 79 - cell + 1;
         if (active) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, y, label, 199, 179, 119);
         else        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x, y, label);
     }
@@ -107,10 +107,10 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
         if (std::uint32_t(frames[std::size_t(i)] + 1) < scene.store_buttons.frames_per_direction()) {
             const bool down = store.pressed[std::size_t(i)] || (i < 2 && store.mode == i + 1);
             const auto& frame = scene.store_buttons.frame(0, std::uint32_t(frames[std::size_t(i)] + (down ? 1 : 0)));
-            blit_sprite(framebuffer, frame, pal, kCharPanelX - 1 + kBtnX[i], 476 - int(frame.height) + 1);
+            blit_sprite(framebuffer, frame, pal, panel_x - 1 + kBtnX[i], 476 - int(frame.height) + 1);
         }
     for (int i = 0; i < 4; ++i) {
-        const int tip_x = kCharPanelX + kBtnX[i];
+        const int tip_x = panel_x + kBtnX[i];
         if (mouse_x < tip_x || mouse_x >= tip_x + 0x2d || mouse_y <= 431 || mouse_y >= 475) continue;
         static constexpr std::array<std::pair<int, std::uint16_t>, 5> kTips{ { { 2, 0xd07 }, { 4, 0xd08 }, { 6, 0xd0a }, { 18, 0x276f }, { 10, 0x1030 } } };
         const auto tip = std::ranges::find(kTips, frames[std::size_t(i)], &std::pair<int, std::uint16_t>::first);
@@ -125,7 +125,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
     }
     // Stock, Monster2 grid.
     Scene::InvLayout layout;
-    layout.grid_x = 96; layout.grid_y = 123; layout.box_w = layout.box_h = 29;
+    layout.grid_x = panel_x + (96 - kCharPanelX); layout.grid_y = 123; layout.box_w = layout.box_h = 29;
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : store.tabs[std::size_t(store.tab)]) {

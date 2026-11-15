@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "scene.hpp"
+#include "touch_input.hpp"
 
 #include <dc6.hpp>
 #include <hire_list.hpp>
@@ -149,6 +150,27 @@ void layout_npc_menu(const Scene& scene, NpcMenuState& menu, int screen_x, int s
     if (menu.y < 11) menu.y = 10;
 }
 
+void layout_npc_menu_touch(const Scene& scene, NpcMenuState& menu) {
+    menu.box_height = 0;
+    int text_width = 0;
+    for (auto& line : menu.lines) {
+        line.height = std::max(line.height, 44);
+        line.width = scene.font.measure(line.text);
+        text_width = std::max(text_width, line.width);
+        menu.box_height += line.height;
+    }
+    menu.box_width = std::max(text_width + 40, 300);
+    menu.box_height += 20;
+    for (auto& line : menu.lines) line.x = line.width < menu.box_width ? (menu.box_width - line.width + 1) / 2 : 0;
+    const float margin = 10.f + touch::safe_inset.bottom;
+    const int max_height = std::max(44, int(600.f - margin - touch::safe_inset.top - 10.f));
+    if (menu.box_height > max_height) menu.box_height = max_height;
+    menu.y = int(600.f - margin - float(menu.box_height));
+    const float usable = 800.f - touch::safe_inset.left - touch::safe_inset.right;
+    menu.x = int(touch::safe_inset.left + (usable - float(menu.box_width)) * .5f);
+    if (menu.x < int(touch::safe_inset.left) + 8) menu.x = int(touch::safe_inset.left) + 8;
+}
+
 int talk_topic(const NpcTalk& talk, bool intro, int cls, d2d::rules::Rng& rng,
                const std::function<bool(int quest)>& quest_done) {
     if (intro) return talk.topics.size() > 1 && int(talk.topics[1].cls) == cls ? 1 : 0;
@@ -189,23 +211,31 @@ Speech start_speech(const Scene& scene, int npc, std::uint16_t string, std::uint
     return speech;
 }
 
-void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Speech& speech, std::uint32_t now_ms) {
+void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Speech& speech, std::uint32_t now_ms,
+                  bool touch_layout) {
     if (speech.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    const int box_x = (int(kScreenWidth) - 0x145) / 2, top = 12;
-    for (int y = std::max(0, top - 5); y < top - 5 + 0x7a; ++y)
-        for (int x = box_x; x < box_x + 0x145; ++x) {
+    constexpr int kBoxW = 0x145;
+    const int box_x = touch_layout ? int(touch::safe_inset.left + (800.f - touch::safe_inset.left - touch::safe_inset.right - kBoxW) * .5f)
+                                  : (int(kScreenWidth) - kBoxW) / 2;
+    const int line_count = int(speech.lines.size());
+    const int box_h = touch_layout ? touch_speech_box_height(line_count, touch::safe_inset.top, touch::safe_inset.bottom) : 0x7a;
+    const int top = touch_layout ? touch_speech_box_top(box_h, touch::safe_inset.top, touch::safe_inset.bottom) : 12;
+    for (int y = std::max(0, top - 5); y < top - 5 + box_h; ++y)
+        for (int x = box_x; x < box_x + kBoxW; ++x) {
             auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
             pixel[0] = std::uint8_t(pixel[0] / 2); pixel[1] = std::uint8_t(pixel[1] / 2); pixel[2] = std::uint8_t(pixel[2] / 2);
         }
     const auto& font = scene.font_formal11.line_height() > 0 ? scene.font_formal11 : scene.font;
     const int cell = font.sheet().frames_per_direction() > 0 ? int(font.sheet().frame(0, 0).height) : 16;
+    const int clip_top = top - 5;
+    const int clip_bottom = clip_top + box_h;
     const int off = speech.offset_px(now_ms);
     for (std::size_t i = 0; i < speech.lines.size(); ++i) {
         const int base = top + 0x70 - off + int(i) * 18;
-        if (!speech_line_visible(base, cell)) continue;
+        if (!speech_line_visible(base, cell, clip_top, clip_bottom)) continue;
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box_x + 16, base - cell + 1, speech.lines[i], 255, 255, 255,
-                      kSpeechBoxTop, kSpeechBoxBottom);
+                      clip_top, clip_bottom);
     }
 }
 
