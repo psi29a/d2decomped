@@ -39,6 +39,11 @@ int main() try {
     input.frame();
     input.event(1, Phase::Down, 126, 462);
     input.event(1, Phase::Move, 171, 462);
+    assert(input.move_held());
+    input.release_finger(1);
+    assert(!input.move_held() && input.move_x == 0 && input.move_y == 0);
+    input.event(1, Phase::Down, 126, 462);
+    input.event(1, Phase::Move, 171, 462);
     input.event(2, Phase::Down, 598, 530, fire, true);
     assert(input.casts.empty()); // even self casts are cancellable until lift
     input.event(2, Phase::Cancel, 598, 530);

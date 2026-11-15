@@ -202,6 +202,15 @@ public:
     Target preview;
     std::vector<Target> casts;
 
+    [[nodiscard]] bool move_held() const { return movement_ >= 0; }
+
+    /** Drop ownership for a finger that lifted (routes that skip event() must call this). */
+    void release_finger(std::int64_t finger) {
+        if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }
+        if (finger == attack_) { attack_ = -1; attack_down = false; }
+        if (finger == skill_) { skill_ = -1; aiming = false; }
+    }
+
     void clear() {
         movement_ = skill_ = attack_ = -1;
         move_x = move_y = 0;

@@ -257,7 +257,10 @@ void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
 bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
     if (phase == touch::Phase::Down) ++touch_fingers;
-    else if (phase == touch::Phase::Up || phase == touch::Phase::Cancel) touch_fingers = std::max(0, touch_fingers - 1);
+    else if (phase == touch::Phase::Up || phase == touch::Phase::Cancel) {
+        touch_fingers = std::max(0, touch_fingers - 1);
+        touch_input.release_finger(finger);
+    }
     const touch::Layout chrome = touch::layout_boxes();
     if (pad_field()) touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (speech.npc >= 0 || npc_menu.npc >= 0) {
@@ -628,7 +631,9 @@ void Town::drive_touch() {
     }
     if (touch_input.menu) { touch_input.clear(); inv_open = true; tree_open = false; return; }
     const Send out = [this](const Command& command) { send(command); };
-    touch_player.move = { touch_input.move_x, touch_input.move_y, std::hypot(touch_input.move_x, touch_input.move_y) > 0.01f };
+    if (!touch_input.move_held()) touch_input.move_x = touch_input.move_y = 0;
+    const float move_len = std::hypot(touch_input.move_x, touch_input.move_y);
+    touch_player.move = { touch_input.move_x, touch_input.move_y, touch_input.move_held() && move_len > 0.12f };
     if (touch_player.move.active) {
         const auto face = pad::world_step(touch_input.move_x, touch_input.move_y, kIsoW, kIsoH, 1.f);
         touch_player.face_x = face.x; touch_player.face_y = face.y;
