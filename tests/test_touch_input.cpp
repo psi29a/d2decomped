@@ -30,7 +30,14 @@ int main() try {
     assert(!input.aiming && input.casts.empty() && input.move_x == 1);
     input.event(2, Phase::Down, 598, 530, fire);
     input.event(2, Phase::Up, 380, 170);
-    assert(input.casts.empty() && input.move_x == 1); // visible cancel region
+    assert(input.casts.size() == 1 && input.casts[0].skill == 54); // old cancel strip still casts
+    input.frame();
+    input.event(2, Phase::Down, 598, 530, fire);
+    input.event(2, Phase::Up, -1, 170);
+    assert(input.casts.empty()); // lift off the 800x600 band
+    input.event(2, Phase::Down, 598, 530, fire);
+    input.event(2, Phase::Up, 380, 600);
+    assert(input.casts.empty());
     input.event(2, Phase::Down, 598, 530, fire);
     input.event(1, Phase::Up, 191, 462);
     assert(input.aiming && input.casts.empty() && input.move_x == 0);

@@ -1002,7 +1002,6 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
     }
     if (touch_input.aiming) {
-        button(chrome.cancel, "Drag here to cancel");
         const auto& target = touch_input.preview;
         const int screen_x = int(kScreenWidth) / 2 + int((target.x - cam_x - target.y + cam_y) * kIsoW / 2);
         const int screen_y = kViewY + int((target.x - cam_x + target.y - cam_y) * kIsoH / 2);

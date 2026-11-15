@@ -52,12 +52,11 @@ inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 /** Finger movement that turns an item tap into a drag-and-drop pickup. */
 inline constexpr float kItemDragSlop = 14.f;
-inline constexpr Box kCancel{ 260, 140, 280, 64 };
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
-    Box move, move_visual, attack, page, cancel, menu, skills_bar, quest, bind, map, done, interact, quest_track;
+    Box move, move_visual, attack, page, menu, skills_bar, quest, bind, map, done, interact, quest_track;
     std::array<Box, 4> skills{}, belts{};
 };
 
@@ -162,7 +161,6 @@ inline Layout layout_boxes() {
     out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
     const float track_y = out.bind.y + out.bind.height + bar_gap() + kBarBlockH;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
-    out.cancel = placed(kCancel);
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
     out.skills[0] = { ax - ui_scale(103.f), ay + ui_scale(7.f), skill, skill };
     out.skills[1] = { ax - ui_scale(186.f), ay - ui_scale(64.f), skill, skill };
@@ -290,7 +288,7 @@ public:
             aim_x = x; aim_y = y;
             dragged = dragged || (!stationary && std::hypot(x - origin_x, y - origin_y) > 10);
             if (phase == Phase::Up) {
-                if (!chrome.cancel.contains(x, y) && x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid) casts.push_back(preview);
+                if (x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid) casts.push_back(preview);
                 skill_ = -1; aiming = false;
             }
         }
