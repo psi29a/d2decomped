@@ -325,6 +325,11 @@ from the code, no oracle.
 
 - **Options:** Video Options "Blended Shadows" (registry, default on;
   `FUN_004f5200` sets 0x72da5c) and "Light Quality" (the grid's shadows).
+  Nothing reads 0x72da5c: the binary holds its address four times, the
+  store, a getter at 0x4f51f0 that nothing calls, and a toggle at 0x4f54d0
+  reached only through the uncalled thunk 0x4776a0 (a byte scan for the
+  address, for 0x72da48..0x72da58 as bases, and for calls and pointers to
+  the three). The option changes nothing; shadows are always blended.
 - **The alpha tables:** PL2 +0x3500, three 256 × 256 tables (D2WinPalette
   copies them to 0x7ee468.. and hands the driver pointers in that order,
   `FUN_004fb010`). Table k mixes T[a][b] = a · (1 − w) + b · w with
@@ -332,15 +337,14 @@ from the code, no oracle.
 - **Tile shadows** (orientation 13): driver +0xa4 (0x512f90) draws each
   block through callback `FUN_004f82d0` at alpha 0xc0 → table 0 as
   T[ground][tile] (the screen byte picks the row): a quarter of the ground
-  under three quarters of the tile, unlit. With Blended Shadows off,
-  opaque. They go in the shadow pass `FUN_004df510`, with the units'
+  under three quarters of the tile, unlit. They go in the shadow pass `FUN_004df510`, with the units'
   shadows, after every floor (`FUN_004ded10`) and the rain's splashes: a
   shadow reaching over the next cells isn't painted over by their floors.
 - **Unit shadows:** driver +0x90 (0x5122e0 → `FUN_00601730` →
   `FUN_00608d60`) draws the frame from its bottom row up, every other row,
   each output row one up and one left: half as tall, leaning up-left from
   (x + xoff + yoff / 2, y + yoff / 2). Each pixel becomes T0[ground][0]:
-  a quarter of the ground (black when not blended). MonStats2 Shadow says
+  a quarter of the ground. MonStats2 Shadow says
   which monsters cast one (all of them in 1.14d). Objects cast one too:
   `FUN_004dc710` marks every object drawn (unit +0xc8 bit 0x80), and
   `FUN_004dd7c0` lists each such unit for the shadow pass (`FUN_004dd6e0`

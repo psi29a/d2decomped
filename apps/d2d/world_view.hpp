@@ -196,7 +196,7 @@ void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerA
 // from its bottom row up, every other row, a row up and a pixel left each
 // time — half as tall, leaning up and left — its pixels darkening the
 // ground through alpha table 0 as T[ground][0]: a quarter of the ground's
-// colour (Blended Shadows on; off it's black). `mask` / `id`: a pixel
+// colour (whatever Blended Shadows says, lighting.md). `mask` / `id`: a pixel
 // darkens once however many layers cover it.
 // ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,

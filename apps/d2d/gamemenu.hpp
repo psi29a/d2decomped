@@ -24,7 +24,8 @@ std::vector<std::string_view> game_menu_images();
 // DirectDraw ramp. Resolution and Light Quality are kept, not applied
 // (deviations.md #15, Approximations #4). 3D sound, EAX, 3D bias and
 // perspective are off as on a machine without a 3D provider or Glide.
-// ponytail: Blended Shadows (0x72da5c, FUN_004f5200) is kept, not applied.
+// Blended Shadows is kept, not applied, as in game.exe: FUN_004f5200 stores
+// it at 0x72da5c and no live code reads it (stubs.md).
 struct GameMenu {
     enum Action { kNone, kClose, kExit, kControls };
     bool open = false;
