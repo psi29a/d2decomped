@@ -449,6 +449,13 @@ else rare.
   (`0x454080`): 0/1 C->S 0x50 (u32 player id, u32 amount; `FUN_00535510`
   drops it), 2 `FUN_004b9110` (0x4f 8), 3 0x4f 0x14, 4 0x4f 0x13; an
   amount of 0 sends nothing but a trade's.
+- The box's fonts: the amount's edit box takes font 1 (Font16) as its
+  last argument (+0x4e, `set_font` at 0x4bb246 / 0x4bb7fa). A button's
+  string shows only while the mouse is over its art, x .. x + width by
+  bottom - height .. bottom, edges in (ButtonImplementation's draw
+  0x4bb000, slot 1 of vtable 0x6da6f4): Font16 (ECX 1 at 0x4bb088),
+  colour 0, at x + (width - text) / 2, baseline bottom - height - 5
+  (`FUN_00502320`), then the old font back. d2d: `draw_gold_box`.
 - The spinner (`SpinnerImplementation`, vtable 0x6da83c; the box's
   callback 0x453fe0 adds the step, at most the gold it's from, or takes
   it, not below 0): a click on an arrow (`FUN_004bc0a0`) notes the tick

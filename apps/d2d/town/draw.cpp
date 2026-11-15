@@ -351,7 +351,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         draw_portraits(framebuffer, left_panel_open());
         use_item::draw(framebuffer, *scene, use_item, held ? &*held : nullptr, mouse.x, mouse.y, frame_ms);
-        if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
+        if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms, mouse.x, mouse.y);
         draw_chat(framebuffer, left_panel_open(), inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
