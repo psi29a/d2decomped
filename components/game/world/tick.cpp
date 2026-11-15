@@ -273,6 +273,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             for (const auto slot : slots) { ticked[slot] = true; fight.heroes.push_back(everyone[slot].get()); players.push_back(std::move(everyone[slot])); }
             elsewhere.clear();
             for (const auto& other : everyone) if (other) elsewhere.push_back(other.get());
+            fight.players_elsewhere = int(elsewhere.size());   // game_players: the whole game's, not this level's
             swap_to(turn);
             if (turn == lead_level) fight.kills.insert(fight.kills.begin(), between.begin(), between.end());
             act_as(*players.front());
@@ -282,6 +283,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             first_turn = false;
         }
         elsewhere.clear();
+        fight.players_elsewhere = 0;
         gidbinn_due = false;                                 // a3q3's one look (FUN_005b9a30): on the altar's level's turn, or none
         players = std::move(everyone);
         fight.heroes = std::move(all_heroes);

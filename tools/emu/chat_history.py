@@ -297,6 +297,33 @@ def main():
         require(shown == want, f"{sent} lines, Up x{sent + 2}: {shown}, claim {want}")
         print(f"  {sent} lines sent, Up x{sent + 2}: {', '.join(shown)}")
 
+    # 8 lines, the reset (the slots keep their text), 7 lines, Up 9 times: slot 0 still holds old 8.
+    machine.mu.mem_write(SLOTS, b"\0" * 8 * SLOT)
+    machine.call(RESET)
+    machine.w32(TAKES_KEYS, 1)
+
+    def send(text):
+        units = [ord(letter) for letter in text]
+        machine.mu.mem_write(BOX, wide(units).ljust(SLOT, b"\0"))
+        machine.w32(COUNT, len(units))
+        machine.w32(message + 8, 0x0D)
+        machine.call(ON_CHAR, message, limit=LIMIT)
+
+    for line in range(8):
+        send(f"old {line + 1}")
+    machine.call(RESET)
+    for line in range(7):
+        send(f"line {line + 1}")
+    shown = []
+    for _ in range(9):
+        machine.w32(message + 8, 0x26)
+        machine.w32(message + 0xC, 0)
+        machine.call(ON_KEY, message, limit=LIMIT)
+        shown.append("".join(map(chr, units_at(machine.read(BOX, SLOT)))) or "(empty)")
+    want = [f"line {7 - index}" for index in range(7)] + ["old 8", "line 7"]
+    require(shown == want, f"8 lines, reset, 7 lines, Up x9: {shown}, claim {want}")
+    print(f"  8 lines, reset, 7 lines, Up x9: {', '.join(shown)}")
+
 
 if __name__ == "__main__":
     main()

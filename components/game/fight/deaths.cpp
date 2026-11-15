@@ -380,12 +380,12 @@ auto Fight::merc_share(const Monster& monster) -> void {
     }
 
 auto Fight::drop_counts() -> std::pair<int, int> {
-        if (heroes.size() == 1) return { 1, 1 };
+        if (heroes.size() == 1) return { game_players(), 1 };
         Hero& was = *actor;
         int alive = 0;
         for (Hero* hero : heroes) { act_as(*hero); alive += dead() ? 0 : 1; }
         act_as(was);
-        return { int(heroes.size()), std::max(alive, 1) };
+        return { game_players(), std::max(alive, 1) };
     }
 
 auto Fight::gain_exp(std::int64_t share, const Monster& monster, std::uint32_t now_ms) -> void {
