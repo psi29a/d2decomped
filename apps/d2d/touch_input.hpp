@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace d2d::client::touch {
@@ -51,6 +52,18 @@ struct Layout {
 
 inline float ui_scale(float value) { return value * kUiScale; }
 inline float bar_gap() { return kBarGapChip * ui_scale(kChipSize); }
+
+/** Top-left for a frame centred in `box` (belt and skill icons). */
+inline std::pair<float, float> centred_blit_origin(Box box, float frame_w, float frame_h) {
+    return { box.x + (box.width - frame_w) * .5f, box.y + (box.height - frame_h) * .5f };
+}
+
+/** Scale that fills `box` with an inner margin (Attack). Belt uses 1 unless the frame clips the ring. */
+inline float fit_icon_scale(float box_w, float box_h, float frame_w, float frame_h, float margin = 0.10f) {
+    if (frame_w <= 0.f || frame_h <= 0.f) return 1.f;
+    const float inner_w = box_w * (1.f - 2.f * margin), inner_h = box_h * (1.f - 2.f * margin);
+    return std::min(inner_w / frame_w, inner_h / frame_h);
+}
 
 enum class ItemAction { None, Use, Sell, Buy, Confirm, Cancel };
 

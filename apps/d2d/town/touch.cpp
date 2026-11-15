@@ -731,7 +731,30 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (info->icon >= 0 && std::uint32_t(info->icon) < art.frames_per_direction())
             blit_sprite(framebuffer, art.frame(0, std::uint32_t(info->icon)), palette, pixel_x, pixel_y);
     };
-    const auto blit_skill_icon_centered = [&](const touch::Box& box, int skill_id) {
+    const auto blit_frame_scaled = [&](const touch::Box& box, const d2d::dc6::Frame& frame, const d2d::palette::Palette& pal, float scale) {
+        if (scale <= 0.f || frame.width == 0 || frame.height == 0) return;
+        const int dest_w = std::max(1, int(std::lround(float(frame.width) * scale)));
+        const int dest_h = std::max(1, int(std::lround(float(frame.height) * scale)));
+        const int dst_x = int(box.x + (box.width - float(dest_w)) * .5f);
+        const int dst_y = int(box.y + (box.height - float(dest_h)) * .5f);
+        const int screen_w = int(kScreenWidth);
+        for (int pixel_y = 0; pixel_y < dest_h; ++pixel_y) {
+            const int dy = dst_y + pixel_y;
+            if (dy < 0 || dy >= int(kScreenHeight)) continue;
+            const int src_y = std::min(int(frame.height) - 1, int(float(pixel_y) / scale));
+            for (int pixel_x = 0; pixel_x < dest_w; ++pixel_x) {
+                const int dx = dst_x + pixel_x;
+                if (dx < 0 || dx >= screen_w) continue;
+                const int src_x = std::min(int(frame.width) - 1, int(float(pixel_x) / scale));
+                const auto idx = frame.pixels[std::size_t(src_y) * frame.width + std::size_t(src_x)];
+                if (idx == 0) continue;
+                const auto colour = pal[idx];
+                auto* pixel = &framebuffer[(std::size_t(dy) * std::size_t(screen_w) + std::size_t(dx)) * 4];
+                pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; pixel[3] = colour.a;
+            }
+        }
+    };
+    const auto blit_skill_icon_centered = [&](const touch::Box& box, int skill_id, bool fill_button = false) {
         const auto* info = scene->skills.get(skill_id);
         if (!info || info->icon < 0) return;
         int icon_class = -1;
@@ -740,7 +763,12 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto& art = icon_class >= 0 ? scene->skill_icons[std::size_t(icon_class)] : scene->generic_skill_icons;
         if (std::uint32_t(info->icon) >= art.frames_per_direction()) return;
         const auto& frame = art.frame(0, std::uint32_t(info->icon));
-        blit_sprite(framebuffer, frame, palette, int(box.x + (box.width - frame.width) * .5f), int(box.y + (box.height - frame.height) * .5f));
+        if (fill_button) {
+            blit_frame_scaled(box, frame, palette, touch::fit_icon_scale(box.width, box.height, float(frame.width), float(frame.height), 0.10f));
+            return;
+        }
+        const auto origin = touch::centred_blit_origin(box, float(frame.width), float(frame.height));
+        blit_sprite(framebuffer, frame, palette, int(origin.first), int(origin.second));
     };
     const auto draw_left_chips = [&] {
         button(chrome.menu, "Inv", false, true);
@@ -929,7 +957,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     const touch::Box attack_box = chrome.attack;
     halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .46f);
     button(attack_box, touch_input.attack_down ? "!" : "", touch_input.attack_down, true, false, touch_input.attack_down);
-    blit_skill_icon_centered(attack_box, skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill)));
+    blit_skill_icon_centered(attack_box, skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill)), true);
     button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
     if (touch_interact_visible(touch_interact_pick)) {
         const touch::Box& interact = chrome.interact;
