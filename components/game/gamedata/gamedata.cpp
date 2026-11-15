@@ -960,10 +960,10 @@ std::vector<d2d::drlg::Area> areas_of(const d2d::drlg::BuiltRoom& room) {
 // (tools/emu diff_drlg.py <level> units, rooms in $ORDER), its spawn areas
 // too (diff_drlg.py game: the game seed through the monsters); the object
 // groups follow as the rooms populate (room_objects, on these seeds).
-// ponytail: the whole level is laid again (Debug ~15 ms for the Stony
-// Field) each time rooms come up, where game.exe lays only the new ones;
-// the result is the same (rooms laid later never change earlier ones),
-// only slower. Lay one at a time (level_room_tiles' state kept) if that hitches.
+// The whole level is laid again (Debug ~15 ms for the Stony Field) each
+// time rooms come up, where game.exe lays only the new ones: the same
+// result (rooms laid later never change earlier ones), only slower; not a
+// fidelity gap. Lay one at a time (level_room_tiles' state kept) if it hitches.
 void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data, const Spawning* spawning) {
     if (!level.assets) return;
     auto outside = game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};
