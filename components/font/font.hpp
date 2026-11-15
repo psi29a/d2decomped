@@ -113,8 +113,8 @@ public:
     // `multiply`: draw mode 4, the renderer's slot 0x42 (FUN_00511d70),
     // which FUN_004fb010 points at the PL2's multiplicative table: each
     // channel fg * bg / 255 (FUN_00605aa0). A button label draws so.
-    // ponytail: the table snaps that to the nearest palette colour; this
-    // keeps the RGB product.
+    // The table holds the nearest palette colour of that; this keeps the
+    // RGB product (deviations.md approximation 1).
     int draw_tinted_baseline(std::vector<std::uint8_t>& framebuffer,
                              std::uint32_t framebuffer_width, std::uint32_t framebuffer_height,
                              const palette::Palette& palette, int x, int baseline,
