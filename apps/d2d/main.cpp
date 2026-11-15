@@ -1795,7 +1795,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const bool seat_colour = coop_game && std::ranges::count_if(gamepads.pads(), [](const Gamepads::Pad& pad) { return !pad.built_in; }) >= 2;
                 const auto& lead = kSeatColours[std::size_t(std::clamp(town.focus_colour(), 0, 3))];
                 const auto& hand_pal = seat_colour ? tinted(pal, lead[0], lead[1], lead[2]) : pal;
-                // ponytail: the plain hand only; a held item or identify pick is drawn into the frame.
+                // The OS cursor carries the plain hand only; a held item or identify pick is
+                // drawn into the frame, as game.exe draws every cursor (deviations.md row 19).
                 os_cursor = g_hw_cursor && win.pointer_at(mouse.x, mouse.y) && win.show_cursor(frame, hand_pal);
                 if (!os_cursor)
                     blit_sprite(framebuffer, frame, hand_pal, mouse.x + cursor_dx + frame.offset_x,
