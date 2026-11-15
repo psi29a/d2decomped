@@ -330,6 +330,10 @@ stat 5 ≤ 0, on when > 0 and the tree (UI 4) is shut. The panel state
 | hit box (`FUN_004a6580` / `FUN_004a6630`) | x < mx < x+34, H−139 < my < H−102 | x < mx < x+33, H−138 < my < H−102 |
 | held flag | `0x7c02e4` | `0x7c02e8` |
 
+UI 0x16 is the party, a left panel (menu.md), and UI 1 / 4 are the right
+ones, so its rows are a both-sides case the first test already hides;
+d2d's `level_buttons` keeps only the both-sides test for them.
+
 The label (`FUN_00502320`, colour 0, the frame's current font) is
 centred on the socket: x + 1 + socketW/2 − textW/2; drawn always. Then
 levelsocket frame 0 at (x, bottom H−105), level frame 0, or 1 while held

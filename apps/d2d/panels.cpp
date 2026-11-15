@@ -500,7 +500,8 @@ bool over_run_button(int mouse_x, int mouse_y) {
 // when none are left; drawn only while not hidden (FUN_004a6a00 /
 // FUN_004a6d50), so on screen that's points and panel shut. The panel
 // state (FUN_0045ae90): 1 right open, 2 left, 3 both.
-// ponytail: UI 0x16's cases (with the inventory / tree) aren't kept.
+// Their UI 0x16 (party) with UI 1 / 4 cases are both sides open, which
+// left_open && right_open already hides (the party is a left panel).
 LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open) {
     const int width = int(kScreenWidth);
     LevelButtons out;
