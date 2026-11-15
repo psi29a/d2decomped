@@ -49,6 +49,19 @@ too. Saves before 0x5d had their own widths for a few stats
 (item_addclassskills and its neighbours, item_singleskill's 14 bits);
 d2d reads only 1.14d's.
 
+The older column: ItemStatCost's loader list (`FUN_00637a00`) puts
+"save bits" at record +0x19, "save add" +0x1c, "save param bits" +0x24,
+"1.09-save bits" +0x1a and "1.09-save add" +0x20. `FUN_0062cbe0` sets an
+index to 1 when the save's version is below 0x5d and reads +0x19 + index
+and +0x1c + 4 x index, so such a save takes the 1.09 columns for defence
+(row 31), max durability (73), durability (72, but 8 bits below 0x60),
+the socket count (194) and every property. Its generic property reader
+(`FUN_0062ac80`) also reads the param bits at +0x24 + 4 x index (+0x28,
+which the loader list doesn't fill: not traced further), and below 0x5d
+reads stats 0x5c / 0x5e as 0x5d, 0x5f / 0x61 as 0x60, 0x62 / 100 as 99,
+0x65 / 0x67 as 0x66 and 0x68 / 0x6a as 0x69. Of the versions d2d loads
+(92..96) only 92 (0x5c) is below 0x5d.
+
 ## What this changed in d2d
 
 - The bit d2d read after the name and kept as `bit_after` is the realm
