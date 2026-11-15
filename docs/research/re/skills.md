@@ -1735,8 +1735,8 @@ and per-class base frames, not a table. What's stored:
   | Sorceress | 14 | 0→14 9→13 20→12 37→11 63→10 105→9 200→8 |
 
 - **Port.** Nothing lives as a "breakpoint table": `rules::cast_ticks`
-  (combat.hpp) times a plain cast by FCR, `rules::speed_frames` shortens GH /
-  BL by FHR / FBR. The table above counts `frames_shown` of the older formula, which
+  (combat.hpp) times a plain cast by FCR; a player's GH and BL hold
+  `get_hit_ms` / `rules::block_ticks` (combat.md "Hit recovery: the length"). The table above counts `frames_shown` of the older formula, which
   assumes AnimData speed 256: there it is one more than the ticks a cast takes (the
   end test above). The Druid's SC runs at speed 208, so its row does not hold:
   `cast_ticks(15, 208, 0)` is 18 ticks at 0 FCR, not 14.

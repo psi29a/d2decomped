@@ -482,6 +482,18 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   `... game cases.tsv > game.tsv`, `<build>/tests/test_combat --get-hit-length < cases.tsv > after.tsv`,
   `... compare game.tsv after.tsv cases.tsv` (0 differ). `tools/emu/hit_len_harness.cpp`
   is the old d2d's lines, for the same `compare` (the before).
+- **A player's block** (mode 9) takes the same end event with its own rate
+  (`FUN_00623f50`'s block branch, 0x62403d..0x624084): AnimData speed x (50 +
+  `FUN_00621740(unit, row 3)`: stat 102, FBR, through 120 v / (120 + v) + 50
+  with the state 0x65, Holy Shield, `FUN_00639df0`) / 100, at least 1. So a
+  Paladin's sword block (PABL1HS, 3 frames at 256) holds 6 ticks at 0 FBR and
+  3 at 86 FBR (13 / 32 / 86 are the breakpoints), 3 and 2 ticks with Holy
+  Shield. Ported: `rules::block_rate` / `block_ticks` (the player's
+  `set_pmode`), checked by `tools/emu/block_len.py` (the block branch and
+  `FUN_005539b0` run natively on every class x main-hand weapon x FBR 0..300 x
+  Holy Shield off / on) against `test_hit_recovery --block-length`
+  (`tools/emu/README.md` has the commands). Not ported: a monster's or the
+  merc's block, nor the block throttle.
 - **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
   get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
   (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:
