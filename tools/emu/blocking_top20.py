@@ -13,6 +13,8 @@ FUN_00452af0.  No MPQ data is read.
 ``--mutation-check`` changes one expected behavior per function and requires
 every changed model to disagree with game.exe.
 """
+# gaps-runs: 0064a6d0 005408e0 0053fc70 0044ec80 004b9c20 005d92d0 00469ae0 0056c600 0052d240 0054ef50
+# gaps-runs: 004ed480 004eda80 0042f6e0 0053e8f0 00532340 00515890 004e9870 0057f410 005e77a0 00452af0
 import argparse
 import hashlib
 import random

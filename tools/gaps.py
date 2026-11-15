@@ -35,6 +35,8 @@ Done means nothing left: no listed gap, and every counted function ported or
 verified. The last line says DONE, or what remains; gaps.json has it too.
 """
 import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess, sys, tempfile
+import ast
+import warnings
 
 RE_DIR = "docs/research/re"
 LEVELS = ("untouched", "cited", "ported", "verified")
@@ -68,6 +70,46 @@ def level(path):
     if path.startswith(("components/", "apps/")) and not path.startswith("apps/whisper/"):
         return 2
     return 1
+
+
+def hooked_address_lines(path, text):
+    """Source lines whose literal address is replaced instead of executed.
+
+    An emulator oracle may verify a caller by hooking its out-of-scope
+    callees.  Those hook targets are citations, not evidence that the target
+    function ran.  AST locations also cover multiline ``stub(..., {addr: n})``
+    dictionaries without guessing where a call ends.
+    """
+    if not path.startswith("tools/emu/") or not path.endswith(".py"):
+        return set()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(text, filename=path)
+    except SyntaxError:
+        return set()  # presubmit reports the syntax failure; keep the map usable
+    lines = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr == "hook" and node.args and isinstance(node.args[0], ast.Constant):
+            lines.add(node.args[0].lineno)
+        elif node.func.attr == "stub" and len(node.args) > 1 and isinstance(node.args[1], ast.Dict):
+            lines.update(key.lineno for key in node.args[1].keys if isinstance(key, ast.Constant))
+    return lines
+
+
+def declared_oracle_runs(path, text):
+    """Ordered entry points from optional ``# gaps-runs:`` source lines.
+
+    A declaration is authoritative when present: addresses used only as
+    callbacks, expected pointers or hooked dependencies stay citations.
+    Older oracles without one retain the syntax-based behavior above.
+    """
+    if not path.startswith("tools/emu/") or not path.endswith(".py"):
+        return None
+    marked = [line.partition("# gaps-runs:")[2] for line in text.splitlines() if "# gaps-runs:" in line]
+    return list(dict.fromkeys(address for line in marked for address in addresses(line))) if marked else None
 
 
 def tables(lines, stop=None):
@@ -174,6 +216,8 @@ def build(with_issues):
         except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):
             continue
         lines = text.splitlines()
+        hook_lines = hooked_address_lines(path, text)
+        declared_runs = declared_oracle_runs(path, text)
         # An address in a ponytail: note names what's missing: cited, not ported.
         in_note = set()
         if level(path) == 2:
@@ -189,7 +233,9 @@ def build(with_issues):
                 if held is None:
                     continue
                 entry = info[held]
-                entry["level"] = max(entry["level"], 1 if number in in_note else level(path))
+                declared_citation = declared_runs is not None and held not in declared_runs
+                cited_only = number in in_note or number in hook_lines or declared_citation
+                entry["level"] = max(entry["level"], 1 if cited_only else level(path))
                 if len(entry["refs"]) < 5:
                     entry["refs"].append(f"{path}:{number}")
 
@@ -339,7 +385,12 @@ def oracles(funcs):
         if os.path.basename(path) in HELPERS:
             continue
         doc = re.search(r'"""(.*?)(?:\n|""")', text, re.S)
-        runs = list(dict.fromkeys(f"{h:08x}" for h in map(funcs.holding, addresses(text)) if h))   # as the script names them
+        declared_runs = declared_oracle_runs(path, text)
+        hook_lines = hooked_address_lines(path, text)
+        executed = declared_runs if declared_runs is not None else (
+            address for number, line in enumerate(text.splitlines(), 1) if number not in hook_lines
+            for address in addresses(line))
+        runs = list(dict.fromkeys(f"{h:08x}" for h in map(funcs.holding, executed) if h))   # as the script names them
         name = os.path.basename(path)
         rows.append({"script": path, "what": doc.group(1).strip() if doc else "", "runs": runs, "cited": cited[name]})
     return {"scripts": rows, "missing": {name: sorted(where) for name, where in sorted(missing.items())}}

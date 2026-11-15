@@ -27,6 +27,28 @@ class GapsTests(unittest.TestCase):
         self.assertEqual(gaps.level("apps/whisper/hooks.cpp"), 1)
         self.assertEqual(gaps.level("docs/research/re/drlg.md"), 1)
 
+    def test_hooked_functions_are_citations_not_executed_addresses(self):
+        source = """machine.hook(0x401000, callback, 2)
+machine.stub(0, {
+    0x401040: 1,
+    0x401080: 2,
+})
+machine.call(0x4010c0)
+machine.hook(target, callback, 0)
+"""
+        self.assertEqual(gaps.hooked_address_lines("tools/emu/oracle.py", source), {1, 3, 4})
+        self.assertEqual(gaps.hooked_address_lines("tests/oracle.py", source), set())
+
+    def test_an_oracle_can_declare_exactly_which_addresses_it_runs(self):
+        source = """# gaps-runs: FUN_00401000 00401040
+# gaps-runs: 0x401080 FUN_00401000
+machine.call(0x4010c0)
+"""
+        self.assertEqual(gaps.declared_oracle_runs("tools/emu/oracle.py", source),
+                         [0x401000, 0x401040, 0x401080])
+        self.assertIsNone(gaps.declared_oracle_runs("tools/emu/plain.py", "machine.call(0x401000)"))
+        self.assertIsNone(gaps.declared_oracle_runs("tests/oracle.py", source))
+
     def test_tables_skip_headers_and_stop_at_a_heading(self):
         lines = ["# Title", "| What | Where |", "|---|---|", "| a | FUN_00401000 |", "",
                  "## Traced", "| What |", "|---|", "| b |"]
