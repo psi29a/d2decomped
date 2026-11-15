@@ -71,7 +71,7 @@ auto Town::load_keys() -> void {
         touch_input.clear(); touch_input.alternate = false; touch_player = {};
         touch_item_finger = -1; touch_ground_finger = -1; touch_item = touch_stock = -1; touch_item_hint.clear();
         touch_fingers = 0; touch_item_drag = false; touch_pointer = {}; touch_sheet = {}; touch_identify_target = -1;
-        touch_selected = skillpad::kEmpty; touch_assign = skillpad::kUnset;
+        touch_selected = skillpad::kEmpty; touch_learn_skill = -1; touch_tree_tap_skill = -1; touch_tree_tap_ms = 0; touch_assign = skillpad::kUnset;
     }
 
 // <name>.key, and with `shared` the save folder's default.key (Accept,

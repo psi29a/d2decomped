@@ -525,6 +525,9 @@ struct Town {
     float touch_hold_fraction = 0.f;
     std::string touch_item_hint;
     int touch_selected = skillpad::kEmpty;
+    int touch_learn_skill = -1;
+    int touch_tree_tap_skill = -1;
+    std::uint32_t touch_tree_tap_ms = 0;
     bool touch_attack_used = false;
     std::int64_t touch_ground_finger = -1;
     float touch_ground_x = 0, touch_ground_y = 0;

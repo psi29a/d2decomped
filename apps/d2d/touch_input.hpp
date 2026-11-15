@@ -53,6 +53,17 @@ inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.
 /** Finger movement that turns an item tap into a drag-and-drop pickup. */
 inline constexpr float kItemDragSlop = 14.f;
 inline constexpr std::uint32_t kBeltDoubleTapMs = 280;
+inline constexpr std::uint32_t kMoveDoubleTapMs = 320, kTreeDoubleTapMs = 320;
+inline constexpr float kMoveTapSlop = 18.f;
+inline constexpr Box kTreeLearnConfirm{ 16.f, 490.f, 110.f, 44.f }, kTreeLearnCancel{ 136.f, 490.f, 110.f, 44.f };
+inline constexpr Box kTreeAssign{ 16.f, 545.f, 240.f, 50.f };
+
+/** Two taps of the same control: close in time and in place, not a drag. */
+[[nodiscard]] inline bool deliberate_double_tap(float x0, float y0, float x1, float y1, std::uint32_t t0, std::uint32_t t1,
+                                                float slop = kMoveTapSlop, std::uint32_t window = kMoveDoubleTapMs) {
+    if (t1 < t0 || t1 - t0 > window) return false;
+    return std::hypot(x1 - x0, y1 - y0) <= slop;
+}
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
@@ -264,7 +275,7 @@ struct Target { int skill = -1, unit = -1; float x = 0, y = 0; bool left = false
 class Input {
 public:
     bool alternate = false, attack_down = false, attack_press = false;
-    bool menu = false, done = false, belt_quick = false;
+    bool menu = false, done = false, belt_quick = false, run_toggle = false;
     int belt = -1, belt_armed = -1, destination = -1;
     float move_x = 0, move_y = 0;
     bool aiming = false, dragged = false, stationary = false;
@@ -288,10 +299,11 @@ public:
         aiming = dragged = attack_down = attack_press = false;
         casts.clear();
         belt = belt_armed = destination = -1;
-        belt_quick = menu = done = false;
+        belt_quick = menu = done = run_toggle = false;
         belt_last_ = -1; belt_ms_ = 0;
+        move_tap_ms_ = 0;
     }
-    void frame() { attack_press = menu = done = false; belt = destination = -1; belt_quick = false; casts.clear(); }
+    void frame() { attack_press = menu = done = false; belt = destination = -1; belt_quick = run_toggle = false; casts.clear(); }
 
     void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false, std::uint32_t now_ms = 0) {
         const auto chrome = layout_boxes();
@@ -319,7 +331,12 @@ public:
                     belt_last_ = index; belt_ms_ = now_ms; belt_x_ = x; belt_y_ = y;
                     return;
                 }
-            if (chrome.move.contains(x, y) && movement_ < 0) { movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; }
+            if (chrome.move.contains(x, y) && movement_ < 0) {
+                const bool second = now_ms > 0 && move_tap_ms_ > 0
+                    && deliberate_double_tap(move_tap_x_, move_tap_y_, x, y, move_tap_ms_, now_ms);
+                if (second) { run_toggle = true; move_tap_ms_ = 0; }
+                movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; move_down_ms_ = now_ms;
+            }
             else if (chrome.attack.contains(x, y) && attack_ < 0) { attack_ = finger; attack_press = attack_down = true; }
             else if (skill_ < 0)
                 for (const auto& box : chrome.skills)
@@ -331,8 +348,14 @@ public:
                     }
         }
         if (finger == movement_) {
-            if (phase == Phase::Up) { movement_ = -1; move_x = move_y = 0; }
-            else {
+            if (phase == Phase::Up) {
+                const float dist = std::hypot(x - move_origin_x_, y - move_origin_y_);
+                const bool short_tap = dist <= kMoveTapSlop
+                    && (now_ms == 0 || move_down_ms_ == 0 || (now_ms >= move_down_ms_ && now_ms - move_down_ms_ <= kMoveDoubleTapMs));
+                if (short_tap && now_ms > 0) { move_tap_ms_ = now_ms; move_tap_x_ = x; move_tap_y_ = y; }
+                else move_tap_ms_ = 0;
+                movement_ = -1; move_x = move_y = 0;
+            } else {
                 const float dx = x - move_origin_x_, dy = y - move_origin_y_;
                 const float length = std::hypot(dx, dy);
                 move_x = length > 12 ? dx / std::max(length, 55.f) : 0;
@@ -352,6 +375,8 @@ public:
 private:
     std::int64_t movement_ = -1, skill_ = -1, attack_ = -1;
     float move_origin_x_ = 0, move_origin_y_ = 0;
+    std::uint32_t move_down_ms_ = 0, move_tap_ms_ = 0;
+    float move_tap_x_ = 0, move_tap_y_ = 0;
     int belt_last_ = -1;
     std::uint32_t belt_ms_ = 0;
     float belt_x_ = 0, belt_y_ = 0;

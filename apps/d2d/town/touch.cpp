@@ -589,16 +589,45 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         }
         if (tree_open && scene) {
             const int tree_panel_right = kTreeR;
-            const int assign_x = 16;
-            if (phase == touch::Phase::Down && x >= assign_x && x < assign_x + 240 && y >= 545 && y < 595 && touch_selected >= 0) {
-                touch_assign = touch_selected; touch_feedback.clear(); touch_assignment_from_tree = true; tree_open = false; return true;
-            }
             const int cls = std::max(character.character_class, 0);
+            if (phase == touch::Phase::Down && touch_learn_skill >= 0 && touch::kTreeLearnConfirm.contains(x, y)) {
+                send(cmd::SkillPoint{ touch_learn_skill });
+                touch_learn_skill = -1;
+                touch_tree_tap_skill = -1;
+                return true;
+            }
+            if (phase == touch::Phase::Down && touch::kTreeLearnCancel.contains(x, y)) {
+                touch_learn_skill = -1;
+                return true;
+            }
+            if (phase == touch::Phase::Down && touch::kTreeAssign.contains(x, y) && touch_selected >= 0) {
+                touch_assign = touch_selected; touch_feedback.clear(); touch_assignment_from_tree = true; tree_open = false;
+                touch_learn_skill = -1;
+                return true;
+            }
             const int index = skill_at(*scene, cls, tree_tab, int(x), int(y), tree_panel_right);
             const auto& ids = scene->skills.class_ids[std::size_t(cls)];
             if (index >= 0 && std::size_t(index) < ids.size()) {
-                if (phase == touch::Phase::Down) touch_selected = skill_known(character.name, ids[std::size_t(index)]) ? ids[std::size_t(index)] : skillpad::kEmpty;
-                return true; // selection is distinct from spending a skill point
+                if (phase == touch::Phase::Down) {
+                    touch_pointer.x = x; touch_pointer.y = y; touch_pointer.active = true;
+                    touch_pointer.press = touch_pointer.release = false;
+                    const bool can = character.stats.get(d2d::d2s::kSkillPts) > 0
+                        && d2d::rules::can_learn(scene->rules, cls, index, character.stats.skills, int(character.stats.get(d2d::d2s::kLevel)));
+                    const bool double_tap = can && touch_tree_tap_skill == index
+                        && now_ms >= touch_tree_tap_ms && now_ms - touch_tree_tap_ms <= touch::kTreeDoubleTapMs;
+                    if (double_tap) {
+                        send(cmd::SkillPoint{ index });
+                        touch_learn_skill = -1;
+                        touch_tree_tap_skill = -1;
+                        touch_tree_tap_ms = 0;
+                    } else {
+                        touch_tree_tap_skill = index;
+                        touch_tree_tap_ms = now_ms;
+                        touch_learn_skill = can ? index : -1;
+                    }
+                    touch_selected = skill_known(character.name, ids[std::size_t(index)]) ? ids[std::size_t(index)] : skillpad::kEmpty;
+                }
+                return true; // inspect first; spend only on Confirm or a second tap
             }
         }
         return false; // other panels use their ordinary pointer input
@@ -715,10 +744,17 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                 immediate = info && (info->aura || self_cast(*info));
             }
     release.armed = false;
-    touch_input.event(finger, phase, x, y, target, immediate);
-    if (touch_input.aiming && touch_input.dragged)
-        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill, touch_input.aim_x - touch_input.origin_x,
-                                          touch_input.aim_y - touch_input.origin_y, true);
+    touch_input.event(finger, phase, x, y, target, immediate, false, now_ms);
+    if (touch_input.aiming && touch_input.dragged) {
+        const float dx = touch_input.aim_x - touch_input.origin_x, dy = touch_input.aim_y - touch_input.origin_y;
+        const auto face = pad::world_step(dx, dy, kIsoW, kIsoH, 1.f);
+        touch_player.face_x = face.x;
+        touch_player.face_y = face.y;
+        touch_player.move.aim = true;
+        touch_player.move.aim_x = dx;
+        touch_player.move.aim_y = dy;
+        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill);
+    }
     return true;
 }
 
@@ -788,7 +824,9 @@ void Town::drive_touch() {
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
                             (char_open ? 4000 : 0) + (game_menu.open ? 8000 : 0) + (skillbar.picking ? 16000 : 0);
     if (panel_state != touch_panel_state) {
-        touch_item_finger = -1; touch_item_drag = false; touch_sheet = {}; touch_pointer = {}; touch_panel_state = panel_state;
+        touch_item_finger = -1; touch_item_drag = false; touch_sheet = {}; touch_pointer = {};
+        if (!tree_open) { touch_learn_skill = -1; touch_tree_tap_skill = -1; }
+        touch_panel_state = panel_state;
     }
     if (!pad_field() || view.dead) {
         const Send stop = [this](const Command& command) { send(command); };
@@ -803,6 +841,17 @@ void Town::drive_touch() {
     if (touch_player.move.active) {
         const auto face = pad::world_step(touch_input.move_x, touch_input.move_y, kIsoW, kIsoH, 1.f);
         touch_player.face_x = face.x; touch_player.face_y = face.y;
+    }
+    if (touch_input.run_toggle) send(cmd::Run{ !view.running });
+    if (touch_input.aiming && touch_input.dragged) {
+        const float dx = touch_input.aim_x - touch_input.origin_x, dy = touch_input.aim_y - touch_input.origin_y;
+        const auto face = pad::world_step(dx, dy, kIsoW, kIsoH, 1.f);
+        touch_player.face_x = face.x;
+        touch_player.face_y = face.y;
+        touch_player.move.aim = true;
+        touch_player.move.aim_x = dx;
+        touch_player.move.aim_y = dy;
+        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill);
     }
     pad_walk(touch_player, view.player, false, true, out);
     touch_attack_pick = pad_pick(touch_player, view.player, false);
@@ -1011,8 +1060,13 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             button(chrome.map, automap.open ? "M*" : "Map", false, true);
         }
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
+        if (touch_learn_skill >= 0) {
+            button(touch::kTreeLearnConfirm, "Confirm");
+            button(touch::kTreeLearnCancel, "Cancel");
+            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 16, 472, "Learn this skill?");
+        }
         if (touch_selected >= 0) {
-            button({ 16.f, 545.f, 240.f, 50.f }, "Assign to touch button");
+            button(touch::kTreeAssign, "Assign to touch button");
         }
         return;
     }
@@ -1170,9 +1224,15 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (touch_input.aiming) {
         const auto& target = touch_input.preview;
-        const int screen_x = int(kScreenWidth) / 2 + int((target.x - cam_x - target.y + cam_y) * kIsoW / 2);
-        const int screen_y = kViewY + int((target.x - cam_x + target.y - cam_y) * kIsoH / 2);
-        button({ float(screen_x - 12), float(screen_y - 12), 24, 24 }, target.valid ? "+" : "X");
+        if (target.unit >= 0) {
+            const auto monster = std::ranges::find(view.monsters, target.unit, &Monster::id);
+            if (monster != view.monsters.end()) {
+                const float unit_x = monster->unit.x, unit_y = monster->unit.y;
+                const int mark_x = int(kScreenWidth) / 2 + int((unit_x - cam_x - unit_y + cam_y) * kIsoW / 2);
+                const int mark_y = kViewY + int((unit_x - cam_x + unit_y - cam_y) * kIsoH / 2);
+                ring(float(mark_x), float(mark_y), 16, false);
+            }
+        }
         const auto* info = scene->skills.get(target.skill);
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 120,
             (info ? info->name : std::string("Skill")) + (target.valid ? " - release to cast" : " - no eligible target"));
