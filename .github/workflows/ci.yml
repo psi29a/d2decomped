@@ -720,6 +720,16 @@ jobs:
         if: matrix.target == 'android'
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
 
+      # The launcher: Qt for Android, and the same Qt for the runner (its
+      # moc, rcc and androiddeployqt), from Qt's own mirrors by aqtinstall.
+      - name: Install Qt (Android)
+        if: matrix.target == 'android'
+        run: |
+          pipx run --spec aqtinstall==3.3.0 aqt install-qt linux desktop 6.12.0 linux_gcc_64 -O "$RUNNER_TEMP/Qt"
+          pipx run --spec aqtinstall==3.3.0 aqt install-qt all_os android 6.12.0 android_arm64_v8a -O "$RUNNER_TEMP/Qt"
+          echo "QT_HOST_PATH=$RUNNER_TEMP/Qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+          echo "QT_ANDROID=$RUNNER_TEMP/Qt/6.12.0/android_arm64_v8a" >> "$GITHUB_ENV"
+
       # main and tags sign with the release key, when the repository has one:
       # a pull request's APK (and a fork's, which gets no secrets) is signed
       # with a debug key. The key file stays outside the checkout.
