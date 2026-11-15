@@ -38,6 +38,26 @@
 
 namespace d2d::client {
 
+namespace {
+
+/** True when the contextual interact chrome should accept touches and block field taps. */
+bool touch_interact_visible(const PadPick& pick) {
+    return pick.kind == PadPick::kItem || pick.kind == PadPick::kThing;
+}
+
+/** Short Immortal-style label for the contextual interact button. */
+std::string touch_interact_label(const Town& town, const PadPick& pick) {
+    if (pick.kind == PadPick::kItem) return "Get";
+    if (pick.kind != PadPick::kThing) return {};
+    if (pick.id <= -3000) return "Get";
+    if (pick.id < 0) return "Use";
+    if (town.level && std::size_t(pick.id) < town.level->npcs.size())
+        return town.level->npcs[std::size_t(pick.id)].root == "objects" ? "Use" : "...";
+    return "Use";
+}
+
+} // namespace
+
 /**
  * Load the named character touch assignments independently of controller positions. Remove the
  * cached sheet if its sidecar cannot be opened.
@@ -182,6 +202,7 @@ void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
  */
 bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
+    if (pad_field()) touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (phase == touch::Phase::Down && touch::placed(touch::kDone).contains(x, y)) {
         touch_input.clear(); touch_item_finger = -1; touch_ground_finger = -1;
         if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; return true; }
@@ -256,7 +277,13 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         touch_input.clear(); automap.open = !automap.open; return true;
     }
     if (pad_field()) {
-        if (phase == touch::Phase::Down && !touch::chrome_hit(x, y)) {
+        if (phase == touch::Phase::Down && touch_interact_visible(touch_interact_pick) &&
+            touch::placed(touch::kInteract).contains(x, y)) {
+            if (touch_interact_pick.kind == PadPick::kItem) send(cmd::Pickup{ touch_interact_pick.id });
+            else if (touch_interact_pick.kind == PadPick::kThing) send(cmd::Interact{ touch_interact_pick.id });
+            return true;
+        }
+        if (phase == touch::Phase::Down && !touch::chrome_hit(x, y, touch_interact_visible(touch_interact_pick))) {
             touch_ground_finger = finger; touch_ground_x = x; touch_ground_y = y;
         } else if (finger == touch_ground_finger) {
             if (phase == touch::Phase::Move &&
@@ -319,6 +346,8 @@ void Town::drive_touch() {
         touch_player.face_x = face.x; touch_player.face_y = face.y;
     }
     pad_walk(touch_player, view.player, false, true, out);
+    touch_attack_pick = pad_pick(touch_player, view.player, true);
+    touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (touch_input.attack_press) touch_attack_used = false;
     if (touch_input.attack_down && !touch_attack_used) {
         const auto picked = touch_input.attack_press ? touch_attack_pick : pad_pick(touch_player, view.player, false);
@@ -374,7 +403,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
                     pixel[0] = faint ? 120 : 199; pixel[1] = faint ? 108 : 179; pixel[2] = faint ? 72 : 119;
                 }
     };
-    const auto button = [&](touch::Box box, const std::string& text, bool active = false, bool round = false) {
+    const auto button = [&](touch::Box box, const std::string& text, bool active = false, bool round = false, bool gold = false) {
         for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y)
             for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
                 if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -383,14 +412,19 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
                 const float ellipse = std::hypot((float(pixel_x) - box.x - radius_x) / radius_x, (float(pixel_y) - box.y - radius_y) / radius_y);
                 if (round && ellipse > 1) continue;
                 const bool edge = round ? ellipse > .92f && ellipse < 1.02f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
-                if (edge) { pixel[0] = 199; pixel[1] = 179; pixel[2] = 119; }
-                else { pixel[0] = std::uint8_t(pixel[0] * (round ? .38f : .5f)); pixel[1] = std::uint8_t(pixel[1] * (round ? .38f : .5f)); pixel[2] = std::uint8_t(pixel[2] * (round ? .38f : .5f)); }
+                if (edge) {
+                    pixel[0] = gold ? 220 : 199; pixel[1] = gold ? 185 : 179; pixel[2] = gold ? 72 : 119;
+                } else {
+                    const float dim = round ? .38f : .5f;
+                    pixel[0] = std::uint8_t(pixel[0] * dim); pixel[1] = std::uint8_t(pixel[1] * dim); pixel[2] = std::uint8_t(pixel[2] * dim);
+                }
             }
         std::string label = text;
         while (!label.empty() && font.measure(label) > int(box.width) - 8) label.pop_back();
+        const int label_x = round ? int(box.x + (box.width - font.measure(label)) / 2) : int(box.x) + 4;
         const int label_y = round ? int(box.y + box.height * .62f) - 6 : int(box.y) + 12;
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, int(box.x) + 4, label_y, label,
-                         active ? 255 : 199, active ? 220 : 179, 119);
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, label,
+                         gold ? 255 : active ? 255 : 199, gold ? 220 : active ? 220 : 179, gold ? 100 : 119);
     };
     button(touch::placed(touch::kDone), touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done" : pad_field() ? "Menu" : "Back");
     if (touch_assign != skillpad::kUnset) {
@@ -416,7 +450,6 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             identify_with >= 0 ? "Tap an unidentified item . Back cancels" : touch_item_hint);
         return;
     }
-    touch_attack_pick = pad_pick(touch_player, view.player, true);
     const auto found = touch_sheets.find(sheet_key(character.name));
     for (int index = 0; index < 4; ++index) {
         const int skill = found == touch_sheets.end() ? skillpad::kEmpty : found->second.slot(touch_input.alternate, index);
@@ -435,6 +468,11 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     ring(stick_x + touch_input.move_x * 38, stick_y + touch_input.move_y * 38, 18);
     button(touch::placed(touch::kAttack), "Atk", false, true);
     button(touch::placed(touch::kPage), touch_input.alternate ? "II" : "I");
+    if (touch_interact_visible(touch_interact_pick)) {
+        const touch::Box interact = touch::placed(touch::kInteract);
+        ring(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .48f, true);
+        button(interact, touch_interact_label(*this, touch_interact_pick), true, true, true);
+    }
     for (int index = 0; index < 4; ++index) {
         button(touch::placed(touch::kBelts[index]), std::to_string(index + 1));
         const auto& target = touch_previews[std::size_t(index)];
@@ -458,7 +496,10 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto* aura = scene->skills.get(view.aura);
         if (aura) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 310, 65, "Aura: " + aura->name);
     }
-    font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 85, pick_label(touch_attack_pick));
+    if (touch_attack_pick.kind == PadPick::kMonster)
+        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 85, pick_label(touch_attack_pick));
+    else if (!touch_interact_visible(touch_interact_pick))
+        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 85, pick_label(touch_attack_pick));
     if (touch_input.aiming) {
         button(touch::placed(touch::kCancel), "Drag here to cancel");
         const auto& target = touch_input.preview;

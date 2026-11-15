@@ -57,6 +57,8 @@ int main() try {
     assert(input.attack_down);
     input.event(-2, Phase::Up, 710, 516);
     assert(!input.attack_down);
+    assert(!chrome_hit(495, 228, false));
+    assert(chrome_hit(495, 228, true)); // kInteract only blocks field taps when visible
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

@@ -22,7 +22,8 @@ struct Box {
 inline constexpr Box kMove{ 20, 392, 188, 196 }, kAttack{ 642, 448, 136, 136 }, kPage{ 546, 226, 108, 44 },
     kCancel{ 200, 150, 450, 78 }, kMenu{ 12, 12, 88, 44 }, kDone{ 668, 12, 120, 44 }, kMap{ 542, 12, 92, 44 },
     kSkillsBar{ 338, 12, 124, 44 };
-inline constexpr Box kSkills[4] = { { 548, 478, 84, 84 }, { 478, 406, 84, 84 }, { 538, 316, 84, 84 }, { 626, 276, 84, 84 } };
+inline constexpr Box kSkills[4] = { { 548, 478, 84, 84 }, { 478, 406, 84, 84 }, { 538, 316, 84, 84 }, { 626, 276, 84, 84 } },
+    kInteract{ 456, 188, 78, 78 };
 inline constexpr Box kBelts[4] = { { 20, 268, 56, 44 }, { 84, 268, 56, 44 }, { 20, 320, 56, 44 }, { 84, 320, 56, 44 } };
 inline constexpr Box kPanelLeft{ 8, 252, 210, 340 }, kPanelRight{ 452, 212, 348, 380 };
 // Extra inset, in logical pixels, past the 12px margin the boxes already have.
@@ -39,8 +40,9 @@ inline Box placed(Box box) {
 }
 inline constexpr float kStickOuter = 76.f, kStickInner = 26.f, kSkillRing = 38.f;
 /** True when logical coordinates hit a fixed touch chrome region (not the free field). */
-inline bool chrome_hit(float x, float y) {
+inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
     if (placed(kDone).contains(x, y) || placed(kMap).contains(x, y) || placed(kMenu).contains(x, y)) return true;
+    if (interact_chrome && placed(kInteract).contains(x, y)) return true;
     if (placed(kSkillsBar).contains(x, y) || placed(kPage).contains(x, y) || placed(kMove).contains(x, y) ||
         placed(kAttack).contains(x, y))
         return true;
