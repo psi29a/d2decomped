@@ -103,11 +103,11 @@ auto Town::critter_tick(std::uint32_t frame_ms) -> void {
         // The camp keeps no rooms: a room's seed is its DRLG room's (by
         // level_room's index, as keep_camp_seeds), made from the map seed.
         if (const auto state = world.fight.spawning.levels.find(level); state != world.fight.spawning.levels.end()) {
-            const auto& up = state->second.up;
-            if (critter_rooms.size() < up.size()) critter_rooms.resize(up.size(), false);
+            const auto& rooms_up = state->second.up;
+            if (critter_rooms.size() < rooms_up.size()) critter_rooms.resize(rooms_up.size(), false);
             std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp;
-            for (std::size_t index = 0; index < up.size(); ++index) {
-                if (!up[index] || critter_rooms[index]) continue;
+            for (std::size_t index = 0; index < rooms_up.size(); ++index) {
+                if (!rooms_up[index] || critter_rooms[index]) continue;
                 if (level != &game_data.town) {
                     critter_rooms[index] = true;
                     if (index < level->rooms.size()) room_up(level->rooms[index]);
