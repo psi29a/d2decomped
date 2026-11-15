@@ -4,7 +4,8 @@
 // in each of 8 directions (other distances and directions: --dists, --dirs), a click at the centre of LvlWarp's Select box
 // (World::warp_clicked) goes through the real World::apply and tick; the warp is taken when the level changes within 600 ticks
 // (no monsters: cleared every tick).
-//   no argument: one start (level 17, warp 0, direction 3) must run
+//   no argument: the starts of kCases, each against game.exe's own answer (tools/emu/warp_walk_path.py run on that start): the path
+//   World::tick plans for the click and whether the warp is taken. Fails when a clicked warp is planned as a walk to a spot.
 //   `--sweep SEEDS [options]`: for every level with warps and every warp, one start per direction: one line each
 //   `W seed level warp dest dir result ticks unit_blocked` (result: 1 taken, 0 not taken, -1 start blocked or off the map), then `S taken total blocked`.
 //   `--dump SEEDS FILE [options]`: the sweep plus the oracle's inputs and d2d's plans (tools/emu/warp_walk_path.py)
@@ -30,6 +31,7 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -62,8 +64,35 @@ void print_points(std::FILE* out, const Points& points) {
     for (const auto& point : points) std::fprintf(out, " %d,%d", point.first, point.second);
 }
 
+// Starts whose answer game.exe gave (FUN_00649970's first path, then the walk's frames and the unit distance: tools/emu/warp_walk_path.py
+// game, on d2d's bits at each start; data seed 1, 2.5 cells off the tile unit, direction `dir` of the table in main). `plan` is that first
+// path in subtiles; `taken` is whether the warp is taken after the walk and the server's one more walk.
+// The first six are starts where the plan made as a walk to a spot differs from the unit walk (3 or 4 points where game.exe has 1, or a
+// different route); in the first four d2d took the warp where game.exe's hero stops short of it.
+struct Case { int level, warp, dir; bool taken; const char* plan; };
+constexpr Case kCases[] = {
+    { 17, 0, 3, false, "102,182 102,182 103,182" },
+    { 76, 0, 3, false, "233,716" },
+    { 113, 0, 7, false, "298,276" },
+    { 118, 2, 7, false, "58,436" },
+    { 46, 2, 1, true, "31,128" },
+    { 52, 0, 2, true, "132,139" },
+    { 2, 0, 0, true, "117,139 112,144 110,144 106,140" },        // not a case the plan decides: a longer route and a warp that is taken
+    { 6, 1, 6, false, "131,252 129,252 126,255 126,260" },       // the same, and a warp that is not taken
+};
+
+Points parse_plan(const char* text) {
+    Points points;
+    for (const char* at = text; *at;) { int x = 0, y = 0, used = 0; if (std::sscanf(at, "%d,%d%n", &x, &y, &used) != 2) break; points.emplace_back(x, y); at += used; while (*at == ' ') ++at; }
+    return points;
+}
+
+// The tick's path after its first tick must be game.exe's path: the walker passes no point in one tick (every start of both sweeps), and an
+// empty path is nothing to compare, not a match.
+bool plan_matches(const Points& got, const Points& expected) { return !got.empty() && got == expected; }
+
 struct Start {
-    int result = 0;       // 1 taken, 0 not taken, -1 start blocked or off the map
+    int result = 0;       // 1 taken, 0 not taken, -1 start blocked
     int ticks = 0;
     Points plan;          // the path World::tick made for the click, as it stands after the first tick (the walker may have passed its first point)
     bool unit_blocked = false;
@@ -168,7 +197,7 @@ int main(int argc, char** argv) try {
         } else { std::fprintf(stderr, "test_warp_walk: unknown option %s\n", option.c_str()); return 1; }
     }
     std::FILE* out = options.out;
-    int total = 0, taken = 0, blocked_starts = 0;
+    int total = 0, taken = 0, blocked_starts = 0, failed = 0;
     for (int seed = 1; seed <= options.seeds; ++seed) {
         auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, seed);
         if (!data || !data->patched) { std::fprintf(out, "SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
@@ -188,23 +217,34 @@ int main(int argc, char** argv) try {
         world.enter(character);
         std::uint32_t now = 1000 * kTickMs;
         for (int id = options.level_min; id <= options.level_max; ++id) {
+            if (!sweep && std::none_of(std::begin(kCases), std::end(kCases), [id](const Case& one) { return one.level == id; })) continue;
             const Level* level = data->level(id);
-            if (!level || level->ds1.width() <= 0 || (!sweep && id != 17)) continue;
+            if (!level || level->ds1.width() <= 0) continue;
             for (std::size_t index = 0; index < level->warps.size(); ++index) {
-                if (!sweep && index != 0) continue;
                 const auto& warp = level->warps[index];
                 const int per_dist = options.dirs;
                 for (int key = 0; key < int(options.dists.size()) * per_dist; ++key) {
                     static const int dx8[8] = { 1, 1, 0, -1, -1, -1, 0, 1 }, dy8[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
                     const int sub_dir = key % per_dist;
-                    if (!sweep && sub_dir != 3) continue;
+                    const Case* wanted = nullptr;
+                    for (const auto& one : kCases) if (!sweep && seed == 1 && one.level == id && one.warp == int(index) && one.dir == key) wanted = &one;
+                    if (!sweep && !wanted) continue;
                     const float dist = options.dists[std::size_t(key / per_dist)];
                     const float dx = per_dist == 8 ? float(dx8[sub_dir]) : std::cos(6.2831853f * float(sub_dir) / float(per_dist));
                     const float dy = per_dist == 8 ? float(dy8[sub_dir]) : std::sin(6.2831853f * float(sub_dir) / float(per_dist));
                     const auto start = run_start(world, data->walk_velocity[kSorceress], now, *level, index, seed, id, key, dx, dy, dist, options.dump ? out : nullptr);
                     if (start.result < 0) { std::fprintf(out, "W %d %d %zu %d %d -1 0 %d\n", seed, id, index, warp.destination, key, int(start.unit_blocked)); ++blocked_starts; continue; }
                     ++total; taken += start.result;
-                    std::fprintf(out, "W %d %d %zu %d %d %d %d %d\n", seed, id, index, warp.destination, key, start.result, start.ticks, int(start.unit_blocked));
+                    if (wanted) {
+                        const bool plan_ok = plan_matches(start.plan, parse_plan(wanted->plan)), taken_ok = (start.result == 1) == wanted->taken;
+                        if (!plan_ok || !taken_ok) {
+                            std::printf("FAIL level %d warp %zu direction %d: the plan is", id, index, key);
+                            for (const auto& point : start.plan) std::printf(" %d,%d", point.first, point.second);
+                            std::printf(" (game.exe: %s), the warp is %s (game.exe: %s)\n", wanted->plan, start.result ? "taken" : "not taken", wanted->taken ? "taken" : "not taken");
+                            ++failed;
+                        }
+                    }
+                    if (sweep) std::fprintf(out, "W %d %d %zu %d %d %d %d %d\n", seed, id, index, warp.destination, key, start.result, start.ticks, int(start.unit_blocked));
                 }
             }
         }
@@ -212,9 +252,9 @@ int main(int argc, char** argv) try {
     if (sweep) std::fprintf(out, "S %d %d %d\n", taken, total, blocked_starts);
     if (out != stdout) std::fclose(out);
     if (!sweep) {
-        // No argument: the harness itself runs. What the plan must be is the sweep's job (--dump and tools/emu/warp_walk_path.py compare).
-        std::printf("%s: level 17 warp 0 from direction 3: %d start(s), %d taken\n", total == 1 ? "OK" : "FAIL", total, taken);
-        return total == 1 ? 0 : 1;
+        const bool ok = failed == 0 && total == int(std::size(kCases));
+        std::printf("%s: %d of %zu starts answer as game.exe does (the plan the tick makes, the warp taken or not)\n", ok ? "OK" : "FAIL", total - failed, std::size(kCases));
+        return ok ? 0 : 1;
     }
     return 0;
 } catch (const std::exception& error) {

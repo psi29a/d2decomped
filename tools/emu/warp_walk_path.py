@@ -195,7 +195,6 @@ def compare(dump, gamefile, outcome_max=0, known=frozenset()):
     dup += sum(1 for n in seen.values() if n > 1)
     missing = sorted(set(plans["D"]) ^ set(g))
     seen_plan = collections.Counter()      # how each start's plan was judged
-    passed = collections.Counter()
     bad, outside = [], 0
     outcome = collections.Counter()
     odiff, odiff_known = [], []
@@ -205,13 +204,11 @@ def compare(dump, gamefile, outcome_max=0, known=frozenset()):
         gp = c[6].split() if c[6] else []
         spot += plans["F"][key] == gp
         t = plans["T"].get(key)
-        k = len(gp) - len(t) if t is not None else -1
         if t == [] and gp:
-            seen_plan["not visible"] += 1             # the tick left no path (the walker passed it, or the first step is blocked and the walk ends in the tick): nothing to compare
-        elif t is not None and 0 <= k <= 2 and gp[k:] == t:
+            seen_plan["not visible"] += 1             # the walk ended in the tick (a blocked first step, or the end reached): no path left to compare
+        elif t == gp:
             seen_plan["equal"] += 1
             seen_plan["equal, spot plan differs"] += plans["F"][key] != gp
-            passed[k] += 1
         elif int(key[1]) in TOWNS:
             seen_plan["town"] += 1                     # NPCs in the walk's crowd
         else:
@@ -228,7 +225,7 @@ def compare(dump, gamefile, outcome_max=0, known=frozenset()):
     print(f"starts: {n} (each once on both sides; {len(missing)} missing, {dup} twice, {outside} touching the window edge)")
     print(f"the plan World::tick made against game.exe's path (FUN_00649970): {seen_plan['equal']} equal ({seen_plan['equal, spot plan differs']} of them where a walk to a spot"
           f" would differ), {seen_plan['differs']} differ; not compared: {seen_plan['not visible']} with no path left after the tick, {seen_plan['town']} in a town (NPCs); of {n}")
-    print(f"  (first points the walker had passed in the first tick: {dict(sorted(passed.items()))}; a walk to a spot, the plan before this change, equals game.exe in {spot})")
+    print(f"  (a walk to a spot, the plan before this change, equals game.exe's path in {spot} of the starts)")
     print(f"outcome: d2d takes {outcome[(1, 0)] + outcome[(1, 1)]}, the game.exe model takes {outcome[(0, 1)] + outcome[(1, 1)]},"
           f" differ in {len(odiff)} starts (allowed {outcome_max}) and in {len(odiff_known)} more at the known level:warp pairs")
     ok = n > 0 and not missing and not dup and not outside and not bad and len(odiff) <= outcome_max

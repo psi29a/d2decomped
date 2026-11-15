@@ -477,6 +477,19 @@ melee/kick skill cast and the 0x194/0x178 class-specific cases, which need
 real weapon and inventory state; they still end in the same 0x13 send,
 untested by this oracle.
 
+**A clicked warp's walk is planned to its tile unit.** C->S 0x13 on a tile unit reaches `FUN_00548a50` (`FUN_00548b00` case 5, type 5), so
+the walk is `FUN_00580a70` mode 3 with a target: `FUN_0057f190` stores the target in the path (`FUN_00648b90`, +0x58) and `FUN_00649970`
+takes the end from it (`FUN_006498a0`: a static unit's +0xc / +0x10, near 1), walks a blocked end back (`FUN_00648120`) and runs the type 7
+pather. d2d plans it the same way (`tick.cpp`, `plan_unit`; the client's re-issue does not apply to a warp). Run natively
+(`tools/emu/warp_walk_path.py`, on d2d's blocked bits at each warp start of `test_warp_walk --dump`; levels 1 to 136 with warps; about 21,000 starts
+at 2.5 cells in 8 directions with 30 seeds, about 40,000 at 1.5 to 7 cells in 16 directions with 6 seeds; the dump builds every level before
+the first start, so the counts repeat exactly): the path `World::tick` plans for the
+click equals game.exe's first path in 60,745 starts that show one, 1,003 of them starts where a walk to a spot would differ, and differs in
+none; planned as a walk to a spot it differed in 973. 430 starts leave no path after the tick (the walk ends in it) and 39 are in
+a town (NPCs in the walk's crowd): not compared. The warp taken after the two walks differs from game.exe's walk model in 145 starts
+of the first sweep before and none after (2 more at level 40 warp 2, a town crowd, known on both builds); the second sweep keeps 158 that are
+not the plan (level 92 warp 0: 145, level 81: 12, level 40 warp 2: 1; stamps and the per-tick reach are candidates, U).
+
 The sends, as FUN_00481030 reaches them: action 0x13 (LAB_004810f1) → FUN_00480c10
 → FUN_00461250's command 2 (LAB_00461634) → FUN_00480930 (LAB_0046163d). That
 switches on the type (table 0x480b20): 0x16 only for an item (`mov cl,0x16`,
