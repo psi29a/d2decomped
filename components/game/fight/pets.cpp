@@ -394,8 +394,9 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float /* elapsed: a turn
 // "hireable". Only the count above 0 is read (FUN_005e3930 / FUN_005e3ea0
 // mode 4); the unit FUN_005e3900 keeps (+4) isn't, so the order doesn't
 // matter.
-// ponytail: a dead pet or merc doesn't count; when game.exe drops one from
-// the list isn't traced.
+// A dead one doesn't count: at its death (FUN_0057ccb0) a player's pet
+// leaves the list (FUN_005751a0 -> FUN_005750e0), and the merc's node
+// (row 7) is flagged bit 0, which FUN_00574de0 skips until it's raised.
 auto Fight::pet_crowd(const Pet& pet) const -> int {
         auto sub = [](float cells) { return int(std::floor(cells * 5)); };
         const auto& unit = pet.monster.unit;

@@ -22,6 +22,12 @@ set(d2d_skip_code 77)
 #   // test-sources: apps/d2d/x.cpp   (extra sources, from the repo root)
 #   // test-includes: apps/d2d        (extra include dirs, from the repo root)
 file(GLOB_RECURSE d2d_test_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
+# The oracle-mode tests: run alone they skip; ctest runs each through
+# tools/emu/oracle_test.py, game.exe's own code on the same cases (it skips
+# without the emu .venv or game.exe). A new one: its tools/emu recipe and name.
+set(d2d_oracle_tests armor_hit boss_level cold_length freeze_resume freeze_rules hammer_hit light_pierce missile_hit next_hit
+    sk_resist static_field umod_stats walk_velocity)
+find_package(Python3 COMPONENTS Interpreter)
 set(d2d_cpp_tests "")
 foreach(test_source ${d2d_test_sources})
     get_filename_component(name ${test_source} NAME_WE)
@@ -51,7 +57,13 @@ foreach(test_source ${d2d_test_sources})
             endif()
         endif()
     endforeach()
-    add_test(NAME ${name} COMMAND ${name})
+    string(REGEX REPLACE "^test_" "" recipe ${name})
+    if (Python3_Interpreter_FOUND AND recipe IN_LIST d2d_oracle_tests)
+        add_test(NAME ${name} COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/emu/oracle_test.py ${recipe} $<TARGET_FILE:${name}>)
+        set_tests_properties(${name} PROPERTIES TIMEOUT 900)
+    else()
+        add_test(NAME ${name} COMMAND ${name})
+    endif()
     set_tests_properties(${name} PROPERTIES SKIP_RETURN_CODE ${d2d_skip_code})
     list(APPEND d2d_cpp_tests ${name})
 endforeach()
@@ -66,7 +78,6 @@ set_tests_properties(test_load_gold_missing_cases PROPERTIES SKIP_REGULAR_EXPRES
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 # Python3_EXECUTABLE rather than `python3`: Windows installs it as python.exe.
-find_package(Python3 COMPONENTS Interpreter)
 if (Python3_Interpreter_FOUND)
     add_test(NAME smoke_d2d
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/smoke_d2d.py $<TARGET_FILE:d2d>)
@@ -121,7 +132,7 @@ set(D2_MPQ_DIR "${d2d_default_mpq_dir}" CACHE PATH "Diablo II install dir with d
 set(D2_PATCH_INSTALLER "$ENV{D2_PATCH_INSTALLER}" CACHE FILEPATH "LODPatch_114d.exe for the 1.14d tables")
 set(D2_GAME_EXE "$ENV{D2_GAME_EXE}" CACHE FILEPATH "game.exe 1.14d (1.14.3.71) for test_exe_tables")
 set(D2_SAVES_DIR "$ENV{D2_SAVES_DIR}" CACHE PATH "Real .d2s saves for parser checks")
-set(d2d_test_env "")
+set(d2d_test_env "D2_BUILD=${PROJECT_BINARY_DIR}")                     # tools/emu's mpq-cat (oracle_test.py)
 if (D2_MPQ_DIR)
     list(APPEND d2d_test_env "D2_MPQ_DIR=${D2_MPQ_DIR}")
 endif()

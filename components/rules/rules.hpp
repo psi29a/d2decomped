@@ -104,7 +104,8 @@ struct ItemBase {
     bool has_inv = false, no_durability = false;          // hasinv (+0x137), nodurability (+0x113)
     bool useable = false;                                 // useable (+0x11d, FUN_00628c20): a right click uses it
     bool quest_diff = false;                              // questdiffcheck (+0x12b): stat 356 = the difficulty made in
-    int max_1h = 0, max_2h = 0;                           // weapons.txt maxdam (+0xff) / 2handmaxdam (+0x103)
+    int max_1h = 0, max_2h = 0;                           // maxdam (+0xff, armor.txt's too) / weapons.txt 2handmaxdam (+0x103)
+    int min_1h = 0, min_2h = 0;                           // mindam (+0xfe, armor.txt's too) / weapons.txt 2handmindam (+0x102)
     std::string nightmare_upgrade, hell_upgrade;       // NightmareUpgrade / HellUpgrade ("xxx" none): a store's base in those difficulties
     bool spawnable = false;                            // spawnable (+0x133)
     bool nameable = false;                             // nameable (+0x145): Anya may personalize it
@@ -1792,13 +1793,15 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // (FUN_0065ecf0 / FUN_0065ee80; anything but a weapon all three); dmg%
 // (7) too small to move the base's max is +1 max damage instead
 // (FUN_0065f010); dur% (13) fills the durability to the new most
-// (FUN_0065fc90); ethereal (23) makes it so.
+// (FUN_0065fc90); ethereal (23) makes it so. 5 / 6 pick the hands by
+// the base's min / max bytes, and an amount that takes a nonzero base below
+// 1 is held: min at 1 (1 - base), max at 0 (-base). Sockets (14,
+// FUN_0065f590): the grid (at most 6) and the type's MaxSock cap the value.
 // 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
 // ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
 // -max levels past req). Codes match whatever their case.
-// ponytail: sockets (14) only draws; 5 / 6 don't
-// clamp a negative to the base (kept by max damage, not min); without
-// `on` (affixes) damage is one-hand, charges full and 11 / 19 off ilvl 1.
+// ponytail: without `on` (affixes) damage is one-hand, charges full and
+// 11 / 19 off ilvl 1.
 struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
 inline std::string lower_case(std::string_view text) {
     std::string out(text);
@@ -1823,11 +1826,22 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
         if (stat == kPoisonMaxDamage) out.push_back({ kPoisonCount, 0, 1 });      // poison max damage counts a poison (poison_count)
         return amount;
     };
-    auto damage = [&](int one_hand, int two_hand, int thrown, int amount) {
-        const bool weapon = !target || target->kind == 2;
-        if (!weapon || !target || target->base->max_1h != 0 || target->base->max_2h == 0) put(one_hand, 0, amount);
-        if (target && (!weapon || target->base->max_2h != 0 || target->base->max_1h == 0)) put(two_hand, 0, amount);
-        if (target && (!weapon || target->throwable)) put(thrown, 0, amount);
+    // `hold`: 5 / 6's rule (FUN_0065ecf0 / FUN_0065ee80), a nonzero base the
+    // amount takes below 1 kept at 1 (min) or 0 (max); the hands by the
+    // base's min bytes for a min, max bytes for a max.
+    auto damage = [&](int one_hand, int two_hand, int thrown, int amount, bool hold = false) {
+        const bool weapon = !target || target->kind == 2, low = one_hand == kMinDamage;
+        const ItemBase* item_base = target ? target->base : nullptr;
+        const int base_one = item_base ? (low ? item_base->min_1h : item_base->max_1h) : 0;
+        const int base_two = item_base ? (low ? item_base->min_2h : item_base->max_2h) : 0;
+        const int base_throw = item_base ? (low ? item_base->min_misdam : item_base->max_misdam) : 0;
+        const auto put_held = [&](int stat_id, int base_damage) {
+            const bool under = hold && base_damage != 0 && base_damage + amount < 1;
+            put(stat_id, 0, under ? (low ? 1 : 0) - base_damage : amount);
+        };
+        if (!weapon || !item_base || base_one != 0 || base_two == 0) put_held(one_hand, base_one);
+        if (item_base && (!weapon || base_two != 0 || base_one == 0)) put_held(two_hand, base_two);
+        if (item_base && (!weapon || target->throwable)) put_held(thrown, base_throw);
         return amount;
     };
     auto skill_level = [&] {                               // FUN_0065f470 / FUN_0065f6a0
@@ -1851,8 +1865,8 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
         switch (func) {
             case 1: case 2: result = put(stat, 0, draw()); break;
             case 3: case 4: case 8: result = put(stat, 0, value()); break;
-            case 5: result = damage(kMinDamage, kSecondaryMinDamage, kThrowMinDamage, value()); break;
-            case 6: result = damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, value()); break;
+            case 5: result = damage(kMinDamage, kSecondaryMinDamage, kThrowMinDamage, value(), true); break;
+            case 6: result = damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, value(), true); break;
             case 7:
                 result = value();
                 if (target && target->kind == 2 && std::max(target->base->max_1h, target->base->max_2h) * result / 100 == 0) damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, 1);

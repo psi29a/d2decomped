@@ -287,6 +287,11 @@ struct MonStats {
     // Its own poison stats 57 / 58 / 59 (MonUMod poison hit, FUN_005a1e00),
     // on every hit it lands (FUN_0057b7d0): per tick in 256ths, ticks.
     int poison_min = 0, poison_max = 0, poison_len = 0;
+    // A boss's enchants (MonUMod fire / lightning / cold, ghostly's cold): fire, lightning and cold
+    // min / max on its own stats, apart from a swing's (FUN_005a4f50 sets those on the hit's list),
+    // so each comes on every A1 / A2 blow; the cold's length in frames.
+    std::array<std::optional<std::pair<int, int>>, 3> enchants{};
+    int enchant_len = 0;
     bool prime_evil = false;                  // MonStats primeevil (+0xc & 0x80, FUN_0063edc0): FUN_0057c060's pair percent
 };
 // The max damage a monster's last swing left in its stats (FUN_005a4f50,
@@ -301,6 +306,9 @@ inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) 
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
     for (const auto& element : stats.elements)
         if (element.type >= 0 && element.mode == swing_mode) total += element.type == 3 ? element.max * 10 >> 8 : element.max;
+    if (swing_mode == "A1" || swing_mode == "A2")
+        for (const auto& enchant : stats.enchants)
+            if (enchant) total += enchant->second;
     return total;
 }
 

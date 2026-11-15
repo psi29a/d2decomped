@@ -296,7 +296,22 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     element min / max = MonLvl damage for its level × (elemental rows) %,
     cold enchanted (FUN_005a1c70) also the cold's length: the unit's level
     × 5 + 100 frames (stat 0x38; ghostly's FUN_005a1080 adds 150),
-    then FUN_005a1370;
+    then FUN_005a1370. Each sets its own stats on the unit (FUN_006272b0:
+    0x30 / 0x31, 0x32 / 0x33, 0x36 / 0x37), so two or three stack; a swing
+    sets its mode's elements on the hit's list apart (FUN_005a4f50 ->
+    FUN_00627150), so the enchants come with every blow. d2d:
+    `MonStats::enchants`, rolled after the swing's elements (monster_blow);
+  - A unique's or superunique's minions: FUN_005a2120 runs each mod's init
+    (the fixed four at 0x6e2168, then the unit's mod bytes +0x1c) with
+    flag 1 on the boss, then FUN_0058f380(0, FUN_005a2100) runs it with
+    flag 0 on each member of its party: the minions, made before it. The
+    minion rows answer flag 0 (strong 14 / 12, the elemental 16..21, mana
+    burn 0x10 / 0x13); FUN_005a1370 (resists, stone skin's defence),
+    teleport (FUN_005a1600) and the aura (FUN_005a1650) return at once on
+    it. The minion's mod bytes stay empty, so none of the fight's events
+    (below) are its own. d2d: objgroups.cpp and the Act 4 seals hand the
+    leader's mods to make_boss, which keeps `Monster::mods` empty for a
+    minion; `tools/emu/umod_stats.py` (kind m) checks the stats.
   - FUN_005a1370, unless the monster already has two immunities: 8 magic
     resistant +40 cold, fire, lightning (each under 100); 9 / 18 / 17 / 23
     +75 fire / cold / lightning / poison; 25 mana burn +20 magic; 27

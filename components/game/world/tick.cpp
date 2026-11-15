@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -116,13 +117,23 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
 // goes OP till event 1 at FrameCnt1 + 1 frames takes it ON (FUN_00581490);
 // one that comes while it's still OP queues nothing more (bugs.md #52).
 // Event 1 first when both fall on a frame. Only on the player's level.
+// A fissure is made as its room comes up (a preset unit, FUN_005559a0), and
+// its init queues the first eruption then: its clock starts on the first
+// frame its room is up (a level no rooms are kept for: at once).
 // ponytail: the object seed's steps fall in d2d's order of the game's object
-// rolls (levels built on demand), and the first is timed from the player's
-// first tick on the level, not the room's coming up.
+// rolls (levels built on demand).
 auto World::fissure_frame(std::uint32_t now_ms) -> void {
+        const auto in_play = fight.spawning.levels.find(level);
+        const auto room_up = [&](const Npc& fissure_npc) {
+            if (in_play == fight.spawning.levels.end()) return true;
+            const auto& up_rooms = in_play->second.up;
+            const int room = room_of(*level, fissure_npc.x, fissure_npc.y);
+            return room < 0 || (std::size_t(room) < up_rooms.size() && up_rooms[std::size_t(room)]);
+        };
         for (std::size_t index = 0; index < level->npcs.size() && index < npc_states.size(); ++index) {
             const auto& npc = level->npcs[index];
             if (npc.erupts < 0) continue;
+            if (!fissures.contains(std::pair{ level, int(index) }) && !room_up(npc)) continue;
             auto [entry, fresh] = fissures.try_emplace({ level, int(index) });
             auto& fissure = entry->second;
             auto& state = npc_states[index];
@@ -310,6 +321,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         // gone 27 frames on (InitFn 59), two ticks after he goes (the record's
         // timer, FUN_005bd4a0), each at the spot FUN_00545340 finds round it
         // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
+        // The mask's unit bits meet whoever stands there: on the player's own
+        // level its players, mercs, NPCs and monsters (loot.units_at).
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
             if (afterglow_in == 0 && !afterglow_due) afterglow_in = d2d::rules::quest_timer_steps(2);
@@ -320,9 +333,23 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
             const int from_x = int(std::floor(wanderer->unit.x * 5)), from_y = int(std::floor(wanderer->unit.y * 5));
+            Crowd glow_crowd;
+            if (fight.mon_level == level) {
+                for (const auto& one : players) {
+                    glow_crowd.units.push_back(&one->player);
+                    if (one->merc) glow_crowd.units.push_back(&one->merc->unit);
+                }
+                for (std::size_t npc_at = 0; npc_at < npc_states.size() && npc_at < level->npcs.size(); ++npc_at)
+                    if (level->npcs[npc_at].root != "objects" && !npc_states[npc_at].hidden) glow_crowd.units.push_back(&npc_states[npc_at]);
+                for (const auto& monster : fight.monsters)
+                    if (monster.targetable()) glow_crowd.units.push_back(&monster.unit);
+            }
+            loot.standing = &glow_crowd;
+            const std::function<int(int, int)> glow_units = [&](int at_x, int at_y) { return loot.units_at(at_x, at_y); };
             for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at)
-                if (const auto spot = fight.mon_level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100))   // his level, though the player's left it
+                if (const auto spot = fight.mon_level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100, glow_units))   // his level, though the player's left it
                     fires.push_back({ fight.mon_level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, now_ms + 27 * kTickMs });
+            loot.standing = nullptr;
             d2d::log::info("the Dark Wanderer's afterglow: {}", std::ranges::count(fires, &game_data->afterglow, &Fire::npc));
         }
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });

@@ -138,7 +138,9 @@ the object's flag byte:
   and queues event 1 at FrameCnt1 + 1 (`objects.bin +0xdc >> 8`), which
   takes it to mode 2 (`FUN_00581490`, Mode2 1). In mode 1 it does nothing
   and queues nothing (bugs.md #52). It sets modes only: no missile, no
-  damage in this code.
+  damage in this code. The init runs as the object is made, with its room
+  (the game frame at +0xa8 then); d2d starts a fissure's clock on the
+  first frame its room is up (`World::fissure_frame`).
 - Object events go through the table at 0x6e19b0 (event 1
   `FUN_00581490`: only if the unit is still in mode 1 and has Mode2, then
   mode 1 → 2 and the footprint changes when Mode2's collision differs;

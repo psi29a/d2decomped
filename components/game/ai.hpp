@@ -916,6 +916,9 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     stats.no_hit_roll = !info.to_hit;
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
+    // ponytail: a boss's enchants ride its A1 / A2 shots and not a cast or S1 one, as d2d had them;
+    // how a missile reads its owner's stats 0x30..0x38 isn't traced.
+    if (cast || s1_shot) stats.enchants = {};
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
     // The owner's poison (game.exe, V read: FUN_0064b860 / FUN_0064a930 / FUN_0064aa60; V run: the
     // re-verifier's vm_game2 oracle, goospit1 with owner poison 40 / 40 / 300, whole OP set): added

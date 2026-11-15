@@ -2725,7 +2725,9 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.stats = d2d::rules::monster_stats(game_data.monsters, monster.type, difficulty, rng, boss.level_add, players, area_monster_level(game_data, monster.level_id, difficulty));
     if (gear) wear_gear(monster.stats, *gear);
     monster.boss = kind;
-    monster.mods = mods;
+    // A minion takes its leader's mods' inits (FUN_005a2120's party callback FUN_0058f380 ->
+    // FUN_005a2100, flag 0), not their bytes (+0x1c): none of the mods' events are its own.
+    monster.mods = kind == d2d::rules::Boss::minion ? std::vector<int>{} : mods;
     monster.super = super;
     monster.name_seed = name_seed;
     // FUN_005a0d20 scales max life in 256ths, first for hpmultiply and then for the champion kind.
@@ -2745,12 +2747,15 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     if (boss.phys_resist < 0) monster.boss_res = boss.res_add;
     else { const int set = monster.boss_res[0]; monster.boss_res = boss.res_add; monster.boss_res[0] = set; }
     monster.boss_speed = boss.velocity_pct;
-    if (boss.elem >= 0 && !game_data.monsters.lvl.empty()) {                      // enchanted: MonLvl damage x %
+    if (!game_data.monsters.lvl.empty()) {                                         // enchanted: MonLvl damage x %, each element its own
         const auto& level_row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(monster.stats.level), game_data.monsters.lvl.size() - 1)];
         const int damage_pct = level_row.damage[std::size_t(std::clamp(difficulty, 0, 2))];
-        int put = 0;
-        for (auto& element : monster.stats.elements)
-            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), d2d::rules::boss_elem_length(boss, monster.stats.level, int(game_data.monsters.lvl.size()) - 1), put++ ? "A2" : "A1" };
+        for (std::size_t element = 0; element < boss.elem_pct.size(); ++element)
+            if (const auto& pct = boss.elem_pct[element]) {
+                const int low = damage_pct * pct->first / 100;
+                monster.stats.enchants[element] = std::pair{ low, std::max(damage_pct * pct->second / 100, low) };
+            }
+        monster.stats.enchant_len = d2d::rules::boss_elem_length(boss, monster.stats.level, int(game_data.monsters.lvl.size()) - 1);
     }
     // Mana burn (FUN_005a1f90): manadrainmin / max (stats 62 / 63) = MonLvl
     // damage x MonUMod constants (FUN_005a00f0) rows 0x10 / 0x13 +
@@ -2764,7 +2769,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.mana_hi = std::max(damage_pct * game_data.umods.constants[std::size_t(base + 3 + difficulty_index)] / 100, monster.mana_lo);
     }
     if (std::ranges::contains(mods, d2d::rules::umod::poisonhit)) poison_hit(game_data, monster, difficulty, kind != d2d::rules::Boss::minion);
-    if (std::ranges::contains(mods, d2d::rules::umod::aura)) {
+    if (std::ranges::contains(mods, d2d::rules::umod::aura) && kind != d2d::rules::Boss::minion) {   // FUN_005a1650 skips a minion (flag 0)
         const auto aura = d2d::rules::boss_aura(monster.stats.level, name_seed, super);
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }

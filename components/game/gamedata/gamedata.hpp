@@ -337,13 +337,19 @@ struct Level {
     // whose (size x 2 + 1) square, centred a subtile up-left of it, has no
     // bit of `mask` (FUN_0064d800), searched ring by ring (c = 1 .. rings - 1:
     // rows c, c - 2 .. > -c; columns -c, -c + 2 .. < c). None: nullopt.
-    // ponytail: the units' bits (0x1000+) are the Crowd's, not the grid's.
-    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings) const {
+    // The mask meets the grid as game.exe's does: its unit bits (0x1000,
+    // 0x2000, stamped by FUN_0064ea90) are the Crowd's here, so `crowd`
+    // gives them on a subtile; none given: no unit stands in the way.
+    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings,
+                                                                const std::function<int(int, int)>& crowd = {}) const {
         const int half = size >> 1, side = size * 2 + 1;
         const auto clear = [&](int centre_x, int centre_y) {
             for (int row = 0; row < side; ++row)
-                for (int column = 0; column < side; ++column)
-                    if (blocked((float(centre_x - side / 2 + column) + 0.5f) / 5, (float(centre_y - side / 2 + row) + 0.5f) / 5, mask & 0x0fff)) return false;
+                for (int column = 0; column < side; ++column) {
+                    const int sub_x = centre_x - side / 2 + column, sub_y = centre_y - side / 2 + row;
+                    if (blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, mask & 0x0fff)) return false;
+                    if (crowd && (crowd(sub_x, sub_y) & mask & 0xf000)) return false;
+                }
             return true;
         };
         for (int ring = 1; ring < rings; ++ring)
@@ -790,6 +796,9 @@ struct GameData {
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
                          int hit_par3 = 0;      // sHitPar3: hit 2's sub-missiles' sub loops (FUN_005a9d80 -> FUN_005a9370's [0xd])
+                         // Param5 (+0x48), CltParam1..5 (+0x58..+0x68), cHitPar1..3 (+0x6c..+0x74):
+                         // what misscalc reads of them (FUN_0064b340, skill_text::miss_operand).
+                         int param5 = 0; std::array<int, 5> clt_params{}; std::array<int, 3> clt_hit_pars{};
                          // SubLoop, SubStart, SubStop (+0x180..+0x182): made with create flag 8, its Range runs on by
                          // (SubStop - SubStart) x [0xd] when SubLoop (FUN_0059fa30).
                          int sub_loop = 0, sub_start = 0, sub_stop = 0;

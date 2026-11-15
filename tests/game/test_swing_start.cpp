@@ -28,6 +28,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -96,7 +97,7 @@ struct Hero {
         const d2d::d2s::Item* proto = character.items.empty() ? nullptr : &character.items.front();
         d2d::d2s::Item put = proto ? *proto : d2d::d2s::Item{};
         std::erase_if(character.items, [](const auto& item) { return item.location == 1 && (item.slot == 4 || item.slot == 5); });   // main hand and shield out
-        if (!weapon.empty()) { put.code = weapon; put.location = 1; put.slot = 4; character.items.push_back(put); }
+        if (!weapon.empty()) { put.code = weapon; put.location = 1; put.slot = 4; character.items.push_back(std::move(put)); }
         character.panel = panel_stats(data, character.header, character.items, character.stats);
     }
 };

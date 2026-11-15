@@ -112,8 +112,12 @@ oracle run); their names first came from D2BS's UI enum:
   `FUN_00501820` (width) is over 0x70; drawn through `FUN_00502320` at
   bottom 0x1b - `0x7a285c` and 0xf2 - `0x7a285c` (87 / 302 at 800x600).
   The gold values (`FUN_004b90f0` / `FUN_004b9100`, formatted with
-  `DAT_006d57bc` into 0xf chars) go to the same two bottoms. The x
-  (a register argument) and the font were not read. d2d: `draw_trade`.
+  `DAT_006d57bc`, `"%d"`, into 0xf chars) go to the same two bottoms.
+  The x is EDX (read from the asm, 0x48fcf8..0x48fef1): each name at
+  `0x7a2858` + 0x19; string 0x8a7 centred on + 0xbb (x less half its width)
+  at both bottoms; each gold at + 0x124 less its width, so it ends there.
+  The font is Font16 (`FUN_00502ef0(1)` at 0x48fc58), colour 0.
+  d2d: `draw_trade`.
 - The stash's close button (`FUN_0048edf0` state 0xc..0xd): buysellbtn
   10, 11 while `0x7bce38` holds it, at x + 0x113, bottom foot - 0x41
   (`FUN_00486b00`), the expansion stash at x + 0x110, foot - 0x40. The

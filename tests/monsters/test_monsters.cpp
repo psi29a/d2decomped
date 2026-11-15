@@ -304,7 +304,7 @@ int main() try {
         }
         assert(champions > 140 && champions < 260);                     // ~20 %
         const auto unique_stats = boss_stats(umods, type, Boss::unique, { 9, 28 }, 2);   // hell: fire enchanted, stone skin
-        assert(unique_stats.level_add == 3 && unique_stats.exp_mult == 5 && unique_stats.hp_pct == 100 && unique_stats.elem == 0 && unique_stats.elem_min_pct == 66);
+        assert(unique_stats.level_add == 3 && unique_stats.exp_mult == 5 && unique_stats.hp_pct == 100 && unique_stats.elem_pct[0] && unique_stats.elem_pct[0]->first == 66);
         assert(unique_stats.res_add[2] == 75 && unique_stats.res_add[0] == 50 && unique_stats.double_defense);
         const auto champion_stats = boss_stats(umods, type, Boss::champion, { 16 }, 1);
         assert(champion_stats.level_add == 2 && champion_stats.exp_mult == 3 && champion_stats.hp_pct == 150 && champion_stats.dmg_pct == 75 && champion_stats.tohit_pct == 56 && champion_stats.velocity_pct == 20);   // nightmare keeps 75 % (kBossBonus)
@@ -314,7 +314,7 @@ int main() try {
         assert(fast_stats.velocity_pct == 100);
         // The champion kinds (FUN_005a1080 .. FUN_005a1280), nightmare.
         const auto ghostly = boss_stats(umods, type, Boss::champion, { 36 }, 1);
-        assert(ghostly.velocity_pct == 0 && ghostly.phys_resist == 80 && ghostly.elem == 2 && ghostly.elem_len == 150 && ghostly.level_add == 2);
+        assert(ghostly.velocity_pct == 0 && ghostly.phys_resist == 80 && ghostly.elem_pct[2] && ghostly.elem_len == 150 && ghostly.level_add == 2);
         const auto fanatic = boss_stats(umods, type, Boss::champion, { 37 }, 1);
         assert(fanatic.velocity_pct == 100 && fanatic.defense_pct == -70);
         assert(boss_stats(umods, type, Boss::champion, { 38 }, 1).life_after_pct == 100);

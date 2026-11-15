@@ -391,16 +391,19 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             auto& missile = send(dx, dy, range);
             missile.target_x = caster.x; missile.target_y = caster.y;
             missile.turn = int(std::atan2(dy, dx) * 1000);
-            // FUN_006461d0: the caster's state 0x2a (Concentration), its damagepercent x Param1 / 8. ponytail: the state is
-            // taken from the first friendly aura of that name over the caster; one set by two sources isn't merged.
-            if (!caster.merc && !caster.pet)
-                for (const auto& aura : friendly_auras(caster.x, caster.y)) {
-                    if (aura.skill->aurastate != "concentration") continue;
-                    for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
-                        if (aura.skill->aurastat[i] == d2d::d2s::kDamagePercent)
-                            missile.influence = d2d::rules::aura_influence(d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level), skill.par[0]);
-                    break;
-                }
+            // FUN_006461d0: the caster's state 0x2a (Concentration), its damagepercent x Param1 / 8. The unit
+            // holds one list per state: each aura's put (FUN_005cedc0 -> FUN_0056e970) fails under a higher
+            // stored level and only extends an equal one, so of two sources the higher level's stands.
+            if (!caster.merc && !caster.pet) {
+                const auto auras = friendly_auras(caster.x, caster.y);
+                const AuraOn* strongest = nullptr;
+                for (const auto& aura : auras)
+                    if (aura.skill->aurastate == "concentration" && (!strongest || aura.level > strongest->level)) strongest = &aura;
+                if (strongest)
+                    for (std::size_t i = 0; i < strongest->skill->aurastat.size(); ++i)
+                        if (strongest->skill->aurastat[i] == d2d::d2s::kDamagePercent)
+                            missile.influence = d2d::rules::aura_influence(d2d::rules::eval_calc(game_data->skills, strongest->skill->aura_calc[i], strongest->env, strongest->skill->id, strongest->level), skill.par[0]);
+            }
         } else if (skill.srvdofunc == ServerDoFunction::kFistOfTheHeavens) {                      // Fist of the Heavens (FUN_005d0670): on the target
             if (target < 0) return;
             const auto& target_monster = monsters[std::size_t(target)];

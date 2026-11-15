@@ -79,6 +79,10 @@ reads stats 0x5c / 0x5e as 0x5d, 0x5f / 0x61 as 0x60, 0x62 / 100 as 99,
 - Saves before 0x5d take a second set of Save Bits (ItemStatCost's
   older column) for defence, durability, sockets and properties; d2d
   reads 1.14d's only (`ponytail:` in `detail::item`).
-- Not ported (`ponytail:` in `detail::item`): a normal charm's affix and a
-  monster body part's 10 bits. d2d has no ItemTypes hierarchy in the
-  parser, and none of the 21 saves has one.
+- A normal charm's bit and affix and a monster body part's 10 bits are
+  read and written (`ItemTables::charms` / `body_parts`, from ItemTypes
+  rows 13, 40 and not 7 through the item's type and type2, as
+  `FUN_00629bb0` tests them). A book or scroll's 5 bits (types 18 / 22)
+  still go by the code (tbk / ibk): not checked against ItemTypes. None of the 21 saves
+  has a normal charm or a body part; `test_d2s` checks both on a
+  synthetic list.

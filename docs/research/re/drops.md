@@ -329,6 +329,14 @@ when min == max; each func draws only when it needs one:
 - 19 (FUN_0065f6a0), charges: level as 11. c = 5 for min 0, -min + -min
   * level / 8 for min < 0, else min; clamped to 1..255. now = (rand(c - c
   / 8) + c / 8 + 1) & 0xff; value now + c * 256, param skill << 6 | level.
+- 5 / 6 (FUN_0065ecf0 / FUN_0065ee80), min / max damage: on a weapon
+  (type 0x2d) the one-hand stat (0x15 / 0x16) when the base's mindam /
+  maxdam byte (+0xfe / +0xff) is set or its two-hand one (+0x102 /
+  +0x103) isn't, the two-hand stat (0x17 / 0x18) the other way round, the
+  throw stat (0x9f / 0xa0) only when throwable; anything else all three.
+  A value that takes a nonzero byte below 1 is held: min at 1 (1 - byte),
+  max at 0 (-byte). They return the drawn value. d2d: `apply_mod`,
+  `tests/test_mod_damage_hold.cpp`.
 - 14, sockets: min(grid at most 6, FUN_0062bc20), the value `first` or a
   draw, else the param. Sets flag 0x800 and stat 0xc2.
 - 23, ethereal (FUN_0065e4d0): flag 0x400000, damage stats and armor
