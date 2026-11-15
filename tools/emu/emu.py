@@ -17,6 +17,7 @@ import pefile
 import unicorn.x86_const
 from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_INVALID, UC_PROT_ALL
 from unicorn.x86_const import *
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_ESI
 
 import structs
 from mpq_cache import MpqCache
@@ -171,6 +172,12 @@ class Emu:
         return structs.view(self, kind, addr)
 
     def call(self, addr, *args, ecx=0, edx=0, cdecl=False, limit=0, regs=None):
+        """Call one game.exe function with deterministic incoming registers.
+
+        ``regs`` supplies custom-convention arguments such as EAX, EBX, ESI,
+        and EDI.  Those four registers are cleared when omitted so one oracle
+        call cannot accidentally inherit another call's result or arguments.
+        """
         mu = self.mu
         sp = STACK + STACK_SIZE - 0x1000
         for v in reversed((RET_MAGIC,) + tuple(args)):
@@ -180,7 +187,13 @@ class Emu:
         mu.reg_write(UC_X86_REG_EBP, 0)
         mu.reg_write(UC_X86_REG_ECX, ecx)
         mu.reg_write(UC_X86_REG_EDX, edx)
-        for name, v in (regs or {}).items(): mu.reg_write(getattr(unicorn.x86_const, "UC_X86_REG_" + name.upper()), v)   # custom-convention args (EBX, ESI, EDI, EAX)
+        for register in (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI):
+            mu.reg_write(register, 0)
+        for name, v in (regs or {}).items():
+            constant = "UC_X86_REG_" + name.upper()
+            if not hasattr(unicorn.x86_const, constant):
+                raise ValueError(f"unknown x86 register {name!r}")
+            mu.reg_write(getattr(unicorn.x86_const, constant), v)
         try:
             mu.emu_start(addr, RET_MAGIC, count=limit)
         except UcError as err:

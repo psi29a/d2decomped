@@ -13,23 +13,37 @@ import pathlib
 import re
 import sys
 
-source = pathlib.Path(os.environ.get(
-    "D2_GHIDRA_DECOMP_C", pathlib.Path(__file__).parent / "project" / "game_all.c"))
-text = source.read_text(encoding="utf-8")
-RULE = "// =============================================\n"
-sections = {m.group(1): m for m in re.finditer(r"// \S+ @ ([0-9a-f]{8})\n", text)}
 missing = False
 tail = None
 arguments = []
 for arg in sys.argv[1:]:
     if arg.startswith("--tail="):
-        tail = int(arg.removeprefix("--tail="))
+        try:
+            tail = int(arg.removeprefix("--tail="))
+        except ValueError as error:
+            raise SystemExit("--tail requires a positive line count") from error
         if tail < 1:
             raise SystemExit("--tail requires a positive line count")
     else:
         arguments.append(arg)
+if not arguments:
+    raise SystemExit("usage: fn.py [--tail=N] ADDRESS [ADDRESS ...]")
+
+source = pathlib.Path(os.environ.get(
+    "D2_GHIDRA_DECOMP_C", pathlib.Path(__file__).parent / "project" / "game_all.c"))
+try:
+    text = source.read_text(encoding="utf-8")
+except OSError as error:
+    raise SystemExit(f"cannot read {source}: {error}") from error
+RULE = "// =============================================\n"
+sections = {m.group(1): m for m in re.finditer(r"// \S+ @ ([0-9a-f]{8})\n", text)}
 for arg in arguments:
-    address = re.sub(r"(?i)^(fun_|0x)", "", arg).lower().rjust(8, "0")
+    address = re.sub(r"(?i)^(fun_|0x)", "", arg)
+    if not re.fullmatch(r"(?i)[0-9a-f]{1,8}", address):
+        print(f"// invalid address {arg}", file=sys.stderr)
+        missing = True
+        continue
+    address = address.lower().rjust(8, "0")
     found = sections.get(address)
     if not found:
         print(f"// missing {arg}")
