@@ -113,6 +113,9 @@ struct Button {
     // Second label line (char-select's tall buttons: FUN_00500bf0 adds
     // one under the record's own label). Last so positional inits hold.
     const char*             label2  = nullptr;
+    // This frame's click: a release over the button after a press on it
+    // (update_button; D2Win's FUN_00501150 fires only a button its press armed).
+    bool                    clicked = false;
 };
 
 struct Mouse {
@@ -338,8 +341,27 @@ struct CharCreateUI : Character {
 // sfx\cursor\button.wav when pressed (FUN_00501090).
 inline std::function<void()> g_on_button_press;
 
-bool update_button(Button& button, const Mouse& mouse, Screen& current_screen,
-                   std::atomic<bool>& quit);
+// A D2Win button's mouse (FUN_00501090 down, FUN_00501150 up): a press on it
+// arms it (`pressed`), and a release over it clicks only when armed, so a
+// press that began elsewhere (on a button or box under it a moment ago, or
+// before the screen opened) clicks nothing. Sets `clicked`; a click runs the
+// button's switch or quit and returns true.
+inline bool update_button(Button& button, const Mouse& mouse, Screen& current_screen,
+                          std::atomic<bool>& quit) {
+    button.hovered = mouse.x >= button.x && mouse.x < button.x + button.width
+             && mouse.y >= button.y && mouse.y < button.y + button.height;
+    if (button.hovered && mouse.press_this_frame) {
+        button.pressed = true;
+        if (g_on_button_press) g_on_button_press();
+    }
+    button.clicked = button.hovered && mouse.release_this_frame && button.pressed;   // armed by a press on it (+0x48)
+    if (!mouse.down)                          button.pressed = false;
+    if (button.clicked) {
+        if (button.do_switch) { current_screen = button.goto_screen; return true; }
+        if (button.quit)      { quit = true; return true; }
+    }
+    return false;
+}
 
 // Parse D2's UTF-16LE-with-BOM credits.txt into Latin-1 lines. The file's
 // section headers use a '*' prefix. Skips empty lines but keeps '*' lines
