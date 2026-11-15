@@ -874,7 +874,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (Charged Bolt 17, Teeth 8, Multiple Shot, Guided Arrow, ...), srvstfunc 4
   arrows (Fire / Cold Arrow), the other hit functions (Glacial Spike 13,
   Holy Bolt 7, Frozen Orb), explosions on walls, the delay, FCR
-  breakpoints, SQ casting (Lightning casts as SC), the missile's light.
+  breakpoints, the missile's light. SQ casting: see "Cast rate" below (a
+  seqtrans SC sequence runs its steps at the cast speed).
 - Part 2: srvstfunc 4 (**FUN_005da8b0**) only checks the ammo
   (FUN_0056c4e0), so the Amazon's arrows and javelins take the same path
   (Fire / Cold / Ice Arrow, Poison Javelin, Lightning Bolt). Do 8
@@ -1709,6 +1710,16 @@ and per-class base frames, not a table. What's stored:
     least one. A sequence is over when its countdown (+0x48) is <= 0
     (`FUN_00621260` sets it to the sequence's step count x 256, 0x62129a):
     ceil(256 x steps / speed) ticks, no minus one (see the Lightning notes).
+  - The sequence's step (`FUN_00623e00`, +0x30 set) moves the position (+0x38,
+    from 0) and takes the countdown down by +0x3c, which the cast branch sets to
+    the same speed as +0x4c; `FUN_00621210` -> `FUN_00663410` reports the
+    events of the steps passed. Lightning / Chain Lightning (sequence 12, 19
+    steps, event 1 on step 7, SC frames) last ceil(256 x 19 / speed) ticks:
+    19/18/17/16/15/14/13/12/11 at FCR 0/7/15/23/35/52/78/117/194 for speed 256,
+    the published Lightning table. Port: `rules::cast_sequence_ticks`,
+    `Fight::set_pmode`'s SC branch (Skills.txt `seqtrans`, record +0x12, as
+    `FUN_006216e0` tests it); `tests/test_cast_sequence.cpp`. The frames are
+    drawn spread over the hold, not step by step.
   - Checked: `tools/emu/cast_rates.py` runs the cast branch and the end test on
     game.exe for FCR 0..400 at AnimData speeds 208 and 256 and the SC frame
     counts below; `test_combat --cast-rates` prints d2d's in the same form and

@@ -539,6 +539,17 @@ inline int cast_ticks(int frames, int rate, int fcr) {
     return std::max((256 * frames + speed - 1) / speed - 1, 1);
 }
 
+// Client ticks a cast sequence lasts (anim SQ with seqtrans SC: Lightning, Chain
+// Lightning). FUN_00621260 sets the countdown (+0x48) to the sequence's step count
+// x 256 (0x62129a) and the mode ends once it is <= 0: ceil(256 x steps / speed),
+// with no step skipped as a plain cast's is, at the cast speed (FUN_006216e0 says yes
+// for a mode 0x12 whose skill's +0x12 is 10).
+inline int cast_sequence_ticks(int steps, int rate, int fcr) {
+    if (steps <= 0) return 0;
+    const int speed = std::max(cast_speed(rate, fcr), 1);
+    return (256 * steps + speed - 1) / speed;
+}
+
 // The tick of a cast mode's action frame, counted from its start: the animation scheduler
 // (FUN_005539b0) files the event on the first tick whose position (steps of the cast speed
 // from 0) reaches the frame (tools/emu/cast_mana.py runs game.exe's code for it, V run, for the

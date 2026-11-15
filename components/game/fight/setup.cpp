@@ -467,8 +467,12 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), swing.sound, now_ms + std::uint32_t((swing.frames * 256 + 128) / speed) * 40, actor->player.x, actor->player.y);
             }
         } else if (mode == kModeSC && anim.frames) {
-            // ponytail: a cast that plays a sequence (Lightning) is timed as a plain one here.
-            len = std::uint32_t(d2d::rules::cast_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
+            // A cast sequence (seqtrans SC, Lightning's 19 steps) runs out its steps at the cast speed
+            // (rules::cast_sequence_ticks); its frames are drawn spread over the hold, not step by step.
+            const auto* cast_row = game_data->skills.get(actor->swing_skill);
+            const auto steps = cast_row && cast_row->seqtrans == "SC" ? skill_sequence() : std::span<const d2d::rules::SeqFrame>{};
+            const int rate = int(anim.speed ? anim.speed : 256), fcr = actor->player_combat.fcr;
+            len = std::uint32_t(steps.empty() ? d2d::rules::cast_ticks(int(anim.frames), rate, fcr) : d2d::rules::cast_sequence_ticks(int(steps.size()), rate, fcr)) * 40;
         } else if (mode == kModeGH && anim.frames) {
             // ponytail: the player's own frames follow prate (spread over the hold); game.exe's client steps
             // them at the get-hit rate (rules::get_hit_frame, as monsters and the merc are drawn) and
@@ -480,8 +484,16 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
         actor->action_ms = strike ? *strike : std::uint32_t(float(anim.action_ms()) / actor->prate);
-        if (mode == kModeSC && anim.frames && anim.action >= 0)
-            actor->action_ms = std::uint32_t(d2d::rules::cast_action_ticks(anim.action, int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
+        if (mode == kModeSC && anim.frames && anim.action >= 0) {
+            // A cast sequence's action is its event-1 step (Lightning's 7): FUN_00623e00 moves the position
+            // (+0x38, from 0) on by the cast speed (+0x3c) a tick and FUN_00663410 reports the events of the
+            // steps it passed, so it fires on the first tick reaching 256 x step, as a plain cast's frame.
+            const auto* cast_row = game_data->skills.get(actor->swing_skill);
+            const auto steps = cast_row && cast_row->seqtrans == "SC" ? skill_sequence() : std::span<const d2d::rules::SeqFrame>{};
+            const auto hit = std::ranges::find(steps, std::uint8_t{ 1 }, &d2d::rules::SeqFrame::event);
+            const int action = hit == steps.end() ? anim.action : int(hit - steps.begin());
+            actor->action_ms = std::uint32_t(d2d::rules::cast_action_ticks(action, int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
+        }
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;
         // Struck or dying (FUN_004cc410). The get-hit cry is hushed while a speech line plays.
         if (mode == kModeGH || mode == kModeDT) {
