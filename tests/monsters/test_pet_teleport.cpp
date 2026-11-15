@@ -2,6 +2,7 @@
 // test-links: rules
 // A pet's follow mode 3 (FUN_005e3ea0): the spot in the owner's room
 // (FUN_0054dc40) or the put (FUN_00554ea0) failing fails the follow.
+#include <merc.hpp>
 #include <pets.hpp>
 
 #include <cassert>
