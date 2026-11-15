@@ -653,11 +653,17 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
         const auto tip = string_id(scene, on_accept ? 0x1023 : 0x1022);
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, mouse_x - scene.font.measure(tip) / 2, mouse_y - 30, tip);
     }
-    // The bars over each grid (the art's): their name and gold; ours.
-    // ponytail: placed by eye on the art, not traced.
-    centred({ 98, 70, 222, 88 }, with);
+    // The bars over each grid (FUN_0048edf0's trade branch): their name and
+    // gold at bottom 0x1b + 60, ours at 0xf2 + 60 (y as these boxes centre
+    // them); each name loses its last letter while wider than 0x70.
+    // ponytail: x placed by eye on the art (the asm's x not read).
+    auto fitted = [&](std::string name) {
+        while (!name.empty() && scene.font.measure(name) > 0x70) name.pop_back();
+        return name;
+    };
+    centred({ 98, 70, 222, 88 }, fitted(with));
     if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
-    centred({ 98, 286, 222, 304 }, our_name);
+    centred({ 98, 286, 222, 304 }, fitted(our_name));
     if (typing) centred(kOurGold, *typing + "_");
     else if (our_gold) centred(kOurGold, std::to_string(our_gold));
 }
