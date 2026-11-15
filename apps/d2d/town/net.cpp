@@ -71,10 +71,22 @@ auto Town::send(const Command& command) -> void {
         } else if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {
             net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
-            if (d2d::game::skill_refused(*scene, character, use->skill)) {   // game.exe's client checks first (FUN_004610c0): nothing sent
-                // AttackNoMana: Attack goes in its place, silently (LAB_00461101).
-                // ponytail: only the weapon (status 2) is asked here; the host refuses the rest
-                // (mana, startmana, its skilldelay), and the client's own 12-frame delay (FUN_004c6680) isn't kept.
+            // game.exe's client asks first (FUN_004610c0, Fight::ask: mana and startmana from the
+            // host's 0x95, the weapon, skilldelay): a refusal sends nothing; AttackNoMana sends
+            // Attack in its place, silently (LAB_00461101).
+            if (use->item < 0) {
+                if (const int asked = world.fight.ask(use->skill, world_ms); asked != use->skill) {
+                    if (asked == 0) {
+                        auto attack = *use;
+                        attack.skill = 0;
+                        send(attack);
+                    }
+                    return;
+                }
+            } else if (d2d::game::skill_refused(*scene, character, use->skill)) {
+                // ponytail: a charged entry is asked only the weapon (status 2: Fight::ask reads
+                // the entry from item_charge, not set here); the skilldelay asked is the local
+                // World's (Fight::start_delay), not the client's min(delay, 12) frames (FUN_004c6680).
                 if (const auto* refused = scene->skills.get(use->skill); refused && refused->attack_no_mana && use->skill != 0) {
                     auto attack = *use;
                     attack.skill = 0;
