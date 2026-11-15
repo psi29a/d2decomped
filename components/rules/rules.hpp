@@ -2303,12 +2303,15 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         staff_mods();
         return finish();
     }
+    // Magic with no unit seed (or no base): not game.exe's, and no game
+    // path comes here: drops, stores, gambles and the cube pass a unit
+    // seed, the starting kit is normal and an imbue rare. Tests only.
     item.quality = 4;
-    const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both (no unit seed: stores' gambles and imbues)
+    const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
     if (!item.prefix && !item.suffix) return generate_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
-    return item;                                           // ponytail: without a unit seed magic isn't game.exe's
+    return item;
 }
 
 // Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
