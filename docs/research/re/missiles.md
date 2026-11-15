@@ -540,6 +540,12 @@ changes the picture.
   tests/game/test_game_rules.cpp checks the 8 and 16 rows and eight fired bolts.
 - tests/monsters/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
+- No height: a missile row's Xoffset / Yoffset / Zoffset (+0xa2 / +0xa4 /
+  +0xa6, the loader's field table) are read only by the client's draw
+  (FUN_004dc7b0: x + Xoffset, y + Yoffset + Zoffset for unit type 3), so
+  `missiles_update` keeps none. Four 1.14d rows set one: bonespirit and
+  monbonespirit (Zoffset -30), skmageltng (Yoffset -10), succubusmiss
+  (Yoffset -15); d2d's draw (world_view.cpp) doesn't shift them yet.
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
   (FUN_006417f0), standing missiles
   (srvdofunc 1 never strikes at velocity 0; d2d's keep a 0.4-cell test),

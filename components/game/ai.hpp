@@ -961,7 +961,10 @@ inline Missile missile_from(const Missile& from, const GameData::MissileInfo& in
 // A standing missile (no velocity) strikes from its own subtile
 // (standing_struck). Its physical carries the owner's at SrcDamage / 128
 // (monster_shot_phys).
-// ponytail: flat on the ground (no missile height).
+// Flat on the ground: Missiles.txt Xoffset / Yoffset / Zoffset (row +0xa2 /
+// +0xa4 / +0xa6) only shift the drawn sprite (the client's FUN_004dc7b0,
+// unit type 3); no server code reads them, so a flight and its hits have
+// no height.
 // A friendly one asks `hits_monster` (true: it struck one, spent), and
 // `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
 // 1), its hit with no unit); a monster's hit spawn goes off there too.
