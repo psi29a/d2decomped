@@ -125,7 +125,7 @@ settings, 0..9 players, with `FUN_005538d0` hooked to give the count.
   (0x7bb5e1), before `FUN_0047bad0` and the Battle.net commands. The load of
   `text[length]` sits before the loop (0x47bd0e; the loop goes back to
   0x47bd12), so every pass tests that one unit, the terminating 0, and it
-  returns 1 for every text.
+  returns 1 for every text (bugs.md 117).
 
 Oracle: `tools/emu/chat_helpers.py` runs the first four on 4,000 generated
 strings each (the command prefixes, mixed case, bytes 0x80..0xff, sizes 1
