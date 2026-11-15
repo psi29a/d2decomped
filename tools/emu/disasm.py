@@ -3,6 +3,7 @@
 
     uv run python disasm.py 623f50              # from 0x623f50 to the function's end
     uv run python disasm.py 623f50 200          # 200 instructions
+    uv run python disasm.py --bytes=126 623f50  # exactly one known function size
     uv run python disasm.py --all out.txt       # every executable section, a line an instruction
     uv run python disasm.py --exe PATH ...      # another game.exe than the MPQ folder's bin/game.exe
 
@@ -34,13 +35,24 @@ def ends_function(image, base, ins):
 
 
 def main():
-    args, exe = sys.argv[1:], None
+    args, exe, byte_count = sys.argv[1:], None, None
     if "--exe" in args:
         at = args.index("--exe")
         if at + 1 == len(args):
             sys.exit(__doc__)
         exe = args.pop(at + 1)
         del args[at]
+    for arg in tuple(args):
+        if arg.startswith("--bytes="):
+            if byte_count is not None:
+                sys.exit("disasm: --bytes may be given only once")
+            try:
+                byte_count = int(arg.removeprefix("--bytes="), 0)
+            except ValueError:
+                sys.exit("disasm: --bytes requires a positive byte count")
+            if byte_count < 1:
+                sys.exit("disasm: --bytes requires a positive byte count")
+            args.remove(arg)
     every = args[:1] == ["--all"]
     if len(args) not in ((2,) if every else (1, 2)) or any(arg.startswith("--") for arg in args[every:]):
         sys.exit(__doc__)
@@ -72,14 +84,23 @@ def main():
     image = pe.get_memory_mapped_image()
     if not 0 <= va - base < len(image):
         sys.exit(f"disasm: {va:08x} is outside the image ({base:08x}-{base + len(image):08x})")
+    executable = next((section for section in pe.sections
+                       if section.Characteristics & 0x20000000
+                       and base + section.VirtualAddress <= va
+                       < base + section.VirtualAddress + max(section.Misc_VirtualSize, section.SizeOfRawData)), None)
+    if executable is None:
+        sys.exit(f"disasm: {va:08x} is not in an executable section")
+    byte_end = va + byte_count if byte_count is not None else None
     end, done = va, 0
     while True:   # capstone decodes a whole call's buffer first, so a batch at a time
         batch = list(md.disasm(image[end - base:end - base + 16 * 256], end, min(256, count - done) if count else 256))
         for ins in batch:
+            if byte_end is not None and ins.address + ins.size > byte_end:
+                return
             print(f"{ins.address:08x}  {ins.mnemonic:7} {ins.op_str}")
             end = ins.address + ins.size
             done += 1
-            if (count and done >= count) or (not count and ends_function(image, base, ins)):
+            if (count and done >= count) or (byte_end is not None and end >= byte_end) or (not count and byte_end is None and ends_function(image, base, ins)):
                 return
         if not batch:   # the image's end or a byte it can't decode
             break

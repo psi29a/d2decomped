@@ -12,8 +12,49 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import emu
 from cast_mana import animdata_records, cut_cases, pay_tick
 from mpq_cache import MpqCache
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESI
+
+
+class CallRegisterTests(unittest.TestCase):
+    class FakeUnicorn:
+        def __init__(self):
+            self.registers = {UC_X86_REG_EIP: emu.RET_MAGIC}
+
+        def reg_write(self, register, value):
+            self.registers[register] = value
+
+        def reg_read(self, register):
+            return self.registers.get(register, 0)
+
+        def emu_start(self, _address, _until, count=0):
+            del count
+
+    def machine(self):
+        machine = emu.Emu.__new__(emu.Emu)
+        machine.mu = self.FakeUnicorn()
+        machine.w32 = lambda _address, _value: None
+        return machine
+
+    def test_call_clears_custom_convention_registers(self):
+        machine = self.machine()
+        for register in (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI):
+            machine.mu.reg_write(register, 0xDEADBEEF)
+        machine.call(0x401000, ecx=1, edx=2)
+        self.assertEqual(machine.mu.reg_read(UC_X86_REG_ECX), 1)
+        self.assertEqual(machine.mu.reg_read(UC_X86_REG_EDX), 2)
+        self.assertEqual([machine.mu.reg_read(register) for register in
+                          (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI)], [0] * 4)
+
+    def test_call_applies_and_validates_explicit_registers(self):
+        machine = self.machine()
+        machine.call(0x401000, regs={"eax": 3, "EDI": 4})
+        self.assertEqual(machine.mu.reg_read(UC_X86_REG_EAX), 3)
+        self.assertEqual(machine.mu.reg_read(UC_X86_REG_EDI), 4)
+        with self.assertRaisesRegex(ValueError, "unknown x86 register"):
+            machine.call(0x401000, regs={"not_a_register": 1})
 
 
 class CacheTests(unittest.TestCase):
