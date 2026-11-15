@@ -172,7 +172,8 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // A light's radius moves toward a new one 8 eighths (a subtile) a frame
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
-// ponytail: light quality is taken as high (2: shadows on).
+// Light quality is always high (2: shadows on): deviations.md #4
+// (game.exe drops it by frame rate, FUN_00475780).
 // `player_at`: where the player stands when it isn't the camera's point (local co-op's camera).
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0,
