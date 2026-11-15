@@ -535,7 +535,7 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
             int base = npc_menu.y;
             for (const auto& line : npc_menu.lines) {                   // the topmost line you can choose
                 base += line.height;
-                if (!line.header) return PadFocus{ 2000 + npc_menu.npc * 64 + int(npc_menu.lines.size()), npc_menu.x + npc_menu.box_width / 2, base - line.height / 2 };
+                if (!line.header) return PadFocus{ 2000 + npc_menu.npc * 64 + int(npc_menu.lines.size()), npc_menu.x + npc_menu.box_width / 2, base - 4 };
             }
         }
         return std::nullopt;
@@ -625,7 +625,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
             int base = npc_menu.y;
             for (const auto& line : npc_menu.lines) {
                 base += line.height;
-                if (!line.header) points.push_back({ npc_menu.x + npc_menu.box_width / 2, base - line.height / 2 });
+                if (!line.header) points.push_back({ npc_menu.x + npc_menu.box_width / 2, base - 4 });
             }
         }
         if (store.npc >= 0) {
