@@ -249,6 +249,23 @@ d2d matches both, and the one-poison-at-a-time rule.
 - Block chance (FUN_00622720): players need a shield; `(stat 20 +
   CharStats BlockFactor) × (dex − 15) / (clvl × 2)`, clvl at least 1;
   monsters stat 20 when MonStats allows it (or with a shield); at most 75.
+- **A monster's missile with no physical record is not blockable.** The missile's hit
+  (`FUN_005ad730`) calls `FUN_0057dfb0(defender, 1, record +8 != 0)`; with 0 the block roll
+  (and its draw on the defender's seed) is skipped, the dodge / avoid / evade rolls still come
+  (`FUN_0057dd60`, which also holds the claws' weapon block). The record's physical (+8) comes
+  from `FUN_005a89a0` / `FUN_005a8910`: min and max (stats 0x15 / 0x16, 256ths) both over 0,
+  else 0. d2d: `MonStats::unblockable`, set by `monster_shot_stats` for the MissA / MissS1 /
+  MissC shots (`!(phys.low > 0 && phys.high > 0)`), by `missile_blow` from the row's own
+  physical (`!(min > 0 && max > 0)`: the Fallen Shaman's fire and Radament's bolt have none) and,
+  for a row that names a Skill, by `andariel_missile` from the carried skill's physical after it
+  replaces the row's (`FUN_0064b860`): a Death Mauler's maul has none in the row and 10 to 20 in
+  DeathMaul, so it stays blockable. Read by `monster_blow` for a missile. Checked by
+  `tools/emu/missile_block.py` against `test_monster_missile --missile-block` and
+  `--missile-block-skill`. Limits: the compared shooters are `mm_diff.py`'s Act 1 / 2 rows
+  (36 rows, 51 monsters) and the skill launches of `mm_launch.py` (with the Death Mauler's
+  maul); Act 3 to 5 shooters go through the same `monster_shot_stats` (read, not run). The
+  area path (`FUN_005ad730` from `0x57e203`, a loop that copies a caller's record) uses the
+  same `record + 8` rule; d2d's monster area missiles were not checked.
 
 ## Damage — FUN_0057b7d0, FUN_0057b420
 

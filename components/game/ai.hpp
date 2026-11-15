@@ -881,6 +881,7 @@ inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, cons
     stats.level = monster_level;
     stats.no_hit_roll = !info.to_hit;                                // a ToHit row rolls its owner's attack rating (the caller's)
     stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
+    stats.unblockable = !(info.min > 0 && info.max > 0);              // FUN_005ad730: can-block is the record's physical (+8) != 0 (Fallen Shaman fire has none)
     put_missile_element(stats, element);
     return stats;
 }
@@ -914,6 +915,7 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
     stats.no_hit_roll = !info.to_hit;
+    stats.unblockable = !(phys.low > 0 && phys.high > 0);            // FUN_005ad730: can-block is the record's physical (+8) != 0
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);

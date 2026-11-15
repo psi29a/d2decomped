@@ -84,6 +84,35 @@ int unit_test() {
         assert(taken.poison >= 102 && taken.poison <= 108 && taken.poison_ticks == 400);   // 159 to 169 points in all, not 5,250
         assert(taken.poison * taken.poison_ticks / 256 <= 170);
     }
+    {                                                                  // FUN_005ad730: a shot with no physical record is never blocked (can-block 0 skips the roll)
+        const auto blocks = [&](int min, int max) {
+            GameData::MissileInfo row;
+            row.min = min << 8; row.max = max << 8;
+            auto shot = monster_shot_stats(row, {}, false, false, false, 1);
+            shot.no_hit_roll = true;
+            d2d::rules::Fighter defender;
+            defender.block = 75;
+            d2d::rules::Rng rng(11);
+            int blocked = 0;
+            for (int i = 0; i < 400; ++i) blocked += d2d::rules::monster_blow(defender, 1, d2d::rules::Motion::standing, shot, true, rng, true).blocked ? 1 : 0;
+            return blocked;
+        };
+        assert(blocks(0, 0) == 0 && blocks(0, 5) == 0 && blocks(1, 5) > 0 && blocks(3, 3) > 0);
+        GameData::MissileInfo fire;                                    // a skill's missile with no physical (shafire): missile_blow, the Fallen Shaman's path
+        fire.min = 0; fire.max = 0;
+        GameData::MissileInfo spray;
+        spray.min = 7 << 8; spray.max = 9 << 8;
+        for (const auto* row : { &fire, &spray }) {
+            auto shot = missile_blow(*row, d2d::rules::MissileDamage{}, 30);
+            shot.no_hit_roll = true;
+            d2d::rules::Fighter defender;
+            defender.block = 75;
+            d2d::rules::Rng rng(11);
+            int blocked = 0;
+            for (int i = 0; i < 400; ++i) blocked += d2d::rules::monster_blow(defender, 1, d2d::rules::Motion::standing, shot, true, rng, true).blocked ? 1 : 0;
+            assert((blocked == 0) == (row == &fire));
+        }
+    }
     {                                                                  // the row's poison rides on the missile's poison stats, not an element
         const auto shot = monster_shot_stats(goo, {}, false, false, false, 1);
         assert(shot.poison_min == 8 && shot.poison_max == 8 && shot.poison_len == 200);

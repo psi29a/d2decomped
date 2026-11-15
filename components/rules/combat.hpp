@@ -971,7 +971,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     if (!sure) {
         if (!(running && !missile) && !attacker.no_hit_roll && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
             return taken;
-        if (defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
+        if (!(missile && attacker.unblockable) && defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
         if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
         const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
         if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
