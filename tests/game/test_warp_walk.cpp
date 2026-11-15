@@ -180,7 +180,8 @@ int main(int argc, char** argv) try {
     int next = 2;
     if (sweep) {
         if (argc < 3 + (options.dump ? 1 : 0)) { std::fprintf(stderr, "test_warp_walk: %s SEEDS%s [--levels MIN MAX] [--dists C1,C2] [--dirs N]\n", argv[1], options.dump ? " FILE" : ""); return 1; }
-        options.seeds = std::clamp(std::atoi(argv[next++]), 0, 10000);   // a sweep of at most 10000 maps
+        options.seeds = std::atoi(argv[next++]);
+        if (options.seeds < 1 || options.seeds > 10000) { std::fprintf(stderr, "test_warp_walk: SEEDS is 1..10000\n"); return 1; }
     }
     if (options.dump) {
         // The data loader logs on stdout, so a dump goes to its own file (W, G, D, F, E, T and S lines all go there).
