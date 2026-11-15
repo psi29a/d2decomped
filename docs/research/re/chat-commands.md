@@ -232,9 +232,16 @@ and Storm's string helpers run for real.
 
 ## d2d
 
-No `/players`: the box's Enter (apps/d2d/town/update.cpp) parses only
-`@name`, and spawns get `players.size()` (world/objects.cpp, the quests) or
-`players_in(foes)` (ai.cpp), with no setting. todo.md row 52. `/nopickup`,
+`/players N`: the box's Enter (apps/d2d/town/update.cpp) tests the line
+past its leading blanks with `rules::players_command` (rules/chat_commands.hpp)
+in single player or as the LAN host, not when joined; the count goes into
+`Fight::players_setting`, which `new_game` leaves, and the line goes out as
+`players set to N`. `rules::game_players` (FUN_00535790) gives the larger of
+it and the players for the monsters the World makes (`Fight::game_players`,
+and `players_in(foes)` in ai.cpp; a joined game's come from its host) and for NoDrop (`Fight::drop_counts`).
+tests/test_chat_players.cpp checks both against game.exe's answers
+(`chat_parse.py --inc` writes tests/chat_players_cases.inc). Otherwise the
+Enter parses only `@name`: `/nopickup`,
 `/fps`, `/framerate`, `soundchaosdebug` and `!` (the 0x14 overhead line)
 aren't ported either. The box has no history (Up and Down do nothing while
 typing), and its Enter sends the line as typed: leading blanks go out, and a

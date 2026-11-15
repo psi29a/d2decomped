@@ -26,6 +26,7 @@
 #include "store.hpp"
 #include "ui.hpp"
 
+#include <chat_commands.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
@@ -237,6 +238,18 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
                 if (const std::string_view line = *chat_typing; !line.empty()) {
                     std::string_view target, message = line;
+                    // "/players N" (FUN_0047c420), past the leading blanks (FUN_0047ca70): in
+                    // single player or as the host (game types 0, 6, 8; a joiner's goes to the
+                    // Battle.net commands) the client sets the server's count itself
+                    // (FUN_00535780), and the line goes out as "players set to N".
+                    const auto past_blanks = line.find_first_not_of(" \t\n\v\f\r");
+                    std::string players_said;
+                    if (!net_game && !lan_client && past_blanks != std::string_view::npos)
+                        if (const auto count = d2d::rules::players_command(line.substr(past_blanks))) {
+                            world.fight.players_setting = *count;
+                            players_said = "players set to " + std::to_string(*count);
+                            message = players_said;
+                        }
                     if (line.starts_with('@') && net_game)              // '@' needs a multiplayer game (its entry's flag)
                         if (const auto space = line.find(' '); space != std::string_view::npos && space > 1 && space - 1 < 0x32 && space + 1 < line.size()) {
                             target = line.substr(1, space - 1);

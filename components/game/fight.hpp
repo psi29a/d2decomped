@@ -11,6 +11,7 @@
 #include "gamedata.hpp"
 #include "loot.hpp"
 
+#include <chat_commands.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
@@ -480,6 +481,12 @@ struct Fight {
     int game_difficulty = 0;                         // new_game's
     bool game_expansion = true;                      // new_game's: the acting character's (game +0x70); add_monster marks a classic game's
     bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
+    // The chat box's /players count (DAT_00883d70, FUN_00535780): 0 until
+    // set, never reset, so a later game keeps it (new_game leaves it).
+    int players_setting = 0;
+    // The players a monster's life and experience and NoDrop count
+    // (FUN_00535790): the heroes, or the /players count when it's larger.
+    [[nodiscard]] int game_players() const { return d2d::rules::game_players(int(heroes.size()), players_setting); }
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     std::unordered_map<const Level*, std::vector<Missile>> kept_missiles;   // a level's in flight while another has its turn (World::swap_to)
@@ -851,8 +858,9 @@ struct Fight {
     // unit event 0x5b on a level-up (FUN_00553380) isn't traced or played.
     void merc_share(const Monster& monster);
     bool merc_blow = false;                // the blow being landed is the merc's (its strike, arrow or skill missile)
-    // The players in the game and those of them alive (the party on the
-    // level: one screen), for NoDrop (Loot::drop); alone, 1 and 1.
+    // The players in the game (game_players: the /players count when it's
+    // larger) and those of them alive (the party on the level: one screen),
+    // for NoDrop (Loot::drop); alone, game_players() and 1.
     [[nodiscard]] std::pair<int, int> drop_counts();
     // The acting player's share of a kill: its level penalty (kill_exp),
     // item_addexperience, the experience (levels gained, their sound).

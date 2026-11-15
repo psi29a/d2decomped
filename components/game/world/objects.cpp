@@ -576,7 +576,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (best >= 0) {                               // FUN_005a4940: FUN_005a0760 (champions allowed), FUN_005a2120
                 auto& monster = fight.monsters[std::size_t(best)];
                 const auto boss = d2d::rules::roll_boss(game_data->umods, game_data->monsters.types[std::size_t(monster.type)], diff, true, rng);
-                make_boss(*game_data, monster, boss.kind, boss.mods, -1, boss.name_seed, diff, rng, int(players.size()));
+                make_boss(*game_data, monster, boss.kind, boss.mods, -1, boss.name_seed, diff, rng, fight.game_players());
                 cues.cue_on(unit_key(kSoundOnMonster, monster.id), "object_shrine_jail", now_ms, monster.unit.x, monster.unit.y);
                 d2d::log::info("warping shrine: {} is now a {}", monster.npc.name, boss.kind == d2d::rules::Boss::champion ? "champion" : "unique");
             }
@@ -797,7 +797,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 auto& in_play = fight.spawning.levels[level];
                 if (!std::ranges::any_of(std::array{ -1, 1, 3 }, [&](int radius) { return spawn_spot(*game_data, *level, crowd, &in_play, type, chest_x, chest_y, radius, room, at_x, at_y); })) continue;
                 const d2d::rules::Spawn spawn{ .type = type, .x = at_x, .y = at_y, .seed = fight.spawning.game.next() };
-                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, int(players.size()), level->id).front());
+                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, fight.game_players(), level->id).front());
                 set_mode(*game_data, monster, "S1", now_ms);
                 monster.aware = true;
                 crowd.units.push_back(&risen.emplace_back(std::move(monster)).unit);
