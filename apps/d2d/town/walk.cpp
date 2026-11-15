@@ -372,7 +372,8 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         }
         if (mouse.press_this_frame || !mouse.down) hold_interact = false;
         if (lan_client) for (const auto& command : net.receive()) send(command);   // the UI's (belt, items, points, waypoints) go to the host, in order
-        for (const auto& command : input(mouse, over_ui)) {
+        for (auto& command : input(mouse, over_ui)) {
+            if (auto* move = std::get_if<cmd::Move>(&command); move && !click_goes(*move, frame_ms)) continue;
             if (mouse.press_this_frame && std::holds_alternative<cmd::Interact>(command)) hold_interact = true;   // set before the tick applies it
             send(command);
         }

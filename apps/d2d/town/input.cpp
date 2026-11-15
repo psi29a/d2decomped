@@ -136,6 +136,27 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         return out;
     }
 
+// Whether the mouse's move goes out, as game.exe's client lets it
+// (collision.md "What a held frame sends"). On a warp: a held frame does
+// nothing while the player walks (FUN_00462930), and a click goes once
+// each 500 ms (FUN_00461dc0's type 5), a held one after a stop as a fresh
+// click. On the ground a held frame of a walking player goes each 7 ticks
+// (FUN_004623c0). The World tells a warp's click by its spot, so this does.
+auto Town::click_goes(cmd::Move& move, std::uint32_t frame_ms) -> bool {
+        const int mode = view.player.walking ? 2 : 1;
+        if (level && std::ranges::any_of(level->warps, [&](const auto& warp) { return d2d::game::World::warp_clicked(warp, move.x, move.y); })) {
+            if (!move.fresh && !d2d::rules::held_frame_goes(d2d::rules::kUnitWarp, mode)) return false;
+            if (!d2d::rules::warp_click_goes(frame_ms, warp_click_until)) return false;
+            warp_click_until = frame_ms + d2d::rules::kWarpClickWaitMs;
+            move.fresh = true;
+            return true;
+        }
+        const std::uint32_t tick = frame_ms / d2d::game::kTickMs;
+        if (!d2d::rules::held_walk_goes(move.fresh ? d2d::rules::kClickPress : d2d::rules::kClickHeld, mode, tick, held_walk_tick)) return false;
+        held_walk_tick = tick;
+        return true;
+    }
+
 /**
  * Report whether gameplay input owns the field. Open panels, assignment editors, held items,
  * dialogs and chat prevent field actions from leaking through UI interaction.

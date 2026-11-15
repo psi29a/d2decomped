@@ -18,6 +18,7 @@
 #include "loot.hpp"
 #include "protocol.hpp"
 
+#include <click_spot.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -887,10 +888,10 @@ struct World {
         return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
     }
     // Within reach of the warp's tile unit: rules::unit_distance (the
-    // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
+    // player's size 2, a warp unit's 0) under rules::kWarpReach (FUN_00641530).
     [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
         const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < 5;
+        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < d2d::rules::kWarpReach;
     }
     bool host_warps = false;   // a joined game: the host takes warps; d2d follows its 0x15 there
 
