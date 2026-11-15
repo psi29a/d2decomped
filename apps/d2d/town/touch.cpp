@@ -15,6 +15,7 @@
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "touch_input.hpp"
+#include "use_item.hpp"
 
 #include <inventory.hpp>
 
@@ -72,7 +73,7 @@ auto Town::touch_hides_classic_hud() const -> bool {
 }
 
 auto Town::touch_shows_field_controls() const -> bool {
-    return touch_hides_classic_hud() && pad_field();
+    return touch::touch_interface_visible(touch_enabled, last_device) && pad_field();
 }
 
 auto Town::touch_compact_field() const -> bool {
@@ -300,7 +301,7 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     const touch::Layout chrome = touch::layout_boxes();
     if (pad_field()) touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (speech.npc >= 0 || npc_menu.npc >= 0) {
-        if (phase == touch::Phase::Down && touch_hides_classic_hud() && chrome.map.contains(x, y)) {
+        if (phase == touch::Phase::Down && touch::touch_interface_visible(touch_enabled, last_device) && chrome.map.contains(x, y)) {
             touch_input.clear();
             automap.open = !automap.open;
             if (automap.open) { automap.mini = 0; automap.fade = 2; automap.panel_side = 0; automap.covered = false; }
@@ -323,8 +324,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         }
         return true;
     }
+    const bool on_quest_track = chrome.quest_track.contains(x, y) && touch_hides_classic_hud()
+        && pad_field() && !quest_log.open;
     if (touch_bind == TouchBindPhase::Off && phase == touch::Phase::Down
-        && (chrome.quest.contains(x, y) || chrome.quest_track.contains(x, y))) {
+        && (chrome.quest.contains(x, y) || on_quest_track)) {
         touch_input.clear();
         touch_sheet = {};
         toggle_quest_log();
@@ -358,7 +361,8 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     }
     if (touch_bind == TouchBindPhase::PickSkill) {
         constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
-        const int count = std::min(skillpad::kWheelShown, int(wheel_ids.size()));
+        const int total = int(wheel_ids.size());
+        const int shown = std::min(skillpad::kWheelShown, std::max(0, total - touch_bind_wheel_page));
         if (phase == touch::Phase::Down) {
             const int slot = touch::bind_slot_at(chrome, x, y);
             if (slot >= 0) {
@@ -374,11 +378,16 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             return true;
         }
         if (finger == touch_bind_finger) {
-            if (phase == touch::Phase::Move && count > 0)
-                touch_bind_wheel_at = skillpad::stable_wedge(x - wheel_cx, y - wheel_cy, count, touch_bind_wheel_at);
-            if (phase == touch::Phase::Up && touch_bind_slot >= 0 && count > 0) {
-                touch_bind_wheel_at = skillpad::stable_wedge(x - wheel_cx, y - wheel_cy, count, touch_bind_wheel_at);
-                const int pick = std::clamp(touch_bind_wheel_at, 0, int(wheel_ids.size()) - 1);
+            const auto pick_wedge = [&] {
+                if (shown <= 0) return;
+                const int prev_local = touch_bind_wheel_at - touch_bind_wheel_page;
+                const int local = skillpad::stable_wedge(x - wheel_cx, y - wheel_cy, shown, prev_local);
+                skillpad::wrap_bind_page(touch_bind_wheel_page, touch_bind_wheel_at, local, prev_local, total);
+            };
+            if (phase == touch::Phase::Move && shown > 0) pick_wedge();
+            if (phase == touch::Phase::Up && touch_bind_slot >= 0 && shown > 0) {
+                pick_wedge();
+                const int pick = std::clamp(touch_bind_wheel_at, 0, total - 1);
                 const int chosen = wheel_ids[std::size_t(pick)];
                 touch_apply_bind(touch_bind_slot, chosen);
                 touch_bind = TouchBindPhase::PickSlot;
@@ -471,7 +480,16 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                                                 open, int(snapped_x), int(snapped_y));
             }
             if (click.cmd && !std::holds_alternative<cmd::ToCursor>(*click.cmd)) send(*click.cmd);
-            else if (!click.consumed) send(cmd::Drop{ held->id });
+            else if (!click.consumed) {
+                if (use_item.open() && use_item::in_slot(int(point_x), int(point_y))) {
+                    const bool accepted = held->identified
+                        && (use_item.hc_idx == use_item::kCharsi ? d2d::rules::imbuable(scene->rules, *held, character.expansion)
+                            : use_item.hc_idx == use_item::kLarzuk ? d2d::rules::socketable(scene->rules, *held)
+                            : use_item.hc_idx == use_item::kAnya && d2d::rules::nameable(scene->rules, *held));
+                    const auto out = use_item::press(use_item, int(point_x), int(point_y), now_ms, false, false, true, accepted);
+                    if (out.act == use_item::Act::kPlace) use_item.item = held->id;
+                } else send(cmd::Drop{ held->id });
+            }
         };
         const auto run_sheet_action = [&](touch::ItemAction action) {
             if (action == touch::ItemAction::Buy && touch_stock >= 0 && store.npc >= 0) send(cmd::Buy{ touch_stock, store.tab });
@@ -524,7 +542,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             return phase != touch::Phase::Move;
         }
         if (held) {
+            if (touch_item_finger != -1 && finger != touch_item_finger && phase != touch::Phase::Cancel)
+                return true;
             if (phase == touch::Phase::Cancel) {
+                if (touch_item_finger != -1 && finger != touch_item_finger) return true;
                 close_item_track();
                 touch_pointer = {};
                 return true;
@@ -784,25 +805,32 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             immediate = info && (info->aura || self_cast(*info));
         }
     }
-    release.armed = false;
-    touch_input.event(finger, phase, x, y, target, immediate, false, now_ms);
-    if (touch_input.aiming && touch_input.dragged) {
-        const float dx = touch_input.aim_x - touch_input.origin_x, dy = touch_input.aim_y - touch_input.origin_y;
+    const auto aim_from_drag = [&] {
+        if (!touch_input.aiming) return;
+        touch_input.aim_x = x;
+        touch_input.aim_y = y;
+        const float dx = x - touch_input.origin_x, dy = y - touch_input.origin_y;
+        touch_input.dragged = touch_input.dragged || (!touch_input.stationary && std::hypot(dx, dy) > 10);
+        if (!touch_input.dragged) return;
         const auto face = pad::world_step(dx, dy, kIsoW, kIsoH, 1.f);
         touch_player.face_x = face.x;
         touch_player.face_y = face.y;
         touch_player.move.aim = true;
         touch_player.move.aim_x = dx;
         touch_player.move.aim_y = dy;
-        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill);
-    }
+        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill, dx, dy, true);
+    };
+    if (phase != touch::Phase::Down) aim_from_drag();
+    release.armed = false;
+    touch_input.event(finger, phase, x, y, target, immediate, false, now_ms);
+    if (phase != touch::Phase::Up && phase != touch::Phase::Cancel) aim_from_drag();
     return true;
 }
 
 void Town::drive_touch_hold(float seconds) {
     touch_hold_fraction = 0.f;
-    if (!touch_enabled || touch_item_finger < 0 || touch_sold || !scene || touch_sheet.open || touch_item_drag) {
-        if (touch_item_finger < 0) { touch_hold.clear(); touch_hold_edge = false; }
+    if (!touch_enabled || touch_item_finger == -1 || touch_sold || !scene || touch_sheet.open || touch_item_drag) {
+        if (touch_item_finger == -1) { touch_hold.clear(); touch_hold_edge = false; }
         return;
     }
     const auto found = std::ranges::find(character.items, touch_item, &d2d::d2s::Item::id);
@@ -892,7 +920,7 @@ void Town::drive_touch() {
         touch_player.move.aim = true;
         touch_player.move.aim_x = dx;
         touch_player.move.aim_y = dy;
-        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill);
+        touch_input.preview = resolve_skill(touch_player, touch_input.preview.skill, dx, dy, true);
     }
     pad_walk(touch_player, view.player, false, true, out);
     touch_attack_pick = pad_pick(touch_player, view.player, false);
@@ -924,7 +952,7 @@ void Town::drive_touch() {
  * skill preview and current item hints without committing gameplay actions.
  */
 void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
-    if (!touch_hides_classic_hud() || !scene || !have_world) return;
+    if (!touch::touch_interface_visible(touch_enabled, last_device) || !scene || !have_world) return;
     touch::Layout chrome = touch::layout_boxes();
     const auto& font = scene->font_small;
     const auto& palette = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
@@ -1060,9 +1088,9 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
         {
             const touch::Box& attack_box = chrome.attack;
-            const float cx = attack_box.x + attack_box.width * .5f, cy = attack_box.y + attack_box.height * .5f;
-            halo(cx, cy, attack_box.width * .56f, 18);
-            ring(cx, cy, attack_box.width * .52f, touch_bind_slot == touch::kAttackBind);
+            const float centre_x = attack_box.x + attack_box.width * .5f, centre_y = attack_box.y + attack_box.height * .5f;
+            halo(centre_x, centre_y, attack_box.width * .56f, 18);
+            ring(centre_x, centre_y, attack_box.width * .52f, touch_bind_slot == touch::kAttackBind);
             const int id = bound == touch_sheets.end() ? skillpad::kUnset : bound->second.trigger(touch_input.alternate);
             const int shown = (id == skillpad::kUnset || id == skillpad::kEmpty) ? (skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill))) : id;
             const auto* info = scene->skills.get(shown);
@@ -1071,8 +1099,8 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
         if (touch_bind == TouchBindPhase::PickSkill && !wheel_ids.empty()) {
             constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
-            const int count = std::min(skillpad::kWheelShown, int(wheel_ids.size()));
-            const skillpad::WheelPage page{ touch_bind_wheel_page, count };
+            const int shown = std::min(skillpad::kWheelShown, std::max(0, int(wheel_ids.size()) - touch_bind_wheel_page));
+            const skillpad::WheelPage page{ touch_bind_wheel_page, shown };
             for (int slot = 0; slot < page.shown; ++slot) {
                 const int index = std::clamp(page.start + slot, 0, int(wheel_ids.size()) - 1);
                 const float angle = skillpad::wedge_center(slot, page.shown);
@@ -1117,10 +1145,8 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         return;
     }
     if (tree_open) {
-        if (touch_hides_classic_hud()) {
-            draw_left_chips();
-            button(chrome.map, automap.open ? "M*" : "Map", false, true);
-        }
+        draw_left_chips();
+        button(chrome.map, automap.open ? "M*" : "Map", false, true);
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
         if (touch_learn_skill >= 0) {
             button(touch::kTreeLearnConfirm, "Confirm");
@@ -1136,12 +1162,10 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (inv_open) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 36, "Inventory . Done closes");
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 75,
             identify_with >= 0 ? "Tap an unidentified item . Back cancels" : touch_item_hint);
-        if (touch_hides_classic_hud()) {
-            draw_left_chips();
-            button(chrome.map, automap.open ? "M*" : "Map", false, true);
-        }
+        draw_left_chips();
+        button(chrome.map, automap.open ? "M*" : "Map", false, true);
         draw_sheet();
-        if (touch_hold_fraction > 0.f && touch_item_finger >= 0)
+        if (touch_hold_fraction > 0.f && touch_item_finger != -1)
             ring(touch_item_x, touch_item_y, 22.f + 18.f * touch_hold_fraction, false);
         return;
     }
@@ -1209,7 +1233,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
     }
     if (!touch_shows_field_controls()) {
-        if (touch_hides_classic_hud()) draw_left_chips();
+        draw_left_chips();
         button(chrome.map, automap.open ? "M*" : "Map", false, true);
         return;
     }

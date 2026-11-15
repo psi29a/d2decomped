@@ -30,8 +30,12 @@ inline bool g_touch_classic_hud = false;
 /** Last physical device that drove this seat. Touch HUD shows only for Touch. */
 enum class LastDevice { Gamepad, MouseKeyboard, Touch };
 
+[[nodiscard]] inline bool touch_interface_visible(bool enabled, LastDevice last) {
+    return enabled && last == LastDevice::Touch;
+}
+
 [[nodiscard]] inline bool touch_hud_visible(bool enabled, LastDevice last, bool classic_hud = false) {
-    return enabled && last == LastDevice::Touch && !classic_hud;
+    return touch_interface_visible(enabled, last) && !classic_hud;
 }
 
 [[nodiscard]] inline bool touch_owns_locomotion(LastDevice last, int fingers, bool item_drag) {
@@ -67,10 +71,11 @@ inline constexpr Box kTreeAssign{ 16.f, 545.f, 240.f, 50.f };
 }
 
 /** Two taps of the same control: close in time and in place, not a drag. */
-[[nodiscard]] inline bool deliberate_double_tap(float x0, float y0, float x1, float y1, std::uint32_t t0, std::uint32_t t1,
+[[nodiscard]] inline bool deliberate_double_tap(float first_x, float first_y, float second_x, float second_y,
+                                                std::uint32_t first_ms, std::uint32_t second_ms,
                                                 float slop = kMoveTapSlop, std::uint32_t window = kMoveDoubleTapMs) {
-    if (t1 < t0 || t1 - t0 > window) return false;
-    return std::hypot(x1 - x0, y1 - y0) <= slop;
+    if (second_ms < first_ms || second_ms - first_ms > window) return false;
+    return std::hypot(second_x - first_x, second_y - first_y) <= slop;
 }
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
@@ -299,7 +304,7 @@ public:
     Target preview;
     std::vector<Target> casts;
 
-    [[nodiscard]] bool move_held() const { return movement_ >= 0; }
+    [[nodiscard]] bool move_held() const { return movement_ != -1; }
     [[nodiscard]] bool owns(std::int64_t finger) const { return finger == movement_ || finger == attack_ || finger == skill_; }
 
     /** Drop ownership for a finger that lifted (routes that skip event() must call this). */
@@ -318,6 +323,7 @@ public:
         belt_quick = menu = done = run_toggle = false;
         belt_last_ = -1; belt_ms_ = 0;
         move_tap_ms_ = 0;
+        move_dragged_ = false;
     }
     void frame() { attack_press = menu = done = false; belt = destination = -1; belt_quick = run_toggle = false; casts.clear(); }
 
@@ -351,6 +357,7 @@ public:
                     && deliberate_double_tap(move_tap_x_, move_tap_y_, x, y, move_tap_ms_, now_ms);
                 if (second) { run_toggle = true; move_tap_ms_ = 0; }
                 movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; move_down_ms_ = now_ms;
+                move_dragged_ = false;
             }
             else if (chrome.attack.contains(x, y) && attack_ < 0) {
                 attack_ = finger; attack_press = attack_down = true;
@@ -372,14 +379,15 @@ public:
         if (finger == movement_) {
             if (phase == Phase::Up) {
                 const float dist = std::hypot(x - move_origin_x_, y - move_origin_y_);
-                const bool short_tap = dist <= kMoveTapSlop
+                const bool short_tap = !move_dragged_ && dist <= kMoveTapSlop
                     && (now_ms == 0 || move_down_ms_ == 0 || (now_ms >= move_down_ms_ && now_ms - move_down_ms_ <= kMoveDoubleTapMs));
                 if (short_tap && now_ms > 0) { move_tap_ms_ = now_ms; move_tap_x_ = x; move_tap_y_ = y; }
                 else move_tap_ms_ = 0;
-                movement_ = -1; move_x = move_y = 0;
+                movement_ = -1; move_x = move_y = 0; move_dragged_ = false;
             } else {
                 const float dx = x - move_origin_x_, dy = y - move_origin_y_;
                 const float length = std::hypot(dx, dy);
+                if (length > kMoveTapSlop) move_dragged_ = true;
                 move_x = length > 12 ? dx / std::max(length, 55.f) : 0;
                 move_y = length > 12 ? dy / std::max(length, 55.f) : 0;
             }
@@ -397,6 +405,7 @@ public:
 private:
     std::int64_t movement_ = -1, skill_ = -1, attack_ = -1;
     float move_origin_x_ = 0, move_origin_y_ = 0;
+    bool move_dragged_ = false;
     std::uint32_t move_down_ms_ = 0, move_tap_ms_ = 0;
     float move_tap_x_ = 0, move_tap_y_ = 0;
     int belt_last_ = -1;

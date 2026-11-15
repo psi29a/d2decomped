@@ -219,8 +219,8 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
     const int box_x = touch_layout ? int(touch::safe_inset.left + (800.f - touch::safe_inset.left - touch::safe_inset.right - kBoxW) * .5f)
                                   : (int(kScreenWidth) - kBoxW) / 2;
     const int line_count = int(speech.lines.size());
-    const int box_h = touch_layout ? std::max(0x7a, 24 + line_count * 18) : 0x7a;
-    const int top = touch_layout ? int(600.f - touch::safe_inset.bottom - 12.f - float(box_h)) : 12;
+    const int box_h = touch_layout ? touch_speech_box_height(line_count, touch::safe_inset.top, touch::safe_inset.bottom) : 0x7a;
+    const int top = touch_layout ? touch_speech_box_top(box_h, touch::safe_inset.top, touch::safe_inset.bottom) : 12;
     for (int y = std::max(0, top - 5); y < top - 5 + box_h; ++y)
         for (int x = box_x; x < box_x + kBoxW; ++x) {
             auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];

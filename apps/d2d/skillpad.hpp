@@ -183,6 +183,26 @@ inline constexpr int kWheelShown = 8;       // icons on the ring at once; the re
     return std::min(count - 1, page * kWheelShown + highlight % kWheelShown);
 }
 
+/** Page the 8-icon bind wheel when the highlight wraps last→first or first→last. */
+inline void wrap_bind_page(int& page, int& highlight, int local, int prev_local, int total) {
+    if (total <= 0) { page = 0; highlight = 0; return; }
+    page = std::clamp(page, 0, (total - 1) / kWheelShown * kWheelShown);
+    const int shown = std::min(kWheelShown, total - page);
+    if (shown <= 0) { page = 0; highlight = 0; return; }
+    local = std::clamp(local, 0, shown - 1);
+    if (total > shown && prev_local == shown - 1 && local == 0) {
+        page = std::min(page + kWheelShown, (total - 1) / kWheelShown * kWheelShown);
+        highlight = page;
+        return;
+    }
+    if (page > 0 && prev_local == 0 && local == shown - 1) {
+        page = std::max(0, page - kWheelShown);
+        highlight = page + std::min(kWheelShown, total - page) - 1;
+        return;
+    }
+    highlight = page + local;
+}
+
 // The icons actually drawn. `start` is the previous window. The highlight
 // stays inside it; a highlight that walks off the end pulls the window along.
 struct WheelPage { int start = 0, shown = 0; };

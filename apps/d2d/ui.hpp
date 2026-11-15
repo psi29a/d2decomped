@@ -297,6 +297,16 @@ struct Speech {
 inline constexpr int kSpeechBoxTop = 12 - 5;
 inline constexpr int kSpeechBoxBottom = kSpeechBoxTop + 0x7a;
 
+[[nodiscard]] inline int touch_speech_box_height(int line_count, float top_inset, float bottom_inset) {
+    const int wanted = std::max(0x7a, 24 + std::max(line_count, 0) * 18);
+    const int max_h = std::max(0x7a, int(600.f - bottom_inset - 12.f - top_inset - 10.f));
+    return std::min(wanted, max_h);
+}
+
+[[nodiscard]] inline int touch_speech_box_top(int box_h, float top_inset, float bottom_inset) {
+    return std::max(int(top_inset + 10.f), int(600.f - bottom_inset - 12.f - float(box_h)));
+}
+
 // FUN_0049d5a0 draws a line whole while it sits in the box, and FUN_00501df0
 // draws one that only partly sits there. The glyph is the cell ending on
 // the baseline. False: the line is clear of the box.

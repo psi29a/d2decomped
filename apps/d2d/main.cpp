@@ -514,7 +514,7 @@ void apply_safe_inset(const Window& win) {
     const float right_from_safe = std::max(0.f, band_right - right);
 #if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
     // The landscape notch sits in the widescreen gutter, outside this band.
-    // A few points of sliver, plus the home indicator. Not both side edges.
+    // A few points of sliver, plus the home indicator. Keep leftover left and right.
     constexpr float kMaxHorizontal = 20.f;
     constexpr float kMaxVertical = 36.f;
 #else
@@ -523,9 +523,8 @@ void apply_safe_inset(const Window& win) {
 #endif
     auto clamp_h = [kMaxHorizontal](float value) { return std::clamp(value, 0.f, kMaxHorizontal); };
     auto clamp_v = [kMaxVertical](float value) { return std::clamp(value, 0.f, kMaxVertical); };
-    touch::safe_inset.left = touch::safe_inset.right = 0.f;
-    if (left_from_safe >= right_from_safe && left_from_safe > 0.f) touch::safe_inset.left = clamp_h(left_from_safe);
-    else if (right_from_safe > 0.f) touch::safe_inset.right = clamp_h(right_from_safe);
+    touch::safe_inset.left = clamp_h(left_from_safe);
+    touch::safe_inset.right = clamp_h(right_from_safe);
     touch::safe_inset.top = clamp_v(std::max(0.f, top));
     touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
 #else
