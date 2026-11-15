@@ -107,6 +107,7 @@
 #endif
 #ifdef __ANDROID__
 #include <SDL3/SDL_main.h>   // SDL's activity calls ours as SDL_main
+#include <pthread.h>
 #endif
 
 using namespace d2d::client;
@@ -1909,6 +1910,27 @@ extern "C" void d2d_sigint_handler(int) {
  * Touch controls remain opt-in through the flag or saved configuration.
  */
 int main(int argc, char** argv) {
+#ifdef __ANDROID__
+    // SDL calls this on its Java thread, with Android's 1 MB stack; this
+    // frame and load_scene's take 1.1 MB. Run again on a thread of 16 MB.
+    static thread_local bool on_own_stack = false;
+    if (!on_own_stack) {
+        struct Call { int argc; char** argv; int result; } call{argc, argv, 1};
+        pthread_attr_t attributes;
+        pthread_attr_init(&attributes);
+        pthread_attr_setstacksize(&attributes, 16u << 20);
+        pthread_t thread;
+        const auto body = [](void* raw) -> void* {
+            auto* const pending = static_cast<Call*>(raw);
+            on_own_stack = true;
+            pending->result = SDL_main(pending->argc, pending->argv);
+            return nullptr;
+        };
+        if (pthread_create(&thread, &attributes, body, &call) != 0) return 1;
+        pthread_join(thread, nullptr);
+        return call.result;
+    }
+#endif
     // Ctrl-C and SIGTERM set the loop-quit flag instead of terminating
     // mid-frame. SIGPIPE gets ignored so a closed devctl client doesn't
     // kill the game.
