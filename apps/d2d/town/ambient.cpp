@@ -94,22 +94,34 @@ auto Town::critter_tick(std::uint32_t frame_ms) -> void {
             }
         };
         if (level->id != critters_level) {
-            critters.clear();                              // the last level's go at once, even while the camp waits
-            std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp;
-            if (level == &game_data.town) {                // the camp keeps no rooms: made from the map seed
-                camp = d2d::game::camp_room_seeds(game_data);
-                if (!camp) return;                         // the builder's busy: next frame
-            }
+            critters.clear();                              // the last level's go at once
             critters_level = level->id;
-            critter_rooms.assign(level->rooms.size(), false);
-            // ponytail: the camp's come all at once (it keeps no rooms to come up); it's small.
-            if (camp) for (const auto& room : *camp) room_up(room);
+            critter_rooms.clear();
         }
         // FUN_0044c750: a room's critters as it comes up on the client, when
         // the host adds it; d2d's rooms come up the same way (Spawning's `up`).
-        if (const auto state = world.fight.spawning.levels.find(level); state != world.fight.spawning.levels.end())
-            for (std::size_t index = 0; index < state->second.up.size() && index < critter_rooms.size(); ++index)
-                if (state->second.up[index] && !critter_rooms[index]) { critter_rooms[index] = true; room_up(level->rooms[index]); }
+        // The camp keeps no rooms: a room's seed is its DRLG room's (by
+        // level_room's index, as keep_camp_seeds), made from the map seed.
+        if (const auto state = world.fight.spawning.levels.find(level); state != world.fight.spawning.levels.end()) {
+            const auto& up = state->second.up;
+            if (critter_rooms.size() < up.size()) critter_rooms.resize(up.size(), false);
+            std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp;
+            for (std::size_t index = 0; index < up.size(); ++index) {
+                if (!up[index] || critter_rooms[index]) continue;
+                if (level != &game_data.town) {
+                    critter_rooms[index] = true;
+                    if (index < level->rooms.size()) room_up(level->rooms[index]);
+                    continue;
+                }
+                if (!camp) camp = d2d::game::camp_room_seeds(game_data);
+                if (!camp) break;                          // the builder's busy: next frame
+                critter_rooms[index] = true;
+                const auto rect = d2d::game::level_room(*level, index);
+                if (!rect) continue;
+                const auto seeded = std::ranges::find_if(*camp, [&](const d2d::drlg::Outdoor::RoomSeed& room) { return room.x == rect->x && room.y == rect->y; });
+                if (seeded != camp->end()) room_up(*seeded);
+            }
+        }
         const float player_x = view.player.x, player_y = view.player.y;
         // FUN_006416d0: subtiles apart less half of each one's size (a critter's 0, a unit's 2), (smaller + 2 x larger) / 2.
         auto apart = [](float from_x, float from_y, float to_x, float to_y) {

@@ -90,7 +90,8 @@ larger) / 2.
 
 d2d (2026-10-25): `Town::critter_tick` makes a room's as it comes up
 (Spawning's `up`, the rooms the host would add; the camp keeps no rooms,
-so its come at once from `camp_room_seeds`) and thinks a 40 ms client
+so a camp room's seed is its DRLG room's from `camp_room_seeds`, matched
+by `level_room`'s index as it comes up) and thinks a 40 ms client
 frame at a time; `debug critters` lists them. Seed 3: 23 chickens in the
 camp, 35 rats / 7 bats in the Den once its rooms are up, and after `debug
 kill` rats rest at the corpses (Arne's 1.14d client: 15 chickens in its own camp). ponytail: a critter's unit seed is the
