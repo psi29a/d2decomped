@@ -671,7 +671,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             if (actor->pmode != kModeGH || now_ms >= actor->pmode_until) actor->knock.reset();   // done, or cut short
         }
         bool knocked_now = false;   // this call started a knock: game.exe's flag chain is knockback OR get-hit per hit (LAB_0057d364)
-        if (foe.knocked_from && !attack_mode(actor->pmode) && actor->pmode != kModeBL) {
+        // FUN_00580a70 asks FUN_0057edd0 for new mode 0x13 first (0x580adc): it refuses a knockback in a get-hit (a slide, drawn as GH
+        // with `knock` set, is allowed: 0x13 from 0x13) and in a block, like a big hit's mode 4 (tools/emu/mode_switch.py compare-knock).
+        if (foe.knocked_from && !attack_mode(actor->pmode) && actor->pmode != kModeBL && (actor->pmode != kModeGH || actor->knock)) {
             const auto [from_x, from_y] = *foe.knocked_from;
             const float dx = actor->player.x - from_x, dy = actor->player.y - from_y, distance = std::max(std::hypot(dx, dy), 0.01f);
             if (const float next_x = actor->player.x + dx / distance, next_y = actor->player.y + dy / distance; !level->unit_blocked(next_x, next_y, actor->player.shape)) {

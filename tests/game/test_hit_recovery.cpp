@@ -253,6 +253,25 @@ int main(int argc, char** argv) try {
         world.fight.hurt_side(side, start_ms + 40);
         assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until < start_ms + 40 * 40);
     }
+    // A knocking hit during a get-hit starts no knockback and moves nothing (FUN_00580a70 -> FUN_0057edd0 refuses new mode 0x13 from GH at 0x580adc).
+    {
+        auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+        World world(&*data, -1, -1);
+        world.enter(hero);
+        world.fight.update_fighters(1000 * kTickMs);
+        auto& actor = *world.actor;
+        std::array<Foe, 2> side{};
+        side[0].hits = 1;
+        side[0].damage = 1;
+        side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 1, .landed = true });
+        side[0].knocked_from = std::pair{ actor.player.x - 1.f, actor.player.y };
+        const std::uint32_t start_ms = 1000 * kTickMs;
+        actor.pmode = kModeGH;
+        actor.pmode_until = start_ms + 17 * 40;
+        const auto x = actor.player.x;
+        world.fight.hurt_side(side, start_ms + 40);
+        assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until == start_ms + 17 * 40 && actor.player.x == x);
+    }
     std::printf("test_hit_recovery: block length and the get-hit hold match game.exe's\n");
     return 0;
 } catch (const std::exception& e) {

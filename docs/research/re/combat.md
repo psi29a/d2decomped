@@ -509,13 +509,18 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   slide. One hit is a knockback OR a get-hit (the flag chain at LAB_0057d364),
   so a hit that started a knock in the same call starts no get-hit. Checked
   by `tools/emu/mode_switch.py` (modes 0..19) against
-  `test_hit_recovery --hit-modes`. Not changed: a knocking hit inside a
-  get-hit. `FUN_00580a70`, the knockback's switch (flag 8), calls
-  `FUN_0057edd0` too (0x580adc, new mode 0x13, above 0x11, so the same
-  current-mode table), and game.exe refuses it from GH; d2d still starts the
-  knockback there, which restarts the hold (not checked against a differential
-  for new mode 0x13; follow-up). Not modelled: the `unit + 0x60` branch (a
-  player holding a cursor item refuses mode 4 from modes 0..20: run, not modelled).
+  `test_hit_recovery --hit-modes`. A knocking hit inside a get-hit or block
+  starts no knockback either: `FUN_00580a70`, the knockback's switch (flag 8),
+  calls `FUN_0057edd0` too (0x580adc, new mode 0x13, above 0x11, so the same
+  current-mode table), which refuses it from DT, GH, BL and DD, and the flag
+  chain then returns, so the hit starts nothing (its damage is already taken:
+  callers run `FUN_0057c6c0` before `FUN_0057cee0`). `Fight::hurt_side` skips
+  the knock in a real get-hit (GH without `knock`); checked by
+  `mode_switch.py compare-knock` against `test_hit_recovery --knock-modes`.
+  Not modelled: `FUN_00580a70`'s second gate, `FUN_0057eec0` (0x580af6, the
+  used skill), which decides a knock during a swing or cast, nor the
+  `unit + 0x60` branch (a player holding a cursor item is refused mode 4 from
+  modes 0..20: run; mode 0x13 the same way: read).
 - **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
   get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
   (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:
