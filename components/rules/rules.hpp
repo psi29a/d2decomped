@@ -2519,9 +2519,9 @@ inline std::string gamble_upgrade_code(const Tables& tables, const std::string& 
 // unidentified, and put on its type's page; one that doesn't fit ends the
 // roll. The list is the player's (FUN_00578ae0 rolls when the vendor holds
 // none for them) and lasts the talk: ending it (C->S 0x30, FUN_00572f20 ->
-// FUN_00537190) frees it, so each talk rolls a new one.
-// ponytail: FUN_00572f20 frees it only when no other player is still
-// talking to the vendor; d2d rolls anew at every opening regardless.
+// FUN_00537190) frees it, so each talk rolls a new one; FUN_00572f20
+// frees it only when no other player is still talking to the vendor, and
+// a list kept that way comes back at the player's next talk (World::deal).
 inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int difficulty, bool expansion, Rng& proxy, Rng& game,
                          std::vector<bool>* found_uniques = nullptr) {
     Store store;

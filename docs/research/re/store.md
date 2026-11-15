@@ -412,9 +412,12 @@ The list is the player's own, and it lasts one talk with the vendor:
 - An interaction cut short (`FUN_00555500` → `FUN_00536b50`) frees the
   node whether or not anyone else is talking.
 
-d2d rolls a list at every opening, so every talk gets a new one, as in
-game.exe. Not yet: game.exe keeps the player's list if another player
-is still talking to the vendor when they close.
+d2d (`World::deal`): CloseTrade with another player still talking to
+the vendor (their `talking[0]`, on the same level) keeps the closer's
+list in `World::kept_gambles`, and their next opening takes it back
+instead of rolling; else the list is dropped and the next talk rolls a
+new one. Leaving town drops the kept lists with the stocks
+(`FUN_00536580` frees the record's +8 list too).
 
 ## Item generation (d2d, `components/rules` `generate_item`)
 

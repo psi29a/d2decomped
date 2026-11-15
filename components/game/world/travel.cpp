@@ -266,6 +266,7 @@ auto World::leave_town(const Level* from) -> void {
         if (!in_town(from) || from == level) return;
         for (auto& player : players) player->store = {};
         stocks.clear();
+        kept_gambles.clear();                          // FUN_00536580 frees the record's gamble lists (+8) with its stock
     }
 
 // The save's act (its difficulty byte: 0x80 and the act in the low bits):
