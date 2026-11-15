@@ -130,6 +130,11 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
                     for (const int affix : item.affixes) { writer.write(affix != 0, 1); if (affix) writer.write(std::uint32_t(affix), 11); }
                     break;
                 case 2:
+                    if (item_tables.charms.contains(item.code)) {
+                        writer.write(item.charm_prefix, 1);
+                        writer.write(std::uint32_t(item.charm_prefix ? item.prefix : item.suffix), 11);
+                    }
+                    if (item_tables.body_parts.contains(item.code)) writer.write(std::uint32_t(item.qsub), 10);
                     if (item.code == "tbk" || item.code == "ibk") writer.write(std::uint32_t(std::max(item.tome, 0)), 5);
                     break;
                 default: break;

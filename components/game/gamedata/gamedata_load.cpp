@@ -918,7 +918,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
     if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
-        game_data.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
+        game_data.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc, &types);
     for (const auto* table : { &weapons, &armor, &misc })
         for (std::size_t row = 0; row < table->size(); ++row)
             game_data.rules.item_info[std::string(table->get(row, "code"))] = {
