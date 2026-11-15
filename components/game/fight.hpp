@@ -1216,7 +1216,8 @@ struct Fight {
     // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
     // variant (+0xf of its monster data) to it: necromage1..4, rolled at
     // the raise (FUN_005c4180: the caster's seed & 3).
-    // ponytail: on d2d's rng; d2d keeps no player seed.
+    // d2d's rng(4) is that step on Fight::rng (summon_one): deviations.md
+    // approximation 18.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
