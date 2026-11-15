@@ -372,7 +372,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound },
                                     std::pair{ "ProgSound", &missile_info.prog_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
- missile_info.elen = number("ELen"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
+ missile_info.elen = number("ELen"); missile_info.dmg_sym_text = missiles_table.get(row_index, "DmgSymPerCalc"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -629,7 +629,14 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             }
         }
     }
-    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calc names skills
+    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calcs name skills
+        if (!missile_info.dmg_sym_text.empty()) {
+            std::string err;
+            missile_info.dmg_sym = d2d::rules::compile_calc(missile_info.dmg_sym_text, skill_tables.names, &err);
+            ++calcs;
+            if (!err.empty()) bad.push_back(name + " DmgSymPerCalc: " + err);
+        }
+    for (auto& [name, missile_info] : game_data.missiles)
         if (!missile_info.edmg_sym_text.empty()) {
             std::string err;
             missile_info.edmg_sym = d2d::rules::compile_calc(missile_info.edmg_sym_text, skill_tables.names, &err);
