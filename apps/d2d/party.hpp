@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace d2d::client {
@@ -28,12 +27,15 @@ struct PartyPanel {
     struct Click { enum Kind { kNone, kClose, kButton, kFlag, kLeave } kind = kNone; std::uint32_t player = 0; int flag = 0; };
     // The roster's order (FUN_00479ab0's regroup, party.md): by party word
     // ascending, 0xffff (none) last, our own party's group first; inside a
-    // group by unit id.
-    // ponytail: game.exe sorts inside a group by record +0x18 or the 16-bit
-    // string at +0 (0x712efc bit 1, FUN_004799c0); neither field is traced.
+    // group by the player name at record +0 (FUN_004793c0 copies it there),
+    // a byte-wise strcmp insertion sort (FUN_004795f0).
+    // ponytail: with bit 1 of the game flags (0x712efc, S->C 0x01) set,
+    // FUN_004799c0 sorts by record +0x18 instead; that field isn't traced.
     static void order(std::vector<Row>& rows, int own_party) {
         const auto group = [own_party](const Row& row) { return own_party != 0xffff && row.party == own_party ? -1 : row.party; };
-        std::ranges::sort(rows, [&group](const Row& lhs, const Row& rhs) { return std::pair(group(lhs), lhs.id) < std::pair(group(rhs), rhs.id); });
+        std::ranges::stable_sort(rows, [&group](const Row& lhs, const Row& rhs) {
+            return group(lhs) != group(rhs) ? group(lhs) < group(rhs) : lhs.name < rhs.name;
+        });
     }
     bool open = false;
     bool close_down = false;               // 0x7bf030
