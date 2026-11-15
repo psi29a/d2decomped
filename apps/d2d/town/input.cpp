@@ -70,6 +70,20 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             return out;
         }
         if (over_ui) return out;
+        if (touch_enabled && pad_field() && !touch_pointer.active) {
+            // Touch stick and ground taps own locomotion; a stale synthetic mouse would keep click-to-walk alive.
+            const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
+            const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
+            const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
+            const int hovered_monster_index = hovered_monster();
+            const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
+            if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {
+                if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
+            } else if (mouse.rpress_this_frame) {
+                out.push_back(cmd::UseSkill{ skillbar.right, world_x, world_y, live ? view.monsters[std::size_t(hovered_monster_index)].id : -1, false, skillbar.right_item });
+            }
+            return out;
+        }
         // Screen -> world: invert the iso projection around the player,
         // who sits at (kW/2, kViewY).
         const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);

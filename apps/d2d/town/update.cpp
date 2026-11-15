@@ -1075,6 +1075,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
+        if (touch_enabled && pad_field() && !touch_pointer.active) {
+            mouse.down = false;
+            mouse.press_this_frame = false;
+        }
         if (have_world) walk(mouse, over_ui || press_on_ui, audio, frame_ms, last_ms);
         // Walked away from the NPC whose windows are open: they shut, as Esc.
         // game.exe's panels leave no world to walk in; widescreen does

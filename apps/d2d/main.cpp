@@ -1254,6 +1254,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                 pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press,
                                 pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y }
                 : Town::PadMove{};
+            if (town.touch_enabled && town.pad_field()) town.pad.move = {};
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
