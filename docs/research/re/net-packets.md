@@ -768,7 +768,11 @@ ids).
   +0x1c to the life and +0x10 to the area, and for a PetType 7 node (the
   merc) whose unit is known sets its life (stat 6) to max life x life /
   100. So the sender (`FUN_0053cdf0`, +1 0 for a non-player) feeds the
-  portraits' pet life.
+  portraits' pet life: icon type 1 calls `FUN_00493a00` with ECX the
+  pet's id and its PetType row as the flag (0x493e43..0x493e4d); a
+  nonzero flag reads +0x1c through `FUN_00479080` (0 would read the party
+  roster's `+0x14`, `FUN_0047a150`). 0 draws no bar, over 99 a full one.
+  d2d: `NetGame::Pet::life` for every row.
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags. One
   sender is `FUN_0053de20` (ECX unused, EDX the first id, stack the

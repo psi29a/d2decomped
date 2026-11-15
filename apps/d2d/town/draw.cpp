@@ -718,9 +718,10 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // hint spent all the same) and d2d.cfg's popup_hireling (game.exe: the
 // registry's PopupHireling) is 1.
 // A joined game's summons are the host's: its pet list (0x7a), ours by owner.
-// ponytail: their life is the unit's (0x0c hits), not the list's +0x1c,
-// which 0x7f with +1 = 0 sets (FUN_00479010, net-packets.md); NetGame
-// keeps only a player's 0x7f.
+// Their bar is the list node's life (FUN_00493a00 with the PetType row as
+// its flag, nonzero: FUN_00479080, +0x1c), 100 from 0x7a and then 0x7f's
+// with +1 0 (FUN_00479010, NetGame::Pet::life); 0 draws no bar, over 99 a
+// full one.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
@@ -794,8 +795,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
             const auto row = int(&type - game_data.pet_types.data());
             for (const auto& pet : net_game->pets) {
                 if (pet.owner != net_game->self_id || pet.pettype != row) continue;
-                const auto unit = net_game->units.find(std::uint64_t(1) << 32 | pet.id);
-                if (count++ == 0) { first_class = pet.cls; first_life = unit == net_game->units.end() ? 100 : unit->second.life * 100 / 128; }
+                if (count++ == 0) { first_class = pet.cls; first_life = pet.life == 0 ? -1 : std::min(pet.life, 100); }
             }
         }
         if (count == 0) continue;

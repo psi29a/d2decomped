@@ -126,7 +126,8 @@ struct NetGame {
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     // The client's pet list (0x7a, FUN_0045e860 / FUN_00478b10): the portraits'.
-    struct Pet { std::uint32_t id = 0, owner = 0; int pettype = 0, cls = 0; };
+    // `life`: the node's +0x1c, 100 at first, then 0x7f's with +1 0 (FUN_00479010).
+    struct Pet { std::uint32_t id = 0, owner = 0; int pettype = 0, cls = 0, life = 100; };
     std::vector<Pet> pets;
     float self_x = 0, self_y = 0;     // where the host put us (0x15)
     float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
