@@ -203,6 +203,30 @@ int main(int argc, char** argv) try {
         assert(block(world, 0, true, now, record, frames, speed) == 3);
         assert(block(world, 86, false, now, record, frames, speed) == 3 && block(world, 86, true, now, record, frames, speed) == 2);
     }
+    // Two big hits 5 ticks apart: the get-hit is not restarted (FUN_0057edd0 refuses GH from GH): both holds end 10 ticks after the first hit.
+    {
+        int first = 0, second = 0;
+        two_hits(first, second);
+        assert(first == 10 && second == 10);
+    }
+    // A big hit during a knockback slide is a get-hit (game.exe allows mode 4 from mode 0x13: 0x57ee0b) and ends the slide.
+    {
+        auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+        World world(&*data, -1, -1);
+        world.enter(hero);
+        world.fight.update_fighters(1000 * kTickMs);
+        auto& actor = *world.actor;
+        std::array<Foe, 2> side{};
+        side[0].hits = 1;
+        side[0].damage = 20;
+        side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+        const std::uint32_t start_ms = 1000 * kTickMs;
+        actor.pmode = kModeGH;
+        actor.pmode_until = start_ms + 40 * 40;
+        actor.knock = std::array{ float(actor.player.x), float(actor.player.y), float(actor.player.x) + 5.f, float(actor.player.y) };
+        world.fight.hurt_side(side, start_ms + 40);
+        assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until < start_ms + 40 * 40);
+    }
     std::printf("test_hit_recovery: block length and the get-hit hold match game.exe's\n");
     return 0;
 } catch (const std::exception& e) {

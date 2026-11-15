@@ -582,7 +582,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // FUN_0057cb00's size test (rules::get_hit) once per landed blow, as game.exe tests one damage
         // record at a time (FUN_0057c6c0 then FUN_0057cee0 per hit): the divisor by that blow's hit class
         // (16 for every Act 1 melee class and any blow with an element), 37.5 % from that share of max
-        // life, 75 % from twice it, sure from four times; every blow rolls, a get-hit restarts.
+        // life, 75 % from twice it, sure from four times; every blow rolls; a hit inside a get-hit starts no new one (FUN_0057edd0).
         // What the unit's states absorbed (Bone Armor, Cyclone Armor, Energy Shield: absorb) is off the
         // blows already: an armor's from each blow's own part (rules::absorb_blows).
         // The merc's life carries the 256ths as a monster's (hurt).
@@ -657,6 +657,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             }
             if (actor->pmode != kModeGH || now_ms >= actor->pmode_until) actor->knock.reset();   // done, or cut short
         }
+        bool knocked_now = false;   // this call started a knock: game.exe's flag chain is knockback OR get-hit per hit (LAB_0057d364)
         if (foe.knocked_from && !attack_mode(actor->pmode) && actor->pmode != kModeBL) {
             const auto [from_x, from_y] = *foe.knocked_from;
             const float dx = actor->player.x - from_x, dy = actor->player.y - from_y, distance = std::max(std::hypot(dx, dy), 0.01f);
@@ -664,6 +665,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->knock = std::array{ float(actor->player.x), float(actor->player.y), next_x, next_y };
                 set_pmode(kModeGH, now_ms);
                 actor->pmode_until = now_ms + d2d::game::knock_ms(std::hypot(next_x - (*actor->knock)[0], next_y - (*actor->knock)[1]));
+                knocked_now = true;
             }
         }
         for (std::size_t k = 0; k < 2; ++k)
@@ -708,11 +710,18 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // absorbed to nothing (FUN_0057cee0: state 21 skips FUN_0057cb00's
         // too-small test; result flag 4 is the hit landing, FUN_0057ec10,
         // before any damage). That's all a stun does to a player: no input
-        // is refused.
+        // is refused. A hit inside a get-hit or block starts no new one,
+        // stunned or not (FUN_0057edd0 refuses mode 4 from modes 4 and 9).
         // Else the size test per landed blow (rules::struck_big).
         // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
         const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
-        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL) set_pmode(kModeGH, now_ms);
+        // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
+        // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide.
+        const bool get_hit_running = actor->pmode == kModeGH && !actor->knock;
+        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL && !get_hit_running && !knocked_now) {
+            actor->knock.reset();
+            set_pmode(kModeGH, now_ms);
+        }
         // Too small for mode 4 (FUN_0057cb00 returns 1): the server only sets
         // flag 0x8000. The client still plays the struck sounds, command 0x13
         // calling FUN_004cc5b0 with mode 0x13 (LAB_00461439). A miss or a block

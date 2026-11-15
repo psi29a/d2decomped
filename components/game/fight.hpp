@@ -254,7 +254,7 @@ struct Fight {
         // the last skill's do plus its delay.
         std::uint32_t burning = 0, skill_delay = 0;
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
-        // It stops nothing; every hit while it runs is a get-hit (FUN_0057cee0).
+        // It stops nothing; a hit while it runs is a get-hit (FUN_0057cee0), unless one is already running (FUN_0057edd0).
         std::uint32_t stunned = 0;
         std::vector<std::pair<int, std::uint32_t>> strafe;   // Strafe's arrows to come: target, when
         int channel = -1, last_frame = -1;     // Inferno's skill while its cast lasts
