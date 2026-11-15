@@ -923,7 +923,11 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   (+0x80) with aurastats (+0x54 ids, +0x68 calcs) on the caster
   (FUN_0056b740 → FUN_005cedc0) and, with auratargetstate (+0x82), on
   every ally within aurarangecalc (+0x64) subtiles by aurafilter (+0x50)
-  (FUN_0056b7e0). **66** (FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary,
+  (FUN_0056b7e0). FUN_005cedc0 puts the state with FUN_0056e970, so a
+  unit holds one list per state: a second source of the same aura fails
+  under a higher stored level and only extends an equal one, and the
+  higher level's stands (Blessed Hammer reads Concentration's that way,
+  FUN_006461d0 -> FUN_006256b0). **66** (FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary,
   Conviction) and **81** (FUN_005d0920, Holy Freeze): the caster's
   aurastate gets the skill's **passive** stats (+0x98 / +0xa4) — Holy
   Fire's weapon fire — and every enemy in range gets the target state
