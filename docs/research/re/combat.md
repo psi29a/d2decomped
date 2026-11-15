@@ -494,6 +494,25 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   Holy Shield off / on) against `test_hit_recovery --block-length`
   (`tools/emu/README.md` has the commands). Not ported: a monster's or the
   merc's block, nor the block throttle.
+- **A big hit inside a get-hit or block starts no new get-hit** (`FUN_0057edd0(unit, new mode)`,
+  called first by `FUN_005809d0`, the server's player mode switch, from the
+  hit's flag 4 at 0x57d383; on 0 nothing is set and no end event moves).
+  For new mode 4 and 9 the current-mode table (0x57eea8) refuses DT, GH, BL
+  and DD unconditionally, KK unless an end event is queued, S1 for the
+  Amazon, S3 for the Druid; it allows the other modes, **including the
+  knockback (0x13, `cmp eax, 0x12; ja` at 0x57ee0b)**. d2d draws the
+  knockback as GH with `knock` set, so `Fight::hurt_side` refuses only a
+  real get-hit (GH without a `knock`) and a get-hit during a slide ends the
+  slide. One hit is a knockback OR a get-hit (the flag chain at LAB_0057d364),
+  so a hit that started a knock in the same call starts no get-hit. Checked
+  by `tools/emu/mode_switch.py` (modes 0..19) against
+  `test_hit_recovery --hit-modes`. Not changed: a knocking hit inside a
+  get-hit. `FUN_00580a70`, the knockback's switch (flag 8), calls
+  `FUN_0057edd0` too (0x580adc, new mode 0x13, above 0x11, so the same
+  current-mode table), and game.exe refuses it from GH; d2d still starts the
+  knockback there, which restarts the hold (not checked against a differential
+  for new mode 0x13; follow-up). Not modelled: the `unit + 0x60` branch (a
+  player holding a cursor item refuses mode 4 from modes 0..20: run, not modelled).
 - **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
   get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
   (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:
