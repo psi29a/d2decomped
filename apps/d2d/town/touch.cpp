@@ -58,6 +58,10 @@ std::string touch_interact_label(const Town& town, const Town::PadPick& pick) {
 
 } // namespace
 
+auto Town::touch_compact_field() const -> bool {
+    return touch_enabled && !touch::g_touch_classic_hud && pad_field() && !automap.open;
+}
+
 Scene::InvLayout Town::touch_inv_layout() const {
     const int cls = std::max(character.character_class, 0);
     if (!scene) return {};
@@ -274,11 +278,13 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             }
         }
         if (tree_open && scene) {
-            if (phase == touch::Phase::Down && x >= 410 && x < 650 && y >= 545 && y < 595 && touch_selected >= 0) {
+            const int tree_panel_right = touch::kTouchTreeRight;
+            const int assign_x = tree_panel_right - 80;
+            if (phase == touch::Phase::Down && x >= assign_x && x < assign_x + 240 && y >= 545 && y < 595 && touch_selected >= 0) {
                 touch_assign = touch_selected; touch_feedback.clear(); touch_assignment_from_tree = true; tree_open = false; return true;
             }
             const int cls = std::max(character.character_class, 0);
-            const int index = skill_at(*scene, cls, tree_tab, int(x), int(y));
+            const int index = skill_at(*scene, cls, tree_tab, int(x), int(y), tree_panel_right);
             const auto& ids = scene->skills.class_ids[std::size_t(cls)];
             if (index >= 0 && std::size_t(index) < ids.size()) {
                 if (phase == touch::Phase::Down) touch_selected = skill_known(character.name, ids[std::size_t(index)]) ? ids[std::size_t(index)] : skillpad::kEmpty;
@@ -291,7 +297,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         touch_input.clear(); tree_open = true; inv_open = false; return true;
     }
     if (phase == touch::Phase::Down && touch::placed(touch::kMap).contains(x, y)) {
-        touch_input.clear(); automap.open = !automap.open; return true;
+        touch_input.clear();
+        automap.open = !automap.open;
+        if (automap.open) automap.mini = 0;
+        return true;
     }
     if (pad_field()) {
         if (phase == touch::Phase::Down && touch_interact_visible(touch_interact_pick) &&
@@ -431,7 +440,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
                 if (edge) {
                     pixel[0] = gold ? 220 : 199; pixel[1] = gold ? 185 : 179; pixel[2] = gold ? 72 : 119;
                 } else {
-                    const float dim = round ? .38f : .5f;
+                    const float dim = round ? .22f : .5f;
                     pixel[0] = std::uint8_t(pixel[0] * dim); pixel[1] = std::uint8_t(pixel[1] * dim); pixel[2] = std::uint8_t(pixel[2] * dim);
                 }
             }
@@ -459,7 +468,10 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (tree_open) {
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
-        if (touch_selected >= 0) button(touch::placed({ 410, 545, 240, 50 }), "Assign to touch button");
+        if (touch_selected >= 0) {
+            const int assign_x = touch::kTouchTreeRight - 80;
+            button({ float(assign_x), 545, 240, 50 }, "Assign to touch button");
+        }
         return;
     }
     if (!pad_field()) {
@@ -474,8 +486,41 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         touch_previews[std::size_t(index)] = resolve_skill(touch_player, skill);
     }
     const touch::Layout chrome = touch::layout_boxes();
+    if (touch_compact_field()) {
+        using namespace d2d::d2s;
+        const auto& stats = character.stats;
+        const int life = int(stats.values[kLife] >> 8), max_life = std::max(1, int(stats.values[kMaxLife] >> 8));
+        const int mana = int(stats.values[kMana] >> 8), max_mana = std::max(1, int(stats.values[kMaxMana] >> 8));
+        const int bar_x = int(chrome.menu.x), bar_y = 118;
+        const int bar_w = 118, bar_h = 8;
+        const auto bar = [&](int y, int cur, int max, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
+            const int fill = std::clamp(cur * bar_w / max, 0, bar_w);
+            for (int pixel_y = y; pixel_y < y + bar_h; ++pixel_y)
+                for (int pixel_x = bar_x; pixel_x < bar_x + bar_w; ++pixel_x) {
+                    if (pixel_x < 0 || pixel_y < 0 || pixel_x >= int(kScreenWidth) || pixel_y >= int(kScreenHeight)) continue;
+                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                    const bool edge = pixel_x == bar_x || pixel_y == y || pixel_x == bar_x + bar_w - 1 || pixel_y == y + bar_h - 1;
+                    const bool full = pixel_x < bar_x + fill;
+                    if (edge) {
+                        pixel[0] = 199; pixel[1] = 179; pixel[2] = 119;
+                    } else if (full) {
+                        pixel[0] = red; pixel[1] = green; pixel[2] = blue;
+                    } else {
+                        pixel[0] = std::uint8_t(pixel[0] * .25f); pixel[1] = std::uint8_t(pixel[1] * .25f); pixel[2] = std::uint8_t(pixel[2] * .25f);
+                    }
+                }
+            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, bar_x, y - 12,
+                      (y == bar_y ? "Life " : "Mana ") + std::to_string(cur) + "/" + std::to_string(max));
+        };
+        bar(bar_y, life, max_life, 180, 40, 40);
+        bar(bar_y + 20, mana, max_mana, 40, 40, 200);
+    }
     button(chrome.menu, "Inv", false, true);
     button(chrome.skills_bar, "Skl", false, true);
+    if (scene->ctrl_panel.frames_per_direction() > 3) {
+        const auto& mini = scene->ctrl_panel.frame(0, 3);
+        blit_sprite(framebuffer, mini, palette, int(chrome.map.x) - 2, int(chrome.map.y) - 6);
+    }
     button(chrome.map, automap.open ? "M*" : "Map", false, true);
     const touch::Box move_pad = chrome.move;
     const float stick_x = move_pad.x + move_pad.width * .5f;
@@ -491,7 +536,13 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     const touch::Box attack_box = chrome.attack;
     halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .55f);
-    button(attack_box, "Atk", touch_input.attack_down, true);
+    button(attack_box, touch_input.attack_down ? "!" : "Atk", touch_input.attack_down, true);
+    {
+        const int cls = std::max(character.character_class, 0);
+        if (cls >= 0 && cls < 7 && scene->skill_icons[std::size_t(cls)].frames_per_direction() > 0)
+            blit_sprite(framebuffer, scene->skill_icons[std::size_t(cls)].frame(0, 0), palette,
+                        int(attack_box.x) + 30, int(attack_box.y) + 30);
+    }
     button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
     if (touch_interact_visible(touch_interact_pick)) {
         const touch::Box& interact = chrome.interact;
@@ -506,8 +557,9 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
         halo(skill_cx, skill_cy, touch::kSkillRing + 10, 90);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
-        button(skill_box, info ? info->name : target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-",
-               info && info->id == view.aura, true);
+        const std::string skill_label = info ? (info->name.size() > 6 ? info->name.substr(0, 5) + "." : info->name) :
+                                              target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-";
+        button(skill_box, skill_label, info && info->id == view.aura, true);
         if (info) {
             int icon_class = -1;
             for (int column = 0; column < 7; ++column)
@@ -520,12 +572,17 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (view.aura > 0) {
         const auto* aura = scene->skills.get(view.aura);
-        if (aura) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 310, 65, "Aura: " + aura->name);
+        if (aura) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, int(chrome.page.x), int(chrome.page.y) - 14, aura->name);
     }
-    if (touch_attack_pick.kind == PadPick::kMonster)
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 85, pick_label(touch_attack_pick));
-    else if (!touch_interact_visible(touch_interact_pick))
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 85, pick_label(touch_attack_pick));
+    if (touch_attack_pick.kind == PadPick::kMonster) {
+        const auto found = std::ranges::find(view.monsters, touch_attack_pick.id, &Monster::id);
+        if (found != view.monsters.end()) {
+            const float mx = found->unit.x, my = found->unit.y;
+            const int sx = int(kScreenWidth) / 2 + int((mx - cam_x - my + cam_y) * kIsoW / 2);
+            const int sy = kViewY + int((mx - cam_x + my - cam_y) * kIsoH / 2);
+            ring(float(sx), float(sy), 14, false);
+        }
+    }
     if (touch_input.aiming) {
         button(touch::placed(touch::kCancel), "Drag here to cancel");
         const auto& target = touch_input.preview;

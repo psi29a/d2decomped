@@ -2073,7 +2073,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, touch_classic_hud); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int fps_cap = cfg.contains("fps_cap") ? std::atoi(cfg["fps_cap"].c_str()) : 0;
     app.add_option("--fps-cap", fps_cap, "Frames a second at most, 0 = the display's refresh (also `fps_cap =` in d2d.cfg)")
@@ -2205,6 +2205,7 @@ int main(int argc, char** argv) {
             { "splash_centre", &g_splash_centre }, // rain splashes and mud bubbles centred on their water
             { "unit_slide", &g_unit_slide },       // units slide between ticks, not step at 25 Hz
             { "hwcursor", &g_hw_cursor },          // the gauntlet as the OS cursor, not drawn into the frame
+            { "touch_classic_hud", &d2d::client::touch::g_touch_classic_hud },   // touch: keep the PC bottom bar on the field
         };
         if (const auto mode = scale_mode_named(cfg["scalemode"])) g_scale_mode = *mode;
         std::string_view rest = toggles;
@@ -2221,7 +2222,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, touch_classic_hud; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";

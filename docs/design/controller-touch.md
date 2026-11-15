@@ -53,6 +53,9 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   on either page.
 - Top chrome is edge-pinned (inventory and skills top-left; map and menu
   top-right). Field controls sit in the bottom corners; the center stays clear.
+  On the field, compact life/mana bars sit under the top-left icons; the classic
+  bottom bar, belt strip and mini menu row are hidden (`--toggle touch_classic_hud=on`
+  brings them back). Map opens full-screen; the skill tree pins to the left edge.
   Inventory on touch hugs the left edge of the view.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing

@@ -21,18 +21,24 @@ struct Box {
 };
 
 // Immortal-inspired HUD: thumb corners, clear center (x roughly 220–560, y 120–380).
-inline constexpr Box kMove{ 12, 404, 156, 188 }, kAttack{ 668, 472, 112, 112 }, kPage{ 588, 312, 72, 40 },
+inline constexpr Box kMove{ 12, 392, 152, 176 }, kAttack{ 672, 468, 108, 108 }, kPage{ 588, 308, 72, 40 },
     kCancel{ 260, 140, 280, 64 }, kMenu{ 12, 12, 48, 48 }, kDone{ 684, 12, 56, 48 }, kMap{ 740, 12, 48, 48 },
     kSkillsBar{ 12, 64, 48, 48 };
 inline constexpr Box kSkills[4] = { { 592, 488, 76, 76 }, { 568, 412, 76, 76 }, { 600, 332, 76, 76 }, { 672, 288, 76, 76 } },
     kInteract{ 540, 368, 64, 64 };
-inline constexpr Box kBelts[4] = { { 12, 268, 52, 42 }, { 68, 268, 52, 42 }, { 12, 316, 52, 42 }, { 68, 316, 52, 42 } };
+inline constexpr Box kBelts[4] = { { 12, 252, 52, 42 }, { 68, 252, 52, 42 }, { 12, 300, 52, 42 }, { 68, 300, 52, 42 } };
 inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
 
 // Extra inset, in logical pixels, past the 12px margin the boxes already have.
 // Zero leaves every box where it is. main.cpp fills this from SDL_GetWindowSafeArea.
 struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
+
+// Off (default): hide the PC bottom bar on the touch field and draw compact vitals.
+// On: --toggle touch_classic_hud=on keeps game.exe's bar under touch chrome.
+inline bool g_touch_classic_hud = false;
+
+inline constexpr int kTouchTreeRight = 488;
 
 struct Layout {
     Box move, attack, page, cancel, menu, skills_bar, map, done, interact;

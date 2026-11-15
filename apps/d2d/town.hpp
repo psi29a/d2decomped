@@ -494,6 +494,8 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
+    /** True when touch hides the classic bottom HUD for a clear field (see touch::g_touch_classic_hud). */
+    [[nodiscard]] bool touch_compact_field() const;
     touch::Input touch_input;
     PadPlayer touch_player;
     std::map<std::string, skillpad::Sheet> touch_sheets;
