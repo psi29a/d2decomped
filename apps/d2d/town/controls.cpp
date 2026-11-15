@@ -175,8 +175,7 @@ auto Town::clear_screen() -> void {
 // The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
 // it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
 // The Party screen's roster (FUN_0049a640): the other players of the
-// joined game, by unit id.
-// ponytail: game.exe's roster keeps the order they joined in.
+// joined game, in the regrouped roster's order (PartyPanel::order).
 auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
@@ -200,7 +199,8 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
             row.area = area_name(unit.area);
             rows.push_back(std::move(row));
         }
-        std::ranges::sort(rows, {}, &PartyPanel::Row::id);
+        const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
+        PartyPanel::order(rows, self != net_game->units.end() ? self->second.party : 0xffff);
         return rows;
     }
 
