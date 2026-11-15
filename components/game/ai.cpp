@@ -2725,7 +2725,9 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.stats = d2d::rules::monster_stats(game_data.monsters, monster.type, difficulty, rng, boss.level_add, players, area_monster_level(game_data, monster.level_id, difficulty));
     if (gear) wear_gear(monster.stats, *gear);
     monster.boss = kind;
-    monster.mods = mods;
+    // A minion takes its leader's mods' inits (FUN_005a2120's party callback FUN_0058f380 ->
+    // FUN_005a2100, flag 0), not their bytes (+0x1c): none of the mods' events are its own.
+    monster.mods = kind == d2d::rules::Boss::minion ? std::vector<int>{} : mods;
     monster.super = super;
     monster.name_seed = name_seed;
     // FUN_005a0d20 scales max life in 256ths, first for hpmultiply and then for the champion kind.
@@ -2767,7 +2769,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.mana_hi = std::max(damage_pct * game_data.umods.constants[std::size_t(base + 3 + difficulty_index)] / 100, monster.mana_lo);
     }
     if (std::ranges::contains(mods, d2d::rules::umod::poisonhit)) poison_hit(game_data, monster, difficulty, kind != d2d::rules::Boss::minion);
-    if (std::ranges::contains(mods, d2d::rules::umod::aura)) {
+    if (std::ranges::contains(mods, d2d::rules::umod::aura) && kind != d2d::rules::Boss::minion) {   // FUN_005a1650 skips a minion (flag 0)
         const auto aura = d2d::rules::boss_aura(monster.stats.level, name_seed, super);
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }

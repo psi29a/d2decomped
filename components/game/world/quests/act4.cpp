@@ -57,7 +57,7 @@ auto World::seal_boss(const Level& where, int superunique, int x, int y) -> void
         for (int i = 0; i < count; ++i) {
             const auto [minion_x, minion_y] = where.nearest_free(at_x + float(i % 3 - 1) * 0.6f, at_y + float(i / 3 - 1) * 0.6f);
             auto follower = make_monster(*game_data, minion, minion_x, minion_y, fight.rng, diff, false, int(players.size()), where.id);
-            make_boss(*game_data, follower, d2d::rules::Boss::minion, {}, -1, 0, diff, fight.rng, int(players.size()));
+            make_boss(*game_data, follower, d2d::rules::Boss::minion, row.mods, -1, 0, diff, fight.rng, int(players.size()));   // its mods' inits (FUN_0058f380)
             follower.aware = true;
             fight.add_monster(std::move(follower), &where);
         }

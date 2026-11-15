@@ -661,7 +661,7 @@ struct ObjectRooms {
                 auto boss = d2d::rules::roll_boss(game_data.umods, type, pop.difficulty, false, own, false);
                 const int minion = type.minion[0] >= 0 ? type.minion[0] : row;
                 for (int count = own(4) + 3; count > 0; --count)
-                    if (int at_x, at_y; put(minion, x, y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+                    if (int at_x, at_y; put(minion, x, y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion, boss.mods); }   // its leader's mods (FUN_0058f380)
                 tag(first, Boss::unique, std::move(boss.mods), int(own.next() & 0xffff));
             }
             return;
@@ -676,12 +676,12 @@ struct ObjectRooms {
             // Its mods, `difficulty` more unique ones on its own seed (FUN_005a0600).
             auto mods = d2d::rules::superunique_mods(game_data.umods, types[std::size_t(row)], sup->mods, pop.difficulty, own);
             mods.push_back(22);                                         // questcomplete
-            tag(first, Boss::superunique, std::move(mods));
+            tag(first, Boss::superunique, mods);
             if (spawns && first < spawns->size()) (*spawns)[first].super = superunique;
             const int minion = types[std::size_t(row)].minion[0] >= 0 ? types[std::size_t(row)].minion[0] : row;
             const int more = sup->min_grp && sup->max_grp ? pop.difficulty : 0;   // each + difficulty when both are set
             for (int count = own(sup->max_grp - sup->min_grp + 1) + sup->min_grp + more; count > 0; --count)   // FUN_005a0c00: a draw even when MinGrp == MaxGrp
-                if (int at_x, at_y; put(minion, spot_x, spot_y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+                if (int at_x, at_y; put(minion, spot_x, spot_y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion, mods); }   // its mods' inits, flag 0 (FUN_0058f380)
             own.next();                                                 // FUN_005a0ce0: its name seed (data +0x14), unused for a superunique
             // FUN_005a49b0 by its hcIdx, the units it makes (each FUN_005b23c0
             // round it, in its group: FUN_005b24e0 count times): Radament's (10)
@@ -790,7 +790,7 @@ struct ObjectRooms {
         }
         const int minion = type_at(row)->minion[0] >= 0 ? type_at(row)->minion[0] : row;   // FUN_005a0bb0
         for (int count = own(4) + 3; count > 0; --count)
-            if (int at_x, at_y; put(minion, x, y, 3, true, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+            if (int at_x, at_y; put(minion, x, y, 3, true, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion, boss.mods); }   // its leader's mods (FUN_0058f380)
         tag(first, Boss::unique, std::move(boss.mods), int(own.next() & 0xffff));   // FUN_005a2120: rndname after the minions
     }
     // FUN_0054df80: MinGrp..MaxGrp (1..1 for Fallen and scarabs,

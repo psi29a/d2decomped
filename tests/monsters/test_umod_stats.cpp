@@ -5,7 +5,7 @@
 // Calls rules::boss_stats (components/rules/uniques.hpp) and applies it the way
 // game::make_boss does (components/game/ai.cpp), on the case's fixed base (level,
 // exp 1000, life 1000, defence 100, the row's resistances), so each field compares
-// with game.exe's. A minion gets no mods, as d2d tags it (objgroups.cpp).
+// with game.exe's. A minion takes its leader's mods' inits (FUN_0058f380, flag 0).
 //
 //   uv run python umod_stats.py 100000 1 > game.tsv
 //   build/tests/test_umod_stats --umod-stats game.tsv > d2d.tsv
@@ -64,7 +64,6 @@ int main(int argc, char** argv) try {
         std::vector<int> mods;
         if (mods_s != "-") { std::istringstream parts(mods_s); std::string mod; while (std::getline(parts, mod, '.')) mods.push_back(std::stoi(mod)); }
         const Boss kind = kind_s == "c" ? Boss::champion : kind_s == "u" ? Boss::unique : kind_s == "s" ? Boss::superunique : Boss::minion;
-        if (kind == Boss::minion) mods.clear();
         const auto boss = boss_stats(umods, type, kind, mods, diff);
         // make_boss (ai.cpp 2923..2958) on the fixed base.
         const int level = std::max(base_level + boss.level_add, 1);

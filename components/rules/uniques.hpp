@@ -309,6 +309,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         stats.tohit_pct += bonus;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
+        if (kind == Boss::minion) return;                                // its flag 0: a minion takes no resist, no stone skin
         auto& resist_add = stats.res_add;
         auto base = [&](int index) { return type.diff[std::size_t(difficulty_index)].res[std::size_t(index)] + resist_add[std::size_t(index)]; };
         if (id == umod::stoneskin) stats.double_defense = true;
