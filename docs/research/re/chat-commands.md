@@ -1,11 +1,108 @@
 # The chat box's commands — game.exe 1.14d
 
-What the in-game chat box does with a line when Enter is pressed: the
-commands the client keeps for itself (`/players`, `/nopickup`, `/fps`,
+The in-game chat box's keys and its 8-line history, and what it does with
+a line when Enter is pressed: the commands the client keeps for itself (`/players`, `/nopickup`, `/fps`,
 `/framerate`, `soundchaosdebug`) and what goes out as chat. Each section
 names the oracle that runs game.exe's own code on it (`tools/emu`). The
 box's IME side is in chat.md; the chat lines and the C→S 0x14 / 0x15 and
 S→C 0x26 packets are in net-packets.md.
+
+## The box's keys — FUN_0047ca70, FUN_0047bca0, FUN_0047bc70
+
+`FUN_0047b090` (chat.md) registers four handlers from the table at
+0x712f4c (12-byte rows: kind, message, function), and `FUN_0047b2e0`
+removes them:
+
+| Kind | Message | Function |
+|---|---|---|
+| 0 | 0x102 `WM_CHAR` | `FUN_0047ca70` |
+| 3 | key 0x26 (Up) | `FUN_0047bca0` |
+| 3 | key 0x28 (Down) | `FUN_0047bca0` |
+| 0 | 0x201 `WM_LBUTTONDOWN` | `FUN_0047bc70` |
+
+A message has wParam at +8, lParam at +0xc, and "handled" and the result at
++0x18 and +0x1c. The box's text is UTF-16 at 0x7bb638 (0x202 bytes), its
+count at 0x7bb5e8. It takes characters while 0x7bb5ec is 1 or more:
+`FUN_0047bdc0`, which `FUN_00455f20` calls when it turns UI 5 on, empties the
+box and clears that word; `FUN_0047b720` and `FUN_0047ad10` also write it
+(not followed).
+
+**`FUN_0047ca70`** (`ret 4`) does nothing at all while 0x7bb5ec < 1.
+Otherwise, by wParam:
+
+- **8 (Backspace)**: when the count is above 0, it drops one and zeroes that
+  unit.
+- **0x1b (Esc)**: shuts the box (`FUN_00455f20(5, 1, 0)`).
+- **0xd (Enter)**: counts the leading units under 0x100 that `isspace` calls
+  blank (the C locale's 9..13 and 32; 0xa0 and U+3000 are not). If nothing
+  is left the box shuts. Otherwise the rest goes into the history
+  (`FUN_0047ba00`, next section), the whole box is converted with
+  `WideCharToMultiByte(CP_ACP, 0x250, box, -1, local, 0x100, NULL, NULL)`
+  (0x250: `WC_COMPOSITECHECK | WC_DEFAULTCHAR | WC_DISCARDNS`), and the parser
+  runs on it with the count of blanks, ECX the box.
+- **Any other character** (read, not run: the font calls): it's added when
+  the IME is open (0x7bb5e1) or `FUN_00502550` takes it, while the count and
+  the length are both under 0xff and the text wrapped to W - 0x109
+  (`FUN_00502970`) is 3 lines at most, a third line no wider than W - 0x113.
+  The unit is written at the end (0x47cb61) and the text is wrapped again;
+  the count grows only when that's under 3 lines or the third line is
+  narrower than W - 0x113. What the box holds when the count doesn't grow
+  wasn't followed.
+
+Every path but the first then sets handled 1, result 0 and calls
+`FUN_00420290(message)`.
+
+**`FUN_0047bca0`** (`ret 4`) sets handled 1 and result 0 and calls
+`FUN_00420290`. A repeat (lParam bit 30) does nothing more. Up shows the
+history slot at 0x7bb5d8 and then steps +1 (older); Down steps -1 and then
+shows.
+
+**`FUN_0047bc70`** (`ret 4`): a click lower than H - 0x31 (y, lParam's high
+word, > 0x711470 - 0x31, signed) shuts the box. It leaves the message
+unhandled.
+
+## The history — FUN_0047ba00, FUN_0047ba80, FUN_0047b9c0, FUN_0047bd30
+
+Eight slots of 0x202 bytes at 0x7bb840, UTF-16 like the box.
+
+| Address | What |
+|---|---|
+| 0x712f44 | the slot written last (starts at 7) |
+| 0x712f48 | the slot written next once all 8 are full (starts at 7) |
+| 0x7bb5d8 | the slot Up shows next |
+| 0x7bb5e4 | u16: how many slots are full |
+
+- **`FUN_0047ba00`** (EDX text): while fewer than 8 are full it writes slot
+  7, then 6, ... 0 (0x712f44 steps down from the second line on); once all 8
+  are, it writes 0x712f48's slot and steps that down, 0 to 7. It points
+  0x7bb5d8 at the slot written and copies 0x202 bytes from where the text
+  starts.
+- **`FUN_0047ba80(step)`** (`ret 4`) moves 0x7bb5d8 by step, 8 wrapping to
+  0 and -1 to 7, but keeps it where it was when fewer than 7 slots are full
+  and the new slot isn't one of them (8 - slot > full). With exactly 7 full
+  that test is skipped: the step from slot 7 goes to slot 0, which nothing
+  has written.
+- **`FUN_0047b9c0`** copies 0x7bb5d8's slot into the box and sets the count
+  to its length (`FUN_00526800`).
+- **`FUN_0047bd30`** sets 0x712f44 = 0x712f48 = 7 and 0x7bb5d8 = full = the
+  count = 0; the slots keep their text. Its caller is `FUN_0044e200` (not
+  followed).
+
+What Up shows from a fresh history:
+
+| Lines sent | Up, Up, ... |
+|---|---|
+| 3 | line 3, line 2, line 1, line 1, line 1 |
+| 7 | line 7, ... line 1, (empty), line 7 |
+| 8 | line 8, ... line 1, line 8, line 7 |
+
+Oracle: `tools/emu/chat_history.py` drives the three handlers through
+20,000 random steps (Enter on random texts, Backspace, Esc, Up, Down,
+repeats, clicks, resets) and compares the box, its count, the four
+globals, the eight slots and the calls after each step; then the scripted
+case above. Hooked: the parser (its ECX and arguments checked), the box
+toggle, `FUN_00420290` and `WideCharToMultiByte` (its arguments checked);
+`isspace` and `FUN_00526800` run for real. The character path isn't run.
 
 ## The parser — FUN_0047c420
 
@@ -139,7 +236,9 @@ No `/players`: the box's Enter (apps/d2d/town/update.cpp) parses only
 `@name`, and spawns get `players.size()` (world/objects.cpp, the quests) or
 `players_in(foes)` (ai.cpp), with no setting. todo.md row 52. `/nopickup`,
 `/fps`, `/framerate`, `soundchaosdebug` and `!` (the 0x14 overhead line)
-aren't ported either.
+aren't ported either. The box has no history (Up and Down do nothing while
+typing), and its Enter sends the line as typed: leading blanks go out, and a
+line of blanks is sent where game.exe shuts the box.
 
 ## Re-check
 
@@ -147,8 +246,10 @@ aren't ported either.
 cd tools/emu
 uv run python chat_parse.py
 uv run python chat_helpers.py
+uv run python chat_history.py
 ```
 
 and `python3 tools/ghidra/fn.py 0047c420 00535780 00535790 0047b3b0
-0047c3f0 0047bd60 0047bd80 0047bd00`, the strings at
-0x6d7330..0x6d73a4 and the table at 0x712f7c (14-byte rows).
+0047c3f0 0047bd60 0047bd80 0047bd00 0047ca70 0047bca0 0047bc70 0047ba00
+0047ba80 0047b9c0 0047bd30`, the strings at 0x6d7330..0x6d73a4, and the
+tables at 0x712f4c (12-byte rows) and 0x712f7c (14-byte rows).
