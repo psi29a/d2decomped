@@ -694,7 +694,8 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // registry's PopupHireling) is 1.
 // A joined game's summons are the host's: its pet list (0x7a), ours by owner.
 // ponytail: their life is the unit's (0x0c hits), not the list's +0x1c,
-// whose sender isn't traced.
+// which 0x7f with +1 = 0 sets (FUN_00479010, net-packets.md); NetGame
+// keeps only a player's 0x7f.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn

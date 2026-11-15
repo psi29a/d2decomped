@@ -752,7 +752,13 @@ ids).
 - **0x75 party roster** (13; `FUN_0047a850`): +1 u32 id, +5 u16 party,
   +7 u16 level, +9, +11 u16 **(?)**.
 - **0x7f party member** (10): +1 u8 is player, +2 u16 life %, +4 u32 id,
-  +8 u16 area.
+  +8 u16 area. Handler `0x45e990` (table row at `0x711ac4`: handler,
+  size 0xa): +1 nonzero calls `FUN_0047a0d0(id, life, area)`; +1 zero
+  calls `FUN_00479010(id, life, area)`, which sets the pet list node's
+  +0x1c to the life and +0x10 to the area, and for a PetType 7 node (the
+  merc) whose unit is known sets its life (stat 6) to max life x life /
+  100. So the sender (`FUN_0053cdf0`, +1 0 for a non-player) feeds the
+  portraits' pet life.
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags. One
   sender is `FUN_0053de20` (ECX unused, EDX the first id, stack the
