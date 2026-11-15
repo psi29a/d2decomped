@@ -220,6 +220,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         auto& unit = actor->merc->unit;
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
+            // Stat 0x148 + 1 for each client sent its turn to NU (FUN_00597e20's mode 1 branch, a call a client from FUN_00598220).
+            if (mode == "NU") actor->merc_pierce_idx += std::uint32_t(std::ranges::count_if(heroes, [&](const Hero* hero) { return std::abs(unit.x - hero->player.x) < 30 && std::abs(unit.y - hero->player.y) < 30; }));
             if (!unit.walking) unit.path.clear();
             // The merc's FHR is its items' (merc_fighter): no 1.14d Skills.txt aurastat or passivestat
             // is item_fastergethitrate (stat 99), so no state of its changes it.
@@ -276,7 +278,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                     missile.to = { target.unit.x, target.unit.y };
                     const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
                     missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
-                    // ponytail: this hit ends the missile on the first unit (tick.cpp), so FUN_0059f940's charges are not applied here.
+                    seed_pierce(missile, true);                             // FUN_0059f940: the maker's, for every missile of a Pierce row
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Bash, Stun; Jab only off its sequence) builds

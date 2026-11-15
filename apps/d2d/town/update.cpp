@@ -219,8 +219,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 // The hire list's box takes Enter (FUN_004bebc0, its break queued before
                 // the draw count's test), not the chat: the selected row is hired, as a
                 // release over it would.
-                // ponytail: FUN_004bebc0 breaks on every key it's given; which key
-                // handlers sit before or after the box's isn't traced, so only Enter goes to it.
+                // It's the menu's WM_CHAR row (table 0x7273e4: FUN_004b7a90 asks each widget first), so
+                // what it breaks are characters, not key-downs: those have their own rows.
+                // ponytail: with the chat box open over a hire list its characters go to the chat here;
+                // whether game.exe's box takes them first (Storm's handler order) isn't traced.
                 if (!chat_typing && npc_menu.list && virtual_key(key) == 0x0d) {
                     auto& list = *npc_menu.list;
                     const int row = d2d::rules::list_enter(list.draws, list.hover, 0x0d);

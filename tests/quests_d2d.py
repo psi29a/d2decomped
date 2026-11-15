@@ -202,6 +202,9 @@ def service(name, slot, done, what):
     x, y = cmd(f"debug itemat {item.group(2)}").split()[1:3]
     use_item_panel(x, y)
     until(what, done)
+    until("the panel shut", lambda: state()["useitem"] == "0")
+    cmd("key I")                                      # the panel took the inventory with it
+    time.sleep(0.3)
     cmd(f"click {x} {y}")                             # worn again
     time.sleep(0.3)
     for spot in range(40):                            # else into the pack

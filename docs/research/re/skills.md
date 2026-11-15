@@ -657,9 +657,14 @@ the walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
 `FUN_00461180` -> `FUN_004610c0`, Attack's entry kept in the slot when it
 fell back. d2d: `Fight::skill_status` / `Fight::ask`, asked at the click
 for a spot or self cast (world/commands.cpp) and in `start_swing` for a
-unit; `tests/game/test_skill_ready.cpp`. Not kept: the fallback's Attack
-at a spot (`FUN_00461700(0)`), and a joined game asks only the weapon (the
-host asks the rest).
+unit; `tests/game/test_skill_ready.cpp`. Attack at a spot, the fallback's
+or a shift click's own (`FUN_00461700(0)`), swings where the player
+stands: its start, srvstfunc 1 `FUN_0056ca40`, sets the animation's first
+frame, takes the state 0x26 branch (`FUN_005c8980`), checks a missile
+weapon's ammo (`FUN_0056c4e0`) and asks for no target; d2d
+`World::apply`'s `attack_spot`. Not kept: the click's pick of an enemy by
+the spot (SearchEnemyXY, `FUN_00467880`), another melee skill at a spot,
+and a joined game asks only the weapon (the host asks the rest).
 
 Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
 LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
@@ -904,7 +909,9 @@ The multiply is a 32-bit signed `imul` and the division truncates toward zero.
 So the value is a velocity (missiles.md puts Vel/VelLev at those offsets;
 monster-ai.md and collision.md already call it velocity), not Range
 (`+0x96`); the "range" wording above is a
-mislabel, and what `FUN_0056d400` does with the argument was not traced.
+mislabel. `FUN_0056d400` puts a non-zero argument in the maker's params
+[10] with flag 4 (missiles.md "Making it"): the velocity of all 64, in
+place of the row's at the missile's own level.
 Run for real on three synthetic rows (the first with VelLev 0), 43 cases, nothing
 hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 

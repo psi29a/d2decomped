@@ -254,7 +254,7 @@ auto Fight::enemy_auras(const Monster& monster) const -> std::vector<AuraOn> { r
 auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -> std::vector<AuraOn> {
         using namespace d2d::d2s;
         std::vector<AuraOn> out;
-        const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv env, float from_x, float from_y) {
+        const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv&& env, float from_x, float from_y) {
             const auto* skill = game_data->skills.get(skill_id);
             const bool kind = enemy ? skill && skill->aura && (skill->srvdofunc == ServerDoFunction::kEnemyAura || skill->srvdofunc == ServerDoFunction::kHolyFreeze)
                                     : skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura;

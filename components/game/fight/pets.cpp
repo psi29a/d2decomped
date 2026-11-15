@@ -212,8 +212,9 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
 // A Shadow's death nova (MonUMod 42, FUN_005a2910 4 frames after its death,
 // hook 1 FUN_005a3800): 64 of missile 90 (nova) round it (FUN_0056d400),
 // Nova's damage at rules::shadow_nova_level, hitting monsters.
-// ponytail: FUN_0056d400's last argument there is FUN_00663270(90, 0), the
-// row's +0x9a byte; like d2d's other novas, these fly the row's Range.
+// FUN_0056d400's last argument there, FUN_00663270(90, 0), is the missiles'
+// velocity (the maker's params [10], flag 4): the row's at level 0, not the
+// nova's own level (the same for 1.14d's row, which has no VelLev).
 auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
         const auto found = game_data->missiles.find("nova");
         const auto* nova = skill_named("Nova");
@@ -222,7 +223,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
         const auto& shadow = pet.monster;
         const int life_percent = shadow.stats.hit_points > 0 ? std::max(shadow.hit_points, 0) * 100 / shadow.stats.hit_points : 0;
         const int lvl = d2d::rules::shadow_nova_level(cast_level(0x10c), life_percent);
-        const float speed = missile_speed(missile_info, lvl);
+        const float speed = missile_speed(missile_info, 0);
         const auto ring = std::make_shared<std::vector<int>>();
         for (const auto& [aim_x, aim_y] : d2d::rules::kNovaRing) {
             const float distance = std::max(std::hypot(float(aim_x), float(aim_y)), 0.01f);

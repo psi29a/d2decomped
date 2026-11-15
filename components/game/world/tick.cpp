@@ -518,13 +518,17 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                         }
                         auto lines = quest_talk(npc.hc_idx);
                         // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell;
-                        // one with a talk record only once a stay in town (its +0x15, Player::greeted).
-                        // ponytail: kind 2's "return" (+0x12, from S->C 0x91: FUN_00545100's per-class
-                        // quest callbacks via FUN_00572470) isn't played.
+                        // one with a talk record only once a stay in town (its +0x15, Player::greeted), and
+                        // its return line (kind 2) when S->C 0x91 named it (+0x12, Player::returning, taken
+                        // even when it doesn't greet). That one sends C->S 0x4d: its bit off (FUN_005724c0).
                         const bool gated = has_talk_record(npc.hc_idx);
-                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet) && !(gated && std::ranges::contains(actor->greeted, npc.hc_idx))) {
-                            if (gated) actor->greeted.push_back(npc.hc_idx);
-                            cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet)) {
+                            const int kind = gated && std::erase(actor->returning, npc.hc_idx) > 0 ? 2 : 0;
+                            if (!(gated && std::ranges::contains(actor->greeted, npc.hc_idx))) {
+                                if (gated) actor->greeted.push_back(npc.hc_idx);
+                                cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, kind), now_ms, actor->player.x, actor->player.y);
+                                if (kind == 2) d2d::rules::NpcReturns::heard(congrats(), npc.hc_idx);
+                            }
                         }
                         actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, std::move(lines) });
                     }

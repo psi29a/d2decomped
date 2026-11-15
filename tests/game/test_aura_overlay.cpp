@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -116,7 +117,7 @@ int main() try {
         fight.monsters.clear();
         Monster target = fallen;
         target.hit_points = target.stats.hit_points = 1000;
-        fight.monsters.push_back(target);
+        fight.monsters.push_back(std::move(target));
         fight.spot(*static_field, 1000, caster);
         return fight.monsters.back().hit_points < 1000;
     };

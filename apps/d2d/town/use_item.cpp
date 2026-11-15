@@ -32,8 +32,12 @@ auto Town::open_use_item(int npc) -> void {
 }
 
 // FUN_004c0090: shut; a held item back on the cursor (FUN_00468070).
-// ponytail: whether UI 0xe's close (FUN_00455f20 mode 1) shuts the inventory isn't traced; it stays.
-auto Town::close_use_item() -> void { use_item = {}; }
+// The inventory goes with it: the open sets UI 0xe alone (FUN_004c0380, after the close-all), whose
+// flag is what draws the inventory beside the panel (FUN_00456ee0), and the close clears it.
+auto Town::close_use_item() -> void {
+    if (use_item.open()) inv_open = false;
+    use_item = {};
+}
 
 // The panel's handlers come first while it's up (FUN_004c0380 hangs them,
 // 0x727950): every press and release is its own, the inventory's only in

@@ -609,11 +609,20 @@ stat 0x148: the player's `psum` and `pierce_idx` (bumped by each
 `cmd::UseSkill`), or the merc's gear and `merc_pierce_idx` on a skill
 missile. A struck monster spends one while
 that owner still has either stat, with no draw (`skill_missile_hits`,
-tests/game/test_merc_pierce.cpp). ponytail: nothing bumps a merc's stat
-0x148 (`FUN_00597e20`'s default branch isn't read), a merc's plain
-arrow still ends on the first unit (its hit is not `skill_missile_hits`),
-and `pierce_idx`
-counts d2d's commands, not game.exe's packets.
+tests/game/test_merc_pierce.cpp). A merc's plain arrow takes its
+charges at the bow (`seed_pierce`) and spends them the same way
+(`plain_missile_hits`), passing the unit it struck last (LastCollide) and,
+as the skill path does, any unit on its `struck` list.
+
+`FUN_00597e20(game, monster, client)` sends one client a monster's mode
+change (`FUN_00598220` calls it for each client while unit +0xc4 bit 0 is
+set; `FUN_00571f90` when a client is given the unit). Its default branch,
+for mode 1 (NU), sends the stop (`FUN_0053bb70`) and adds 1 to the
+monster's stat 0x148. So a merc's pierce_idx goes up by one for each
+client told of each turn to NU. d2d: `merc_pierce_idx`, one a player
+near it at each turn to NU. ponytail: a client given the unit anew while
+it stands in NU isn't counted, and `pierce_idx` counts d2d's commands,
+not game.exe's packets.
 
 ## Server hit function 20 helper — FUN_005ab2a0 (area callback)
 

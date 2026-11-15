@@ -6,12 +6,14 @@
 #include "rules.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <span>
 #include <utility>
+#include <vector>
 
 namespace d2d::rules {
 
@@ -240,5 +242,49 @@ inline NpcAct jarjar_think(NpcBrain& brain, int x, int y, int frame, bool aside,
     if (const auto heeded = npc_heed(brain, x, y, visitor)) { act.greet = heeded->greet; act.face = heeded->face; }
     return act;
 }
+
+// The town NPCs' return line (FUN_004e0590 kind 2). The first trip out of an act
+// by its end (FUN_005467e0: Warriv, Meshif; FUN_00546ac0: the hellgate) sets a
+// town's NPCs' bits (FUN_00544fa0) in the player's congratulations (the save's
+// +0x2E5, per difficulty). Coming into an act (FUN_00537340 -> FUN_00545100),
+// the client is told which of its town's NPCs have theirs set (S->C 0x91); each
+// greets with its return line at its next menu, and the client's C->S 0x4d
+// clears the bit (FUN_005724c0). Tyrael's portal marks none (FUN_005b5880), and
+// FUN_005467e0's Tyrael branch can't run (bugs.md #116): Act 5's list never is.
+struct NpcReturns {
+    // 0x732738 {MonStats class, bit} (the intro bits' too); any other class bit 0.
+    static constexpr std::array<std::pair<int, int>, 34> kBits{ { { 147, 1 }, { 148, 2 }, { 150, 3 }, { 155, 4 }, { 154, 5 }, { 265, 6 }, { 175, 7 },
+        { 176, 8 }, { 177, 9 }, { 178, 10 }, { 202, 11 }, { 200, 12 }, { 210, 13 }, { 201, 14 }, { 198, 15 }, { 199, 16 }, { 244, 17 }, { 245, 18 },
+        { 246, 19 }, { 251, 20 }, { 252, 21 }, { 253, 22 }, { 254, 23 }, { 255, 24 }, { 256, 25 }, { 257, 26 }, { 264, 27 }, { 297, 28 }, { 511, 29 },
+        { 512, 30 }, { 513, 31 }, { 514, 32 }, { 515, 33 }, { 520, 34 } } };
+    [[nodiscard]] static int bit_of(int npc) {
+        const auto found = std::ranges::find(kBits, npc, &std::pair<int, int>::first);
+        return found == kBits.end() ? 0 : found->second;
+    }
+    // The towns' lists by act (0x7318b0, 0x7318c8, 0x7318f4, 0x731910); Act 4 has none.
+    [[nodiscard]] static std::span<const int> town(int act) {
+        static constexpr std::array<int, 6> kAct1{ 148, 154, 150, 147, 155, 265 };
+        static constexpr std::array<int, 11> kAct2{ 175, 176, 177, 178, 202, 200, 210, 201, 198, 199, 244 };
+        static constexpr std::array<int, 7> kAct3{ 245, 252, 253, 254, 255, 264, 297 };
+        static constexpr std::array<int, 7> kAct5{ 520, 521, 511, 512, 513, 514, 515 };
+        switch (act) {
+        case 0: return kAct1;
+        case 1: return kAct2;
+        case 2: return kAct3;
+        case 4: return kAct5;
+        default: return {};
+        }
+    }
+    static void mark(std::uint64_t& bits, int act) {
+        for (const int npc : town(act)) bits |= std::uint64_t{ 1 } << bit_of(npc);
+    }
+    // FUN_00545090: those of the town with their bit set, in the list's order.
+    [[nodiscard]] static std::vector<int> due(std::uint64_t bits, int act) {
+        std::vector<int> owed;
+        for (const int npc : town(act)) if (bits >> bit_of(npc) & 1) owed.push_back(npc);
+        return owed;
+    }
+    static void heard(std::uint64_t& bits, int npc) { bits &= ~(std::uint64_t{ 1 } << bit_of(npc)); }
+};
 
 }  // namespace d2d::rules

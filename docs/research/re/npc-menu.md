@@ -138,6 +138,16 @@ and the defaults.
   `FUN_004bee90` adds one a draw). With a callback every key it gets is
   the box's (the event's +0x18 = 1, +0x1c = 0, `FUN_00420290`). Oracle:
   `tools/emu/hire_list_enter.py` (`rules::list_enter`).
+  Those keys are characters: the menu's handler table (0x7273e4, rows
+  {type, message, handler}) has `FUN_004b7a90` on {0, 0x102} (WM_CHAR).
+  It walks the menu's widgets (+0xb08) and calls each one's vtable +0x18
+  (the list box's wrapper `FUN_004bedb0` -> `FUN_004bebc0`), stopping at
+  the first that returns non-zero; with none, character 0xd goes to
+  `FUN_004b79d0` and 0x1b to `FUN_004b76d0`. Key-downs have their own
+  rows (type 3): 0x26 `FUN_004b7870`, 0x28 `FUN_004b78f0`, 0x27
+  `FUN_004b7770`, 0x25 `FUN_004b77f0`, 0xd `FUN_004b79d0`, 0x1b
+  `FUN_004b76d0`. So the box never sees a key-down. Not traced: whether
+  this table's WM_CHAR row runs before the chat box's when both are up.
 
 - The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
   each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame

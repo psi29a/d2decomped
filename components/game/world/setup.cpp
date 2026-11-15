@@ -182,6 +182,7 @@ auto World::bring_party(const Level* from, const Level* destination, float x, fl
 }
 
 auto World::quests() -> d2d::rules::QuestBits& { return actor->character.header.quests[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))]; }
+auto World::congrats() -> std::uint64_t& { return actor->character.header.congrats[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))]; }
 
 auto World::item_ids() -> void {
         for (auto& item : actor->character.items) if (item.id < 0) item.id = next_item_id++;

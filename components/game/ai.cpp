@@ -431,8 +431,8 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
 // foe, the budget spent, no re-path, blocked (FUN_00650150 sets idx =
 // count) or past its last point; it stands at its subtile's centre then
 // (FUN_006507b0). `spot`: a move to a spot; a chase whose foe is gone ends.
-// The step is path_frame's. ponytail: the foe's spot without FUN_00679250's
-// +0x68 offset.
+// The step is path_frame's. The foe's spot is the unit's own: FUN_00679250's
+// offset by the path's +0x68 never applies, nothing sets that byte (stubs.md).
 bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool spot, int size, int velocity, const Crowd& crowd) {
     auto& unit = monster.unit;
     bool going = !monster.steps.empty() && (spot || chased);

@@ -11,7 +11,11 @@ palette, installs the array, asks FUN_006c8250 for modes 0..6, and names
 the table. For the three alpha tables it fits the sprite's share against
 the installed palette: the row writer FUN_00608110 reads
 T[screen * 256 + sprite]. Each line is {effect, kind, sprite percent}:
-kind 0 opaque, 1 additive, 2 multiply, 3 alpha, 4 max-component.
+kind 0 opaque, 1 additive, 2 multiply, 3 alpha, 4 the sprite by its
+brightest channel. Kind 4's table (PL2 +0x5b500, FUN_00605b70) must hold,
+in every cell, the nearest palette colour (FUN_00605210) to
+(screen * (255 - w) + sprite * w) / 255, w the sprite colour's greatest
+channel: d2d's palette::max_component_blend.
 """
 import hashlib
 from pathlib import Path
@@ -40,6 +44,25 @@ def sprite_percent(machine, table):
     return best[1]
 
 
+def check_bright(machine, table):
+    palette = machine.read(0x81E668, 0x400)
+    colours = [tuple(palette[index * 4:index * 4 + 3]) for index in range(256)]
+    cells = machine.read(table, 0x10000)
+    nearest = {}
+
+    def snap(colour):
+        if colour not in nearest:
+            nearest[colour] = min(range(256), key=lambda index: sum((colours[index][channel] - colour[channel]) ** 2 for channel in range(3)))
+        return nearest[colour]
+
+    for screen in range(256):
+        for sprite in range(256):
+            weight = max(colours[sprite])
+            blend = tuple((colours[screen][channel] * (255 - weight) + colours[sprite][channel] * weight) // 255 for channel in range(3))
+            if snap(blend) != cells[screen * 256 + sprite]:
+                raise SystemExit(f'cof_effects: the brightness blend misses cell {screen:02x} {sprite:02x}')
+
+
 def main():
     path = Path(emu.data_path()) / 'bin/game.exe'
     if hashlib.sha256(path.read_bytes()).hexdigest() != '631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf':
@@ -65,6 +88,8 @@ def main():
         if table in ALPHA:
             print('{%d, 3, %d},' % (mode, sprite_percent(machine, table)))
         elif table in NAMED:
+            if NAMED[table] == 4:
+                check_bright(machine, table)
             print('{%d, %d, 0},' % (mode, NAMED[table]))
         else:
             raise SystemExit(f'cof_effects: mode {mode} picks an unknown table {table:08x}')

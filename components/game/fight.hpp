@@ -386,8 +386,9 @@ struct Fight {
         // the skill (and level) its attack mode carries (-1: a plain blow).
         std::array<int, 6> merc_ids{}, merc_levels{};
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
-        // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles).
-        // ponytail: nothing bumps it (FUN_00597e20's default branch isn't read).
+        // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
+        // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
+        // ponytail: a client given the unit anew while it's in NU (FUN_00571f90) adds 1 too; not counted.
         std::uint32_t merc_pierce_idx = 0;
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
@@ -1067,6 +1068,10 @@ struct Fight {
     // ponytail: a wall or the end of its range doesn't set it off; a row
     // with no Skill uses no physical columns (MinDamage..) or synergy.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
+    // A missile with no skill on monster i: the merc's plain arrow, its bow's
+    // blow. A LastCollide row passes the unit it struck last (FUN_005a8730);
+    // a Pierce row with a charge left flies on, as skill_missile_hits'.
+    bool plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A skill missile's damage on monster i: with a weapon share (the
     // skill's SrcDam, or a row with no Skill its SrcDamage) the weapon's
     // blow at that share, attack rating rolled; else a sure hit (ToHit rows
@@ -1144,9 +1149,9 @@ struct Fight {
     // mode (DD a corpse, any other without life dying), MonStats npc, unit
     // flags 4 and 8 as `targetable` (flags 0xe), the level a town, and a
     // clear line, mask 4, when the filter asks.
-    // ponytail: 0x20000 (FUN_00622c40) is never in melee and 0x80000
-    // (state 0x56) never just hit here: no Skills.txt row sets either,
-    // in_reach makes its own melee test.
+    // 0x20000 (in melee, FUN_00622c40) and 0x80000 (not in state 0x56) aren't
+    // filled in: none of 1.14d's 357 Skills.txt rows has either in its
+    // aurafilter, nor do the two filters written out here (0xa783, 0x8783).
     [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
