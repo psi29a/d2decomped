@@ -856,7 +856,7 @@ const AiRow* ai_row(std::string_view ai_name) {
 // and first step are open.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
            int walk, int run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen, const OpenDoor* open_door, std::vector<Monster>* born,
-           Spawning::LevelState* rooms_in_play, int players_setting) {
+           Spawning::LevelState* rooms_in_play, int players_counted) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
@@ -1171,7 +1171,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // on (005fca71 .. 005fca7f: FUN_005de0f0(15) with EDX the clone).
         if (effect.kind == d2d::rules::ThinkEffect::clone && born
             && std::ranges::none_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrabClone"; }))
-            if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, d2d::rules::game_players(players_in(foes), players_setting))) {
+            if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, d2d::rules::game_players(players_in(foes), players_counted))) {
                 clone->next_act = now_ms + 15 * 40;
                 born->push_back(std::move(*clone));
                 ++monster.ai_state2;
@@ -1255,7 +1255,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end()) {
                 const int room = room_of(level, (float(x + 8) + 0.5f) / 5, (float(y) + 0.5f) / 5);
                 if (int at_x = 0, at_y = 0; spawn_spot(game_data, level, crowd, rooms_in_play, young->second, x + 8, y, 2, room, at_x, at_y)) {
-                    auto laid = make_monster(game_data, young->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                    auto laid = make_monster(game_data, young->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                     laid.aware = true; laid.no_exp = true;
                     laid.seed = d2d::rules::Rng{ rng.next() };
                     set_mode(game_data, laid, "S1", now_ms);
@@ -1485,7 +1485,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
 
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack,
-                    std::vector<Monster>* born, AreaSeen* seen, const OpenDoor* open_door, Spawning::LevelState* rooms_in_play, int players_setting) {
+                    std::vector<Monster>* born, AreaSeen* seen, const OpenDoor* open_door, Spawning::LevelState* rooms_in_play, int players_counted) {
     auto& unit = monster.unit;
     // Its foe: the one its last think's mode or move was set against
     // (FUN_005ddf90 / FUN_005dead0 / FUN_005deb60 put the target in the mode
@@ -1838,7 +1838,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto young = game_data.monsters.by_id.find(type_info.spawn);
                 if (int at_x = 0, at_y = 0; born && young != game_data.monsters.by_id.end()
                     && spawn_spot(game_data, level, crowd, rooms_in_play, young->second, monster.skill_x, monster.skill_y, 1, room, at_x, at_y)) {
-                    auto laid = make_monster(game_data, young->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                    auto laid = make_monster(game_data, young->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                     laid.aware = true; laid.no_exp = true; laid.no_drop = true;
                     laid.seed = d2d::rules::Rng{ rng.next() };                 // its own seed, drawn off the game's
                     if (type_info.spawn_mode != "NU" && !type_info.spawn_mode.empty()) set_mode(game_data, laid, type_info.spawn_mode, now_ms);
@@ -1903,7 +1903,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto young = game_data.monsters.by_id.find(type_info.spawn);
                 if (int put_x = 0, put_y = 0; born && young != game_data.monsters.by_id.end()
                     && spawn_spot(game_data, level, crowd, rooms_in_play, young->second, egg_x, egg_y, -1, room, put_x, put_y)) {
-                    auto laid = make_monster(game_data, young->second, (float(put_x) + 0.5f) / 5, (float(put_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                    auto laid = make_monster(game_data, young->second, (float(put_x) + 0.5f) / 5, (float(put_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                     laid.aware = true; laid.no_exp = true;
                     laid.seed = d2d::rules::Rng{ rng.next() };
                     if (type_info.spawn_mode != "NU" && !type_info.spawn_mode.empty()) set_mode(game_data, laid, type_info.spawn_mode, now_ms);
@@ -1931,7 +1931,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     auto hatch = [&](int radius, std::string_view larva_mode) {
                         int put_x = 0, put_y = 0;
                         if (!spawn_spot(game_data, level, with_larvae, rooms_in_play, young->second, egg_x, egg_y, radius, egg_room, put_x, put_y)) return false;
-                        auto& larva = larvae.emplace_back(make_monster(game_data, young->second, (float(put_x) + 0.5f) / 5, (float(put_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id));
+                        auto& larva = larvae.emplace_back(make_monster(game_data, young->second, (float(put_x) + 0.5f) / 5, (float(put_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id));
                         larva.aware = true; larva.no_exp = true;
                         larva.seed = d2d::rules::Rng{ rng.next() };
                         if (larva_mode != "NU" && !larva_mode.empty()) set_mode(game_data, larva, larva_mode, now_ms);
@@ -2035,7 +2035,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const int chance = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                         const auto summon = game_data.monsters.by_id.find(cast->summon);
                         if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && summon != game_data.monsters.by_id.end()) {
-                            morph_monster(game_data, whipped, summon->second, rng, d2d::rules::game_players(players_in(foes), players_setting));
+                            morph_monster(game_data, whipped, summon->second, rng, d2d::rules::game_players(players_in(foes), players_counted));
                             whipped.aware = true;
                             set_mode(game_data, whipped, cast->summode.empty() ? "NU" : cast->summode, now_ms);
                             d2d::log::info("{} whips a minion into a suicide minion", monster.npc.name);
@@ -2160,7 +2160,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const int room = room_of(level, (float(at_x0) + 0.5f) / 5, (float(at_y0) + 0.5f) / 5);
                     if (int at_x = 0, at_y = 0; born && young >= 0
                         && (spawn_spot(game_data, level, crowd, rooms_in_play, young, at_x0, at_y0, -1, room, at_x, at_y) || spawn_spot(game_data, level, crowd, rooms_in_play, young, at_x0, at_y0, 4, room, at_x, at_y))) {
-                        auto made = make_monster(game_data, young, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                        auto made = make_monster(game_data, young, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                         made.aware = true; made.no_exp = true; made.no_drop = true;
                         made.seed = d2d::rules::Rng{ rng.next() };
                         const bool spawned_mode = spawn_row != game_data.monsters.by_id.end() && !type_info.spawn_mode.empty() && type_info.spawn_mode != "NU";
@@ -2200,7 +2200,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                                 if (k == 0) break;
                                 continue;
                             }
-                            auto bone = make_monster(game_data, 0x154 + int(k), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                            auto bone = make_monster(game_data, 0x154 + int(k), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                             bone.seed = d2d::rules::Rng{ rng.next() };
                             born->push_back(std::move(bone));
                         }
@@ -2372,7 +2372,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     monster.seed(24); monster.seed(24);
                     for (int made = 0; born && kind != game_data.monsters.by_id.end() && made < count; ++made) {
                         const int at_x = subtile(foe.x) + int(monster.seed.next() % 18) - 9, at_y = subtile(foe.y) + int(monster.seed.next() % 18) - 9;
-                        auto tentacle = make_monster(game_data, kind->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                        auto tentacle = make_monster(game_data, kind->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                         std::tie(tentacle.unit.x, tentacle.unit.y) = level.nearest_free(tentacle.unit.x, tentacle.unit.y);
                         tentacle.aware = true;
                         tentacle.seed = d2d::rules::Rng{ rng.next() };
@@ -2388,7 +2388,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         for (int head = 0; head < 3; ++head) {
                             int at_x = 0, at_y = 0;
                             if (!spawn_spot(game_data, level, crowd, rooms_in_play, summoned->second, subtile(foe.x), subtile(foe.y), -1, room_of(level, foe.x, foe.y), at_x, at_y)) continue;
-                            auto hydra = make_monster(game_data, summoned->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level.id);
+                            auto hydra = make_monster(game_data, summoned->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                             hydra.aware = true;
                             hydra.seed = d2d::rules::Rng{ rng.next() };
                             hydra.ai_state = int(now_ms / 40) + cast->par[0];
@@ -2502,7 +2502,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes
     // in through an AI's pace (Run x 100 / Velocity - 100) or a charge.
     const int run = walk;
-    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door, born, rooms_in_play, players_setting)) return false;
+    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door, born, rooms_in_play, players_counted)) return false;
     // AI Idle (MonAI row 1: the cow, chickens, rats, birds, the doors and
     // barricades; search type 0, no target looked for): FUN_005b0cd0 stands
     // 200 frames when it's in a room (FUN_00620bb0), and that's all.

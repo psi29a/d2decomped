@@ -10,7 +10,6 @@
 #include "internal.hpp"
 #include "log.hpp"
 
-#include <chat_commands.hpp>
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -380,7 +379,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, players_setting))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players()))
                     killed(i, now_ms);                           // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
@@ -419,7 +418,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         int at_x = 0, at_y = 0;
                         if (!spawn_spot(*game_data, *level, crowd, &spawning.levels[level], worm_type, int(std::floor(monster.unit.x * 5)), int(std::floor(monster.unit.y * 5)), 1,
                                         room_of(*level, monster.unit.x, monster.unit.y), at_x, at_y)) continue;
-                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_setting), level->id);
+                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, game_players(), level->id);
                         young.aware = true;
                         young.seed = d2d::rules::Rng{ rng.next() };
                         set_mode(*game_data, young, impregnate->summode.empty() ? "NU" : impregnate->summode, now_ms);

@@ -484,9 +484,13 @@ struct Fight {
     // The chat box's /players count (DAT_00883d70, FUN_00535780): 0 until
     // set, never reset, so a later game keeps it (new_game leaves it).
     int players_setting = 0;
+    // During a split-level turn (World::tick): the players on the other
+    // levels, whom `heroes` (this level's) leaves out; 0 otherwise.
+    int players_elsewhere = 0;
     // The players a monster's life and experience and NoDrop count
-    // (FUN_00535790): the heroes, or the /players count when it's larger.
-    [[nodiscard]] int game_players() const { return d2d::rules::game_players(int(heroes.size()), players_setting); }
+    // (FUN_00535790): every player in the game, or the /players count when
+    // it's larger.
+    [[nodiscard]] int game_players() const { return d2d::rules::game_players(int(heroes.size()) + players_elsewhere, players_setting); }
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     std::unordered_map<const Level*, std::vector<Missile>> kept_missiles;   // a level's in flight while another has its turn (World::swap_to)
