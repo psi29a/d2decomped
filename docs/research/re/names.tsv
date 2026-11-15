@@ -242,6 +242,19 @@ address	name	evidence
 0047a640	roster_local_loot_to	ECX record: FUN_004dc440(local, record, 1) nonzero
 0047a670	roster_class_check	ECX record: 0 for class 0, 1 or 6, else 1; null 1 (+0x1c)
 0047a690	roster_set_life	ECX id, DL zero-extended and stored as a dword at record +0x14 (clears +0x15..+0x17; the party life bar); verified roster_small.py
+0047b3b0	chat_prefix_compare	EAX prefix, stack line (ret 4): -1 when shorter, else toupper on sign-extended bytes, 0 / 1 / -1; verified chat_helpers.py (chat-commands.md)
+0047b9c0	chat_history_show	copies the 0x7bb5d8 history slot (0x202 bytes at 0x7bb840) into the box, count = its length; verified chat_history.py (chat-commands.md)
+0047ba00	chat_history_push	EDX text: slots 7..0, then reuses 0x712f48 stepping down; 0x7bb5d8 = the slot; verified chat_history.py (chat-commands.md)
+0047ba80	chat_history_step	stack step (ret 4): 0x7bb5d8 + step, 8 -> 0, -1 -> 7, kept when fewer than 7 full and the slot is empty; verified chat_history.py (chat-commands.md)
+0047bc70	chat_box_click	WM_LBUTTONDOWN: y > H - 0x31 shuts the box (FUN_00455f20(5, 1, 0)); verified chat_history.py (chat-commands.md)
+0047bca0	chat_box_key	keys 0x26 / 0x28, not on repeat: Up shows then steps +1, Down steps -1 then shows; verified chat_history.py (chat-commands.md)
+0047bd00	chat_all_narrow_broken	ECX UTF-16 text: meant all units < 0x100, but tests text[length] every pass, so always 1; verified chat_helpers.py (chat-commands.md)
+0047bd30	chat_history_reset	0x712f44 = 0x712f48 = 7, 0x7bb5d8 = full = count = 0; verified chat_history.py (chat-commands.md)
+0047bd60	bnet_name_account	ESI name: the text after the first '*' when not empty, else the name; verified chat_helpers.py (chat-commands.md)
+0047bd80	bnet_name_character	ESI name, EBX out: the text before the first '*', or the whole name (leading '*' or none); verified chat_helpers.py (chat-commands.md)
+0047c3f0	chat_after_space	EAX line, ESI out, stack size (ret 4): FUN_004135d0(out, after the first space, size), else out = ""; verified chat_helpers.py (chat-commands.md)
+0047c420	chat_parse_line	ECX box, stack line, blanks: /fps /framerate /players /nopickup soundchaosdebug, else chat 0x15 / 0x14 (FUN_0047bad0) or a Battle.net command; verified chat_parse.py (chat-commands.md)
+0047ca70	chat_box_char	WM_CHAR: Backspace, Esc, Enter (skips blanks, history, WideCharToMultiByte, FUN_0047c420), else adds a unit; verified chat_history.py (chat-commands.md)
 0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
 0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
 0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
@@ -523,6 +536,8 @@ address	name	evidence
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00526f20	narrow_to_wide	ECX dst u16*, EDX src bytes, stack count (ret 4): each byte zero-extended, stops at the NUL or count; then dst[i] = 0, or dst[count-1] = 0 when src[count] is not 0 (cursor-units.md)
+00535780	players_setting_set	ECX n: DAT_00883d70 = n when n < 9 unsigned (/players); its only write; verified chat_parse.py (chat-commands.md)
+00535790	player_count	ECX game: the players in the hash (FUN_005538d0), or DAT_00883d70 when larger and game +0x6a is 1..3; verified chat_parse.py (party.md)
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60(game +0x1a8, type +0x16c, id +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 00537ac0	game_free_clients	ECX game: releases each record on the client list (+0x88, next +0x4a8) to the game pool, line 0x617; leaves the id and name tables alone (net-join.md)
 00537d10	near_players_insert	EAX player x, ESI table, stack unit, y, max-distance pointer, client, limit (ret 0x14): sorted insert of a type 0 unit by |dx| + |dy| into 12-byte entries, nearest `limit` kept (net-join.md "The nearby-player list")
