@@ -446,6 +446,10 @@ struct Skill {
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
     bool decquant = false;                 // decquant: a shot spends one ammo (FUN_0056f7f0 -> FUN_0056c3f0)
     bool attack_no_mana = false;
+    // restrict (+0x228) and State1..3 (+0x22a, FUN_00644060): 0 not in a restrict state (wolf, bear,
+    // delerium), 2 in one and in one of the listed states, any other value anywhere.
+    int restrict_form = 0;
+    std::array<std::string, 3> restrict_states;
     int reqlevel = 1, maxlvl = 20;
     int mana = 0, lvlmana = 0, manashift = 8, minmana = 0;
     int startmana = 0;                     // +0x184: the mana a start needs, whole points (FUN_006440f0)

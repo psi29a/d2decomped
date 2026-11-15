@@ -1282,10 +1282,11 @@ struct Fight {
     // What the check asks (FUN_0056c160: no minmana floor); pay takes what FUN_0056bfe0 takes.
     [[nodiscard]] int cost_of(const d2d::rules::Skill& skill, int lvl) const;
     // Whether the player's skill can go now (FUN_00647960), game.exe's status: 0, or the first
-    // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of,
-    // then startmana x 256 out of state inferno), 8 skilldelay on and the skill's delay above 0.
-    // ponytail: restrict (4), blood mana (state 0x72) and an item's charges in its stat (2)
-    // aren't asked: d2d has no shapeshift or Blood Mana on the player, and a spent entry goes.
+    // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
+    // 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
+    // and the skill's delay above 0.
+    // ponytail: blood mana (state 0x72) and an item's charges in its stat (2) aren't asked:
+    // d2d puts no Blood Mana on the player, and a spent entry goes.
     [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
     // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
     // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:

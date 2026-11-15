@@ -619,7 +619,9 @@ loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
    instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
 6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
    States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
-   one of State1..3 (+0x22a), 1 and others pass: 4.
+   one of State1..3 (+0x22a), 1 and others pass: 4. In 1.14d's rows 2 is
+   the Druid's forms' (Feral Rage, Maul, Rabies, Fire Claws, Hunger, Shock
+   Wave, Fury); d2d: `Skill::restrict_form`, `StateInfo::restrict_form`.
 7. startmana (`FUN_006440f0`, a player only): 1 when +0x184 (startmana,
    not minmana +0x186) is above 0, mana is below startmana x 256 and the
    unit isn't in state inferno (0xc). Only Inferno (6), Arctic Blast and

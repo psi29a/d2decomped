@@ -493,6 +493,7 @@ struct GameData {
         int pri = 0, shift = -1, item_colour = -1;
         int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         bool curse = false;                // States.txt curse (bit set 11, game +0xf8): its stat list is flagged 0x20, one such at a time (FUN_0056e970)
+        bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;

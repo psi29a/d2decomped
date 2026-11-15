@@ -543,6 +543,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
+        skill_row.restrict_form = number("restrict");
+        for (std::size_t k = 0; k < 3; ++k) skill_row.restrict_states[k] = text("State" + std::to_string(k + 1));
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
         skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana"); skill_row.startmana = number("startmana");
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
@@ -860,6 +862,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             state.group = std::atoi(std::string(states_table.get(row, "group")).c_str());
             state.curse = states_table.get(row, "curse") == "1";
+            state.restrict_form = states_table.get(row, "restrict") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
