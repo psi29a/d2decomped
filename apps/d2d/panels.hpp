@@ -180,7 +180,7 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              bool life_text = false, mana_text = false;  // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
              int holy_shield = 0;                        // effective Holy Shield level while state 0x65 is on, else 0 (FUN_00485be0)
              std::array<std::string, 2> run_keys{};      // Toggle Run's keys by name, slot 1 then slot 0; empty: unbound (FUN_00497300)
-             bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false; };   // touch: inventory left; store right when trade
+             bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false; };   // touch: inventory left only with vendor-right split
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);

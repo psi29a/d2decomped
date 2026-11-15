@@ -22,10 +22,10 @@
 #include "storage_close.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "use_item.hpp"
-#include "touch_input.hpp"
 #include "world_view.hpp"
 
 #include <combat.hpp>
@@ -289,7 +289,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() || touch_compact,
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, touch_enabled && inv_open, touch_enabled && store.npc >= 0, touch_compact }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, touch_enabled && inv_open && store.npc >= 0, touch_enabled && store.npc >= 0, touch_compact }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -361,7 +361,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         quest_log_was_open = quest_log.open;
         if (quest_log.open && draw_quest_log(framebuffer, *scene, quest_log, quest_bits(), quest_state(), frame_ms, character.expansion, mouse.x, mouse.y))
             questdone_sound = true;                    // cursor_questdone
-        const int tree_panel_right = touch_enabled && tree_open ? touch::kTouchTreeRight : kTreeR;
+        const int tree_panel_right = kTreeR;
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y, tree_panel_right);

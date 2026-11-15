@@ -300,9 +300,9 @@ inline constexpr int kSpeechBoxBottom = kSpeechBoxTop + 0x7a;
 // FUN_0049d5a0 draws a line whole while it sits in the box, and FUN_00501df0
 // draws one that only partly sits there. The glyph is the cell ending on
 // the baseline. False: the line is clear of the box.
-inline bool speech_line_visible(int baseline, int cell) {
+inline bool speech_line_visible(int baseline, int cell, int box_top = kSpeechBoxTop, int box_bottom = kSpeechBoxBottom) {
     const int glyph_top = baseline - cell + 1;
-    return glyph_top < kSpeechBoxBottom && baseline >= kSpeechBoxTop;
+    return glyph_top < box_bottom && baseline >= box_top;
 }
 
 Speech start_speech(const Scene& scene, int npc, std::uint16_t string, std::uint32_t now_ms);

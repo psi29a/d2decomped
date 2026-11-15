@@ -226,12 +226,14 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
         }
     const auto& font = scene.font_formal11.line_height() > 0 ? scene.font_formal11 : scene.font;
     const int cell = font.sheet().frames_per_direction() > 0 ? int(font.sheet().frame(0, 0).height) : 16;
+    const int clip_top = top - 5;
+    const int clip_bottom = clip_top + box_h;
     const int off = speech.offset_px(now_ms);
     for (std::size_t i = 0; i < speech.lines.size(); ++i) {
         const int base = top + 0x70 - off + int(i) * 18;
-        if (!speech_line_visible(base, cell)) continue;
+        if (!speech_line_visible(base, cell, clip_top, clip_bottom)) continue;
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box_x + 16, base - cell + 1, speech.lines[i], 255, 255, 255,
-                      kSpeechBoxTop, kSpeechBoxBottom);
+                      clip_top, clip_bottom);
     }
 }
 

@@ -25,7 +25,7 @@ struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
 
 inline bool g_touch_classic_hud = false;
-inline constexpr int kTouchTreeRight = 488;
+/** Inventory left-edge only while a vendor is open (split with kTouchStorePanelX). */
 inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
 /** Scales corner chips and field controls (deviation candidate: touch_ui_scale). */
 inline constexpr float kUiScale = 1.2f;
@@ -45,8 +45,11 @@ struct Layout {
     std::array<Box, 4> skills{}, belts{};
 };
 
-/** Panel open: move corner chips off the left inventory column. */
-inline float panel_chrome_x() { return float(kTouchTreeRight) + 8.f + safe_inset.left; }
+/** Panel open: move corner chips off the inventory column (classic right edge 400, or vendor-split). */
+inline float panel_chrome_x(bool vendor_split = false) {
+    const float column_right = vendor_split ? float(kTouchInvPanelX + 320) : 400.f;
+    return column_right + 8.f + safe_inset.left;
+}
 
 inline float ui_scale(float value) { return value * kUiScale; }
 
@@ -91,15 +94,28 @@ inline Layout layout_boxes() {
     const float track_y = out.bind.y + out.bind.height + gap;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
     out.cancel = placed(kCancel);
-    // Column sits fully above the skill arc (its bottom clears skill 3's top).
-    const float pot_x = ax - ui_scale(98.f);
-    for (int index = 0; index < 4; ++index)
-        out.belts[std::size_t(index)] = { pot_x, ay - ui_scale(414.f) + float(index) * (belt + ui_scale(10.f)), belt, belt };
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
     out.skills[0] = { ax - ui_scale(103.f), ay + ui_scale(7.f), skill, skill };
     out.skills[1] = { ax - ui_scale(186.f), ay - ui_scale(64.f), skill, skill };
     out.skills[2] = { ax - ui_scale(104.f), ay - ui_scale(134.f), skill, skill };
     out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
+    float skill_left = out.skills[0].x, skill_top = out.skills[0].y;
+    for (const auto& skill_box : out.skills) {
+        skill_left = std::min(skill_left, skill_box.x);
+        skill_top = std::min(skill_top, skill_box.y);
+    }
+    // Prefer a column above the skill arc; if scale clips it, sit left of the arc on-screen.
+    const float pot_gap = ui_scale(10.f);
+    const float stack_h = 4.f * belt + 3.f * pot_gap;
+    float pot_x = ax - ui_scale(98.f);
+    float pot_y0 = ay - ui_scale(414.f);
+    const float min_y = safe_inset.top + 6.f;
+    const float max_y = 600.f - safe_inset.bottom - 6.f - stack_h;
+    pot_y0 = std::clamp(pot_y0, min_y, std::max(min_y, max_y));
+    if (pot_y0 + stack_h + 8.f > skill_top) pot_x = std::min(pot_x, skill_left - belt - pot_gap);
+    pot_x = std::clamp(pot_x, safe_inset.left + 6.f, 800.f - safe_inset.right - belt - 6.f);
+    for (int index = 0; index < 4; ++index)
+        out.belts[std::size_t(index)] = { pot_x, pot_y0 + float(index) * (belt + pot_gap), belt, belt };
     out.interact = { ax - ui_scale(268.f), ay - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
     const float move_right = std::min(out.interact.x + out.interact.width + 16.f, out.skills[2].x - 8.f);
     out.move.width = std::max(out.move.width, move_right - out.move.x);

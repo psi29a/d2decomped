@@ -520,7 +520,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
-            const int tree_panel_right = touch_enabled && tree_open ? touch::kTouchTreeRight : kTreeR;
+            const int tree_panel_right = kTreeR;
             const auto close = skill_tree_close(character.character_class, tree_tab, tree_panel_right);
             const bool over = close.contains(mouse.x, mouse.y);
             if (mouse.press_this_frame && over) { tree_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
@@ -531,7 +531,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
         }
         if (char_open && !held) close_button(char_close_down, char_open, kCharPanelX + 0x80, kCharPanelY + 420);
-        const int tree_hit_right = touch_enabled && tree_open ? touch::kTouchTreeRight : kTreeR;
+        const int tree_hit_right = kTreeR;
         const bool over_panel =
             (tree_open && mouse.x >= tree_hit_right - 320 && mouse.x < tree_hit_right && mouse.y >= 60 && mouse.y < 540) ||
             (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
@@ -667,7 +667,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // released spends a point (FUN_004ab7e0 / FUN_004abc30).
         if (tree_open) {
             const int cls = std::max(character.character_class, 0);
-            const int tree_panel_right = touch_enabled ? touch::kTouchTreeRight : kTreeR;
+            const int tree_panel_right = kTreeR;
             const int skill = skill_at(*scene, cls, tree_tab, mouse.x, mouse.y, tree_panel_right);
             if (mouse.press_this_frame) {
                 if (const int tab = skill_tab_at(mouse.x, mouse.y, tree_panel_right); tab > 0) tree_tab = tab;

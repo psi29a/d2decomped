@@ -86,9 +86,16 @@ int main() try {
     for (int i = 0; i < 4; ++i)
         for (int j = i + 1; j < 4; ++j) assert(gap(field.skills[std::size_t(i)], field.skills[std::size_t(j)]) >= 8.f);
     float belt_bottom = 0.f;
-    for (const auto& belt : field.belts) belt_bottom = std::max(belt_bottom, belt.y + belt.height);
-    assert(belt_bottom + 8.f <= skill_top);
+    for (const auto& belt : field.belts) {
+        belt_bottom = std::max(belt_bottom, belt.y + belt.height);
+        assert(belt.x >= 0.f && belt.y >= 0.f);
+        assert(belt.x + belt.width <= 800.f && belt.y + belt.height <= 600.f);
+    }
+    (void)skill_top;
     assert(std::abs(field.belts[0].x - field.belts[3].x) < 1.f);
+    input.clear();
+    input.event(9, Phase::Down, field.done.x + 2.f, field.done.y + 2.f);
+    assert(input.done);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

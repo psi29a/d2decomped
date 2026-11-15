@@ -496,7 +496,7 @@ struct Town {
     bool touch_enabled = false;
     /** Touch on and classic PC bottom bar suppressed (independent of panels/automap). */
     [[nodiscard]] bool touch_hides_classic_hud() const;
-    /** Field thumb cluster (move/skills/attack); false during panels, NPC, store, speech, or fullscreen map. */
+    /** Field thumb cluster (move/skills/attack); false during panels, NPC, store, or speech. Automap overlay keeps it. */
     [[nodiscard]] bool touch_shows_field_controls() const;
     /** @deprecated Use touch_shows_field_controls for field chrome; touch_hides_classic_hud for HUD. */
     [[nodiscard]] bool touch_compact_field() const;

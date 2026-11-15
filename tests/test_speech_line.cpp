@@ -54,6 +54,9 @@ int main() try {
     assert(speech_line_visible(kSpeechBoxBottom - 1, cell));          // baseline on the box's last row
     assert(speech_line_visible(kSpeechBoxBottom + cell - 2, cell));   // only the glyph's top row remains
     assert(!speech_line_visible(kSpeechBoxBottom + cell - 1, cell));  // the glyph starts on the row below the box
+    constexpr int touch_top = 461, touch_bottom = 583;
+    assert(speech_line_visible(touch_top + 0x70, cell, touch_top, touch_bottom));
+    assert(!speech_line_visible(touch_top + 0x70, cell));
 
     const d2d::font::Font font = tall_glyph();
     std::array<d2d::palette::Rgba, 256> colours{};

@@ -58,8 +58,9 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   potions stack above the right skill arc (not on the left); a compact quest
   tracker on the left opens the full log on tap. The classic bottom bar, belt
   strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
-  them back). Map opens full-screen with full automap fade; the skill tree pins
-  to the left edge. Inventory on touch hugs the left edge of the view.
+  them back). Map is a dim overlay: field move/skill/belt chrome stays up.
+  The skill tree and inventory use classic panel placement (`kTreeR`,
+  `kCharPanelX`). Inventory only shifts left for a vendor-right split.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing
   them. Done returns to the panel; Back closes it.
@@ -237,14 +238,19 @@ through actual controller input with and without unidentified targets.
 Touch layout uses logical 800×600 with `touch::kUiScale` (default 1.2) on corner
 chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
 and skill bar whenever touch is on (including automap, NPC speech, and shop);
-`touch_shows_field_controls()` is only true on the open field without panels.
-The move stick uses a large `move` hit box with a smaller `move_visual` ring.
+`touch_shows_field_controls()` is true on the open field without panels,
+including while the automap overlay is on. Belt buttons clamp on-screen
+(and sit left of the skill arc when scale would clip the top). The move
+stick uses a large `move` hit box with a smaller `move_visual` ring.
 NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
-taps route through ordinary menu hit tests with extra row padding. Skill
-assignment highlights the four field slots in gold. Inventory long-press reuses
-`hold_confirm` (fill belt, equip, shop sell) and cancels when the finger moves
-more than 14px before drag.
+speech text clips to that sheet, not the classic top box. Taps route
+through ordinary menu hit tests with extra row padding. Skill assignment
+highlights the four field slots in gold and draws bound icons on those
+rings. Bind Done is hit-tested before the wheel swallows input. Inventory
+long-press reuses `hold_confirm` (fill belt, equip, shop sell) and cancels
+when the finger moves more than 14px before drag.
 
 Pass 4 adds stacked corner chips (Inv / Skl / Quest / Bind) with layout gaps, icon-centered
 skill rings, a wider move capture toward interact, vendor panel on the right when trading,
-panel-safe chip relocation, and a Bind editor (slot pick then radial skill wheel, Done to save).
+panel-safe chip relocation (inventory/stash/vendor only; not the skill tree), and a Bind
+editor (slot pick then radial skill wheel, Done to save).
