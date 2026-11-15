@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A player's block (BL, mode 9) on the server: how long it holds (FUN_00623f50's block branch, then FUN_005539b0's end event).
+// A player's block (BL, mode 9) on the server: how long it holds (FUN_00623f50's block branch, then FUN_005539b0's end event),
+// and whether a hit puts a unit already in a get-hit or block into one again (FUN_0057edd0 refuses GH and BL from GH and BL).
 //   `--block-length`: every class x main-hand weapon x FBR 0..300 x Holy Shield off / on, one line each
 //   `D class weapon fbr holy record frames speed ticks`: the ticks Fight::set_pmode(BL) holds, as `tools/emu/block_len.py` reads them.
+//   `--restart`: two big hits on a Paladin 5 ticks apart: `R first_end second_end` (ticks from the first hit; game.exe holds the
+//   second hit's end at the first's).
+//   `--hit-modes`: one big hit on a Paladin standing in each of modes DT..SQ (0..18) with a hold running, then in a knockback
+//   slide (19, drawn as GH with `knock` set): `M mode after restarted` (the mode right after the hit, and 1 when the hold's
+//   end moved; the cells FUN_0057edd0 answers for GH).
+//   no argument: the rules (block_rate, block_ticks) and, with the game data (D2_MPQ_DIR), a Paladin's block and the get-hit hold.
 
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>
@@ -15,6 +23,7 @@
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -53,7 +62,8 @@ Character make_hero(const GameData& data, int cls, const std::string& weapon) {
 
 int main(int argc, char** argv) try {
     const bool grid = argc > 1 && std::strcmp(argv[1], "--block-length") == 0;
-    if (!grid) {
+    const bool restart = argc > 1 && std::strcmp(argv[1], "--restart") == 0;
+    if (!grid && !restart) {
         // The block rate and length (FUN_00623f50's block branch, FUN_005539b0): a Paladin's PABL1HS (3 frames at 256) holds 6 ticks at FBR 0 and 3 at FBR 86 (13 / 32 / 86 are
         // the breakpoints), with Holy Shield's state 0.5 x the rate more: 3 ticks at FBR 0..85 and 2 from 86.
         using d2d::rules::block_rate;
@@ -113,6 +123,73 @@ int main(int argc, char** argv) try {
             }
         return 0;
     }
+    if (std::strcmp(argc > 1 ? argv[1] : "", "--hit-modes") == 0) {
+        for (int mode = 0; mode <= 18; ++mode) {
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            World world(&*data, -1, -1);
+            world.enter(hero);
+            world.fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world.actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            actor.pmode = mode;
+            actor.pmode_until = start_ms + 10 * 40;
+            world.fight.hurt_side(side, start_ms + 40);
+            std::printf("M %d %d %d\n", mode, actor.pmode, actor.pmode_until != start_ms + 10 * 40 ? 1 : 0);
+        }
+        // Mode 19: game.exe's knockback (0x13), which d2d draws as GH with `knock` set; `restarted` is 1 when the hit began a get-hit
+        // (the hold's end moved).
+        {
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            World world(&*data, -1, -1);
+            world.enter(hero);
+            world.fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world.actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            actor.pmode = kModeGH;
+            actor.pmode_until = start_ms + 10 * 40;
+            actor.knock = std::array{ float(actor.player.x), float(actor.player.y), float(actor.player.x) + 5.f, float(actor.player.y) };
+            world.fight.hurt_side(side, start_ms + 40);
+            std::printf("M 19 %d %d\n", actor.pmode, actor.pmode_until != start_ms + 10 * 40 ? 1 : 0);
+        }
+        return 0;
+    }
+    // Two big hits on a Paladin 5 ticks apart, through the real Fight::hurt_side; ticks from the first hit to the end of the hold.
+    const auto two_hits = [&](int& first_end, int& second_end) {
+        auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+        World world(&*data, -1, -1);
+        world.enter(hero);
+        world.fight.update_fighters(1000 * kTickMs);
+        auto& actor = *world.actor;
+        const auto hit = [&](std::uint32_t when_ms) {
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 20;                                   // over a quarter of a clvl 1 Paladin's life: a get-hit at once
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 20, .landed = true });
+            actor.character.stats.values[d2d::d2s::kLife] = actor.character.stats.values[d2d::d2s::kMaxLife];
+            world.fight.hurt_side(side, when_ms);
+        };
+        const std::uint32_t start_ms = 1000 * kTickMs;
+        actor.pmode = -1;
+        hit(start_ms);
+        assert(actor.pmode == kModeGH);
+        first_end = int((actor.pmode_until - start_ms) / 40);
+        hit(start_ms + 5 * 40);
+        second_end = int((actor.pmode_until - start_ms) / 40);
+    };
+    if (restart) {
+        int first = 0, second = 0;
+        two_hits(first, second);
+        std::printf("R %d %d\n", first, second);
+        return 0;
+    }
     // A Paladin with a sword: PABL1HS at FBR 0 holds the block 6 ticks, 3 with Holy Shield's state.
     {
         auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
@@ -126,7 +203,7 @@ int main(int argc, char** argv) try {
         assert(block(world, 0, true, now, record, frames, speed) == 3);
         assert(block(world, 86, false, now, record, frames, speed) == 3 && block(world, 86, true, now, record, frames, speed) == 2);
     }
-    std::printf("test_hit_recovery: block length matches game.exe's (Paladin breakpoints)\n");
+    std::printf("test_hit_recovery: block length and the get-hit hold match game.exe's\n");
     return 0;
 } catch (const std::exception& e) {
     std::fprintf(stderr, "test_hit_recovery: %s\n", e.what());
