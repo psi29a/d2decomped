@@ -110,11 +110,21 @@ endif()
 
 # Optional game-data inputs, handed to the tests that use them (they skip
 # those parts when unset): -DD2_PATCH_INSTALLER=.../LODPatch_114d.exe,
-# -DD2_SAVES_DIR=<dir of real .d2s saves>, -DD2_GAME_EXE=.../game.exe.
+# -DD2_SAVES_DIR=<dir of real .d2s saves>, -DD2_GAME_EXE=.../game.exe,
+# -DD2_MPQ_DIR=<dir with d2data.mpq> (default: the ~/Workspace/private/diablo2
+# most tests fall back to, so the ones that read only D2_MPQ_DIR run too).
+set(d2d_default_mpq_dir "$ENV{D2_MPQ_DIR}")
+if (NOT d2d_default_mpq_dir AND EXISTS "$ENV{HOME}/Workspace/private/diablo2/d2data.mpq")
+    set(d2d_default_mpq_dir "$ENV{HOME}/Workspace/private/diablo2")
+endif()
+set(D2_MPQ_DIR "${d2d_default_mpq_dir}" CACHE PATH "Diablo II install dir with d2data.mpq for the data tests")
 set(D2_PATCH_INSTALLER "$ENV{D2_PATCH_INSTALLER}" CACHE FILEPATH "LODPatch_114d.exe for the 1.14d tables")
 set(D2_GAME_EXE "$ENV{D2_GAME_EXE}" CACHE FILEPATH "game.exe 1.14d (1.14.3.71) for test_exe_tables")
 set(D2_SAVES_DIR "$ENV{D2_SAVES_DIR}" CACHE PATH "Real .d2s saves for parser checks")
 set(d2d_test_env "")
+if (D2_MPQ_DIR)
+    list(APPEND d2d_test_env "D2_MPQ_DIR=${D2_MPQ_DIR}")
+endif()
 if (D2_PATCH_INSTALLER)
     list(APPEND d2d_test_env "D2_PATCH_INSTALLER=${D2_PATCH_INSTALLER}")
 endif()
