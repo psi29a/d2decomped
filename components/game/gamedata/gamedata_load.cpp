@@ -1009,8 +1009,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.no_durability = table->get(row, "nodurability") == "1";
                 base.useable = table->get(row, "useable") == "1";
                 base.quest_diff = table->get(row, "questdiffcheck") == "1";
-                base.max_1h = table == &weapons ? number("maxdam") : 0;
+                base.max_1h = table == &misc ? 0 : number("maxdam");
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
+                base.min_1h = table == &misc ? 0 : number("mindam");
+                base.min_2h = table == &weapons ? number("2handmindam") : 0;
                 base.spawnable = table->get(row, "spawnable") == "1";
                 base.nameable = table->get(row, "Nameable") == "1";
                 base.version = number("version");
