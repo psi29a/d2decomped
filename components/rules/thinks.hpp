@@ -23,7 +23,8 @@ namespace d2d::rules {
 
 // The think's row, nullptr when d2d has none for that AI.
 inline const ThinkRow* think_row(std::string_view ai_name) {
-    // ponytail: a linear find, as the if-chain before it; a sorted table if it ever shows in a profile.
+    // game.exe indexes its table by the AI row (0x73ca18 + AI x 16); d2d finds
+    // the same row by name, linearly (a few hundred compares at a spawn).
     for (const std::span<const ThinkRow> table : { std::span<const ThinkRow>(kAct1Thinks), std::span<const ThinkRow>(kAct2Thinks), std::span<const ThinkRow>(kAct3Thinks),
                                                    std::span<const ThinkRow>(kAct4Thinks), std::span<const ThinkRow>(kAct5Thinks) })
         if (const auto row = std::ranges::find(table, ai_name, &ThinkRow::ai_name); row != table.end()) return &*row;
