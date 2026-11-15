@@ -585,8 +585,10 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
 // player of +3; a death (6) names the killer by +7: 0 a player (the
 // second name), 1 a monster (MonStats NameStr of +3; a SuperUnique's,
 // +0x18 its row, when set), 2 an object (an Exploding Barrel, 0xb).
-// ponytail: 0xb / 0xf / 0x11 / 0x12 (realm news, SOJ, Diablo Walks the
-// Earth) aren't shown; nor an object's own name in a death.
+// 0xf (realm going down, 0xe43) and 0x11 (SOJs sold, 0x2afc) format
+// their string with +3 (FUN_005269d0's %d / %u); 0x12 is 0x2afd as is.
+// ponytail: 0xb (0x69b) isn't shown, nor an object's own name in a death;
+// 0x12's sound (FUN_0061c240) and FUN_00476a80(10000, 4000) aren't run.
 auto Town::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
@@ -631,7 +633,24 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
     case 9: return text(0xfcf);
     case 0xa: return event.name.empty() ? text(0x1027) : event.name + text(0x1026);
     case 0xd: return event.name + text(0xe44);
+    case 0xf:
+    case 0x11: {                                               // the first %d / %u takes +3, %% is one %
+        const auto pattern = text(event.event == 0xf ? 0xe43 : 0x2afc);
+        std::string line;
+        bool numbered = false;
+        for (std::size_t at = 0; at < pattern.size(); ++at) {
+            if (pattern[at] != '%' || at + 1 >= pattern.size()) { line += pattern[at]; continue; }
+            const char spec = pattern[++at];
+            if (spec == '%') line += '%';
+            else if ((spec == 'd' || spec == 'u') && !numbered) {
+                line += spec == 'd' ? std::to_string(std::int32_t(event.argument)) : std::to_string(event.argument);
+                numbered = true;
+            }
+        }
+        return line;
+    }
     case 0x10: return text(0x2a38);
+    case 0x12: return text(0x2afd);
     default: return {};
     }
 }
