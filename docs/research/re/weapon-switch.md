@@ -62,7 +62,15 @@ either hand's box (x from its left to its right edge, y from its top
 shows "Swap Weapons" and its key (untraced; d2d shows nothing).
 d2d: `item_cursor_command` (cursor.cpp).
 
-ponytail: another player's switch (0x9d action 0x17) isn't followed.
+Another player's switch: 0x9d action 0x17 (`FUN_004c3b00`) parses the
+item and hands it to `FUN_004c3980`, which frees the unit's item of that
+id and the one in the parsed body slot (`d2d_rules_hand_index`), then
+makes the item and puts it in that slot (`FUN_0063b210` mode 4 for 0xb /
+0xc, else 3; `FUN_0063bdb0`). Only for slots 4 / 5 does it run the
+wield and look refresh (`FUN_0063d1d0`, `FUN_0046f020`, `FUN_004c0d20`,
+`FUN_004c1c20`, `FUN_00470610`): the switch's hands aren't drawn.
+d2d: `NetGame::handle`'s 0x9d (erase by id or slot, keep the equipped),
+and `compcode::look` draws slots 1, 3, 4, 5 only.
 
 ## What two hands can hold (`FUN_0063dbc0`, from `FUN_0063dd90`)
 

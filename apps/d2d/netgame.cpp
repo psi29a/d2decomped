@@ -390,7 +390,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (owner == self_id) { own_items[id] = std::move(parsed->item); break; }
         // Another player's: what they wear is their look. A swap (7, 9)
         // sends only the incoming item, so it pushes out that slot's old one.
-        // ponytail: the weapon switch (0x17) isn't followed; slots 0xb / 0xc aren't drawn.
+        // The weapon switch (0x17, FUN_004c3980) is the same: the item's
+        // old self and its slot's go, it goes in. Slots 0xb / 0xc aren't
+        // drawn; game.exe redoes the look only for 4 / 5.
         auto& worn = unit_at(0, owner).worn;
         std::erase_if(worn, [&](const auto& entry) { return entry.first == id || entry.second.slot == parsed->item.slot; });
         if (parsed->item.location == d2d::d2s::item_location::kEquipped) worn[id] = std::move(parsed->item);
