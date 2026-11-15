@@ -590,11 +590,16 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
 // "" for one d2d doesn't show. The party's (7, FUN_0049e8f0) name the
 // player of +3; a death (6) names the killer by +7: 0 a player (the
 // second name), 1 a monster (MonStats NameStr of +3; a SuperUnique's,
-// +0x18 its row, when set), 2 an object (an Exploding Barrel, 0xb).
-// 0xf (realm going down, 0xe43) and 0x11 (SOJs sold, 0x2afc) format
-// their string with +3 (FUN_005269d0's %d / %u); 0x12 is 0x2afd as is.
-// ponytail: 0xb (0x69b) isn't shown, nor an object's own name in a death;
-// 0x12's sound (FUN_0061c240) and FUN_00476a80(10000, 4000) aren't run.
+// +0x18 its row, when set), 2 an object: Objects.txt row +3 (FUN_00640e90),
+// 0xb 0xc98 "an Exploding Barrel", any other its Name's string (the row's
+// +0x40, FUN_00524e20 of the Name key at load; LAB_0049f170), both with
+// 0xe3f. game.exe halts on a row past the table; d2d says " was slain.".
+// A key with no string shows the key (game.exe: 0x524ac0's "-not xlated").
+// 0xb formats 0x69b with an empty string (0x49f246..0x49f27e; 1.14d's
+// English 0x69b is 33 spaces). 0xf (realm going down, 0xe43) and 0x11
+// (SOJs sold, 0x2afc) format their string with +3 (FUN_005269d0's %d /
+// %u); 0x12 is 0x2afd as is (its eclipse, quake and sound: update.cpp's
+// event loop).
 auto Town::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
@@ -622,7 +627,17 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
         } else if (event.sub == 1 && !event.second.empty() && event.second_id < scene->superuniques.size()) {
             killer = scene->superuniques[event.second_id].name;
             slain_by = 0xe40;
-        } else if (event.sub == 2 && event.argument == 0xb) killer = text(0xc98);
+        } else if (event.sub == 2 && world.game_data && world.game_data->builder) {
+            const auto& builder = *world.game_data->builder;
+            if (const auto row = builder.obj_row.find(std::to_string(event.argument)); row != builder.obj_row.end()) {
+                if (event.argument == 0xb) killer = text(0xc98);
+                else {
+                    const std::string key(builder.objects.get(row->second, "Name"));
+                    const auto found = lookup_string(*scene, key);
+                    killer = found ? u16_to_latin1(*found) : key;
+                }
+            }
+        }
         return killer.empty() ? event.name + text(0xe41) : event.name + text(slain_by) + killer;
     }
     case 7: {
@@ -638,6 +653,7 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
     case 8: return event.name + text(0xfcc);                   // " is busy"
     case 9: return text(0xfcf);
     case 0xa: return event.name.empty() ? text(0x1027) : event.name + text(0x1026);
+    case 0xb: return format(text(0x69b), { std::string{} });
     case 0xd: return event.name + text(0xe44);
     case 0xf:
     case 0x11: {                                               // the first %d / %u takes +3, %% is one %
