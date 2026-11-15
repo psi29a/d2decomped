@@ -92,6 +92,8 @@ def main():
     # the brief's other shooters (not in Act 1 / 2 spawn lists): the Fetish blowdart family, Corpse Spitters, Maggot Queens
     ids |= {b for b in ("fetishblow1", "fetishblow2", "fetishblow3", "fetishblow4", "regurgitator1", "regurgitator2", "regurgitator3",
                         "maggotqueen1", "maggotqueen2", "maggotqueen3") if b in mons}
+    # a row that carries its skill's physical (Missiles.txt Skill, FUN_0064b860): the Death Mauler's maul (Act 5; the row's own physical is 0)
+    ids |= {b for b in ("deathmauler1", "deathmauler2", "deathmauler3", "deathmauler4", "deathmauler5") if b in mons}
     todo = []
     for mid in sorted(ids, key=lambda i: int(mons[i]["hcIdx"])):
         m = mons[mid]

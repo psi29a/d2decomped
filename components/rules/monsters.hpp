@@ -281,6 +281,9 @@ struct MonStats {
     // A missile whose row has ToHit 0 (Missiles.txt +0x18b): FUN_005adf10
     // skips FUN_0057d9b0's roll; block and avoid still come (FUN_005ad730).
     bool no_hit_roll = false;
+    // A shot whose physical record is 0 (FUN_005a89a0: min and max both over 0, else 0): FUN_005ad730 passes can-block 0 to FUN_0057dfb0,
+    // which then skips the block roll (the defender's other rolls still come).
+    bool unblockable = false;
     int regen = 0;                            // stat 0x4a: life a frame, 256ths (DamageRegen, FUN_00573cb0)
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
     std::array<El, 3> elements{};

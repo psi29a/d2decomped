@@ -477,8 +477,11 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
                                  missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
     auto stats = missile_blow(missile_info, poison, monster.stats.level);
     if (carried && !missile_info.skill.empty()) {
-        stats.a2_min = d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, false) >> 8;
-        stats.a2_max = std::max(d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, true) >> 8, stats.a2_min);
+        const int phys_lo = d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, false);
+        const int phys_hi = std::max(d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, true), phys_lo);
+        stats.a2_min = phys_lo >> 8;
+        stats.a2_max = std::max(phys_hi >> 8, stats.a2_min);
+        stats.unblockable = !(phys_lo > 0 && phys_hi > 0);              // the record carries the skill's physical (FUN_0064b860), not the row's: a Death Mauler's maul stays blockable
     }
     stats.to_hit = monster.stats.to_hit;                              // its stat 0x13, rolled when the row has ToHit
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
