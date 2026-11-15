@@ -162,7 +162,8 @@ file, which read or touch the same node list for other purposes.
 
 Players in the game (FUN_005538d0 over the player hash, game +0x1120,
 skipping units with FUN_00639df0(unit, 7) set). `/players` (DAT_00883d70,
-FUN_00535780) wins only when larger and only for game types (+0x6a) 1..3.
+FUN_00535780) wins only when larger and only for game types (+0x6a) 1..3
+(chat-commands.md "/players", with its oracle).
 d2d counts the World's players; there is no `/players`.
 
 ## Monster life and experience — FUN_00573930, FUN_00573cb0
