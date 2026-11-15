@@ -363,6 +363,14 @@ inline bool update_button(Button& button, const Mouse& mouse, Screen& current_sc
     return false;
 }
 
+// A box's buttons start disarmed each time it opens: game.exe builds them
+// anew. Ours persist, and one armed when its box closed (Esc with the mouse
+// held on it) isn't updated until the box reopens.
+inline void disarm(Button& button) {
+    button.pressed = false;
+    button.clicked = false;
+}
+
 // Parse D2's UTF-16LE-with-BOM credits.txt into Latin-1 lines. The file's
 // section headers use a '*' prefix. Skips empty lines but keeps '*' lines
 // as-is (renderer decides whether to style them).

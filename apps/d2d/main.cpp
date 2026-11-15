@@ -1520,9 +1520,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     && asks_difficulty(scene->saves[std::size_t(csu.selected)])) {
                     screen = Screen::CharSelect;
                     csu.pick_difficulty = true;
+                    for (auto& button : csu.difficulty_btn) disarm(button);
                     csu.hell_open = top_difficulty(scene->saves[std::size_t(csu.selected)]) >= 2;
                 }
-                if (csu.delete_btn.clicked && csu.selected >= 0 && csu.selected < count) csu.confirm_delete = true;
+                if (csu.delete_btn.clicked && csu.selected >= 0 && csu.selected < count) {
+                    csu.confirm_delete = true;
+                    disarm(csu.popup_yes);
+                    disarm(csu.popup_no);
+                }
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
                     const auto& header = scene->saves[std::size_t(csu.selected)];

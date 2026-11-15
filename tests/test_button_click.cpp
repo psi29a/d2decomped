@@ -52,6 +52,21 @@ int main() try {
     assert(!clicks(nightmare, { kOffDown, kOverHeld, kOverUp }));
     // Pressed on it, released off it: nothing.
     assert(!clicks(nightmare, { kOverDown, kOffUp }));
+    // Esc closed the box with the mouse held on NIGHTMARE (no update since);
+    // the double-click reopens it and its release lands there: disarmed at
+    // the open, nothing. Without the disarm the stale press would click.
+    {
+        Button stale = nightmare;
+        std::atomic<bool> quit{ false };
+        Screen screen = Screen::CharSelect;
+        Mouse held;
+        held.x = 300; held.y = 320; held.down = true; held.press_this_frame = true;
+        update_button(stale, held, screen, quit);
+        assert(stale.pressed);
+        assert(clicks(stale, { kOverHeld, kOverUp }));
+        disarm(stale);
+        assert(!clicks(stale, { kOverHeld, kOverUp }));
+    }
     // A switch button switches only on its click.
     Button ok{ 627, 537, 128, 35, nullptr, nullptr, Screen::InGame, true };
     std::atomic<bool> quit{ false };
