@@ -51,12 +51,13 @@ follow the game's existing logical viewport. Use landscape for this prototype.
 - Left movement area, dedicated contextual Interact, attack-only primary button,
   four skill buttons, and a one-tap I/II page switch. Belt buttons are available
   on either page.
-- Top chrome is edge-pinned (inventory and skills top-left; Done and Map stacked
-  top-right). Letterbox gutters pull chrome toward the physical bezels on wide
-  phones. Field controls sit in the bottom corners; the center stays clear.
-  On the field, compact life/mana bars sit under the top-left icons; belt
-  potions stack above the right skill arc (not on the left); a compact quest
-  tracker on the left opens the full log on tap. The classic bottom bar, belt
+- Top chrome is edge-pinned (Inv / Skl / Quest / Bind as a 2x2 flush to the
+  top-left; Done and Map stacked top-right). Letterbox gutters pull chrome
+  toward the physical bezels on wide phones. Field controls sit in the bottom
+  corners; the center stays clear.
+  On the field, compact life/mana bars sit under the 2x2 chip block; belt
+  potions sit in a 2x2 under Map (top-right, not over the character); a compact
+  quest tracker on the left opens the full log on tap. The classic bottom bar, belt
   strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
   them back). Map is a dim overlay: field move/skill/belt chrome stays up.
   The skill tree and inventory use classic panel placement (`kTreeR`,
@@ -239,18 +240,21 @@ Touch layout uses logical 800×600 with `touch::kUiScale` (default 1.2) on corne
 chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
 and skill bar whenever touch is on (including automap, NPC speech, and shop);
 `touch_shows_field_controls()` is true on the open field without panels,
-including while the automap overlay is on. Belt buttons clamp on-screen
-(and sit left of the skill arc when scale would clip the top). The move
+including while the automap overlay is on. Belt potions are a 2x2 under Map
+and stay on-screen (shifted up if they would cover the skill arc). The move
 stick uses a large `move` hit box with a smaller `move_visual` ring.
 NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
 speech text clips to that sheet, not the classic top box. Taps route
 through ordinary menu hit tests with extra row padding. Skill assignment
 highlights the four field slots in gold and draws bound icons on those
-rings. Bind Done is hit-tested before the wheel swallows input. Inventory
+rings. Bind Done (the Bind chip, relabelled Done, and the existing top-right
+Done) is hit-tested before the wheel swallows input. While binding, I/II
+still swaps skill set 1 vs 2. Inventory
 long-press reuses `hold_confirm` (fill belt, equip, shop sell) and cancels
 when the finger moves more than 14px before drag.
 
-Pass 4 adds stacked corner chips (Inv / Skl / Quest / Bind) with layout gaps, icon-centered
-skill rings, a wider move capture toward interact, vendor panel on the right when trading,
-panel-safe chip relocation (inventory/stash/vendor only; not the skill tree), and a Bind
-editor (slot pick then radial skill wheel, Done to save).
+Pass 4 stacked Inv / Skl / Quest / Bind as a column. Pass 5 lays them out as a
+2x2 flush to the top (life/mana under that block), moves belt potions to a 2x2
+under Map, turns the Bind chip into Done while the editor is open, and keeps
+I/II available in the bind editor. Panel-open chips still use `shift_left_chips`
+off the inventory/vendor column (not the skill tree).

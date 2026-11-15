@@ -65,7 +65,12 @@ int main() try {
     // layout_boxes positions depend on safe_inset and kUiScale only, not on pad_field().
     safe_inset = {};
     const auto field = layout_boxes();
-    assert(field.skills_bar.y >= field.menu.y + field.menu.height + 4.f);
+    assert(std::abs(field.skills_bar.y - field.menu.y) < 1.f);
+    assert(field.skills_bar.x >= field.menu.x + field.menu.width + ui_scale(kChipGap) - 1.f);
+    assert(std::abs(field.quest.y - field.bind.y) < 1.f);
+    assert(field.quest.y >= field.menu.y + field.menu.height + ui_scale(kChipGap) - 1.f);
+    assert(std::abs(field.bind.x - field.skills_bar.x) < 1.f);
+    assert(field.menu.y < 12.f);
     assert(field.move.contains(field.move_visual.x + field.move_visual.width * .5f, field.move_visual.y + field.move_visual.height * .5f));
     assert(field.menu.x < 20.f && field.done.x + field.done.width > 740.f);
     assert(field.attack.x + field.attack.width > 790.f && field.attack.y + field.attack.height > 590.f);
@@ -85,17 +90,29 @@ int main() try {
     }
     for (int i = 0; i < 4; ++i)
         for (int j = i + 1; j < 4; ++j) assert(gap(field.skills[std::size_t(i)], field.skills[std::size_t(j)]) >= 8.f);
-    float belt_bottom = 0.f;
     for (const auto& belt : field.belts) {
-        belt_bottom = std::max(belt_bottom, belt.y + belt.height);
         assert(belt.x >= 0.f && belt.y >= 0.f);
         assert(belt.x + belt.width <= 800.f && belt.y + belt.height <= 600.f);
+        assert(belt.y + 1.f >= field.map.y + field.map.height);
+        assert(belt.x + belt.width > 400.f);
     }
     (void)skill_top;
-    assert(std::abs(field.belts[0].x - field.belts[3].x) < 1.f);
+    assert(std::abs(field.belts[0].x - field.belts[2].x) < 1.f);
+    assert(std::abs(field.belts[1].x - field.belts[3].x) < 1.f);
+    assert(field.belts[1].x >= field.belts[0].x + field.belts[0].width - 1.f);
+    assert(std::abs(field.belts[0].y - field.belts[1].y) < 1.f);
+    assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + kBarsBelowChip + kBarBlockH);
+    Layout shifted = field;
+    shift_left_chips(shifted, panel_chrome_x(false));
+    assert(shifted.skills_bar.x > shifted.menu.x + 8.f);
+    assert(std::abs(shifted.bind.x - shifted.skills_bar.x) < 1.f);
     input.clear();
     input.event(9, Phase::Down, field.done.x + 2.f, field.done.y + 2.f);
     assert(input.done);
+    input.frame();
+    input.alternate = false;
+    input.event(8, Phase::Down, field.page.x + 2.f, field.page.y + 2.f);
+    assert(input.alternate);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

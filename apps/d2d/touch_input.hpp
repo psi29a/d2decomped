@@ -33,7 +33,9 @@ inline constexpr int kNpcLinePad = 14;
 
 // Nominal sizes (positions filled in layout_boxes).
 inline constexpr float kChipSize = 48.f, kChipGap = 8.f;
-inline constexpr float kBeltSize = 48.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+inline constexpr float kBeltSize = 48.f, kBeltGap = 6.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+/** Life/mana sit this far under the 2x2 chip block; quest track starts after the bar block. */
+inline constexpr float kBarsBelowChip = 10.f, kBarBlockH = 48.f;
 inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
 inline constexpr Box kCancel{ 260, 140, 280, 64 };
@@ -52,6 +54,14 @@ inline float panel_chrome_x(bool vendor_split = false) {
 }
 
 inline float ui_scale(float value) { return value * kUiScale; }
+
+/** Move the 2x2 Inv/Skl/Quest/Bind block off an open inventory/vendor column. */
+inline void shift_left_chips(Layout& chrome, float column_x) {
+    const float step = chrome.menu.width + ui_scale(kChipGap);
+    chrome.menu.x = chrome.quest.x = column_x;
+    chrome.skills_bar.x = chrome.bind.x = column_x + step;
+    chrome.quest_track.x = column_x;
+}
 
 inline Box anchor_box(float width, float height, bool left, bool top) {
     constexpr float kPad = 6.f;
@@ -86,12 +96,12 @@ inline Layout layout_boxes() {
     out.page = { ax + ui_scale(28.f), ay - ui_scale(52.f), page, page };
     const float chip = ui_scale(kChipSize), gap = ui_scale(kChipGap);
     out.menu = anchor_box(chip, chip, true, true);
-    out.skills_bar = { out.menu.x, out.menu.y + out.menu.height + gap, chip, chip };
-    out.quest = { out.menu.x, out.skills_bar.y + out.skills_bar.height + gap, chip, chip };
-    out.bind = { out.menu.x, out.quest.y + out.quest.height + gap, chip, chip };
+    out.skills_bar = { out.menu.x + chip + gap, out.menu.y, chip, chip };
+    out.quest = { out.menu.x, out.menu.y + chip + gap, chip, chip };
+    out.bind = { out.skills_bar.x, out.quest.y, chip, chip };
     out.done = anchor_box(ui_scale(52.f), ui_scale(48.f), false, true);
     out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
-    const float track_y = out.bind.y + out.bind.height + gap;
+    const float track_y = out.bind.y + out.bind.height + kBarsBelowChip + kBarBlockH;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
     out.cancel = placed(kCancel);
     // Quarter arc left and above the attack. Centres stay about a diameter apart.
@@ -99,23 +109,23 @@ inline Layout layout_boxes() {
     out.skills[1] = { ax - ui_scale(186.f), ay - ui_scale(64.f), skill, skill };
     out.skills[2] = { ax - ui_scale(104.f), ay - ui_scale(134.f), skill, skill };
     out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
-    float skill_left = out.skills[0].x, skill_top = out.skills[0].y;
-    for (const auto& skill_box : out.skills) {
-        skill_left = std::min(skill_left, skill_box.x);
-        skill_top = std::min(skill_top, skill_box.y);
-    }
-    // Prefer a column above the skill arc; if scale clips it, sit left of the arc on-screen.
-    const float pot_gap = ui_scale(10.f);
-    const float stack_h = 4.f * belt + 3.f * pot_gap;
-    float pot_x = ax - ui_scale(98.f);
-    float pot_y0 = ay - ui_scale(414.f);
+    float skill_top = out.skills[0].y;
+    for (const auto& skill_box : out.skills) skill_top = std::min(skill_top, skill_box.y);
+    // 2x2 under Map (top-right), not a column over the character.
+    const float pot_gap = ui_scale(kBeltGap);
+    const float grid_w = 2.f * belt + pot_gap, grid_h = 2.f * belt + pot_gap;
+    float pot_x = out.map.x + out.map.width - grid_w;
+    float pot_y0 = out.map.y + out.map.height + pot_gap;
     const float min_y = safe_inset.top + 6.f;
-    const float max_y = 600.f - safe_inset.bottom - 6.f - stack_h;
+    const float max_y = 600.f - safe_inset.bottom - 6.f - grid_h;
     pot_y0 = std::clamp(pot_y0, min_y, std::max(min_y, max_y));
-    if (pot_y0 + stack_h + 8.f > skill_top) pot_x = std::min(pot_x, skill_left - belt - pot_gap);
-    pot_x = std::clamp(pot_x, safe_inset.left + 6.f, 800.f - safe_inset.right - belt - 6.f);
-    for (int index = 0; index < 4; ++index)
-        out.belts[std::size_t(index)] = { pot_x, pot_y0 + float(index) * (belt + pot_gap), belt, belt };
+    if (pot_y0 + grid_h + 8.f > skill_top)
+        pot_y0 = std::clamp(skill_top - grid_h - 8.f, min_y, std::max(min_y, max_y));
+    pot_x = std::clamp(pot_x, safe_inset.left + 6.f, 800.f - safe_inset.right - grid_w - 6.f);
+    for (int index = 0; index < 4; ++index) {
+        const int col = index % 2, row = index / 2;
+        out.belts[std::size_t(index)] = { pot_x + float(col) * (belt + pot_gap), pot_y0 + float(row) * (belt + pot_gap), belt, belt };
+    }
     out.interact = { ax - ui_scale(268.f), ay - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
     const float move_right = std::min(out.interact.x + out.interact.width + 16.f, out.skills[2].x - 8.f);
     out.move.width = std::max(out.move.width, move_right - out.move.x);

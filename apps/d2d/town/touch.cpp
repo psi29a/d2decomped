@@ -88,10 +88,12 @@ void Town::touch_rebuild_bind_wheel() {
 }
 
 void Town::touch_open_bind() {
+    const bool page = touch_input.alternate;
     touch_bind = TouchBindPhase::PickSlot;
     touch_bind_slot = -1;
     touch_bind_finger = -1;
     touch_input.clear();
+    touch_input.alternate = page;
     touch_feedback = "Tap a skill button";
     touch_rebuild_bind_wheel();
 }
@@ -288,8 +290,12 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         return true;
     }
     if (phase == touch::Phase::Down && chrome.bind.contains(x, y)) {
-        touch_input.clear();
-        touch_open_bind();
+        if (touch_bind != TouchBindPhase::Off) {
+            touch_input.clear(); touch_item_finger = -1; touch_ground_finger = -1;
+            touch_close_bind();
+        } else {
+            touch_open_bind();
+        }
         return true;
     }
     if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
@@ -297,6 +303,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         if (touch_bind != TouchBindPhase::Off) { touch_close_bind(); return true; }
         if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; return true; }
         focus_keys.push_back(SDLK_ESCAPE);
+        return true;
+    }
+    if (touch_bind != TouchBindPhase::Off && phase == touch::Phase::Down && chrome.page.contains(x, y)) {
+        touch_input.alternate = !touch_input.alternate;
         return true;
     }
     if (touch_bind == TouchBindPhase::PickSkill) {
@@ -322,7 +332,7 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                 touch_feedback = std::to_string(touch_bind_slot + 1) + " . " + (info ? info->name : std::string(skillpad::action_label(chosen, true)));
                 touch_bind = TouchBindPhase::PickSlot;
                 touch_bind_finger = -1;
-                touch_feedback = "Tap another button, or Done";
+                touch_feedback = "Tap another button, I/II, or Done";
             }
             return true;
         }
@@ -715,16 +725,12 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         blit_sprite(framebuffer, frame, palette, int(box.x + (box.width - frame.width) * .5f), int(box.y + (box.height - frame.height) * .5f));
     };
     const bool inv_column_open = inv_open || stash_open || cube_open || store.npc >= 0;
-    if (inv_column_open) {
-        const float px = touch::panel_chrome_x(store.npc >= 0);
-        chrome.menu.x = chrome.skills_bar.x = chrome.quest.x = chrome.bind.x = px;
-        chrome.quest_track.x = px;
-    }
+    if (inv_column_open) touch::shift_left_chips(chrome, touch::panel_chrome_x(store.npc >= 0));
     const auto draw_left_chips = [&] {
         button(chrome.menu, "Inv", false, true);
         button(chrome.skills_bar, "Skl", false, true);
         button(chrome.quest, quest_log.open ? "Q*" : "Quest", false, true);
-        button(chrome.bind, touch_bind != TouchBindPhase::Off ? "Bind*" : "Bind", touch_bind != TouchBindPhase::Off, true);
+        button(chrome.bind, touch_bind != TouchBindPhase::Off ? "Done" : "Bind", touch_bind != TouchBindPhase::Off, true);
     };
     button(chrome.done, touch_bind != TouchBindPhase::Off || touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done"
                       : pad_field() ? "..." : "Back", false, false);
@@ -757,6 +763,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             }
             ring(wheel_cx, wheel_cy, 18.f, true);
         }
+        button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 280, 90, touch_feedback);
         return;
     }
@@ -809,8 +816,8 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto& stats = character.stats;
         const int life = int(stats.values[kLife] >> 8), max_life = std::max(1, int(stats.values[kMaxLife] >> 8));
         const int mana = int(stats.values[kMana] >> 8), max_mana = std::max(1, int(stats.values[kMaxMana] >> 8));
-        const int bar_x = int(chrome.menu.x), bar_y = int(chrome.bind.y + chrome.bind.height + 10);
-        const int bar_w = 118, bar_h = 8;
+        const int bar_x = int(chrome.menu.x), bar_y = int(chrome.bind.y + chrome.bind.height + touch::kBarsBelowChip);
+        const int bar_w = std::max(118, int(chrome.bind.x + chrome.bind.width - chrome.menu.x)), bar_h = 8;
         const auto bar = [&](int y, int cur, int max, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
             const int fill = std::clamp(cur * bar_w / max, 0, bar_w);
             for (int pixel_y = y; pixel_y < y + bar_h; ++pixel_y)
