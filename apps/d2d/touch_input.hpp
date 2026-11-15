@@ -75,20 +75,24 @@ inline float fit_icon_scale(float box_w, float box_h, float frame_w, float frame
     return std::min(inner_w / frame_w, inner_h / frame_h);
 }
 
-enum class ItemAction { None, Use, Sell, Buy, Confirm, Cancel };
+enum class ItemAction { None, Use, Sell, Buy, Fill, Confirm, Cancel };
 
 struct ItemSheet {
-    bool open = false, confirming = false, show_use = false, show_sell = false, show_buy = false;
+    bool open = false, confirming = false, show_use = false, show_sell = false, show_buy = false, show_fill = false;
+    bool identifying_target = false;
+    int belt_index = -1;
     ItemAction chosen = ItemAction::None;
-    Box use{}, sell{}, buy{}, confirm{}, cancel{};
+    Box use{}, sell{}, buy{}, fill{}, confirm{}, cancel{};
     [[nodiscard]] bool contains(float x, float y) const {
-        return open && (use.contains(x, y) || sell.contains(x, y) || buy.contains(x, y) || confirm.contains(x, y) || cancel.contains(x, y));
+        return open && (use.contains(x, y) || sell.contains(x, y) || buy.contains(x, y) || fill.contains(x, y)
+                        || confirm.contains(x, y) || cancel.contains(x, y));
     }
     [[nodiscard]] ItemAction hit(float x, float y) const {
         if (!open) return ItemAction::None;
         if (use.contains(x, y)) return ItemAction::Use;
         if (sell.contains(x, y)) return ItemAction::Sell;
         if (buy.contains(x, y)) return ItemAction::Buy;
+        if (fill.contains(x, y)) return ItemAction::Fill;
         if (confirm.contains(x, y)) return ItemAction::Confirm;
         if (cancel.contains(x, y)) return ItemAction::Cancel;
         return ItemAction::None;
@@ -126,12 +130,13 @@ inline std::pair<float, float> snap_grid_point(const SnapGrid& grid, int col, in
              grid.y + float((grid.item_h - 1) * grid.box_h) / 2.f + (float(row) + 0.5f) * grid.box_h };
 }
 
-inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy) {
+inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy, bool can_fill = false) {
     ItemSheet sheet;
-    sheet.open = can_use || can_sell || can_buy;
+    sheet.open = can_use || can_sell || can_buy || can_fill;
     sheet.show_use = can_use;
     sheet.show_sell = can_sell;
     sheet.show_buy = can_buy;
+    sheet.show_fill = can_fill;
     constexpr float kWidth = 220.f, kHeight = 40.f, kGap = 8.f;
     float left = 290.f, top = 188.f;
     const auto place = [&](Box& box, bool shown) {
@@ -142,7 +147,19 @@ inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy) {
     place(sheet.use, can_use);
     place(sheet.sell, can_sell);
     place(sheet.buy, can_buy);
+    place(sheet.fill, can_fill);
     top += 6.f;
+    sheet.confirm = { left, top, 100.f, kHeight };
+    sheet.cancel = { left + 120.f, top, 100.f, kHeight };
+    return sheet;
+}
+
+inline ItemSheet make_confirm_sheet() {
+    ItemSheet sheet;
+    sheet.open = true;
+    sheet.identifying_target = true;
+    constexpr float kHeight = 40.f;
+    float left = 290.f, top = 188.f;
     sheet.confirm = { left, top, 100.f, kHeight };
     sheet.cancel = { left + 120.f, top, 100.f, kHeight };
     return sheet;

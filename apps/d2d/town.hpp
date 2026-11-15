@@ -513,6 +513,7 @@ struct Town {
     int touch_panel_state = 0;
     bool touch_sold = false;
     bool touch_item_drag = false;
+    int touch_identify_target = -1;
     struct TouchPointer {
         bool active = false, press = false, release = false;
         float x = 0, y = 0;

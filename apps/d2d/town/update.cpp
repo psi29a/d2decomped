@@ -562,6 +562,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (touch_enabled) drive_touch_hold(frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && (mouse.press_this_frame || (pad_playing && mouse.rpress_this_frame))) {
+            if (touch_enabled && last_device == touch::LastDevice::Touch) {
+                item_click = true;
+            } else {
             if (pad_playing) mouse.rpress_this_frame = false;
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
@@ -575,6 +578,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (!direct_ui) identify_with = -1;
             item_click = true;
+            }
         }
         // A keeps the ordinary inventory pickup/move action, including usable tomes.
         // Use starts Identify; the active Identify branch above accepts A to confirm.

@@ -449,10 +449,21 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             if (phase == touch::Phase::Down) {
                 const auto hit = touch_sheet.hit(x, y);
                 if (hit == touch::ItemAction::Cancel || hit == touch::ItemAction::None) {
-                    if (hit == touch::ItemAction::Cancel || !touch_sheet.contains(x, y)) { touch_sheet = {}; close_item_track(); }
+                    if (hit == touch::ItemAction::Cancel || !touch_sheet.contains(x, y)) {
+                        if (touch_sheet.identifying_target) touch_identify_target = -1;
+                        else close_item_track();
+                        touch_sheet = {};
+                    }
                     return true;
                 }
                 if (hit == touch::ItemAction::Confirm) {
+                    if (touch_sheet.identifying_target) {
+                        if (identify_with >= 0 && touch_identify_target >= 0)
+                            send(cmd::IdentifyWith{ identify_with, touch_identify_target });
+                        identify_with = -1; touch_identify_target = -1;
+                        touch_sheet = {};
+                        return true;
+                    }
                     if (touch_sheet.chosen != touch::ItemAction::None) {
                         run_sheet_action(touch_sheet.chosen);
                         touch_sheet = {};
@@ -530,6 +541,15 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                 return true;
             }
             touch_item_hint = "Tap an action, then Confirm";
+            return true;
+        }
+        if (phase == touch::Phase::Down && scene && identify_with >= 0 && !held) {
+            const auto* item = bag_at(int(x), int(y));
+            if (item && item->id != identify_with && !item->identified) {
+                touch_identify_target = item->id;
+                touch_sheet = touch::make_confirm_sheet();
+                touch_item_hint = "Confirm to identify";
+            }
             return true;
         }
         if (phase == touch::Phase::Down && scene && identify_with < 0 && !held) {
@@ -842,7 +862,8 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (touch_sheet.show_use) button(touch_sheet.use, "Use", touch_sheet.chosen == touch::ItemAction::Use);
         if (touch_sheet.show_sell) button(touch_sheet.sell, "Sell", touch_sheet.chosen == touch::ItemAction::Sell);
         if (touch_sheet.show_buy) button(touch_sheet.buy, "Buy", touch_sheet.chosen == touch::ItemAction::Buy);
-        button(touch_sheet.confirm, "Confirm", touch_sheet.confirming);
+        if (touch_sheet.show_fill) button(touch_sheet.fill, "Fill", touch_sheet.chosen == touch::ItemAction::Fill);
+        button(touch_sheet.confirm, touch_sheet.identifying_target ? "Identify" : "Confirm", touch_sheet.confirming);
         button(touch_sheet.cancel, "Cancel");
     };
     button(chrome.done, touch_bind != TouchBindPhase::Off || touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done"

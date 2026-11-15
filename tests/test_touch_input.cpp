@@ -156,6 +156,10 @@ int main() try {
     assert(sheet.hit(sheet.use.x + 1.f, sheet.use.y + 1.f) == ItemAction::Use);
     assert(sheet.hit(sheet.confirm.x + 1.f, sheet.confirm.y + 1.f) == ItemAction::Confirm);
     assert(sheet.hit(sheet.cancel.x + 1.f, sheet.cancel.y + 1.f) == ItemAction::Cancel);
+    const auto identify = make_confirm_sheet();
+    assert(identify.open && identify.identifying_target && !identify.show_use);
+    assert(identify.hit(identify.confirm.x + 1.f, identify.confirm.y + 1.f) == ItemAction::Confirm);
+    assert(identify.hit(identify.use.x + 1.f, identify.use.y + 1.f) == ItemAction::None);
     input.clear();
     input.event(9, Phase::Down, field.done.x + 2.f, field.done.y + 2.f);
     assert(input.done);
