@@ -511,8 +511,11 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
     darken(0x7f, kHeight - 0x67, kWidth - 0xff, 0x2f);
     // FUN_00502970, width W - 0x109. A trailing space stays when it fits
-    // and the next word does not (FUN_00526d30). ponytail: language ids
-    // 6, 8 and 9 break on the other rule in that function.
+    // and the next word does not (FUN_00526d30). Language ids 6, 8 and 9
+    // (JPN, SIN, CHI: rows of the language table at 0x7303d8) break on that
+    // function's other rule (wrap_edit_box's language_id). d2d reads only
+    // LNG\ENG's tables (gamedata_load.cpp), the language of id 0 (row 0,
+    // which 0x525260 halts unless its id is 0), so it passes 0.
     const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} }
         : d2d::font::wrap_edit_box(*chat_typing, kWidth - 0x109, [&](unsigned char code) {
               if (const auto* glyph = font.find(code)) return int(glyph->width);
