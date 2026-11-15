@@ -2182,10 +2182,14 @@ cited module, not a quoted assert.
   book (0x16) whose stat reads 0 is added as 1. d2d: `skillbar.hpp`
   `listed` (ListRow -1 off; a ListRow 4 skill when the carried quantity is
   above 0, on inventory, cube, stash, belt, cursor or worn). The SkillDesc
-  `+6` de-duplication is not ported. Neither is flag bit 8 (`FUN_004c6140`
-  sets it when the client grants a skill the local player didn't have), nor
-  the book that comes in with quantity stat 0 (d2d treats a stored 0 as none
-  left).
+  `+6` de-duplication is not ported. Nor is the book that comes in with
+  quantity stat 0 (d2d treats a stored 0 as none left). Flag bit 8 needs no
+  port: `FUN_004c6140` (the skill start, from `FUN_004c6eb0` /
+  `FUN_004c6f40` / `FUN_004c6660`) sets it only on a node it
+  has just added (`FUN_006439b0` found none, `FUN_00647110` made one) for
+  the local player (`FUN_00463dd0`) with no item (owner -1), so the picker
+  never lists a skill the player only started. d2d's start adds no skill:
+  the picker's level comes from the save and the stats alone.
 - **FUN_004aa7e0**(): the picker rebuild. Zeroes `0x7c0300` (0x3c5 bytes),
   sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then calls
   `FUN_004aa3a0` twice on one side (the asm in the paragraph above).

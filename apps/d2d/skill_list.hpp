@@ -13,9 +13,9 @@
 // (stat 0x46, FUN_0055c110) while carried. A scroll whose quantity stat
 // reads 0 adds nothing. A book (Book of Identify, Book of Townportal)
 // whose quantity stat reads 0 adds 1.
-// ponytail: FUN_006446a0 (+0xc) bit 8 skips the node. FUN_004c6140 sets it
-// when the client grants a skill the local player didn't have. d2d keeps
-// no skill-node flags, so that grant still lists.
+// FUN_006446a0 (+0xc) bit 8 skips the node: FUN_004c6140 sets it on a
+// node a skill start adds to the local player. d2d's starts add none, so
+// there is nothing to skip (skills.md, FUN_004aa3a0).
 #pragma once
 
 #include <d2s_items.hpp>
