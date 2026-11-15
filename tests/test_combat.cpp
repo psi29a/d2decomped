@@ -642,6 +642,16 @@ int main(int argc, char** argv) try {
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
     assert(taken.hit && taken.damage * 256 + taken.frac == reduce_fine(taken.raw, 20, 5) + (40 - 2) * 256 / 4);   // (100.x - 5) x 80%, (40 - 2) x 25% (FUN_0057bf80: the flat first)
     assert(taken.physical == 76 && taken.elemental == 9 && taken.damage >= 85 && taken.damage <= 86);   // Bone Armor's part, Cyclone Armor's
+    {                                                                  // a boss's enchants: its own stats, each on the blow with the swing's (FUN_005a1990 & co)
+        MonStats enchanted = mon;
+        enchanted.enchants[1] = std::pair{ 12, 12 };
+        enchanted.enchants[2] = std::pair{ 6, 6 };
+        enchanted.enchant_len = 100;
+        const Fighter bare;
+        auto enchanted_blow = monster_blow(bare, 1, Motion::standing, enchanted, true, rng);   // A2: the A1 fire isn't rolled, the enchants are
+        for (int tries = 0; tries < 20 && !enchanted_blow.hit; ++tries) enchanted_blow = monster_blow(bare, 1, Motion::standing, enchanted, true, rng);
+        assert(enchanted_blow.hit && enchanted_blow.element_dealt[0] == 0 && enchanted_blow.element_dealt[1] == 12 && enchanted_blow.element_dealt[2] == 6 && enchanted_blow.chill_ticks > 0);
+    }
     {                                                                  // the physical roll (FUN_0057b420): min << 8 + rand((max - min) << 8), the top never rolled
         MonStats fallen;
         fallen.a1_min = 1; fallen.a1_max = 2;

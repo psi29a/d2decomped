@@ -2745,12 +2745,15 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     if (boss.phys_resist < 0) monster.boss_res = boss.res_add;
     else { const int set = monster.boss_res[0]; monster.boss_res = boss.res_add; monster.boss_res[0] = set; }
     monster.boss_speed = boss.velocity_pct;
-    if (boss.elem >= 0 && !game_data.monsters.lvl.empty()) {                      // enchanted: MonLvl damage x %
+    if (!game_data.monsters.lvl.empty()) {                                         // enchanted: MonLvl damage x %, each element its own
         const auto& level_row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(monster.stats.level), game_data.monsters.lvl.size() - 1)];
         const int damage_pct = level_row.damage[std::size_t(std::clamp(difficulty, 0, 2))];
-        int put = 0;
-        for (auto& element : monster.stats.elements)
-            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), d2d::rules::boss_elem_length(boss, monster.stats.level, int(game_data.monsters.lvl.size()) - 1), put++ ? "A2" : "A1" };
+        for (std::size_t element = 0; element < boss.elem_pct.size(); ++element)
+            if (const auto& pct = boss.elem_pct[element]) {
+                const int low = damage_pct * pct->first / 100;
+                monster.stats.enchants[element] = std::pair{ low, std::max(damage_pct * pct->second / 100, low) };
+            }
+        monster.stats.enchant_len = d2d::rules::boss_elem_length(boss, monster.stats.level, int(game_data.monsters.lvl.size()) - 1);
     }
     // Mana burn (FUN_005a1f90): manadrainmin / max (stats 62 / 63) = MonLvl
     // damage x MonUMod constants (FUN_005a00f0) rows 0x10 / 0x13 +

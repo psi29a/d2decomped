@@ -239,8 +239,10 @@ struct BossStats {
     int velocity_pct = 0;                       // + speed % (fast; champion +20)
     std::array<int, 6> res_add{};               // + DR%, MR%, fire, light, cold, poison resist (ResDm..ResPo order)
     bool double_defense = false;                // stone skin
-    int elem = -1, elem_min_pct = 0, elem_max_pct = 0;   // enchanted: the MonLvl damage % it adds as that element (0 fire, 1 light, 2 cold)
-    int elem_len = 0;                           // the cold's length (frames): ghostly 150, Cold Enchanted 100 + 5 a level
+    // Enchanted: the MonLvl damage % (min, max) each element adds, fire, lightning, cold: each init sets its own
+    // stats (FUN_005a1990 0x30 / 0x31, FUN_005a1b00 0x32 / 0x33, FUN_005a1c70 0x36 / 0x37), so they stack.
+    std::array<std::optional<std::pair<int, int>>, 3> elem_pct{};
+    int elem_len = 0;                           // the cold's length (frames, stat 0x38): ghostly 150, Cold Enchanted 100 + 5 a level
     int elem_len_per_level = 0;                 // Cold Enchanted: FUN_005a1c70 adds stat 12 x 5 + 100
     int life_after_pct = 0;                     // possessed +100, berserker -75: after the hp% rows (FUN_005a0d20)
     int defense_pct = 0;                        // fanatic: item_armor_percent -70
@@ -295,9 +297,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     }
     if (has(umod::ghostly)) {                                            // FUN_005a1080: DR 80, cold from the champion rows, length 150
         stats.phys_resist = 80;
-        stats.elem = 2;
-        stats.elem_min_pct = umods.constants[std::size_t(22 + difficulty_index)];
-        stats.elem_max_pct = umods.constants[std::size_t(25 + difficulty_index)];
+        stats.elem_pct[2] = std::pair{ umods.constants[std::size_t(22 + difficulty_index)], umods.constants[std::size_t(25 + difficulty_index)] };
         stats.elem_len = 150;
     }
     if (has(umod::fanatic)) stats.defense_pct = -70;                     // FUN_005a11f0
@@ -342,12 +342,10 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
             if (type.velocity > 0) stats.velocity_pct += std::clamp(2048 / type.velocity - 128, 10, 100);
             break;
         case umod::fire: case umod::lightning: case umod::cold: {        // FUN_005a1990 & co: MonLvl damage x %
-            stats.elem = id == umod::fire ? 0 : id == umod::lightning ? 1 : 2;
             const int base = kind == Boss::minion ? 16 : champion ? 22 : 28;
-            stats.elem_min_pct = umods.constants[std::size_t(base + difficulty_index)];
-            stats.elem_max_pct = umods.constants[std::size_t(base + 3 + difficulty_index)];
-            stats.elem_len = id == umod::cold ? 100 : 0;                  // FUN_005a1c70: the length 100 + level x 5
-            stats.elem_len_per_level = id == umod::cold ? 5 : 0;
+            stats.elem_pct[id == umod::fire ? 0 : id == umod::lightning ? 1 : 2] = std::pair{ umods.constants[std::size_t(base + difficulty_index)],
+                                                                                              umods.constants[std::size_t(base + 3 + difficulty_index)] };
+            if (id == umod::cold) { stats.elem_len = 100; stats.elem_len_per_level = 5; }   // FUN_005a1c70: the length 100 + level x 5
             resist(id);
             break;
         }

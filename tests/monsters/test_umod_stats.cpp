@@ -84,12 +84,12 @@ int main(int argc, char** argv) try {
         int cold_len = 0;
         const auto& level_row = damage_rows[std::min<std::size_t>(std::size_t(level), damage_rows.size() - 1)];
         const int damage_pct = level_row[std::size_t(diff)];
-        if (boss.elem >= 0) {
-            const int low = damage_pct * boss.elem_min_pct / 100, high = std::max(damage_pct * boss.elem_max_pct / 100, low);
-            const int slot = boss.elem == 0 ? 0 : boss.elem == 1 ? 2 : 4;
-            element_rows[std::size_t(slot)] = low; element_rows[std::size_t(slot) + 1] = high;
-            if (boss.elem == 2) cold_len = boss_elem_length(boss, level, int(damage_rows.size()) - 1);
-        }
+        for (std::size_t element = 0; element < boss.elem_pct.size(); ++element)
+            if (const auto& pct = boss.elem_pct[element]) {
+                const int low = damage_pct * pct->first / 100, high = std::max(damage_pct * pct->second / 100, low);
+                element_rows[element * 2] = low; element_rows[element * 2 + 1] = high;
+                if (element == 2) cold_len = boss_elem_length(boss, level, int(damage_rows.size()) - 1);
+            }
         int mana_lo = 0, mana_hi = 0;
         if (std::ranges::contains(mods, umod::manahit)) {
             const int base = kind == Boss::minion ? 16 : 28;

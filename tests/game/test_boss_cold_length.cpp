@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // A Cold Enchanted unique's cold rides its blow for the unit's level x 5 + 100 frames
-// (FUN_005a1c70, stat 0x38), through the REAL make_boss: the rule is rules::boss_elem_length
+// (FUN_005a1c70, stat 0x38), through the REAL make_boss: the rule is rules::boss_elem_length.
+// Fire and cold together both ride it.
 // (components/rules/uniques.hpp), the level is the unit's after make_boss's level mods.
 // tools/emu/umod_stats.py runs game.exe's init against rules::boss_stats (test_umod_stats).
 
@@ -14,6 +15,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -40,11 +42,16 @@ int main() try {
                 d2d::rules::Rng look_rng{ 1 }, rng{ 7 };
                 Monster monster = make_monster(*data, int(found->second), 0, 0, look_rng, difficulty, false, 1, -1);
                 make_boss(*data, monster, d2d::rules::Boss::unique, std::vector<int>{ mod }, -1, 0, difficulty, rng);
-                const int type = mod == d2d::rules::umod::cold ? 2 : 0;
-                const auto element = std::ranges::find_if(monster.stats.elements, [&](const auto& slot) { return slot.type == type; });
-                assert(element != monster.stats.elements.end());
-                assert(element->dur == (mod == d2d::rules::umod::cold ? 100 + 5 * std::clamp(monster.stats.level, 1, int(data->monsters.lvl.size()) - 1) : 0));
+                const std::size_t type = mod == d2d::rules::umod::cold ? 2 : 0;
+                assert(monster.stats.enchants[type].has_value());
+                assert(monster.stats.enchant_len == (mod == d2d::rules::umod::cold ? 100 + 5 * std::clamp(monster.stats.level, 1, int(data->monsters.lvl.size()) - 1) : 0));
             }
+            // Each enchant sets its own stats (FUN_005a1990 / FUN_005a1c70), so a fire and cold one carries both.
+            d2d::rules::Rng look_rng{ 1 }, rng{ 7 };
+            const std::vector<int> both{ d2d::rules::umod::fire, d2d::rules::umod::cold };
+            Monster leader = make_monster(*data, int(found->second), 0, 0, look_rng, difficulty, false, 1, -1);
+            make_boss(*data, leader, d2d::rules::Boss::unique, both, -1, 0, difficulty, rng);
+            assert(leader.stats.enchants[0] && leader.stats.enchants[2] && !leader.stats.enchants[1] && leader.mods == both);
         }
     }
     std::printf("test_boss_cold_length: ok\n");
