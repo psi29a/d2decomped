@@ -506,11 +506,18 @@ struct Town {
     std::map<std::string, skillpad::Sheet> touch_sheets;
     std::array<touch::Target, 4> touch_previews{};
     std::int64_t touch_item_finger = -1;
-    int touch_item = -1, touch_stock = -1;
+    int touch_item = -1, touch_stock = -1, touch_fingers = 0;
     std::uint32_t touch_item_start = 0;
     float touch_item_x = 0, touch_item_y = 0;
     int touch_panel_state = 0;
     bool touch_sold = false;
+    bool touch_item_drag = false;
+    struct TouchPointer {
+        bool active = false, press = false, release = false;
+        float x = 0, y = 0;
+    };
+    TouchPointer touch_pointer;
+    touch::ItemSheet touch_sheet;
     hold_confirm::Hold touch_hold;
     float touch_hold_fraction = 0.f;
     std::string touch_item_hint;

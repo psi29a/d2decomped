@@ -56,12 +56,15 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   toward the physical bezels on wide phones. Field controls sit in the bottom
   corners; the center stays clear.
   On the field, compact life/mana bars sit under the 2x2 chip block; belt
-  potions sit in a 2x2 under Map (top-right, not over the character); a compact
+  potions sit in a 2x2 under Map, one column left so they miss the Map chip; a compact
   quest tracker on the left opens the full log on tap. The classic bottom bar, belt
   strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
   them back). Map is a dim overlay: field move/skill/belt chrome stays up.
-  The skill tree and inventory use classic panel placement (`kTreeR`,
-  `kCharPanelX`). Inventory only shifts left for a vendor-right split.
+  Open panels hide the stick, skill rings, I/II and belt grid; Inv / Skl / Quest / Bind
+  stay put and stay tappable.
+  The skill tree, character, inventory, and vendor trade/repair panels use
+  classic placement (`kTreeR`, `kCharPanelX`). Touch no longer splits the
+  vendor to the right or the inventory to the left.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing
   them. Done returns to the panel; Back closes it.
@@ -79,9 +82,11 @@ follow the game's existing logical viewport. Use landscape for this prototype.
 - Movement and skill fingers have separate ownership. Lifting either does not
   commit or release the other. Changing page does not release movement or
   retarget an already-held gesture. Attack pickup needs a fresh press.
-- Tap a usable carried tome/potion to use it. Identify then accepts a tap on an
-  unidentified item. Tap merchant stock to buy; hold a sellable carried item
-  to sell. These feed the existing item and trade commands.
+- Tap a usable carried item, sellable bag item, or merchant stock for a
+  confirm sheet (Use / Sell / Buy as they apply). Drag past 14px picks the
+  item up for ordinary drop, without switching to mouse/desktop pointer
+  mode while a finger is down. Identify still accepts a tap on an
+  unidentified item.
 
 Charged skills granted by items remain a separate design question: an item ID,
 remaining charges and save lifetime must be designed before allowing them into
@@ -240,8 +245,9 @@ Touch layout uses logical 800×600 with `touch::kUiScale` (default 1.2) on corne
 chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
 and skill bar whenever touch is on (including automap, NPC speech, and shop);
 `touch_shows_field_controls()` is true on the open field without panels,
-including while the automap overlay is on. Belt potions are a 2x2 under Map
-and stay on-screen (shifted up if they would cover the skill arc). The move
+including while the automap overlay is on. Belt potions are a 2x2 under Map,
+shifted one column left so the right pots clear Map, and stay on-screen
+(shifted up if they would cover the skill arc). The move
 stick uses a large `move` hit box with a smaller `move_visual` ring.
 NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
 speech text clips to that sheet, not the classic top box. Taps route
@@ -250,11 +256,14 @@ highlights the four field slots in gold and draws bound icons on those
 rings. Bind Done (the Bind chip, relabelled Done, and the existing top-right
 Done) is hit-tested before the wheel swallows input. While binding, I/II
 still swaps skill set 1 vs 2. Inventory
-long-press reuses `hold_confirm` (fill belt, equip, shop sell) and cancels
-when the finger moves more than 14px before drag.
+item tap opens a Use/Sell/Buy sheet with Confirm; a 14px drag picks up for
+drop instead. Move stick, skill rings, I/II, and the potion grid hide while
+panels are open. Inv / Skl / Quest / Bind stay at their field positions and
+keep taking taps.
 
 Pass 4 stacked Inv / Skl / Quest / Bind as a column. Pass 5 lays them out as a
 2x2 flush to the top (life/mana under that block), moves belt potions to a 2x2
 under Map, turns the Bind chip into Done while the editor is open, and keeps
-I/II available in the bind editor. Panel-open chips still use `shift_left_chips`
-off the inventory/vendor column (not the skill tree).
+I/II available in the bind editor. Pass 6 leaves those chips fixed (no
+`panel_chrome_x` shift), restores classic trade/inventory panel X, and splits
+item tap vs drag.

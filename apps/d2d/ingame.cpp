@@ -2,16 +2,14 @@
 // Definitions for ingame.hpp: the in-game frame and the rain.
 #include "ingame.hpp"
 
-#include "touch_input.hpp"
-
 #include <overlays.hpp>
 
 #include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 #include "store.hpp"
-#include "touch_input.hpp"
 #include "tile_blit.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "watchdog.hpp"
 #include "world_view.hpp"

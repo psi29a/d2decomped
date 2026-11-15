@@ -102,10 +102,24 @@ int main() try {
     assert(field.belts[1].x >= field.belts[0].x + field.belts[0].width - 1.f);
     assert(std::abs(field.belts[0].y - field.belts[1].y) < 1.f);
     assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + kBarsBelowChip + kBarBlockH);
-    Layout shifted = field;
-    shift_left_chips(shifted, panel_chrome_x(false));
-    assert(shifted.skills_bar.x > shifted.menu.x + 8.f);
-    assert(std::abs(shifted.bind.x - shifted.skills_bar.x) < 1.f);
+    const float grid_w = 2.f * field.belts[0].width + ui_scale(kBeltGap);
+    assert(std::abs(field.belts[1].x - (field.map.x + field.map.width - grid_w)) < 1.f);
+    const auto overlap = [](Box left, Box right) {
+        return left.x < right.x + right.width && right.x < left.x + left.width && left.y < right.y + right.height && right.y < left.y + left.height;
+    };
+    assert(!overlap(field.map, field.belts[1]));
+    assert(!overlap(field.map, field.belts[3]));
+    assert(chip_hit(field.menu.x + 2.f, field.menu.y + 2.f));
+    assert(chip_hit(field.bind.x + 2.f, field.bind.y + 2.f));
+    assert(!chip_hit(field.move.x + 8.f, field.move.y + 8.f));
+    assert(!chrome_hit(400, 80, false, false));
+    assert(!item_dragged(10.f, 10.f, 12.f, 10.f));
+    assert(item_dragged(10.f, 10.f, 10.f + kItemDragSlop + 1.f, 10.f));
+    const auto sheet = make_item_sheet(true, true, false);
+    assert(sheet.open && sheet.show_use && sheet.show_sell && !sheet.show_buy);
+    assert(sheet.hit(sheet.use.x + 1.f, sheet.use.y + 1.f) == ItemAction::Use);
+    assert(sheet.hit(sheet.confirm.x + 1.f, sheet.confirm.y + 1.f) == ItemAction::Confirm);
+    assert(sheet.hit(sheet.cancel.x + 1.f, sheet.cancel.y + 1.f) == ItemAction::Cancel);
     input.clear();
     input.event(9, Phase::Down, field.done.x + 2.f, field.done.y + 2.f);
     assert(input.done);

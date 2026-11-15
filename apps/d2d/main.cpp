@@ -935,7 +935,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             if (town.touch_enabled && screen == Screen::InGame) {
-                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) { town.touch_input.clear(); town.touch_item_finger = -1; }
+                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+                    town.touch_input.clear(); town.touch_item_finger = -1; town.touch_fingers = 0;
+                    town.touch_pointer = {}; town.touch_sheet = {}; town.touch_item_drag = false;
+                }
                 if ((event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
                     ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID)) continue;
                 // Sidecar/Pencil may arrive as a single pointer rather than SDL fingers.
@@ -961,7 +964,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
             }
             gamepads.handle_event(event);
-            if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
+            const bool touch_mouse = (event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID)
+                || ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID);
+            if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+                && !(town.touch_enabled && (town.touch_fingers > 0 || town.touch_pointer.active || touch_mouse))) {
+                pad_in_use = false; mouse_took_over = true;
+            }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) pad_in_use = false;
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
@@ -1130,18 +1138,26 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 pad_actions.click_release = false;
             }
             // In the field a pad plays without a cursor: its buttons hit what is in reach (Town::pad_act).
+            if (town.touch_pointer.active || town.touch_pointer.press || town.touch_pointer.release) {
+                mouse.x = int(town.touch_pointer.x);
+                mouse.y = int(town.touch_pointer.y);
+                if (town.touch_pointer.press) { mouse.down = true; mouse.press_this_frame = true; }
+                if (town.touch_pointer.release) { mouse.down = false; mouse.release_this_frame = true; }
+                town.touch_pointer.press = town.touch_pointer.release = false;
+            }
             const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field();
-            if (pad_field != pad_was_field && !mouse_took_over) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
+            const bool touch_owns_pointer = town.touch_enabled && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
+            if (pad_field != pad_was_field && !mouse_took_over && !touch_owns_pointer) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
             pad_was_field = pad_field;
             // A menu opening puts the pad's cursor on the choice to start from.
-            const auto pad_focus = screen == Screen::InGame && pad_in_use && !mouse_took_over ? town.pad_focus() : std::nullopt;
+            const auto pad_focus = screen == Screen::InGame && pad_in_use && !mouse_took_over && !touch_owns_pointer ? town.pad_focus() : std::nullopt;
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             if (screen != Screen::CharSelect || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || pad_actions.focus_step != 0) roster_navigation = false;
             if (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty)
                 for (const auto key : pad_actions.keys)
                     if (key == pad::Key::Up || key == pad::Key::Down || key == pad::Key::Left || key == pad::Key::Right) roster_navigation = true;
-            pad_cursor_hidden = pad_field || roster_navigation;
+            pad_cursor_hidden = pad_field || roster_navigation || (town.touch_enabled && !mouse_took_over && !town.held);
             town.pad_playing = pad_in_use;
             town.pad_cue = pad_field && !town.pad_config.skill_buttons && !town.touch_enabled;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.

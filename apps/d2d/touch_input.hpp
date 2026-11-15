@@ -25,7 +25,7 @@ struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
 
 inline bool g_touch_classic_hud = false;
-/** Inventory left-edge only while a vendor is open (split with kTouchStorePanelX). */
+/** Unused vendor-split leftover; trade/repair and inventory use classic panel X. */
 inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
 /** Scales corner chips and field controls (deviation candidate: touch_ui_scale). */
 inline constexpr float kUiScale = 1.2f;
@@ -38,6 +38,8 @@ inline constexpr float kBeltSize = 48.f, kBeltGap = 6.f, kSkillSize = 72.f, kAtt
 inline constexpr float kBarsBelowChip = 10.f, kBarBlockH = 48.f;
 inline constexpr int kTouchStorePanelX = 400;
 inline constexpr float kMoveHitW = 200.f, kMoveHitH = 220.f, kMoveVisualW = 100.f, kMoveVisualH = 110.f;
+/** Finger movement that turns an item tap into a drag-and-drop pickup. */
+inline constexpr float kItemDragSlop = 14.f;
 inline constexpr Box kCancel{ 260, 140, 280, 64 };
 inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
@@ -47,20 +49,52 @@ struct Layout {
     std::array<Box, 4> skills{}, belts{};
 };
 
-/** Panel open: move corner chips off the inventory column (classic right edge 400, or vendor-split). */
-inline float panel_chrome_x(bool vendor_split = false) {
-    const float column_right = vendor_split ? float(kTouchInvPanelX + 320) : 400.f;
-    return column_right + 8.f + safe_inset.left;
-}
-
 inline float ui_scale(float value) { return value * kUiScale; }
 
-/** Move the 2x2 Inv/Skl/Quest/Bind block off an open inventory/vendor column. */
-inline void shift_left_chips(Layout& chrome, float column_x) {
-    const float step = chrome.menu.width + ui_scale(kChipGap);
-    chrome.menu.x = chrome.quest.x = column_x;
-    chrome.skills_bar.x = chrome.bind.x = column_x + step;
-    chrome.quest_track.x = column_x;
+enum class ItemAction { None, Use, Sell, Buy, Confirm, Cancel };
+
+struct ItemSheet {
+    bool open = false, confirming = false, show_use = false, show_sell = false, show_buy = false;
+    ItemAction chosen = ItemAction::None;
+    Box use{}, sell{}, buy{}, confirm{}, cancel{};
+    [[nodiscard]] bool contains(float x, float y) const {
+        return open && (use.contains(x, y) || sell.contains(x, y) || buy.contains(x, y) || confirm.contains(x, y) || cancel.contains(x, y));
+    }
+    [[nodiscard]] ItemAction hit(float x, float y) const {
+        if (!open) return ItemAction::None;
+        if (use.contains(x, y)) return ItemAction::Use;
+        if (sell.contains(x, y)) return ItemAction::Sell;
+        if (buy.contains(x, y)) return ItemAction::Buy;
+        if (confirm.contains(x, y)) return ItemAction::Confirm;
+        if (cancel.contains(x, y)) return ItemAction::Cancel;
+        return ItemAction::None;
+    }
+};
+
+[[nodiscard]] inline bool item_dragged(float origin_x, float origin_y, float x, float y) {
+    return std::hypot(x - origin_x, y - origin_y) > kItemDragSlop;
+}
+
+inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy) {
+    ItemSheet sheet;
+    sheet.open = can_use || can_sell || can_buy;
+    sheet.show_use = can_use;
+    sheet.show_sell = can_sell;
+    sheet.show_buy = can_buy;
+    constexpr float kWidth = 220.f, kHeight = 40.f, kGap = 8.f;
+    float left = 290.f, top = 188.f;
+    const auto place = [&](Box& box, bool shown) {
+        if (!shown) { box = {}; return; }
+        box = { left, top, kWidth, kHeight };
+        top += kHeight + kGap;
+    };
+    place(sheet.use, can_use);
+    place(sheet.sell, can_sell);
+    place(sheet.buy, can_buy);
+    top += 6.f;
+    sheet.confirm = { left, top, 100.f, kHeight };
+    sheet.cancel = { left + 120.f, top, 100.f, kHeight };
+    return sheet;
 }
 
 inline Box anchor_box(float width, float height, bool left, bool top) {
@@ -111,10 +145,11 @@ inline Layout layout_boxes() {
     out.skills[3] = { ax - ui_scale(24.f), ay - ui_scale(174.f), skill, skill };
     float skill_top = out.skills[0].y;
     for (const auto& skill_box : out.skills) skill_top = std::min(skill_top, skill_box.y);
-    // 2x2 under Map (top-right), not a column over the character.
+    // 2x2 under Map, shifted one column left so the right pots clear Map.
     const float pot_gap = ui_scale(kBeltGap);
     const float grid_w = 2.f * belt + pot_gap, grid_h = 2.f * belt + pot_gap;
-    float pot_x = out.map.x + out.map.width - grid_w;
+    const float column = belt + pot_gap;
+    float pot_x = out.map.x + out.map.width - grid_w - column;
     float pot_y0 = out.map.y + out.map.height + pot_gap;
     const float min_y = safe_inset.top + 6.f;
     const float max_y = 600.f - safe_inset.bottom - 6.f - grid_h;
@@ -135,12 +170,18 @@ inline Layout layout_boxes() {
 
 inline constexpr float kStickOuter = 52.f, kStickInner = 22.f, kSkillRing = 34.f;
 
-inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
+/** Inv/Skl/Quest/Bind stay pinned to the top-left, including while panels are open. */
+inline bool chip_hit(float x, float y) {
     const auto chrome = layout_boxes();
-    if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chrome.menu.contains(x, y)) return true;
-    if (chrome.quest.contains(x, y) || chrome.bind.contains(x, y)) return true;
+    return chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y);
+}
+
+inline bool chrome_hit(float x, float y, bool interact_chrome = false, bool field_controls = true) {
+    const auto chrome = layout_boxes();
+    if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chip_hit(x, y)) return true;
+    if (!field_controls) return false;
     if (interact_chrome && chrome.interact.contains(x, y)) return true;
-    if (chrome.skills_bar.contains(x, y) || chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)) return true;
+    if (chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)) return true;
     for (const auto& box : chrome.skills)
         if (box.contains(x, y)) return true;
     for (const auto& box : chrome.belts)
