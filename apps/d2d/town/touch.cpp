@@ -679,7 +679,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         pixel[1] = std::uint8_t(pixel[1] * scale);
         pixel[2] = std::uint8_t(pixel[2] * scale);
     };
-    const auto halo = [&](float centre_x, float centre_y, float radius, std::uint8_t alpha = 110) {
+    const auto halo = [&](float centre_x, float centre_y, float radius, std::uint8_t alpha = 16) {
         for (int pixel_y = int(centre_y - radius); pixel_y <= int(centre_y + radius); ++pixel_y)
             for (int pixel_x = int(centre_x - radius); pixel_x <= int(centre_x + radius); ++pixel_x) {
                 if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -707,8 +707,9 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
                 const bool edge = round ? ellipse > .92f && ellipse < 1.02f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
                 if (edge) {
                     pixel[0] = gold ? 220 : 199; pixel[1] = gold ? 185 : 179; pixel[2] = gold ? 72 : 119;
-                } else {
-                    const float dim = round ? .22f : .5f;
+                } else if (!round || label || !text.empty()) {
+                    // Round interior was 0.22; 15% of that darkness is ~0.88. Chip labels stay a bit stronger.
+                    const float dim = round ? (label && !text.empty() ? .70f : .88f) : .5f;
                     pixel[0] = std::uint8_t(pixel[0] * dim); pixel[1] = std::uint8_t(pixel[1] * dim); pixel[2] = std::uint8_t(pixel[2] * dim);
                 }
             }
@@ -764,7 +765,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         for (int index = 0; index < 4; ++index) {
             const touch::Box& skill_box = chrome.skills[std::size_t(index)];
             const float cx = skill_box.x + skill_box.width * .5f, cy = skill_box.y + skill_box.height * .5f;
-            halo(cx, cy, skill_box.width * .56f, 120);
+            halo(cx, cy, skill_box.width * .56f, 18);
             ring(cx, cy, skill_box.width * .52f, index == touch_bind_slot);
             const int id = bound == touch_sheets.end() ? skillpad::kEmpty : bound->second.slot(touch_input.alternate, index);
             const auto* info = scene->skills.get(id);
@@ -799,7 +800,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             const auto* info = scene->skills.get(id);
             const touch::Box& skill_box = chrome.skills[std::size_t(index)];
             const float cx = skill_box.x + skill_box.width * .5f, cy = skill_box.y + skill_box.height * .5f;
-            halo(cx, cy, skill_box.width * .56f, 150);
+            halo(cx, cy, skill_box.width * .56f, 22);
             ring(cx, cy, skill_box.width * .52f, false);
             button(skill_box, std::to_string(index + 1) + ": " + (info ? info->name : "Empty"), false, true, true);
             if (info) blit_skill_icon(id, int(skill_box.x) + 24, int(skill_box.y) + 18);
@@ -906,7 +907,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     const touch::Box& move_pad = chrome.move_visual;
     const float stick_x = move_pad.x + move_pad.width * .5f;
     const float stick_y = move_pad.y + move_pad.height * .55f;
-    halo(stick_x, stick_y, touch::kStickOuter + 4, 40);
+    halo(stick_x, stick_y, touch::kStickOuter + 4, 6);
     ring(stick_x, stick_y, touch::kStickOuter, true);
     ring(stick_x, stick_y, touch::kStickInner, true);
     ring(stick_x + touch_input.move_x * 32, stick_y + touch_input.move_y * 32, 16);
@@ -915,7 +916,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const d2d::d2s::Item* belt_item = nullptr;
         for (const auto& item : character.items)
             if (item.location == d2d::d2s::item_location::kBelt && item.column == index) { belt_item = &item; break; }
-        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .48f, 70);
+        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .48f, 10);
         const bool has_icon = belt_item && scene->item_sprite(*belt_item);
         button(belt, has_icon ? "" : std::to_string(index + 1), false, true, false, !has_icon);
         if (belt_item) {
@@ -932,7 +933,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
     if (touch_interact_visible(touch_interact_pick)) {
         const touch::Box& interact = chrome.interact;
-        halo(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .62f, 130);
+        halo(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .62f, 20);
         ring(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .48f, true);
         button(interact, touch_interact_label(*this, touch_interact_pick), true, true, true);
     }
@@ -941,7 +942,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto* info = scene->skills.get(target.skill);
         const touch::Box skill_box = chrome.skills[std::size_t(index)];
         const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
-        halo(skill_cx, skill_cy, skill_box.width * .46f, 70);
+        halo(skill_cx, skill_cy, skill_box.width * .46f, 10);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
         const bool has_icon = info && info->icon >= 0;
         if (!has_icon) {
