@@ -98,6 +98,10 @@ int main(int argc, char** argv) try {
         monster.stats.hit_points = monster.hit_points = 1000000;
         monster.life_frac = 0;
         monster.aware = true;
+        // The oracle hooks the think (0x5b1740) and records only when it runs;
+        // d2d's stand-in is the swing, so a boss's first-sight stand (FUN_005b1140,
+        // 20 frames) would read as a late think. Its taunt is had.
+        monster.first_sight = true;
         // The oracle calls FUN_0057b230 after resistance has been applied.
         monster.boss_res[4] = -monster.target(*data).res[4];
         const std::uint32_t now = kFreezeFrame * kTickMs;
