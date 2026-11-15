@@ -873,8 +873,9 @@ struct World {
     // it, the player goes to the level it leads to and stands at that
     // level's warp back, at its ExitWalk. Everything with the player
     // (merc, pets) comes along; the automap and monsters are the new level's.
-    // Close (FUN_00548b00 case 5): warp_close; a click further off walks
-    // toward its tile unit (drlg.md "Taking a warp").
+    // Close (FUN_00548b00 case 5): warp_close, tested when the click comes
+    // and when the walk ends (LAB_00580e73), not on the way; a click
+    // further off walks toward its tile unit (drlg.md "Taking a warp").
     void use_warp();
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the

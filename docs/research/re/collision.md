@@ -514,14 +514,19 @@ d2d (`World::use_warp`):
 - Same reach: `warp_close`, under 5 by `unit_distance`.
 - The two-walk limit as the item's (`walk_pending`, `tick.cpp`): out of reach when the
   walk ends, blocked or not, it walks once more, and `take_warp` goes at the second's end.
-- It tests every tick, so it takes the warp on the way at reach 4; a single click in
-  game.exe walks on to the path's end first. Up to 4 subtiles early.
+- It tests when the click comes and when the walk ends, as FUN_00548b00 does. In reach on
+  the way, the walk goes on to its path's end (`use_warp` waits while it walks); a click
+  already in reach goes through that tick with no walk (`walk_to`, the client's 0x13 at
+  once). `tests/game/test_warp_walk_end.cpp`: from 3 cells off each Blood Moor warp in 8
+  directions, every walk that came into reach walked on and took the warp at its end, and
+  each start in reach took it in the click's tick.
 - A held button sets `take_warp` only on the press, so after a stop it's gone.
 - No 500 ms refusal. No 0x32 limit, which a click can't reach: at 800x600 the
   screen corner is about 31 subtiles from the player, by the iso projection.
 
-All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
-often wasn't measured.
+The bullets above are read from the code; the walk's end is run on real levels by the test, with
+no oracle of game.exe's walk. It takes a crowd or a blocked path on the way to a warp; how often
+wasn't measured.
 
 ### The per-frame queue step (`FUN_00481600`, 0x481600, 277 bytes)
 

@@ -177,6 +177,9 @@ auto World::use_warp() -> void {
             if (!actor->player.walking) actor->take_warp = -1;                                // stopped short
             return;
         }
+        // In reach on the way: FUN_00548b00 asks when the walk ends (FUN_00580c20,
+        // LAB_00580e73), so the walk goes on to its path's end first.
+        if (actor->player.walking) return;
         actor->take_warp = -1;
         if (host_warps) return;
         // The sewers' stairs down (a3q2's, FUN_0059d9d0 -> FUN_005550b0): shut
