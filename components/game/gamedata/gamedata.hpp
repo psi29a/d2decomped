@@ -340,7 +340,6 @@ struct Level {
     // The mask meets the grid as game.exe's does: its unit bits (0x1000,
     // 0x2000, stamped by FUN_0064ea90) are the Crowd's here, so `crowd`
     // gives them on a subtile; none given: no unit stands in the way.
-    // ponytail: the seal flashes (world/quests/act4.cpp, mask 0x3f11) give none.
     [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings,
                                                                 const std::function<int(int, int)>& crowd = {}) const {
         const int half = size >> 1, side = size * 2 + 1;
