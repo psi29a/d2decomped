@@ -117,13 +117,23 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
 // goes OP till event 1 at FrameCnt1 + 1 frames takes it ON (FUN_00581490);
 // one that comes while it's still OP queues nothing more (bugs.md #52).
 // Event 1 first when both fall on a frame. Only on the player's level.
+// A fissure is made as its room comes up (a preset unit, FUN_005559a0), and
+// its init queues the first eruption then: its clock starts on the first
+// frame its room is up (a level no rooms are kept for: at once).
 // ponytail: the object seed's steps fall in d2d's order of the game's object
-// rolls (levels built on demand), and the first is timed from the player's
-// first tick on the level, not the room's coming up.
+// rolls (levels built on demand).
 auto World::fissure_frame(std::uint32_t now_ms) -> void {
+        const auto in_play = fight.spawning.levels.find(level);
+        const auto room_up = [&](const Npc& fissure_npc) {
+            if (in_play == fight.spawning.levels.end()) return true;
+            const auto& up_rooms = in_play->second.up;
+            const int room = room_of(*level, fissure_npc.x, fissure_npc.y);
+            return room < 0 || (std::size_t(room) < up_rooms.size() && up_rooms[std::size_t(room)]);
+        };
         for (std::size_t index = 0; index < level->npcs.size() && index < npc_states.size(); ++index) {
             const auto& npc = level->npcs[index];
             if (npc.erupts < 0) continue;
+            if (!fissures.contains(std::pair{ level, int(index) }) && !room_up(npc)) continue;
             auto [entry, fresh] = fissures.try_emplace({ level, int(index) });
             auto& fissure = entry->second;
             auto& state = npc_states[index];
