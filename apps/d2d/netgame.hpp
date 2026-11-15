@@ -51,6 +51,8 @@ struct NetGame {
         int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id
         std::uint32_t skill_ms = 0;   // when (steady ms)
         float skill_x = 0, skill_y = 0;   // where it went
+        std::uint64_t follow = 0;     // a monster's 0x68 target (type << 32 | id), re-pathed to while it walks; 0 none
+        std::uint32_t follow_ms = 0;  // when it last was (steady ms)
         int velocity_pct = 100;       // a monster's stat 0x43 velocitypercent, from its moves (0x67 / 0x68)
         std::vector<int> states;      // the States.txt rows the host has on it (0xa8 / 0xaa set, 0xa9 end)
         int boss_flags = 0;           // a monster's 0xac boss bits: 1 champion, 2 unique, 4 superunique, 8 minion, 0x10 ghostly

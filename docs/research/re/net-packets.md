@@ -261,6 +261,16 @@ is that stat: `FUN_004aff60` adds the difference to 0x43 when it isn't
 0. The host sent 70 / 75 for walks and 125 / 130 for runs in Act 1
 Normal (1513 moves, 2026-10-05).
 
+**A move to a unit follows it for a monster, not a player.** The
+monster's command (`FUN_004aff60`, cmds 0 / 0x18 and 1 / 0x17) sets unit
+`+0xc8` bit 13 (`FUN_006491b0(unit, 1)`); its frame step `FUN_004b13a0`,
+in mode 1, looks the path's target up again by type and GUID (gone: the
+target is cleared, `FUN_00648b90(path, 0)`, and the path kept) and calls
+`FUN_00649210`, which every second frame rebuilds the path toward the
+target if it isn't reached (`FUN_00650540`, `FUN_00650350(unit, 1)`).
+`FUN_00649210` has no other caller, so a player's 0x10 (`FUN_00461250`
+cmd 0 / 0x18 → `FUN_00480780`) paths once, to where the target was.
+
 **The server sends one packet per decision, never per step.** A move
 names the goal (and, in the correcting forms, where the unit is now);
 the client paths and animates the unit there itself (below).
