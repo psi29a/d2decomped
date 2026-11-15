@@ -1060,7 +1060,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   count's missile round the target (FUN_0056d400), FUN_00663270 (Vel +
   VelLev x level / 8, a velocity) + calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
-  map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
+  map; each try is r - rand(2r) on x then y (0x5d4080..0x5d409c), on a
+  stepped copy of the caster's seed (`rules::release_scatter_offset`). **37** and **143** launch the ring below. **40** (FUN_005d5010)
   stands the count's missile at the target (`Fight::prg`). **41**
   (FUN_005d5080) aims each one at `seed % 0x28 - 0x14` on each axis
   (`rules::release_spread_offset`; a (0, 0) pair is stored as x = 0x14).

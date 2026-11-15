@@ -816,11 +816,13 @@ struct Fight {
     //   36 (FUN_005d4db0): a nova of the count's missile round it
     //      (FUN_0056d400), its range + calc1;
     //   39 (FUN_005d3f90): prgcalc n squared tries at points within that
-    //      many subtiles, each a missile of the count's (fire, ice cubes).
+    //      many subtiles (rules::release_scatter_offset), each a missile of
+    //      the count's (fire, ice cubes). game.exe draws them on a stepped
+    //      copy of the caster's seed, d2d on its rng (deviations.md
+    //      approximation 18);
+    //   40 / 41 (FUN_005d5010 / FUN_005d5080, Royal Strike's first and
+    //      third) and 37 / 143 (FUN_005d4e70 / FUN_005d4f40): prg's notes.
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
-    // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
-    // (Royal Strike; Fists of Fire's first) are
-    // logged once; 39's points come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
     void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
