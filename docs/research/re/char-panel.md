@@ -93,7 +93,9 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
   0x72d7f8. Both need FUN_004d9fc0 (usable) in {0, 1, 6, 8}.
 - **Damage**: "Damage" in font6 at +1, then the descdam handler draws the
   value at +2 through FUN_004e96e0: max raised to min + 1 if not above
-  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999); font16, or
+  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999, each K figure
+  `(value + 500) / 1000`, the `%s` the empty string at 0x6cc837: the byte
+  before "Diablo 2.EXE" at 0x6cc838 in game-strings.tsv); font16, or
   font6 one pixel up when 11/7 of its font6 width overflows `x1 - x0`.
   - 1 (0x4ea170; Attack): two weapons (FUN_006235a0: barbarian /
     assassin) -> FUN_004e99f0, else FUN_004ea010.

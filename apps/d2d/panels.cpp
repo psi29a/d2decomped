@@ -288,11 +288,11 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
             const int top = std::max(line.max, line.min + 1);
             // FUN_004e96e0: "%d-%d", and past 9999 "%s%d-%dK" (max only) or
-            // "%s%dK-%dK" (min too). The figure before K is the value / 1000.
-            // ponytail: char-panel.md does not say what that %s is, so no prefix.
+            // "%s%dK-%dK" (min too). The figure before K is (value + 500) /
+            // 1000; the %s is 0x6cc837, an empty string.
             std::string range = std::to_string(line.min) + "-" + std::to_string(top);
-            if (line.min > 9999) range = std::to_string(line.min / 1000) + "K-" + std::to_string(top / 1000) + "K";
-            else if (top > 9999) range = std::to_string(line.min) + "-" + std::to_string(top / 1000) + "K";
+            if (line.min > 9999) range = std::to_string((line.min + 500) / 1000) + "K-" + std::to_string((top + 500) / 1000) + "K";
+            else if (top > 9999) range = std::to_string(line.min) + "-" + std::to_string((top + 500) / 1000) + "K";
             const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
             text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
         }
