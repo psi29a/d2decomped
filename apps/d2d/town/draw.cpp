@@ -442,31 +442,14 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             if (coop_player.roster) roster_top += draw_roster_at(framebuffer, *scene, *coop_player.roster, roster_x, roster_top, coop_player.colour) + 4;
     }
 
-// Chat text broken at spaces into lines no wider than `width` (a longer
-// word by characters).
-// ponytail: FUN_0049e3a0 calls FUN_00502970 too. These lines still break
-// on spaces. The edit box uses wrap_edit_box.
+// Chat text wrapped as the edit box's (FUN_00502970, width `width`): FUN_0049e3a0
+// calls it on the message after setting the font, as the edit box does.
 auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
-    std::vector<std::string> wrapped{ std::string{} };
-    std::size_t start = 0;
-    while (start < text.size()) {
-        const auto end = std::min(text.find(' ', start), text.size());
-        const auto word = text.substr(start, end - start);
-        const auto joined = wrapped.back().empty() ? word : wrapped.back() + " " + word;
-        if (!wrapped.back().empty() && font.measure(joined) > width) wrapped.push_back(word);
-        else wrapped.back() = joined;
-        while (wrapped.back().size() > 1 && font.measure(wrapped.back()) > width) {   // a word wider than the box: cut by characters
-            auto& line = wrapped.back();
-            std::size_t fits = 1;
-            while (fits + 1 < line.size() && font.measure(line.substr(0, fits + 1)) <= width) ++fits;
-            std::string rest = line.substr(fits);
-            line.resize(fits);
-            wrapped.push_back(std::move(rest));
-        }
-        start = end + 1;
-    }
-    return wrapped;
+    return d2d::font::wrap_edit_box(text, width, [&](unsigned char code) {
+        if (const auto* glyph = font.find(code)) return int(glyph->width);
+        return 0;
+    });
 }
 
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
