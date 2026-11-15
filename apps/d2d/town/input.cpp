@@ -27,6 +27,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 
 #include <click_spot.hpp>

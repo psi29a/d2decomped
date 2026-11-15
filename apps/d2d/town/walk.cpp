@@ -13,6 +13,7 @@
 #include "platform.hpp"
 #include "scene.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "world_view.hpp"

@@ -22,7 +22,6 @@
 #include "storage_close.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
-#include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "use_item.hpp"
