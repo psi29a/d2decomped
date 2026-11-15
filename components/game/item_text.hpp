@@ -354,7 +354,10 @@ inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const
 // red requirements, class bonuses, speed or spelldesc lines, as game.exe
 // without a player unit. docs/research/re/item-names.md.
 // The socketed runes' letters (FUN_00486670) under the name.
-// ponytail: no set bonus lists or time-of-day damage (272/273).
+// No time-of-day stats (268-303, Properties "*/time"): no 1.14d UniqueItems,
+// SetItems, Sets, Runes, CubeMain, Automagic, Gems or QualityItems row has one,
+// and MagicSuffix "of Dawn" / "of Sunlight" aren't spawnable.
+// ponytail: no set bonus lists.
 inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
                                         const d2d::rules::Wearer* wearer = nullptr) {
     auto str = [&](std::string_view key) {
