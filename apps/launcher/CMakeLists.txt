@@ -22,11 +22,19 @@ configure_file(config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/config.hpp @ONLY)
 
 set(icon_dir "${PROJECT_SOURCE_DIR}/assets/icon")
 set_source_files_properties("${icon_dir}/d2d.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-add_executable(d2d-launcher WIN32 MACOSX_BUNDLE
-    main.cpp
-    "${icon_dir}/d2d.icns"
-    $<$<PLATFORM_ID:Windows>:${icon_dir}/d2d.rc>
-)
+if(ANDROID)   # Qt's shared library, libd2d-launcher_arm64-v8a.so, that QtActivity loads
+    qt_add_executable(d2d-launcher main.cpp)
+    # Its images are PNG (built into QtGui) and it fetches nothing over TLS: the
+    # APK carries only the platform and style plugins (and so no QtSvg).
+    qt_import_plugins(d2d-launcher EXCLUDE_BY_TYPE imageformats iconengines tls networkinformation
+        EXCLUDE Qt6::QOffscreenIntegrationPlugin)
+else()
+    add_executable(d2d-launcher WIN32 MACOSX_BUNDLE
+        main.cpp
+        "${icon_dir}/d2d.icns"
+        $<$<PLATFORM_ID:Windows>:${icon_dir}/d2d.rc>
+    )
+endif()
 set_target_properties(d2d-launcher PROPERTIES MACOSX_BUNDLE_ICON_FILE d2d.icns)
 qt_add_resources(d2d-launcher icon PREFIX "/" BASE "${icon_dir}" FILES "${icon_dir}/d2d.png" "${icon_dir}/hero.png"
     "${icon_dir}/steam-capsule.png" "${icon_dir}/steam-wide.png" "${icon_dir}/steam-hero.png" "${icon_dir}/steam-logo.png")

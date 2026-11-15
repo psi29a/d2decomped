@@ -11,7 +11,7 @@
 #   make deck             the bundle, copied to the Deck and installed (DECK=deck@steamdeck)
 #   make vita             d2d for the PS Vita (eboot.bin, d2d.vpk) in build/ports/vita, in VitaSDK's Docker image (docs/d2vita.md)
 #   make win32            d2d as D2Vita's Win32 Game.exe in build/ports/win32, in an Ubuntu container (MinGW; fetches SDL3 and OpenAL Soft)
-#   make android          d2d for Android (d2d.apk, arm64) in build/ports/android, with the SDK in $ANDROID_HOME (docs/android.md)
+#   make android          d2d and its launcher for Android (d2d.apk, arm64) in build/ports/android, with the SDK in $ANDROID_HOME and Qt for Android (docs/android.md)
 #   make switch           d2d for the Nintendo Switch (d2d.nro) in build/ports/switch, in devkitPro's Docker image (docs/switch.md)
 #   make clean            drop the build and the bundle (keeps the module cache)
 #   make distclean        clean, and the module cache too (the next build is a full one)

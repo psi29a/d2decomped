@@ -17,8 +17,11 @@
 #   switch $DEVKITPRO with libnx, mesa, zlib and bzip2 (the devkitpro/devkita64
 #          image has them); it fetches SDL3 and OpenAL Soft's source itself
 #   android $ANDROID_HOME (default ~/Library/Android/sdk) with an ndk/, a
-#          build-tools/ and a platforms/ in it, and a JDK; it fetches SDL3 and
-#          OpenAL Soft's source itself. No Gradle: aapt2, javac, d8, apksigner.
+#          build-tools/ and a platforms/ in it, a JDK, Qt 6.12.0 for Android
+#          in $QT_ANDROID (default ~/Qt/6.12.0/android_arm64_v8a) and the same
+#          Qt for this machine in $QT_HOST_PATH (default Homebrew's); it fetches
+#          SDL3 and OpenAL Soft's source itself. No Gradle: aapt2, javac, d8,
+#          apksigner, and Qt's androiddeployqt for the launcher's libraries.
 #          $ANDROID_KEYSTORE and $ANDROID_KEYSTORE_PASSWORD sign with a
 #          release key (docs/android.md); without them, a debug key.
 set -euo pipefail
@@ -98,7 +101,9 @@ switch)
     cp "$build/apps/d2d/d2d.nro" "$out/"
     ;;
 android)
-    # arm64 only, Android 8 (API 26) up, pages of 4 or 16 KB.
+    # arm64 only, Android 9 (API 28, Qt 6.12's floor) up, pages of 4 or 16 KB.
+    # One APK: the Qt launcher (QtActivity, libd2d-launcher_arm64-v8a.so) and
+    # d2d (SDLActivity, libmain.so, in its own process), as on a PC.
     # ponytail: a debug-signed APK from the SDK's own tools; a Gradle project
     # when there's a release to sign or a second ABI to carry.
     sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
@@ -132,25 +137,44 @@ android)
             -DALSOFT_ENABLE_MODULES=OFF -DALSOFT_BACKEND_WAVE=OFF
         cmake --build "$build/openal" --target install
     fi
-    cmake -S . -B "$build/d2d" "${common[@]}" "${ndk_args[@]}" -DCMAKE_FIND_ROOT_PATH="$deps" \
+    qt=${QT_ANDROID:-$HOME/Qt/6.12.0/android_arm64_v8a}
+    qt_host=${QT_HOST_PATH:-$(brew --prefix qt)}
+    [[ -f $qt/lib/cmake/Qt6/qt.toolchain.cmake ]] || { echo "tools/porter.sh: no Qt for Android in $qt (\$QT_ANDROID)" >&2; exit 1; }
+    # Qt's toolchain file loads the NDK's; the game and the launcher in one build.
+    cmake -S . -B "$build/d2d" "${common[@]}" -DCMAKE_TOOLCHAIN_FILE="$qt/lib/cmake/Qt6/qt.toolchain.cmake" \
+        -DQT_CHAINLOAD_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" -DQT_HOST_PATH="$qt_host" \
+        -DANDROID_SDK_ROOT="$sdk" -DANDROID_NDK_ROOT="$ndk" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 \
+        -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON -DCMAKE_FIND_ROOT_PATH="$deps" \
         -DSDL3_DIR="$deps/lib/cmake/SDL3" -DOPENAL_INCLUDE_DIR="$deps/include" -DOPENAL_LIBRARY="$deps/lib/libopenal.a"
-    cmake --build "$build/d2d" --target d2d
-    # The APK: the icon and manifest, SDL's Java activity, the two libraries
+    cmake --build "$build/d2d" --target d2d d2d-launcher
+    # The APK: the icon and manifest, Qt's and SDL's Java, the libraries
     # (stripped, stored unpacked and page-aligned so Android maps them in place).
+    # androiddeployqt only gathers the launcher's Qt libraries and plugins and
+    # writes res/values/libs.xml, the list QtActivity loads; we package.
     apk=$build/apk
     rm -rf "$apk" && mkdir -p "$apk/res/mipmap" "$apk/classes" "$apk/lib/arm64-v8a"
+    mkdir -p "$apk/qt/libs/arm64-v8a" && cp "$build/d2d/apps/launcher/libd2d-launcher_arm64-v8a.so" "$apk/qt/libs/arm64-v8a/"
+    "$qt_host/bin/androiddeployqt" --aux-mode --input "$build/d2d/apps/launcher/android-d2d-launcher-deployment-settings.json" \
+        --output "$apk/qt" >/dev/null
     cp assets/icon/d2d.png "$apk/res/mipmap/ic_launcher.png"
     "$tools/aapt2" compile --dir "$apk/res" -o "$apk/res.zip"
+    cp -R "$qt/src/android/java/res/." "$apk/qt/res/"   # Qt's Java's strings, beside libs.xml
+    "$tools/aapt2" compile --dir "$apk/qt/res" -o "$apk/qt-res.zip"
     "$tools/aapt2" link -o "$apk/d2d.apk" -I "$android_jar" --manifest apps/d2d/android/AndroidManifest.xml \
-        --version-code 1 --version-name "$(git describe --tags --always --dirty)" "$apk/res.zip"
-    find "$build/sdl3-src/android-project/app/src/main/java" -name '*.java' > "$apk/sources"
-    javac -nowarn --release 11 -cp "$android_jar" -d "$apk/classes" @"$apk/sources"
+        --min-sdk-version 28 --version-code 1 --version-name "$(git describe --tags --always --dirty)" \
+        "$apk/res.zip" "$apk/qt-res.zip"
+    { find "$build/sdl3-src/android-project/app/src/main/java" -name '*.java'
+      find "$qt/src/android/java/src" -name '*.java'; } > "$apk/sources"
+    javac -nowarn --release 11 -cp "$android_jar:$qt/jar/Qt6Android.jar" -d "$apk/classes" @"$apk/sources"
     find "$apk/classes" -name '*.class' > "$apk/class-files"
-    "$tools/d8" --release --min-api 26 --lib "$android_jar" --output "$apk" @"$apk/class-files"
+    "$tools/d8" --release --min-api 28 --lib "$android_jar" --output "$apk" @"$apk/class-files" \
+        "$qt/jar/Qt6Android.jar" "$qt/jar/Qt6AndroidNetwork.jar" "$qt/jar/Qt6AndroidNetworkInformationBackend.jar"
     strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
-    "$strip" -o "$apk/lib/arm64-v8a/libmain.so" "$build/d2d/apps/d2d/libmain.so"
-    "$strip" -o "$apk/lib/arm64-v8a/libSDL3.so" "$deps/lib/libSDL3.so"
+    for lib in "$apk"/qt/libs/arm64-v8a/*.so "$build/d2d/apps/d2d/libmain.so" "$deps/lib/libSDL3.so"; do
+        "$strip" -o "$apk/lib/arm64-v8a/${lib##*/}" "$lib"
+    done
     (cd "$apk" && zip -q -0 d2d.apk classes.dex lib/arm64-v8a/*.so)
+    [[ ! -d $apk/qt/assets ]] || (cd "$apk/qt" && zip -q -r ../d2d.apk assets)
     "$tools/zipalign" -f -P 16 4 "$apk/d2d.apk" "$apk/aligned.apk"
     # The release key when there is one ($ANDROID_KEYSTORE, a PKCS12 file,
     # and its password in $ANDROID_KEYSTORE_PASSWORD; CI's main and tags):
