@@ -64,25 +64,28 @@ inline Layout layout_boxes() {
     out.move = anchor_box(148.f, 168.f, true, false);
     out.attack = anchor_box(kAttackSize, kAttackSize, false, false);
     const float ax = out.attack.x, ay = out.attack.y;
-    out.page = { ax - kPageSize - 4.f, ay + kAttackSize - kPageSize - 4.f, kPageSize, kPageSize };
+    // Page on the attack button's top, not tucked into its lower-left corner.
+    out.page = { ax + 28.f, ay - 52.f, kPageSize, kPageSize };
     out.menu = anchor_box(48.f, 48.f, true, true);
     out.skills_bar = { out.menu.x, out.menu.y + 52.f, 48.f, 48.f };
     out.done = anchor_box(52.f, 48.f, false, true);
     out.map = { out.done.x, out.done.y + 56.f, 52.f, 48.f };
     out.quest_track = { safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
     out.cancel = placed(kCancel);
-    const float pot_x = ax - 86.f;
+    // Column sits fully above the skill arc (its bottom clears skill 3's top).
+    const float pot_x = ax - 98.f;
     for (int index = 0; index < 4; ++index)
-        out.belts[std::size_t(index)] = { pot_x, ay - 272.f + float(index) * (kBeltSize + 10.f), kBeltSize, kBeltSize };
-    out.skills[0] = { ax - 104.f, ay - 20.f, kSkillSize, kSkillSize };
-    out.skills[1] = { ax - 148.f, ay - 92.f, kSkillSize, kSkillSize };
-    out.skills[2] = { ax - 96.f, ay - 168.f, kSkillSize, kSkillSize };
-    out.skills[3] = { ax - 24.f, ay - 224.f, kSkillSize, kSkillSize };
-    out.interact = { ax - 172.f, ay - 72.f, 56.f, 56.f };
+        out.belts[std::size_t(index)] = { pot_x, ay - 414.f + float(index) * (kBeltSize + 10.f), kBeltSize, kBeltSize };
+    // Quarter arc left and above the attack. Centres stay about a diameter apart.
+    out.skills[0] = { ax - 103.f, ay + 7.f, kSkillSize, kSkillSize };
+    out.skills[1] = { ax - 186.f, ay - 64.f, kSkillSize, kSkillSize };
+    out.skills[2] = { ax - 104.f, ay - 134.f, kSkillSize, kSkillSize };
+    out.skills[3] = { ax - 24.f, ay - 174.f, kSkillSize, kSkillSize };
+    out.interact = { ax - 268.f, ay - 48.f, 56.f, 56.f };
     return out;
 }
 
-inline constexpr float kStickOuter = 76.f, kStickInner = 26.f, kSkillRing = 38.f;
+inline constexpr float kStickOuter = 76.f, kStickInner = 26.f, kSkillRing = 34.f;
 
 inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
     const auto chrome = layout_boxes();

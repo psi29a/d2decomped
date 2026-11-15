@@ -596,7 +596,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
     }
     const touch::Box attack_box = chrome.attack;
-      halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .55f);
+    halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .46f);
     button(attack_box, touch_input.attack_down ? "!" : "", touch_input.attack_down, true, false, touch_input.attack_down);
     blit_skill_icon(skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill)), int(attack_box.x) + 22, int(attack_box.y) + 22);
     button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
@@ -611,7 +611,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto* info = scene->skills.get(target.skill);
         const touch::Box skill_box = chrome.skills[std::size_t(index)];
         const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
-        halo(skill_cx, skill_cy, touch::kSkillRing + 4, 70);
+        halo(skill_cx, skill_cy, skill_box.width * .46f, 70);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
         const bool has_icon = info && info->icon >= 0;
         const std::string skill_label = has_icon ? "" : info ? (info->name.size() > 6 ? info->name.substr(0, 5) + "." : info->name) :

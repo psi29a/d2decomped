@@ -497,43 +497,37 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
 void apply_safe_inset(const Window& win) {
 #if SDL_VERSION_ATLEAST(3, 4, 0)
     SDL_Rect area{};
-    int win_w = 0, win_h = 0;
-    if (!win.window || !SDL_GetWindowSafeArea(win.window, &area)
-        || !SDL_GetWindowSizeInPixels(win.window, &win_w, &win_h) || win_w <= 0 || win_h <= 0 || win.view_w <= 0) {
+    float left = 0, top = 0, right = 0, bottom = 0;
+    // Safe area is window points. RenderCoordinatesFromWindow lands in the
+    // logical view, same as the touch path. Pairing those points with
+    // SizeInPixels clamped a false inset and slid corner HUD inward.
+    if (!win.window || !win.renderer || !SDL_GetWindowSafeArea(win.window, &area)
+        || !SDL_RenderCoordinatesFromWindow(win.renderer, float(area.x), float(area.y), &left, &top)
+        || !SDL_RenderCoordinatesFromWindow(win.renderer, float(area.x + area.w), float(area.y + area.h), &right, &bottom)
+        || win.view_w <= 0) {
         touch::safe_inset = {};
         return;
     }
-    const float scale = std::min(float(win_w) / float(win.view_w), float(win_h) / float(kScreenHeight));
-    if (scale <= 0.f) return;
-    const float off_x = (float(win_w) - float(win.view_w) * scale) / 2.f;
-    const float off_y = (float(win_h) - float(kScreenHeight) * scale) / 2.f;
-    const float safe_left = (float(area.x) - off_x) / scale;
-    const float safe_top = (float(area.y) - off_y) / scale;
-    const float safe_right = (float(area.x + area.w) - off_x) / scale;
-    const float safe_bottom = (float(area.y + area.h) - off_y) / scale;
-    const float ui_x = (float(win.view_w) - float(kScreenWidth)) / 2.f;
-    const float band_left = ui_x;
-    const float band_right = ui_x + float(kScreenWidth);
-    constexpr float kMaxInsetSide = 48.f;
-    auto clamp_side = [kMaxInsetSide](float value) { return std::clamp(value, 0.f, kMaxInsetSide); };
-    float left_from_safe = std::max(0.f, safe_left - band_left);
-    float right_from_safe = std::max(0.f, band_right - safe_right);
-    // Map safe-area through the letterboxed logical view when SDL exposes it.
-    if (win.renderer) {
-        SDL_FRect drawn{};
-        if (SDL_GetRenderLogicalPresentationRect(win.renderer, &drawn) && drawn.w > 0.f && drawn.h > 0.f) {
-            const float touch_left = (std::max(float(area.x), drawn.x) - drawn.x) / drawn.w * float(win.view_w);
-            const float touch_right = (std::min(float(area.x + area.w), drawn.x + drawn.w) - drawn.x) / drawn.w * float(win.view_w);
-            left_from_safe = std::max(0.f, touch_left - band_left);
-            right_from_safe = std::max(0.f, band_right - touch_right);
-        }
-    }
-    // Landscape notch: pad only the intruded edge; never both at once (crushes the cluster).
+    const float band_left = (float(win.view_w) - float(kScreenWidth)) / 2.f;
+    const float band_right = band_left + float(kScreenWidth);
+    const float left_from_safe = std::max(0.f, left - band_left);
+    const float right_from_safe = std::max(0.f, band_right - right);
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    // The landscape notch sits in the widescreen gutter, outside this band.
+    // A few points of sliver, plus the home indicator. Not both side edges.
+    constexpr float kMaxHorizontal = 20.f;
+    constexpr float kMaxVertical = 36.f;
+#else
+    constexpr float kMaxHorizontal = 48.f;
+    constexpr float kMaxVertical = 48.f;
+#endif
+    auto clamp_h = [kMaxHorizontal](float value) { return std::clamp(value, 0.f, kMaxHorizontal); };
+    auto clamp_v = [kMaxVertical](float value) { return std::clamp(value, 0.f, kMaxVertical); };
     touch::safe_inset.left = touch::safe_inset.right = 0.f;
-    if (left_from_safe >= right_from_safe && left_from_safe > 0.f) touch::safe_inset.left = clamp_side(left_from_safe);
-    else if (right_from_safe > 0.f) touch::safe_inset.right = clamp_side(right_from_safe);
-    touch::safe_inset.top = clamp_side(std::max(0.f, safe_top));
-    touch::safe_inset.bottom = clamp_side(std::max(0.f, float(kScreenHeight) - safe_bottom));
+    if (left_from_safe >= right_from_safe && left_from_safe > 0.f) touch::safe_inset.left = clamp_h(left_from_safe);
+    else if (right_from_safe > 0.f) touch::safe_inset.right = clamp_h(right_from_safe);
+    touch::safe_inset.top = clamp_v(std::max(0.f, top));
+    touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
 #else
     // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
     (void)win;
