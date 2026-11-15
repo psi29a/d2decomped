@@ -2,6 +2,7 @@
 // Vendor store: stock, buy/sell, panel and gold readouts.
 #pragma once
 
+#include "panels.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
