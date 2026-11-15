@@ -914,7 +914,8 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         const int top = bottom - int(frame.height) + 1;
         if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
         const int mode = list == 3 && fade == 1 ? 5 : mode_of(x, bottom);
-        const int seen = mode == 5 ? 4 : mode + 1;                   // quarters of the cel over what's there
+        constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
+        const int weight = mode == 5 ? 255 : weights[mode];         // the cel's share over what's there (PL2 alpha tables, pl2.md)
         for (int row = 0; row < int(frame.height); ++row)
             for (int column = 0; column < int(frame.width); ++column) {
                 const int pixel_x = x + column, pixel_y = top + row;
@@ -922,9 +923,8 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
                 if (index == 0 || pixel_x < clip_x0 || pixel_x > clip_x1 || pixel_y < draw_y0 || pixel_y > clip_y1) continue;
                 const auto colour = pal[index];
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                pixel[0] = std::uint8_t((pixel[0] * (4 - seen) + colour.r * seen) / 4);
-                pixel[1] = std::uint8_t((pixel[1] * (4 - seen) + colour.g * seen) / 4);
-                pixel[2] = std::uint8_t((pixel[2] * (4 - seen) + colour.b * seen) / 4);
+                const auto mixed = d2d::palette::alpha_blend({ pixel[0], pixel[1], pixel[2], 0xFF }, colour, weight);
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
             }
     }
     // The marks (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at

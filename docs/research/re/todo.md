@@ -33,7 +33,6 @@ Ranked by Seen, then by how much play it touches.
 | 48 | `use_warp` takes a warp mid-walk at reach; a single click in game.exe tests when the walk ends (LAB_00580e73), up to 4 subtiles later | exact | hardly | collision.md "The server's pending interact"; world/travel.cpp `use_warp` |
 | 49 | A held button over a warp forgets it after a stop; game.exe clicks again after a stop (LAB_00461fb7; FUN_00462930 stops a held frame while it walks), and refuses warp clicks inside that time | exact | hardly | collision.md "The server's pending interact"; world/commands.cpp `walk_to` |
 | 50 | A held button re-aims each tick, and a joined game sends C->S 0x01 / 0x03 each drawn frame the aim moves to a new subtile (`NetGame::send` drops a repeat within 200 ms, as FUN_00478350); game.exe's walking player sends every 7 client frames, 280 ms (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; town/input.cpp, netgame.cpp `move_to` |
-| 51 | A click nearer than 3 subtiles (held 4, a run 5) walks only that far; game.exe's spot goes out to that distance (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; world/commands.cpp `walk_to` |
 
 ## Sounds
 
@@ -72,7 +71,6 @@ Known differences in the ones it draws, and what's left to check:
 | 25 | Timings from the COF, where AnimData.d2 is game.exe's | exact | maybe | world_view.hpp:140, fight.hpp:498, fight.hpp:729 |
 | 27 | Kind 8's visible state overlays aren't rotated after 50 ticks; active states draw together | exact | maybe | states.md, town.hpp `StateClock`; Radius is stamped and LoopWaitTime applies only to kind 6 |
 | 28 | A joined monster's act lasts 600 ms, not its animation | exact | maybe | town/net.cpp `net_overlay`; balloon starts and rate now traced (quests.md) |
-| 29 | COF draw effect 6 (the max-component table) is the greater of each RGB channel; the PL2 table is still unread | build | maybe | cof-draw-order.md "Draw effects", deviations.md approximation 9 |
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
 | 31 | Static lights' shadows (type 2) are read each frame; game.exe caches them (FUN_004750f0), so a later change to the map doesn't re-shade them | exact | hardly | lighting.md, deviations.md approximation 5 |
 | 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
