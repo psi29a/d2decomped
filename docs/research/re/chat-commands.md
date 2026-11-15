@@ -81,7 +81,7 @@ Eight slots of 0x202 bytes at 0x7bb840, UTF-16 like the box.
   0 and -1 to 7, but keeps it where it was when fewer than 7 slots are full
   and the new slot isn't one of them (8 - slot > full). With exactly 7 full
   that test is skipped: the step from slot 7 goes to slot 0, which nothing
-  has written.
+  has written (bugs.md 118).
 - **`FUN_0047b9c0`** copies 0x7bb5d8's slot into the box and sets the count
   to its length (`FUN_00526800`).
 - **`FUN_0047bd30`** sets 0x712f44 = 0x712f48 = 7 and 0x7bb5d8 = full = the
