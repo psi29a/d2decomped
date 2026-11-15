@@ -80,8 +80,9 @@ Eight slots of 0x202 bytes at 0x7bb840, UTF-16 like the box.
 - **`FUN_0047ba80(step)`** (`ret 4`) moves 0x7bb5d8 by step, 8 wrapping to
   0 and -1 to 7, but keeps it where it was when fewer than 7 slots are full
   and the new slot isn't one of them (8 - slot > full). With exactly 7 full
-  that test is skipped: the step from slot 7 goes to slot 0, which nothing
-  has written (bugs.md 118).
+  that test is skipped: the step from slot 7 goes to slot 0, which no line
+  since the reset has written: empty from a fresh history, or the line it
+  kept from before the reset (bugs.md 118).
 - **`FUN_0047b9c0`** copies 0x7bb5d8's slot into the box and sets the count
   to its length (`FUN_00526800`).
 - **`FUN_0047bd30`** sets 0x712f44 = 0x712f48 = 7 and 0x7bb5d8 = full = the
@@ -96,11 +97,14 @@ What Up shows from a fresh history:
 | 7 | line 7, ... line 1, (empty), line 7 |
 | 8 | line 8, ... line 1, line 8, line 7 |
 
+After a reset the slots keep their text: 8 lines ("old 1" .. "old 8"), the
+reset, then 7 lines, and Up shows line 7, ... line 1, old 8, line 7.
+
 Oracle: `tools/emu/chat_history.py` drives the three handlers through
 20,000 random steps (Enter on random texts, Backspace, Esc, Up, Down,
 repeats, clicks, resets) and compares the box, its count, the four
 globals, the eight slots and the calls after each step; then the scripted
-case above. Hooked: the parser (its ECX and arguments checked), the box
+cases above. Hooked: the parser (its ECX and arguments checked), the box
 toggle, `FUN_00420290` and `WideCharToMultiByte` (its arguments checked);
 `isspace` and `FUN_00526800` run for real. The character path isn't run.
 
