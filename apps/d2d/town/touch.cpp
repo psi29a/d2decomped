@@ -249,7 +249,7 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         }
         return false; // other panels use their ordinary pointer input
     }
-    if (phase == touch::Phase::Down && touch::placed(touch::Box{ 400, 0, 135, 60 }).contains(x, y)) {
+    if (phase == touch::Phase::Down && touch::placed(touch::kSkillsBar).contains(x, y)) {
         touch_input.clear(); tree_open = true; inv_open = false; return true;
     }
     if (phase == touch::Phase::Down && touch::placed(touch::kMap).contains(x, y)) {
@@ -339,22 +339,57 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     if (!touch_enabled || !scene || !have_world) return;
     const auto& font = scene->font_small;
     const auto& palette = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
-    const auto button = [&](touch::Box box, const std::string& text, bool active = false) {
+    const auto darken = [&](int pixel_x, int pixel_y, std::uint8_t alpha) {
+        if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) return;
+        auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+        const float scale = 1.f - alpha / 255.f * .72f;
+        pixel[0] = std::uint8_t(pixel[0] * scale);
+        pixel[1] = std::uint8_t(pixel[1] * scale);
+        pixel[2] = std::uint8_t(pixel[2] * scale);
+    };
+    const auto panel = [&](touch::Box box, std::uint8_t alpha = 190) {
+        for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y)
+            for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x)
+                darken(pixel_x, pixel_y, alpha);
+        const auto edge = [&](int pixel_x, int pixel_y) {
+            if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) return;
+            auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+            pixel[0] = std::min(255, int(pixel[0]) + 28); pixel[1] = std::min(255, int(pixel[1]) + 22); pixel[2] = std::min(255, int(pixel[2]) + 8);
+        };
+        for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
+            edge(pixel_x, int(box.y));
+            edge(pixel_x, int(box.y + box.height) - 1);
+        }
+        for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y) {
+            edge(int(box.x), pixel_y);
+            edge(int(box.x + box.width) - 1, pixel_y);
+        }
+    };
+    const auto ring = [&](float centre_x, float centre_y, float radius, bool faint = false) {
+        for (int pixel_y = int(centre_y - radius - 1); pixel_y <= int(centre_y + radius + 1); ++pixel_y)
+            for (int pixel_x = int(centre_x - radius - 1); pixel_x <= int(centre_x + radius + 1); ++pixel_x)
+                if (pixel_x >= 0 && pixel_x < int(kScreenWidth) && pixel_y >= 0 && pixel_y < int(kScreenHeight) &&
+                    std::abs(std::hypot(float(pixel_x) - centre_x, float(pixel_y) - centre_y) - radius) < 1.5f) {
+                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                    pixel[0] = faint ? 120 : 199; pixel[1] = faint ? 108 : 179; pixel[2] = faint ? 72 : 119;
+                }
+    };
+    const auto button = [&](touch::Box box, const std::string& text, bool active = false, bool round = false) {
         for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y)
             for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
                 if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                const bool round = pad_field() && (box.y == touch::placed(touch::kAttack).y || box.y == touch::placed(touch::kSkills[0]).y || box.y == touch::placed(touch::kSkills[1]).y);
                 const float radius_x = box.width / 2, radius_y = box.height / 2;
                 const float ellipse = std::hypot((float(pixel_x) - box.x - radius_x) / radius_x, (float(pixel_y) - box.y - radius_y) / radius_y);
                 if (round && ellipse > 1) continue;
-                const bool edge = round ? ellipse > .94f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
+                const bool edge = round ? ellipse > .92f && ellipse < 1.02f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
                 if (edge) { pixel[0] = 199; pixel[1] = 179; pixel[2] = 119; }
-                else { pixel[0] /= 2; pixel[1] /= 2; pixel[2] /= 2; }
+                else { pixel[0] = std::uint8_t(pixel[0] * (round ? .38f : .5f)); pixel[1] = std::uint8_t(pixel[1] * (round ? .38f : .5f)); pixel[2] = std::uint8_t(pixel[2] * (round ? .38f : .5f)); }
             }
         std::string label = text;
         while (!label.empty() && font.measure(label) > int(box.width) - 8) label.pop_back();
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, int(box.x) + 4, int(box.y) + 12, label,
+        const int label_y = round ? int(box.y + box.height * .62f) - 6 : int(box.y) + 12;
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, int(box.x) + 4, label_y, label,
                          active ? 255 : 199, active ? 220 : 179, 119);
     };
     button(touch::placed(touch::kDone), touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done" : pad_field() ? "Menu" : "Back");
@@ -387,31 +422,28 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const int skill = found == touch_sheets.end() ? skillpad::kEmpty : found->second.slot(touch_input.alternate, index);
         touch_previews[std::size_t(index)] = resolve_skill(touch_player, skill);
     }
+    panel(touch::placed(touch::kPanelLeft));
+    panel(touch::placed(touch::kPanelRight));
     button(touch::placed(touch::kMenu), "Inventory");
-    button(touch::placed({ 400, 12, 135, 48 }), "Skills");
+    button(touch::placed(touch::kSkillsBar), "Skills");
     button(touch::placed(touch::kMap), automap.open ? "Map*" : "Map");
     const touch::Box move_pad = touch::placed(touch::kMove);
     const float stick_x = move_pad.x + move_pad.width * .5f;
     const float stick_y = move_pad.y + move_pad.height * .55f;
-    const auto ring = [&](float centre_x, float centre_y, float radius) {
-        for (int pixel_y = int(centre_y - radius - 1); pixel_y <= int(centre_y + radius + 1); ++pixel_y)
-            for (int pixel_x = int(centre_x - radius - 1); pixel_x <= int(centre_x + radius + 1); ++pixel_x)
-                if (pixel_x >= 0 && pixel_x < int(kScreenWidth) && pixel_y >= 0 && pixel_y < int(kScreenHeight) &&
-                    std::abs(std::hypot(float(pixel_x) - centre_x, float(pixel_y) - centre_y) - radius) < 1.5f) {
-                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                    pixel[0] = 199; pixel[1] = 179; pixel[2] = 119;
-                }
-    };
     ring(stick_x, stick_y, touch::kStickOuter);
-    ring(stick_x, stick_y, touch::kStickInner);
+    ring(stick_x, stick_y, touch::kStickInner, true);
     ring(stick_x + touch_input.move_x * 38, stick_y + touch_input.move_y * 38, 18);
-    button(touch::placed(touch::kAttack), "Attack / Use");
-    button(touch::placed(touch::kPage), touch_input.alternate ? "II (tap: I)" : "I (tap: II)");
+    button(touch::placed(touch::kAttack), "Atk", false, true);
+    button(touch::placed(touch::kPage), touch_input.alternate ? "II" : "I");
     for (int index = 0; index < 4; ++index) {
-        button(touch::placed(touch::kBelts[index]), "Belt " + std::to_string(index + 1));
+        button(touch::placed(touch::kBelts[index]), std::to_string(index + 1));
         const auto& target = touch_previews[std::size_t(index)];
         const auto* info = scene->skills.get(target.skill);
-        button(touch::placed(touch::kSkills[index]), info ? info->name : target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "Empty", info && info->id == view.aura);
+        const touch::Box skill_box = touch::placed(touch::kSkills[index]);
+        const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
+        ring(skill_cx, skill_cy, touch::kSkillRing, true);
+        button(skill_box, info ? info->name : target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-",
+               info && info->id == view.aura, true);
         if (info) {
             int icon_class = -1;
             for (int column = 0; column < 7; ++column)
@@ -419,7 +451,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             const auto& art = icon_class >= 0 ? scene->skill_icons[std::size_t(icon_class)] : scene->generic_skill_icons;
             if (info->icon >= 0 && std::uint32_t(info->icon) < art.frames_per_direction())
                 blit_sprite(framebuffer, art.frame(0, std::uint32_t(info->icon)), palette,
-                            int(touch::placed(touch::kSkills[index]).x) + 32, int(touch::placed(touch::kSkills[index]).y) + 23);
+                            int(skill_box.x) + 24, int(skill_box.y) + 18);
         }
     }
     if (view.aura > 0) {

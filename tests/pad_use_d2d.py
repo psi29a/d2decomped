@@ -426,8 +426,8 @@ if touch_ux:
     cmd("debug stat 7 256000"); cmd("debug stat 6 256000"); frames(5)
     pixel_x, pixel_y = skill_panel(aimed)
     tap(pixel_x, pixel_y)
-    tap(500, 565)
-    tap(565, 470)
+    tap(590, 520)
+    tap(590, 520)
     screenshot("touch-assignment-corpse.png" if corpse_ux else "touch-assignment.png")
     tap(720, 32); tap(720, 32)  # Done, then Back from the tree
     cmd("debug goto 2"); frames(20)
@@ -439,8 +439,8 @@ if touch_ux:
         cmd(f"debug warp {float(bodies[0][1]) + 2} {bodies[0][2]}"); frames(10)
     # Aiming and cancellation travel through injected SDL finger events.
     mana = state()["mana"]
-    finger(1, "down", 100, 430); finger(1, "move", 160, 430)
-    finger(2, "down", 565, 470)
+    finger(1, "down", 110, 450); finger(1, "move", 175, 450)
+    finger(2, "down", 590, 520)
     assert state()["touch_aiming"] == "1" and state()["touch_skill"] == str(aimed), cmd("state")
     if corpse_ux:
         assert int(state()["touch_target"]) >= 0, "corpse skill did not select a corpse"
@@ -449,24 +449,24 @@ if touch_ux:
     finger(2, "cancel", 630, 450)
     assert state()["touch_aiming"] == "0" and state()["touch_move"] != "0.000000,0.000000", "cancellation interrupted movement"
     assert state()["mana"] == mana, "cancelled skill spent mana"
-    finger(3, "down", 680, 280); finger(3, "up", 680, 280)
+    finger(3, "down", 600, 248); finger(3, "up", 600, 248)
     assert state()["touch_page"] == "1" and state()["touch_move"] != "0.000000,0.000000", "page switch interrupted movement"
     finger(1, "up", 160, 430)
     # Sidecar-style pointer input can operate the overlay without SDL fingers.
-    cmd("click 680 280"); frames(4)
+    cmd("click 600 248"); frames(4)
     assert state()["touch_page"] == "0", "pointer click did not switch touch page"
-    finger(2, "down", 565, 470)
+    finger(2, "down", 590, 520)
     cmd("key i"); frames(5)
-    finger(2, "up", 630, 450)
+    finger(2, "up", 640, 500)
     assert state()["touch_aiming"] == "0" and state()["mana"] == mana, "opening a panel committed the pending skill"
     screenshot("touch-inventory.png")
     tap(720, 32)
-    finger(2, "down", 565, 470)
+    finger(2, "down", 590, 520)
     if not corpse_ux:
-        finger(2, "move", 610, 480)
+        finger(2, "move", 640, 500)
     preview = tuple(map(float, state()["touch_point"].split(",")))
     before_cast = players()["Alpha"][:2]
-    finger(2, "up", 610 if not corpse_ux else 565, 480 if not corpse_ux else 470)
+    finger(2, "up", 640 if not corpse_ux else 590, 500 if not corpse_ux else 520)
     frames(35)
     if corpse_ux:
         assert state()["pets"] != "-", "touch corpse skill did not raise a minion"
