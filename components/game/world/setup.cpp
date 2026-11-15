@@ -214,6 +214,16 @@ auto World::take_character(const Character& entering) -> void {
         // client's copy is whole points (its 0x18 packet, `value << 8`). The
         // same function sets stamina (0xa) to the maximum (0xb), 0x56b01d.
         actor->character.stats.values[d2d::d2s::kStamina] = actor->character.stats.values[d2d::d2s::kMaxStamina];
+        // The same restore (FUN_0056af80, 0x56afb4..0x56b00f) puts gold and stash gold back through
+        // FUN_0053ff00, which sets a stat to 0 when it would pass its cap: the purse's clvl x 10000
+        // (FUN_00622e70), the stash's 2,500,000 (FUN_00623460).
+        {
+            using namespace d2d::d2s;
+            auto& values = actor->character.stats.values;
+            constexpr std::int64_t kStashGoldMax = 2500000;
+            if (values[kGold] > values[kLevel] * 10000) values[kGold] = 0;
+            if (values[kGoldBank] > kStashGoldMax) values[kGoldBank] = 0;
+        }
         // The save's maxima are its own (Fight::own_stats): the last game's
         // gear and Battle Orders shares go, or the next refresh adds none and
         // the next save takes them off again.

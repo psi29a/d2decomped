@@ -42,3 +42,13 @@ and no seed is set. Then the hotkeys and hands.
   more is act 1, as game.exe reads it.
 - `write_save` writes `0xffffffff` at +0x34 as game.exe does. d2d's own
   saves from before had 0 there; they mend on the next save.
+
+## Gold on load (`FUN_0056b180`)
+
+`FUN_0056b180` puts the saved purse and stash gold back through
+`FUN_0056af80` (`0x56afb4..0x56b00f`) and `FUN_0053ff00`, which sets a stat
+to 0 when it would pass its cap: `clvl x 10000` for the purse
+(`FUN_00622e70`), 2,500,000 for the stash (`FUN_00623460`); a value equal to
+the cap is kept. `World::take_character` does the same, so a save edited past
+either cap enters a game with that gold at 0. Oracle: `tools/emu/fl_gold.py`
+(539 cases, `test_load_gold --load-gold`; its row is in `tools/emu/README.md`).

@@ -56,6 +56,14 @@ foreach(test_source ${d2d_test_sources})
     list(APPEND d2d_cpp_tests ${name})
 endforeach()
 
+# `test_load_gold --load-gold` on a case file that cannot be opened must exit nonzero and say so
+# (an oracle diff of two empty files would otherwise pass). PASS_REGULAR_EXPRESSION ignores the
+# exit code, so expect_fail.cmake checks both; its "SKIP:" line is the skip (the test's exit 77).
+add_test(NAME test_load_gold_missing_cases
+    COMMAND ${CMAKE_COMMAND} -DCMD=$<TARGET_FILE:test_load_gold> -DARGS=--load-gold|${CMAKE_CURRENT_BINARY_DIR}/no-such-cases.tsv
+        -DPATTERN=cannot\ open -DSKIP_CODE=${d2d_skip_code} -P ${CMAKE_CURRENT_SOURCE_DIR}/expect_fail.cmake)
+set_tests_properties(test_load_gold_missing_cases PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP:")
+
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 # Python3_EXECUTABLE rather than `python3`: Windows installs it as python.exe.
 find_package(Python3 COMPONENTS Interpreter)
