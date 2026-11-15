@@ -611,7 +611,8 @@ missile. A struck monster spends one while
 that owner still has either stat, with no draw (`skill_missile_hits`,
 tests/game/test_merc_pierce.cpp). A merc's plain arrow takes its
 charges at the bow (`seed_pierce`) and spends them the same way
-(`plain_missile_hits`), passing the unit it struck last (LastCollide).
+(`plain_missile_hits`), passing the unit it struck last (LastCollide) and,
+as the skill path does, any unit on its `struck` list.
 
 `FUN_00597e20(game, monster, client)` sends one client a monster's mode
 change (`FUN_00598220` calls it for each client while unit +0xc4 bit 0 is

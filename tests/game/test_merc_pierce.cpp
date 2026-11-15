@@ -15,6 +15,7 @@
 #include <missiles.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <exception>
@@ -78,6 +79,7 @@ int main() try {
     fight.seed_pierce(plain, true);
     assert(plain.pierce == 3);
     for (int left = 2; left >= 0; --left) assert(!fight.plain_missile_hits(plain, 0, 7000) && plain.pierce == left && plain.last_hit == 0);
+    assert(std::ranges::contains(*plain.struck, 0));   // the tick passes it by from now on (A, B, A is not charged twice)
     assert(fight.plain_missile_hits(plain, 0, 7000));
 
     hero.character.merc_items.clear();

@@ -305,6 +305,7 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         land(monster_index, blow, false, now_ms, merc_foe_id());
         monster_return_fire(monster_index, missile, true, now_ms);
         missile.last_hit = int(monster_index);
+        missile.struck->push_back(int(monster_index));
         // FUN_005adf10 -> FUN_005ada80: a charge left flies on, one fewer, while the merc has skill_pierce or item_pierce.
         if (missile.info && missile.info->pierce && missile.pierce > 0 && pierce_armed(true)) {
             --missile.pierce;
@@ -493,7 +494,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (missile.info && (missile.info->next_hit || missile.info->last_unit_rule()) && missile.last_hit_ms == now_ms) return false;
                         continue;
                     }
-                    if (missile.info && missile.info->last_collide && missile.last_hit == int(i)) continue;
+                    // A Pierce arrow keeps its struck list, as a skill's Pierce row does (missiles.md); LastCollide passes the last one by.
+                    if (std::ranges::contains(*missile.struck, int(i)) || (missile.info && missile.info->last_collide && missile.last_hit == int(i))) continue;
                     return plain_missile_hits(missile, i, now_ms);
                 }
                 return false;
