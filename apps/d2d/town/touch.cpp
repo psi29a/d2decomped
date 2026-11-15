@@ -590,19 +590,25 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         if (tree_open && scene) {
             const int tree_panel_right = kTreeR;
             const int cls = std::max(character.character_class, 0);
-            if (phase == touch::Phase::Down && touch_learn_skill >= 0 && touch::kTreeLearnConfirm.contains(x, y)) {
-                send(cmd::SkillPoint{ touch_learn_skill });
+            const auto clear_tree_preview = [&] {
                 touch_learn_skill = -1;
                 touch_tree_tap_skill = -1;
+                touch_tree_tap_ms = 0;
+                touch_selected = skillpad::kEmpty;
+                touch_pointer = {};
+            };
+            if (phase == touch::Phase::Down && touch_learn_skill >= 0 && touch::kTreeLearnConfirm.contains(x, y)) {
+                send(cmd::SkillPoint{ touch_learn_skill });
+                clear_tree_preview();
                 return true;
             }
             if (phase == touch::Phase::Down && touch::kTreeLearnCancel.contains(x, y)) {
-                touch_learn_skill = -1;
+                clear_tree_preview();
                 return true;
             }
             if (phase == touch::Phase::Down && touch::kTreeAssign.contains(x, y) && touch_selected >= 0) {
                 touch_assign = touch_selected; touch_feedback.clear(); touch_assignment_from_tree = true; tree_open = false;
-                touch_learn_skill = -1;
+                clear_tree_preview();
                 return true;
             }
             const int index = skill_at(*scene, cls, tree_tab, int(x), int(y), tree_panel_right);
@@ -617,17 +623,21 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                         && now_ms >= touch_tree_tap_ms && now_ms - touch_tree_tap_ms <= touch::kTreeDoubleTapMs;
                     if (double_tap) {
                         send(cmd::SkillPoint{ index });
-                        touch_learn_skill = -1;
-                        touch_tree_tap_skill = -1;
-                        touch_tree_tap_ms = 0;
+                        clear_tree_preview();
                     } else {
                         touch_tree_tap_skill = index;
                         touch_tree_tap_ms = now_ms;
                         touch_learn_skill = can ? index : -1;
+                        touch_selected = skill_known(character.name, ids[std::size_t(index)]) ? ids[std::size_t(index)] : skillpad::kEmpty;
                     }
-                    touch_selected = skill_known(character.name, ids[std::size_t(index)]) ? ids[std::size_t(index)] : skillpad::kEmpty;
                 }
                 return true; // inspect first; spend only on Confirm or a second tap
+            }
+            if (phase == touch::Phase::Down
+                && (touch_learn_skill >= 0 || touch_selected >= 0 || touch_pointer.active)
+                && !touch::tree_preview_chrome_hit(x, y, touch_learn_skill >= 0, touch_selected >= 0)) {
+                clear_tree_preview();
+                // fall through: tabs and the tree close button still use pointer input
             }
         }
         return false; // other panels use their ordinary pointer input

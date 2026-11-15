@@ -186,6 +186,10 @@ int main() try {
     assert(!deliberate_double_tap(10.f, 10.f, 10.f + kMoveTapSlop + 4.f, 10.f, 1000, 1200));
     assert(kTreeLearnConfirm.contains(20.f, 500.f) && kTreeLearnCancel.contains(140.f, 500.f));
     assert(!kTreeLearnConfirm.contains(140.f, 500.f));
+    assert(tree_preview_chrome_hit(20.f, 500.f, true, false));
+    assert(tree_preview_chrome_hit(140.f, 500.f, true, false));
+    assert(tree_preview_chrome_hit(20.f, 560.f, false, true));
+    assert(!tree_preview_chrome_hit(400.f, 300.f, true, true));
     input.clear();
     const float mx = field.move.x + 40.f, my = field.move.y + 40.f;
     input.event(1, Phase::Down, mx, my, {}, false, false, 3000);

@@ -58,6 +58,12 @@ inline constexpr float kMoveTapSlop = 18.f;
 inline constexpr Box kTreeLearnConfirm{ 16.f, 490.f, 110.f, 44.f }, kTreeLearnCancel{ 136.f, 490.f, 110.f, 44.f };
 inline constexpr Box kTreeAssign{ 16.f, 545.f, 240.f, 50.f };
 
+/** Confirm, Cancel, or Assign while those buttons are shown (not a tree miss). */
+[[nodiscard]] inline bool tree_preview_chrome_hit(float x, float y, bool show_learn, bool show_assign) {
+    if (show_learn && (kTreeLearnConfirm.contains(x, y) || kTreeLearnCancel.contains(x, y))) return true;
+    return show_assign && kTreeAssign.contains(x, y);
+}
+
 /** Two taps of the same control: close in time and in place, not a drag. */
 [[nodiscard]] inline bool deliberate_double_tap(float x0, float y0, float x1, float y1, std::uint32_t t0, std::uint32_t t1,
                                                 float slop = kMoveTapSlop, std::uint32_t window = kMoveDoubleTapMs) {
