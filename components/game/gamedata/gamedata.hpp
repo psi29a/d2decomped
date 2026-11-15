@@ -337,13 +337,20 @@ struct Level {
     // whose (size x 2 + 1) square, centred a subtile up-left of it, has no
     // bit of `mask` (FUN_0064d800), searched ring by ring (c = 1 .. rings - 1:
     // rows c, c - 2 .. > -c; columns -c, -c + 2 .. < c). None: nullopt.
-    // ponytail: the units' bits (0x1000+) are the Crowd's, not the grid's.
-    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings) const {
+    // The mask meets the grid as game.exe's does: its unit bits (0x1000,
+    // 0x2000, stamped by FUN_0064ea90) are the Crowd's here, so `crowd`
+    // gives them on a subtile; none given: no unit stands in the way.
+    // ponytail: the seal flashes (world/quests/act4.cpp, mask 0x3f11) give none.
+    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings,
+                                                                const std::function<int(int, int)>& crowd = {}) const {
         const int half = size >> 1, side = size * 2 + 1;
         const auto clear = [&](int centre_x, int centre_y) {
             for (int row = 0; row < side; ++row)
-                for (int column = 0; column < side; ++column)
-                    if (blocked((float(centre_x - side / 2 + column) + 0.5f) / 5, (float(centre_y - side / 2 + row) + 0.5f) / 5, mask & 0x0fff)) return false;
+                for (int column = 0; column < side; ++column) {
+                    const int sub_x = centre_x - side / 2 + column, sub_y = centre_y - side / 2 + row;
+                    if (blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, mask & 0x0fff)) return false;
+                    if (crowd && (crowd(sub_x, sub_y) & mask & 0xf000)) return false;
+                }
             return true;
         };
         for (int ring = 1; ring < rings; ++ring)
