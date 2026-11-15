@@ -72,12 +72,13 @@ def level(path):
     return 1
 
 
-def hooked_address_lines(path, text):
-    """Source lines whose literal address is replaced instead of executed.
+def hooked_addresses(path, text):
+    """Literal function addresses replaced by an emulator oracle.
 
     An emulator oracle may verify a caller by hooking its out-of-scope
     callees.  Those hook targets are citations, not evidence that the target
-    function ran.  AST locations also cover multiline ``stub(..., {addr: n})``
+    function ran.  Preserve address identity so a real call may share a source
+    line with a hook.  AST nodes also cover multiline ``stub(..., {addr: n})``
     dictionaries without guessing where a call ends.
     """
     if not path.startswith("tools/emu/") or not path.endswith(".py"):
@@ -88,15 +89,17 @@ def hooked_address_lines(path, text):
             tree = ast.parse(text, filename=path)
     except SyntaxError:
         return set()  # presubmit reports the syntax failure; keep the map usable
-    lines = set()
+    hooked = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         if node.func.attr == "hook" and node.args and isinstance(node.args[0], ast.Constant):
-            lines.add(node.args[0].lineno)
+            if isinstance(node.args[0].value, int):
+                hooked.add(node.args[0].value)
         elif node.func.attr == "stub" and len(node.args) > 1 and isinstance(node.args[1], ast.Dict):
-            lines.update(key.lineno for key in node.args[1].keys if isinstance(key, ast.Constant))
-    return lines
+            hooked.update(key.value for key in node.args[1].keys
+                          if isinstance(key, ast.Constant) and isinstance(key.value, int))
+    return hooked
 
 
 def declared_oracle_runs(path, text):
@@ -110,6 +113,23 @@ def declared_oracle_runs(path, text):
         return None
     marked = [line.partition("# gaps-runs:")[2] for line in text.splitlines() if "# gaps-runs:" in line]
     return list(dict.fromkeys(address for line in marked for address in addresses(line))) if marked else None
+
+
+def replaced_oracle_functions(path, text, funcs):
+    """Function entries a legacy oracle replaces instead of executing."""
+    if declared_oracle_runs(path, text) is not None:
+        return set()
+    return set(filter(None, map(funcs.holding, hooked_addresses(path, text))))
+
+
+def oracle_run_addresses(path, text, funcs):
+    """Addresses whose stock function bodies a tools/emu oracle runs."""
+    declared = declared_oracle_runs(path, text)
+    if declared is not None:
+        return declared
+    replaced = replaced_oracle_functions(path, text, funcs)
+    return [address for line in text.splitlines() for address in addresses(line)
+            if funcs.holding(address) not in replaced]
 
 
 def tables(lines, stop=None):
@@ -216,8 +236,8 @@ def build(with_issues):
         except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):
             continue
         lines = text.splitlines()
-        hook_lines = hooked_address_lines(path, text)
         declared_runs = declared_oracle_runs(path, text)
+        replaced = replaced_oracle_functions(path, text, funcs)
         # An address in a ponytail: note names what's missing: cited, not ported.
         in_note = set()
         if level(path) == 2:
@@ -234,7 +254,7 @@ def build(with_issues):
                     continue
                 entry = info[held]
                 declared_citation = declared_runs is not None and held not in declared_runs
-                cited_only = number in in_note or number in hook_lines or declared_citation
+                cited_only = number in in_note or held in replaced or declared_citation
                 entry["level"] = max(entry["level"], 1 if cited_only else level(path))
                 if len(entry["refs"]) < 5:
                     entry["refs"].append(f"{path}:{number}")
@@ -385,11 +405,7 @@ def oracles(funcs):
         if os.path.basename(path) in HELPERS:
             continue
         doc = re.search(r'"""(.*?)(?:\n|""")', text, re.S)
-        declared_runs = declared_oracle_runs(path, text)
-        hook_lines = hooked_address_lines(path, text)
-        executed = declared_runs if declared_runs is not None else (
-            address for number, line in enumerate(text.splitlines(), 1) if number not in hook_lines
-            for address in addresses(line))
+        executed = oracle_run_addresses(path, text, funcs)
         runs = list(dict.fromkeys(f"{h:08x}" for h in map(funcs.holding, executed) if h))   # as the script names them
         name = os.path.basename(path)
         rows.append({"script": path, "what": doc.group(1).strip() if doc else "", "runs": runs, "cited": cited[name]})

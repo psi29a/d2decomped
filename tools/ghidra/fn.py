@@ -13,14 +13,6 @@ import pathlib
 import re
 import sys
 
-source = pathlib.Path(os.environ.get(
-    "D2_GHIDRA_DECOMP_C", pathlib.Path(__file__).parent / "project" / "game_all.c"))
-try:
-    text = source.read_text(encoding="utf-8")
-except OSError as error:
-    raise SystemExit(f"cannot read {source}: {error}") from error
-RULE = "// =============================================\n"
-sections = {m.group(1): m for m in re.finditer(r"// \S+ @ ([0-9a-f]{8})\n", text)}
 missing = False
 tail = None
 arguments = []
@@ -36,6 +28,15 @@ for arg in sys.argv[1:]:
         arguments.append(arg)
 if not arguments:
     raise SystemExit("usage: fn.py [--tail=N] ADDRESS [ADDRESS ...]")
+
+source = pathlib.Path(os.environ.get(
+    "D2_GHIDRA_DECOMP_C", pathlib.Path(__file__).parent / "project" / "game_all.c"))
+try:
+    text = source.read_text(encoding="utf-8")
+except OSError as error:
+    raise SystemExit(f"cannot read {source}: {error}") from error
+RULE = "// =============================================\n"
+sections = {m.group(1): m for m in re.finditer(r"// \S+ @ ([0-9a-f]{8})\n", text)}
 for arg in arguments:
     address = re.sub(r"(?i)^(fun_|0x)", "", arg)
     if not re.fullmatch(r"(?i)[0-9a-f]{1,8}", address):
