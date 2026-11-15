@@ -100,6 +100,39 @@ Oracle: the same script runs `FUN_00535780` on 24 values (0..20 and the
 32-bit edges) and `FUN_00535790` 15,360 times: game +0x6a 0..255, six
 settings, 0..9 players, with `FUN_005538d0` hooked to give the count.
 
+## The string helpers — FUN_0047b3b0, FUN_0047c3f0, FUN_0047bd60, FUN_0047bd80, FUN_0047bd00
+
+- **`FUN_0047b3b0`** (EAX prefix, stack line, `ret 4`; 151 bytes) asks
+  whether the line starts with the prefix, in any case. It gives -1 when the
+  line is shorter than the prefix. Otherwise the prefix's bytes are compared
+  with the line's through `toupper`, each byte sign-extended first (MOVSX,
+  so 0x80..0xff stay negative and unchanged): 0 when all match, else 1 when
+  the line's byte is the larger and -1 when it's the smaller. Its callers
+  are the parser's ignore commands, `FUN_0047c1f0` and `FUN_0047c100`.
+- **`FUN_0047c3f0`** (EAX line, ESI out, stack size, `ret 4`) copies what
+  follows the first space with `FUN_004135d0(out, after, size)` (at most
+  size - 1 bytes, then a 0); without a space, out is "". The ignore commands
+  take their name with it (sizes 0x11 and 0x104).
+- **`FUN_0047bd60`** (ESI name) and **`FUN_0047bd80`** (ESI name, EBX out)
+  split a Battle.net `character*account` name for the ignore command
+  (`FUN_0047bdf0`, chat-ignorelist.md). `FUN_0047bd60` returns the text after
+  the first `*` when that isn't empty, else the name. `FUN_0047bd80` copies
+  the text before the first `*` (memcpy, then a 0), or the whole name when
+  it starts with `*` or has none (`FUN_004135d0` with 0x7fffffff); it
+  doesn't bound the copy.
+- **`FUN_0047bd00`** (ECX UTF-16 text, returns AL) is meant to say whether
+  every unit is under 0x100. The parser asks it when the IME is open
+  (0x7bb5e1), before `FUN_0047bad0` and the Battle.net commands. The load of
+  `text[length]` sits before the loop (0x47bd0e; the loop goes back to
+  0x47bd12), so every pass tests that one unit, the terminating 0, and it
+  returns 1 for every text.
+
+Oracle: `tools/emu/chat_helpers.py` runs the first four on 4,000 generated
+strings each (the command prefixes, mixed case, bytes 0x80..0xff, sizes 1
+to 0x104, names with and without `*`) and `FUN_0047bd00` on 4,000 UTF-16
+texts, 3,681 of them holding a unit over 0xff: it gives 1 for all. The CRT
+and Storm's string helpers run for real.
+
 ## d2d
 
 No `/players`: the box's Enter (apps/d2d/town/update.cpp) parses only
@@ -113,7 +146,9 @@ aren't ported either.
 ```sh
 cd tools/emu
 uv run python chat_parse.py
+uv run python chat_helpers.py
 ```
 
-and `python3 tools/ghidra/fn.py 0047c420 00535780 00535790`, the strings at
+and `python3 tools/ghidra/fn.py 0047c420 00535780 00535790 0047b3b0
+0047c3f0 0047bd60 0047bd80 0047bd00`, the strings at
 0x6d7330..0x6d73a4 and the table at 0x712f7c (14-byte rows).

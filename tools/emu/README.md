@@ -57,6 +57,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | When a Sorceress self cast pays its mana and runs its action frame (with a get-hit cut) | `uv run python cast_mana.py gen 1 > cases.tsv; uv run python cast_mana.py game cases.tsv > g.txt; ../../build/tests/test_cast_mana --cast-mana cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Cast speed and cast length (FCR 0..400) | `uv run python cast_rates.py > g.txt; ../../build/tests/test_combat --cast-rates \| diff g.txt -` | no output |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
+| Chat command string helpers (FUN_0047b3b0, FUN_0047c3f0, FUN_0047bd60, FUN_0047bd80, FUN_0047bd00) | `uv run python chat_helpers.py` | `... match on 4000 cases each`, `FUN_0047bd00 returned 1 for all 4000 texts; 3681 of them hold a unit over 0xff` |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
 | The chat line parser and `/players` (FUN_0047c420, FUN_00535780, FUN_00535790; side effects hooked as listed in the script) | `uv run python chat_parse.py` | `chat_parse: 700 lines match ...`, `FUN_00535780 for 24 values, FUN_00535790 for 15360 ...` |
