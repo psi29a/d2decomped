@@ -101,6 +101,23 @@ int main() try {
         }
     }
     assert(changed);
+    // The multiply table holds palette entries (FUN_00605aa0 stores
+    // FUN_00605210's nearest): on a four-grey palette every channel drawn
+    // is one of the four.
+    std::array<d2d::palette::Rgba, 256> steps{};
+    for (std::size_t index = 0; index < 256; ++index) {
+        const auto level = std::uint8_t(index & 0xc0u);
+        steps[index] = { level, level, level, 255 };
+    }
+    const d2d::palette::Palette four_greys(steps);
+    std::vector<std::uint8_t> snapped(std::size_t(kSide) * kSide * 4, 128);
+    exocet10.draw_tinted_baseline(snapped, kSide, kSide, four_greys, 2, 30, "SO", 255, 255, 255, true);
+    bool darkened = false;
+    for (std::size_t index = 0; index < snapped.size(); index += 4) {
+        assert(snapped[index] % 0x40 == 0);
+        darkened = darkened || snapped[index] != 128;
+    }
+    assert(darkened);
 
     std::printf("OK\n");
     return 0;
