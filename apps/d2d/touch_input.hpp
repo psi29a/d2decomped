@@ -99,6 +99,33 @@ struct ItemSheet {
     return std::hypot(x - origin_x, y - origin_y) > kItemDragSlop;
 }
 
+/** Inventory/stash/cube grid for nearest-cell snap (same origin as item_cursor_command). */
+struct SnapGrid {
+    float x = 0, y = 0, box_w = 29, box_h = 29;
+    int cols = 0, rows = 0, item_w = 1, item_h = 1;
+};
+
+[[nodiscard]] inline bool snap_grid_cell(const SnapGrid& grid, float mouse_x, float mouse_y, int& col, int& row) {
+    if (grid.cols <= 0 || grid.rows <= 0 || grid.box_w <= 0.f || grid.box_h <= 0.f) return false;
+    const float adj_x = mouse_x - grid.x - float((grid.item_w - 1) * grid.box_w) / 2.f;
+    const float adj_y = mouse_y - grid.y - float((grid.item_h - 1) * grid.box_h) / 2.f;
+    col = int(std::floor(adj_x / grid.box_w));
+    row = int(std::floor(adj_y / grid.box_h));
+    const float left = grid.x, top = grid.y;
+    const float right = grid.x + float(grid.cols) * grid.box_w, bottom = grid.y + float(grid.rows) * grid.box_h;
+    const float dx = mouse_x < left ? left - mouse_x : (mouse_x > right ? mouse_x - right : 0.f);
+    const float dy = mouse_y < top ? top - mouse_y : (mouse_y > bottom ? mouse_y - bottom : 0.f);
+    if (dx > grid.box_w || dy > grid.box_h) return false;
+    col = std::clamp(col, 0, grid.cols - 1);
+    row = std::clamp(row, 0, grid.rows - 1);
+    return true;
+}
+
+inline std::pair<float, float> snap_grid_point(const SnapGrid& grid, int col, int row) {
+    return { grid.x + float((grid.item_w - 1) * grid.box_w) / 2.f + (float(col) + 0.5f) * grid.box_w,
+             grid.y + float((grid.item_h - 1) * grid.box_h) / 2.f + (float(row) + 0.5f) * grid.box_h };
+}
+
 inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy) {
     ItemSheet sheet;
     sheet.open = can_use || can_sell || can_buy;

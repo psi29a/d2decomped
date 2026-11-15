@@ -139,6 +139,16 @@ int main() try {
     assert(std::abs(icon_at.first - 40.f) < 0.01f && std::abs(icon_at.second - 50.f) < 0.01f);
     const float attack_scale = fit_icon_scale(96.f, 96.f, 48.f, 48.f, 0.10f);
     assert(attack_scale > 1.5f && attack_scale < 1.7f);
+    {
+        const SnapGrid grid{ 400.f, 100.f, 29.f, 29.f, 10, 4, 2, 4 };
+        int col = -8, row = -8;
+        assert(snap_grid_cell(grid, 395.f, 160.f, col, row));
+        assert(col == 0 && row >= 0 && row < 4);
+        const auto at = snap_grid_point(grid, col, row);
+        int col2 = -8, row2 = -8;
+        assert(snap_grid_cell(grid, at.first, at.second, col2, row2) && col2 == col && row2 == row);
+        assert(!snap_grid_cell(grid, 200.f, 160.f, col, row));
+    }
     assert(!item_dragged(10.f, 10.f, 12.f, 10.f));
     assert(item_dragged(10.f, 10.f, 10.f + kItemDragSlop + 1.f, 10.f));
     const auto sheet = make_item_sheet(true, true, false);

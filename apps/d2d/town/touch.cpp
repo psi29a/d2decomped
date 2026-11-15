@@ -40,6 +40,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace d2d::client {
@@ -387,6 +388,52 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
         const auto close_item_track = [&] {
             touch_item_finger = -1; touch_item = touch_stock = -1; touch_item_drag = false; touch_hold.clear();
         };
+        const auto place_held_at = [&](float point_x, float point_y) {
+            if (!scene || !held) return;
+            const auto [item_w, item_h] = d2d::rules::item_size(scene->rules, held->code);
+            OpenPanels open{ inv_open, stash_open, cube_open, belt_open, character.expansion };
+            auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                             open, int(point_x), int(point_y));
+            if (!click.consumed) {
+                float snapped_x = point_x, snapped_y = point_y;
+                const auto try_grid = [&](const Scene::InvLayout& layout) {
+                    touch::SnapGrid grid{ float(layout.grid_x), float(layout.grid_y), float(layout.box_w), float(layout.box_h),
+                                          layout.cols, layout.rows, item_w, item_h };
+                    int col = 0, row = 0;
+                    if (!touch::snap_grid_cell(grid, point_x, point_y, col, row)) return false;
+                    const auto at = touch::snap_grid_point(grid, col, row);
+                    snapped_x = at.first; snapped_y = at.second;
+                    return true;
+                };
+                bool snapped = false;
+                if (inv_open) snapped = try_grid(touch_inv_layout());
+                if (!snapped && cube_open) snapped = try_grid(scene->cube_layout);
+                if (!snapped && stash_open) snapped = try_grid(scene->stash_layout[character.expansion ? 1 : 0]);
+                if (!snapped && inv_open) {
+                    const auto& inv = touch_inv_layout();
+                    float best = 48.f;
+                    int best_slot = -1;
+                    for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot) {
+                        const auto& rect = inv.slots[std::size_t(slot)];
+                        if (rect[2] <= 0) continue;
+                        const float centre_x = float(rect[0]) + float(rect[2]) * .5f, centre_y = float(rect[1]) + float(rect[3]) * .5f;
+                        const float dist = std::hypot(point_x - centre_x, point_y - centre_y);
+                        if (dist < best) { best = dist; best_slot = slot; }
+                    }
+                    if (best_slot >= 0) {
+                        const auto& rect = inv.slots[std::size_t(best_slot)];
+                        snapped_x = float(rect[0]) + float(rect[2]) * .5f;
+                        snapped_y = float(rect[1]) + float(rect[3]) * .5f;
+                        snapped = true;
+                    }
+                }
+                if (snapped)
+                    click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                open, int(snapped_x), int(snapped_y));
+            }
+            if (click.cmd && !std::holds_alternative<cmd::ToCursor>(*click.cmd)) send(*click.cmd);
+            else if (!click.consumed) send(cmd::Drop{ held->id });
+        };
         const auto run_sheet_action = [&](touch::ItemAction action) {
             if (action == touch::ItemAction::Buy && touch_stock >= 0 && store.npc >= 0) send(cmd::Buy{ touch_stock, store.tab });
             else if (action == touch::ItemAction::Sell && touch_item >= 0) send(cmd::Sell{ touch_item });
@@ -427,7 +474,17 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
             return phase != touch::Phase::Move;
         }
         if (held) {
-            follow_pointer(phase == touch::Phase::Down, phase == touch::Phase::Up || phase == touch::Phase::Cancel);
+            if (phase == touch::Phase::Cancel) {
+                close_item_track();
+                touch_pointer = {};
+                return true;
+            }
+            follow_pointer(false, false);
+            if (phase == touch::Phase::Up) {
+                place_held_at(x, y);
+                close_item_track();
+                touch_pointer = {};
+            }
             return true;
         }
         if (phase == touch::Phase::Cancel && finger == touch_item_finger) {
@@ -443,11 +500,15 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
                                                        { inv_open, stash_open, cube_open, belt_open, character.expansion },
                                                        int(touch_item_x), int(touch_item_y));
                 if (click.cmd) send(*click.cmd);
-                follow_pointer(true, false);
+                follow_pointer(false, false);
             }
             if (touch_item_drag) {
-                follow_pointer(false, phase == touch::Phase::Up);
-                if (phase == touch::Phase::Up) close_item_track();
+                follow_pointer(false, false);
+                if (phase == touch::Phase::Up) {
+                    place_held_at(x, y);
+                    close_item_track();
+                    touch_pointer = {};
+                }
                 return true;
             }
             if (phase == touch::Phase::Move) return true;
