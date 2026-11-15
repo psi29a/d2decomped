@@ -11,6 +11,11 @@
 // then `P MIN MAX LEN` when the shot carries poison (MonStats::poison_*:
 // per frame in 256ths, frames).
 //
+// `--missile-block-skill CASES`: tab-separated lines `ID LEVEL ROW SKILL` of the skill-launched rows (andariel_missile at LEVEL with the monster skill SKILL: the Fallen
+// Shaman's fire, the Death Mauler's maul, ...), the same `K` output.
+// `--missile-block CASES`: the same shots through the real monster_blow against a defender with Block 75 and nothing else:
+// `K ID BLOCKED 400`, as tools/emu/missile_block.py compares them with game.exe's FUN_005ad730 (can-block of FUN_0057dfb0).
+//
 // With no arguments: the poison of a row's own element through the REAL
 // monster_blow, no game data (rows typed from Missiles.txt 1.14d).
 
@@ -23,6 +28,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -32,6 +38,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 using namespace d2d::game;
 
@@ -97,7 +104,9 @@ int unit_test() {
 }
 
 int main(int argc, char** argv) try {
-    if (argc < 3 || std::string_view(argv[1]) != "--monster-missile") return unit_test();
+    const bool block_mode = argc >= 3 && std::string_view(argv[1]) == "--missile-block";
+    const bool skill_mode = argc >= 3 && std::string_view(argv[1]) == "--missile-block-skill";
+    if (argc < 3 || (std::string_view(argv[1]) != "--monster-missile" && !block_mode && !skill_mode)) return unit_test();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -108,6 +117,36 @@ int main(int argc, char** argv) try {
 
     std::ifstream cases(argv[2]);
     std::string line;
+    if (skill_mode) {
+        // A monster skill's missile (andariel_missile: Fallen Shaman fire, Radament's bolt, ...) through missile_blow and the real monster_blow, as above.
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);                         // ID TAB LEVEL TAB ROW TAB SKILL: a row name may hold a space (death mauler)
+            int case_id = 0, lvl = 1;
+            std::string row, skill;
+            fields >> case_id >> lvl;
+            fields.ignore(1);
+            std::getline(fields, row, '\t');
+            std::getline(fields, skill);
+            const auto found = data->missiles.find(row);
+            if (found == data->missiles.end()) { std::printf("N %d\n", case_id); continue; }      // d2d does not load the row (only the rows its monsters and skills name)
+            // The real andariel_missile at the level d2d launches it, with the monster skill it carries when the row names a Skill (the Death Mauler's maul).
+            const auto skill_found = data->skills.by_name.find(skill);
+            const auto* carried = skill_found != data->skills.by_name.end() ? data->skills.get(skill_found->second) : nullptr;
+            std::vector<Missile> made;
+            andariel_missile(*data, Monster{}, row, 1, 0, 0, made, lvl, carried);
+            if (made.empty()) { std::printf("N %d\n", case_id); continue; }
+            auto stats = made.back().src;
+            stats.no_hit_roll = true;
+            d2d::rules::Fighter defender;
+            defender.block = 75;
+            d2d::rules::Rng rng(std::uint32_t(case_id) * 2654435761u + 7);
+            int blocked = 0;
+            for (int trial = 0; trial < 400; ++trial)
+                blocked += d2d::rules::monster_blow(defender, 30, d2d::rules::Motion::standing, stats, true, rng, true).blocked ? 1 : 0;
+            std::printf("K %d %d 400\n", case_id, blocked);
+        }
+        return 0;
+    }
     while (std::getline(cases, line)) {
         std::istringstream fields(line);
         int case_id = 0, first = 0, cast = 0, s1_shot = 0, lvl = 0;
@@ -118,7 +157,19 @@ int main(int argc, char** argv) try {
         if (found == data->missiles.end()) { std::fprintf(stderr, "no row %s\n", row.c_str()); return 1; }
         const auto& info = found->second;
         const auto phys = monster_shot_phys(info, first ? owner.a1_min : s1_shot ? owner.s1_min : owner.a2_min, first ? owner.a1_max : s1_shot ? owner.s1_max : owner.a2_max, cast != 0, lvl);
-        const auto stats = monster_shot_stats(info, owner, first != 0, cast != 0, s1_shot != 0, lvl);
+        auto stats = monster_shot_stats(info, owner, first != 0, cast != 0, s1_shot != 0, lvl);
+        if (block_mode) {
+            // The shot through the real monster_blow against a defender whose only roll is Block 75: how many of 400 are blocked.
+            stats.no_hit_roll = true;
+            d2d::rules::Fighter defender;
+            defender.block = 75;
+            d2d::rules::Rng rng(std::uint32_t(case_id) * 2654435761u + 7);
+            int blocked = 0;
+            for (int trial = 0; trial < 400; ++trial)
+                blocked += d2d::rules::monster_blow(defender, 30, d2d::rules::Motion::standing, stats, true, rng, true).blocked ? 1 : 0;
+            std::printf("K %d %d 400\n", case_id, blocked);
+            continue;
+        }
         std::printf("%d %d %d", case_id, phys.low, phys.high);
         for (const auto& element : stats.elements)
             if (element.type >= 0 && element.mode == "A2") std::printf(" %d %d %d %d", element.type, element.min, element.max, element.dur);
