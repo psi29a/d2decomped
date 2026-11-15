@@ -42,14 +42,11 @@ static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& s
 // "Button labels"): FontExocet10 or FontRidiculous by the button's height,
 // bottom-anchored on its baseline, multiplied onto the chrome (draw mode
 // 4), 2 left and 2 down when pressed, and never recoloured on hover.
-// `label2` is a second line under the first.
-// ponytail: game.exe keeps a disabled button's label in colour 0 and
-// draws its chrome through the 50/50 alpha table (mode 1); d2d greys the
-// label by `shade` and draws the chrome opaque.
+// `label2` is a second line under the first. The colour is cleared to 0
+// every frame (0x500fba), so a disabled button's label is drawn the same.
 static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
                               const d2d::palette::Palette& pal, const Button& button,
-                              std::string_view label, bool pressed, int shade = 255,
-                              std::string_view label2 = {}) {
+                              std::string_view label, bool pressed, std::string_view label2 = {}) {
     const auto& wanted = d2d::font::button_label_font(button.height).exocet10 ? scene.font_exocet10 : scene.font_ridiculous;
     const auto& font = wanted.line_height() > 0 ? wanted : scene.font;
     const int bottom = button.y + button.height - 1;
@@ -59,10 +56,39 @@ static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scen
         if (text.empty()) continue;
         const auto spot = d2d::font::button_label_spot(button.x, bottom, button.width, button.height,
                                                        font.measure(text), font.tbl_height(), pressed, lines, line);
-        const auto tint = std::uint8_t(shade);
         font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, spot.x, spot.baseline,
-                                  text, tint, tint, tint, /*multiply=*/true);
+                                  text, 255, 255, 255, /*multiply=*/true);
     }
+}
+
+// A disabled button's chrome (FUN_004f96f0(button, 0)) is drawn at mode 1
+// (slot +0x84, FUN_00511fb0): the 50/50 alpha table, each channel half the
+// chrome's and half what's under it (frontend-menu-table.md "Button
+// labels"), in RGB without the table's snap to the palette.
+template <typename Draw>
+static void draw_chrome(std::vector<std::uint8_t>& framebuffer, int top, int height, bool disabled, const Draw& draw) {
+    if (!disabled) { draw(); return; }
+    const int first = std::clamp(top, 0, int(kScreenHeight));
+    const int last = std::clamp(top + height, first, int(kScreenHeight));
+    const std::size_t row_bytes = std::size_t(fb_width(framebuffer)) * 4;
+    const std::size_t begin = std::size_t(first) * row_bytes;
+    const std::vector<std::uint8_t> under(framebuffer.begin() + std::ptrdiff_t(begin),
+                                          framebuffer.begin() + std::ptrdiff_t(std::size_t(last) * row_bytes));
+    draw();
+    for (std::size_t index = 0; index < under.size(); ++index) {
+        if (index % 4 == 3) continue;   // alpha
+        auto& channel = framebuffer[begin + index];
+        channel = std::uint8_t((channel + under[index]) / 2);
+    }
+}
+
+static void draw_button_chrome(std::vector<std::uint8_t>& framebuffer, const d2d::palette::Palette& pal,
+                               const Button& button, bool pressed, bool disabled = false) {
+    if (!button.chrome) return;
+    const int height = button.chrome->frames_per_direction() > 0
+                     ? std::max(button.height, int(button.chrome->frame(0, 0).height)) : button.height;
+    draw_chrome(framebuffer, button.y, height, disabled,
+                [&] { blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, pressed); });
 }
 
 void render_title(std::vector<std::uint8_t>& framebuffer,
@@ -243,9 +269,11 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     auto draw_tall = [&](const Button& button, bool disabled = false) {
         if (!button.chrome) return;
         const bool pressed = button.hovered && button.pressed;
-        blit_sprite(framebuffer, button.chrome->frame(0, pressed ? 1 : 0), pal, button.x, button.y);
+        const auto& frame = button.chrome->frame(0, pressed ? 1 : 0);
+        draw_chrome(framebuffer, button.y, int(frame.height), disabled,
+                    [&] { blit_sprite(framebuffer, frame, pal, button.x, button.y); });
         draw_button_label(framebuffer, scene, pal, button, button.label ? button.label : "", pressed,
-                          disabled ? 96 : 255, button.label2 ? button.label2 : "");
+                          button.label2 ? button.label2 : "");
     };
     draw_tall(select_ui.create_btn);
     // Convert-to-expansion only applies to a classic character (ponytail:
@@ -257,13 +285,12 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
 
     for (const Button* button : {&select_ui.cancel_btn, &select_ui.ok_btn}) {
         if (!button->chrome) continue;
-        blit_button_chrome(framebuffer, pal, *button->chrome, button->x, button->y,
-                           button->hovered && button->pressed);
-        // OK greys out until a save is picked (do_switch is gated on that
+        // OK is disabled until a save is picked (do_switch is gated on that
         // each frame, before this draw).
+        draw_button_chrome(framebuffer, pal, *button, button->hovered && button->pressed,
+                           button == &select_ui.ok_btn && !button->do_switch);
         if (button->label)
-            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed,
-                              button == &select_ui.ok_btn && !button->do_switch ? 96 : 255);
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed);
     }
     if (select_ui.confirm_delete) {
         // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
@@ -287,8 +314,8 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
             const std::string& label = select_ui.difficulty_label[std::size_t(index)];
             const bool enabled = index < 2 || select_ui.hell_open;   // FUN_004f96f0(button, 0) greys it
             const bool pressed = enabled && button.hovered && button.pressed;
-            if (button.chrome) blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, pressed);
-            draw_button_label(framebuffer, scene, pal, button, label, pressed, enabled ? 255 : 105);
+            draw_button_chrome(framebuffer, pal, button, pressed, !enabled);
+            draw_button_label(framebuffer, scene, pal, button, label, pressed);
         }
         return;
     }
@@ -603,15 +630,13 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
     }
 
     // OK / EXIT buttons at the bottom — MediumSelButtonBlank chrome.
-    // OK renders muted grey when disabled (no class picked yet or empty name).
+    // OK is disabled (no class picked yet or empty name): its chrome at half.
     for (const Button* button : {&create_ui.cancel_btn, &create_ui.ok_btn}) {
         const bool disabled = (button == &create_ui.ok_btn) && !button->do_switch;
         if (!button->chrome) continue;
-        blit_button_chrome(framebuffer, pal, *button->chrome, button->x, button->y,
-                           button->hovered && button->pressed);
+        draw_button_chrome(framebuffer, pal, *button, button->hovered && button->pressed, disabled);
         if (button->label)
-            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed,
-                              disabled ? 96 : 255);
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed);
     }
 }
 
@@ -670,8 +695,8 @@ void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scen
     auto draw = [&](Button button, const std::string& label, bool enabled) {
         button.label = label.c_str();
         const bool pressed = enabled && button.hovered && button.pressed;
-        if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, pressed);
-        draw_button_label(framebuffer, scene, scene.pal, button, label, pressed, enabled ? 255 : 105);
+        draw_button_chrome(framebuffer, scene.pal, button, pressed, !enabled);
+        draw_button_label(framebuffer, scene, scene.pal, button, label, pressed);
     };
     for (int i = 0; i < 7; ++i) draw(cinematics.entry[std::size_t(i)], cinematics.labels[std::size_t(i)], i < cinematics.unlocked);
     draw(cinematics.cancel, cinematics.cancel_label, true);
@@ -781,8 +806,8 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     constexpr std::uint8_t kGrey = 105;
     auto button = [&](const Button& place, const std::string& label, bool enabled) {
         const bool pressed = enabled && place.hovered && place.pressed;
-        if (place.chrome) blit_button_chrome(framebuffer, scene.pal, *place.chrome, place.x, place.y, pressed);
-        draw_button_label(framebuffer, scene, scene.pal, place, label, pressed, enabled ? 255 : kGrey);
+        draw_button_chrome(framebuffer, scene.pal, place, pressed, !enabled);
+        draw_button_label(framebuffer, scene, scene.pal, place, label, pressed);
     };
     auto text = [&](const d2d::font::Font& font, const std::string& line, int x, int y, int width, int height, bool enabled = true) {
         draw_text_box(framebuffer, scene, font, line, x, y, width, height, enabled ? 255 : kGrey);

@@ -242,9 +242,8 @@ capitals in the Sky palette are mostly index 31 (196, 196, 196) where
 FontExocet10's are mostly index 15 (12, 12, 8) with 29, 31 and 32, and
 3 to 5 rows low, opaque, with a gold hover and no press offset. It now
 multiplies the label onto the chrome in RGB, without the table's snap to
-the palette. It still greys a disabled button's label and draws its
-chrome opaque; game.exe keeps colour 0 there and draws the chrome
-through the 50/50 alpha table.
+the palette. A disabled button keeps its label as drawn and its chrome
+goes 50/50 over what's under it (`draw_chrome`), also in RGB.
 
 ## Interpretation — layout convention
 
