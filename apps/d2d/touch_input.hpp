@@ -20,30 +20,38 @@ struct Box {
     [[nodiscard]] bool contains(float point_x, float point_y) const { return point_x >= x && point_x < x + width && point_y >= y && point_y < y + height; }
 };
 
-// Immortal-inspired HUD: thumb corners, clear center (x roughly 220–560, y 120–380).
-inline constexpr Box kMove{ 12, 392, 152, 176 }, kAttack{ 672, 468, 108, 108 }, kPage{ 588, 308, 72, 40 },
-    kCancel{ 260, 140, 280, 64 }, kMenu{ 12, 12, 48, 48 }, kDone{ 684, 12, 56, 48 }, kMap{ 740, 12, 48, 48 },
-    kSkillsBar{ 12, 64, 48, 48 };
-inline constexpr Box kSkills[4] = { { 592, 488, 76, 76 }, { 568, 412, 76, 76 }, { 600, 332, 76, 76 }, { 672, 288, 76, 76 } },
-    kInteract{ 540, 368, 64, 64 };
-inline constexpr Box kBelts[4] = { { 12, 252, 52, 42 }, { 68, 252, 52, 42 }, { 12, 300, 52, 42 }, { 68, 300, 52, 42 } };
-inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
+// Letterbox gutters (logical px), set from main.cpp from view_w vs 800.
+struct ViewGutter { float left = 0, right = 0; };
+inline ViewGutter view_gutter;
 
-// Extra inset, in logical pixels, past the 12px margin the boxes already have.
-// Zero leaves every box where it is. main.cpp fills this from SDL_GetWindowSafeArea.
+// Extra inset past gutters from SDL safe area.
 struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
 
-// Off (default): hide the PC bottom bar on the touch field and draw compact vitals.
-// On: --toggle touch_classic_hud=on keeps game.exe's bar under touch chrome.
 inline bool g_touch_classic_hud = false;
-
 inline constexpr int kTouchTreeRight = 488;
+inline constexpr int kTouchInvPanelX = 12, kTouchInvPanelY = 48;
+
+// Nominal sizes (positions filled in layout_boxes).
+inline constexpr float kBeltSize = 48.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+inline constexpr Box kCancel{ 260, 140, 280, 64 };
+inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 0, 0, 52, 48 }, kMap{ 0, 56, 52, 48 };
+inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
-    Box move, attack, page, cancel, menu, skills_bar, map, done, interact;
+    Box move, attack, page, cancel, menu, skills_bar, map, done, interact, quest_track;
     std::array<Box, 4> skills{}, belts{};
 };
+
+inline Box anchor_box(float width, float height, bool left, bool top) {
+    constexpr float kPad = 6.f;
+    Box box{ 0, 0, width, height };
+    if (left) box.x = view_gutter.left + safe_inset.left + kPad;
+    else box.x = 800.f - view_gutter.right - safe_inset.right - width - kPad;
+    if (top) box.y = safe_inset.top + kPad;
+    else box.y = 600.f - safe_inset.bottom - height - kPad;
+    return box;
+}
 
 inline Box placed(Box box) {
     constexpr float kEdge = 24.f;
@@ -54,31 +62,36 @@ inline Box placed(Box box) {
     return box;
 }
 
-/** Placed touch regions for draw, hit tests and chrome. */
+/** Immortal-style thumb layout with edge anchoring. */
 inline Layout layout_boxes() {
     Layout out;
-    out.move = placed(kMove);
-    out.attack = placed(kAttack);
-    out.page = placed(kPage);
+    out.move = anchor_box(148.f, 168.f, true, false);
+    out.attack = anchor_box(kAttackSize, kAttackSize, false, false);
+    const float ax = out.attack.x, ay = out.attack.y;
+    out.page = { ax - kPageSize - 4.f, ay + kAttackSize - kPageSize - 4.f, kPageSize, kPageSize };
+    out.menu = anchor_box(48.f, 48.f, true, true);
+    out.skills_bar = { out.menu.x, out.menu.y + 52.f, 48.f, 48.f };
+    out.done = anchor_box(52.f, 48.f, false, true);
+    out.map = { out.done.x, out.done.y + 56.f, 52.f, 48.f };
+    out.quest_track = { view_gutter.left + safe_inset.left + 6.f, 132.f + safe_inset.top, 172.f, 148.f };
     out.cancel = placed(kCancel);
-    out.menu = placed(kMenu);
-    out.skills_bar = placed(kSkillsBar);
-    out.map = placed(kMap);
-    out.done = placed(kDone);
-    out.interact = placed(kInteract);
-    for (int index = 0; index < 4; ++index) {
-        out.skills[std::size_t(index)] = placed(kSkills[index]);
-        out.belts[std::size_t(index)] = placed(kBelts[index]);
-    }
+    const float pot_x = ax - 72.f;
+    for (int index = 0; index < 4; ++index)
+        out.belts[std::size_t(index)] = { pot_x, ay - 292.f + float(index) * (kBeltSize + 6.f), kBeltSize, kBeltSize };
+    out.skills[0] = { ax - 98.f, ay - 28.f, kSkillSize, kSkillSize };
+    out.skills[1] = { ax - 128.f, ay - 102.f, kSkillSize, kSkillSize };
+    out.skills[2] = { ax - 88.f, ay - 174.f, kSkillSize, kSkillSize };
+    out.skills[3] = { ax - 18.f, ay - 218.f, kSkillSize, kSkillSize };
+    out.interact = { ax - 168.f, ay - 88.f, 56.f, 56.f };
     return out;
 }
 
 inline constexpr float kStickOuter = 76.f, kStickInner = 26.f, kSkillRing = 38.f;
 
-/** True when logical coordinates hit a fixed touch chrome region (not the free field). */
 inline bool chrome_hit(float x, float y, bool interact_chrome = false) {
     const auto chrome = layout_boxes();
     if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chrome.menu.contains(x, y)) return true;
+    if (chrome.quest_track.contains(x, y)) return true;
     if (interact_chrome && chrome.interact.contains(x, y)) return true;
     if (chrome.skills_bar.contains(x, y) || chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)) return true;
     for (const auto& box : chrome.skills)
@@ -101,10 +114,6 @@ public:
     Target preview;
     std::vector<Target> casts;
 
-    /**
-     * Cancel pending touch ownership and queued actions without committing a cast. Preserve the
-     * selected skill page while clearing movement, attack and editor gestures.
-     */
     void clear() {
         movement_ = skill_ = attack_ = -1;
         move_x = move_y = 0;
@@ -113,18 +122,8 @@ public:
         belt = destination = -1;
         menu = done = false;
     }
-    /**
-     * Clear one-frame touch outputs after consumption while retaining held fingers, movement and
-     * the selected page.
-     */
     void frame() { attack_press = menu = done = false; belt = destination = -1; casts.clear(); }
-    // Self casts and auras are stationary taps; all casts commit on a valid
-    // lift, so cancellation never spends mana. Aimed skills enqueue the visible preview.
-    /**
-     * Update one finger in logical viewport coordinates without affecting another finger owner.
-     * Only a valid release queues the visible skill preview; cancellation never queues a cast.
-     * Editor taps choose destinations while page taps preserve an already-held skill target.
-     */
+
     void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false) {
         const auto chrome = layout_boxes();
         if (phase == Phase::Cancel) {

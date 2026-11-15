@@ -51,12 +51,15 @@ follow the game's existing logical viewport. Use landscape for this prototype.
 - Left movement area, dedicated contextual Interact, attack-only primary button,
   four skill buttons, and a one-tap I/II page switch. Belt buttons are available
   on either page.
-- Top chrome is edge-pinned (inventory and skills top-left; map and menu
-  top-right). Field controls sit in the bottom corners; the center stays clear.
-  On the field, compact life/mana bars sit under the top-left icons; the classic
-  bottom bar, belt strip and mini menu row are hidden (`--toggle touch_classic_hud=on`
-  brings them back). Map opens full-screen; the skill tree pins to the left edge.
-  Inventory on touch hugs the left edge of the view.
+- Top chrome is edge-pinned (inventory and skills top-left; Done and Map stacked
+  top-right). Letterbox gutters pull chrome toward the physical bezels on wide
+  phones. Field controls sit in the bottom corners; the center stays clear.
+  On the field, compact life/mana bars sit under the top-left icons; belt
+  potions stack above the right skill arc (not on the left); a compact quest
+  tracker on the left opens the full log on tap. The classic bottom bar, belt
+  strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
+  them back). Map opens full-screen with full automap fade; the skill tree pins
+  to the left edge. Inventory on touch hugs the left edge of the view.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing
   them. Done returns to the panel; Back closes it.

@@ -501,6 +501,7 @@ void apply_safe_inset(const Window& win) {
     if (!win.window || !SDL_GetWindowSafeArea(win.window, &area)
         || !SDL_GetWindowSize(win.window, &win_w, &win_h) || win_w <= 0 || win_h <= 0 || win.view_w <= 0) {
         touch::safe_inset = {};
+        touch::view_gutter = {};
         return;
     }
     const float scale = std::min(float(win_w) / float(win.view_w), float(win_h) / float(kScreenHeight));
@@ -512,6 +513,7 @@ void apply_safe_inset(const Window& win) {
     const float safe_right = (float(area.x + area.w) - off_x) / scale;
     const float safe_bottom = (float(area.y + area.h) - off_y) / scale;
     const float ui_x = (float(win.view_w) - float(kScreenWidth)) / 2.f;
+    touch::view_gutter.left = touch::view_gutter.right = std::max(0.f, ui_x);
     touch::safe_inset.left = std::max(0.f, safe_left - ui_x);
     touch::safe_inset.top = std::max(0.f, safe_top);
     touch::safe_inset.right = std::max(0.f, ui_x + float(kScreenWidth) - safe_right);

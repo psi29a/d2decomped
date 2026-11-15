@@ -337,6 +337,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // FUN_0045ae90 isn't 3). Round the camera less the panel's quarter, which
         // the map makes its own (rules::automap_scroll).
         if (automap && !automap->covered) {
+            if (hud.touch_compact && automap->open) {
+                for (std::size_t index = 0; index < framebuffer.size(); index += 4) {
+                    framebuffer[index] = std::uint8_t(framebuffer[index] * 3 / 4);
+                    framebuffer[index + 1] = std::uint8_t(framebuffer[index + 1] * 3 / 4);
+                    framebuffer[index + 2] = std::uint8_t(framebuffer[index + 2] * 3 / 4);
+                }
+            }
             const float unshift = float(d2d::rules::panel_view_shift(automap->panel_side, world_w)) / kIsoW;
             draw_automap(framebuffer, scene, *automap, cam_x - unshift + float(level.world_x), cam_y + unshift + float(level.world_y));
         }
