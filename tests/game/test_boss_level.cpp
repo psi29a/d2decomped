@@ -83,7 +83,9 @@ int main(int argc, char** argv) try {
         make_boss(*data, monster, boss, mods, -1, 0, difficulty, rng);
         const auto& stats = monster.stats;
         assert(monster.life_fine() == monster.max_life_fine());
-        std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, monster.max_life_fine(), stats.armor_class, stats.exp, stats.to_hit,
+        // A zero life roll is held at a point and flagged (FUN_00573cb0): game.exe's stat 7 stays 0.
+        const int life_fine = monster.lifeless ? 0 : monster.max_life_fine();
+        std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, life_fine, stats.armor_class, stats.exp, stats.to_hit,
                     stats.a1_min, stats.a1_max, monster.boss_speed);
     }
     return 0;
