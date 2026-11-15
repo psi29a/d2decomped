@@ -87,6 +87,10 @@ int main() try {
     assert(field.move.contains(field.move_visual.x + field.move_visual.width * .5f, field.move_visual.y + field.move_visual.height * .5f));
     assert(field.menu.x < 20.f && field.done.x + field.done.width > 740.f);
     assert(field.attack.x + field.attack.width > 790.f && field.attack.y + field.attack.height > 590.f);
+    assert(bind_slot_at(field, field.skills[0].x + 2.f, field.skills[0].y + 2.f) == 0);
+    assert(bind_slot_at(field, field.skills[3].x + 2.f, field.skills[3].y + 2.f) == 3);
+    assert(bind_slot_at(field, field.attack.x + 8.f, field.attack.y + 8.f) == kAttackBind);
+    assert(bind_slot_at(field, 400.f, 300.f) == -1);
     const auto centre = [](Box box) { return std::pair{ box.x + box.width * .5f, box.y + box.height * .5f }; };
     const auto gap = [&](Box left, Box right) {
         const auto [left_x, left_y] = centre(left);
@@ -208,6 +212,17 @@ int main() try {
     input.event(1, Phase::Up, mx, my, {}, false, false, 5050);
     input.event(1, Phase::Down, mx, my, {}, false, false, 5050 + kMoveDoubleTapMs + 40);
     assert(!input.run_toggle);
+    input.clear();
+    input.event(7, Phase::Down, field.attack.x + 8.f, field.attack.y + 8.f, {}, false, true);
+    assert(input.destination == kAttackBind);
+    input.frame();
+    const Target attack_fire{ 54, 7, 5, 6, false, true };
+    input.event(7, Phase::Down, field.attack.x + 8.f, field.attack.y + 8.f, attack_fire);
+    assert(input.attack_down && input.aiming && !input.dragged);
+    input.event(7, Phase::Move, field.attack.x - 40.f, field.attack.y - 40.f, attack_fire);
+    assert(input.aiming && input.dragged);
+    input.event(7, Phase::Up, field.attack.x - 40.f, field.attack.y - 40.f, attack_fire);
+    assert(input.casts.size() == 1 && input.casts[0].skill == 54 && !input.attack_down);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());

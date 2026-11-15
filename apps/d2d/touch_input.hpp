@@ -46,6 +46,8 @@ inline constexpr int kNpcLinePad = 14;
 // Nominal sizes (positions filled in layout_boxes).
 inline constexpr float kChipSize = 48.f, kChipGap = 8.f;
 inline constexpr float kBeltSize = 48.f, kBeltGap = 6.f, kSkillSize = 72.f, kAttackSize = 96.f, kPageSize = 40.f;
+/** Four arc skills, then the large attack chip (controller RT / sheet.main). */
+inline constexpr int kSkillButtons = 4, kAttackBind = 4;
 /** Life/mana sit this far under the 2x2 chip block, as a fraction of chip height (¼–½). */
 inline constexpr float kBarGapChip = 0.35f, kBarBlockH = 48.f;
 inline constexpr int kTouchStorePanelX = 400;
@@ -263,6 +265,14 @@ inline bool chip_hit(float x, float y) {
     return chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y);
 }
 
+/** Bind editor destination: 0..3 skill rings, `kAttackBind` for the large chip, else -1. */
+[[nodiscard]] inline int bind_slot_at(const Layout& chrome, float x, float y) {
+    for (int index = 0; index < kSkillButtons; ++index)
+        if (chrome.skills[std::size_t(index)].contains(x, y)) return index;
+    if (chrome.attack.contains(x, y)) return kAttackBind;
+    return -1;
+}
+
 inline bool chrome_hit(float x, float y, bool interact_chrome = false, bool field_controls = true) {
     const auto chrome = layout_boxes();
     if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chip_hit(x, y)) return true;
@@ -323,8 +333,7 @@ public:
             if (chrome.done.contains(x, y)) { done = true; return; }
             if (chrome.page.contains(x, y)) { alternate = !alternate; return; }
             if (editor) {
-                for (int index = 0; index < 4; ++index)
-                    if (chrome.skills[std::size_t(index)].contains(x, y)) { destination = index; return; }
+                destination = bind_slot_at(chrome, x, y);
                 return;
             }
             if (chrome.menu.contains(x, y)) { menu = true; return; }
@@ -343,7 +352,14 @@ public:
                 if (second) { run_toggle = true; move_tap_ms_ = 0; }
                 movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; move_down_ms_ = now_ms;
             }
-            else if (chrome.attack.contains(x, y) && attack_ < 0) { attack_ = finger; attack_press = attack_down = true; }
+            else if (chrome.attack.contains(x, y) && attack_ < 0) {
+                attack_ = finger; attack_press = attack_down = true;
+                if (skill_ < 0 && (target.valid || target.skill >= 0)) {
+                    stationary = immediate;
+                    skill_ = finger; aiming = true; dragged = false;
+                    origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
+                }
+            }
             else if (skill_ < 0)
                 for (const auto& box : chrome.skills)
                     if (box.contains(x, y)) {

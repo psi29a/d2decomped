@@ -544,6 +544,8 @@ struct Town {
     void touch_rebuild_bind_wheel();
     void touch_open_bind();
     void touch_close_bind();
+    void touch_apply_bind(int slot, int skill);
+    [[nodiscard]] int touch_bound_skill(int slot) const;
     [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
     void drive_touch();
