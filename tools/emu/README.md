@@ -59,6 +59,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
+| Where a click on the ground walks to (FUN_004623c0's least distance: FUN_00474080, the flags' 3 / 4 / 5, the x87 scale, the dead zone; every step within 12 subtiles and the 0x100 edges, six flag sets) | `uv run python click_spot.py \| diff - ../../tests/click_spot_cases.inc`; then `test_click_spot` | no diff; `3894 cases, 0 differ` |
 | GAME Clients.cpp client records: field accessors, id and name table lookups, save upload buffer, packet queue, client constructor (30 functions and the getter at 0x538230: FUN_005381f0 ... 00539a30; `--mutation-check` 62 ways) | `uv run python clients_small.py` | `ok: 56770 CLIENTS record, lookup, upload and constructor calls checked` |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
@@ -160,7 +161,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Book skill-count delta (`FUN_0055c070`; callees hooked) | `uv run python item_book_count_delta.py --exe /path/to/game.exe` | `ok: 36 book skill-count delta cases (callees hooked)` |
 | Book skill-count add/remove (`FUN_0055c110`; callees hooked) | `uv run python item_book_count_update.py --exe /path/to/game.exe` | `ok: 10 book skill-count add/remove cases (callees hooked)` |
 | Item lifecycle: replenishment scheduling, expiry deadlines and runeword cleanup (synthetic callees; original control flow/accessor writes, no d2d comparison) | `uv run python item_lifecycle.py` | 48 scheduling, 288 expiry and 8 cleanup cases pass |
-| DATATBLS ItemTbls.cpp helpers (14 functions: FUN_00633590 ... 00639cb0; `--mutation-check` 14 ways) | `uv run python item_tbls.py` | `ok: 2078 ItemTbls helper cases` |
+| DATATBLS ItemTbls.cpp helpers (23 functions: FUN_00633540 ... 00639cc0; `--mutation-check` 27 ways) | `uv run python item_tbls.py` | `ok: 2764 ItemTbls helper cases` |
 | ITEMS small functions: stubs, wrappers, item-data and Items-row getters, fatal class-id getters, item free, container count, set-item row (39 functions, FUN_0055d930 ... FUN_0062a900; EAX upper bits, callee log, `ret n`; `--mutation-check` 20 ways) | `uv run python items_traces.py` | `ok: 3120 ITEMS small function cases` |
 | A knockback's pace (FUN_00623f50's KB velocity 0x1000; FUN_0064fe40, FUN_00650090: a subtile a frame, the snap at the path's end) | `uv run python knock_pace.py gen 2000 7 > cases.tsv; uv run python knock_pace.py game cases.tsv > g.txt; ../../build/tests/test_knockback --knock-pace cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python knock_pace.py compare g.txt d.txt` | `frame mismatches 0 velocity not 0x1000 0`, the step gap under 655 |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
@@ -294,6 +295,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Skill picker key label FUN_004a8df0 (slot 1 only, the 0x28-wide cut through the 16-unit buffer and its init flag, the y shift; FUN_00469aa0, 00526790 and 00526800 run for real; `--mutation-check` 8 ways) | `uv run python skill_key_label.py --exe /path/to/game.exe` | `ok: 600 key-label scenarios` |
 | Attack command builder FUN_00461700 (left / right, shift and alternate flags, at a unit or a spot, the gate; `FUN_00481030` hooked; `--mutation-check` 7 ways) | `uv run python attack_command.py --exe /path/to/game.exe` | `ok: 384 attack commands over every flag combination` |
 | Attack-rating tooltip percentage FUN_004a7340 (defense scaling, sign folding, the 5..0x5f clamp, fatal 0x18e / 0x193; lookups hooked; `--mutation-check` 8 ways) | `uv run python hit_chance.py --exe /path/to/game.exe` | `ok: 3004 to-hit percentages and fatal lines` |
+| Trade item move FUN_00568770 (lookup and partner errors 0xc99 / 0xca1, the path x / y by record type, the 0x560200 move, the failure report, the 0xcc7..0xcca messages; every callee hooked; `--mutation-check` 8 ways) | `uv run python trade_swap.py --exe /path/to/game.exe` | `ok: 3072 trade swap scenarios` |
 | Walk / run animation rate | `uv run python walk_rates.py > g.txt; ../../build/tests/test_combat --walk-rates \| diff g.txt -` | no output |
 | Walk % of a monster, player, merc and pet (FUN_00623f50: velocity, chill, floor, velocitypercent) | `uv run python walk_velocity.py gen 100000 9191 > cases.tsv; uv run python walk_velocity.py game cases.tsv > g.txt; ../../build/tests/test_walk_velocity --walk-velocity cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python walk_velocity.py compare cases.tsv g.txt d.txt` | `mismatches 0` |
 | A blocked path end walked back toward the start, and a player's push-on (FUN_00648120, FUN_00648050) | `uv run walk_back.py 20000 > ../../tests/walk_back_cases.inc`, rebuild, `../../build/tests/test_walk_back` (800 cases are committed) | `OK: 20000 blocked ends walk back as FUN_00648120 walks them` |
@@ -327,6 +329,71 @@ Needs `bin/game.exe` beside the MPQs (the launcher puts it there) and a
 built `build/tools/mpq-cat/mpq-cat`. The MPQ folder is found as d2d finds
 it: `$D2_MPQ_DIR`, else `data =` in d2d.cfg (`~/.config/d2d/` on Linux,
 `~/Library/Preferences/d2d/` on macOS), else the macOS launcher's setting.
+The small oracles using `_monster_world.py` can instead read a local 1.14d
+executable directly via `D2_GAME_EXE=/path/to/Game.exe`; its SHA-256 is checked.
+`datatbls_cited_suite.py` runs the cited DATATBLS oracles below in one
+Python process (`D2_GAME_EXE=/path/to/Game.exe .venv/bin/python
+datatbls_cited_suite.py`). It starts no child process and reads no MPQ.
+`datatbls_probe.py` uses that path to check 22 DATATBLS entry paths: 19
+zero-row paths, the zero-state monster freer, the excel filename opener and
+the no-write binary readback. For its 18 loaders it checks the complete
+CompileTxt field schema against hashes recorded from game.exe.
+`datatbls_probe.py --populated [hex-address]`
+prints a diagnostic one-row run with hooked CompileTxt; it does not claim a
+match and is useful for constructing table-specific fixtures.
+`datatbls_probe.py --writeback` checks the flagged binary write/readback
+sequence with all file calls hooked; it writes no file.
+`datatbls_probe.py --writeback-fail` checks the failed-open path, which
+still frees the source table and reads the binary table back.
+`datatbls_probe.py --readback-present` and `--readback-null` check that
+either a clear compile flag or a null source skips the write path.
+`datatbls_probe.py --strings` checks `FUN_00612600` over two synthetic rows,
+with string resolution and copying hooked.
+`datatbls_probe.py --strings-missing` checks the null-resolver branch and
+its UTF-16 `<>` fallback source.
+`datatbls_charstats.py` checks the real CharStats caller's 0xc4-byte row
+stride, source key at `+0x20` and 0x10-byte destination at `+0`.
+`datatbls_leveldefs.py` checks the integrated `FUN_0061de00` call into the
+LevelDefs Portal row array builder.
+`datatbls_probe.py --superuniques` checks all 66 hcIdx index slots and a
+duplicate row in `FUN_006552e0`.
+`datatbls_probe.py --monseq` checks a three-row, two-group MonSeq index.
+`datatbls_probe.py --matrix` checks the two-row ItemTypes and MonType
+is-a matrices with the ItemTypes link insertion hooked.
+`datatbls_probe.py --populated-check` checks 18 one-row paths against their
+compile calls, link lines and return or fatal result; the gems case also
+checks the Item row assignments, and the itemtypes case checks its one-row
+bit matrix. The probe also checks fifteen direct table, row-count and link
+destinations on its zero-row and one-row paths.
+`datatbls_code_tables.py` checks both `FUN_00612750` compile-flag branches,
+all sixteen code-table field schemas and destinations, and the two persistent
+row counts.
+`datatbls_lvlsub.py` checks `FUN_0061f500`'s Type index, cache flags,
+expansion gate and missing-DS1 fatal path.
+`datatbls_lvlprest.py` checks `FUN_0061ebb0`'s six-file walk, expansion
+gate, slash conversion and DS1 cache slots.
+`datatbls_affixes.py` checks the populated magic and rare affix merges,
+string-ID writes, segment pointers and source-table releases.
+`datatbls_uniqueitems.py` checks row numbering, link calls, missing-string
+fallback and the 0x7ffe row-count limit of `FUN_006342b0`.
+`datatbls_gems.py` checks the gem letter lookup and row-ordered Items
+reverse-index writes of `FUN_00636b70`.
+`datatbls_superuniques.py` checks the 66 hcIdx slots, missing-ID fatal path
+and 512-row cap of `FUN_006552e0`.
+`datatbls_monseq.py` checks duplicate, gapped and out-of-order MonSeq group
+IDs and the first-row pointers and counts in `FUN_00659c60`.
+`datatbls_gamble.py` checks the populated gamble sort, derived Items levels
+and indices, and all 99 level cuts in `FUN_00638ae0`; the equal-level case
+is frozen in `tests/test_datatbls_gamble.cpp` against d2d's sort.
+`datatbls_itemstatcost.py` checks the bit-width clamp, operation-link
+initialization, selected op and parameter-stat branches, signed priority
+sort and count guard of `FUN_00637a00`.
+`datatbls_type_matrices.py` checks 33x33 ItemTypes and MonType matrices,
+including a cross-word Equiv1 bit.
+`datatbls_excel_open.py` checks both file-open outcomes and the conditional
+close of `FUN_00639420`, with I/O hooked.
+`datatbls_monster_release.py` checks 49 synthetic pointer states through
+`FUN_0065a190`'s conditional frees and global writes.
 The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
 `~/Downloads/Diablo II + LoD/patch/LODPatch_114d.exe`.
 

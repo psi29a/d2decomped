@@ -118,6 +118,7 @@ class Rig(mw.World):
         self.table = 0
         self.links = []
         self.fields = []
+        self.field_history = []
         self.expansion = 0
         self.ids = []
         self.link_for = 0
@@ -148,6 +149,7 @@ class Rig(mw.World):
             if entry[1] == END:
                 break
         self.fields = entries
+        self.field_history.append(entries)
         self.log.append(("compile", current.arg(0), current.cstr(current.arg(1)), current.arg(3), current.arg(4)))
         if current.arg(3):
             current.w32(current.arg(3), self.rows)

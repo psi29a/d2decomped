@@ -22,6 +22,10 @@ on the functions it ports and a `/* d2d ported: file:line */` note on
 each one d2d cites; then `tools/ghidra/fn.py 00584870 FUN_0057af80` prints
 them. Rerun it after porting: the names come from the code, and from
 `docs/research/re/names.tsv` for functions traced but not ported.
+`tools/ghidra/fn.py --tail=80 00633730` shows only a function's last
+80 lines, useful when a table field schema fills most of its decompilation.
+Set `D2_GHIDRA_DECOMP_C=/path/to/game_all.c` when working in a separate
+worktree whose local `project/` directory has no imported program.
 `tools/ghidra/calls.py 00499450 --to 00502ef0` walks the calls from a
 function in the C's text order (a nested `f(g())` lists f first) and lists
 each call to the target it reaches, with a shortest path to it (which
