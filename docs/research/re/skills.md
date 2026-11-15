@@ -1535,8 +1535,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   reaching a unit FUN_00554de0 calls an ally gives it the state too
   (FUN_005d8290: the caster's auralen and level, aurastats FUN_005c6cc0).
   d2d: `merc_cry` (Shout's armor %, Battle Orders' life % on the merc),
-  a pet's buffs (`Pet::bo_life`, its armor %), those within the missile's
-  reach as it's cast.
+  a pet's buffs (`Pet::bo_life`, its armor %), each as a missile of the
+  nova crosses its subtiles (`Fight::missile_tick`, `missile_struck`).
 - **Leap** (start 40, FUN_005d9d50; do 77, FUN_005da370): the point pulled
   back to aurarangecalc subtiles (FUN_005d9a10, FUN_006417f0), a free spot
   (mask 0x1c09, three tries) reached in a line (FUN_00645910, 0x804) within

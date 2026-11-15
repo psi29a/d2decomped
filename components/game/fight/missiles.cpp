@@ -353,26 +353,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 shot.struck = shared; shot.to.reset();                              // a way, not a point
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) {
-                start_state(skill, lvl, now_ms);
-                // The nova reaching an ally (hit 18, FUN_005ab0b0: FUN_00554de0)
-                // gives it the state too, the caster's auralen and level
-                // (FUN_005d8290, aurastats FUN_005c6cc0): the merc, the pets.
-                // ponytail: an ally within the missile's reach (speed x Range)
-                // when it's cast, not as the nova passes.
-                const float reach = missile_speed(missile_info, lvl) * float(missile_info.range) * 0.04f;
-                const int len = calc(skill, skill.auralen, lvl);
-                const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
-                if (actor->merc && actor->merc->mode != "DT" && std::hypot(actor->merc->unit.x - actor->player.x, actor->merc->unit.y - actor->player.y) <= reach) {
-                    const int before = merc_max_life();
-                    actor->merc_cry = { skill.id, lvl, until };
-                    actor->merc->hit_points += std::max(merc_max_life() - before, 0);
-                }
-                for (auto& pet : actor->pets)
-                    if (pet.monster.alive() && std::hypot(pet.monster.unit.x - actor->player.x, pet.monster.unit.y - actor->player.y) <= reach) {
-                        std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill.id; });
-                        pet.buffs.push_back({ skill.id, lvl, until });
-                        pet_buffs(pet);
-                    }
+                start_state(skill, lvl, now_ms);   // its allies as the nova reaches them (missile_tick)
             }
         } else if (skill.srvdofunc == ServerDoFunction::kGuidedMissile) {
             auto& missile = send(dx, dy, range);
@@ -502,6 +483,27 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if (!skill) continue;
             const int age = int(now_ms - missile.born) / 40;
             const auto& missile_info = *missile.info;
+            // A war cry's nova reaching an ally (hit 18, FUN_005ab0b0: FUN_00554de0)
+            // gives it the state too, the caster's auralen and level
+            // (FUN_005d8290, aurastats FUN_005c6cc0): the merc, the pets.
+            if (missile_info.hit_func == 18 && skill->srvdofunc == ServerDoFunction::kWarCry && !skill->aurastate.empty()) {
+                const auto reached = [&](const Monster& ally) {
+                    return ally.type >= 0 && missile_struck(*level, missile, ally.unit.x, ally.unit.y, game_data->monsters.types[std::size_t(ally.type)].size);
+                };
+                const int len = calc(*skill, skill->auralen, missile.level);
+                const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
+                if (actor->merc && actor->merc->mode != "DT" && reached(*actor->merc)) {
+                    const int before = merc_max_life();
+                    actor->merc_cry = { skill->id, missile.level, until };
+                    actor->merc->hit_points += std::max(merc_max_life() - before, 0);
+                }
+                for (auto& pet : actor->pets)
+                    if (pet.monster.alive() && reached(pet.monster)) {
+                        std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill->id; });
+                        pet.buffs.push_back({ skill->id, missile.level, until });
+                        pet_buffs(pet);
+                    }
+            }
             if (missile_info.srv_do == 7 && age % std::max(missile_info.param1, 1) == 0) {
                 if (missile.target < 0 && skill->srvstfunc == ServerStartFunction::kNone) {
                     float best = 1e9f;
