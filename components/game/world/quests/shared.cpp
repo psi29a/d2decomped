@@ -644,7 +644,6 @@ auto World::take_carried(std::string_view code) -> void {
 // Cain walks out (cain_step); with no room for him (FUN_00593290) a town
 // portal pair (FUN_0056d130, object 0x3b) opens at x + 6, y + 6, linked only
 // to its twin in the camp: nobody's own, the player's own portal stays.
-// ponytail: CairnStones' missile isn't drawn.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -703,6 +702,13 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
         portal[2] = { level, spot_x, spot_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        // FUN_00593710 ends with FUN_0056ede0(.., 1, 0x120, x + 6, y - 3): missile
+        // 288 (cairnstones) made at that spot (FUN_0059fa30 flag 1), its Range in frames.
+        if (const auto stones = game_data->missiles.find("cairnstones"); stones != game_data->missiles.end()) {
+            Missile flash{ &stones->second, spot_x, spot_y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(stones->second.range, 1)) * kTickMs, {} };
+            flash.visual_only = true;
+            fight.missiles.push_back(std::move(flash));
+        }
         // FUN_00593710 ends on S->C 0x89 event 1 (FUN_00545760); each client's
         // 0x46aee0 dips its ambient, from missile cairnstones, in level 4.
         // Only with a StoneAlpha (object 17) in the rooms near the player's
