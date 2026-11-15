@@ -1575,9 +1575,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   After each create, FUN_004efc20(0x118) reads that skill's Param2
   (+0x14c) and FUN_0064a710 stores it plus 1. 37 does that for every
   missile. 143 does it only when the missile row is 0x238. The path
-  callback is FUN_005d40f0 for 37 (range capped at 77, velocity 10, then
-  a straight route) and FUN_005d4680 for 143 (the same cap, then a wobble).
-  d2d: `Fight::prg` aims the row's own velocity straight at the offset.
+  callback is FUN_005d40f0 for 37 (range capped at 77, path type 10 by
+  FUN_00648cf0, then a straight route by FUN_00649970) and FUN_005d4680
+  for 143 (the same cap and type, then a wobble it writes point by point).
+  The 10 is the path type (collision.md "Path types"), not a velocity.
+  d2d: `Fight::prg` caps the range at 77 and aims the row's own velocity
+  straight at the offset, 143 too (no wobble).
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
   roll is stored as x = 0x14. d2d: `rules::release_spread_offset`

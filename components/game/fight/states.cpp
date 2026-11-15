@@ -517,9 +517,10 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // entries (else aurarange) while the byte offset stays under 0x100.
         // Flags 3: start at the target, aim relative. Hops are skill 0x118's
         // Param2 + 1 (FUN_004efc20); 143 writes them only for missile row 0x238.
-        // ponytail: FUN_005d40f0 caps the flight at 77 frames and sets velocity
-        // 10; FUN_005d4680 wobbles that route. d2d flies the row's own velocity
-        // straight at the offset.
+        // Their path callbacks (FUN_005d40f0 for 37, FUN_005d4680 for 143) cap
+        // the range at 77 (0x4d) and give the path type 10, a route of points.
+        // ponytail: FUN_005d4680 wobbles 143's route (turns from DAT_00741b10,
+        // flipped every DAT_00741b0c points); d2d flies 143 straight too.
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
@@ -535,7 +536,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             const bool second = func == ServerDoFunction::kReleaseMissileAtUnitsSecondScan;
             const auto* hop_skill = game_data->skills.get(d2d::rules::kReleaseHopSkill);
             const int hops = d2d::rules::release_ring_hops(hop_skill ? hop_skill->par[1] : 0, missile_info->id, second);
-            const int range = missile_info->range + missile_info->lev_range * lvl;
+            const int range = std::min(missile_info->range + missile_info->lev_range * lvl, 77);   // FUN_005d40f0 / FUN_005d4680
             d2d::rules::visit_release_ring(step, [&](std::pair<int, int> offset) {
                 auto& missile = launch(*missile_info, skill, lvl, target_x, target_y, float(offset.first) / 5, float(offset.second) / 5, range, now_ms);
                 if (!second || missile_info->id == d2d::rules::kReleaseHopMissile) missile.hops = hops;
