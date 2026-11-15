@@ -57,6 +57,19 @@ namespace d2d::client {
 static_assert(next_block({ 100, 200, -1 }, 50) == 100 && next_block({ 100, 200, -1 }, 150) == 200
               && next_block({ 100, 200, -1 }, 250) == 0 && next_block({ -1, -1, -1 }, 10) == 0);
 
+// A sound not placed in the world (UI, voice, ambience, music) through
+// FUN_004dfc20's chain on its 0..255 volume, each a whole percent with the
+// product truncated: Music Vol rows x music / 100 (0x4dfc84), x master / 100
+// (0x4dfca1), then the menu and Solo ducks (0x4dfcb2 / 0x4dfd0b).
+[[nodiscard]] constexpr int unplaced_volume(int volume, bool music_row, int music_percent, int master_percent, int row,
+                                            bool solo_row, int menu_percent, int solo_percent) {
+    if (music_row) volume = volume * music_percent / 100;
+    return d2d::rules::ducked_volume(d2d::rules::master_scaled(volume, master_percent), row, solo_row, menu_percent, solo_percent);
+}
+static_assert(unplaced_volume(255, false, 50, 100, 0x100, false, 50, 70) == 88               // 255 -> 127 -> 88 (sound.md)
+              && unplaced_volume(255, true, 50, 100, 0x1240, false, 50, 100) == 127         // a song: music, then menu-exempt
+              && unplaced_volume(200, false, 50, 75, 0x100, true, 100, 70) == 150);         // a Solo row isn't ducked by Solo
+
 struct Audio {
     struct Decoded { ALenum format = 0; ALsizei freq = 0; std::vector<Uint8> pcm; };
     struct Channel {
@@ -101,8 +114,14 @@ struct Audio {
     // own gain, not the listener's, so a cinematic's (vsrc) isn't scaled, as
     // game.exe's Bink isn't (sound.md "The master volume reaches nothing else").
     int master_volume = 100, music_volume = 50;
+    // A channel's gain is its 0..255 volume / 255, fades included; a game
+    // sound goes through unplaced_volume's integer chain.
     [[nodiscard]] float out_gain(const Channel& channel, float gain) const {
-        return (&channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain) * float(master_volume) / 100.f * duck(channel);
+        const bool music_row = &channel == &music || &channel == &music_old;
+        // played by path, no Sounds.txt row (the frontend's music, button.wav): not a game sound, never ducked
+        if (channel.sound <= 0) return (music_row ? gain * float(music_volume) / 100.f : gain) * float(master_volume) / 100.f;
+        const int volume = int(std::lround(std::clamp(gain, 0.f, 1.f) * 255.f));
+        return float(unplaced_volume(volume, music_row, music_volume, master_volume, channel.sound, channel.solo, menu_percent, solo_percent)) / 255.f;
     }
     // The ducks (FUN_004ba020, 0x4dfcb2 / 0x4dfd0b): under a Solo row the
     // rest at down to 70%, under the paused game menu all but the cursor,
@@ -114,14 +133,8 @@ struct Audio {
     bool menu_paused = false;                    // a local game paused under the game menu (Town)
     std::int64_t sound_tick = 0;                 // DAT_007bc9bc: +1 each 40 ms
     std::uint64_t tick_mark_ms = 0;
-    // A placed sound takes them in its integer volume (apply_mix, rules::ducked_mix).
-    // ponytail: one not placed (UI, voice, ambience, music) has a float gain
-    // with its fades and takes them as a multiplier, not truncated percent steps.
-    [[nodiscard]] float duck(const Channel& channel) const {
-        // played by path, no Sounds.txt row (the frontend's music, button.wav): not a game sound, never ducked
-        if ((solo_percent == 100 && menu_percent == 100) || channel.sound <= 0) return 1.f;
-        return float(d2d::rules::ducked_volume(10000, channel.sound, channel.solo, menu_percent, solo_percent)) / 10000.f;
-    }
+    // A placed sound takes them in its integer volume (apply_mix,
+    // rules::ducked_mix), one not placed in out_gain (unplaced_volume).
     void apply_volume() {
         if (ok) regain();
     }
