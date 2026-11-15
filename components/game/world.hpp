@@ -148,7 +148,7 @@ struct View {
     };
     std::optional<MercSheet> merc_sheet;
     // pettype: its skill's Skills.txt pettype (PetType.txt row); life: percent.
-    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; };
+    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; int fhr = 0; };   // fhr: a party merc's (its items', merc_gear), for its get-hit
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's

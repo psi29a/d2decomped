@@ -110,17 +110,17 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         return fighter;
     }
 
-auto Fight::merc_gear() const -> MercGear {
+auto Fight::merc_gear(const Hero& hero) const -> MercGear {
         using namespace d2d::d2s;
         MercGear gear;
         auto add = [](d2d::rules::StatSum& into, const std::vector<ItemProp>& props) {
             for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
         };
-        for (const auto& item : actor->character.merc_items) {
+        for (const auto& item : hero.character.merc_items) {
             if (item.location != item_location::kEquipped) continue;
             add(gear.sum, item.props);
             for (const auto& socketed : item.socketed_items) add(gear.sum, socket_props(*game_data, item, socketed));
-            add(gear.sum, set_bonus_props(*game_data, actor->character.merc_items, item));
+            add(gear.sum, set_bonus_props(*game_data, hero.character.merc_items, item));
             std::int64_t enhanced_defense = 0;
             auto own = item.props;                        // its sockets' too (Pul's ac%)
             for (const auto& socketed : item.socketed_items) for (const auto& prop : socket_props(*game_data, item, socketed)) own.push_back(prop);
