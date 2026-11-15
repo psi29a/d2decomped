@@ -1282,7 +1282,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (i >= cin_ui.unlocked) { entry.hovered = entry.pressed = false; continue; }
                     Screen dummy = screen;
                     update_button(entry, mouse, dummy, quit);
-                    if (entry.hovered && mouse.release_this_frame && video_mpqs.contains(kCinematicVideo[std::size_t(i)])) {
+                    if (entry.clicked && video_mpqs.contains(kCinematicVideo[std::size_t(i)])) {
                         video_queue = { kCinematicVideo[std::size_t(i)] };
                         video_return = Screen::Cinematics;
                         audio.stop(audio.music);
@@ -1331,13 +1331,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 auto clicked = [&](Button& button) {
                     Screen stay = screen;
                     update_button(button, mouse, stay, quit);
-                    return button.hovered && mouse.release_this_frame;
+                    return button.clicked;
                 };
                 const bool escape = std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end();
                 if (!tcpip.popup.empty()) {                  // the failed test's popup: OK back to these options (FUN_0042ffe0)
                     Screen stay = screen;
                     update_button(tcpip.popup_ok, mouse, stay, quit);
-                    if ((tcpip.popup_ok.hovered && mouse.release_this_frame) || escape) tcpip.popup.clear();
+                    if (tcpip.popup_ok.clicked || escape) tcpip.popup.clear();
                 } else if (tcpip.box_open) {
                     // The edit line (record 0x10d) takes up to 255 characters.
                     for (const char letter : text_this_frame) if (tcpip.address.size() < 255) tcpip.address.push_back(letter);
@@ -1393,7 +1393,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 if (!csu.popup.empty()) {   // a failed join's popup takes the input until OK
                     Screen stay = screen;
                     update_button(csu.popup_ok, mouse, stay, quit);
-                    if ((csu.popup_ok.hovered && mouse.release_this_frame)
+                    if (csu.popup_ok.clicked
                         || std::ranges::any_of(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_ESCAPE; })) {
                         csu.popup.clear();
                         screen = csu.popup_return;
@@ -1406,8 +1406,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     update_button(csu.popup_no, mouse, stay, quit);
                     update_button(csu.popup_yes, mouse, stay, quit);
                     const auto key = [&](auto... wanted) { return std::ranges::any_of(keys_this_frame, [&](SDL_Keycode got) { return ((got == wanted) || ...); }); };
-                    const bool yes = (csu.popup_yes.hovered && mouse.release_this_frame) || key(SDLK_RETURN, SDLK_KP_ENTER);
-                    if (yes || (csu.popup_no.hovered && mouse.release_this_frame) || key(SDLK_ESCAPE)) csu.confirm_delete = false;
+                    const bool yes = csu.popup_yes.clicked || key(SDLK_RETURN, SDLK_KP_ENTER);
+                    if (yes || csu.popup_no.clicked || key(SDLK_ESCAPE)) csu.confirm_delete = false;
                     if (yes && g_no_save) d2d::log::info("--no-save: {} not deleted", scene->saves[std::size_t(std::clamp(csu.selected, 0, int(scene->saves.size()) - 1))].name);
                     if (yes && !g_no_save && csu.selected >= 0 && csu.selected < int(scene->saves.size())) {
                         // FUN_0043c750: every file <save dir><name>.* (the .d2s, .key, .ma*, ...).
@@ -1429,7 +1429,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     static constexpr SDL_Keycode kDifficultyKey[3] = { SDLK_R, SDLK_N, SDLK_H };   // records 0xa8..0xaa
                     for (int index = 0; index < 3; ++index)
                         if ((index < 2 || csu.hell_open)
-                            && ((csu.difficulty_btn[std::size_t(index)].hovered && mouse.release_this_frame)
+                            && (csu.difficulty_btn[std::size_t(index)].clicked
                                 || std::ranges::find(keys_this_frame, kDifficultyKey[index]) != keys_this_frame.end()))
                             chosen_difficulty = index;
                     if (chosen_difficulty < 0) {
@@ -1520,9 +1520,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     && asks_difficulty(scene->saves[std::size_t(csu.selected)])) {
                     screen = Screen::CharSelect;
                     csu.pick_difficulty = true;
+                    for (auto& button : csu.difficulty_btn) disarm(button);
                     csu.hell_open = top_difficulty(scene->saves[std::size_t(csu.selected)]) >= 2;
                 }
-                if (csu.delete_btn.hovered && mouse.release_this_frame && csu.selected >= 0 && csu.selected < count) csu.confirm_delete = true;
+                if (csu.delete_btn.clicked && csu.selected >= 0 && csu.selected < count) {
+                    csu.confirm_delete = true;
+                    disarm(csu.popup_yes);
+                    disarm(csu.popup_no);
+                }
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
                     const auto& header = scene->saves[std::size_t(csu.selected)];

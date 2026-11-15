@@ -120,6 +120,18 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   starts as OK does.
 - d2d: `CharSelectUI::pick_difficulty` (main.cpp sets the picked
   difficulty as the save's current one, its act kept), not when joining.
+- A D2Win button (`FUN_00501290`, `.\Src\D2WinButton.cpp`, control type 6)
+  clicks only when a press on it armed it: mouse down (`FUN_00501090`, its
+  `+0x24`) sets `+0x44` and `+0x48`; mouse up (`FUN_00501150`, `+0x28`)
+  calls the callback `+0x34` only with `+0x48` set, then clears it. A
+  double-click opens this box on its second press (`FUN_0043a9d0`: message
+  0x201, WM_LBUTTONDOWN, on the same slot within 500 ms calls OK's
+  `FUN_00439840`), so that
+  click's release over NORMAL / NIGHTMARE / HELL picks nothing. d2d's
+  `update_button` keeps the same rule (`Button::clicked`,
+  `tests/test_button_click.cpp`); before it, a release over a button clicked
+  it wherever the press began, and the double-click's release picked the
+  difficulty under the cursor before the box was drawn.
 
 ## Building the list (`FUN_0043adb0`)
 

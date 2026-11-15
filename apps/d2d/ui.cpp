@@ -14,7 +14,6 @@
 #include <rules.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -275,22 +274,6 @@ void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
     const auto& frame = scene.focus16.frame(0, (now_ms / 40) % std::min<std::uint32_t>(7, scene.focus16.frames_per_direction()));
     blit_sprite(framebuffer, frame, pal, x - 24, base + 4 - int(frame.height) + 1);
     blit_sprite(framebuffer, frame, pal, x + width + 2, base + 4 - int(frame.height) + 1);
-}
-
-bool update_button(Button& button, const Mouse& mouse, Screen& current_screen,
-                   std::atomic<bool>& quit) {
-    button.hovered = mouse.x >= button.x && mouse.x < button.x + button.width
-             && mouse.y >= button.y && mouse.y < button.y + button.height;
-    if (button.hovered && mouse.press_this_frame) {
-        button.pressed = true;
-        if (g_on_button_press) g_on_button_press();
-    }
-    if (!mouse.down)                          button.pressed = false;
-    if (button.hovered && mouse.release_this_frame) {
-        if (button.do_switch) { current_screen = button.goto_screen; return true; }
-        if (button.quit)      { quit = true; return true; }
-    }
-    return false;
 }
 
 std::vector<std::string> parse_credits_utf16(std::span<const std::byte> bytes) {
