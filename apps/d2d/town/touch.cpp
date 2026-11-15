@@ -41,14 +41,14 @@ namespace d2d::client {
 namespace {
 
 /** True when the contextual interact chrome should accept touches and block field taps. */
-bool touch_interact_visible(const PadPick& pick) {
-    return pick.kind == PadPick::kItem || pick.kind == PadPick::kThing;
+bool touch_interact_visible(const Town::PadPick& pick) {
+    return pick.kind == Town::PadPick::kItem || pick.kind == Town::PadPick::kThing;
 }
 
 /** Short Immortal-style label for the contextual interact button. */
-std::string touch_interact_label(const Town& town, const PadPick& pick) {
-    if (pick.kind == PadPick::kItem) return "Get";
-    if (pick.kind != PadPick::kThing) return {};
+std::string touch_interact_label(const Town& town, const Town::PadPick& pick) {
+    if (pick.kind == Town::PadPick::kItem) return "Get";
+    if (pick.kind != Town::PadPick::kThing) return {};
     if (pick.id <= -3000) return "Get";
     if (pick.id < 0) return "Use";
     if (town.level && std::size_t(pick.id) < town.level->npcs.size())
