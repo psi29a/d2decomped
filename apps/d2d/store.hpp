@@ -64,8 +64,11 @@ void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // arrow bottom 219, down 232, at x 224; the amount (an edit box up to the
 // carried gold, the stash's when withdrawing; 10 digits) bottom 228 from
 // x 258, 100 wide; buysellbtn OK (frame 16, 0xd49) and Cancel (10,
-// 0x102e) bottom 287 at x 250 / 355.
-// ponytail: font16 for every text; positions as the 800x600 game reads them.
+// 0x102e) bottom 287 at x 250 / 355. The prompt is Font16: the box's only
+// set_font is ECX 1 (0x454285, before FUN_00502970(200)).
+// ponytail: the amount and button labels are Font16 too, untraced (the
+// widgets' own, FUN_004bbd80 / FUN_004bb0f0); positions as the 800x600
+// game reads them.
 struct GoldBox {
     int mode = 0;
     std::string amount;            // as typed
