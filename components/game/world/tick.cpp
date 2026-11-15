@@ -582,7 +582,11 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 const auto subtile = [](float value) { return int(std::floor(value * 5)); };
                 const int off_x = std::abs(subtile(actor->player.goal_x) - subtile(actor->target_x)), off_y = std::abs(subtile(actor->player.goal_y) - subtile(actor->target_y));
                 if (actor->player.path.empty() || (to_unit ? off_x > 5 || off_y > 5 : off_x != 0 || off_y != 0)) {
-                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player, walk_target);
+                    // A clicked warp is a unit target (FUN_00548a50 -> FUN_00580a70 mode 3, type 5): its path is the type 7 request
+                    // with a target unit (FUN_00649970; FUN_006498a0 sets the end from the tile unit and near 1), so it is planned as
+                    // a walk to a unit. The client's re-issue (to_unit above) does not apply to it: the server re-walks it once.
+                    const bool plan_unit = to_unit || actor->take_warp >= 0;
+                    actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, plan_unit, walk_crowd, &actor->player, walk_target);
                     actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;
                 }
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
