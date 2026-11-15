@@ -76,8 +76,9 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // its cast overlay once from when the client first saw it (StateClock).
 // Overlay lights are stamped by frame_light. These overlay kinds don't
 // use LoopWaitTime (FUN_00470c30: only kind 6 waits).
-// ponytail: kind 8 rotates the visible state's overlays after 50 ticks
-// (FUN_0046def0 / 0046df40); d2d draws the active states together.
+// ponytail: kind 8 (states in flag list +0xd0) shows one state's overlays
+// at a time, rotating every 50 ticks (FUN_0046df40, states.md "Rotating
+// overlays"); d2d draws the active states together.
 struct StateClock {
     struct Seen { std::uint32_t start = 0, last = 0; float x = 0, y = 0; bool off = false; };
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
