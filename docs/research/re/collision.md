@@ -1680,7 +1680,7 @@ check only ECX).
 
 ### Two more monster type-data accessors: `FUN_004ae0a0` and `FUN_004ae170` (batch 13)
 
-Two more accessors beside the monster-data cluster `units.md:236` already
+Two more accessors beside the monster-data cluster `units.md:260` already
 names (`FUN_004ae080`'s `+0x28` masked word to `FUN_004ae110`'s `+0x30`
 modifier list) — `structs.tsv`'s `monster_data` rows at `0x28`
 (`ai_control`, `ai-control.md:3`) and `0x30` (`state_gate`,
@@ -1812,7 +1812,7 @@ out-of-range falls through to a bare `RET`. In call order:
   +0x2c, 0)` (both already verified, `path.md:97`, `path.md:85`).
 - `0x14b`: with a local player (`FUN_00463dd0`), `FUN_00620c10(unit,
   player)` (already verified, `ai-control.md:203`, `collision.md:758`,
-  `missiles.md:318`, `units.md:229`) then `FUN_00465bf0(unit, 0)`
+  `missiles.md:318`, `units.md:253`) then `FUN_00465bf0(unit, 0)`
   (untouched here, not re-read).
 - `0x19d`, `0x23a` (two codes, one shared body): chains `FUN_0045ae20` →
   `FUN_0045adf0` → `FUN_004cdb40(unit, 0x188, ...)` (the same pair used
@@ -1846,7 +1846,7 @@ unit, plain `RET`, confirmed in disassembly: `TEST ECX,ECX` first, no
 EDX or stack use): a null unit, a unit whose own type (`+0`) isn't 1
 (monster), or a monster whose `+0x14` data block (units.md "Type data" —
 the per-type `+0x14` block; for a monster this is the already-cited
-monster-data cluster `FUN_004ae080`..`004ae3a0`, units.md:236) is null
+monster-data cluster `FUN_004ae080`..`004ae3a0`, units.md:260) is null
 each return 0; otherwise it returns that data block's own `+0x2c` field
 (a dword, not read elsewhere in `units.md`'s monster-data list, which so
 far only names `+0x28` and `+0x30`). Its one caller is `FUN_00464a60`
@@ -1923,7 +1923,7 @@ after formatting a log line naming the control unit, the room found so
 far, the act and the x/y (`"Unable to find room for unit...
 hControlUnit:%8x hUnitRoom:%8x ghAct:%8x nX:%d nY:%d"`). Its six
 callers (`FUN_00465fd0` the unit-creation helper already cited
-`units.md:235`; `FUN_00466360` the monster-colour/creation step,
+`units.md:259`; `FUN_00466360` the monster-colour/creation step,
 `monsters.md:554`; `FUN_00466200` the 0x59 assign-player handler,
 `net-packets.md:122`; `FUN_004654c0` the unit's hard teleport,
 `automap.md:95`; `FUN_004c2540`/`FUN_004c26f0`, not read here) all feed
@@ -2025,18 +2025,18 @@ argument either; not traced). When that returns 0, it looks up the
 unit's own type/id in the client's hash table A (`0x7a5e70`, the units
 the server's packets make; `units.md` "Client-side units"): **EAX** the
 bucket (`id & 0x7f`), **EDX** the table (`0x7a5e70 + type * 0x200`),
-**ECX** the id, stack the type — the exact signature `units.md:223`
+**ECX** the id, stack the type — the exact signature `units.md:247`
 already gives for `FUN_00463940`, confirmed again here in disassembly.
 If the table's existing entry for that type/id *is this same unit*
 (pointer-equal), that's fatal (assert id `0x1c6`). If a different entry
-is found, it's unlinked (`FUN_00465e80`, already read in `units.md:234`)
+is found, it's unlinked (`FUN_00465e80`, already read in `units.md:258`)
 and `FUN_00463a50()` is checked again: non-zero keeps this unit and
 returns it unchanged; zero frees it (`FUN_00465870`, already "hooked and
-logged, not run" per `units.md:240`) and returns null instead. When the
+logged, not run" per `units.md:264`) and returns null instead. When the
 first `FUN_00463a50()` check was already non-zero, none of this runs and
 the unit is returned as given. Its three callers are the same
 unit-creation/assignment cluster `FUN_00465420` above is reached from:
-`FUN_00465fd0` (`units.md:235`), `FUN_00466360` (`monsters.md:554`) and
+`FUN_00465fd0` (`units.md:259`), `FUN_00466360` (`monsters.md:554`) and
 `FUN_00466200` (`net-packets.md:122`). Not traced: `FUN_00463a50`'s own
 condition (a global gate called twice here with no visible per-unit
 argument, not a per-unit lookup). d2d: not ported as a function; no d2d
