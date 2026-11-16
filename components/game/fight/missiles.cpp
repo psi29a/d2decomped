@@ -557,6 +557,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     const auto& target = monsters[std::size_t(missile.target)];
                     const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = target.unit.x - missile.x, dy = target.unit.y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                     missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
+                    missile.retarget = std::pair{ target.unit.x, target.unit.y };
                 }
             }
             const auto sub = missile_info.sub.empty() ? game_data->missiles.end() : game_data->missiles.find(missile_info.sub);
@@ -625,6 +626,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 std::swap(missile.target_x, missile.origin_x); std::swap(missile.target_y, missile.origin_y);
                 const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = missile.target_x - missile.x, dy = missile.target_y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
+                missile.retarget = std::pair{ missile.target_x, missile.target_y };
                 missile.last_hit = -1;
             }
             // 31 (Wake of Fire's maker): its fire where it goes.

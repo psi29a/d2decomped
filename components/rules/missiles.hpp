@@ -154,17 +154,6 @@ struct Facing {
     }
 };
 
-// The same along a direction in floats (a missile turned in flight).
-inline std::pair<int, int> missile_aim_along(float dx, float dy) {
-    const float across = std::abs(dx), down = std::abs(dy);
-    const bool steep = across <= down;
-    const float major = steep ? down : across, minor = steep ? across : down;
-    const int row = major == 0 ? 0 : std::clamp(int(minor * 127 / major + 1e-4f), 0, 127);
-    const auto& [small, big] = kMissileAim[std::size_t(row)];
-    const int aim_x = steep ? small : big, aim_y = steep ? big : small;
-    return { dx < 0 ? -aim_x : aim_x, dy < 0 ? -aim_y : aim_y };
-}
-
 // Royal Strike's third release (FUN_005d5080): one missile's aim, in
 // subtiles, off the target. Each axis is a step of `seed` modulo 0x28,
 // then less 0x14, so -20..19. A (0, 0) pair is stored as x = 0x14.
