@@ -1674,8 +1674,8 @@ inline Think dim_vision_think(const ThinkIn& input, Rng& rng) {
 // (running with an RN mode, FUN_005df140; else walking, FUN_005defe0);
 // after, in melee with a swing it swings (A1), else backs off 30 again
 // (flags 4), wandering 6 if it can't.
-// ponytail: its init (FUN_005e80e0) sets a skill-set target to the unit it
-// was at; d2d's search finds the same one.
+// Its init (FUN_005e80e0) sets a skill-set target to the unit it was at,
+// which the first think's search takes (game/ai.cpp search_target).
 template <class Away>
 Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
     if (!input.afraid) {

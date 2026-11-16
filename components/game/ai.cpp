@@ -683,10 +683,26 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         if (pick.second >= 0) pick.second = near_of[std::size_t(pick.second)];
         return pick;
     };
+    // Terror's init (special 11, FUN_005e80e0): the unit its path was at
+    // (FUN_00553540, not itself; here the foe it last chased or swung at)
+    // as its skill-set target by id (FUN_00573090, SwitchAI only: a player
+    // kind 1, a monster 2, a missile 4), which its first think's search
+    // takes (FUN_005dd610: by id, alive, no sight test) and the think then
+    // clears (FUN_005e8140 -> FUN_00573120). d2d's kind 1 matches Foe::id,
+    // so it also stands for the merc or a pet (game.exe's kind 2).
+    if (monster.special == 11 && monster.ai_state3 == 0 && monster.set_kind == 0 && type_info.switch_ai && monster.chase >= 0
+        && std::size_t(monster.chase) < foes.size())
+        if (const auto& chased = foes[std::size_t(monster.chase)]; chased.of != &monster) {
+            monster.set_kind = chased.of ? 2 : 1;
+            monster.set_id = chased.of ? chased.of->id : chased.id;
+        }
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
         for (auto& foe : foes)
             if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
+    } else if (monster.set_kind == 1) {                             // Terror's: a player, the merc or a pet, by Foe::id
+        for (auto& foe : foes)
+            if (foe.id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
     } else if (monster.set_kind == 3) {                             // Confuse's: as a random alignment, the primary only
         const auto pick = mode5(d2d::rules::confuse_align(monster.align, monster.seed.next() & 1));
         if (pick.target >= 0) found = { &foes[std::size_t(pick.target)], pick.best };
