@@ -155,6 +155,14 @@ int main() try {
         assert(spot.level == &east && spot.x >= 0 && spot.x < 1);
         const auto [ours_x, ours_y] = bench.loot.drop_at(centre(30), centre(10));
         assert(ours_x >= float(kWidth - 1) && std::abs(ours_y - spot.y) < 0.01f);
+        // put keeps it on the east level's floor, at that level's spot, till the player goes there.
+        bench.data.rules.item_info["gld"].flippy = "flpgld";
+        bench.loot.put({ .code = "gld", .gold = 7 }, centre(30), centre(10), 1, bench.rng, 0);
+        assert(bench.loot.ground.empty() && bench.loot.kept[&east].size() == 1);
+        const int put_id = bench.loot.kept[&east].front().id;
+        bench.loot.enter(&east);
+        assert(bench.loot.ground.size() == 1 && bench.loot.ground.front().id == put_id && bench.loot.ground.front().gold == 7);
+        assert(std::abs(bench.loot.ground.front().x - spot.x) < 0.01f && std::abs(bench.loot.ground.front().y - spot.y) < 0.01f);
     }
     return 0;
 } catch (const std::exception& error) {
