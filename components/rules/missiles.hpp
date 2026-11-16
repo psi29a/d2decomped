@@ -208,6 +208,33 @@ inline std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, in
     return points;
 }
 
+// Do 143's missiles' route (FUN_005d4870's path callback FUN_005d4680, path
+// type 10): `count` points (the range, 77 at most) from subtile (x, y), each
+// two subtiles on (0x6e32ac x, 0x6e328c y) along the 8-way (0x745600:
+// (dir + 4) / 8) of a heading that starts at direction64 toward (to_x, to_y)
+// and turns by turn x sign at every point: sign +1 when the first draw on
+// `seed` is odd, else -1; turn the next draw % 3 + 2 (DAT_00741b10). After
+// points 0, 15, 30 ... (DAT_00741b0c) the sign flips and turn is drawn again.
+inline std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, int count, Rng& seed) {
+    static constexpr std::array<int, 8> kStepX{ 2, 2, 0, -2, -2, -2, 0, 2 }, kStepY{ 0, 2, 2, 2, 0, -2, -2, -2 };
+    constexpr int kFlipEvery = 15, kTurnLeast = 2;
+    int heading = direction64(x, y, to_x, to_y) & 0xff;
+    int sign = (seed.next() & 1) != 0 ? 1 : -1;
+    int turn = int(seed.next() % 3) + kTurnLeast;
+    std::vector<std::pair<int, int>> points;
+    for (int point = 0; point < count; ++point) {
+        heading += turn * sign;
+        const auto way = std::size_t(((heading & 0x3f) + 4) / 8 & 7);
+        x += kStepX[way]; y += kStepY[way];
+        points.emplace_back(x, y);
+        if (point % kFlipEvery == 0) {
+            sign = -sign;
+            turn = int(seed.next() % 3) + kTurnLeast;
+        }
+    }
+    return points;
+}
+
 // A missile of `missile_size` (Missiles.txt Size) at subtile (x, y)
 // strikes a unit of `size` at (unit_x, unit_y) (FUN_00641cb0, by unit size
 // - 1 + (missile size - 1) x 3): 1 / 1 the same subtile; 1 / 2 and 2 / 1 the

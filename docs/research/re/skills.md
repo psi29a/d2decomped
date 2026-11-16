@@ -1675,8 +1675,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   FUN_00648cf0, then a straight route by FUN_00649970) and FUN_005d4680
   for 143 (the same cap and type, then a wobble it writes point by point).
   The 10 is the path type (collision.md "Path types"), not a velocity.
+  FUN_005d4680's wobble: the heading starts at the direction (64 ways,
+  FUN_00621dc0 -> FUN_0064fdc0) toward the path's target; a draw on the
+  missile's seed (+0x20) picks the sign (odd +1, even -1), the next the turn
+  (% 3 + DAT_00741b10, 2); each of the range's points turns the heading by
+  turn x sign, steps two subtiles along its 8-way (0x745600, the steps
+  0x6e32ac / 0x6e328c) and is written; after points 0, 15, 30 ...
+  (DAT_00741b0c, 15) the sign flips and the turn is drawn again.
   d2d: `Fight::prg` caps the range at 77 and aims the row's own velocity
-  straight at the offset, 143 too (no wobble).
+  straight at the offset; 143's fly `rules::wobble_route` (`Missile::route`,
+  the fight's rng for the missile's seed: deviations.md approximation 18),
+  checked by `tools/emu/wobble_route.py` (40 routes, test_release_ring).
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
   roll is stored as x = 0x14. d2d: `rules::release_spread_offset`

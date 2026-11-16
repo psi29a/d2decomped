@@ -752,6 +752,7 @@ struct Missile {
     // `rooms`: its room, then the near list's (missile_rooms); `follow`:
     // the target point lay outside that room, so the room moves with it.
     std::optional<std::pair<float, float>> to;
+    std::vector<std::pair<int, int>> route;   // a laid route in act subtiles (do 143's, rules::wobble_route): its flight's points
     int bolt = -1;
     bool wall_maker = false;                    // FUN_005cd110: a draw first, under 20 its path stays straight
     d2d::rules::MissileFlight flight;
@@ -794,6 +795,7 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
         if (to_x == from_x && to_y == from_y) { ++to_x; ++to_y; }   // FUN_0059fa30: target = start moves + (1, 1)
         missile.flight = d2d::rules::MissileFlight::launch(from_x, from_y, to_x, to_y, path_velocity, max_velocity, accel);
         if (moved_by_hand) std::tie(missile.flight.aim_x, missile.flight.aim_y) = d2d::rules::missile_aim_along(missile.velocity_x, missile.velocity_y);
+        if (!missile.route.empty()) missile.flight.points = missile.route;
         if (missile.bolt >= 0 && aimed) {                    // FUN_005c9290 / FUN_005cd110: 77 frames at most, its wiggle
             missile.dies = std::min(missile.dies, missile.born + 77 * 40);
             d2d::rules::Rng seed{ std::uint32_t(to_x + missile.bolt) };
