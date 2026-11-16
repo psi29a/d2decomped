@@ -656,8 +656,45 @@ int area_at(const Level& level, float x, float y) {
                 return level.id << 20 | room << 8 | int(std::min<std::size_t>(i, 255));
     return -1;
 }
+// FUN_005dd0b0 mode 6 / 7's candidates (FUN_005dcbd0, FUN_005dcc60): the near
+// rooms' foes, each room's newest first (the list from its end), its own
+// skipped; their FUN_005dc380 distance, threat and whether each is an enemy
+// (alive, out of town, not a friend: FUN_005dc970), and the line from them
+// (mask 4) tested under 0x31. With the foe each entry is.
+struct SightList { std::vector<d2d::rules::SightFoe> foes; std::vector<Foe*> units; };
+SightList sight_list(const GameData& game_data, const Level& level, const Monster& monster, std::span<Foe> foes) {
+    const auto& unit = monster.unit;
+    const int size = game_data.monsters.types[std::size_t(monster.type)].size;
+    const int x = subtile(unit.x), y = subtile(unit.y);
+    const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    const bool town = d2d::rules::level_ids::is_town(level.id);
+    SightList list;
+    for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y)) {
+        if (room_level != &level) continue;
+        for (std::size_t i = foes.size(); i-- > 0;) {
+            auto& foe = foes[i];
+            if (foe.of == &monster || room_of(level, foe.x, foe.y) != room) continue;
+            const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
+            auto& entry = list.foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - x, foe_y - y, foe.size), foe.threat,
+                                                                       foe.alive && !town && !d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2) });
+            entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, foe.size, x, y, size, wall);
+            list.units.push_back(&foe);
+        }
+    }
+    return list;
+}
+// FUN_005dd510's path test for a monster: a type 2 path from it to the foe
+// (rules::path_found) at its path's steps, through its own collision and the
+// crowd's (the foe's stamp too: type 2's flags lift none).
+bool path_found(const Level& level, const Monster& monster, const Foe& foe, const Crowd& crowd) {
+    const auto& unit = monster.unit;
+    const auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
+    return d2d::rules::path_found(subtile(unit.x), subtile(unit.y), subtile(foe.x), subtile(foe.y), monster.path_steps, [&](int at_x, int at_y) {
+        return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
+    });
+}
 struct Search { Foe* target = nullptr; int best = 0, nearest = 0x7fffffff; };
-Search search_target(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, AreaSeen* seen) {
+Search search_target(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, AreaSeen* seen, const Crowd& crowd) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const int aidist = type_info.diff[std::size_t(monster.difficulty)].aidist;
@@ -714,6 +751,19 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
             monster.set_kind = chased.of ? 2 : 1;
             monster.set_id = chased.of ? chased.of->id : chased.id;
         }
+    // FUN_005dd510 (from FUN_005dd7f0): with `other` (list 9's nearest, or mode 5's secondary)
+    // under 6 off and no type 2 path to `found`, mode 7's pick (another enemy of threat 2 or
+    // more, rules::search_threat) within 0x13 takes found's place; else `other`. True: other.
+    const auto other_instead = [&](Search& primary, int other_best) {
+        if (other_best >= 6 || path_found(level, monster, *primary.target, crowd)) return false;
+        const auto list = sight_list(game_data, level, monster, foes);
+        const auto found = std::ranges::find(list.units, primary.target);
+        int threat_best = 0;
+        const int threat = d2d::rules::search_threat(list.foes, found == list.units.end() ? -1 : int(found - list.units.begin()), threat_best);
+        if (threat < 0 || threat_best > 0x13) return true;
+        primary.target = list.units[std::size_t(threat)]; primary.best = threat_best;
+        return false;
+    };
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
         for (auto& foe : foes)
@@ -744,9 +794,11 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         }
         const auto pick = d2d::rules::search_pick(picks, best, need_sight);
         found = { pick.target >= 0 ? pick_foes[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
+        if (pick.nine >= 0 && pick.target != pick.nine && other_instead(found, pick.nine_best)) { found.target = pick_foes[std::size_t(pick.nine)]; found.best = pick.nine_best; }
     } else if (!found.target) {
         const auto pick = mode5(monster.align);
-        if (const int choice = pick.target >= 0 ? pick.target : pick.second; choice >= 0) found = { &foes[std::size_t(choice)], pick.target >= 0 ? pick.best : pick.second_best };
+        if (pick.target >= 0) found = { &foes[std::size_t(pick.target)], pick.best };
+        if (pick.second >= 0 && (pick.target < 0 || other_instead(found, pick.second_best))) found = { &foes[std::size_t(pick.second)], pick.second_best };
     }
     if (found.target && monster.align != 2) {
         monster.sighted = true;
@@ -937,7 +989,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (OpenDoor) operated, it stands 5.
     if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
     x = subtile(unit.x); y = subtile(unit.y);
-    const auto searched = search_target(game_data, level, monster, foes, seen);
+    const auto searched = search_target(game_data, level, monster, foes, seen, crowd);
     target = searched.target; best = searched.best; nearest = searched.nearest;
     monster.aware = target != nullptr;
     if (row && row->search) row->search(ctx);                    // its own pick (game.exe's row +0)
@@ -1050,32 +1102,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // merc's: rules::search_sight): the near rooms' foes (each room's
     // newest first: the list from its end), alive, out of town, not its
     // friends (FUN_005dc970), FUN_005dc380 distance, sight from them to it
-    // always tested (mask 4); FUN_005dd510's path is always found, so the
-    // primary when there's one.
+    // always tested (mask 4); FUN_005dd510 asks for a path to the primary
+    // (path_found: the secondary under 6 off and none, mode 7's pick).
     // Its state 0x92 (invis) skip needs no test here: only FUN_005ef620 (Baal into
     // the stairs: d2d's gone, so not alive) and FUN_0063efa0 case 0x219 (the
     // Ancients' statues: objects in d2d) set it.
     if (monster.set_kind != 0) { second = target; input.second_dist = best; }
     else {
-        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
-        const bool town = d2d::rules::level_ids::is_town(level.id);
-        std::vector<d2d::rules::SightFoe> sight_foes;
-        std::vector<Foe*> sight_of;
-        for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y)) {
-            if (room_level != &level) continue;
-            for (std::size_t i = foes.size(); i-- > 0;) {
-                auto& foe = foes[i];
-                if (foe.of == &monster || room_of(level, foe.x, foe.y) != room) continue;
-                const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
-                auto& entry = sight_foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - x, foe_y - y, foe.size), foe.threat,
-                                                                            foe.alive && !town && !d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2) });
-                entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, foe.size, x, y, type_info.size, wall);
-                sight_of.push_back(&foe);
-            }
-        }
+        const auto list = sight_list(game_data, level, monster, foes);
         int gap = 0x7fffffff;
-        const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), [](int) { return true; }, gap);
-        if (chosen >= 0) { second = sight_of[std::size_t(chosen)]; input.second_dist = gap; }
+        const int chosen = d2d::rules::sight_choice(list.foes, d2d::rules::search_sight(list.foes),
+                                                    [&](int pick) { return path_found(level, monster, *list.units[std::size_t(pick)], crowd); }, gap);
+        if (chosen >= 0) { second = list.units[std::size_t(chosen)]; input.second_dist = gap; }
     }
     input.second = second != nullptr;
     input.aura_on = monster.aura != 0;
@@ -2578,7 +2616,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             monster.next_act = now_ms + 5 * 40;
             return false;
         }
-        const Foe* found = search_target(game_data, level, monster, foes, seen).target;
+        const Foe* found = search_target(game_data, level, monster, foes, seen, crowd).target;
         monster.aware = foe.alive && found;
         if (found) monster.chase = int(found - foes.data());
         if (!monster.aware) monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;

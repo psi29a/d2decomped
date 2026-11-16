@@ -1311,7 +1311,7 @@ struct Fight {
     // A Shadow's (MonUMod 42 lightningdeath, FUN_005a2910), from golem_blast.
     void shadow_nova(Pet& pet, std::uint32_t now_ms);
     // FUN_005ddc30's foe (an index into monsters, -1 none) for a pet of `size` at x, y (cells); `gap` its distance.
-    [[nodiscard]] int pet_second_foe(float x, float y, int size, int& gap) const;
+    [[nodiscard]] int pet_second_foe(const Monster& searcher, int size, const Crowd& crowd, int& gap) const;
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void shadow_give(Pet& pet, int skill, int lvl) const;
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
