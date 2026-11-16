@@ -1205,6 +1205,9 @@ struct Fight {
     // counts a fifth (FUN_005c3540, apply_target_stats); Holy Freeze's
     // slow is the monster's (monster_states).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
+    // The same under the merc's blow: a MonStats boss (+0xc & 0x40) takes the game's
+    // HireableBossDamagePercent (FUN_0057c060).
+    [[nodiscard]] d2d::rules::Target merc_target(std::size_t monster_index);
     void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise

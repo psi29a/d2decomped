@@ -833,7 +833,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
-        const auto target = target_of(monster_index);
+        const auto target = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         // A merc's skill missile (Fire Arrow): its weapon, attack rating and
         // level; its skill's calcs see no synergies (mercs have none).
         const int clvl = missile.by_merc ? actor->merc_st.level : int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -1169,6 +1169,13 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
                 apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).
         for (const auto& aura : enemy_auras(monsters[monster_index])) apply_target_stats(*aura.skill, aura.level, target, base, &aura.env);
+        return target;
+    }
+
+auto Fight::merc_target(std::size_t monster_index) -> d2d::rules::Target {
+        auto target = target_of(monster_index);
+        if (const int type = monsters[monster_index].type; type >= 0 && game_data->monsters.types[std::size_t(type)].boss_column)
+            target.pair_pct = game_data->hireling_boss_pct[std::size_t(std::clamp(game_difficulty, 0, 2))];
         return target;
     }
 

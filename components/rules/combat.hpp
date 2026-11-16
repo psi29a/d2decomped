@@ -587,6 +587,11 @@ struct Target {
     int crush_divisor = 4;
     bool undead = false;                            // MonStats lUndead or hUndead (FUN_0063e990)
     bool demon = false;                             // MonStats demon (FUN_0063e940)
+    // FUN_0057c060's pair percent on each damage field above 0, before the
+    // resistances (FUN_0057c1e0): a hireling's blow on a MonStats boss takes
+    // DifficultyLevels HireableBossDamagePercent (row +0x38). 100 none.
+    int pair_pct = 100;
+    [[nodiscard]] std::int64_t paired(std::int64_t field) const { return field > 0 && pair_pct != 100 ? field * pair_pct / 100 : field; }
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
@@ -742,7 +747,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
         if (shared) shared->phys = roll;
         blow.phys += roll >> 8;
         // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
-        const int fine = resisted_fine(roll, std::max(target.res[0], -100));
+        const int fine = resisted_fine(int(target.paired(roll)), std::max(target.res[0], -100));
         blow.damage += fine >> 8;
         blow.frac += fine & 255;
         blow.phys_fine += fine;
@@ -759,8 +764,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     // the roll x 25 (0x5a8e1a), which this does not model. game.exe rolls the hit twice from the
     // missile's seed (the record, then FUN_005a8c70 inside this function); d2d draws from one
     // shared fight stream, so the distribution is the same.
-    const int rolled = roll + (target.undead && damage.undead_pct > 0 ? mul_div(roll, damage.undead_pct, 100) : 0)
-                            + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0);
+    const int rolled = int(target.paired(roll + (target.undead && damage.undead_pct > 0 ? mul_div(roll, damage.undead_pct, 100) : 0)
+                                              + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0)));
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res -= pierce[std::size_t(damage.etype)];
@@ -884,7 +889,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     damage -= conv;
     // The physical stays in 256ths through the resistance (FUN_0057bf80 on the record's fine value) and
     // the life stat takes it as is (0057c852): the whole points go in `damage`, the part under a point in `frac`.
-    const std::int64_t rolled_fine = std::max<std::int64_t>(damage, 0) + std::int64_t(swing.flat) * 256;
+    const std::int64_t rolled_fine = target.paired(std::max<std::int64_t>(damage, 0) + std::int64_t(swing.flat) * 256);
     blow.phys = int(rolled_fine >> 8);
     const int fine = resisted_fine(int(rolled_fine), target.res[0]);
     const int phys = fine >> 8;
@@ -901,11 +906,12 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     blow.life = phys * fighter.life_steal * target.drain / 10000;
     blow.mana = phys * fighter.mana_steal * target.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(conv >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
+    const auto share = [&](int pct) { return int(target.paired(rolled * pct / 100)); };
+    int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(target.paired(conv) >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
     int marking = swing.conv_type != 4 ? elem : 0;                 // what FUN_0057ce30 sees: the record's fire / lightning / cold / poison, not magic (+0x20)
-    elem += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
-    marking += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
-    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; marking += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
+    elem += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
+    marking += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
+    if (const int cold = resisted(share(swing.cold_pct), target.res[4]); cold > 0) { elem += cold; marking += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
     for (int element = 0; element < 5; ++element) {
         const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
@@ -914,7 +920,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         // FUN_0057c6c0 chills on it untested: cold resisted under a point
         // still chills; so does a conversion to cold, at least 50 frames (case 4).
         const int element_roll = rng.range(elo, ehi);
-        const int element_damage = resisted(element_roll, target.res[std::size_t(kRes[element])]);
+        const int element_damage = resisted(int(target.paired(element_roll)), target.res[std::size_t(kRes[element])]);
         if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
         if (element == 2 && element_roll > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
         elem += element_damage;
@@ -922,7 +928,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     }
     if (conv > 0 && swing.conv_type == 3) {
         const int ticks = std::max(fighter.poison_len, 50);
-        blow.poison += resisted(int(conv / 8 * ticks >> 8), target.res[5]);
+        blow.poison += resisted(int(target.paired(conv / 8) * ticks >> 8), target.res[5]);
         blow.poison_ticks = std::max(blow.poison_ticks, ticks);
     }
     if (conv > 0 && swing.conv_type == 2)
@@ -1010,9 +1016,8 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     // poison damage row (8, +0x28) but not the poison length's (7, +0x2c).
     // A hireling on a MonStats boss takes the difficulty's DifficultyLevels
     // row +0x38, HireableBossDamagePercent (the context's +4: FUN_00611d30,
-    // 0x57c206); here the attacker is always a monster, never a hireling.
-    // ponytail: the merc's own blows on a MonStats boss (fight/merc.cpp)
-    // don't take HireableBossDamagePercent; GameData doesn't load it.
+    // 0x57c206); here the attacker is always a monster, never a hireling:
+    // the merc's own blows take it through Target::pair_pct (Fight::merc_target).
     const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
     const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
     taken.raw = pair_scaled(taken.raw);

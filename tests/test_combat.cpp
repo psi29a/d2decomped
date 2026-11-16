@@ -1021,6 +1021,18 @@ int main(int argc, char** argv) try {
         const auto chilled = player_blow(cold_hand, resists, 1, hit_rng);
         assert(chilled.hit && chilled.chill_ticks == 12);   // 50 less 75 %, no cold point left
     }
+    {   // A hireling's blow on a MonStats boss: each field x HireableBossDamagePercent before the resistance (FUN_0057c060)
+        Fighter hireling = simple_fighter(40, 40, 100000);
+        hireling.elem[0] = { 20, 20 };
+        Target boss;
+        boss.res[0] = 50; boss.res[2] = 50;
+        boss.pair_pct = 25;                              // Hell's
+        Rng merc_rng{ 3 };
+        const auto struck = player_blow(hireling, boss, 1, merc_rng);
+        assert(struck.hit && struck.phys == 10 && struck.damage == 5 + 2);   // 40 x 25 % = 10, half resisted; fire 20 -> 5 -> 2
+        const auto shot = missile_blow(MissileDamage{ .phys_lo = 40 << 8, .phys_hi = 40 << 8, .etype = 0, .elo = 20 << 8, .ehi = 20 << 8 }, boss, {}, merc_rng);
+        assert(shot.damage == 5 + 2);
+    }
     std::puts("ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_combat: %s\n", error.what());
