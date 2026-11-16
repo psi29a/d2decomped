@@ -393,6 +393,9 @@ Cited. `(owner in ecx, edx unused, item)`; 0 unless the item is an item unit.
 1. `FUN_006261d0(item, 0xcc, buf, 0x40)` lists the item's stat 0xcc
    (item_charged_skill) entries: each a param (skill id and level, split by
    the shift / mask at tables +0xc6c / +0xc70) and a value.
+   `FUN_006261d0` returns the count listed, and 0 with `buf` untouched when
+   the item's list lacks the expanded flag 0x80000000 (`stats.md`, run by
+   `tools/emu/stats_unit_list.py`).
 2. Per entry: current = value & 0xff, max = value >> 8. If current < max,
    `FUN_0065c940(item, param >> shift, param & mask, max)` writes
    `max << 8 | min(max, request)`, i.e. max / max, to the entry (it returns
