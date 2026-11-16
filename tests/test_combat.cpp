@@ -225,6 +225,10 @@ int main(int argc, char** argv) try {
         // Two class-2 blows of 6 on 64 life: each under max / 8, no get-hit (their sum of 12 would roll).
         blows = { { 6, 2, false, 6, 0 }, { 6, 2, false, 6, 0 } };
         for (int sample = 0; sample < 64; ++sample) assert(!struck_big(blows, 64 << 8, seed));
+        // The size test takes the record's 256ths: 32 points and a 256th on 16386 life is half of it, always a get-hit
+        // (FUN_0057cb00), where the whole 32 would roll.
+        blows = { { .damage = 32, .hit_class = 2, .physical = 32, .frac = 1 } };
+        for (int sample = 0; sample < 64; ++sample) assert(struck_big(blows, (64 << 8) + 2, seed));
     }
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);

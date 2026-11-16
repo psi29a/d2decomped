@@ -454,12 +454,13 @@ inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) 
 }
 
 // FUN_0057cb00 once per landed blow (FUN_0057c6c0 then FUN_0057cee0 per
-// record): each blow rolls on what is left of it, its own class and mark; a
+// record): each blow rolls on what is left of it (the record's total in
+// 256ths, as clamped: `damage` and `frac`), its own class and mark; a
 // get-hit if any is.
 inline bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed) {
     bool big = false;
     for (const auto& blow : blows)
-        if (blow.landed && blow.damage > 0 && get_hit(max_life, std::int64_t(blow.damage) << 8, blow.hit_class, blow.marked, seed)) big = true;
+        if (blow.landed && get_hit(max_life, (std::int64_t(blow.damage) << 8) + blow.frac, blow.hit_class, blow.marked, seed)) big = true;
     return big;
 }
 
