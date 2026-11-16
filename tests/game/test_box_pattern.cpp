@@ -2,7 +2,8 @@
 // test-links: game
 // FUN_0064d910's pattern 2 / 4 test (FUN_0064d7c0, 0x64d7c6..0x64d7de) is
 // the fixed 3x3 box x - 1 .. x + 1, y - 1 .. y + 1, whatever the unit's
-// SizeX; 1 / 3 / 5 the plus, 0 the one subtile.
+// SizeX; 1 / 3 / 5 the plus, 0 the one subtile. Diablo's and Baal's
+// "stuck" (0x5e889c, 0x5fc6b5) pass pattern 2, mask 0x40 (ai/act4.cpp).
 
 #include <ds1.hpp>
 #include <gamedata.hpp>

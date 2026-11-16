@@ -325,11 +325,11 @@ aipN below is MonStats aipN for the difficulty (+0x56 + 6(N−1) + 2·diff).
 | OblivionKnight | 74 | FUN_005faf00 | its search (FUN_005fae40, within 2500 squared: class 0x136 monsters it sees, FUN_00650d70, not pets; nearest, and nearest under 40 % life); within aip1: Skill4's curse (Decrepify; `0 < id`) when the target's state (skill +0x82) is off, else a walk (4) to the knight found when it's farther from the target (squared, FUN_005b0bd0(knight, target)) than the target's distance squared, else back off 10 (pace 50), else Skill3 (Bone Spirit). The second target (FUN_005ddc30) within aip2: Skill6 (MonCurseCast) past its cooldown (+0x14 < frame, aip4 %), cooldown aip3; else aip5 %: Skill3 (aip6 %) or Skill1 at it. Past aip8, aip7 % about the target 6; else 70 % stands 10, 30 % circles 3 |
 | Megademon | 89 | FUN_005e0c80 | Venom Lords and Infector: Skill1 (Inferno) while its state 0xc is off and the target within Skill1's level (FUN_006442a0, at least 1), out of melee: aip1 % when the cooldown (+0x14 frame) passed, cooldown aip6 frames; in melee: state 0xc cleared, aip2 % Inferno (cooldown), else aip3 % A1, else aip4 % circles 3, else stands 5. Out: aip3 % walks in, else stands 10 |
 | Izual | 55 | FUN_005f89b0 | first think (+0x14 0 → 1) FUN_005b4390 (a4q1: his greeting sent to every player, `FUN_00544300(FUN_005b3940)`); a pending stand (+0x18) first. In melee: swings (+0x1c) left or aip1 %: A1; else Skill1 (Frost Nova) aip4 %, stand aip5, swings aip6; else stands aidel. Out: within 10 Frost Nova aip3 %; aip2 % walks in; within 10 stands aidel; else keeps 6..9 (FUN_005de6d0 → FUN_005de4e0 2) |
-| Diablo | 51 | FUN_005e9170 | his kept point (FUN_0058eef0 kind 10) set to his own spot when he has none (FUN_0058ef40); target by FUN_005e8f20 (players in its room's area, scored FUN_005e8530); action by FUN_005e8810 (below); a Skill7 (Prison) first when the target's out of state (skill +0x80) and usable. Actions: 1 wander about (pace 20), 2 A1, 3 A2, 4 S4, 5 Skill1 (Lightning; state 0xc on → off), 6 Skill3 (Fire), 7 Skill2 (Cold), 8 Skill4 (Wall), 9 Skill7 (Prison), 10 Skill5 (Run), 12 circles 4, 13 Skill6 (Prime Firewall), 14 back off from the target (pace 50, ½ its size, two tries, then stand 2), 15 Skill7 at the player by its leader word, 16 wander 5 (stuck: FUN_0064d910 mask 0x40), else stands 12 / 8 / 4 by difficulty |
+| Diablo | 51 | FUN_005e9170 | his kept point (FUN_0058eef0 kind 10) set to his own spot when he has none (FUN_0058ef40); target by FUN_005e8f20 (players in its room's area, scored FUN_005e8530); action by FUN_005e8810 (below); a Skill7 (Prison) first when the target's out of state (skill +0x80) and usable. Actions: 1 wander about (pace 20), 2 A1, 3 A2, 4 S4, 5 Skill1 (Lightning; state 0xc on → off), 6 Skill3 (Fire), 7 Skill2 (Cold), 8 Skill4 (Wall), 9 Skill7 (Prison), 10 Skill5 (Run), 12 circles 4, 13 Skill6 (Prime Firewall), 14 back off from the target (pace 50, ½ its size, two tries, then stand 2), 15 Skill7 at the player by its leader word, 16 wander 5 (stuck: FUN_0064d910 pattern 2, mask 0x40), else stands 12 / 8 / 4 by difficulty |
 | Diablo (other) | 51 | FUN_005e8480 | state 0xc off, back to its think (FUN_005b0e00), the target's spot kept as its leader word, stands 1 |
 
 Diablo's chooser (FUN_005e8810): +0x14 set wins. No target: stuck (FUN_0064d910
-at its spot, size 2, mask 0x40) → 16, else `rand(1000) > 0` → 4 (S4) /
+at its spot, pattern 2: the 3x3 box, mask 0x40; 0x5e889c) → 16, else `rand(1000) > 0` → 4 (S4) /
 11 (stand). With a target: 17 weights, by case (base rows, then nudges):
 in melee and a line (FUN_00622c40): {0,0,40,70,0,40,24,40,15,…}; under 20 %
 life weight 2 = 50; state 0xb on zeroes 7 and 8; cold res (stat 0x29) above
@@ -804,7 +804,7 @@ uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --
 - Kept point: his own spot when he has none (FUN_0058ef40 kind 10).
 - Chooser FUN_005fc630(ECX him, EAX target; game, AI control, score, looked,
   point): AI control +0x14 non-zero is the act. No target: stuck
-  (FUN_0064d910 mask 0x40) 4, else low % 100 < 8 → 9, else 1. Far / very
+  (FUN_0064d910 pattern 2, mask 0x40, 0x5fc6b5) 4, else low % 100 < 8 → 9, else 1. Far / very
   far: the target past 0x4b / 100 off the point (FUN_005dc480, less its
   size / 2 + 1). The rest by weights rolled on his seed (first index past
   the roll; none → 1), `rules::mon_think` "BaalCrab" holds them:
@@ -934,7 +934,7 @@ No rel32 call, jcc or absolute pointer anywhere in the image reaches these
   `FUN_005a7c20`), its path flag 1 (`FUN_00649070`).
 - `FUN_005e9750`: an act chooser in the shape of Diablo's (`FUN_005e8810`,
   above): a pending act (AI control +0x14) wins; no target: on collision
-  bit 0x40 (`FUN_0064d910`) 4 one time in 1000 on the unit seed, else
+  bit 0x40 (`FUN_0064d910` pattern 2, 0x5e97da) 4 one time in 1000 on the unit seed, else
   0xb, and 0x10 off it; then 17-act weight tables by reach, the target's
   hands (skills 0x3b / 0x38, 0x33 over level 3, 0x1b over 7, as
   `FUN_005fc0c0`), life under 20 %, state 0xb, the merc gap (0x55 / 0x69),
