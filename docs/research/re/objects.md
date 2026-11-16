@@ -99,8 +99,8 @@ its frame (the state's end, the reset, `UnitState::says`), the state's
 overlays through `player_states`, the message drawn in ingame.cpp.
 ponytail: the timer 5 / 6 handlers aren't traced (5 taken as the reset);
 stat 162 (skill_staminapercent, 0 without the skill) left out; the shrine
-object's icon overlays (fnA) not drawn; the overhead chat's font, colour
-and height guessed.
+object's icon overlays (fnA) not drawn. The overhead box: chat.md
+"Drawing an overhead message".
 
 **Chest init** (InitFn 3, `FUN_0054fcb0`), stored in
 the object's flag byte:

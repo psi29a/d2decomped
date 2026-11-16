@@ -67,6 +67,39 @@ town/draw.cpp).
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
 
+## Drawing an overhead message (`FUN_004a0a00`, `FUN_0049d8e0`)
+
+Read from the disassembly (`004a0a00`..`004a0b20`, `0049d8e0`..`0049d996`,
+`0049d9a0`..`0049da09`); no oracle.
+
+- The caller (`FUN_004a0b30` players, `FUN_004a0d20` the rest) takes the
+  unit's screen point (`FUN_00620900`) less the view's corner (`0x7bf214`),
+  y up 0x1e (players) or 10, x moved a quarter of the width with one side
+  panel open (`FUN_0045ae90` 1 / 2; 3, both, draws none). It draws only
+  when 0 < y < H and -100 < x < W + 100. `FUN_004a0d20` copies the string
+  (at most 199 units) and passes the point in EAX, the node in ECX, the unit
+  in EDX.
+- `FUN_004a0a00`: drops the node once it has expired (`FUN_006611d0` below
+  `0x7bf20e`) after this frame; font 0xd (FontInGameChat, `0x502ef0`), the
+  text wrapped to 0xb4 (`FUN_00502970`). `FUN_0049d3c0`: width = the widest
+  line (`FUN_00501820`) + 0x14, height = lines x 15 + 6. The point goes to
+  y - 0x32, x - width / 2, then y - 15 x lines - 3: the box's top left.
+- `FUN_0049e070(n)` (n = boxes placed this frame, `0x7bf224`, 1 when the
+  NPC menu holds slot 0) keeps at most 16; one that meets an earlier box is
+  moved by the steps at `0x722654` x 0x32 / 0x23 to a 400 x 0x118 spot that
+  meets none, else not drawn. d2d does not do this.
+- `FUN_0049d9a0`: with only the right panel open (`FUN_0045ae90` 1) a box
+  whose left is past W/2 - 10 isn't drawn; only the left (2), one left of
+  W/2 + 10; both (3), none.
+- `FUN_0049d8e0` (ECX node, EDX left, stack top): at most 10 lines; nothing
+  when top < 0 or top + height >= H. `FUN_0046efd0(left, top + 4, width,
+  height - 5, colour 0, mode 1)` darkens the box; font 0xd; each line at
+  left + 10 on the baseline top + 0x12 + 15 x (index - shown + lines),
+  colour 0 (white, `FUN_00502320`).
+
+d2d: `render_ingame` (apps/d2d/ingame.cpp), from the unit's feet as d2d
+draws it; `ponytail:` there for `FUN_0049e070`.
+
 ## Small functions in the same work package (cited)
 
 None of these is in `Chat/Chat.cpp`; they came with the seed's callee list.
