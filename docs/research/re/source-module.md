@@ -30,6 +30,9 @@ not establish d2d parity or complete branch coverage. An address reference
 in `tools/emu/` makes the gap map say `verified` even for intercepted callees;
 that automatic label must not be read as stronger evidence than this table.
 
+The 15 SOURCE functions that stayed `cited` after this pass (file handles, message
+text, window records) are traced in [storm-file.md](storm-file.md).
+
 ## Findings and verification boundaries
 
 `stack N` means N caller arguments, removed by the callee. Register arguments

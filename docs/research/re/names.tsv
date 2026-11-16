@@ -23,6 +23,7 @@ address	name	evidence
 00451f10	handler_level_push	no args: FUN_00420360(window) -> FUN_00426370 pushes a new level (0x10-byte record, SEVT.CPP line 0x11c) on the SMSH / SMSI / SMSJ / SMSG nodes; only caller FUN_0044f360 (net-join.md "Who calls the shutdown")
 00451f20	handler_level_pop	no args: FUN_00420320(window) -> FUN_004269c0 drops the top level of the four tag nodes (the level below becomes node[3]; none: FUN_00426810); pair of FUN_00451f10, called at 0x44d569 (net-join.md "Who calls the shutdown")
 00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
+004520c0	ui_dc6_load	ECX relative name: `DATA\\GLOBAL\\UI\\` + name to FUN_004788b0 with EDX 0; returns its cel pointer (client-frontier.md)
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 004209e0	storm_event_window_find	ECX window id: signed-positive list at 0x708868, node +4 next and +8 id; returns first match or 0 (cited-core.md)
 00423380	sbig_import_le	ESI SBig, stack bytes/count: replaces the value from the object's dword offset with little-endian bytes, growing storage as needed (cited-core.md)
@@ -48,6 +49,11 @@ address	name	evidence
 00453060	kept_label_draw	no args: draws the text kept at 0x7a2c80 (FUN_00452be0 mode 1) centred on 0x7a2d20 at 0x7a2d24 + 2 - 2, clamped to the screen, then clears it (cursor-units.md "The kept label's draw")
 00453100	death_screen_draw	no args: the local player dead (FUN_00464820): youdiedhardcore / youdiedinst cels at H/2 - 0x5e, +0x30, then red Font30 lines 0x13e8 (hardcore) or 0x13e6 with stat 0xaf, and 0x13e7 above difficulty 0; sets 0x7a2890 (cursor-units.md "The death screen")
 00453a90	ui_flag_get	ECX index: returns the exact dword at 0x7a27c0 + index * 4, with no bounds check (client-frontier.md)
+00453aa0	ui_pentagram_sprite	returns exact dword at 0x7a2878; options-menu load/draw callers; ui-frontier.md and ui_frontier_helpers.py
+00453ab0	ui_npc_menu_marker_sprite	returns exact dword at 0x7a2880; NPC-menu draw caller; ui-frontier.md and ui_frontier_helpers.py
+00453ac0	ui_cursor_suppress_begin	clears 0x70fa9c and 0x7a2790; bracket in FUN_0047ec50; ui-frontier.md and ui_frontier_helpers.py
+00453ad0	ui_cursor_suppress_end	sets 0x70fa9c to 1; bracket in FUN_0047ec50; ui-frontier.md and ui_frontier_helpers.py
+00453b00	ui_mouse_move_refresh	SendMessageA(window, WM_MOUSEMOVE, 0, low16(x) | low16(y) << 16); ui-frontier.md and ui_frontier_helpers.py
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 00457460	unit_flags_c4_toggle	ECX unit, EDX mask, stack enabled: nonnull unit +0xc4 OR mask when enabled is nonzero, else AND inverse mask; null is a no-op (client-frontier.md)
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
@@ -112,6 +118,7 @@ address	name	evidence
 00465f00	unit_remove_table_b	ECX id, EDX type: FUN_00465e80 on table B (0x7a5270) + type * 0x200, bucket id & 0x7f; verified by unit_client.py
 004661c0	unit_create	ECX id, EDX class, stack x, y, type, mode: FUN_00620290(0, type); a unit gets FUN_00465fd0 (EAX unit, EBX = the first stack argument, then ECX, EDX, the other three, 0); 0 when none; verified by unit_client.py
 00466730	critter_make	ECX, EDX, three stack words: counter DAT_00711f30 + 1 (-1 wraps to 0); type 1 builds a record for FUN_00466360, else FUN_00620290(0, type) record +0xc4 |= 0x600000 then FUN_00465fd0 (critters.md; ui_client_helpers.py)
+004680a0	client_cursor_item	returns the exact client cursor-unit pointer at 0x7a6abc; no branch or callee (client-frontier.md)
 00469aa0	keyconfig_key_of	ECX function, EDX slot: the key (low word) of the first of the 114 records at 0x7a6f90 that matches, else 0xffff (controls.md; ui_client_helpers.py)
 0046a530	keyconfig_key_label	ECX function, EDX slot: 32 keys tail-jump to FUN_00524a30 with a string id, any other key or none to FUN_00469de0 with ECX, EDX kept (controls.md; ui_client_helpers.py)
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
@@ -290,8 +297,14 @@ address	name	evidence
 00493100	hireable_level_draw	decimal level, width <= 46, font 6, colour 0x37 (ui-hireables-frontier.md)
 004934d0	hireable_item_eligible	item stats, merc class exceptions, common wear check (ui-hireables-frontier.md)
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
+0049d3c0	text_list_measure	EDI record: maximum linked-line width + 20, row count * 15 + 6, and copied fields; ui-text-frontier.md and ui_text_frontier.py
 0049e3a0	chat_line_add	ECX text, EDX kind: wrapped to <= 6 lines in a 0x26 node (expiry tick + 10000), appended to the queue DAT_007bf1e4, one head dropped past 18 lines (net-packets.md; ui_client_helpers.py)
+0049e5c0	screen_message_add	ECX wide text, DL kind: wraps to six lines in a 0x26 node, 10-second expiry, keeps two nodes; ui-text-frontier.md and ui_text_frontier.py
+0049e7e0	text_anchor_set	stores ECX/EDX unchanged at 0x7bf258/0x7bf25c; ui-text-frontier.md and ui_text_frontier.py
+0049ff10	item_text_dispatch	selected bks/bkd/tr1 Items code dispatch to book/scroll or general text builders; ui-text-frontier.md and ui_text_frontier.py
+0049ff90	item_text_select	stores EDX item, sets bkd flags and sends 0x3e with ECX owner id or -1; ui-text-frontier.md and ui_text_frontier.py
 004a0000	speech_box_open	12 bytes, no args: xor eax,eax / cmp dword [0x7bf0a4],eax / setnz al / ret. 1 when the speech record is set (npc-talk.md)
+004a0e70	speech_text_update	ECX control: rectangle, speech/timed-text update and teardown, UI callbacks and NPC-menu draw; ui-text-frontier.md and ui_text_frontier.py
 004a1730	ui_text_teardown	text close, node free and globals clear (ui-small-frontier.md)
 004a1760	ui_text_close_thunk	tail jump FUN_004a08c0 (ui-small-frontier.md)
 004a2550	quest_log_resources_release	DC6 handle slots and array release (ui-small-frontier.md)

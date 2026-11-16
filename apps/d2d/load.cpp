@@ -119,6 +119,8 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc
 
 namespace {
 
+// Stock's individual UI loads use FUN_004520c0: prefix DATA\\GLOBAL\\UI\\,
+// then FUN_004788b0 appends .dc6. This port names the complete MPQ members.
 void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
