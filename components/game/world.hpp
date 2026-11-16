@@ -276,7 +276,6 @@ struct World {
         bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
         bool had_gidbinn = false;
         bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
-        bool had_figurine = false, had_bird = false;   // the Golden Bird's items, last tick (its pickups)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
         std::size_t portal_pair = 0;           // their town portal in World::portal: [pair] where it was cast, [pair + 1] in town
         // Local co-op's death (docs/design/local-coop.md): dead, a ghost that

@@ -11,6 +11,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <quests.hpp>
+#include <quests_act3.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -61,6 +62,23 @@ int main() try {
     world.make_corpse(0);                                                         // the corpse's event marks the players
     assert(quest::bit(world.quests(), CainQuest::kQuest, 3));
     std::printf("OK: a1q4's Bark Scroll event comes from a pickup or the corpse, not a gift\n");
+
+    // a3q4 (FUN_005ba6a0): the bird state 3, the figurine state 1 and the
+    // event's player's bit 6; on a corpse those are its own new records.
+    using d2d::rules::GoldenBirdQuest;
+    world.golden_bird.open = true; world.golden_bird.state = 0;
+    world.give_item(GoldenBirdQuest::kBird, 0);                                   // Meshif's gift: no event
+    assert(world.golden_bird.state == 0);
+    world.item_event(GoldenBirdQuest::kBird, 0);
+    assert(world.golden_bird.state == 3);
+    world.item_event(GoldenBirdQuest::kFigurine, 0);
+    assert(world.golden_bird.state == 1 && quest::bit(world.quests(), GoldenBirdQuest::kQuest, 6));
+    quest::set(world.quests(), GoldenBirdQuest::kQuest, 6, false);
+    world.golden_bird.state = 0;
+    world.actor->held = d2d::d2s::Item{ .code = GoldenBirdQuest::kFigurine, .location = d2d::d2s::item_location::kCursor };
+    world.make_corpse(0);
+    assert(world.golden_bird.state == 1 && !quest::bit(world.quests(), GoldenBirdQuest::kQuest, 6));
+    std::printf("OK: a3q4's items on event 4; the corpse's bit 6 is its own\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
