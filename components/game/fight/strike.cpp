@@ -1091,7 +1091,11 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
                 } else if (skill && missile_skill(*skill)) {
                     fire(*skill, now_ms);
                 } else if (skill && spot_skill(*skill)) {
+                    const bool was_reassigned = std::exchange(actor->reassigned, false);
                     spot(*skill, now_ms);
+                    // Teleport's do (FUN_005ca360) returns 0 on every refusal, and FUN_0056f7f0 then stops before the payment (0x56fa3d; srvmissile -1): a refused hop is free.
+                    if (skill->srvdofunc == ServerDoFunction::kTeleport && !actor->reassigned) actor->character.stats.values[d2d::d2s::kMana] += actor->last_paid;
+                    actor->reassigned = actor->reassigned || was_reassigned;
                 } else if (skill && summon_skill(*skill)) {
                     summon(*skill, now_ms);
                 } else if (skill) {

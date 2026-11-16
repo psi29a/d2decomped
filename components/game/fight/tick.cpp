@@ -125,8 +125,9 @@ auto Fight::start_delay(std::uint32_t now_ms) -> void {
 
 auto Fight::pay(const d2d::rules::Skill& skill, int lvl) -> void {
         auto& mana = actor->character.stats.values[d2d::d2s::kMana];
+        actor->last_paid = 0;
         if (from_charges(skill.id)) (void)use_charge(actor->character.items, actor->item_charge);
-        else mana -= d2d::rules::mana_paid(skill, lvl, mana);
+        else { actor->last_paid = d2d::rules::mana_paid(skill, lvl, mana); mana -= actor->last_paid; }
     }
 
 // A skill with no start function pays in its do, on the cast mode's action frame (FUN_0056f7f0 ->
@@ -145,6 +146,7 @@ auto Fight::owe(const d2d::rules::Skill& skill, int lvl) -> void {
 
 auto Fight::settle_cast() -> void {
         const auto owed = std::exchange(actor->owed, {});
+        actor->last_paid = 0;                                   // nothing owed: nothing to give back
         const auto* skill = owed.skill >= 0 ? game_data->skills.get(owed.skill) : nullptr;
         if (skill) pay(*skill, owed.lvl);
     }
