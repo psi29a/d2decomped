@@ -130,10 +130,13 @@ inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, s
     if (!whole) return out;
     std::uint32_t offset = heads[std::size_t(layer)], previous = 0;
     while (offset != 0) {
-        unsigned char record[32];
+        unsigned char record[32]{};
         file.seekg(std::streamoff(offset));
-        file.read(reinterpret_cast<char*>(record), 32);
-        if (file.gcount() != 32) break;
+        // FUN_00458750 zeroes all eight words, then makes eight unchecked
+        // four-byte reads. EOF therefore leaves the missing words zero.
+        for (std::size_t word = 0; word < 8; ++word)
+            file.read(reinterpret_cast<char*>(record + word * 4), 4);
+        file.clear();
         const auto cut = [&] {   // FUN_004586e0: the previous record's next, or the head, to 0
             const auto read_at = file.tellg();
             if (previous != 0) {
