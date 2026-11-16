@@ -712,11 +712,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     };
     const auto belt_can_fill = [&] {
         if (!scene) return false;
-        auto trial = character.items;
         const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
         for (const auto& carried : character.items) {
             if (carried.location != d2d::d2s::item_location::kStored || !belt_potion(carried.code)) continue;
-            auto copy = trial;
+            auto copy = character.items;
             if (d2d::rules::auto_belt(scene->rules, copy, carried.id, boxes)) return true;
         }
         return false;
@@ -851,7 +850,7 @@ void Town::touch_refresh_skill_aim() {
     const auto* info = scene ? scene->skills.get(skill) : nullptr;
     const bool directional = info && (info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport
                                       || info->srvdofunc == d2d::rules::ServerDoFunction::kWarCry);
-    const auto picked = pad_pick(touch_player, view.player, false, pad_aim(skill, true));
+    const auto picked = scene ? pad_pick(touch_player, view.player, false, pad_aim(skill, true)) : PadPick{};
     const bool manual = touch::swipe_aims(touch_input.dragged, directional, picked.kind == PadPick::kMonster);
     touch_input.preview = resolve_skill(touch_player, skill, dx, dy, manual);
 }

@@ -20,6 +20,7 @@
 #include <exception>
 #include <filesystem>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace filesystem = std::filesystem;
@@ -51,7 +52,7 @@ int main() try {
     const Level* town = world.level;
     const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
     assert(moor);
-    auto wanderer = character;
+    auto wanderer = std::move(character);
     wanderer.name = "Wanderer";
     auto& second = world.join(wanderer);
     second.on_level = moor;
