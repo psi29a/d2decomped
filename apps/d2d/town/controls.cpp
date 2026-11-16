@@ -17,6 +17,7 @@
 
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
+#include <d2gs/s2c.hpp>
 #include <d2gs/wire.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -202,12 +203,12 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         if (!net_game) return party_preview;
         for (const auto& [unit_key, unit] : net_game->units) {
             if (unit.type != 0 || unit.id == net_game->self_id || unit.name.empty()) continue;
-            PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0 };
+            PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0, unit.sort_key };
             row.area = area_name(unit.area);
             rows.push_back(std::move(row));
         }
         const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
-        PartyPanel::order(rows, self != net_game->units.end() ? self->second.party : 0xffff);
+        PartyPanel::order(rows, self != net_game->units.end() ? self->second.party : 0xffff, d2d::net::d2gs::s2c::roster_by_sort_key(net_game->game_flags));
         return rows;
     }
 

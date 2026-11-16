@@ -503,7 +503,11 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   (0x1000 / 0x2000, FUN_00555da0's mask 0x3e01). Those bits are not in
   the walk grid. `World::tick` points `Loot::standing` at that crowd
   before `Fight::update_fighters`, which is where the drop runs, and
-  again for the rest of the tick. Its walk stays on one level, no neighbours'.
+  again for the rest of the tick. The cells it reads are the rooms
+  FUN_0064ca50 finds through FUN_00463740: the dropper's room and its
+  near list (`automap_rooms`, the next level's close rooms too), 0x27
+  off them, so a drop by a level's edge can land on the next level's
+  floor (`Loot::landing`; test_drop_at).
 - An assassin opens a locked chest without a key (player +4 == 6) isn't
   modeled; the events aren't either. A player opening a barrel kicks it
   (FUN_005868a0: skill 1, Kick, KK at the barrel; World::operate).

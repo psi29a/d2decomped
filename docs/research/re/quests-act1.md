@@ -879,7 +879,10 @@ as the first chest's room comes up after it; a chest listed later gets none
 `init_new_objects`). Each spawner is a missile unit (`FUN_0056ede0` →
 `FUN_00555230` type 3): one game seed step makes its unit seed {low, 666}
 (`FUN_00552df0`; no item step), and its frame (`FUN_005af300`) rolls the
-gold piles' offsets rand(2r + 1) − r on that seed.
+gold piles' offsets rand(2r + 1) − r on that seed. The missile frames
+while its room is up, not only with a player on the cellar: d2d's
+`World::tower_treasure` runs from any level (its rooms stay up), the
+drops kept on the cellar's floor.
 
 - Mon 326 is the invisible owner (trap-firebolt class). Every chest shares the same owner.
 

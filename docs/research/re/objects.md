@@ -99,8 +99,8 @@ its frame (the state's end, the reset, `UnitState::says`), the state's
 overlays through `player_states`, the message drawn in ingame.cpp.
 ponytail: the timer 5 / 6 handlers aren't traced (5 taken as the reset);
 stat 162 (skill_staminapercent, 0 without the skill) left out; the shrine
-object's icon overlays (fnA) not drawn; the overhead chat's font, colour
-and height guessed.
+object's icon overlays (fnA) not drawn. The overhead box: chat.md
+"Drawing an overhead message".
 
 **Chest init** (InitFn 3, `FUN_0054fcb0`), stored in
 the object's flag byte:
@@ -634,7 +634,9 @@ HasCollision2 isn't. Object 0xbd steps 2 → 3 → 4 the same way.
 
 d2d: `Npc::frame_delta`, `object_elapsed` (world_view.cpp) runs the
 counter; `World`'s operated objects go ON at the earlier applicable client
-counter or operate-function-specific server event (`object_op_ticks`, world/tick.cpp), with ON's footprint; the drawn unit takes
+counter or operate-function-specific server event (`object_op_ticks`, world/tick.cpp), with ON's footprint
+(one on a level with no player swaps its footprint at that time too: the
+server's event runs while its room is up, and d2d's rooms stay up); the drawn unit takes
 ON's selectable bit and light from its mode. Not ported: the rate's roll (no client unit seed), OrderFlag2
 and Parm7.
 

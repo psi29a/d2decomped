@@ -10,6 +10,7 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <loot.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -87,6 +88,19 @@ int main() try {
     assert(opened());
     std::printf("OK: only chests up when it's made get spawners; the chest opens on the 152nd frame\n");
 
+    // The spawner frames while its room's up, the player elsewhere (in camp):
+    // the chest opens all the same, its drops kept on the cellar's floor.
+    world.operated.clear();
+    world.loot.kept[cellar].clear();
+    world.loot.ground.clear();
+    world.treasure.front().left = Tower::kTreasureLife;
+    world.level = &data->town;
+    for (int frame = 0; frame < 152; ++frame) world.tower_treasure(0);
+    const auto on_cellar_floor = world.loot.ground_level == cellar ? world.loot.ground.size() : world.loot.kept[cellar].size();
+    assert(opened() && on_cellar_floor >= 4);   // three rounds, then hp / hp / mp / mp
+    world.level = cellar;
+    std::printf("OK: the treasure runs with the player off its level\n");
+
     // Her line waits for the treasure's end (unit event 0x5c at 1 left,
     // FUN_005af300 -> FUN_004dce10): 1 s after it, within 60 s of her death.
     const int line = data->sound_index.at("sorceress_act1_complete_tower");
@@ -106,6 +120,21 @@ int main() try {
     assert(lines(61'000) == 0 && !world.actor->tower_line_held);
     assert(hushes(75 * 40) == 1);                        // no second one
     std::printf("OK: her complete_tower line plays 1 s after the treasure's end, within 60 s\n");
+
+    // Split levels: the turn that ends it can be another level's; the
+    // player in the cellar still gets the line.
+    world.split_levels = true;
+    world.actor->on_level = cellar;
+    world.level = &data->town;
+    world.treasure.front().left = 1;
+    world.actor->tower_line_held = 90'000;
+    world.cues.due.clear();
+    world.tower_treasure(100'000);
+    assert(lines(101'000) == 1 && !world.actor->tower_line_held);
+    world.split_levels = false;
+    world.actor->on_level = nullptr;
+    world.level = cellar;
+    std::printf("OK: the line reaches the cellar's player from another level's turn\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

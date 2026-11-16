@@ -277,6 +277,13 @@ if(ANDROID)
     target_link_libraries(d2d PRIVATE -llog -lOpenSLES)   # the static OpenAL Soft's own (log alone is our component)
 else()
     add_executable(d2d)
+    # Windows gives main 1 MB; main's and load_scene's frames come near it
+    # (Sentry D2D-B): 16 MB, as Android's main thread (main.cpp).
+    if(MSVC)
+        target_link_options(d2d PRIVATE /STACK:16777216)
+    elseif(WIN32)
+        target_link_options(d2d PRIVATE -Wl,--stack,16777216)
+    endif()
 endif()
 target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem

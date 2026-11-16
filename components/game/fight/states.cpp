@@ -449,6 +449,9 @@ auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl, const
             damage.elo = missile_elem(*game_data, missile_info, env, skill_id, lvl, false);
             damage.ehi = std::max(missile_elem(*game_data, missile_info, env, skill_id, lvl, true), damage.elo);
         }
+        // FUN_0064b860's no-Skill branch (row +0x194 < 1): the row's own physical, FUN_0064af20 / FUN_0064aff0.
+        damage.phys_lo = missile_phys(*game_data, missile_info, env, skill_id, lvl, false);
+        damage.phys_hi = std::max(missile_phys(*game_data, missile_info, env, skill_id, lvl, true), damage.phys_lo);
         damage.srcdam = missile_info.src_damage;
         return damage;
     }
