@@ -510,7 +510,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
                     for (int bit = 0; bit < count && bit_at < end; ++bit, ++bit_at) value |= std::uint32_t(packet[bit_at / 8] >> (bit_at % 8) & 1) << bit;
                     return value;
                 };
-                CloakCast cast{ .x = unit.x, .y = unit.y };
+                // Our own unit's spot is host_x / host_y (0x95 / 0x96 move only those).
+                const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;
+                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
                 for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
                     if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) break;   // widths unknown: the rest can't be read
                     bits(stat_send_bits[stat].second);
@@ -531,6 +533,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0xaa:   // a unit's states as it comes into view: +1 type, +2 id, +6 length; bits from +7 (FUN_0045efa0)
         if (size >= 8) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;   // our spot is host_x / host_y
             auto& states = unit.states;
             states.clear();
             std::size_t bit_at = 7 * 8;
@@ -547,7 +550,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             // 153's dips the ambient (FUN_004d87e0).
             for (std::uint32_t state = 0; bit_at + 8 <= end && (state = bits(8)) != 0xff;) {
                 if (!std::ranges::contains(states, int(state))) states.push_back(int(state));
-                CloakCast cast{ .x = unit.x, .y = unit.y };
+                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
                 if (bits(1))
                     for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
                         if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) { bit_at = end; break; }   // widths unknown: the rest can't be read
