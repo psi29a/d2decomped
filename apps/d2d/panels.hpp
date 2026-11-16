@@ -168,7 +168,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // The maxima include what's worn (Fight::item_max).
 // The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
 // the client's frame (`frame`, 25 a second).
-// ponytail: no skill icons.
+// The skill buttons' icons aren't this draw's: SkillBar (skillbar.hpp)
+// draws them, as FUN_004a9870 (skills.md "Skill HUD").
 struct HudHover { int centre = 0, bottom = 0; TextLine line; };   // a bar's hover text, centred on `centre`
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
              std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's

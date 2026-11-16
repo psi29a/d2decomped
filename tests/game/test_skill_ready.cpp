@@ -3,7 +3,8 @@
 // Whether a Sorceress's skill can go now (Fight::skill_status, FUN_00647960) and the client's ask
 // before it goes (Fight::ask, FUN_004610c0), on the real Skills.txt rows. The statuses are
 // game.exe's: tools/emu/skill_status.py (cases usable, no_mana, aura, passive, inferno_start_5 /
-// _6, inferno_burning_5, delay_meteor, delay_meteor_off, delay_fire_bolt, delay_meteor_no_mana)
+// _6, inferno_burning_5, delay_meteor, delay_meteor_off, delay_fire_bolt, delay_meteor_no_mana,
+// restricted, no_mana_restricted)
 // and `skill_status.py client` (Jab: status 2 goes as Attack, 0).
 
 #include <character.hpp>
@@ -123,7 +124,14 @@ int main() try {
     mana = 100 * 256;
     cast_through(kWerewolf);
     assert(fight.state_of("wolf") && mana < max_mana && actor->skill_delay > now);
+    // Restrict (FUN_00644060): Fire Bolt's 0 refuses the wolf (restricted), after the mana (no_mana_restricted).
+    assert(fight.skill_status(kFireBolt, now) == 4);
+    const auto wolf_mana = mana;
+    mana = 0;
+    assert(fight.skill_status(kFireBolt, now) == 1);
+    mana = wolf_mana;
     cast_through(kWerewolf);
+    assert(fight.skill_status(kFireBolt, now) == 0);                    // back in her own form
     assert(!fight.state_of("wolf") && mana == max_mana && actor->skill_delay > now);
     cast_through(kWerewolf);
     cast_through(kWerebear);

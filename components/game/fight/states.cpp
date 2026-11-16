@@ -501,7 +501,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {
-                    const int offset_x = radius - int(rng(2 * radius + 1)), offset_y = radius - int(rng(2 * radius + 1));
+                    const auto [offset_x, offset_y] = d2d::rules::release_scatter_offset(rng, radius);   // rng: deviations.md approximation 18
                     if (offset_x * offset_x + offset_y * offset_y > radius * radius) continue;
                     const float x = target_x + float(offset_x) / 5, y = target_y + float(offset_y) / 5;
                     if (!level->blocked(x, y, 0x04)) put(x, y, 0, 0, missile_info->range + missile_info->lev_range * lvl);

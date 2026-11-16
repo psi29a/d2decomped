@@ -273,8 +273,18 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (line.type == 2) add_chat(line.name + string_id(*scene, 0xe46) + line.message, 2);
                 else add_chat(line.name + string_id(*scene, 0xfd0) + line.message, line.colour, line.name.size());
             }
-            for (const auto& event : std::exchange(net_game->events, {}))
+            for (const auto& event : std::exchange(net_game->events, {})) {
                 if (auto text = event_text(event); !text.empty()) add_chat(text, event.colour);
+                // 0x12 also (0x49f319..0x49f360) turns the act's day to
+                // phase 5, time 0, eclipse (FUN_0061c240, as S->C 0x53), quakes
+                // 6 / 4000 / 10000 / 4000 (FUN_00476a80: power, rise, hold, fall)
+                // and plays Sounds.txt 0x1220 (FUN_004b9a00, no unit).
+                if (event.event == 0x12) {
+                    world.day.set(5, 0, true);
+                    shake.start(6, 4000, 10000, 4000, frame_ms);
+                    audio.play_sfx(*scene, 0x1220, 1.f, 0);
+                }
+            }
         }
         std::erase_if(chat_lines, [&](const auto& line) { return frame_ms >= line.until; });
         for (const auto key : keys_this_frame) {

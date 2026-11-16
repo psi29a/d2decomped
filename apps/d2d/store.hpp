@@ -66,10 +66,13 @@ void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // carried gold, the stash's when withdrawing; 10 digits) bottom 228 from
 // x 258, 100 wide; buysellbtn OK (frame 16, 0xd49) and Cancel (10,
 // 0x102e) bottom 287 at x 250 / 355. The prompt is Font16: the box's only
-// set_font is ECX 1 (0x454285, before FUN_00502970(200)).
-// ponytail: the amount and button labels are Font16 too, untraced (the
-// widgets' own, FUN_004bbd80 / FUN_004bb0f0); positions as the 800x600
-// game reads them.
+// set_font is ECX 1 (0x454285, before FUN_00502970(200)). The amount is
+// too: FUN_004bbd80's last argument 1 is the edit box's font (+0x4e, set
+// at 0x4bb246 / 0x4bb7fa). A button's label (FUN_004bb0f0; the 0x7275a8
+// table's string) shows only while the mouse is over its art, edges in
+// (ButtonImplementation's draw 0x4bb000, vtable 0x6da6f4 slot 1): Font16
+// (ECX 1 at 0x4bb088), colour 0, centred by (art width - text) / 2,
+// baseline the art's top - 5. Positions as the 800x600 game reads them.
 struct GoldBox {
     int mode = 0;
     std::string amount;            // as typed
@@ -79,7 +82,7 @@ struct GoldBox {
 };
 enum class GoldBoxPart { kNone, kUp, kDown, kOk, kCancel };
 GoldBoxPart gold_box_at(int mouse_x, int mouse_y);
-void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms);
+void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms, int mouse_x, int mouse_y);
 
 // FUN_00486820's boxes, 20x18 up from the bottom-left: the stash's coin
 // at (153, 102), the inventory's at (483, 471).

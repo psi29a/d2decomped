@@ -106,10 +106,8 @@ inline int desc_missile_operand(const GameData& game_data, const d2d::rules::Cal
 // (+0x38..+0x48), CltParam1..5 (+0x58..+0x68), shp1..3 (sHitPar, +0x4c..),
 // cHitPar1..3 (+0x6c..+0x74), dParam1 / 2 (+0x78 / +0x7c), lvl, edmn /
 // edmx (>> 8), edln, edns / edxs (256ths), Range + LevRange x lvl, and
-// pairs as a + b x (lvl - 1) or dm (FUN_00645b20) by level.
-// ponytail: damn..dmxs (24..27, the physical part, FUN_0064af20 / 0064aff0)
-// isn't built: they read 0. No vanilla SkillDesc miss() line reads them
-// (Royal Strike's wants edns / edxs).
+// pairs as a + b x (lvl - 1) or dm (FUN_00645b20) by level; codes 24 / 25
+// (>> 8) and 26 / 27 (256ths) its physical part (missile_phys).
 inline int miss_operand(const GameData& game_data, const d2d::rules::CalcEnv& env, int skill_id, int missile_id, int code, int lvl) {
     const auto& names = game_data.skills.names.missiles;
     const auto named = std::ranges::find_if(names, [&](const auto& entry) { return entry.second == missile_id; });
@@ -133,6 +131,8 @@ inline int miss_operand(const GameData& game_data, const d2d::rules::CalcEnv& en
         case 19: case 20: return missile_elem(game_data, *missile, env, skill_id, lvl, code == 20) >> 8;
         case 21: return missile->elen + d2d::rules::length_bonus(missile->elen_lev, lvl);
         case 22: case 23: return missile_elem(game_data, *missile, env, skill_id, lvl, code == 23);
+        case 24: case 25: return missile_phys(game_data, *missile, env, skill_id, lvl, code == 25) >> 8;
+        case 26: case 27: return missile_phys(game_data, *missile, env, skill_id, lvl, code == 27);
         case 28: return missile->lev_range * lvl + missile->range;
         case 29: return linear(missile->param1, missile->param2);
         case 30: return d2d::rules::calc_dm(missile->param1, missile->param2, lvl);

@@ -54,7 +54,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 
 | # | What | game.exe | d2d now | Visible | Where |
 |---|---|---|---|---|---|
-| 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain` |
+| 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain, multiplied button labels) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain`, font.hpp `draw_tinted_baseline` |
 | 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | Each pixel bilinear between the subtile corners round the ground under it | hardly | tile_blit.hpp `blit_dt1_tile_lit` |
 | 3 | Unit shadows | Each layer drawn through the alpha table (untraced whether overlaps darken twice) | A composite darkens each pixel once | hardly | world_view.hpp `shadow_composite` |
 | 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
@@ -71,6 +71,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 15 | Video Options' Resolution | 640x480 or 800x600: the game window and its layout change size | The row and its two choices show, but the game stays 800x600: d2d's panels have no 640x480 layout (the in-game view widens only with `--widescreen`) | yes: picking 640x480 changes nothing | gamemenu.cpp `kVideo` |
 | 16 | Battle.net | BATTLE.NET (title) and OPEN BATTLE.NET (Other Multiplayer) connect to a realm or an open Battle.net game through the gateway | Both buttons show, as does GATEWAY: LOCAL; a click on either does nothing: d2d has no Battle.net client | yes | frontend.cpp `title_ui`, `other_multiplayer_ui` |
 | 17 | Cinematic timing | binkw32's `_BinkWait` paces the frames, synced to its DirectSound stream (`FUN_0050fdf0`) | Each frame at its pts by the wall clock; the audio queued as it decodes, no drift correction | hardly (24 fps, interleaved files) | video.hpp `Player::advance`, video.md |
+| 18 | Rolls on a unit's own seed | Some server rolls step the rolling unit's seed (unit +0x20): the player's or a new summon's | The fight's one rng (`Fight::rng`), with the same bounds: d2d keeps no seed on the player or a summon, and the server's rolls aren't sent to clients, only their results | no (same odds; only a replay of game.exe's exact rolls differs) | the comments in components/game/fight that cite approximation 18 |
 
 425 smaller shortcuts are marked `ponytail:` in components/ and apps/
 (2026-10-31; `git grep -n ponytail: -- components apps | wc -l`); this table holds

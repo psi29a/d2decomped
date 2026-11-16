@@ -84,6 +84,21 @@ auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
         if (skill_refused(*game_data, actor->character, skill)) return 2;
         const auto mana = actor->character.stats.values[d2d::d2s::kMana];
         if (mana < cost_of(*row, lvl)) return 1;
+        // FUN_00644060: restrict 0 refuses a player in a restrict state (FUN_0063a510: wolf, bear), 2 asks for
+        // one and for one of State1..3 (the list ends at the first empty), any other value passes.
+        if (row->restrict_form == 0 || row->restrict_form == 2) {
+            const bool shifted = std::ranges::any_of(actor->self_states, [&](const auto& held) {
+                const auto* held_row = game_data->skills.get(held.skill);
+                const auto found = held_row ? game_data->states.find(held_row->aurastate) : game_data->states.end();
+                return found != game_data->states.end() && found->second.restrict_form;
+            });
+            bool listed = false;
+            for (const auto& name : row->restrict_states) {
+                if (name.empty()) break;
+                if (state_of(name)) { listed = true; break; }
+            }
+            if (row->restrict_form == 0 ? shifted : !(shifted && listed)) return 4;
+        }
         if (row->startmana > 0 && mana < std::int64_t(row->startmana) * 256 && now_ms >= actor->burning) return 1;   // FUN_006440f0
         if (now_ms < actor->skill_delay && d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), skill, lvl) > 0) return 8;   // FUN_006478f0
         return 0;

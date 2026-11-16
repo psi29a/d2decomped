@@ -372,7 +372,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound },
                                     std::pair{ "ProgSound", &missile_info.prog_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
- missile_info.elen = number("ELen"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
+ missile_info.elen = number("ELen"); missile_info.dmg_sym_text = missiles_table.get(row_index, "DmgSymPerCalc"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -543,6 +543,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
+        skill_row.restrict_form = number("restrict");
+        for (std::size_t slot = 0; slot < 3; ++slot) skill_row.restrict_states[slot] = text("State" + std::to_string(slot + 1));
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
         skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana"); skill_row.startmana = number("startmana");
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
@@ -629,7 +631,14 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             }
         }
     }
-    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calc names skills
+    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calcs name skills
+        if (!missile_info.dmg_sym_text.empty()) {
+            std::string err;
+            missile_info.dmg_sym = d2d::rules::compile_calc(missile_info.dmg_sym_text, skill_tables.names, &err);
+            ++calcs;
+            if (!err.empty()) bad.push_back(name + " DmgSymPerCalc: " + err);
+        }
+    for (auto& [name, missile_info] : game_data.missiles)
         if (!missile_info.edmg_sym_text.empty()) {
             std::string err;
             missile_info.edmg_sym = d2d::rules::compile_calc(missile_info.edmg_sym_text, skill_tables.names, &err);
@@ -853,6 +862,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             state.group = std::atoi(std::string(states_table.get(row, "group")).c_str());
             state.curse = states_table.get(row, "curse") == "1";
+            state.restrict_form = states_table.get(row, "restrict") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());

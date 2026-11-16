@@ -136,8 +136,8 @@ struct SnapGrid {
 
 [[nodiscard]] inline bool snap_grid_cell(const SnapGrid& grid, float mouse_x, float mouse_y, int& col, int& row) {
     if (grid.cols <= 0 || grid.rows <= 0 || grid.box_w <= 0.f || grid.box_h <= 0.f) return false;
-    const float adj_x = mouse_x - grid.x - float((grid.item_w - 1) * grid.box_w) / 2.f;
-    const float adj_y = mouse_y - grid.y - float((grid.item_h - 1) * grid.box_h) / 2.f;
+    const float adj_x = mouse_x - grid.x - float(grid.item_w - 1) * grid.box_w / 2.f;
+    const float adj_y = mouse_y - grid.y - float(grid.item_h - 1) * grid.box_h / 2.f;
     col = int(std::floor(adj_x / grid.box_w));
     row = int(std::floor(adj_y / grid.box_h));
     const float left = grid.x, top = grid.y;
@@ -153,8 +153,8 @@ struct SnapGrid {
 }
 
 inline std::pair<float, float> snap_grid_point(const SnapGrid& grid, int col, int row) {
-    return { grid.x + float((grid.item_w - 1) * grid.box_w) / 2.f + (float(col) + 0.5f) * grid.box_w,
-             grid.y + float((grid.item_h - 1) * grid.box_h) / 2.f + (float(row) + 0.5f) * grid.box_h };
+    return { grid.x + float(grid.item_w - 1) * grid.box_w / 2.f + (float(col) + 0.5f) * grid.box_w,
+             grid.y + float(grid.item_h - 1) * grid.box_h / 2.f + (float(row) + 0.5f) * grid.box_h };
 }
 
 inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy, bool can_fill = false) {

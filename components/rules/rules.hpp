@@ -2303,12 +2303,15 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         staff_mods();
         return finish();
     }
+    // Magic with no unit seed (or no base): not game.exe's, and no game
+    // path comes here: drops, stores, gambles and the cube pass a unit
+    // seed, the starting kit is normal and an imbue rare. Tests only.
     item.quality = 4;
-    const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both (no unit seed: stores' gambles and imbues)
+    const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
     if (!item.prefix && !item.suffix) return generate_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
-    return item;                                           // ponytail: without a unit seed magic isn't game.exe's
+    return item;
 }
 
 // Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
@@ -2519,9 +2522,9 @@ inline std::string gamble_upgrade_code(const Tables& tables, const std::string& 
 // unidentified, and put on its type's page; one that doesn't fit ends the
 // roll. The list is the player's (FUN_00578ae0 rolls when the vendor holds
 // none for them) and lasts the talk: ending it (C->S 0x30, FUN_00572f20 ->
-// FUN_00537190) frees it, so each talk rolls a new one.
-// ponytail: FUN_00572f20 frees it only when no other player is still
-// talking to the vendor; d2d rolls anew at every opening regardless.
+// FUN_00537190) frees it, so each talk rolls a new one; FUN_00572f20
+// frees it only when no other player is still talking to the vendor, and
+// a list kept that way comes back at the player's next talk (World::deal).
 inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int difficulty, bool expansion, Rng& proxy, Rng& game,
                          std::vector<bool>* found_uniques = nullptr) {
     Store store;
