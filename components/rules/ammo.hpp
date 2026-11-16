@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Ammunition: whether a stack has any left (FUN_0062a310), what a
-// shot spends (FUN_0056c310) and what a hand's item does once it has none
-// (FUN_00580030, .\PLAYER\PlrModes.cpp).
+// shot spends (FUN_0056c310), what a hand's item does once it has none
+// (FUN_00580030, .\PLAYER\PlrModes.cpp) and the weapon put back after
+// (FUN_0057ff70).
 // docs/research/re/skills.md "Shots and ammo". Checked against
 // game.exe's own code by tools/emu/items_traces2.py (FUN_0062a310),
-// tools/emu/ammo_out.py (FUN_00580030; tests/test_ammo_out.cpp) and
-// tools/emu/shot_spent.py (FUN_0056c310; tests/test_shot_spent.cpp).
+// tools/emu/ammo_out.py (FUN_00580030; tests/test_ammo_out.cpp),
+// tools/emu/shot_spent.py (FUN_0056c310; tests/test_shot_spent.cpp) and
+// tools/emu/reequip.py (FUN_0057ff70; tests/test_reequip.cpp).
 #pragma once
 
 #include "replenish.hpp"
@@ -65,8 +67,7 @@ enum class SpentFate {
     leaves,     // off its slot (FUN_00560cd0)
 };
 // `reload`: the pack's first of its code, not broken, is put in its slot
-// (reload_pick). `reequip`: when none took it, game.exe's ReEquip runs.
-// ponytail: that step, FUN_0057ff70, isn't ported (Fight::out_of_ammo).
+// (reload_pick). `reequip`: when none took it, ReEquip runs (reequip_slot).
 struct Spent {
     SpentFate fate = SpentFate::stays;
     bool reload = false, reequip = false;
@@ -90,6 +91,29 @@ struct PackItem { bool same_class = false, broken = false; };
     for (std::size_t at = 0; at < pack.size(); ++at)
         if (pack[at].same_class && !pack[at].broken) return int(at);
     return -1;
+}
+
+// FUN_0057ff70, ReEquip (the player in EDI; the game and the spent slot on
+// the stack, `ret 8`). The player keeps one item's unit id (FUN_00623410,
+// player data +0x90): the weapon wielded when an item last went on a body
+// slot (equip's `kept_weapon`, wield_settle). With one kept (not 0) it goes
+// back on (FUN_00562a30) when it is of the game (FUN_00552f60, unit type
+// 4), on page 0, the inventory (FUN_00628250), the player's (FUN_0063ad50),
+// and FUN_0055d710 (mode 0: auto_equip_slot) finds it a slot: that slot,
+// else -1. The spent slot only seeds the slot found. A found slot that isn't
+// empty is fatal (line 0x4ea); auto_equip_slot finds only empty ones. The
+// kept id is cleared (FUN_006233a0 at 0x58001d) whenever one was kept, put
+// on or not.
+struct KeptWeapon {
+    int id = 0;               // FUN_00623410's answer, 0 none
+    bool of_game = false;     // FUN_00552f60 finds it
+    int page = 0xff;          // FUN_00628250: 0 the inventory
+    bool ours = false;        // FUN_0063ad50: in the player's inventory
+    int found_slot = -1;      // FUN_0055d710 mode 0's slot, -1 none
+};
+[[nodiscard]] inline int reequip_slot(const KeptWeapon& kept) {
+    if (kept.id == 0 || !kept.of_game || kept.page != 0 || !kept.ours) return -1;
+    return kept.found_slot;
 }
 
 }  // namespace d2d::rules

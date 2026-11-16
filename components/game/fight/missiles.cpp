@@ -139,23 +139,47 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         }
         // FUN_00560cd0 refuses with an item on the cursor (FUN_0063c1e0 at 0x560d23): the spent stack
         // stays in its slot, so no reload takes it (0x5801a3); the next refused shot tries again.
-        if (actor->held) return;
-        const std::string code = item.code;
-        const auto slot = item.slot;
-        d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
-        actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
-        // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
-        const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
-            return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
-        // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
-        // ponytail: spent.reequip (0x5801bb): when no reload took the slot, FUN_0057ff70 puts back the weapon
-        // wielded before the last one was put on (the player's +0x90, FUN_006233a0), if the pack still holds it.
-        if (next != actor->character.items.end()
-            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
-            next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
-            d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
+        const bool taken_off = !actor->held;
+        bool took = false;
+        if (taken_off) {
+            const std::string code = item.code;
+            const auto slot = item.slot;
+            d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
+            actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
+            // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
+            const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
+                return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
+            // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+            if (next != actor->character.items.end()
+                && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
+                next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
+                d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
+                took = true;
+            }
         }
-        settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
+        // 0x5801bb: no reload took the slot (the cursor's refusal too) and the type has ReEquip.
+        const bool reequipped = !took && spent.reequip && reequip();
+        if (taken_off || reequipped) settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
+    }
+
+auto Fight::reequip() -> bool {
+        using namespace d2d::d2s;
+        auto& items = actor->character.items;
+        const auto& tables = game_data->rules;
+        d2d::rules::KeptWeapon weapon{ .id = std::exchange(actor->kept_weapon, 0) };   // FUN_00623410; cleared at 0x58001d (FUN_006233a0)
+        const auto found = weapon.id != 0 ? std::ranges::find(items, weapon.id, &Item::id) : items.end();
+        if (found != items.end()) {
+            weapon.of_game = weapon.ours = true;   // FUN_00552f60 / FUN_0063ad50: the player's items are the game's and theirs
+            weapon.page = found->location == item_location::kStored && found->panel == item_panel::kInventory ? 0 : 0xff;   // FUN_00628250
+            if (weapon.page == 0)
+                weapon.found_slot = d2d::rules::auto_equip_slot(tables, items, *found, wearer(*game_data, actor->character.header.cls, items, actor->character.stats),
+                                                              required_level(*game_data, *found, actor->character.header.cls));   // FUN_0055d710 mode 0
+        }
+        const int slot = d2d::rules::reequip_slot(weapon);
+        if (slot < 0) return false;
+        found->location = item_location::kEquipped; found->slot = slot; found->panel = found->column = found->row = 0;
+        d2d::rules::wield_enters(tables, items, *found);   // FUN_00562a30 -> FUN_0063d1d0
+        return true;
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {

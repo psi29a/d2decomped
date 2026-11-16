@@ -870,20 +870,34 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   both. Step 3's `FUN_00560cd0` refuses with something on the cursor
   (`FUN_0063c1e0` at 0x560d23, answer 0 before the slot is asked) and
   `FUN_00580030` ignores its answer: the spent stack stays in its slot,
-  which the reload then finds full (0x5801a3). V
-  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` returns while
-  `Hero::held` is set. Not ported: step 4 (a `ponytail:` in
-  `Fight::out_of_ammo`).
-- **ReEquip** (`FUN_0057ff70`, cited, not run): the player keeps one item
-  id (player data `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads
-  it): the wielded weapon (`FUN_0063bef0`) at the time an item is put on a
-  body slot (`FUN_005606b0`, not the switch slots 11 / 12; `FUN_00560f00`,
-  a swap, before its requirements check; `FUN_00563d20`, after it). With
-  an id kept, the item it names is put on when it is of the game
-  (`FUN_00552f60`), on page 0 (`FUN_00628250`), in the player's inventory
-  (`FUN_0063ad50`) and `FUN_0055d710` (mode 0, the auto-equip) finds it a
-  slot: `FUN_00562a30`; a slot found that isn't empty is fatal (line
-  0x4ea). The id is then cleared, found or not. d2d: not ported.
+  which the reload then finds full (0x5801a3), so step 4 still runs. V
+  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` keeps the
+  stack while `Hero::held` is set, then ReEquip.
+- **ReEquip** (`FUN_0057ff70`: the player in EDI, the game and the spent
+  slot on the stack, `ret 8`): the player keeps one item id (player data
+  `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads it; nothing else
+  calls either). The writers keep the wielded weapon (`FUN_0063bef0`, only
+  when there is one: none leaves the id as it was) as an item is put on a
+  body slot: `FUN_005606b0` (an empty slot, not the switch slots 11 / 12),
+  `FUN_00560f00` (a swap, code 5), `FUN_00563d20` (code 2), each once
+  `FUN_0063de60` (with the requirements, `FUN_0062eaf0`) said yes. Code 7
+  (`FUN_00561220`), the reload (`FUN_00562a30`) and the pickup's auto-equip
+  (`FUN_00562e00`) don't. `FUN_005606b0` also runs for a save's worn items
+  (`FUN_00531040` case 1, the requirements skipped) and a new character's
+  gear (`FUN_00534bb0`), so the load keeps one too; its other callers
+  (`FUN_0056d5f0`, `FUN_005c5250`: an item made into an empty hand;
+  `FUN_0054ad90`, `FUN_0054ced0`) are not traced here. With an id kept,
+  the item it names goes on when it is of the game (`FUN_00552f60`, unit
+  type 4), on page 0, the inventory (`FUN_00628250`), in the player's
+  inventory (`FUN_0063ad50`) and `FUN_0055d710` (mode 0, the auto-equip)
+  finds it a slot: `FUN_00562a30`. The spent slot only seeds that slot. A
+  slot found that isn't empty is fatal (line 0x4ea). The id is then
+  cleared (0x58001d), put on or not. V (`tools/emu/reequip.py`: 20,000
+  cases, the four accessors run, every instruction reached but the fatal).
+  d2d: `rules::reequip_slot` matches all (`tests/test_reequip.cpp`);
+  `Hero::kept_weapon` (written by `rules::equip`, `equip_from_bag` and
+  `wield_settle` through `World::take_character`), read by
+  `Fight::reequip`; test_game_missiles checks it end to end.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the

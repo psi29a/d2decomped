@@ -410,6 +410,46 @@ int main() try {
                    return item.code == "tkf" && item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm && item.quantity == 0; }) == 1);
         assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kStored && item.quantity == 9; }) == 1);
         world.actor->held.reset();
+        // ReEquip (0x5801bb -> FUN_0057ff70): knives put on over a wielded short sword keep it (ToBody's
+        // swap, FUN_00560f00 -> FUN_006233a0); the last one thrown and none in the pack, the sword, put
+        // in the pack, goes back on (FUN_0055d710 mode 0, FUN_00562a30) and the kept id is cleared.
+        namespace body = d2d::d2s::body_location;
+        const auto in_hands = [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == body::kRightArm || item.slot == body::kLeftArm); };
+        const auto knives_on_sword = [&] {
+            items = kept_items;
+            std::erase_if(items, in_hands);
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf"; });
+            items.push_back({ .code = "ssd", .location = d2d::d2s::item_location::kEquipped, .slot = body::kRightArm, .identified = true });
+            items.back().id = 9101;
+            d2d::rules::wield_settle(data->rules, items);
+            world.actor->kept_weapon = 0;
+            world.actor->held = d2d::d2s::Item{ .code = "tkf", .identified = true, .quantity = 1 };
+            world.actor->held->id = 9102;
+            world.apply(d2d::game::cmd::ToBody{ body::kRightArm }, 5000 * kTickMs);
+            assert(world.actor->kept_weapon == 9101 && world.actor->held && world.actor->held->id == 9101);
+            auto sword = std::move(*world.actor->held);
+            world.actor->held.reset();
+            sword.location = d2d::d2s::item_location::kStored; sword.panel = d2d::d2s::item_panel::kInventory;
+            items.push_back(std::move(sword));
+            return std::size_t(std::ranges::find(items, 9102, &d2d::d2s::Item::id) - items.begin());
+        };
+        const auto sword_at = [&] { return std::ranges::find(items, 9101, &d2d::d2s::Item::id); };
+        world.fight.out_of_ammo(knives_on_sword());
+        assert(sword_at()->location == d2d::d2s::item_location::kEquipped && sword_at()->slot == body::kRightArm && sword_at()->wielded);
+        assert(world.actor->kept_weapon == 0 && std::ranges::none_of(items, [](const d2d::d2s::Item& item) { return item.code == "tkf"; }));
+        // Out of the pack (the stash): not put on, the id cleared all the same (0x58001d).
+        auto spent = knives_on_sword();
+        sword_at()->panel = d2d::d2s::item_panel::kStash;
+        world.fight.out_of_ammo(spent);
+        assert(sword_at()->location == d2d::d2s::item_location::kStored && world.actor->kept_weapon == 0);
+        // With an item on the cursor the spent stack stays in the right hand, and ReEquip still runs: a
+        // Barbarian's sword goes with it (rules::hands_ok), into the left.
+        spent = knives_on_sword();
+        world.actor->held = d2d::d2s::Item{ .code = "hp1", .identified = true };
+        world.fight.out_of_ammo(spent);
+        assert(items[spent].code == "tkf" && items[spent].slot == body::kRightArm && items[spent].quantity == 0);
+        assert(sword_at()->location == d2d::d2s::item_location::kEquipped && sword_at()->slot == body::kLeftArm && world.actor->kept_weapon == 0);
+        world.actor->held.reset();
         dexterity = kept_dexterity;
         // An empty quiver in hand: the shot is refused and the inventory's quiver swapped in (FUN_005da8b0 -> FUN_00580310).
         items = kept_items;
