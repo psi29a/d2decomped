@@ -379,6 +379,11 @@ gate, both price calls, the ask, the box, the sound, the click clear) over
 12,814 cases, `FUN_004b1f80` for real over 2,240 leaf-answer combinations;
 `test_shop_action` gives d2d the same cases (fixtures `shop_action_cases.inc`,
 `shop_gate_cases.inc`).
+
+The shop oracle also runs `FUN_0062a840` directly with synthetic packed
+entries, including empty, full and mixed lists, with and without its
+optional output pointer.
+
 Not traced, not claimed: what the confirm box (`FUN_004b2f50`, 714 bytes:
 text 0xbf cut at a newline, a number from `FUN_004b2ad0`, handlers
 `0x4b2e70` / `0x4b2f00`) and `FUN_004b2650`'s packet fields do beyond what
