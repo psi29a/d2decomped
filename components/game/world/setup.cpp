@@ -207,7 +207,9 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.appearance = entering.appearance; actor->character.items = entering.items; actor->character.stats = entering.stats; actor->character.panel = entering.panel;
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
         actor->character.fresh = entering.fresh;
-        d2d::rules::wield_settle(game_data->rules, actor->character.items);
+        const int kept = d2d::rules::wield_settle(game_data->rules, actor->character.items);
+        item_ids();                                    // the kept weapon is its unit id (FUN_006233a0)
+        actor->kept_weapon = kept >= 0 ? actor->character.items[std::size_t(kept)].id : 0;
         for (auto& item : actor->character.items) d2d::rules::replenish_arm(game_data->rules, item);   // each saved item made: FUN_00558cb0 -> FUN_00558530 / FUN_00558580
         settle_requirements(*game_data, actor->character);   // the join: FUN_0052d440 -> FUN_0055df00 -> FUN_0055dbc0
         // A new game keeps the life and mana the save held, exactly, fraction

@@ -403,6 +403,22 @@ int main() try {
         held = item("jav"); held->quantity = 5; held->quality = 3;
         assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quality == 2);   // superior isn't normal: swapped, not stacked
     }
+    {   // FUN_006233a0: an item put on first keeps the weapon wielded then (the player's +0x90).
+        std::vector<Item> hands;
+        int kept = 0;
+        held = item("ssd"); held->id = 7;
+        assert(equip(cursor_tables, hands, held, 4, sorc, -1, 0, 0, &kept) && kept == 0);               // code 1, none wielded: as it was
+        held = item("jav"); held->id = 8; held->quantity = 10; held->durability = 20; held->max_durability = 20;
+        assert(equip(cursor_tables, hands, held, 4, sorc, -1, 0, 0, &kept) && kept == 7 && held->id == 7);   // code 5 (FUN_00560f00): the sword
+        held = item("jav"); held->id = 9; held->quantity = 5; held->durability = 20; held->max_durability = 20;
+        kept = 0;
+        assert(equip(cursor_tables, hands, held, 4, sorc, -1, 0, 0, &kept) && !held && kept == 0);       // code 6, a stack joined: nothing kept
+        held = item("buc"); held->id = 10;
+        assert(equip(cursor_tables, hands, held, 5, sorc, -1, 0, 0, &kept) && kept == 8);                // code 1 (FUN_005606b0): the javelins
+        held = item("2ax"); held->id = 11;
+        kept = 0;
+        assert(!equip(cursor_tables, hands, held, 4, sorc, -1, 0, 0, &kept) && kept == 0);               // code 7 with no room: refused, nothing kept
+    }
     {   // The wielded weapon (inventory +0x1c, weapon-switch.md): one goes in
         // (FUN_0063d1d0) when none is wielded; one comes off (FUN_0063d2b0)
         // and the other hand's usable item takes it.
@@ -441,8 +457,13 @@ int main() try {
         std::vector<Item> loaded = { item("ssd"), item("jav") };
         loaded[0].location = loaded[1].location = d2d::d2s::item_location::kEquipped;
         loaded[0].slot = 5; loaded[1].slot = 4;
-        wield_settle(cursor_tables, loaded);
+        assert(wield_settle(cursor_tables, loaded) == 0);   // the javelin went in with the sword wielded (FUN_005606b0 -> FUN_006233a0)
         assert(wielded_weapon(cursor_tables, loaded) == &loaded[0] && !loaded[1].wielded);
+        loaded[0].slot = 12;                                // the switch's (0xb / 0xc): not wielded, keeps nothing
+        assert(wield_settle(cursor_tables, loaded) == -1 && wielded_weapon(cursor_tables, loaded) == &loaded[1]);
+        loaded[0].slot = 5;
+        std::swap(loaded[0], loaded[1]);                    // the javelin first: kept when the sword goes in
+        assert(wield_settle(cursor_tables, loaded) == 0 && wielded_weapon(cursor_tables, loaded) == &loaded[0]);
         // A shield takes the mark from a sword coming off (FUN_0063d2b0: any
         // usable item), but isn't a wielded weapon (FUN_0063bef0: weap only).
         std::vector<Item> guard;

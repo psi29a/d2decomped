@@ -114,6 +114,25 @@ int main() try {
     assert(!equip_from_bag(tables, items, hand, 99, hero, -1, 10, 4));
     tables.types["tors"].cls = "bar";
     assert(!equip_from_bag(tables, items, hand, 1, hero, -1, 10, 4));
+    tables.types["tors"].cls.clear();
+    {   // As the ToBody it stands for (code 1 / 5 -> FUN_006233a0): the weapon wielded then is kept.
+        tables.types["swor"].equiv = { "weap", "" };
+        std::vector<Item> gear = { bag("aar", 1, 0, 0), bag("swd", 3, 2, 0) };
+        gear[1].location = d2d::d2s::item_location::kEquipped;
+        gear[1].slot = d2d::d2s::body_location::kRightArm;
+        gear[1].wielded = true;
+        int kept = 0;
+        assert(equip_from_bag(tables, gear, hand, 1, hero, -1, 10, 4, &kept) && kept == 3);
+        gear[1].wielded = false;                                          // none wielded: as it was
+        gear[0].location = d2d::d2s::item_location::kStored;
+        gear[0].panel = d2d::d2s::item_panel::kInventory;
+        kept = 5;
+        assert(equip_from_bag(tables, gear, hand, 1, hero, -1, 10, 4, &kept) && kept == 5);
+        gear[0].location = d2d::d2s::item_location::kStored;
+        gear[0].panel = d2d::d2s::item_panel::kStash;
+        gear[1].wielded = true;
+        assert(!equip_from_bag(tables, gear, hand, 1, hero, -1, 10, 4, &kept) && kept == 5);   // refused: nothing kept
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_equip_bag: %s\n", error.what());
