@@ -2789,7 +2789,9 @@ inline const Tables::Runeword* runeword_row(const Tables& tables, const d2d::d2s
 // sockets spell, not one already, takes the runeword flag (0x4000000)
 // and its T1 mods as the runeword list (stat list 0xab / 0x40), each
 // through FUN_0065fd70 kind 6 on the item's seed.
-// ponytail: the seed is the item's fingerprint, not where its making left it.
+// The seed is the item's fingerprint: exact for an item loaded from a save
+// (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint, 666}). ponytail:
+// one made or rolled on this game keeps where that left it.
 inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     const auto* row = item.runeword ? nullptr : runeword_row(tables, item);
     if (!row) return false;
