@@ -1109,6 +1109,8 @@ void quest_log_open(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits
     quest_log_select(quest_log, quest_bits, quest_state, false);
 }
 
+// FUN_004a2550 / FUN_004a2600 release the stock sprites; FUN_004a26b0
+// resets the same close state before asking UI screen 15 to close.
 void quest_log_close(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state) {
     if (!quest_log.open) return;
     quest_log_mark_seen(quest_log, quest_bits, quest_state);
