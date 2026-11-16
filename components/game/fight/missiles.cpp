@@ -412,7 +412,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             for (int k = 0; k < 64; ++k) {
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                 auto& shot = send(float(aim_x), float(aim_y), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
-                shot.struck = shared; shot.to.reset();                              // a way, not a point
+                // FUN_0056d400 passes an explicit target offset in subtiles.
+                shot.to = { (std::floor(caster.x * 5) + float(aim_x) + 0.5f) / 5,
+                            (std::floor(caster.y * 5) + float(aim_y) + 0.5f) / 5 };
+                shot.struck = shared;
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) {
                 start_state(skill, lvl, now_ms);   // its allies as the nova reaches them (missile_tick)

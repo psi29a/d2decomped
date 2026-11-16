@@ -378,8 +378,13 @@ int main() try {
         assert(world.fight.pending.size() == 64);
         for (std::size_t way = 0; way < 64; ++way) {
             const auto [aim_x, aim_y] = d2d::rules::kNovaRing[way];
-            const auto& shot = world.fight.pending[way];
+            auto& shot = world.fight.pending[way];
             assert(std::abs(shot.velocity_x * float(aim_y) - shot.velocity_y * float(aim_x)) < 1e-4f && shot.velocity_x * float(aim_x) + shot.velocity_y * float(aim_y) > 0);
+            const int from_x = world.level->world_x * 5 + int(std::floor(shot.x * 5));
+            const int from_y = world.level->world_y * 5 + int(std::floor(shot.y * 5));
+            const auto expected = d2d::rules::MissileFlight::launch(from_x, from_y, from_x + aim_x, from_y + aim_y, 0, 0, 0);
+            missile_fly(*world.level, shot, [](float, float) { return std::vector<std::array<int, 4>>{}; });
+            assert(shot.flight.aim_x == expected.aim_x && shot.flight.aim_y == expected.aim_y);
         }
         world.fight.pending.clear();
         std::printf("OK: Nova aims at game.exe's ring\n");
