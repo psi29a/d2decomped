@@ -540,7 +540,9 @@ lines (missile names aren't passed in). What it does:
   (the strike).
 - **Charge**, start 31 (FUN_005cf6b0): velocity = **run velocity**
   (CharStats +0x41 << 8) × (max(velocitypercent (67), 50) + **par1** (150))
-  / 100; players at a distance only (in reach it's a plain attack,
+  / 100 (0x5cf833..0x5cf864: stat 0x43 read, floored at 0x32, plus
+  FUN_004c9460's Param1, then FUN_00483360's MulDiv; d2d: 100 +
+  `Fighter::velocity_pct`, `Fight::start_move`); players at a distance only (in reach it's a plain attack,
   FUN_0056e230). Do 67 (FUN_005cf900) on each event (every run frame of
   sequence 4 is one): the target in reach jumps the sequence to its attack
   frames (FUN_00553dc0); the attack's event hits (toht, **knockback**,

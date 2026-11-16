@@ -1311,6 +1311,28 @@ int main(int argc, char** argv) try {
         world.cues.due.clear();
         std::printf("OK: Jab's dosound a on its %td event-3 frames\n", sound_frames);
     }
+    // Charge's run (FUN_005cf6b0, 0x5cf833..0x5cf864): RunVelocity x (max(stat 0x43, 50) + Param1) / 100,
+    // the player's stat 0x43 100 + its velocitypercent bonuses.
+    {
+        const auto* charge = data->skills.get(data->skills.by_name.at("Charge"));
+        assert(charge);
+        const int kept = hero.player_combat.velocity_pct;
+        const auto kept_until = hero.pmode_until;
+        const auto speed_at = [&](int bonus) {
+            hero.player_combat.velocity_pct = bonus;
+            world.fight.start_move(*charge, 2000 * kTickMs);
+            return hero.smove.speed;
+        };
+        const float plain = speed_at(0), quick = speed_at(40), slowed = speed_at(-80);
+        const float par1 = float(charge->par[0]);
+        assert(plain > 0 && std::abs(quick / plain - (140 + par1) / (100 + par1)) < 1e-4f);
+        assert(std::abs(slowed / plain - (50 + par1) / (100 + par1)) < 1e-4f);   // at least 50
+        hero.player_combat.velocity_pct = kept;
+        hero.smove = {};
+        hero.seq_loop = false;
+        hero.pmode_until = kept_until;
+        std::printf("OK: Charge runs at its velocitypercent, at least 50\n");
+    }
     // A monster's Jab: ai.cpp counts its MonSeq's event-3 rows (only Duriel's
     // has them), monster_sounds plays dosound b once each, none once dead.
     {
