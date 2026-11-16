@@ -42,6 +42,7 @@
 #include <rules.hpp>
 #include <screenshot.hpp>
 #include <shake.hpp>
+#include <shop_action.hpp>
 #include <sound_ids.hpp>
 #include <userdir.hpp>
 #include <weather.hpp>
@@ -213,6 +214,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))
                 npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         }
+        // A move over the NPC menu's lines selects the line under it, none off them (FUN_004b7200); before that
+        // the first choosable line stays lit (FUN_004b85f0, FUN_004b82f0).
+        if (npc_menu.npc >= 0) npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             bool box_took_enter = false;
@@ -956,9 +960,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, screen_x, screen_y, npc_quest);
+                npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);   // seed the mouse baseline: the next move selects
                 if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespec) {
                 npc_menu = open_respec_menu(*scene, who, screen_x, screen_y);
+                npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);   // seed the mouse baseline: the next move selects
                 if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
@@ -1022,7 +1028,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // right click on a multibuy item fills (FUN_004b2650: mouse
             // flag 4, Items +0x1a5).
             const int store_index = store_item_at(*scene, store, mouse.x, mouse.y, touch_store_panel_x());
-            if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
+            // A buy with something on the cursor is never asked (FUN_004b3870 at 0x4b3a77: FUN_0063c1e0 on the
+            // player's inventory, return 0); d2d's server would take it.
+            d2d::rules::ShopClick buy_click;
+            buy_click.npc_class = store.hc_idx;
+            buy_click.sell = 0;
+            buy_click.hand = bool(held);
+            if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)) && d2d::rules::shop_click(buy_click).handled)
             {
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
                 const auto base = scene->rules.item_base.find(stock.code);
@@ -1038,7 +1050,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                         if (store.mode == 2) send(cmd::Sell{ item.id });
-                        else send(cmd::Repair{ item.id });
+                        else if (d2d::rules::repair_click_gate(scene->rules, item)) send(cmd::Repair{ item.id });   // FUN_004b1f80: nothing is asked for an item that wants no repair
                         break;
                     }
                 }

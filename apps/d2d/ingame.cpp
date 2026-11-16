@@ -463,7 +463,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
             }
         }
-        if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
+        if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms, hud.touch_compact);
         // FUN_00456ee0 calls FUN_0049ff10 and FUN_004a0e70 in stock's panel/text draw order;
         // d2d's typed item descriptions, speech and NPC menus are drawn by the surrounding frame code.

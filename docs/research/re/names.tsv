@@ -342,7 +342,10 @@ address	name	evidence
 004ae3a0	monster_type_test_02	ECX unit: a monster gives FUN_004ac7e0(unit, 2), else 0; verified by unit_client.py
 004ae4f0	unit_client_event_hook	ECX unit, naked EAX event code: two jump tables dispatching client-side event codes; callers FUN_004ae8d0, FUN_004aedd0; collision.md "A per-event client hook"
 004afbc0	monstats2_mode_flag_test	ECX unit, naked EAX struct {+0 bit index, +4 gate}: tests a MonStats2 row's +0x104 byte array via FUN_00451fe0; two call sites in FUN_004aff60; collision.md "A per-mode MonStats2 flag test"
+004b1f80	shop_wants_repair	ESI item: not gold, FUN_0062e660 passes, durability below max or stack below max or a missing charge (npc-menu.md "Shop clicks")
 004b3500	store_gamble_mode	no args: returns the exact dword at 0x7c0db0; store code treats nonzero as gamble mode (client-frontier.md)
+004b3870	shop_click	ECX player, EDX item, six stack args: what a click on an item does in an NPC session, buy/sell/repair/identify/repair all (npc-menu.md "Shop clicks")
+004b82f0	dialog_select_line	ECX NPC window, EDX line: stores +0x44 for -1 or a selectable line, halts otherwise (npc-menu.md "The selected line")
 004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #109)
 004b9590	sound_handle_playing	ECX nonzero sound handle: first matching record in the 0x7c5458 list has state +0x30 exactly 1; missing/zero handle returns 0 (client-frontier.md)
 004c6ac0	skill_client_start	fastcall (unit, ...), caller FUN_0045d5e0: state list + stat set to the level, start-function table 0x727ba8 per level; skills.md "Stat-list helpers and skill starts" (table meaning not read)
