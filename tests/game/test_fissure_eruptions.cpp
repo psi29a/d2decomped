@@ -4,7 +4,8 @@
 // (event 8) the init's object-seed step % 250 + 25 frames on; each eruption
 // (FUN_00581250) in NU / ON steps the seed for the next one, goes OP and ON
 // FrameCnt1 + 1 frames later (event 1, FUN_00581490); one that comes while
-// still OP queues nothing more (bugs.md #52). Needs the data.
+// still OP queues nothing more (bugs.md #52); none erupts before its room
+// is up. Needs the data.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -21,6 +22,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
@@ -97,6 +99,24 @@ int main() try {
     world.fissure_frame(stuck.on_ms + 1000 * kTickMs);
     assert(world.npc_states[0].mode == "ON" && stuck.stopped);
     std::printf("OK: one that falls in OP stops for good (bugs.md #52)\n");
+
+    // Made as its room comes up (FUN_005559a0): no clock till then.
+    if (const auto first_room = level_room(one, 0)) {   // moved into the level's first room
+        one.npcs[0].x = float(first_room->x + first_room->width / 2);
+        one.npcs[0].y = float(first_room->y + first_room->height / 2);
+    }
+    if (const int room = room_of(one, one.npcs[0].x, one.npcs[0].y); room >= 0) {
+        world.fissures.clear();
+        world.npc_states = npc_start(one);
+        auto& rooms_kept = world.fight.spawning.levels[&one].up;
+        rooms_kept.assign(std::size_t(room) + 1, false);
+        world.fissure_frame(start);
+        assert(!world.fissures.contains(std::pair{ static_cast<const Level*>(&one), 0 }));
+        rooms_kept[std::size_t(room)] = true;
+        world.fissure_frame(start + 5 * kTickMs);
+        assert(world.fissures.at({ &one, 0 }).next_ms == start + 35 * kTickMs);
+        std::printf("OK: its first eruption is timed from its room's coming up\n");
+    } else std::printf("SKIP: the fissure's spot is in no room of the River of Flame\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_fissure_eruptions: %s\n", error.what());

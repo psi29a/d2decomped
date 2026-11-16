@@ -337,13 +337,19 @@ struct Level {
     // whose (size x 2 + 1) square, centred a subtile up-left of it, has no
     // bit of `mask` (FUN_0064d800), searched ring by ring (c = 1 .. rings - 1:
     // rows c, c - 2 .. > -c; columns -c, -c + 2 .. < c). None: nullopt.
-    // ponytail: the units' bits (0x1000+) are the Crowd's, not the grid's.
-    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings) const {
+    // The mask meets the grid as game.exe's does: its unit bits (0x1000,
+    // 0x2000, stamped by FUN_0064ea90) are the Crowd's here, so `crowd`
+    // gives them on a subtile; none given: no unit stands in the way.
+    [[nodiscard]] std::optional<std::pair<int, int>> free_area(int x, int y, int size, std::uint16_t mask, int rings,
+                                                                const std::function<int(int, int)>& crowd = {}) const {
         const int half = size >> 1, side = size * 2 + 1;
         const auto clear = [&](int centre_x, int centre_y) {
             for (int row = 0; row < side; ++row)
-                for (int column = 0; column < side; ++column)
-                    if (blocked((float(centre_x - side / 2 + column) + 0.5f) / 5, (float(centre_y - side / 2 + row) + 0.5f) / 5, mask & 0x0fff)) return false;
+                for (int column = 0; column < side; ++column) {
+                    const int sub_x = centre_x - side / 2 + column, sub_y = centre_y - side / 2 + row;
+                    if (blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, mask & 0x0fff)) return false;
+                    if (crowd && (crowd(sub_x, sub_y) & mask & 0xf000)) return false;
+                }
             return true;
         };
         for (int ring = 1; ring < rings; ++ring)
@@ -487,6 +493,7 @@ struct GameData {
         int pri = 0, shift = -1, item_colour = -1;
         int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         bool curse = false;                // States.txt curse (bit set 11, game +0xf8): its stat list is flagged 0x20, one such at a time (FUN_0056e970)
+        bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
@@ -783,6 +790,7 @@ struct GameData {
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
                          std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
                          std::array<int, 5> min_lev{}, max_lev{};   // MinLevDam1..5 / MaxLevDam1..5: the physical part's level brackets (FUN_00644b70 via FUN_0064af20 / FUN_0064aff0)
+                         std::string dmg_sym_text; d2d::rules::Calc dmg_sym;     // DmgSymPerCalc (+0xe0), compiled with the skills
                          std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
                          std::string hit_calc_text; d2d::rules::Calc hit_calc;   // SHitCalc1 (+0x88): Immolation Arrow's fire length
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
@@ -790,6 +798,9 @@ struct GameData {
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
                          int hit_par3 = 0;      // sHitPar3: hit 2's sub-missiles' sub loops (FUN_005a9d80 -> FUN_005a9370's [0xd])
+                         // Param5 (+0x48), CltParam1..5 (+0x58..+0x68), cHitPar1..3 (+0x6c..+0x74):
+                         // what misscalc reads of them (FUN_0064b340, skill_text::miss_operand).
+                         int param5 = 0; std::array<int, 5> clt_params{}; std::array<int, 3> clt_hit_pars{};
                          // SubLoop, SubStart, SubStop (+0x180..+0x182): made with create flag 8, its Range runs on by
                          // (SubStop - SubStart) x [0xd] when SubLoop (FUN_0059fa30).
                          int sub_loop = 0, sub_start = 0, sub_stop = 0;
@@ -1122,6 +1133,15 @@ void set_footprint(const Level& level, const Npc& npc, bool solid);
 inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
     int damage = (max ? missile.emax : missile.emin) + d2d::rules::level_bonus(max ? missile.emax_lev : missile.emin_lev, lvl);
     if (const int bonus = missile.edmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.edmg_sym, env, skill_id, lvl); bonus != 0)
+        damage += int(std::int64_t(damage) * bonus / 100);
+    return damage << (missile.hitshift & 31);
+}
+// Its physical part in 256ths (FUN_0064af20 / FUN_0064aff0): (MinDamage /
+// MaxDamage, +0xb0 / +0xb4, + MinLevDam / MaxLevDam brackets) plus its
+// DmgSymPerCalc (+0xe0) % of that, then << HitShift (+0x196).
+inline int missile_phys(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
+    int damage = (max ? missile.max : missile.min) + d2d::rules::level_bonus(max ? missile.max_lev : missile.min_lev, lvl);
+    if (const int bonus = missile.dmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.dmg_sym, env, skill_id, lvl); bonus != 0)
         damage += int(std::int64_t(damage) * bonus / 100);
     return damage << (missile.hitshift & 31);
 }

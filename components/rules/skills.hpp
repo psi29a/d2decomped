@@ -446,6 +446,10 @@ struct Skill {
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
     bool decquant = false;                 // decquant: a shot spends one ammo (FUN_0056f7f0 -> FUN_0056c3f0)
     bool attack_no_mana = false;
+    // restrict (+0x228) and State1..3 (+0x22a, FUN_00644060): 0 not in a restrict state (wolf, bear,
+    // delerium), 2 in one and in one of the listed states, any other value anywhere.
+    int restrict_form = 0;
+    std::array<std::string, 3> restrict_states;
     int reqlevel = 1, maxlvl = 20;
     int mana = 0, lvlmana = 0, manashift = 8, minmana = 0;
     int startmana = 0;                     // +0x184: the mana a start needs, whole points (FUN_006440f0)
@@ -464,6 +468,7 @@ struct Skill {
     // Only cltdofunc 16 (Jab's, FUN_004f4590) and cltstfunc 25 (FUN_004c9b40) read a / b.
     int do_sound_a = 0, do_sound_b = 0, clt_do_func = 0;
     bool st_sound_delay = false, weapon_sound = false;
+    bool interrupt = false;                // Skills.txt `interrupt` (the row's flags byte +7 against the mask at 0x6ce284): 0, a hit never puts the user in a get-hit (FUN_0057eec0)
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)

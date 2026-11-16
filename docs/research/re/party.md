@@ -164,7 +164,10 @@ Players in the game (FUN_005538d0 over the player hash, game +0x1120,
 skipping units with FUN_00639df0(unit, 7) set). `/players` (DAT_00883d70,
 FUN_00535780) wins only when larger and only for game types (+0x6a) 1..3
 (chat-commands.md "/players", with its oracle).
-d2d counts the World's players; there is no `/players`.
+d2d: `Fight::game_players` (rules::game_players), the heroes or
+`Fight::players_setting` when larger. During a split-level turn the heroes
+are that level's, so `Fight::players_elsewhere` adds the other levels'
+players (tests/game/test_split_players.cpp).
 
 ## Monster life and experience — FUN_00573930, FUN_00573cb0
 
@@ -377,8 +380,11 @@ link, the same as the roster list `DAT_007bb5c0`.
   at 0x712efc (not traced further). When it is set the list goes to `FUN_004796d0`
   (EAX = the head): an insertion sort, ascending by the signed dword `+0x18`,
   returning the head. When it is 0 the list goes to `FUN_004795f0` (the head on the
-  stack, `ret 4`): an insertion sort ascending by the zero-terminated 16-bit units
-  at `+0` (low byte first). Then `FUN_00479860` sorts the group chain ascending by
+  stack, `ret 4`): a stable insertion sort ascending by the string at `+0`, compared
+  as an inlined strcmp of unsigned bytes (two per loop pass). `+0` is the player
+  name: `FUN_004793c0`, which `FUN_0047a6f0` calls to fill a record, copies it
+  there (and to `+0x66`, or `"%s {%s}"` with the account). 0x712efc is the u32
+  game flags of S->C 0x01 (net-join.md); what bit 1 means is not traced. Then `FUN_00479860` sorts the group chain ascending by
   its word `+0`.
 - `FUN_004798c0` moves the group whose word is DX to the front of the chain (0xffff
   does nothing), then moves the record with id EBX to the front of that group's list.
@@ -447,7 +453,8 @@ link, the same as the roster list `DAT_007bb5c0`.
 
 ### d2d's ceilings
 
-- The rows come by unit id, not join order.
+- Inside a group the rows come by name (`FUN_004795f0`); with bit 1 of the
+  game flags set game.exe sorts by record `+0x18`, which d2d does not.
 - Area names come from 0x7f's level id.
 - A party member's life bar (`FUN_0049a460`) isn't drawn.
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore

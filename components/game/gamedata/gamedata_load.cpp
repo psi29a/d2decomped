@@ -359,6 +359,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
         missile_info.damage_rate = number("DamageRate");
         missile_info.hit_par3 = number("sHitPar3");
+        missile_info.param5 = number("Param5");
+        for (std::size_t slot = 0; slot < missile_info.clt_params.size(); ++slot) missile_info.clt_params[slot] = number("CltParam" + std::to_string(slot + 1));
+        for (std::size_t slot = 0; slot < missile_info.clt_hit_pars.size(); ++slot) missile_info.clt_hit_pars[slot] = number("cHitPar" + std::to_string(slot + 1));
         missile_info.sub_loop = number("SubLoop"); missile_info.sub_start = number("SubStart"); missile_info.sub_stop = number("SubStop");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
@@ -369,7 +372,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound },
                                     std::pair{ "ProgSound", &missile_info.prog_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
- missile_info.elen = number("ELen"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
+ missile_info.elen = number("ELen"); missile_info.dmg_sym_text = missiles_table.get(row_index, "DmgSymPerCalc"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -540,6 +543,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
+        skill_row.restrict_form = number("restrict");
+        for (std::size_t slot = 0; slot < 3; ++slot) skill_row.restrict_states[slot] = text("State" + std::to_string(slot + 1));
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
         skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana"); skill_row.startmana = number("startmana");
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
@@ -549,7 +554,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound = sound("stsound"); skill_row.st_sound_class = sound("stsoundclass"); skill_row.item_cast_sound = sound("ItemCastSound");
         skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound"); skill_row.prg_sound = sound("prgsound"); skill_row.clt_st_func = number("cltstfunc");
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
-        skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1";
+        skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
         skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1";
@@ -626,7 +631,14 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             }
         }
     }
-    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calc names skills
+    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calcs name skills
+        if (!missile_info.dmg_sym_text.empty()) {
+            std::string err;
+            missile_info.dmg_sym = d2d::rules::compile_calc(missile_info.dmg_sym_text, skill_tables.names, &err);
+            ++calcs;
+            if (!err.empty()) bad.push_back(name + " DmgSymPerCalc: " + err);
+        }
+    for (auto& [name, missile_info] : game_data.missiles)
         if (!missile_info.edmg_sym_text.empty()) {
             std::string err;
             missile_info.edmg_sym = d2d::rules::compile_calc(missile_info.edmg_sym_text, skill_tables.names, &err);
@@ -850,6 +862,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             state.group = std::atoi(std::string(states_table.get(row, "group")).c_str());
             state.curse = states_table.get(row, "curse") == "1";
+            state.restrict_form = states_table.get(row, "restrict") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
@@ -915,7 +928,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
     if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
-        game_data.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
+        game_data.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc, &types);
     for (const auto* table : { &weapons, &armor, &misc })
         for (std::size_t row = 0; row < table->size(); ++row)
             game_data.rules.item_info[std::string(table->get(row, "code"))] = {
@@ -1009,8 +1022,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.no_durability = table->get(row, "nodurability") == "1";
                 base.useable = table->get(row, "useable") == "1";
                 base.quest_diff = table->get(row, "questdiffcheck") == "1";
-                base.max_1h = table == &weapons ? number("maxdam") : 0;
+                base.max_1h = table == &misc ? 0 : number("maxdam");
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
+                base.min_1h = table == &misc ? 0 : number("mindam");
+                base.min_2h = table == &weapons ? number("2handmindam") : 0;
                 base.spawnable = table->get(row, "spawnable") == "1";
                 base.nameable = table->get(row, "Nameable") == "1";
                 base.version = number("version");

@@ -8,7 +8,7 @@ controls, not claims that stock game.exe supports touch or these bindings.
 | Game | Source and observed design | Decision here |
 |---|---|---|
 | Diablo II: Resurrected | Blizzard's [console design article](https://news.blizzard.com/en-us/article/23722094/bringing-the-original-diablo-ii-experience-to-console) describes direct skill buttons, an LT bank of six additional skills, a directional targeting cone, and corpse selection appropriate to the ability. It also discusses the difficulty of choosing one drop among many. | Keep direct buttons and LT. Resolve the displayed Attack/Use action once for its press. A held attack does not become pickup when an enemy dies. Corpse abilities seek eligible corpses, not live enemies. |
-| Diablo Immortal | The [original Blizzard announcement](https://investor.activision.com/node/32001/pdf) describes dragging a skill to aim and releasing to use it. Blizzard's [accessibility article](https://news.blizzard.com/en-us/article/23805083/making-a-game-for-everyonediablo-immortals-accessibility-features) documents controller remapping, a free UI cursor, and repositionable mobile skill buttons. | Independent movement and skill fingers; tap or drag/release with an explicit cancel region. Keep assignment identities independent of controller positions. The prototype has fixed positions; configurable positions remain outside this change. |
+| Diablo Immortal | The [original Blizzard announcement](https://investor.activision.com/node/32001/pdf) describes dragging a skill to aim and releasing to use it. Blizzard's [accessibility article](https://news.blizzard.com/en-us/article/23805083/making-a-game-for-everyonediablo-immortals-accessibility-features) documents controller remapping, a free UI cursor, and repositionable mobile skill buttons. | Independent movement and skill fingers; tap or drag/release. Lift on a valid preview casts; OS Cancel or a lift outside the 800x600 band aborts. Keep assignment identities independent of controller positions. The prototype has fixed positions; configurable positions remain outside this change. |
 | Grim Dawn | First-hand reports on the developer-hosted forum describe enabling extra buttons in [Options > Controller](https://forums.crateentertainment.com/t/on-a-controller-how-do-i-assign-more-skills/114059). The [first-hand skill-panel assignment reports](https://www.reddit.com/r/Grimdawn/comments/1m2mysp/) about its radial are community evidence, not a developer specification of exact current glyphs. | Put a visible Assign action in the skill panel. Show actual configured destinations and their occupants. Do not assume every player uses the default controller layout. |
 | Path of Exile 2 | GGG's [0.2.0 patch notes](https://www.pathofexile.com/forum/view-thread/3740562) document per-skill controller targeting, corpse-targeting fixes, panel improvements, and pickup interaction fixes. | Auras/self-casts, enemy attacks, corpse abilities and ground placement have different targeting policies. A generic nearest-enemy policy must not cause buffs to walk. |
 
@@ -48,8 +48,26 @@ Enable `--touch-controls` or `touch_controls = 1` in d2d.cfg. This is an SDL
 input prototype, not an Android/iOS packaging or device-support claim. Coordinates
 follow the game's existing logical viewport. Use landscape for this prototype.
 
-- Left movement area, fixed large Attack/Use, four skill buttons, and a
-  one-tap I/II page switch. Belt buttons are available on either page.
+- Left movement area, dedicated contextual Interact, attack-only primary button,
+  four skill buttons, and a one-tap I/II page switch. Belt buttons are available
+  on either page.
+- Top chrome is edge-pinned (Inv / Skl / Quest / Bind as a 2x2 flush to the
+  top-left; Done and Map stacked top-right). Letterbox gutters pull chrome
+  toward the physical bezels on wide phones. Field controls sit in the bottom
+  corners; the center stays clear.
+  On the field, compact life/mana bars sit under the 2x2 chip block with a gap
+  of about 0.35 of chip height; belt potions sit in a 2x2 under Map, one column
+  left so they miss the Map chip; a compact
+  quest tracker on the left opens the full log on tap. The classic bottom bar, belt
+  strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
+  them back) while a finger or Pencil is the last device. A real key, non-touch
+  mouse, or gamepad hides the Immortal HUD and restores classic or pad input;
+  the next finger brings the HUD back. `--touch-controls` stays on. Map is a dim overlay: field move/skill/belt chrome stays up.
+  Open panels hide the stick, skill rings, I/II and belt grid; Inv / Skl / Quest / Bind
+  stay put and stay tappable.
+  The skill tree, character, inventory, and vendor trade/repair panels use
+  classic placement (`kTreeR`, `kCharPanelX`). Touch no longer splits the
+  vendor to the right or the inventory to the left.
 - Skills opens the original skill panel. Tap a learned skill, then **Assign
   to touch button**, then a destination. Occupants are visible before replacing
   them. Done returns to the panel; Back closes it.
@@ -61,15 +79,21 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   line and nearest-free-subtile constraints. Corpse skills preview usable
   corpses and can change their selection by dragging. Auras and self-casts
   stay on the caster. The active aura is labelled on either page.
-- Drag to the visible cancel region or interrupt the skill finger to cancel.
-  Panels and focus loss invalidate pending gestures. Only a valid lift commits
-  a cast, including stationary taps, so cancellation spends no mana.
+- Interrupt the skill finger (OS Cancel) or lift outside the 800x600 band to
+  cancel. There is no on-screen cancel strip. Panels and focus loss invalidate
+  pending gestures. Only a valid lift commits a cast, including stationary taps,
+  so cancellation spends no mana.
 - Movement and skill fingers have separate ownership. Lifting either does not
   commit or release the other. Changing page does not release movement or
   retarget an already-held gesture. Attack pickup needs a fresh press.
-- Tap a usable carried tome/potion to use it. Identify then accepts a tap on an
-  unidentified item. Tap merchant stock to buy; hold a sellable carried item
-  to sell. These feed the existing item and trade commands.
+- Tap a usable carried item, sellable bag item, or merchant stock for a
+  confirm sheet (Use / Sell / Buy as they apply). Drag past 14px picks the
+  item up; lift places into the nearest inventory, stash, cube, body, or belt
+  cell, or drops on the world. A leftover mouse packet does not start
+  click-to-walk. Identify: Use then Confirm on the scroll, tap the target item,
+  then Confirm. A miss-tap does not identify. Field belt: first tap opens Use/Fill
+  (Fill when bag potions can AutoBelt); Confirm uses or fills. A second tap on
+  the same slot uses immediately.
 
 Charged skills granted by items remain a separate design question: an item ID,
 remaining charges and save lifetime must be designed before allowing them into
@@ -111,8 +135,8 @@ These citations are existing research/ports, not newly oracle-verified claims.
    portal outside town. At a merchant, buy one item and sell it separately.
 6. Launch with `--touch-controls --view-width 1066`. Assign Teleport and a corpse
    ability on appropriate characters. Keep a movement finger down while aiming,
-   cancelling and switching I/II with other fingers. Cancel by dragging, finger
-   interruption and opening a panel: no cast or mana loss. Lift normally and
+   cancelling and switching I/II with other fingers. Cancel by lifting off-screen,
+   finger interruption and opening a panel: no cast or mana loss. Lift normally and
    check Teleport's shown landing point or the highlighted corpse.
 7. Save/reload touch bindings and confirm controller bindings did not change.
    Check the active aura on both touch pages, belt access and the fixed Attack
@@ -221,3 +245,41 @@ input when a tome can identify another carried item. The existing inventory
 right-click dispatch is reused; this is an input UX correction, not a new retail
 parity claim. `pad_identify_classic_d2d` and `pad_identify_d2d` drive both presets
 through actual controller input with and without unidentified targets.
+
+## Touch field UX (Immortal-style)
+
+Touch layout uses logical 800×600 with `touch::kUiScale` (default 1.2) on corner
+chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
+and skill bar when touch is on and a finger/Pencil is the last device
+(including automap, NPC speech, and shop);
+`touch_shows_field_controls()` is true on the open field without panels,
+including while the automap overlay is on. Belt potions are a 2x2 under Map,
+shifted one column left so the right pots clear Map, and stay on-screen
+(shifted up if they would cover the skill arc). The move
+stick uses a large `move` hit box with a smaller `move_visual` ring.
+NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
+speech text clips to that sheet, not the classic top box. Taps route
+through ordinary menu hit tests with extra row padding. Skill assignment
+highlights the four field slots in gold and draws bound icons on those
+rings. Bind Done (the Bind chip, relabelled Done, and the existing top-right
+Done) is hit-tested before the wheel swallows input. While binding, I/II
+still swaps skill set 1 vs 2. Inventory
+item tap opens a Use/Sell/Buy sheet with Confirm; a 14px drag picks up, and
+lift places into the nearest valid cell or drops. Move stick, skill rings, I/II, and the potion grid hide while
+panels are open. Inv / Skl / Quest / Bind stay at their field positions and
+keep taking taps. Round chrome fills are light (about 15% of the old dim);
+the Attack icon is scaled to fill its ring; belt potion frames are centred
+in their circles.
+
+Pass 4 stacked Inv / Skl / Quest / Bind as a column. Pass 5 lays them out as a
+2x2 flush to the top (life/mana under that block), moves belt potions to a 2x2
+under Map, turns the Bind chip into Done while the editor is open, and keeps
+I/II available in the bind editor. Pass 6 leaves those chips fixed (no
+`panel_chrome_x` shift), restores classic trade/inventory panel X, and splits
+item tap vs drag.
+
+The later HUD pass removes the skill drag-to-cancel box, widens the gap under
+the 2x2 chips, thins chrome, scales the Attack icon, centres belt art, places
+held items on finger up with grid snap, keeps last-device handoff (Touch vs
+keyboard/mouse vs gamepad), adds Confirm before identify, and gives the field
+belt a Use/Fill sheet with double-tap to use.

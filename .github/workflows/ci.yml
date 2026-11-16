@@ -589,7 +589,10 @@ jobs:
     timeout-minutes: 120
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
-      options: --privileged
+      # The anonymous volume takes a copy of the image's runtimes: updating
+      # them in place on overlayfs fails with "Invalid cross-device link" on
+      # some runner images (20261111.127.1).
+      options: --privileged -v /var/lib/flatpak
     strategy:
       fail-fast: false
       matrix:

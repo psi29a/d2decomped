@@ -13,6 +13,7 @@
 #include "platform.hpp"
 #include "scene.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "world_view.hpp"
@@ -378,7 +379,13 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // The screen's pad plays the screen's player (local co-op: a partner's while they have it).
         const Send to_world = [this](const Command& command) { send(command); };
         const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
-        pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
+        const bool touch_field_walk = touch_enabled && last_device == touch::LastDevice::Touch && touch_shows_field_controls();
+        if (!touch_field_walk)
+            pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
+        else if (pad.walking) {
+            to_world(cmd::Move{ focused().player.x, focused().player.y, true });
+            pad.walking = false;
+        }
         if (pad_config.skill_buttons) {
             apply_skill_pad(pad, focused().player, view.dead, pad_field(), focused().character.name, int(focused().character.header.right_skill),
                             focused().character.header.expansion(), skill_actions, to_world);

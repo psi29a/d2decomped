@@ -22,14 +22,14 @@ constexpr int kTreeR = 720, kTreeB = 540;
 
 // A skill's icon box {left, bottom} (FUN_004aaa50 columns, FUN_004aa9c0
 // rows); icons are 48x48.
-std::pair<int, int> skill_icon_at(const d2d::rules::ClassSkill& class_skill);
+std::pair<int, int> skill_icon_at(const d2d::rules::ClassSkill& class_skill, int panel_right = kTreeR);
 
 // The class skill (0..29) whose icon on tab `tab` is under (mx, my), or -1.
-int skill_at(const Scene& scene, int cls, int tab, int mouse_x, int mouse_y);
+int skill_at(const Scene& scene, int cls, int tab, int mouse_x, int mouse_y, int panel_right = kTreeR);
 
 // The tab under (mx, my): the strip x R-88..R, split into bands bottom
 // (1) to top (3) (FUN_004ab7e0), or 0.
-int skill_tab_at(int mouse_x, int mouse_y);
+int skill_tab_at(int mouse_x, int mouse_y, int panel_right = kTreeR);
 
 // Tab labels, as FUN_004aace0 draws them: font16, centred in R-90..R, at
 // baseline 60 + y; "Skill Choices Remaining" (0x1083..0x1085) for every
@@ -61,6 +61,6 @@ const std::vector<TreeLabel> kTreeTabs[7] = {
 // The tooltip hangs under the icon (rules::skill_tree_tip_box).
 void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int cls, int tab,
                      const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, const d2d::rules::CalcEnv& env,
-                     int pressed, int mouse_x, int mouse_y);
+                     int pressed, int mouse_x, int mouse_y, int panel_right = kTreeR);
 
 }  // namespace d2d::client

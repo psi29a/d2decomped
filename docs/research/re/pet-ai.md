@@ -643,6 +643,18 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   nonzero, `FUN_00574930` sends this as 0x81. d2d: **not ported** (its
   merc resurrection, `resurrect_merc`, per npc-menu.md, has no node flag
   or event).
+- **`FUN_005751a0`** (owner, the dead unit): a death leaves the lists.
+  Called from the monster death `FUN_0057ccb0` (a monster not in mode 0
+  or 0xc, `FUN_00457490` true, its last argument set, `FUN_0058f0d0`'s
+  owner a player) and
+  from two hireling sites (0x533c70, 0x56aa50). The unit's row is
+  `FUN_00574a20`'s (the row whose nodes hold its id). Any row but 7:
+  `FUN_005750e0(id, 0)` unlinks its node (`FUN_00574850`) and sends the
+  removal. Row 7 (the merc): the node stays, flagged `|= 1` (with the
+  resurrect cost, `FUN_0053e0e0`), and the walks `FUN_00574de0` /
+  `FUN_00574f80` skip a flagged node; `FUN_00574ab0` clears it when the
+  merc is raised. So a dead pet or merc is in no crowd count
+  (`Fight::pet_crowd`: d2d tests alive instead; reads the same, cited).
 - **`FUN_005c56c0`** (Revive, do 58; d2d: summons.cpp:168, skills.md "Do
   58"): its end is the pet's registration. The row is the skill record's
   byte `+0xbe` (`local_5`, 0 when it is at or past the row count), the

@@ -24,8 +24,10 @@
 #include "speech_sound.hpp"
 #include "storage_close.hpp"
 #include "store.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 
+#include <chat_commands.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
@@ -237,6 +239,18 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
                 if (const std::string_view line = *chat_typing; !line.empty()) {
                     std::string_view target, message = line;
+                    // "/players N" (FUN_0047c420), past the leading blanks (FUN_0047ca70): in
+                    // single player or as the host (game types 0, 6, 8; a joiner's goes to the
+                    // Battle.net commands) the client sets the server's count itself
+                    // (FUN_00535780), and the line goes out as "players set to N".
+                    const auto past_blanks = line.find_first_not_of(" \t\n\v\f\r");
+                    std::string players_said;
+                    if (!net_game && !lan_client && past_blanks != std::string_view::npos)
+                        if (const auto count = d2d::rules::players_command(line.substr(past_blanks))) {
+                            world.fight.players_setting = *count;
+                            players_said = "players set to " + std::to_string(*count);
+                            message = players_said;
+                        }
                     if (line.starts_with('@') && net_game)              // '@' needs a multiplayer game (its entry's flag)
                         if (const auto space = line.find(' '); space != std::string_view::npos && space > 1 && space - 1 < 0x32 && space + 1 < line.size()) {
                             target = line.substr(1, space - 1);
@@ -259,8 +273,18 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (line.type == 2) add_chat(line.name + string_id(*scene, 0xe46) + line.message, 2);
                 else add_chat(line.name + string_id(*scene, 0xfd0) + line.message, line.colour, line.name.size());
             }
-            for (const auto& event : std::exchange(net_game->events, {}))
+            for (const auto& event : std::exchange(net_game->events, {})) {
                 if (auto text = event_text(event); !text.empty()) add_chat(text, event.colour);
+                // 0x12 also (0x49f319..0x49f360) turns the act's day to
+                // phase 5, time 0, eclipse (FUN_0061c240, as S->C 0x53), quakes
+                // 6 / 4000 / 10000 / 4000 (FUN_00476a80: power, rise, hold, fall)
+                // and plays Sounds.txt 0x1220 (FUN_004b9a00, no unit).
+                if (event.event == 0x12) {
+                    world.day.set(5, 0, true);
+                    shake.start(6, 4000, 10000, 4000, frame_ms);
+                    audio.play_sfx(*scene, 0x1220, 1.f, 0);
+                }
+            }
         }
         std::erase_if(chat_lines, [&](const auto& line) { return frame_ms >= line.until; });
         for (const auto key : keys_this_frame) {
@@ -323,6 +347,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
                 if (chat_typing) chat_typing.reset();                         // a chat line being typed first
+                else if (touch_bind != TouchBindPhase::Off) { touch_close_bind(); touch_input.clear(); }
                 else if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; touch_input.clear(); }
                 else if (identify_with >= 0) identify_with = -1;
                 else if (gold_box) gold_box.reset();                          // then the gold box
@@ -469,7 +494,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
-        const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        const Scene::InvLayout lay = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         // The inventory's and the character panel's close buttons (buysellbtn
         // 10, 11 held): pressed, then let go over it, shuts the panel
         // (FUN_0048edf0 at W - 80 - 0x12e, H - 0x7c; FUN_004a7d00 at 80 + 0x80, H - 0x78).
@@ -518,7 +543,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         if (!tree_open || held) tree_close_down = false;
         if (tree_open && !held) {
-            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const int tree_panel_right = kTreeR;
+            const auto close = skill_tree_close(character.character_class, tree_tab, tree_panel_right);
             const bool over = close.contains(mouse.x, mouse.y);
             if (mouse.press_this_frame && over) { tree_close_down = true; press_on_ui = true; mouse.press_this_frame = false; }
             if (mouse.release_this_frame && tree_close_down) {
@@ -528,8 +554,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
         }
         if (char_open && !held) close_button(char_close_down, char_open, kCharPanelX + 0x80, kCharPanelY + 420);
+        const int tree_hit_right = kTreeR;
         const bool over_panel =
-            (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
+            (tree_open && mouse.x >= tree_hit_right - 320 && mouse.x < tree_hit_right && mouse.y >= 60 && mouse.y < 540) ||
             (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                       && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
             ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
@@ -555,8 +582,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // sells the item.
         bool item_click = false;
         drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
+        if (touch_enabled) drive_touch_hold(frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && (mouse.press_this_frame || (pad_playing && mouse.rpress_this_frame))) {
+            if (touch_enabled && last_device == touch::LastDevice::Touch) {
+                item_click = true;
+            } else {
             if (pad_playing) mouse.rpress_this_frame = false;
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
@@ -570,6 +601,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (!direct_ui) identify_with = -1;
             item_click = true;
+            }
         }
         // A keeps the ordinary inventory pickup/move action, including usable tomes.
         // Use starts Identify; the active Identify branch above accepts A to confirm.
@@ -662,9 +694,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // released spends a point (FUN_004ab7e0 / FUN_004abc30).
         if (tree_open) {
             const int cls = std::max(character.character_class, 0);
-            const int skill = skill_at(*scene, cls, tree_tab, mouse.x, mouse.y);
+            const int tree_panel_right = kTreeR;
+            const int skill = skill_at(*scene, cls, tree_tab, mouse.x, mouse.y, tree_panel_right);
             if (mouse.press_this_frame) {
-                if (const int tab = skill_tab_at(mouse.x, mouse.y); tab > 0) tree_tab = tab;
+                if (const int tab = skill_tab_at(mouse.x, mouse.y, tree_panel_right); tab > 0) tree_tab = tab;
                 skill_pressed = character.stats.get(d2d::d2s::kSkillPts) > 0
                     && d2d::rules::can_learn(scene->rules, cls, skill, character.stats.skills, int(character.stats.get(d2d::d2s::kLevel))) ? skill : -1;
             }
@@ -905,7 +938,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk
             menu_press = true;                            // ... and its release (a store button under it)
-            const int line_index = npc_menu.line_at(mouse.x, mouse.y);
+            const int line_index = npc_menu.line_at(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);
             const auto action = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].action : NpcMenuState::kClose;
             const int npc_menu_arg = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].arg : -1;
             const int who = npc_menu.npc;
@@ -923,8 +956,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, screen_x, screen_y, npc_quest);
+                if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespec) {
                 npc_menu = open_respec_menu(*scene, who, screen_x, screen_y);
+                if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kCaravan) {
@@ -963,7 +998,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (store.npc >= 0 && npc_menu.npc < 0 && !menu_press) {
             static constexpr int kBtnX[4] = { 116, 169, 221, 273 };
             for (int i = 0; i < 4; ++i) {
-                const int button_x = kCharPanelX - 1 + kBtnX[i], button_y = 476 - 32 + 1;
+                const int store_x = touch_store_panel_x();
+                const int button_x = store_x - 1 + kBtnX[i], button_y = 476 - 32 + 1;
                 const bool hovered = mouse.x >= button_x && mouse.x < button_x + 32 && mouse.y >= button_y && mouse.y < button_y + 32;
                 if (hovered && mouse.down) store.pressed[std::size_t(i)] = true;
                 if (hovered && mouse.release_this_frame && i < 2) store.mode = store.mode == i + 1 ? 0 : i + 1;
@@ -979,13 +1015,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 }
             }
             if (mouse.press_this_frame && mouse.y >= 60 && mouse.y <= 90
-                && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320)
-                store.tab = (mouse.x - kCharPanelX) / 80;
+                && mouse.x >= touch_store_panel_x() && mouse.x < touch_store_panel_x() + 320)
+                store.tab = (mouse.x - touch_store_panel_x()) / 80;
             // Right-click on stock buys; with Buy or Sell toggled on,
             // a left click buys the stock item / sells your item. Shift +
             // right click on a multibuy item fills (FUN_004b2650: mouse
             // flag 4, Items +0x1a5).
-            const int store_index = store_item_at(*scene, store, mouse.x, mouse.y);
+            const int store_index = store_item_at(*scene, store, mouse.x, mouse.y, touch_store_panel_x());
             if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
@@ -1010,7 +1046,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // Waypoint panel: tabs switch acts, cancel (or the row of the
         // level you're in) closes it.
         if (waypoint.open) {
-            const bool on_cancel = mouse.x >= kCharPanelX + 0x111 && mouse.x < kCharPanelX + 0x111 + 0x24
+            const int panel_x = touch_store_panel_x();
+            const bool on_cancel = mouse.x >= panel_x + 0x111 && mouse.x < panel_x + 0x111 + 0x24
                                 && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
             waypoint.cancel_down = on_cancel && mouse.down;
             if (mouse.press_this_frame) {
@@ -1065,6 +1102,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
+        if (touch_enabled && last_device == touch::LastDevice::Touch
+            && (touch_item_drag || (pad_field() && !touch_pointer.active))) {
+            mouse.down = false;
+            mouse.press_this_frame = false;
+        }
         if (have_world) walk(mouse, over_ui || press_on_ui, audio, frame_ms, last_ms);
         // Walked away from the NPC whose windows are open: they shut, as Esc.
         // game.exe's panels leave no world to walk in; widescreen does

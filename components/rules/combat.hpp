@@ -971,7 +971,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     if (!sure) {
         if (!(running && !missile) && !attacker.no_hit_roll && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
             return taken;
-        if (defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
+        if (!(missile && attacker.unblockable) && defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
         if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
         const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
         if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
@@ -1014,6 +1014,13 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
             default: break;   // types above 4 have no field in the record
         }
     }
+    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants, after its elements
+        if (const auto& enchant = attacker.enchants[type]) {
+            const int roll = rng.range(enchant->first, enchant->second);
+            if (roll <= 0) continue;
+            if (type == 2) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, attacker.enchant_len));
+            taken.element_raw[type] += roll;
+        }
     for (const int type : { 0, 1, 2, 4 }) {
         if (pair_pct != 100) taken.element_raw[std::size_t(type)] = pair_scaled(taken.element_raw[std::size_t(type)] * 256) >> 8;   // 200 / 400: whole points stay whole
         const int roll = taken.element_raw[std::size_t(type)];

@@ -25,6 +25,14 @@ installer) prints a `SKIP` line for that part and still passes.
 test_game and test_game_tables skip without d2data.mpq; the game's checks
 that need no data are in test_game_rules, which always runs.
 
+The oracle-mode tests (`d2d_oracle_tests` in CMakeLists.txt: test_armor_hit,
+test_boss_level and eleven more) print d2d's side for cases a
+`tools/emu` script writes, and skip when run alone. ctest runs each through
+`tools/emu/oracle_test.py`: the script's game.exe side, the test's d2d side
+on the same 2000 cases, then their compare. That needs the emu .venv
+(`cd tools/emu && uv sync`) and `bin/game.exe` beside the MPQs; without
+either it skips, as in CI. All thirteen take about a minute at `-j 6`.
+
 `test_iso9660` generates primary ISO 9660 and Joliet images with a known
 payload. It checks the real install disc too when present at the usual
 Downloads path. The generated fixtures need no game files.

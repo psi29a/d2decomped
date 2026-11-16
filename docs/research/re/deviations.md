@@ -21,7 +21,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
 `autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
 `splash_centre` (improvement 14), `click_keys` (improvement 15), `unit_slide` (improvement 16),
-`hwcursor` (improvement 19).
+`hwcursor` (improvement 19), `touch_classic_hud` (improvement 20).
 `--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
@@ -48,13 +48,13 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 18 | Equip a bag item from the pad | game.exe equips the item in the hand (`cmd::ToBody`, FUN_0063dd90). The piece that was worn comes off into the hand | `cmd::EquipFromBag` (d2d opcode 0x64, not a game.exe packet and not sent on a joined game) wears a bag item in head, neck, torso, feet or gloves when `can_wear` passes and the old piece fits in the bag after the new one leaves its cells. Weapons, shields, rings and belts are refused. A refusal changes nothing. Hold A for 0.40 s sends it | One hold equips a chest without leaving either piece on the cursor | yes, once the hold completes | rules.hpp `equip_from_bag`, protocol.hpp `EquipFromBag` |
 | 19 | The mouse cursor | Hidden OS pointer (USER32 `ShowCursor`; game-imports.tsv has `ShowCursor` and `LoadCursorA`, no `SetCursor` or `CreateCursor`); CURSOR\ohand.dc6 drawn into each frame, so it moves only when a frame is drawn | The same gauntlet frame and palette handed to the OS as a colour cursor (`SDL_CreateColorCursor`), scaled to the window, hot spot where the frame drawing puts it. Only the plain hand: a held item, an identify pick, a pad-moved cursor or a driver without colour cursors draws into the frame, as game.exe. `--toggle hwcursor=off` turns it off | The hand follows the mouse with no frame of lag, even when frames drop | yes: the hand moves ahead of slow frames | hw_cursor.hpp `cursor_image`, window.hpp `show_cursor` |
 
-| 20 | Touch input prototype | No touch adapter | Opt-in `--touch-controls` / `touch_controls = 1`: independent movement and skill fingers, fixed Attack/Use, four skills per latching I/II page, belt buttons, drag-to-aim/lift-to-cast and an explicit cancel region. Original skill commands and eligibility checks; separate `.touchskills` assignments. No cast on cancelled or interrupted gestures. Off by default | Landscape touch controls using existing skill icons and fonts | yes, once enabled | touch_input.hpp, town/touch.cpp; docs/design/controller-touch.md |
+| 20 | Touch input prototype | No touch adapter | Opt-in `--touch-controls` / `touch_controls = 1`: corner thumb layout, attack-only primary button, contextual Interact, four skills per I/II page, compact life/mana bars top-left on the field; game.exe's bottom bar, belt strip and mini menu row hidden there (`--toggle touch_classic_hud=on` restores them). Map opens full-screen; skill tree pins left on touch. Drag-to-aim, cancel region, `.touchskills` sidecars. Off by default | Mobile-style field HUD on the existing 800×600 view | yes, once enabled | touch_input.hpp, town/touch.cpp; docs/design/controller-touch.md |
 
 ## Approximations
 
 | # | What | game.exe | d2d now | Visible | Where |
 |---|---|---|---|---|---|
-| 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain` |
+| 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain, multiplied button labels) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain`, font.hpp `draw_tinted_baseline` |
 | 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | Each pixel bilinear between the subtile corners round the ground under it | hardly | tile_blit.hpp `blit_dt1_tile_lit` |
 | 3 | Unit shadows | Each layer drawn through the alpha table (untraced whether overlaps darken twice) | A composite darkens each pixel once | hardly | world_view.hpp `shadow_composite` |
 | 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
@@ -71,6 +71,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 15 | Video Options' Resolution | 640x480 or 800x600: the game window and its layout change size | The row and its two choices show, but the game stays 800x600: d2d's panels have no 640x480 layout (the in-game view widens only with `--widescreen`) | yes: picking 640x480 changes nothing | gamemenu.cpp `kVideo` |
 | 16 | Battle.net | BATTLE.NET (title) and OPEN BATTLE.NET (Other Multiplayer) connect to a realm or an open Battle.net game through the gateway | Both buttons show, as does GATEWAY: LOCAL; a click on either does nothing: d2d has no Battle.net client | yes | frontend.cpp `title_ui`, `other_multiplayer_ui` |
 | 17 | Cinematic timing | binkw32's `_BinkWait` paces the frames, synced to its DirectSound stream (`FUN_0050fdf0`) | Each frame at its pts by the wall clock; the audio queued as it decodes, no drift correction | hardly (24 fps, interleaved files) | video.hpp `Player::advance`, video.md |
+| 18 | Rolls on a unit's own seed | Some server rolls step the rolling unit's seed (unit +0x20): the player's or a new summon's | The fight's one rng (`Fight::rng`), with the same bounds: d2d keeps no seed on the player or a summon, and the server's rolls aren't sent to clients, only their results | no (same odds; only a replay of game.exe's exact rolls differs) | the comments in components/game/fight that cite approximation 18 |
 
 425 smaller shortcuts are marked `ponytail:` in components/ and apps/
 (2026-10-31; `git grep -n ponytail: -- components apps | wc -l`); this table holds

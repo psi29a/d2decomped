@@ -249,6 +249,23 @@ d2d matches both, and the one-poison-at-a-time rule.
 - Block chance (FUN_00622720): players need a shield; `(stat 20 +
   CharStats BlockFactor) × (dex − 15) / (clvl × 2)`, clvl at least 1;
   monsters stat 20 when MonStats allows it (or with a shield); at most 75.
+- **A monster's missile with no physical record is not blockable.** The missile's hit
+  (`FUN_005ad730`) calls `FUN_0057dfb0(defender, 1, record +8 != 0)`; with 0 the block roll
+  (and its draw on the defender's seed) is skipped, the dodge / avoid / evade rolls still come
+  (`FUN_0057dd60`, which also holds the claws' weapon block). The record's physical (+8) comes
+  from `FUN_005a89a0` / `FUN_005a8910`: min and max (stats 0x15 / 0x16, 256ths) both over 0,
+  else 0. d2d: `MonStats::unblockable`, set by `monster_shot_stats` for the MissA / MissS1 /
+  MissC shots (`!(phys.low > 0 && phys.high > 0)`), by `missile_blow` from the row's own
+  physical (`!(min > 0 && max > 0)`: the Fallen Shaman's fire and Radament's bolt have none) and,
+  for a row that names a Skill, by `andariel_missile` from the carried skill's physical after it
+  replaces the row's (`FUN_0064b860`): a Death Mauler's maul has none in the row and 10 to 20 in
+  DeathMaul, so it stays blockable. Read by `monster_blow` for a missile. Checked by
+  `tools/emu/missile_block.py` against `test_monster_missile --missile-block` and
+  `--missile-block-skill`. Limits: the compared shooters are `mm_diff.py`'s Act 1 / 2 rows
+  (36 rows, 51 monsters) and the skill launches of `mm_launch.py` (with the Death Mauler's
+  maul); Act 3 to 5 shooters go through the same `monster_shot_stats` (read, not run). The
+  area path (`FUN_005ad730` from `0x57e203`, a loop that copies a caller's record) uses the
+  same `record + 8` rule; d2d's monster area missiles were not checked.
 
 ## Damage — FUN_0057b7d0, FUN_0057b420
 
@@ -521,6 +538,33 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   used skill), which decides a knock during a swing or cast, nor the
   `unit + 0x60` branch (a player holding a cursor item is refused mode 4 from
   modes 0..20: run; mode 0x13 the same way: read).
+- **A hit interrupts a swing or cast only if its skill's `interrupt` is set** (`FUN_005809d0`
+  asks `FUN_0057edd0`, then, as its fifth argument is 0, `FUN_0057eec0(unit, new mode, 1,
+  used skill 0)`; the call at 0x57d383 is the get-hit). `FUN_0057eec0` refuses mode 4 and 9
+  when the unit's used skill (`FUN_00620250`) has Skills.txt `interrupt` clear (the row's flags
+  byte +7 against the mask at 0x6ce284, 0x57ef46) unless the unit is idle; with no used skill
+  it allows. 22 of the 357 rows have it clear: Kick, Jab, Strafe, Fend, Smite,
+  Zeal, Charge, Concentrate, Frenzy, Whirlwind, the Identify and Townportal scroll and book rows,
+  Werewolf and Werebear, and the monster rows QueenDeath, Cry Help, BearSmite, Delerium Change,
+  SerpentCharge and Trap Nova (Skills.txt names; V run, `interrupt_swing.py`). The used-skill pointer is cleared by idle,
+  walk, run and the end of a swing, so it only holds during the swing or cast. d2d's
+  `Fight::hit_interrupts` reads the row's `interrupt` for the swing and cast modes and
+  `cancel_swing` drops the swing's repeats, sequence and movement. The gate tests state 0x36
+  (uninterruptable: a Leap, Leap Attack or Whirlwind under way, `Fight::uninterruptable`) first
+  (0x57eec7) and refuses new mode 4 (V run: the 357 rows in the 8 modes), so `hit_interrupts` returns false for it; the barrel
+  kick (`World::operate`: KK with no skill id) is game.exe's Kick (`FUN_005868a0` ->
+  `FUN_00580a70`, whose `interrupt` is blank) and refuses the hit too. Checked by
+  `tools/emu/interrupt_swing.py` (357 rows x A1 A2 SC TH KK S1 S3 S4 x state none and 0x36,
+  and the barrel kick) against `test_hit_recovery --interrupt`. Not modelled: the two other
+  state branches of the gate, state 0xf (Concentrate) and state 0x2a (the Paladin's
+  Concentration aura), which refuse a get-hit when `rand(100)` on the unit's seed is below
+  stat 0xa4 (`skill_concentration`, 20 for Concentration; `0x57ef51..0x57ef8f`; the oracle
+  counts those cells, `interrupt_swing.py game` states 2 to 4), whether the struck cue still
+  plays for a hit that is refused (LAB_0057d383 sets no flag 0x8000 on this path; d2d's
+  soft-hit branch plays it), the swing's queued weapon cue (not dropped by `cancel_swing`),
+  a knockback on a cast whose `interrupt` is blank (new mode 0x13, same gate; `tick.cpp`'s
+  knock line), the `unit + 0x60` cursor-item branch. d2d reads scrolls and tomes at once,
+  with no cast mode, so the gate's answer for them (refused) has no d2d counterpart.
 - **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
   get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
   (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:

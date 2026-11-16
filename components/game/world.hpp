@@ -479,6 +479,9 @@ struct World {
     // (leave_town). By level id and NPC index: with split levels two towns
     // can trade at once.
     std::map<std::pair<int, int>, Store> stocks;
+    // A gamble list whose talk ended while another player still talked to
+    // the vendor (FUN_00572f20): by level id, NPC index and player id.
+    std::map<std::tuple<int, int, int>, Store> kept_gambles;
     // The hire lists (FUN_00576070), one per act's hire NPC (Kashya, Greiz):
     // rolled when first asked for, a hired offer leaves it, and once none is
     // left it's rolled anew (FUN_00577010).

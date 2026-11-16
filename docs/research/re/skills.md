@@ -619,7 +619,9 @@ loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
    instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
 6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
    States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
-   one of State1..3 (+0x22a), 1 and others pass: 4.
+   one of State1..3 (+0x22a), 1 and others pass: 4. In 1.14d's rows 2 is
+   the Druid's forms' (Feral Rage, Maul, Rabies, Fire Claws, Hunger, Shock
+   Wave, Fury); d2d: `Skill::restrict_form`, `StateInfo::restrict_form`.
 7. startmana (`FUN_006440f0`, a player only): 1 when +0x184 (startmana,
    not minmana +0x186) is above 0, mana is below startmana x 256 and the
    unit isn't in state inferno (0xc). Only Inferno (6), Arctic Blast and
@@ -849,7 +851,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   freeze) 331, poison 332; none for magic.
 - Missile record: +0x0c pSrvDoFunc (table 0x73c768), **+0x0e pSrvHitFunc
   (table 0x73c840)**, +0x10 pSrvDmgFunc (0x73c960); +0x38.. Param1..5,
-  +0x4c.. sHitPar1..3 (FUN_0064b340's operand order).
+  +0x4c.. sHitPar1..3, +0x58.. CltParam1..5, +0x6c.. cHitPar1..3 (the
+  Missiles loader list; FUN_0064b340's operands 0..4, 10..12, 5..9 and
+  13..15, pairs 33..36 on CltParam1..4 and 39 / 40 on cHitPar1 / 2).
 - Hit function 1 (**FUN_005a9a70**, Fire Ball): radius = sHitPar1, else
   the skill's calc1; FUN_0056bad0 → FUN_0056b7e0 hits every unit whose
   squared subtile distance is within radius². The record is rolled ONCE
@@ -923,7 +927,11 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   (+0x80) with aurastats (+0x54 ids, +0x68 calcs) on the caster
   (FUN_0056b740 → FUN_005cedc0) and, with auratargetstate (+0x82), on
   every ally within aurarangecalc (+0x64) subtiles by aurafilter (+0x50)
-  (FUN_0056b7e0). **66** (FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary,
+  (FUN_0056b7e0). FUN_005cedc0 puts the state with FUN_0056e970, so a
+  unit holds one list per state: a second source of the same aura fails
+  under a higher stored level and only extends an equal one, and the
+  higher level's stands (Blessed Hammer reads Concentration's that way,
+  FUN_006461d0 -> FUN_006256b0). **66** (FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary,
   Conviction) and **81** (FUN_005d0920, Holy Freeze): the caster's
   aurastate gets the skill's **passive** stats (+0x98 / +0xa4) — Holy
   Fire's weapon fire — and every enemy in range gets the target state
@@ -1054,7 +1062,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   count's missile round the target (FUN_0056d400), FUN_00663270 (Vel +
   VelLev x level / 8, a velocity) + calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
   prgcalc n subtiles of the target, a missile at each that lands on the
-  map. **37** and **143** launch the ring below. **40** (FUN_005d5010)
+  map; each try is r - rand(2r) on x then y (0x5d4080..0x5d409c), on a
+  stepped copy of the caster's seed (`rules::release_scatter_offset`). **37** and **143** launch the ring below. **40** (FUN_005d5010)
   stands the count's missile at the target (`Fight::prg`). **41**
   (FUN_005d5080) aims each one at `seed % 0x28 - 0x14` on each axis
   (`rules::release_spread_offset`; a (0, 0) pair is stored as x = 0x14).
@@ -1249,10 +1258,18 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   which the stat init (FUN_00573cb0 -> FUN_006538a0) and the per-mode
   damage (FUN_005a4f50) take as written; Align 1 (row +0x4c, read in the
   emulator: necroskeleton 1, skeleton1 0) skips the players' life bonus
-  (FUN_00573930). The Druid's and Raven's rows have no damage: d2d gives
-  them the skill's physical (MinDam + MinLevDam). Not traced where
-  game.exe does: not in the summon (FUN_005c6910 / FUN_005c7390,
-  FUN_005c49e0, FUN_005c4470) nor FUN_005a4f50.
+  (FUN_00573930). The Druid's and Raven's rows have no damage. MonStats
+  SkillDamage (+0xa8 in the 0x1a8-byte row, the column table's
+  "SkillDamage" entry) names a skill on four rows: druidhawk Raven,
+  spiritwolf / fenris / druidbear their Summon skill. FUN_005a4f50 first
+  calls FUN_0056e050 (ECX the monster): with an owner (FUN_0058f0d0) and
+  SkillDamage in 1..the skill count, FUN_0056e000 (EDI the owner, ESI the
+  skill, from the asm) gives {FUN_00647bc0 >> 8, FUN_00647d00 >> 8,
+  FUN_006449f0} at FUN_00644aa0's level (the owner's, its bonus in, at
+  least 0), and each mode's min, max and to-hit (stats 0x15 / 0x16 /
+  0x13) add them. d2d (`summon_one`, `test_raven_skill_damage`) adds the
+  cast skill's at the cast's level to A1, A2 and S1 and their to-hits
+  for a row with no A1 damage; SkillDamage itself isn't loaded.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at

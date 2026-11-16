@@ -306,6 +306,7 @@ auto World::enter(const Character& entering) -> void {
         lead().portal_pair = 0;
         take_character(entering);
         stocks.clear();
+        kept_gambles.clear();
         for (auto& list : hire_lists) list.clear();
         // A game starts in the town of the save's act (its difficulty byte:
         // 0x80 and the act in the low bits); the camp when that isn't built.

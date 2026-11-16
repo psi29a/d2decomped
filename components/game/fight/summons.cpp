@@ -171,7 +171,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // FUN_006538a0) and the per-mode damage (FUN_005a4f50) take as
         // written, and Align 1 (row +0x4c) skips the players' life bonus
         // (FUN_00573930).
-        // ponytail: the life roll takes d2d's rng, not the pet's unit seed (+0x20).
+        // The life roll is min + rand(max - min + 1) on the pet's unit seed
+        // (+0x20, 0x573f83..0x573f8f), here rng.range on Fight::rng:
+        // deviations.md approximation 18.
         // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
         // stats at its level, life and level brought down to the owner's
         // when it's above it.
@@ -181,14 +183,27 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
             monster.stats.a2_min = per_difficulty.a2_min; monster.stats.a2_max = std::max(per_difficulty.a2_max, per_difficulty.a2_min);
         }
-        // The Druid's and Raven's hit with the skill's physical damage (their
-        // MonStats rows have none).
-        // ponytail: where game.exe hands the skill's damage to the pet isn't
-        // traced: not the summon (FUN_005c6910 / FUN_005c7390, FUN_005c49e0,
-        // FUN_005c4470) nor the per-mode damage (FUN_005a4f50); the hit's next.
+        // The Druid's wolves, Grizzly and Raven: MonStats SkillDamage (+0xa8)
+        // names their summon skill, and each swing's per-mode damage
+        // (FUN_005a4f50 -> FUN_0056e050, a monster with an owner ->
+        // FUN_0056e000) adds that skill's physical (FUN_00647bc0 /
+        // FUN_00647d00 >> 8) to A1's, A2's and S1's and its to-hit
+        // (FUN_006449f0) to theirs, at the owner's level in it
+        // (FUN_00644aa0). Their rows have no damage of their own.
+        // ponytail: SkillDamage isn't loaded: a row with no A1 damage takes
+        // the cast skill (the four rows name the skill that summons them) at
+        // the cast's level, not re-read at each swing.
+        int summon_skill_to_hit = 0;
         if (monster.stats.a1_max == 0 && skill.maxdam > 0) {
             const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
-            monster.stats.a1_min = damage.phys_lo >> 8; monster.stats.a1_max = std::max(damage.phys_hi >> 8, monster.stats.a1_min);
+            const int low = damage.phys_lo >> 8, high = std::max(damage.phys_hi >> 8, low);
+            const std::array<std::pair<int*, int*>, 3> modes{ { { &monster.stats.a1_min, &monster.stats.a1_max }, { &monster.stats.a2_min, &monster.stats.a2_max },
+                                                                 { &monster.stats.s1_min, &monster.stats.s1_max } } };
+            for (const auto& [mode_min, mode_max] : modes) {
+                *mode_min += low;
+                *mode_max += high;
+            }
+            summon_skill_to_hit = d2d::rules::skill_tohit(game_data->skills, skill, env, lvl);
         }
         monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kDecoy ? clvl : plvl;
         if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
@@ -196,6 +211,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.stats.armor_class = level_row.armor_class[std::size_t(monster.difficulty)];
             monster.stats.to_hit = level_row.to_hit[std::size_t(monster.difficulty)];
         }
+        for (int* mode_to_hit : { &monster.stats.to_hit, &monster.stats.to_hit2, &monster.stats.to_hit_s1 }) *mode_to_hit += summon_skill_to_hit;
         // FUN_005c4470: the skill's passive stats (base) and aurastats (its
         // aurastate) onto the pet, at the skill's level through the owner's
         // calcs — Skeleton Mastery, Golem Mastery and the golems' synergies

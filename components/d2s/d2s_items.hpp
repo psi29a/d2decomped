@@ -14,7 +14,8 @@
 //   4 column | 4 row | 3 panel (1 inventory, 4 cube, 5 stash) |
 //   32 code (4 chars) | 3 filled sockets
 //   extended (not simple): 32 seed | 7 ilvl | 4 quality | 1(+3) picture |
-//   1(+11) class affix | quality data (normal: a tome's 5) | runeword 16 |
+//   1(+11) class affix | quality data (normal: a charm's 1 + 11, a body
+//   part's 10, a tome's 5) | runeword 16 |
 //   name 7-bit chars to 0 | 1 realm flag (+3 words) | armour: 11
 //   defence-10 | armour/weapon: 8 maxdur (+9 durability when non-zero; 8
 //   before save version 0x60) |
@@ -34,6 +35,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -87,7 +89,7 @@ struct Item {
     int  ilvl = 0, defense = -1, quantity = -1, sockets = 0;
     int  durability = 0, max_durability = 0;   // max 0: indestructible / none
     int  set_id = -1, unique_id = -1;
-    int  qsub = 0;                     // low (0 crude..3) / superior subtype
+    int  qsub = 0;                     // low (0 crude..3) / superior subtype; a normal body part's 10 bits (FUN_00629df0)
     int  picture = -1;                 // ItemTypes InvGfx index (rings, charms, jewels ...)
     int  prefix = 0, suffix = 0;       // magic: MagicPrefix/MagicSuffix row (0 = none)
     int  rare1 = 0, rare2 = 0;         // rare/crafted name: RarePrefix/RareSuffix IDs
@@ -108,6 +110,7 @@ struct Item {
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, dur_extra = 0, set_lists = 0;
+    bool charm_prefix = false;         // a normal charm's 1 bit: its 11 are the prefix (set) or the suffix
     std::size_t main_props = 0;
     std::vector<std::size_t> set_list_sizes;
     int ear_class = 0, ear_level = 0;
@@ -133,10 +136,42 @@ struct ItemTables {
     std::unordered_set<std::string> armor, weapons, stackable;
     std::unordered_set<std::string> compact;        // misc.txt compactsave: written short (simple)
     std::unordered_set<std::string> quest_difficulty;   // quest and questdiffcheck (ItemsTxt +0x12a / +0x12b)
+    // Normal quality's extra bits (FUN_0062cbe0, by FUN_00629bb0 on the
+    // item's type then its type2): ItemTypes row 13 (charm), and row 40
+    // (body part) but not row 7 (a player's), and rows 22 (scroll) or 18
+    // (book): their 5 bits. Empty without ItemTypes.
+    std::unordered_set<std::string> charms, body_parts, books;
+    static constexpr int kCharmType = 13, kBodyPartType = 40, kPlayerBodyPartType = 7, kScrollType = 22, kBookType = 18;
 
     static ItemTables from(const txt::Table& isc, const txt::Table& armor_t,
-                           const txt::Table& weapons_t, const txt::Table& misc_t) {
+                           const txt::Table& weapons_t, const txt::Table& misc_t,
+                           const txt::Table* itemtypes = nullptr) {
         ItemTables item_tables;
+        // ItemTypes rows by Code and each row's Equiv1 / Equiv2; a type "is
+        // a" row when it is it or a parent is (at most 64 steps, as D2's walk).
+        std::unordered_map<std::string, int> type_rows;
+        std::vector<std::array<int, 2>> type_parents;
+        if (itemtypes) {
+            const auto c_code = itemtypes->col("Code"), c_equiv1 = itemtypes->col("Equiv1"), c_equiv2 = itemtypes->col("Equiv2");
+            for (std::size_t type_row = 0; type_row < itemtypes->size(); ++type_row)
+                if (const auto type_code = itemtypes->get(type_row, c_code); !type_code.empty()) type_rows.emplace(std::string(type_code), int(type_row));
+            type_parents.resize(itemtypes->size());
+            for (std::size_t type_row = 0; type_row < itemtypes->size(); ++type_row) {
+                const auto equiv1 = type_rows.find(std::string(itemtypes->get(type_row, c_equiv1)));
+                const auto equiv2 = type_rows.find(std::string(itemtypes->get(type_row, c_equiv2)));
+                type_parents[type_row] = { equiv1 == type_rows.end() ? -1 : equiv1->second, equiv2 == type_rows.end() ? -1 : equiv2->second };
+            }
+        }
+        const auto is_a = [&](std::string_view type_code, int ancestor) {
+            const auto found = type_rows.find(std::string(type_code));
+            if (found == type_rows.end()) return false;
+            std::vector<int> pending{ found->second };
+            for (std::size_t next = 0; next < pending.size() && next < 64; ++next) {
+                if (pending[next] == ancestor) return true;
+                for (const int parent : type_parents[std::size_t(pending[next])]) if (parent >= 0) pending.push_back(parent);
+            }
+            return false;
+        };
         const auto c_id = isc.col("ID"), c_b = isc.col("Save Bits"),
                    c_a = isc.col("Save Add"), c_p = isc.col("Save Param Bits"),
                    c_c = isc.col("CSvBits");
@@ -158,6 +193,11 @@ struct ItemTables {
                 if (!tab.get(row, "quest").empty() && tab.get(row, "quest") != "0" && !tab.get(row, "questdiffcheck").empty()
                     && tab.get(row, "questdiffcheck") != "0")
                     item_tables.quest_difficulty.insert(code);
+                const auto type = tab.get(row, "type"), type2 = tab.get(row, "type2");
+                const auto item_is = [&](int ancestor) { return is_a(type, ancestor) || is_a(type2, ancestor); };
+                if (item_is(kCharmType)) item_tables.charms.insert(code);
+                if (item_is(kBodyPartType) && !item_is(kPlayerBodyPartType)) item_tables.body_parts.insert(code);
+                if (item_is(kScrollType) || item_is(kBookType)) item_tables.books.insert(code);
             }
         };
         std::unordered_set<std::string> misc;
@@ -325,8 +365,13 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
                     parsed.rare1 = int(bits.read(8)); parsed.rare2 = int(bits.read(8));
                     for (auto& affix : parsed.affixes) affix = bits.read(1) ? int(bits.read(11)) : 0;
                     break;
-                case 2:   // ponytail: a normal charm's affix and a monster part's 10 bits come here too (no ItemTypes yet)
-                    if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));   // scrolls and books
+                case 2:   // a charm (identified, or a save's): 1 bit, then 11; a body part not a player's: 10; a book or scroll: 5
+                    if (item_tables.charms.contains(parsed.code) && (!net || parsed.identified)) {
+                        parsed.charm_prefix = bits.read(1) != 0;
+                        (parsed.charm_prefix ? parsed.prefix : parsed.suffix) = int(bits.read(11));
+                    }
+                    if (item_tables.body_parts.contains(parsed.code)) parsed.qsub = int(bits.read(10));
+                    if (item_tables.books.contains(parsed.code)) parsed.tome = int(bits.read(5));
                     break;
                 default: break;
             }

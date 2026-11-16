@@ -43,7 +43,7 @@ int main(int argc, char** argv) try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    assert(data && data->patched);
+    if (!data || !data->patched) { std::printf("SKIP: the oracle is 1.14d's game.exe: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     d2d::rules::Rng made_rng{ 3 };
     const auto fallen = data->monsters.by_id.find("fallen1");
     assert(fallen != data->monsters.by_id.end());

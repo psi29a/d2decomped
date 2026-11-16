@@ -71,7 +71,13 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
-            if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl, actor->character.header.active_difficulty(),
+            // A gamble list kept past the player's last talk (CloseTrade) comes back:
+            // FUN_00578ae0 rolls only when the vendor holds none for them.
+            if (const auto held_list = kept_gambles.find({ level->id, trade->npc, actor->id }); trade->gamble && held_list != kept_gambles.end()) {
+                actor->store = std::move(held_list->second);
+                kept_gambles.erase(held_list);
+                actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {};
+            } else if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl, actor->character.header.active_difficulty(),
                                                                 actor->character.expansion, fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
             else if (const auto kept = stocks.find({ level->id, trade->npc }); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
             else actor->store = open_store(*game_data, *level, trade->npc, act(), actor->character.header.active_difficulty(), clvl, actor->character.expansion,
@@ -193,7 +199,18 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             }
             return true;
         }
-        if (std::holds_alternative<cmd::CloseTrade>(command)) { actor->store = {}; return true; }
+        // Ending the talk (C->S 0x30, FUN_00572f20) frees the player's gamble
+        // list (FUN_00537190) only when no other player is still talking to
+        // the vendor; else the list stays theirs for their next talk.
+        if (std::holds_alternative<cmd::CloseTrade>(command)) {
+            const int vendor_npc = actor->store.npc;
+            const bool others_talking = actor->store.gamble && vendor_npc >= 0 && std::ranges::any_of(players, [&](const auto& talker) {
+                return talker.get() != actor && talker->on_level == actor->on_level && talker->talking[0] == vendor_npc;
+            });
+            if (others_talking) kept_gambles[{ level->id, vendor_npc, actor->id }] = std::move(actor->store);
+            actor->store = {};
+            return true;
+        }
         // Akara's reset (the 0x38 handler for her, hcIdx 0x94): while quest
         // 41 (the Den of Evil's reward) is open, stats and skills go back,
         // then it's used (FUN_0058fd50: bit 0 on, 1 off).

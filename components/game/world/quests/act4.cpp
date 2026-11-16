@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <tuple>
 #include <utility>
@@ -47,16 +48,16 @@ auto World::seal_boss(const Level& where, int superunique, int x, int y) -> void
         const int diff = actor->character.header.active_difficulty();
         const auto& row = game_data->superuniques[std::size_t(superunique)];
         const auto [at_x, at_y] = where.nearest_free((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
-        auto boss = make_monster(*game_data, row.type, at_x, at_y, fight.rng, diff, false, int(players.size()), where.id);
-        make_boss(*game_data, boss, d2d::rules::Boss::superunique, row.mods, superunique, 0, diff, fight.rng, int(players.size()));
+        auto boss = make_monster(*game_data, row.type, at_x, at_y, fight.rng, diff, false, fight.game_players(), where.id);
+        make_boss(*game_data, boss, d2d::rules::Boss::superunique, row.mods, superunique, 0, diff, fight.rng, fight.game_players());
         boss.aware = true;
         const int minion = game_data->monsters.types[std::size_t(row.type)].minion[0] >= 0 ? game_data->monsters.types[std::size_t(row.type)].minion[0] : row.type;
         const int count = row.min_grp + int(fight.rng.next() % std::uint32_t(std::max(row.max_grp - row.min_grp + 1, 1)));
         fight.add_monster(std::move(boss), &where);
         for (int i = 0; i < count; ++i) {
             const auto [minion_x, minion_y] = where.nearest_free(at_x + float(i % 3 - 1) * 0.6f, at_y + float(i / 3 - 1) * 0.6f);
-            auto follower = make_monster(*game_data, minion, minion_x, minion_y, fight.rng, diff, false, int(players.size()), where.id);
-            make_boss(*game_data, follower, d2d::rules::Boss::minion, {}, -1, 0, diff, fight.rng, int(players.size()));
+            auto follower = make_monster(*game_data, minion, minion_x, minion_y, fight.rng, diff, false, fight.game_players(), where.id);
+            make_boss(*game_data, follower, d2d::rules::Boss::minion, row.mods, -1, 0, diff, fight.rng, fight.game_players());   // its mods' inits (FUN_0058f380)
             follower.aware = true;
             fight.add_monster(std::move(follower), &where);
         }
@@ -315,7 +316,7 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             if (start != sanctuary->npcs.end()) {
                 const int diff = actor->character.header.active_difficulty();
                 const auto [at_x, at_y] = sanctuary->nearest_free(start->x, start->y);
-                auto diablo = make_monster(*game_data, d2d::rules::TerrorQuest::kDiablo, at_x, at_y, fight.rng, diff, true, int(players.size()), sanctuary->id);
+                auto diablo = make_monster(*game_data, d2d::rules::TerrorQuest::kDiablo, at_x, at_y, fight.rng, diff, true, fight.game_players(), sanctuary->id);
                 if (const auto boss = d2d::rules::act_boss(diablo.type, game_data->monsters.types[std::size_t(diablo.type)].base)) {   // FUN_005b1cf0
                     diablo.boss = d2d::rules::Boss::unique;
                     diablo.mods = boss->mods;
@@ -399,21 +400,36 @@ auto World::act4_operate(int npc_index, std::uint32_t now_ms) -> bool {
         // The seals (52, 54..56): open once (mode 1). 54..56 (FUN_005b6b70 /
         // 6bc0 / 6c10) keep the seal's spot plus their offset and put the
         // flash (object 131, FUN_005b6ad0) at a free spot near it
-        // (FUN_00545340: size 3, mask 0x3f11, 100 rings); only with the flash
+        // (FUN_00545340: size 3, mask 0x3f11, 100 rings; its unit bits meet who
+        // stands there, loot.units_at); only with the flash
         // made does the seal open (FUN_005b5630). The flash's event 7, 27
         // frames on (InitFn 59), makes the boss there (act4_update). All five
         // open and the three dead release Diablo.
         if (object.operate_fn == kSeal || object.operate_fn == kSealInfector || object.operate_fn == kSealDeSeis || object.operate_fn == kSealVizier) {
             if (hosted_quests || operated.contains({ level, npc_index })) return true;
+            Crowd seal_crowd;
+            for (const auto& one : players) {
+                seal_crowd.units.push_back(&one->player);
+                if (one->merc) seal_crowd.units.push_back(&one->merc->unit);
+            }
+            for (std::size_t npc_at = 0; npc_at < npc_states.size() && npc_at < level->npcs.size(); ++npc_at)
+                if (level->npcs[npc_at].root != "objects" && !npc_states[npc_at].hidden) seal_crowd.units.push_back(&npc_states[npc_at]);
+            if (fight.mon_level == level)
+                for (const auto& monster : fight.monsters)
+                    if (monster.targetable()) seal_crowd.units.push_back(&monster.unit);
+            const auto* was_standing = std::exchange(loot.standing, &seal_crowd);
+            const std::function<int(int, int)> seal_units = [&](int at_x, int at_y) { return loot.units_at(at_x, at_y); };
+            const auto flash_spot = [&](int at_x, int at_y) { return level->free_area(at_x, at_y, 3, 0x3f11, 100, seal_units); };
             for (const auto& [operate_fn, superunique, off_x, off_y] : kSealBosses)
                 if (object.operate_fn == operate_fn) {
-                    const auto spot = level->free_area(int(std::floor(object.x * 5)) + off_x, int(std::floor(object.y * 5)) + off_y, 3, 0x3f11, 100);
-                    if (!spot) return true;
+                    const auto spot = flash_spot(int(std::floor(object.x * 5)) + off_x, int(std::floor(object.y * 5)) + off_y);
+                    if (!spot) { loot.standing = was_standing; return true; }
                     const std::uint32_t event7 = now_ms + kFlashFrames * kTickMs;
                     if (!game_data->afterglow.code.empty())
                         fires.push_back({ level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, event7 });
                     seal_bosses.push_back({ superunique, spot->first, spot->second, event7 });
                 }
+            loot.standing = was_standing;
             operated[{ level, npc_index }] = now_ms;
             if (terror.seal(object.object_id)) diablo_release(now_ms);
             return true;

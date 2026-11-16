@@ -11,6 +11,7 @@
 #include "gamedata.hpp"
 #include "loot.hpp"
 
+#include <chat_commands.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
@@ -480,6 +481,16 @@ struct Fight {
     int game_difficulty = 0;                         // new_game's
     bool game_expansion = true;                      // new_game's: the acting character's (game +0x70); add_monster marks a classic game's
     bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
+    // The chat box's /players count (DAT_00883d70, FUN_00535780): 0 until
+    // set, never reset, so a later game keeps it (new_game leaves it).
+    int players_setting = 0;
+    // During a split-level turn (World::tick): the players on the other
+    // levels, whom `heroes` (this level's) leaves out; 0 otherwise.
+    int players_elsewhere = 0;
+    // The players a monster's life and experience and NoDrop count
+    // (FUN_00535790): every player in the game, or the /players count when
+    // it's larger.
+    [[nodiscard]] int game_players() const { return d2d::rules::game_players(int(heroes.size()) + players_elsewhere, players_setting); }
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     std::unordered_map<const Level*, std::vector<Missile>> kept_missiles;   // a level's in flight while another has its turn (World::swap_to)
@@ -518,8 +529,8 @@ struct Fight {
     // of double: rules::potion_amount) over their length, joined with
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
-    // ponytail: the doubling rolls d2d's rng, not the player's own seed
-    // (it matters once machines share a game: networking).
+    // The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
+    // on d2d's rng here (rules::potion_amount): deviations.md approximation 18.
     void drink(int col, std::uint32_t now_ms);
     // Shift with the key: the merc drinks it (FUN_00562390 with the merc
     // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
@@ -649,6 +660,8 @@ struct Fight {
     // The swing's animation: KK for kicks, S1 for Smite, else A1.
     // ponytail: SQ sequences play A1.
     [[nodiscard]] int swing_mode() const;
+    [[nodiscard]] bool skill_in_use() const;     // the unit's mode holds a used skill (FUN_00620250 non-null): a swing or a cast
+    [[nodiscard]] bool hit_interrupts() const;   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
     // What the swing's skill adds to the blow: the Bash family's toht,
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
     // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
@@ -803,11 +816,13 @@ struct Fight {
     //   36 (FUN_005d4db0): a nova of the count's missile round it
     //      (FUN_0056d400), its range + calc1;
     //   39 (FUN_005d3f90): prgcalc n squared tries at points within that
-    //      many subtiles, each a missile of the count's (fire, ice cubes).
+    //      many subtiles (rules::release_scatter_offset), each a missile of
+    //      the count's (fire, ice cubes). game.exe draws them on a stepped
+    //      copy of the caster's seed, d2d on its rng (deviations.md
+    //      approximation 18);
+    //   40 / 41 (FUN_005d5010 / FUN_005d5080, Royal Strike's first and
+    //      third) and 37 / 143 (FUN_005d4e70 / FUN_005d4f40): prg's notes.
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
-    // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
-    // (Royal Strike; Fists of Fire's first) are
-    // logged once; 39's points come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
     void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
@@ -849,8 +864,9 @@ struct Fight {
     // unit event 0x5b on a level-up (FUN_00553380) isn't traced or played.
     void merc_share(const Monster& monster);
     bool merc_blow = false;                // the blow being landed is the merc's (its strike, arrow or skill missile)
-    // The players in the game and those of them alive (the party on the
-    // level: one screen), for NoDrop (Loot::drop); alone, 1 and 1.
+    // The players in the game (game_players: the /players count when it's
+    // larger) and those of them alive (the party on the level: one screen),
+    // for NoDrop (Loot::drop); alone, game_players() and 1.
     [[nodiscard]] std::pair<int, int> drop_counts();
     // The acting player's share of a kill: its level penalty (kill_exp),
     // item_addexperience, the experience (levels gained, their sound).
@@ -956,7 +972,9 @@ struct Fight {
     // weapon when the player hits, one worn armour when the player is hit —
     // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
     // / gloves 2) among the slots holding armour.
-    // ponytail: the rolls take d2d's rng, not the unit's seed.
+    // The slot and weight draws (FUN_0045c3e0 twice) and FUN_00559e30's
+    // % 100 step the unit's seed (+0x20) in game.exe, d2d's rng here:
+    // deviations.md approximation 18.
     void wear_weapon(std::uint32_t now_ms);
     void wear_armor(std::uint32_t now_ms);
     // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
@@ -1198,7 +1216,8 @@ struct Fight {
     // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
     // variant (+0xf of its monster data) to it: necromage1..4, rolled at
     // the raise (FUN_005c4180: the caster's seed & 3).
-    // ponytail: on d2d's rng; d2d keeps no player seed.
+    // d2d's rng(4) is that step on Fight::rng (summon_one): deviations.md
+    // approximation 18.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
@@ -1263,10 +1282,11 @@ struct Fight {
     // What the check asks (FUN_0056c160: no minmana floor); pay takes what FUN_0056bfe0 takes.
     [[nodiscard]] int cost_of(const d2d::rules::Skill& skill, int lvl) const;
     // Whether the player's skill can go now (FUN_00647960), game.exe's status: 0, or the first
-    // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of,
-    // then startmana x 256 out of state inferno), 8 skilldelay on and the skill's delay above 0.
-    // ponytail: restrict (4), blood mana (state 0x72) and an item's charges in its stat (2)
-    // aren't asked: d2d has no shapeshift or Blood Mana on the player, and a spent entry goes.
+    // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
+    // 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
+    // and the skill's delay above 0.
+    // ponytail: blood mana (state 0x72) and an item's charges in its stat (2) aren't asked:
+    // d2d puts no Blood Mana on the player, and a spent entry goes.
     [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
     // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
     // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
@@ -1283,6 +1303,7 @@ struct Fight {
     void pay(const d2d::rules::Skill& skill, int lvl);
     void owe(const d2d::rules::Skill& skill, int lvl);
     void settle_cast();
+    void cancel_swing();
     // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
     // dm34, attackrate dm56) are taken at that level.

@@ -412,9 +412,12 @@ The list is the player's own, and it lasts one talk with the vendor:
 - An interaction cut short (`FUN_00555500` → `FUN_00536b50`) frees the
   node whether or not anyone else is talking.
 
-d2d rolls a list at every opening, so every talk gets a new one, as in
-game.exe. Not yet: game.exe keeps the player's list if another player
-is still talking to the vendor when they close.
+d2d (`World::deal`): CloseTrade with another player still talking to
+the vendor (their `talking[0]`, on the same level) keeps the closer's
+list in `World::kept_gambles`, and their next opening takes it back
+instead of rolling; else the list is dropped and the next talk rolls a
+new one. Leaving town drops the kept lists with the stocks
+(`FUN_00536580` frees the record's +8 list too).
 
 ## Item generation (d2d, `components/rules` `generate_item`)
 
@@ -449,6 +452,13 @@ else rare.
   (`0x454080`): 0/1 C->S 0x50 (u32 player id, u32 amount; `FUN_00535510`
   drops it), 2 `FUN_004b9110` (0x4f 8), 3 0x4f 0x14, 4 0x4f 0x13; an
   amount of 0 sends nothing but a trade's.
+- The box's fonts: the amount's edit box takes font 1 (Font16) as its
+  last argument (+0x4e, `set_font` at 0x4bb246 / 0x4bb7fa). A button's
+  string shows only while the mouse is over its art, x .. x + width by
+  bottom - height .. bottom, edges in (ButtonImplementation's draw
+  0x4bb000, slot 1 of vtable 0x6da6f4): Font16 (ECX 1 at 0x4bb088),
+  colour 0, at x + (width - text) / 2, baseline bottom - height - 5
+  (`FUN_00502320`), then the old font back. d2d: `draw_gold_box`.
 - The spinner (`SpinnerImplementation`, vtable 0x6da83c; the box's
   callback 0x453fe0 adds the step, at most the gold it's from, or takes
   it, not below 0): a click on an arrow (`FUN_004bc0a0`) notes the tick

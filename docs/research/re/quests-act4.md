@@ -130,7 +130,10 @@ deaths.
   rings)`): for ring c = 1 .. rings − 1, rows r = c, c − 2 .. > −c, columns
   k = −c, −c + 2 .. < c: the (2 size + 1)² square centred on spot + (k − 1,
   r − 1) (`FUN_0064d800`: no bit of mask) in a room → spot + (k, r). d2d:
-  `Level::free_area`.
+  `Level::free_area`. The mask reaches `FUN_0064d800` whole, so 0x3f11's
+  unit bits (0x1000 / 0x2000, stamped by `FUN_0064ea90`) see who stands
+  there: d2d's `units` argument (the Dark Wanderer's afterglow and the seal
+  flashes pass their level's crowd; `tests/game/test_free_area_units.cpp`).
 - **All five open and three bound deaths** (seal op, the start point's
   InitFn 55 `FUN_005b5590`, or a death `FUN_005b52e0`): `FUN_005b5230`
   once (+0x13): every monster in level 108 but Diablo, not dead, not a

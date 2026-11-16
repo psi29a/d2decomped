@@ -658,19 +658,24 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
         const auto tip = string_id(scene, on_accept ? 0x1023 : 0x1022);
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, mouse_x - scene.font.measure(tip) / 2, mouse_y - 30, tip);
     }
-    // The bars over each grid (FUN_0048edf0's trade branch): their name and
-    // gold at bottom 0x1b + 60, ours at 0xf2 + 60 (y as these boxes centre
-    // them); each name loses its last letter while wider than 0x70.
-    // ponytail: x placed by eye on the art (the asm's x not read).
+    // The bars over each grid (FUN_0048edf0's trade branch, 0x48fc58..
+    // 0x48fef1, Font16 white): theirs at bottom 0x1b + 60, ours at 0xf2 + 60
+    // (y as these boxes centre them). Each name at x + 0x19, losing its last
+    // letter while wider than 0x70; string 0x8a7 centred on x + 0xbb; the
+    // gold ("%d", 0 too) ending at x + 0x124.
     auto fitted = [&](std::string name) {
         while (!name.empty() && scene.font.measure(name) > 0x70) name.pop_back();
         return name;
     };
-    centred({ 98, 70, 222, 88 }, fitted(with));
-    if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
-    centred({ 98, 286, 222, 304 }, fitted(our_name));
-    if (typing) centred(kOurGold, *typing + "_");
-    else if (our_gold) centred(kOurGold, std::to_string(our_gold));
+    auto bar = [&](int top, const std::string& name, const std::string& gold) {
+        const int text_y = top + 9 - scene.font.line_height() / 2;
+        const auto label = string_id(scene, 0x8a7);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, kCharPanelX + 0x19, text_y, fitted(name));
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, kCharPanelX + 0xbb - scene.font.measure(label) / 2, text_y, label);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, kCharPanelX + 0x124 - scene.font.measure(gold), text_y, gold);
+    };
+    bar(70, with, std::to_string(their_gold));
+    bar(kOurGold[1], our_name, typing ? *typing + "_" : std::to_string(our_gold));
 }
 
 TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) {
@@ -927,7 +932,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
         const int mode = list == 3 && fade == 1 ? 5 : mode_of(x, bottom);
         constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
-        const int weight = mode == 5 ? 255 : weights[mode];         // the cel's share over what's there (PL2 alpha tables, pl2.md)
+        const int weight = mode < 3 ? weights[mode] : 255;           // the cel's share over what's there (PL2 alpha tables, pl2.md)
         for (int row = 0; row < int(frame.height); ++row)
             for (int column = 0; column < int(frame.width); ++column) {
                 const int pixel_x = x + column, pixel_y = top + row;

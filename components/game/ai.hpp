@@ -881,6 +881,7 @@ inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, cons
     stats.level = monster_level;
     stats.no_hit_roll = !info.to_hit;                                // a ToHit row rolls its owner's attack rating (the caller's)
     stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
+    stats.unblockable = !(info.min > 0 && info.max > 0);              // FUN_005ad730: can-block is the record's physical (+8) != 0 (Fallen Shaman fire has none)
     put_missile_element(stats, element);
     return stats;
 }
@@ -914,8 +915,12 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
     stats.no_hit_roll = !info.to_hit;
+    stats.unblockable = !(phys.low > 0 && phys.high > 0);            // FUN_005ad730: can-block is the record's physical (+8) != 0
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
+    // ponytail: a boss's enchants ride its A1 / A2 shots and not a cast or S1 one, as d2d had them;
+    // how a missile reads its owner's stats 0x30..0x38 isn't traced.
+    if (cast || s1_shot) stats.enchants = {};
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
     // The owner's poison (game.exe, V read: FUN_0064b860 / FUN_0064a930 / FUN_0064aa60; V run: the
     // re-verifier's vm_game2 oracle, goospit1 with owner poison 40 / 40 / 300, whole OP set): added
@@ -956,7 +961,10 @@ inline Missile missile_from(const Missile& from, const GameData::MissileInfo& in
 // A standing missile (no velocity) strikes from its own subtile
 // (standing_struck). Its physical carries the owner's at SrcDamage / 128
 // (monster_shot_phys).
-// ponytail: flat on the ground (no missile height).
+// Flat on the ground: Missiles.txt Xoffset / Yoffset / Zoffset (row +0xa2 /
+// +0xa4 / +0xa6) only shift the drawn sprite (the client's FUN_004dc7b0,
+// unit type 3); no server code reads them, so a flight and its hits have
+// no height.
 // A friendly one asks `hits_monster` (true: it struck one, spent), and
 // `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
 // 1), its hit with no unit); a monster's hit spawn goes off there too.
@@ -1300,11 +1308,13 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `pack`: all the level's monsters, `monster` among them (its group, the
 // dying, corpses to raise); `born`: gets what it lays (a nest's young).
 // `seen`: the spawn areas' shared "seen" flags (monster data +0x50's +0x24).
-// `open_door`: its door at a think (OpenDoor).
+// `open_door`: its door at a think (OpenDoor). `players_counted`: the
+// game's player count (Fight::game_players: every level's, or the /players
+// count), for what it makes in play; 0 counts the players in `foes`.
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
                     std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
-                    Spawning::LevelState* rooms_in_play = nullptr);
+                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0);
 
 // FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
 // subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each
