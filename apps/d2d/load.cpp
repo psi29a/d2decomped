@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "gamemenu.hpp"
+#include "save_list.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
@@ -404,17 +405,27 @@ Character made_character(const Scene& scene, int save_cls, const std::string& na
     return character;
 }
 
+// FUN_00438f70 filters the folder's names and passes each WIN32_FIND_DATAA
+// FILETIME to FUN_00438ad0, which inserts expansion entries newest first.
 void load_saves(Scene& scene, const fs::path& dir) {
-    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse, merc; };
+    struct Entry {
+        d2d::d2s::Header header;
+        std::vector<d2d::d2s::Item> items;
+        d2d::d2s::Stats stats;
+        std::vector<d2d::d2s::Item> corpse, merc;
+        fs::file_time_type write_time;
+    };
     std::vector<Entry> out;
     std::error_code error;
     for (const auto& entry : fs::directory_iterator(dir, error)) {
-        if (entry.path().extension() != ".d2s") continue;
+        if (!retail_save_filename(entry.path())) continue;
+        const auto write_time = entry.last_write_time(error);
+        if (error) { error.clear(); continue; }
         std::ifstream file(entry.path(), std::ios::binary);
         std::vector<char> raw{std::istreambuf_iterator<char>(file), {}};
         const auto bytes = std::as_bytes(std::span(raw));
         try {
-            Entry save_entry{ d2d::d2s::parse_header(bytes), {}, {} };
+            Entry save_entry{ d2d::d2s::parse_header(bytes), {}, {}, {}, {}, write_time };
             if (scene.item_tables) {
                 try {
                     save_entry.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
@@ -431,14 +442,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
             d2d::log::warn("{}: {}", entry.path().string(), parse_error.what());
         }
     }
-    // Newest first — LoD inserts each character by last-played time,
-    // descending (FUN_00438ad0), and preselects slot 0.
-    // Ties (e.g. synthetic saves with no timestamp) fall back to name so
-    // the order doesn't depend on directory iteration.
-    std::ranges::sort(out, [](const Entry& first, const Entry& second) {
-        return std::tie(second.header.last_played, first.header.name)
-             < std::tie(first.header.last_played, second.header.name);
-    });
+    retail_sort_saves(out);
     scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear(); scene.save_mercs.clear();
     for (auto& entry : out) {
         scene.saves.push_back(std::move(entry.header));
