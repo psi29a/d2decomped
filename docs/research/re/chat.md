@@ -85,9 +85,20 @@ Read from the disassembly (`004a0a00`..`004a0b20`, `0049d8e0`..`0049d996`,
   line (`FUN_00501820`) + 0x14, height = lines x 15 + 6. The point goes to
   y - 0x32, x - width / 2, then y - 15 x lines - 3: the box's top left.
 - `FUN_0049e070(n)` (n = boxes placed this frame, `0x7bf224`, 1 when the
-  NPC menu holds slot 0) keeps at most 16; one that meets an earlier box is
-  moved by the steps at `0x722654` x 0x32 / 0x23 to a 400 x 0x118 spot that
-  meets none, else not drawn. d2d does not do this.
+  NPC menu holds slot 0; ESI the box's rect {left, top, left + width, top +
+  height}, the slots 16 bytes each from `0x7bf0a8`). `FUN_004a0a00` calls it
+  only while n < 16 (`004a0aaf`); from 16 on a box is drawn where it is and
+  takes no slot. A box that meets no slot (`IntersectRect`) takes slot n as
+  it is. One that meets any is moved: x step 0x32 to 0x15e by 0x32 (outer),
+  y step 0x23 to 0xf5 by 0x23, then each of the 8 dwords at `0x722654`
+  (1, 1, -1, 1, 1, -1, -1, -1; count `0x722674`) times both steps added to
+  left and top. The first spot, 400 wide and 0x118 high whatever the
+  box's size, with left, top >= 0, right <= W, bottom <= H, that meets no
+  slot is stored in slot n and written back to the box; none, and it
+  returns 0: not drawn, n not counted. Each dword scales both axes, so only
+  down-right and up-left are tried (bugs.md #119). Then `FUN_0049d9a0` (the
+  side-panel drop) and `FUN_0049d8e0` take the moved left and top, so a box
+  the side panel drops still holds its slot.
 - `FUN_0049d9a0`: with only the right panel open (`FUN_0045ae90` 1) a box
   whose left is past W/2 - 10 isn't drawn; only the left (2), one left of
   W/2 + 10; both (3), none.
@@ -113,8 +124,12 @@ the player's point less W/2, the side panel's quarter added by the caller,
 as units are drawn.
 
 d2d: `render_ingame` (apps/d2d/ingame.cpp) from `kFloorViewY` (rounded,
-not floored at 1/32 subtile: a pixel off at most); `ponytail:` there for
-`FUN_0049e070`.
+not floored at 1/32 subtile: a pixel off at most), and `place_overhead`
+(apps/d2d/overhead.hpp, tests/test_overhead_place.cpp) for
+`FUN_0049e070`. Not done: slot 0 for the NPC menu (d2d's frame starts
+empty), and game.exe's unit order (`FUN_004a0e70`'s walk of its unit
+tables, not traced here), which decides who moves; d2d goes in its draw
+list's order.
 
 ## Small functions in the same work package (cited)
 

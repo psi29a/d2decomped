@@ -5,12 +5,14 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace d2d::client {
 
@@ -38,6 +40,48 @@ namespace d2d::client {
     }
     const long number = number_at(0);
     if (number >= 1 && number <= 0xfffe) return std::uint16_t(number);
+    return std::nullopt;
+}
+
+// An overhead box's rect, as FUN_004a0a00 hands FUN_0049e070 (ESI): left,
+// top, then left + width and top + height (FUN_0049d3c0's +0x10 / +0x12).
+struct OverheadRect { int left = 0, top = 0, right = 0, bottom = 0; };
+
+// IntersectRect (0x6cc4c4) is non-zero when the two overlap by a pixel or
+// more; an empty rect meets nothing.
+[[nodiscard]] inline bool overhead_rects_meet(const OverheadRect& one, const OverheadRect& other) {
+    return std::max(one.left, other.left) < std::min(one.right, other.right) && std::max(one.top, other.top) < std::min(one.bottom, other.bottom);
+}
+
+// Where this frame's next overhead box goes (FUN_004a0a00 at 004a0aaa,
+// FUN_0049e070): `placed` is the frame's slots (0x7bf0a8, 16 bytes each;
+// its count 0x7bf224). With 16 or more placed the caller skips the check
+// and draws the box where it is. A box that meets none of them takes the
+// next slot as it is. One that meets any is moved: for x steps 0x32..0x15e
+// by 0x32, y steps 0x23..0xf5 by 0x23, each of the 8 dwords at 0x722654
+// (count at 0x722674) times both steps added to its left and top; the
+// first such spot, 400 x 0x118 whatever the box's size, wholly on the W x
+// H screen and meeting no slot is stored and drawn at. None: not drawn
+// (nullopt), no slot taken. The table reads as four (x, y) pairs, but each
+// dword scales both axes (0049e152..0049e165), so only down-right and
+// up-left are tried (bugs.md #119; d2d matches).
+[[nodiscard]] inline std::optional<OverheadRect> place_overhead(std::vector<OverheadRect>& placed, const OverheadRect& box, int screen_w, int screen_h) {
+    static constexpr std::array<int, 8> kSteps = { 1, 1, -1, 1, 1, -1, -1, -1 };
+    if (placed.size() >= 16) return box;
+    const auto clear = [&placed](const OverheadRect& rect) { return std::ranges::none_of(placed, [&rect](const OverheadRect& slot) { return overhead_rects_meet(slot, rect); }); };
+    if (clear(box)) {
+        placed.push_back(box);
+        return box;
+    }
+    for (int step_x = 0x32; step_x < 0x190; step_x += 0x32)
+        for (int step_y = 0x23; step_y < 0x118; step_y += 0x23)
+            for (const int sign : kSteps) {
+                const int spot_left = box.left + sign * step_x, spot_top = box.top + sign * step_y;
+                const OverheadRect spot{ spot_left, spot_top, spot_left + 0x190, spot_top + 0x118 };
+                if (spot.left < 0 || spot.right > screen_w || spot.top < 0 || spot.bottom > screen_h || !clear(spot)) continue;
+                placed.push_back(spot);
+                return spot;
+            }
     return std::nullopt;
 }
 

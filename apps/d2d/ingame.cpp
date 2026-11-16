@@ -5,6 +5,7 @@
 #include <overlays.hpp>
 
 #include "common.hpp"
+#include "overhead.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 #include "store.hpp"
@@ -255,9 +256,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // FUN_0049d8e0 one not wholly on screen in y, then darkens (left,
         // top + 4, width, height - 5) (FUN_0046efd0 colour 0, mode 1) and
         // draws at most 10 lines white at left + 10, on baselines top +
-        // 0x12 + 15 a line (the first lines in the last slots).
-        // ponytail: a box moved clear of the ones before it (FUN_0049e070,
-        // at most 16) isn't done, so two can overlap.
+        // 0x12 + 15 a line (the first lines in the last slots). Before
+        // both, FUN_0049e070 moves a box clear of the frame's earlier ones
+        // (place_overhead), or drops it.
+        // ponytail: game.exe's frame starts with the NPC menu in slot 0
+        // (FUN_004a0e70, 0x7bf1c0 == 1) and walks its unit tables in an
+        // order not traced; d2d starts empty and goes in `units` order.
+        std::vector<OverheadRect> overhead_slots;
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const auto& unit : units) {
@@ -275,7 +280,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             for (const auto& line : lines) widest = std::max(widest, chat_font.measure(line));
             const int count = int(lines.size()), shown = std::min(count, 10);
             const int width = widest + 0x14, height = count * 15 + 6;
-            const int left = point_x - width / 2, top = point_y - 0x32 - count * 15 - 3;
+            const int box_left = point_x - width / 2, box_top = point_y - 0x32 - count * 15 - 3;
+            const auto spot = place_overhead(overhead_slots, { box_left, box_top, box_left + width, box_top + height }, world_w, int(kScreenHeight));
+            if (!spot) continue;
+            const int left = spot->left, top = spot->top;
             if ((hud.left_open && hud.right_open) || (hud.right_open && left > world_w / 2 - 10) || (hud.left_open && left < world_w / 2 + 10)) continue;
             if (top < 0 || top + height >= int(kScreenHeight)) continue;
             for (int row = std::max(top + 4, 0); row < std::min(top + 4 + height - 5, int(kScreenHeight)); ++row)
