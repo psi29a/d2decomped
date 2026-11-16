@@ -8,6 +8,7 @@ string, table-growth and list-clear calls are intercepted; see h-hasharrays.md
 for the precise boundary. The original pointer writes execute in Unicorn.
 """
 
+# gaps-runs: 0060f590 0060f610 0060f690 0060f6d0 0060f720 0060f8b0 00610be0 00610ca0 00610d30 00610df0
 import argparse
 import hashlib
 from pathlib import Path
@@ -350,9 +351,10 @@ def inserts():
 
 
 def mutation_check():
-    """Require six altered original-code branches to fail an existing observation."""
+    """Require seven altered original-code branches to fail an existing observation."""
     global MUTATION
     changes = (("lookup hash branch", lookups, (0x60f5c2, 0x75, 0x74)),
+               ("lookup string-compare branch", lookups, (0x60f5da, 0x74, 0x75)),
                ("reserve equal capacity", reserve, (0x60f6df, 0x76, 0x72)),
                ("growth threshold", grow_check, (0x610cf7, 13, 12)),
                ("delete flag", destructors, (0x610d3e, 1, 2)),

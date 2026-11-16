@@ -41,8 +41,8 @@ fields. They are not a whole-arena memory-diff test.
 
 The mutation mode changes one original instruction byte in fresh emulator
 memory, checks the expected original byte before modifying it, and requires
-the corresponding observation to reject it. Six mutations alter hash
-selection, reserve's equality boundary, growth threshold, destructor flags,
+the corresponding observation to reject it. Seven mutations alter hash
+selection, the string-compare branch of `FUN_0060f590`, reserve's equality boundary, growth threshold, destructor flags,
 and each insertion routine's mask refresh. No executable on disk is changed.
 
 ## Hook boundary
