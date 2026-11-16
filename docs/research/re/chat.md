@@ -49,9 +49,20 @@ text lengths from 1 to 300 characters at three `now` values and compares all 0x1
 A shrine's own message is a 4-digit id, 157 frames
 (`components/game/world/tick.cpp`). d2d does not keep the language byte,
 the expiry frame or the list link, and it does not store the node's
-text: only a string id is shown. The network path still accepts an
-all-digit string whose numeric value is 1..65535, including leading
-zeroes.
+text: only a string id is shown.
+
+Which text is a string id: `FUN_004a0e70` walks the client's unit tables
+with a draw callback in ECX (`004a0f10`..`004a0f29`): players
+(`0x7a5e70`) with `FUN_004a0b30`, monsters (`0x7a6070`) and objects
+(`0x7a6270`) with `FUN_004a0d20`. `FUN_004a0d20` copies the node's text
+(`FUN_006611e0`) and draws `_atol` of it as a string id when it is
+1..0xfffe (`lVar2 - 1U < 0xfffe`); any other text draws nothing.
+`FUN_004a0b30` takes a string id only after the bytes 0xff 0xff, with an
+`_atol` of the rest in 0x42d..0x50f, 0x5586..0x5615 or 0x2aa4; any other
+text, a bare number too, is drawn as it is, after `FUN_0049e280`'s
+language check. d2d: `overhead_string` (apps/d2d/overhead.hpp,
+test_overhead_frames); a player's own text isn't drawn (`ponytail:` in
+town/draw.cpp).
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
