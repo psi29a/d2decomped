@@ -105,6 +105,9 @@ auto Fight::merc_joins() -> void {
         actor->merc->mode = "NU"; actor->merc->next_act = 0; actor->merc->move_pct = 0;
         actor->merc->seed = d2d::rules::Rng(header.merc_seed);
         actor->merc->type = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1;
+        // Given to the client (FUN_00571f90, a monster): SetStat(0x148, (x + y) & 0xffff), its subtile spot (FUN_00620870).
+        const auto& joined = actor->merc->unit;
+        actor->merc_pierce_idx = std::uint32_t(int(std::floor(joined.x * 5)) + int(std::floor(joined.y * 5))) & 0xffffu;
     }
 
 auto Fight::merc_level_stats() -> void {

@@ -496,6 +496,7 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
+    // Kept with touch off too: pad_playing, pad focus and the pad cue read it.
     touch::LastDevice last_device = touch::LastDevice::MouseKeyboard;
     /** Touch on, last device is a finger/Pencil, and classic PC bottom bar suppressed. */
     [[nodiscard]] bool touch_hides_classic_hud() const;

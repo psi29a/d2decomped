@@ -223,8 +223,10 @@ were not read in the asm); cited, no oracle run.
   The pattern picks the test: 0 `FUN_0064d450` & 0xffff (the decompile
   shows only the mask as its argument; the rest go in registers, unread);
   1 / 3 / 5 `FUN_0064d4e0(room, x, y)` (the plus); 2 / 4 `FUN_0064d7c0`
-  (the decompile shows y and the mask; the others are in registers,
-  unread); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
+  (ECX room, EAX x, stack y and the mask, 0x64d958..0x64d966): the rect
+  {x − 1, y − 1, x + 1, y + 1} (0x64d7c6..0x64d7de; inclusive, as
+  `FUN_0064d0d0` makes them) tested by `FUN_0064cf50`, a fixed 3x3 whatever
+  the unit's SizeX (`Level::unit_blocked`'s box); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
   room, +0x48 pattern, +0x50 mask). d2d: agrees with "Rects and units"
   above and `UnitShape` (gamedata.hpp:61, 274: 0 own subtile, 1 / 3 plus,
   2 / 4 box); the pattern 5 case (the plus again, no footprint) is the one

@@ -317,14 +317,18 @@ d2d matches both, and the one-poison-at-a-time rule.
   `rules::frame_rate_flat` on a monster burner's hit (srv_do 5, the MDR
   first, then the resistance); V: `tools/emu/frame_rate_flat.py`, 2000
   records frozen in `tests/frame_rate_flat_cases.inc` (`test_frame_rate_flat`).
-- **The pair percent** (`FUN_0057c060`, EAX the hit context: +4 ?, +8
+- **The pair percent** (`FUN_0057c060`, EAX the hit context
+  `FUN_0057c1e0` builds at ebp-0x34 (0x57c1f6 .. 0x57c20c, 0x57c2a7): +0
+  the game, +4 its difficulty's DifficultyLevels.txt row
+  (`FUN_00611d30(game +0x6d)`: row x 0x58 + `DAT_0096c8ac`), +8
   attacker, +0xc defender; 100 when either is missing or they are one).
   On a player: 17 (0x11) from a player, a hireling (`FUN_0063ee90`: classes
   0x10f, 0x152, 0x167, 0x230, 0x231) or a player's pet (unit +0xc4 bit 31,
   `FUN_00451f30`), else 100. On anything else: 25 (0x19) hireling on
   hireling; a hireling on a MonStats boss (`FUN_0063e9f0(0, ..)`, +0xc &
-  0x40) takes the context's +4 record's +0x38 (100 without one; not
-  traced); a primeevil (`FUN_0063edc0`, +0xc & 0x80: Andariel, Duriel,
+  0x40) takes that row's +0x38, HireableBossDamagePercent (+0x34
+  ChampionDamageBonus and +0x3c MonsterCEDamagePercent sit either side;
+  100 without a row); a primeevil (`FUN_0063edc0`, +0xc & 0x80: Andariel, Duriel,
   Mephisto, Diablo and his clone, Baal and his clone, the ubers) on a
   player's pet: 200 for a hireling, 400 for any other; else 100.
   `FUN_0057c1e0` (0x57c214 on) scales each damage field of the record

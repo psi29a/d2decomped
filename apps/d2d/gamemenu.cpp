@@ -322,6 +322,7 @@ GameMenu::Action GameMenu::input(const Scene& scene, Audio& audio, const Mouse& 
 }
 
 void GameMenu::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) const {
+    // FUN_00453aa0 supplies game.exe's pentagram sprite to FUN_0047e3d0; d2d owns it as scene.pentspin.
     const auto& def = kMenus[menu];
     const auto shown = rows();
     const int first = top();
