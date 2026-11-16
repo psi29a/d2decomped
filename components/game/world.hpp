@@ -272,11 +272,8 @@ struct World {
         std::optional<std::uint32_t> tower_line_held;
         std::vector<Event> events;             // for the client, since it last looked
         Store store;                           // the NPC window open (npc < 0: none): its stock
-        bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
-        bool had_bks = false, had_bkd = false;  // the Bark Scrolls, last tick (a1q4's item event)
         bool had_gidbinn = false;
         bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
-        bool had_figurine = false, had_bird = false;   // the Golden Bird's items, last tick (its pickups)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
         std::size_t portal_pair = 0;           // their town portal in World::portal: [pair] where it was cast, [pair + 1] in town
         // Local co-op's death (docs/design/local-coop.md): dead, a ghost that
@@ -653,7 +650,6 @@ struct World {
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
-    void act1_update();
     void act2_update();
     void act3_update(std::uint32_t now_ms);
     void act4_update(std::uint32_t now_ms);
@@ -973,6 +969,20 @@ struct World {
     void music_cue(std::string_view sound);                       // one-shot quest music
     void music_cue_near(std::string_view sound, float x, float y);   // to each player whose room or one next to it holds (x, y)
     void give_item(std::string_view code, std::uint32_t now_ms, int ilvl = 1, int quality = 2);
+    // An item into a player's inventory (event 4, 0x543d80(game, player, item)):
+    // only the records the item is bound to as it's made (Items.txt quest - 1,
+    // FUN_00555d20 at 0x555d82), as FUN_005439a0 walks the item's list (+0x74).
+    // Raised by the ground pickup into a body slot or the bags (FUN_00563560:
+    // FUN_00562e00, FUN_005600a0; not the belt or a stack), taking one's corpse
+    // (FUN_00562f30, FUN_005600a0), the death putting what was worn and held on
+    // the corpse (FUN_0057f700) and a save's corpse made as it loads
+    // (FUN_005335e0 mode 1 -> FUN_00531520); not by a quest's gift
+    // (FUN_005466b0 places with FUN_00560200) nor a move from the cursor into a
+    // grid: those are FUN_00543d80's only callers. `corpse`: the event's player
+    // is the corpse (EDX at 0x57f9c1 / 0x531625), a player unit whose quest
+    // records are new and clear (0x55536f -> FUN_005348c0 -> FUN_00621f90 ->
+    // FUN_0065c430).
+    void item_event(std::string_view code, std::uint32_t now_ms, bool corpse = false);
     void set_waypoint(int index) { if (index >= 0 && index < 40) actor->character.header.waypoints[std::size_t(actor->character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
@@ -988,7 +998,7 @@ struct World {
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
     // corpse where the player lies with what they wore and held, and 75% of
     // the experience lost. They go on without it.
-    void make_corpse();
+    void make_corpse(std::uint32_t now_ms);
     // Taking one's corpse (FUN_0057fb70): its experience back, each item to
     // its slot when that's free (FUN_00562f30), its requirements met
     // (FUN_0062eaf0: rules::can_wear) and held with the other hand's

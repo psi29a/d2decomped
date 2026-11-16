@@ -209,6 +209,11 @@ struct NetGame {
     std::vector<d2d::rules::QuestQuake::Kind> quest_quakes;
     bool diablo_red = false;                   // 0x89 event 12 until 13 (rules::release_light)
     bool cairn_opened = false;                 // 0x89 event 1: the Cairn Stones opened (0x46aee0's dip)
+    // State 153 (cloak_of_shadows) set on a unit (0xa8 / 0xaa): its stat
+    // list's skill (0x15e) and level (0x15f), and where the unit stands
+    // (act subtiles): Town's net step dips the ambient (rules::state_cloak_dip).
+    struct CloakCast { int skill = -1, level = 0; float x = 0, y = 0; };
+    std::vector<CloakCast> cloak_casts;
     std::vector<int> quest_news;               // quests (words) whose log state the host sent (0x5d, no flags): the Quest Log button
     // The quest log as the host has it: each quest's log state by its word
     // (0x52 whole, 0x5d one), the game's quest words (0x29), the Den's

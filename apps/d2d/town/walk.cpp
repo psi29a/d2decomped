@@ -145,6 +145,19 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
                         dip.start(frames.fade_in, frames.hold, frames.back, d2d::rules::level_ids::kStonyField);
                     }
                 }
+            // State 153 on a unit (0xa8 / 0xaa): its setfunc (FUN_004d87e0) dips
+            // the ambient in the level of the unit's room, one the act has.
+            for (const auto& cast : std::exchange(net_game->cloak_casts, {}))
+                if (const auto frames = d2d::rules::state_cloak_dip(world.game_data->skills, cast.skill, cast.level); frames && level)
+                    for (int id = 1; id < 137; ++id)
+                        if (d2d::rules::level_ids::act_of(id) == d2d::rules::level_ids::act_of(level->id))
+                            if (const Level* holder = world.game_data->level(id); holder && holder->ds1.width() > 0) {
+                                const float cell_x = cast.x / 5.f - float(holder->world_x), cell_y = cast.y / 5.f - float(holder->world_y);
+                                if (cell_x >= 0 && cell_y >= 0 && cell_x < float(holder->ds1.width()) && cell_y < float(holder->ds1.height())) {
+                                    dip.start(frames->fade_in, frames->hold, frames->back, id);
+                                    break;
+                                }
+                            }
             if (net_game->movie >= 0) world.movie = std::exchange(net_game->movie, -1);
             // Our stats as the host sets them: attributes, points, life / mana /
             // stamina and their maxima (8.8 fixed point, as in a save), level,

@@ -182,7 +182,8 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   SequenceFilter instance seen chaining two quests instead of one.
 
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
-on an act 3 level; pickups polled. `tests/quests_d2d.py` plays it.
+on an act 3 level; its items' event 4 is `World::item_event` (pickup, corpse
+taken, death, a save's corpse; not a gift). `tests/quests_d2d.py` plays it.
 
 ## Khalim's Will (a3q2.cpp)
 

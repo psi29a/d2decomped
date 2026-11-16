@@ -64,7 +64,7 @@ int main() try {
         const auto centre = [&](int subtiles) { return (std::floor(at_x * 5) + float(subtiles) + 0.5f) / 5; };
         for (const int off : { 6, 7 }) {
             Monster fallen = make_monster(*data, fallen_row, centre(off), at_y, rng, 0);
-            fallen.align = 0; fallen.hit_points = fallen.last_hp = fallen.stats.hit_points = 1000;
+            fallen.align = 0; fallen.hit_points = fallen.stats.hit_points = 1000;
             fight.monsters.push_back(std::move(fallen));
         }
         const int near_resist = fight.target_of(0).res[0], near_fire = fight.target_of(0).res[2];

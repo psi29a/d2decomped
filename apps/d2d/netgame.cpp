@@ -42,6 +42,11 @@ using d2d::net::d2gs::read_u32;
 
 auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(type) << 32 | id; }
 
+// States.txt cloak_of_shadows, and the stats a state's list names its skill
+// and level by (FUN_004d87e0 reads 0x15e / 0x15f).
+constexpr int kCloakOfShadowsState = 153;
+constexpr std::uint32_t kStateSkillStat = 0x15e, kStateLevelStat = 0x15f;
+
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
@@ -492,10 +497,31 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (unit.mode == 8 || unit.mode == 9) { unit.life = 0; unit.moving = false; }   // dying / dead: no hit says so
         }
         break;
-    case 0xa8:   // set state: +1 type, +2 id, +6 length, +7 the state (its stat list after, unread)
+    case 0xa8:   // set state: +1 type, +2 id, +6 length, +7 the state, from +8 its stat list (0x45ee20)
         if (size >= 8) {
             if (packet[1] == 0 && read_u32(packet, 2) == self_id && !std::ranges::contains(self_states, int(packet[7]))) self_states.push_back(packet[7]);
-            if (auto& states = unit_at(packet[1], read_u32(packet, 2)).states; !std::ranges::contains(states, int(packet[7]))) states.push_back(packet[7]);
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            if (!std::ranges::contains(unit.states, int(packet[7]))) unit.states.push_back(packet[7]);
+            if (packet[7] == kCloakOfShadowsState) {
+                std::size_t bit_at = 8 * 8;
+                const std::size_t end = std::min<std::size_t>(size, packet[6]) * 8;
+                auto bits = [&](int count) {
+                    std::uint32_t value = 0;
+                    for (int bit = 0; bit < count && bit_at < end; ++bit, ++bit_at) value |= std::uint32_t(packet[bit_at / 8] >> (bit_at % 8) & 1) << bit;
+                    return value;
+                };
+                // Our own unit's spot is host_x / host_y (0x95 / 0x96 move only those).
+                const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;
+                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
+                for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
+                    if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) break;   // widths unknown: the rest can't be read
+                    bits(stat_send_bits[stat].second);
+                    const auto value = int(bits(stat_send_bits[stat].first));
+                    if (stat == kStateSkillStat) cast.skill = value;
+                    else if (stat == kStateLevelStat) cast.level = value;
+                }
+                cloak_casts.push_back(cast);
+            }
         }
         break;
     case 0xa9:   // end state: +1 type, +2 id, +6 the state
@@ -506,7 +532,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0xaa:   // a unit's states as it comes into view: +1 type, +2 id, +6 length; bits from +7 (FUN_0045efa0)
         if (size >= 8) {
-            auto& states = unit_at(packet[1], read_u32(packet, 2)).states;
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;   // our spot is host_x / host_y
+            auto& states = unit.states;
             states.clear();
             std::size_t bit_at = 7 * 8;
             const std::size_t end = std::min<std::size_t>(size, packet[6]) * 8;
@@ -518,14 +546,20 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             // 8 bits a state (0xff ends), 1 bit it has stats, then a stat list
             // as 0xa8's: 9 bits a stat id till 0x1ff, its param and value in
             // ItemStatCost's send bits.
+            // Each state's setfunc runs as it's read (FUN_004d9e60): state
+            // 153's dips the ambient (FUN_004d87e0).
             for (std::uint32_t state = 0; bit_at + 8 <= end && (state = bits(8)) != 0xff;) {
                 if (!std::ranges::contains(states, int(state))) states.push_back(int(state));
-                if (!bits(1)) continue;
-                for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
-                    if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) { bit_at = end; break; }   // widths unknown: the rest can't be read
-                    bits(stat_send_bits[stat].second);
-                    bits(stat_send_bits[stat].first);
-                }
+                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
+                if (bits(1))
+                    for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
+                        if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) { bit_at = end; break; }   // widths unknown: the rest can't be read
+                        bits(stat_send_bits[stat].second);
+                        const auto value = int(bits(stat_send_bits[stat].first));
+                        if (stat == kStateSkillStat) cast.skill = value;
+                        else if (stat == kStateLevelStat) cast.level = value;
+                    }
+                if (state == kCloakOfShadowsState) cloak_casts.push_back(cast);
             }
         }
         break;

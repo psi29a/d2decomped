@@ -62,7 +62,7 @@ int main() try {
     fight.monsters.clear();
     Monster minion = make_monster(*data, minion_row, centre(at_x, 0), centre(at_y, 0), rng, 0);
     minion.align = 0;
-    minion.hit_points = minion.last_hp = 50;
+    minion.hit_points = 50;
     set_mode(*data, minion, "GH", 1000);
     auto seed = minion.seed;
     const int low = minion.stats.a1_min, high = minion.stats.a1_max;

@@ -31,7 +31,11 @@ In 1.14d it is a static 1 that nothing writes (read live under Wine:
   for orientations 1 4 5 7 8 10 12, in y for 2 3 6 7 9 11 12.
 
 A wall in front fades from alpha 0xff to 0x80 at 0x7f per 500 ms, one
-that no longer is fades back; the tile's alpha byte (+0x28) is drawn
+that no longer is fades back. The turn to 0x80 sets tile +0x24 bits 0 and 1
+(target +0x2a 0x80), the turn back clears bit 0 and sets bit 1 (target
+0xff), so bit 0 (the lights' in-front spots, lighting.md) follows the
+target, not the alpha: a wall fading back is lit as any other (d2d:
+`wall_in_front`). The tile's alpha byte (+0x28) is drawn
 through `FUN_004f6950` when it isn't 0xff. Tiles with flag 4 never fade
 (`FUN_004dd180` skips `FUN_004dd060` when tile +0x14 & 4). The DRLG sets
 flag 4 as it makes the tile (`FUN_0066dc50`): the DS1 word's bit 3

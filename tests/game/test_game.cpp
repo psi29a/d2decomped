@@ -488,6 +488,27 @@ int main(int argc, char** argv) try {
         const int diablo_class = data->monsters.types[diablo_row->second].hit_class;
         assert(diablo_class != 0 && foes[0].hits == 1 && foes[0].hit_class == diablo_class);
     }
+    {
+        // A foe's thorns on a melee striker: the record's 0x4021 (FUN_005bf670) raises
+        // event 4 in FUN_0057cee0 with no get-hit, so the striker's struck_event is set.
+        const auto zombie_row = data->monsters.by_id.find("zombie1");
+        assert(zombie_row != data->monsters.by_id.end());
+        d2d::rules::Rng thorns_rng{ 3 };
+        Level here{};
+        here.id = d2d::rules::level_ids::kBloodMoor;
+        std::vector<Monster> pack{ make_monster(*data, int(zombie_row->second), 10.f, 10.f, thorns_rng, 0) };
+        auto& zombie = pack[0];
+        zombie.stats.hit_points = zombie.hit_points = 100000;
+        set_mode(*data, zombie, "A1", 0);
+        std::array<Foe, 1> foes{};
+        foes[0].x = 11.f; foes[0].y = 10.f;
+        foes[0].fighter.thorns = 5;
+        const Crowd crowd;
+        std::vector<Missile> missiles;
+        for (std::uint32_t frame = 1; frame <= 1000 && foes[0].hits == 0; ++frame)
+            monster_update(*data, here, zombie, foes, thorns_rng, frame * 40, 0.04f, crowd, missiles, pack);
+        assert(foes[0].hits >= 1 && zombie.hit_points < 100000 && zombie.struck_event);
+    }
 
     {
         // The Golden Bird binds to the first qualifying boss made in Act 3,

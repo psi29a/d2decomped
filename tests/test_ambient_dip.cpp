@@ -6,6 +6,7 @@
 // cases. No game data needed at runtime. With a cases file argument
 // (ambient_dip.py's `gen` output) it prints its `game` lines instead, to diff.
 #include <ambient_dip.hpp>
+#include <skills.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -63,6 +65,20 @@ int main(int argc, char** argv) try {
     // Cairn Stones (cairnstones: Param1 40, Range 300).
     static_assert(d2d::rules::cloak_dip(200).fade_in == 5 && d2d::rules::cloak_dip(200).hold == 120 && d2d::rules::cloak_dip(200).back == 80);
     static_assert(d2d::rules::cairn_dip(40, 300).fade_in == 40 && d2d::rules::cairn_dip(40, 300).hold == 220 && d2d::rules::cairn_dip(40, 300).back == 40);
+    // A joined game's state 153 (FUN_004d87e0): the state's skill's
+    // auralencalc at its level, none for a skill Skills.txt hasn't got.
+    {
+        d2d::rules::SkillTables tables;
+        tables.names.operands = { "ln12", "dm12", "ln34" };
+        d2d::rules::Skill cloak;
+        cloak.id = 1;
+        cloak.par = { 30, 30, 200, 25, 0, 0, 0, 0 };
+        cloak.auralen = d2d::rules::compile_calc("ln34", tables.names);
+        tables.rows = { d2d::rules::Skill{}, std::move(cloak) };
+        const auto frames = d2d::rules::state_cloak_dip(tables, 1, 3);   // 200 + 2 x 25
+        assert(frames && frames->fade_in == 5 && frames->hold == 150 && frames->back == 100);
+        assert(!d2d::rules::state_cloak_dip(tables, 0, 3) && !d2d::rules::state_cloak_dip(tables, 7, 3) && !d2d::rules::state_cloak_dip(tables, -1, 3));
+    }
     // The Den, River of Flame and the Chaos Sanctuary keep their own fill.
     d2d::rules::AmbientDip dip;
     dip.start(5, 10, 5, 1);

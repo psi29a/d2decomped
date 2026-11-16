@@ -4,7 +4,10 @@
 #pragma once
 
 #include "level_ids.hpp"
+#include "skills.hpp"
 #include "weather.hpp"
+
+#include <optional>
 
 namespace d2d::rules {
 
@@ -76,5 +79,15 @@ constexpr DipFrames cloak_dip(int aura_length) { return { kCloakFadeIn, aura_len
 //   missile cairnstones' Param1 (+0x38) in and back, its Range (+0x96) less
 //   twice that held, in level 4.
 constexpr DipFrames cairn_dip(int param1, int range) { return { param1, range - 2 * param1, param1 }; }
+// - A client that sees state 153 set on a unit (S->C 0xa8 / 0xaa, FUN_004d9e60
+//   runs its setfunc, FUN_004d87e0): the state's stat list's skill (stat
+//   0x15e) and level (0x15f); a skill outside Skills.txt starts none, else
+//   cloak_dip of its auralencalc at that level (FUN_00646ca0), in the level
+//   of the unit's room (FUN_0061a1b0).
+inline std::optional<DipFrames> state_cloak_dip(const SkillTables& skill_tables, int skill_id, int level) {
+    const Skill* skill = skill_tables.get(skill_id);
+    if (!skill) return std::nullopt;
+    return cloak_dip(eval_calc(skill_tables, skill->auralen, CalcEnv{}, skill_id, level));
+}
 
 }  // namespace d2d::rules

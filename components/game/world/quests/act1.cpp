@@ -41,19 +41,12 @@ auto World::act1_join() -> void {
         tower.join(quests());
         tools = {};
         tools.join(quests(), carries("hdm"));
+        // A save's corpse's Bark Scroll raises event 4 before this join, on the
+        // new record (state 0): LAB_00592130 marks nothing then (World::item_event).
         cain = {};
         cain.join(quests(), carries("bks"), carries("bkd"));
-        actor->had_bks = carries("bks"); actor->had_bkd = carries("bkd");
         chain(1);
         cain.camp_spawn();
-    }
-
-// A Bark Scroll into the inventory (event 4 on an item bound to a1q4,
-// FUN_00592e20). ponytail: polled from what's carried, not the item event.
-auto World::act1_update() -> void {
-        const bool bks = carries("bks"), bkd = carries("bkd");
-        if (!hosted_quests && ((bks && !actor->had_bks) || (bkd && !actor->had_bkd))) cain.item_event(quests());
-        actor->had_bks = bks; actor->had_bkd = bkd;
     }
 
 auto World::act1_enter(const Level& from) -> void {

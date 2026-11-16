@@ -412,7 +412,11 @@ struct Act1Thinks : Thinker {
     // a walk at it (FUN_005dec80(unit, 0)) at pace 50; taken either way. The
     // shaman's target is taken as the fetish's own (one player, or its
     // nearest: the same foe).
-    // ponytail: the pathers (2, 0xd) as path_to's.
+    // Its moves' path types (FUN_005de190's EDX: 2 at 0x5f554e, 0xd at
+    // 0x5f569d) path alike, as path_to's type 0: both are FUN_00679c80 in
+    // 0x6eb6d8, both have PATHTYPEPOINTS (0x6eb648) 0, both retry 0xf when
+    // empty (FUN_005a6290's switch); their flags (0x6eb690: 0 / 0x100) differ
+    // by 0x100, which no path code tests (collision.md "Path types").
     Think fetish() {
         if (input.command && *input.command) {
             const bool sent = (*input.command == 1 || *input.command == 14) && input.command_unit;

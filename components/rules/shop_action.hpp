@@ -7,7 +7,10 @@
 // shop_gate_cases.inc, dialog_select_cases.inc; tests/test_shop_action.cpp).
 #pragma once
 
+#include <d2s_items.hpp>
 #include <rules.hpp>
+
+#include <algorithm>
 
 namespace d2d::rules {
 
@@ -127,8 +130,9 @@ inline bool repair_gate(const RepairGate& gate) {
 
 // The gate for one of d2d's items: FUN_0062e660 is `repairable`, the
 // durability reads are the item's, a stack is Items.txt's stackable.
-// ponytail: FUN_0062a840's second answer isn't traced, so a missing charge
-// counts as both answers 0.
+// FUN_0062a840 reads up to 0x40 of the item's stat 0xcc entries
+// (FUN_006261d0): its answer is whether there are any, its second 1 unless
+// one's charges left (the low byte) are below its most (value >> 8).
 inline bool repair_click_gate(const Tables& tables, const d2d::d2s::Item& item) {
     RepairGate gate;
     gate.gold = item.code == "gld";
@@ -140,7 +144,8 @@ inline bool repair_click_gate(const Tables& tables, const d2d::d2s::Item& item) 
     gate.stackable = base != tables.item_base.end() && base->second.stackable;
     gate.quantity = item.quantity;
     gate.max_quantity = stack_most(tables, item);
-    gate.charge_missing = charge_missing(item);
+    gate.charge_missing = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kChargedSkill; });
+    gate.charge_zero = !charge_missing(item);
     return repair_gate(gate);
 }
 

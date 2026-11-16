@@ -479,8 +479,26 @@ int main() try {
         Monster enchanted = std::move(struck);
         enchanted.boss = d2d::rules::Boss::unique;
         enchanted.mods = { d2d::rules::umod::lightning };
-        enchanted.last_hp = 100; enchanted.hit_points = 90;
+        enchanted.hit_points = 90;
         world.fight.monsters.push_back(enchanted);
+        // A drop in life with no hit (a poison's) raises no event 4: nothing.
+        world.fight.monsters.back().hit_points = 80;
+        world.fight.boss_events({}, 5990 * kTickMs);
+        assert(world.fight.pending.empty());
+        world.fight.monsters.back().hit_points = 90;
+        // A landed hit, even one of no damage, too small for a get-hit (FUN_0057cee0's flag 4): event 4.
+        {
+            // A monster foe's two blows in one tick: the small one's event 4 stays though
+            // the big one after it puts it in GH (FUN_0057cee0 runs once a record).
+            Monster twice = enchanted;
+            twice.stats.hit_points = twice.hit_points = 90;
+            Foe blows;
+            blows.blows = { d2d::rules::StruckBlow{ .damage = 1 }, d2d::rules::StruckBlow{ .damage = 80 } };
+            assert(!world.fight.take_blows(twice, blows, 6000 * kTickMs));
+            assert(twice.mode == "GH" && twice.struck_event);
+        }
+        world.fight.land(world.fight.monsters.size() - 1, d2d::rules::Blow{ .hit = true }, true, 6000 * kTickMs, -1);
+        assert(world.fight.monsters.back().struck_event && world.fight.monsters.back().mode != "GH");
         world.fight.boss_events({}, 6000 * kTickMs);
         assert(world.fight.pending.size() == 8);
         for (std::size_t k = 0; k < 8; ++k) {
@@ -510,7 +528,6 @@ int main() try {
         // A soft hit while in GH: hook 4 (FUN_005a2ba0) tests mode 3 at the hit and
         // does nothing, even when GH is over by the events; nothing is queued.
         const d2d::rules::MissileDamage flame{ .etype = 0, .elo = 1, .ehi = 1 };   // under a point: no drop
-        in_gh.last_hp = in_gh.hit_points;
         in_gh.bolts_at = 0;
         world.fight.monsters.push_back(std::move(in_gh));
         world.fight.burn(world.fight.monsters.size() - 1, flame, 8000 * kTickMs, true);
@@ -791,7 +808,7 @@ int main() try {
     {
         auto kept = world.actor->character.items;
         world.actor->held = d2d::d2s::Item{ .code = "hp1", .location = d2d::d2s::item_location::kCursor, .slot = 4 };
-        world.make_corpse();
+        world.make_corpse(0);
         const auto& corpse = world.actor->corpses.back();
         assert(!world.actor->held && !corpse.items.empty() && corpse.items[0].code == "hp1");
         assert(corpse.items[0].location == d2d::d2s::item_location::kStored && corpse.items[0].panel == d2d::d2s::item_panel::kInventory && corpse.items[0].slot == 0);

@@ -106,6 +106,10 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
 // 32-pixel column edge, each column's pixels between its two.
 void blit_dt1_wall_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
                        int screen_x, int screen_y, int cell_x, int cell_y, bool in_front, int alpha_all = 255, const Hole* hole = nullptr);
+// That bit (FUN_004dd180): set as the wall's fade turns to 0x80 (FUN_004dd060
+// finds it in front, +0x2a = 0x80), cleared as it turns back to 0xff; a tile
+// with flag 4 never changes it. So a wall fading back is lit as any other.
+[[nodiscard]] constexpr bool wall_in_front(int fade_target) { return fade_target == 0x80; }
 
 // Runs draw(rows) once for each of `bands` horizontal bands of the screen,
 // at the same time: the first on the calling thread, the others on worker

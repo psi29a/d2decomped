@@ -31,8 +31,10 @@ using namespace d2d::game;
 
 namespace {
 
-// A level-40 Druid on an open Blood Moor; a Raven summoned at `lvl`.
-d2d::rules::MonStats summon_raven(const GameData& data, int lvl) {
+// A level-40 Druid on an open Blood Moor; a Raven summoned at `lvl`, then
+// its swings with the Druid at `now_lvl` in Raven (pet_skill_damage, each
+// frame: FUN_0056e000 takes the owner's level at the swing).
+d2d::rules::MonStats summon_raven(const GameData& data, int lvl, int now_lvl) {
     d2d::rules::Rng rng{ 7 };
     Character character;
     auto made = new_character(data, d2d::d2s::kDruid, "Headless", false, true, rng);
@@ -57,6 +59,8 @@ d2d::rules::MonStats summon_raven(const GameData& data, int lvl) {
     const bool cast = world->fight.cast_summon(raven, actor->player.x + 3, actor->player.y, 100000);
     if (cast) world->fight.summon(*data.skills.get(raven), 100000);   // its action frame's (strike.cpp)
     assert(cast && actor->pets.size() == 1);
+    world->fight.skill_level = [now_lvl](int) { return now_lvl; };
+    world->fight.pet_skill_damage(actor->pets.front());
     return actor->pets.front().monster.stats;
 }
 
@@ -73,14 +77,15 @@ int main() try {
     assert(data);
     if (!data->patched) { std::printf("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
     struct Expected { int lvl, low, high, to_hit; };
-    for (const auto& expected : { Expected{ 1, 2, 4, 100 }, Expected{ 5, 6, 8, 160 } }) {
-        const auto stats = summon_raven(*data, expected.lvl);
-        assert(stats.a1_min == expected.low && stats.a1_max == expected.high);
-        assert(stats.a2_min == expected.low && stats.a2_max == expected.high);
-        assert(stats.s1_min == expected.low && stats.s1_max == expected.high);
-        assert(stats.to_hit2 == expected.to_hit && stats.to_hit_s1 == expected.to_hit);
-        std::printf("level %d: A1 %d-%d, A2 to-hit %d\n", expected.lvl, stats.a1_min, stats.a1_max, stats.to_hit2);
-    }
+    for (const auto& expected : { Expected{ 1, 2, 4, 100 }, Expected{ 5, 6, 8, 160 } })
+        for (const int cast_lvl : { 1, 5 }) {   // cast at either level, it swings at the owner's level now
+            const auto stats = summon_raven(*data, cast_lvl, expected.lvl);
+            assert(stats.a1_min == expected.low && stats.a1_max == expected.high);
+            assert(stats.a2_min == expected.low && stats.a2_max == expected.high);
+            assert(stats.s1_min == expected.low && stats.s1_max == expected.high);
+            assert(stats.to_hit2 == expected.to_hit && stats.to_hit_s1 == expected.to_hit);
+            std::printf("cast at %d, now level %d: A1 %d-%d, A2 to-hit %d\n", cast_lvl, expected.lvl, stats.a1_min, stats.a1_max, stats.to_hit2);
+        }
     std::printf("OK: a Raven hits with its SkillDamage skill's damage and to-hit\n");
     return 0;
 } catch (const std::exception& error) {

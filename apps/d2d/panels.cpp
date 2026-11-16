@@ -5,6 +5,7 @@
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
+#include "storage_close.hpp"
 #include "ui.hpp"
 
 #include <automap_cells.hpp>
@@ -576,7 +577,13 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
                   int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool transmute_down) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    if (art.frames_per_direction() >= 4) {
+    if (panel == d2d::d2s::item_panel::kStash) {
+        for (std::uint32_t quarter = 0; quarter < 4 && quarter < art.frames_per_direction(); ++quarter) {
+            const auto& frame = art.frame(0, quarter);
+            const StorageClose spot = stash_art_spot(int(quarter));
+            blit_sprite(framebuffer, frame, pal, spot.left, spot.bottom - int(frame.height));
+        }
+    } else if (art.frames_per_direction() >= 4) {
         const auto& frame = art.frame(0, 0);
         blit_sprite(framebuffer, frame, pal, kCharPanelX, kCharPanelY);
         blit_sprite(framebuffer, art.frame(0, 1), pal, kCharPanelX + int(frame.width), kCharPanelY);

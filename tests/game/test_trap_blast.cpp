@@ -76,7 +76,7 @@ int main() try {
         fight.monsters.clear();
         for (const int off : { radius, radius + 1 }) {
             Monster fallen = make_monster(*data, fallen_row, centre(off), at_y, rng, 0);
-            fallen.align = 0; fallen.hit_points = fallen.last_hp = fallen.stats.hit_points = 1000;
+            fallen.align = 0; fallen.hit_points = fallen.stats.hit_points = 1000;
             fight.monsters.push_back(std::move(fallen));
         }
         pet.monster.unit.x = centre(0); pet.monster.unit.y = at_y;

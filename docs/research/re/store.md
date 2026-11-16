@@ -435,7 +435,13 @@ else rare.
   held) at x 155, bottom 100; the stash gold (stat 15) at x 245,
   baseline 100. Over the coin's box (`FUN_00486820`: 20x18 up from
   (153, 102)) string 0x101c "Withdraw" at x 133, baseline 82. The
-  inventory's coin box is (483, 471) the same way.
+  inventory's coin box is (483, 471) the same way. In a classic game
+  (`FUN_0044dcc0` 0) all of the stash's sit 0xc4 lower (coin bottom foot -
+  0xf4 against - 0x1b8, box foot - 0xf2 against - 0x1b6, Withdraw foot -
+  0x106 against - 0x1ca), its grid is inventory.txt "Bank Page2" (record 8
+  + 0x10, `FUN_004835b0`) and its `bank` art goes where `TradeStash`'s does
+  (`FUN_0048edf0`: quarters at x, x + 0x100, bottoms foot - 0xe0 / - 0x30).
+  d2d: `stash_gold_drop`, `stash_art_spot` (storage_close.hpp).
 - The server's 0x4f buttons with a stash open (`FUN_00564d50`): 0x13
   withdraws `n` (n <= stash gold, carried + n <= clvl x 10000
   (`FUN_00622e70`), else nothing moves and a message); 0x14 deposits

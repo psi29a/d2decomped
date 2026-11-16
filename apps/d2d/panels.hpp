@@ -212,7 +212,12 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
-// Its close button: storage_close.hpp. ponytail: classic stash untested.
+// The classic game's (FUN_0044dcc0 0) is inventory.txt record 8 + 0x10 at
+// 800x600 ("Bank Page2"), the expansion's record 0xc + 0x10 ("Big Bank
+// Page2"): FUN_004835b0 loads both through FUN_0065c1f0 (record + 0x10 x the
+// resolution), and the grid tint (FUN_00483ff0) and the click test
+// (FUN_004912a0) take one by that flag. Its art: stash_art_spot; its close button and gold:
+// storage_close.hpp.
 // Rect {x, y, w, h} of a stored item in a grid layout.
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item);
 

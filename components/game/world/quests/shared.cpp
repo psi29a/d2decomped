@@ -547,6 +547,24 @@ auto World::carries(std::string_view code) const -> bool {
         return (actor->held && counts(*actor->held, true)) || std::ranges::any_of(actor->character.items, [&](const auto& item) { return counts(item, false); });
     }
 
+auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse) -> void {
+        if (hosted_quests) return;
+        d2d::rules::QuestBits corpse_bits{};                       // a corpse's records: new, clear
+        auto& bits = corpse ? corpse_bits : quests();
+        // A Bark Scroll (bks / bkd, a1q4's, FUN_00592e20): with +9, LAB_00592130
+        // over the game's players (FUN_005537d0), whoever the event's player is.
+        if (code == "bks" || code == "bkd") each_in_game([&](Player&, int) { cain.item_event(quests()); });
+        // The Golden Bird's (g34 / j34, a3q4's, FUN_005ba6a0), the event's player's bits:
+        // the bird state 3; the figurine state 1, and bit 6 with its line (unit event
+        // 0x48, FUN_00553380 on that player: a corpse is a player unit of their class).
+        using Bird = d2d::rules::GoldenBirdQuest;
+        if ((code == Bird::kFigurine || code == Bird::kBird) && golden_bird.picked_up(bits, code == Bird::kBird)) class_cue("act3_find_jade", now_ms);
+        // The Hellforge Hammer (hfh, a4q3's, LAB_005b5a90: the event's player's bits at
+        // [edx + 0xc]). The soulstone's record (a4q1, 0x16) has no item event
+        // (FUN_005b42b0 leaves +0xb0 null, FUN_005439a0 skips it).
+        if (code == d2d::rules::HellforgeQuest::kHammer) hellforge.hammer_picked(bits);
+    }
+
 // FUN_005466b0(code, ilvl, quality): an item made into the player's
 // inventory, left at their feet when there's no room.
 auto World::give_item(std::string_view code, std::uint32_t now_ms, int ilvl, int quality) -> void {

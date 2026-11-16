@@ -53,7 +53,7 @@ int main() try {
         item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory;
         item.column = 9; item.row = 3;
         world.actor->character.items.push_back(std::move(item));
-        world.act4_update(0);
+        world.item_event(code, 0);                                                // picked up: event 4
     };
     world.hellforge.open = true; world.hellforge.state = 0;
     pick(d2d::rules::HellforgeQuest::kStone);
