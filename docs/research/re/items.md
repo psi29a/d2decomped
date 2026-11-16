@@ -362,9 +362,10 @@ into an inventory, to that inventory's owner when it's a player (type 0;
 one (`FUN_0063aaf0`). So the merc's items and one dropped from an
 inventory have no player owner. The only other writer, `FUN_0057f390`,
 gives an owner id to the gold piles `FUN_0055a090` makes (from
-`FUN_0057f700`); gold has no replenish stat.
-Not ported (`ponytail:` in components/rules/replenish.hpp): the timer of
-an item a vendor holds, and `FUN_0055f900`'s item flag 0x200 and
+`FUN_0057f700`); gold has no replenish stat. A vendor's stock (the open
+window, the kept stock and gamble lists) runs too, unowned as the merc's.
+Not ported (`ponytail:` in components/rules/replenish.hpp):
+`FUN_0055f900`'s item flag 0x200 and
 hand-skill pass (`FUN_0055c5c0`), as for a smith's repair.
 
 ### The item maker (`FUN_00558cb0`)

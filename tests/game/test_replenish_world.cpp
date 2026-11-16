@@ -9,7 +9,7 @@
 //   one back mends it (FUN_00562c40 -> FUN_0055f900);
 // - an item on the floor keeps its timer;
 // - the merc's items are queued on entering and run too, never mended
-//   (their owner id is -1: FUN_0063afd0).
+//   (their owner id is -1: FUN_0063afd0); a vendor's stock as well.
 // The rules themselves are checked against game.exe in tests/test_replenish.cpp.
 
 #include <character.hpp>
@@ -136,6 +136,12 @@ int main() try {
     assert(frames_until([&] { return merc_cap.durability > 5; }) == 3);
     assert(merc_cap.durability == 6 && merc_cap.replenish_in == 125);
     std::printf("OK: the merc's items run their timers\n");
+
+    Item sold = cap;
+    sold.replenish_in = 2;
+    world.stocks[{ 1, 0 }].tabs[0].push_back(sold);
+    assert(frames_until([&] { return world.stocks[{ 1, 0 }].tabs[0][0].durability > 5; }) == 2);
+    std::printf("OK: a vendor's stock runs its timers\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_replenish_world: %s\n", error.what());

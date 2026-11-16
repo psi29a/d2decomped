@@ -240,17 +240,22 @@ auto World::replenish_frame() -> void {
             if (due(item, true)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
         if (actor->held) (void)due(*actor->held, true);
         for (auto& item : actor->character.merc_items) (void)due(item, false);
+        for (auto& page : actor->store.tabs) for (auto& item : page) (void)due(item, false);   // the vendor's window: its stock
         if (mended) settle_requirements(*game_data, actor->character);
     }
 
 // The same for what lies on the floors, every level's, never mended: an
 // item leaving its inventory gets owner id -1 (FUN_0063aaf0 -> FUN_00629ed0).
+// And the vendors' stock kept between trades, their gamble lists too (the
+// NPC's inventory: owner id -1, as the merc's).
 auto World::replenish_ground_frame() -> void {
-        const auto due = [&](Loot::GroundItem& lying) {
-            if (lying.item.replenish_in > 0 && --lying.item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, lying.item, false);
+        const auto due = [&](d2d::d2s::Item& item) {
+            if (item.replenish_in > 0 && --item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, item, false);
         };
-        for (auto& lying : loot.ground) due(lying);
-        for (auto& [floor, items] : loot.kept) for (auto& lying : items) due(lying);
+        for (auto& lying : loot.ground) due(lying.item);
+        for (auto& [floor, items] : loot.kept) for (auto& lying : items) due(lying.item);
+        for (auto& [vendor, stock] : stocks) for (auto& page : stock.tabs) for (auto& item : page) due(item);
+        for (auto& [vendor, stock] : kept_gambles) for (auto& page : stock.tabs) for (auto& item : page) due(item);
     }
 
 auto World::stamina_frame() -> void {
