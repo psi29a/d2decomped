@@ -129,6 +129,15 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 `0x679f70`, 0xb `0x679fd0`, 0xc `0x679e60`, 0xf `0x67c2d0`; 4, 0xa and 0xe
 (flag 0x40000) go through FUN_00649760 instead.
 
+- A monster's type 2 paths as its 0xd: the same pather (`0x679c80`), the
+  same PATHTYPEPOINTS (0x6eb648: 0 for both; FUN_00679c80 takes another way,
+  FUN_00679b30, only when path +0x98 isn't 0), and FUN_005a6290 retries 0xf
+  for both (its `case 2: case 7: case 9: case 0xd`). Their flags differ by
+  0x100 (0x6eb690: 0 and 0x100), a bit FUN_00648cf0 sets and clears
+  (`& 0xfff800ff`) but no path code in the decompile tests. The Fetish's
+  moves give 2 and 0xd (FUN_005f53e0: `mov edx, 2` at 0x5f554e, `mov edx,
+  0xd` at 0x5f569d, then FUN_005de190); d2d's `path_to` type 0 is both.
+
 - A player's path is type 7 (FUN_00649d00 for unit type 0: steps +0x91 =
   0x49, +0x92 = 0x46, mask +0x50 = 0x1c09); FUN_00648dc0 puts it back to 7
   before each walk (FUN_0057f090, from C→S 0x01 / 0x03 → FUN_005809d0 →
