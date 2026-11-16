@@ -46,7 +46,7 @@ struct NpcVisitor {
 // (FUN_005a73e0's aidel, 15 for every NPC; 25 for a special's).
 struct NpcAct {
     enum class Kind { stand, walk, mode } kind = Kind::stand;
-    int frames = 0;           // stand
+    int frames = 0;           // stand; -1: no think scheduled (till a talk starts)
     int x = 0, y = 0;         // walk, level subtiles
     int fail = 15;
     int mode = 0;             // mode: 8 S1 .. 11 S4
@@ -120,9 +120,12 @@ inline std::optional<NpcAct> npc_heed(NpcBrain& brain, int x, int y, const NpcVi
     // Talked to: while +0x14 is over 36, a walk to the scratch words
     // (+0x18, +0x1c) taken as a spot no path reaches (bugs.md 16), so
     // the think comes aidel (15) on; then stand 8 as it counts down.
-    // ponytail: with +0x14 run out game.exe schedules no think (what
-    // wakes it after the talk isn't traced); d2d thinks 8 frames on.
-    const auto act = stand(brain.held > 36 ? 15 : 8);
+    // With +0x14 run out (0, or -1 a think after) it schedules no think
+    // (FUN_005e68f0 returns 1 with no FUN_005de080): frames -1. NU has no
+    // end event (mode table 0x6e2260) and the talk's end (FUN_0054b9f0 ->
+    // FUN_00572f20) schedules none, so it stands till a talk starts
+    // (FUN_00548b00 case 1: FUN_005417d0 event 2 next frame).
+    const auto act = stand(brain.held > 36 ? 15 : brain.held > 0 ? 8 : -1);
     if (brain.held < 0) brain.held = 0;
     else --brain.held;
     return act;

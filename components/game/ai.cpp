@@ -322,7 +322,9 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         if (act.face >= 0) state.dir = facing16(act.face);
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
         switch (act.kind) {
-        case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
+        case d2d::rules::NpcAct::Kind::stand:
+            state.wait_until = act.frames < 0 ? std::numeric_limits<std::uint32_t>::max() : now_ms + std::uint32_t(act.frames) * kFrameMs;
+            break;
         case d2d::rules::NpcAct::Kind::walk:
             state.walking = set_off(level, state, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, false, crowd);   // FUN_005ded90
             state.mode_ms = now_ms;
