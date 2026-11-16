@@ -76,7 +76,18 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   ghost is `monsters\RH\COF\RHTNHTH.cof`: one TR layer (lit), 16
   frames, one direction. `FUN_005066c0` stores the tint bytes minus one
   (compcode.md "Tints").
-- Order: newest first — inserted by last-played time, descending.
+- Folder scan (`FUN_00438f70`): `*.d2s`, copying the name only up to its
+  first dot; the resulting name must be 2..15 bytes, must not start `_`,
+  and must not end `-`. `FUN_0043c8a0` reads the save header. The scanner
+  passes the `WIN32_FIND_DATAA` last-write `FILETIME` low and high words to
+  `FUN_00438ad0`.
+- Order (`FUN_00438ad0`): in expansion mode, newest file `FILETIME` first,
+  compared as an unsigned high word and then unsigned low word. Equal times
+  retain the folder enumeration order. The saved header's `last played`
+  field is not used for this ordering.
+
+The scan and forwarding are rerun by `tools/emu/save_folder_scan.py` with
+the Win32 folder calls and the two downstream functions hooked.
 
 ## Scrollbar geometry (`FUN_005084f0` / draw `FUN_00508370`)
 
