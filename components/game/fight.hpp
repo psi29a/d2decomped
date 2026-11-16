@@ -232,6 +232,7 @@ struct Fight {
         bool reassigned = false;           // put somewhere at once (Teleport): the World tells its client (ev::Reassigned)
         bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)
+        std::optional<d2d::d2s::Item> held;   // the item in the player's hand (the cursor; inventory +0x20, FUN_0063c1e0)
         UnitState player;                  // DS1 cells (x.5 = a cell centre)
         std::optional<Monster> merc;       // the save's mercenary, a monster on the player's side (merc_turn)
         const Npc* merc_npc = nullptr;

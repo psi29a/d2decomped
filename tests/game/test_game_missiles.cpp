@@ -398,6 +398,19 @@ int main() try {
             world.fight.out_of_ammo(items.size() - 2);
             assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kEquipped; }) == (dex >= 21 ? 1 : 0));
         }
+        // An item on the cursor: FUN_00560cd0 refuses (FUN_0063c1e0), the spent stack stays in its slot
+        // and the reload finds it full (0x5801a3).
+        items = kept_items; dexterity = 21;
+        std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; });
+        items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 1 });
+        items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 9 });
+        world.actor->held = d2d::d2s::Item{ .code = "hp1", .identified = true };
+        world.fight.out_of_ammo(items.size() - 2);
+        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) {
+                   return item.code == "tkf" && item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm && item.quantity == 0; }) == 1);
+        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kStored && item.quantity == 9; }) == 1);
+        world.actor->held.reset();
+        dexterity = kept_dexterity;
         // An empty quiver in hand: the shot is refused and the inventory's quiver swapped in (FUN_005da8b0 -> FUN_00580310).
         items = kept_items;
         std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });

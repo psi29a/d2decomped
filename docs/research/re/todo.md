@@ -30,7 +30,7 @@ Ranked by Seen, then by how much play it touches.
 | 9 | Unique monster mods still untraced: the act bosses' deaths (the thief is traced: never applied, monsters.md) | trace | maybe | PLAN.md phase 6, monster-ai.md |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
-| 37 | A hand's item out of ammunition: ReEquip isn't ported (`FUN_0057ff70`: the weapon wielded before goes back on); an item on the cursor doesn't keep the spent stack in its slot (`FUN_00560cd0`) | build | slightly | skills.md "Shots and ammo" |
+| 37 | A hand's item out of ammunition: ReEquip isn't ported (`FUN_0057ff70`: the weapon wielded before goes back on) | build | slightly | skills.md "Shots and ammo" |
 
 ## Sounds
 

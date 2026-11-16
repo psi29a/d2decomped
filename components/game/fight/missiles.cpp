@@ -137,6 +137,9 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
             return;
         }
+        // FUN_00560cd0 refuses with an item on the cursor (FUN_0063c1e0 at 0x560d23): the spent stack
+        // stays in its slot, so no reload takes it (0x5801a3); the next refused shot tries again.
+        if (actor->held) return;
         const std::string code = item.code;
         const auto slot = item.slot;
         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);

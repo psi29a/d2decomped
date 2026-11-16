@@ -271,7 +271,6 @@ struct World {
         // treasure's end (0x5c) plays it within 60 s (World::tower_treasure).
         std::optional<std::uint32_t> tower_line_held;
         std::vector<Event> events;             // for the client, since it last looked
-        std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
         bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
         bool had_bks = false, had_bkd = false;  // the Bark Scrolls, last tick (a1q4's item event)

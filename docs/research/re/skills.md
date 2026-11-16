@@ -867,9 +867,13 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (`tests/test_ammo_out.cpp`). srvstfunc 4 also runs `FUN_00580380` (a
   worn weapon with durability at 0 breaks).
   d2d: `Fight::out_of_ammo`, `cast_missile`; test_game_missiles checks
-  both. Not ported: step 4 (a `ponytail:` in `Fight::out_of_ammo`), and
-  `FUN_00560cd0`'s refusal in step 3 (it returns 0 with something on the
-  cursor, `FUN_0063c1e0`; d2d always takes the item off).
+  both. Step 3's `FUN_00560cd0` refuses with something on the cursor
+  (`FUN_0063c1e0` at 0x560d23, answer 0 before the slot is asked) and
+  `FUN_00580030` ignores its answer: the spent stack stays in its slot,
+  which the reload then finds full (0x5801a3). V
+  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` returns while
+  `Hero::held` is set. Not ported: step 4 (a `ponytail:` in
+  `Fight::out_of_ammo`).
 - **ReEquip** (`FUN_0057ff70`, cited, not run): the player keeps one item
   id (player data `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads
   it): the wielded weapon (`FUN_0063bef0`) at the time an item is put on a
