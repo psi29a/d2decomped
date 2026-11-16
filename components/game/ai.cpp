@@ -2515,7 +2515,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
                 const int thorns = foe.fighter.thorns + d2d::rules::resisted(foe.fighter.thorns_light, res[3]) + taken.damage * foe.fighter.thorns_pct / 100
                                  + taken.damage * monster.reflect_pct / 100;  // Iron Maiden
-                if (taken.hit && thorns > 0 && hurt(game_data, monster, thorns, now_ms)) return true;
+                if (taken.hit && thorns > 0) {
+                    // Thorns' record carries 0x4021 (FUN_005bf670): FUN_0057cee0 raises event 4
+                    // (FUN_005a43a0) for 0x4000, and hook 4 tests the mode it was struck in.
+                    const bool out_of_gh = monster.mode != "GH";
+                    if (hurt(game_data, monster, thorns, now_ms)) return true;
+                    if (out_of_gh) monster.struck_event = true;
+                }
             }
         }
         if (monster.leaping) {                                          // Leap's flight (do 77, FUN_005d9f70): along the sequence to its landing
