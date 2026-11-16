@@ -33,9 +33,9 @@ struct PartyPanel {
     // game flags (0x712efc, S->C 0x01; FUN_0047a980) FUN_004799c0 sorts by
     // the sort key instead, most first (FUN_004796d0: one goes before the
     // first with less, signed), a tie after the rows it ties with.
-    // ponytail: NetGame keeps neither S->C 0x65 nor that flag, so callers
-    // pass `by_sort_key` false; a tie keeps d2d's row order, not the group
-    // list's (FUN_00479800's).
+    // NetGame keeps both (Town::party_rows passes them).
+    // ponytail: a tie keeps d2d's row order, not the group list's
+    // (FUN_00479800's).
     static void order(std::vector<Row>& rows, int own_party, bool by_sort_key = false) {
         const auto group = [own_party](const Row& row) { return own_party != 0xffff && row.party == own_party ? -1 : row.party; };
         std::ranges::stable_sort(rows, [&group, by_sort_key](const Row& lhs, const Row& rhs) {

@@ -464,8 +464,12 @@ link, the same as the roster list `DAT_007bb5c0`.
 
 - Inside a group the rows come by name (`FUN_004795f0`); with bit 1 of the
   game flags set game.exe sorts by record `+0x18`, most first.
-  `PartyPanel::order(by_sort_key)` does, but NetGame keeps neither S->C 0x65
-  nor the flag, so it is never asked to.
+  `PartyPanel::order(by_sort_key)` does: NetGame keeps 0x65's word on the
+  player it names (a player it doesn't know drops it, as `FUN_004792e0`
+  finding no record does) and 0x01's flags (`0x45c8b0` passes the u32 at
+  +2 in ECX to `FUN_0047a9a0`), and `Town::party_rows` sorts by the word
+  when bit 1 is set (`d2gs::s2c::roster_key` / `roster_by_sort_key`). A tie
+  keeps d2d's row order, not `FUN_00479800`'s.
 - Area names come from 0x7f's level id.
 - A party member's life bar (`FUN_0049a460`) isn't drawn.
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore
