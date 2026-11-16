@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // How long a player's attack sequence is (Jab, Impale, Double Swing, Double Throw, Frenzy, Fists of Fire, Claws of Thunder,
-// Blades of Ice, Dragon Claw): Fight::start_sequence ticks the skill's steps at the attack rate.
+// Blades of Ice, Dragon Claw): Fight::start_sequence ticks the skill's steps at the attack rate. Double Throw is in the grid, but in play it
+// goes through cast_missile (mode SC) and never reaches start_sequence: the grid does not cover that path (ponytail note in cast_missile).
 //   `--seq-rate`: every class x sequence skill x main-hand weapon x IAS x weapon speed (WSM) x skill speed, one line each
 //   `D class skill_id skill weapon ias wsm sias steps speed ticks`: the steps the sequence has for that weapon, the AnimData A1 speed it
 //   is counted at and the ticks it lasts (-1: the skill moves the unit and the hold is open ended), as
@@ -118,10 +119,10 @@ int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir) { std::printf("SKIP: D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
     const fs::path data_dir = mpq_dir;
-    if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq\n"); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    assert(data && data->patched);
+    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);   // the loader's own (case-insensitive) lookup of d2data.mpq
+    if (!data) { std::printf("SKIP: game data not loadable from D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
+    if (!data->patched) { std::printf("SKIP: no 1.14d patch data\n"); return D2D_TEST_SKIPPED; }
 
     // none, sword (1hs), dagger (1ht), great sword (2hs), spear (2ht), staff (stf), bow, crossbow (xbw), claws (ht1)
     const std::vector<std::string> weapons = { "", "ssd", "dgr", "gsd", "spr", "sst", "sbw", "lxb", "ktr" };
