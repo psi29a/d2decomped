@@ -344,7 +344,7 @@ Steps, in order (the oracle runs them all):
    - Cain, classes 0xf4 0xf5 0xf6 0x109 0x208: mode 4, no price. The code
      tests `FUN_006280a0(item, 0x10, ...)` (identified) and returns 0 on `== 1`,
      but that function returns the masked flags, 0 or 0x10, so it never
-     refuses (bugs.md 119);
+     refuses (bugs.md 120);
    - every other class returns 0.
 7. Common tail: pending `0x7c0de0` = 1, `0x7c0de5` the item's id (+0xc),
    `0x7c0de1` its class (+4), `FUN_00467a70(0)`. With mode 1 or 2 and `direct`
