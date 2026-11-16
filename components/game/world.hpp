@@ -209,6 +209,8 @@ struct View {
     d2d::d2s::Header header;
     d2d::d2s::Stats stats;
     std::vector<d2d::d2s::Item> items;
+    // FUN_004680a0 returns stock's raw client cursor-item pointer; the typed
+    // optional is its d2d counterpart, tested directly at each call site.
     std::optional<d2d::d2s::Item> held;
     std::optional<Store> store;
     std::vector<d2d::rules::MercOffer> hire_offers;
