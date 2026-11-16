@@ -184,16 +184,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         // goes on d2d's object nearest the host's; a player's or monster's
         // on theirs.
         // Which text is a string id: overhead_string (FUN_004a0d20 /
-        // FUN_004a0b30); a monster's or object's other text isn't drawn.
-        // ponytail: a player's own text (FUN_004a0b30 after FUN_0049e280's
-        // language check) isn't shown.
+        // FUN_004a0b30); a monster's or object's other text isn't drawn, a
+        // player's is as it is when FUN_0049e280 lets it (overhead_text_shown).
         std::vector<UnitState> said_npcs;                    // the NPC states drawn, with the host's objects' messages: a copy (the View's are replicated by change)
         if (net_game) {
             for (const auto& said : std::exchange(net_game->overheads, {})) {
                 const auto number = overhead_string(said.type, said.text);
                 const auto unit_key = std::uint64_t(said.type) << 32 | said.id;
-                if (said.text.empty() || !number) { net_said.erase(unit_key); continue; }   // a new message replaces the old, shown or not
-                net_said[unit_key] = { *number, frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
+                const bool own_text = !number && said.type == 0 && overhead_text_shown(said.language, said.text);
+                if (said.text.empty() || (!number && !own_text)) { net_said.erase(unit_key); continue; }   // a new message replaces the old, shown or not
+                net_said[unit_key] = { number.value_or(0), frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs, own_text ? said.text : std::string{} };
             }
             std::erase_if(net_said, [&](const auto& entry) { return frame_ms >= entry.second.until; });
             for (const auto& [unit_key, said] : net_said) {
@@ -213,7 +213,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 for (auto& drawn : extra) {
                     const bool is_player = drawn.npc <= -4000 && std::size_t(-4000 - drawn.npc) < view.others.size() && view.others[std::size_t(-4000 - drawn.npc)].id == host->second.id && host->second.type == 0;
                     const bool is_monster = drawn.npc <= -10 && drawn.npc > -4000 && std::size_t(-10 - drawn.npc) < view.monsters.size() && std::uint32_t(view.monsters[std::size_t(-10 - drawn.npc)].id) == host->second.id && host->second.type == 1;
-                    if (is_player || is_monster) drawn.says = said.string;
+                    if (is_player || is_monster) { drawn.says = said.string; drawn.said = said.text; }
                 }
             }
         }
@@ -235,6 +235,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         player_look.x = view.player.x; player_look.y = view.player.y;
         dress(*scene, player_look, -1, look_states, &state_clock);
         flash(*scene, player_look, view.flash_overlay, view.flash_at);
+        if (net_game)   // our own overhead text: the host sends it on our unit like another player's
+            if (const auto own = net_said.find(net_game->self_id); own != net_said.end()) { player_look.says = own->second.string; player_look.said = own->second.text; }
         // A state gone plays its offsound once, where it was; one leaving the
         // view with its unit (the in_view box, 14 cells) hasn't ended.
         for (auto& [key, seen] : state_clock.seen)

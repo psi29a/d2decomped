@@ -212,7 +212,10 @@ word heads the list FUN_00572c10 adds a talking player to).
   NPC over 2 off (+0x18, +0x1c), a walk there (FUN_005ded90; bugs.md 16:
   no path, the think comes aidel on); else with +0x14 > 0 its path stopped
   (FUN_00648730) and stand 8. +0x14 then counts down (below 0: reset to 0).
-  With +0x14 at 0 nothing is scheduled.
+  With +0x14 at 0 nothing is scheduled (it returns 1 with no FUN_005de080).
+  NU has no end event (mode table 0x6e2260, monster-ai.md) and the talk's
+  end (FUN_0054b9f0 -> FUN_00572f20) schedules no think, so the NPC stands
+  till a talk with it starts (FUN_00548b00 case 1 thinks next frame).
 - **Else**, with a visitor that isn't the NPC:
   - under 3 off (or over 23): path stopped; AI control +0x18 at 0 → 60
     and the player gets unit sound 0x12 (FUN_00553380: the client's
@@ -247,8 +250,7 @@ diff_drlg.py 1-40 0 npcs`: 40/40.
 along its path (`follow_path`) at Velocity, the special modes as S1 / S2 for their
 animation's length. The visitor: `NpcVisitor` (`npc_patrol` fills it
 from the player and the NPC's `alert`). Not here (ponytails): the greeting
-sound, the think once +0x14 runs out mid-talk, game.exe's pathers for the
-walk.
+sound, game.exe's pathers for the walk.
 
 ## Act 2's town AIs — Towner and Vendor
 

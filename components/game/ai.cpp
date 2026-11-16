@@ -322,7 +322,9 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         if (act.face >= 0) state.dir = facing16(act.face);
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
         switch (act.kind) {
-        case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
+        case d2d::rules::NpcAct::Kind::stand:
+            state.wait_until = act.frames < 0 ? std::numeric_limits<std::uint32_t>::max() : now_ms + std::uint32_t(act.frames) * kFrameMs;
+            break;
         case d2d::rules::NpcAct::Kind::walk:
             state.walking = set_off(level, state, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, false, crowd);   // FUN_005ded90
             state.mode_ms = now_ms;
@@ -1351,7 +1353,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // Run), swinging at the end. The other sequence that walks first,
             // seq_swarmmove (Swarm Move, 166), no think casts: the Swarm's
             // (FUN_005f2460) has no skill, so that one stands.
-            // ponytail: its charge path (type 0x14) and state 0x12 are the run's.
+            // Its run keeps the unit's path type: 0x14 is the path's step cap
+            // (FUN_00648e70: +0x90 / +0x91, at most 77), after +0x14 / +0x16 are
+            // cleared (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
+            // client tests (FUN_004c7890); FUN_00571b70 clears it.
+            // ponytail: the run is path_to's chase, not capped at 20 steps.
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
@@ -1426,7 +1432,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
-            // ponytail: the flight is a line, not the path FUN_0064ea90 lays.
+            // The flight is a line: the takeoff (FUN_005d9f70) lays path type 9
+            // (FUN_00679f70, table 0x6eb6d8: one point, the landing) with collision
+            // type and mask 0, so nothing blocks it; FUN_005d9d50's FUN_0064ea90 only
+            // stamps the landing spot (pattern 0x80) till it lands (FUN_005da120).
+            // ponytail: flown along the sequence's time, not at the takeoff's pace
+            // (FUN_00648690: FUN_00451f80 row +0x34 << 8, a 16.16 walk), nor the 0x80 stamp.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;

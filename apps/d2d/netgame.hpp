@@ -201,13 +201,14 @@ struct NetGame {
     // u8, +8 name[16], +0x18 second name[16] (or a u16), for the client.
     struct Event { int event = 0, colour = 0, sub = 0; std::uint32_t argument = 0; std::string name, second; std::uint16_t second_id = 0; };
     std::vector<Event> events;
-    struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; };   // 0x26 type 5: over a unit
+    struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; int language = 0; };   // 0x26 type 5: over a unit; +2 its language
     std::vector<Overhead> overheads;
     struct Phrase { int cls = 0, phrase = 0; };   // another player's Say (0x2c)
     std::vector<Phrase> phrases;
     int movie = -1;                            // the cinematic the host asked for (0x61), -1 none
     std::vector<d2d::rules::QuestQuake::Kind> quest_quakes;
     bool diablo_red = false;                   // 0x89 event 12 until 13 (rules::release_light)
+    bool cairn_opened = false;                 // 0x89 event 1: the Cairn Stones opened (0x46aee0's dip)
     std::vector<int> quest_news;               // quests (words) whose log state the host sent (0x5d, no flags): the Quest Log button
     // The quest log as the host has it: each quest's log state by its word
     // (0x52 whole, 0x5d one), the game's quest words (0x29), the Den's

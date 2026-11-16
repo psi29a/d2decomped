@@ -238,7 +238,7 @@ struct Town {
     auto draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
     auto draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
     static constexpr int kCoopPortraitX = 6, kCoopPortraitWidth = 0x42;   // the column, from the frame's left edge
-    struct Said { std::uint16_t string = 0; std::uint32_t until = 0; };
+    struct Said { std::uint16_t string = 0; std::uint32_t until = 0; std::string text; };   // `text`: a player's own, when `string` is 0
     std::map<std::uint64_t, Said> net_said;                 // the host's overhead messages by unit key (0x26 type 5)
     bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
     int merc_portrait_x = -1, merc_portrait_y = 0;          // where last frame drew the merc's (DAT_007beed4 / beed8), -1 none

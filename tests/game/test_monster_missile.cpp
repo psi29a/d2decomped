@@ -129,6 +129,21 @@ int unit_test() {
             assert(scaled.poison_min == rate && scaled.poison_max == rate && scaled.poison_len == 500);
         }
     }
+    {                                                                  // a boss's enchants (owner stats 0x30..0x38): only with SrcDamage, x SrcDamage / 128 (FUN_0064a930 / FUN_0064aa60)
+        d2d::rules::MonStats boss;
+        boss.enchants[0] = std::pair{ 10, 20 }; boss.enchants[2] = std::pair{ 4, 8 }; boss.enchant_len = 100;
+        GameData::MissileInfo row;
+        assert(std::ranges::none_of(monster_shot_stats(row, boss, true, false, false, 1).enchants, [](const auto& enchant) { return enchant.has_value(); }));
+        row.src_damage = 128;
+        for (const bool s1_shot : { false, true }) {
+            const auto shot = monster_shot_stats(row, boss, !s1_shot, false, s1_shot, 1);
+            assert(shot.enchants[0] == std::pair(10, 20) && shot.enchants[2] == std::pair(4, 8) && shot.enchant_len == 100);
+        }
+        row.src_damage = 96;
+        const auto scaled = monster_shot_stats(row, boss, false, false, false, 1);
+        assert(scaled.enchants[0] == std::pair(7, 15) && scaled.enchants[2] == std::pair(3, 6) && scaled.enchant_len == 75);
+        assert(!monster_shot_stats(row, boss, false, true, false, 1).enchants[0]);
+    }
     return 0;
 }
 

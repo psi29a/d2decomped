@@ -26,7 +26,7 @@ namespace d2d::client {
 // with FUN_004a0d20). A monster's or object's: atol of the text, drawn
 // when 1..0xfffe, else not at all. A player's: 0xff 0xff then an atol in
 // 0x42d..0x50f, 0x5586..0x5615 or 0x2aa4; any other text (a number too)
-// is drawn as it is, which this doesn't cover (nullopt).
+// is drawn as it is (nullopt; overhead_text_shown).
 [[nodiscard]] inline std::optional<std::uint16_t> overhead_string(int unit_type, std::string_view text) {
     const auto number_at = [&text](std::size_t from) {
         const std::string digits(text.substr(std::min(from, text.size())));
@@ -41,6 +41,18 @@ namespace d2d::client {
     const long number = number_at(0);
     if (number >= 1 && number <= 0xfffe) return std::uint16_t(number);
     return std::nullopt;
+}
+
+// Whether a player's text that isn't a string id is drawn (FUN_0049e280,
+// called at 0x4a0ce9 with EDI the message's language, 0x26 +2, and the text
+// widened as ANSI): a message in language 6, 7, 9 or 0xc from a client of
+// another language (7 and 0xc count as one) only when every character is
+// under 0x80; any other is drawn. `client_language` is FUN_00525150's.
+[[nodiscard]] inline bool overhead_text_shown(int message_language, std::string_view text, int client_language = 0) {
+    if (message_language != 6 && message_language != 7 && message_language != 9 && message_language != 0xc) return true;
+    if (client_language == message_language) return true;
+    if ((client_language == 7 && message_language == 0xc) || (client_language == 0xc && message_language == 7)) return true;
+    return std::ranges::none_of(text, [](char letter) { return static_cast<unsigned char>(letter) > 0x7f; });
 }
 
 // An overhead box's rect, as FUN_004a0a00 hands FUN_0049e070 (ESI): left,

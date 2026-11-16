@@ -166,7 +166,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (!units.empty()) {
             units.back().rate = player_rate;
             units.back().overlay_class = 1;                 // FUN_006223a0: a player's Height2
-            if (player_look) { units.back().shift = player_look->shift; units.back().overs = player_look->overs; }
+            if (player_look) { units.back().shift = player_look->shift; units.back().overs = player_look->overs; units.back().says = player_look->says; units.back().said = player_look->said; }
             if (player_spirit) { units.back().spirit = true; units.back().shadow = false; }
         }
         // An object in a mode its CycleAnim doesn't loop (a chest's OP) stops on the last frame (FUN_004bcbb0).
@@ -266,12 +266,12 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const auto& unit : units) {
-            if (!unit.says) continue;
+            if (!unit.says && unit.said.empty()) continue;
             const bool player = unit.npc == -1 || unit.npc <= -4000;
             const int point_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
             const int point_y = kFloorViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);
             if (point_y <= 0 || point_y >= int(kScreenHeight) || point_x <= -100 || point_x >= world_w + 100) continue;
-            const auto lines = d2d::font::wrap_edit_box(string_id(scene, unit.says).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
+            const auto lines = d2d::font::wrap_edit_box((unit.says ? string_id(scene, unit.says) : unit.said).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
                 if (const auto* glyph = chat_font.find(code)) return int(glyph->width);
                 return 0;
             });

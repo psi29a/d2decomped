@@ -10,6 +10,7 @@
 
 int main() {
     using d2d::rules::shatter_rows;
+    using d2d::rules::shatter_row_made;
     using d2d::rules::shatter_row_name;
     for (int unit_type : { 0, 2, 3 }) {                       // a monster's only
         const auto none = shatter_rows(unit_type, 2, false, true);
@@ -27,6 +28,11 @@ int main() {
     assert(uber.first == 0x1ab && uber.second == 0x1aa);
     assert(shatter_rows(1, 1, true, true).first == 0x110);
     assert(shatter_rows(1, 0xff, false, false).first == 0x10f + 0xff);
+    // FUN_004cd540's 0x2020 aims at (0, 0): a row with a speed at level 1
+    // (monglacialspike, Vel 18) fails its 99-subtile test; the icebreak rows
+    // (no Vel) stand on the corpse. VelLev under 8 adds nothing at level 1.
+    assert(!shatter_row_made(18, 0) && shatter_row_made(0, 0));
+    assert(shatter_row_made(0, 7) && !shatter_row_made(0, 8));
     std::printf("OK: shattered deaths as game.exe's\n");
     return 0;
 }

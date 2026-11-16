@@ -1155,7 +1155,7 @@ FUN_00577010(rec)   // if no valid unhired offers remain: free the list, rec+0x2
 ```
 - The free merc is the first valid, unhired offer in Kashya's current list, with the same seed, level and stats as the hire screen shows. No gold is taken.
 - If the player already has a merc there is no reward: in LoD any merc, even a dead one; in classic only a live one. There is no deferral, because bit 0 is already set.
-- The offer list has to exist. The client asks for it whenever Kashya's menu is built (`FUN_004b4830`: hcIdx 0xfc / 0xc6 / 0x203 / 0x96 → packet 0x38 `{u32 3, u32 npc, u32 player}` via `FUN_004786d0`; server `FUN_0054bca0`). Talking to her therefore creates it first.
+- The offer list has to exist. The client asks for it whenever Kashya's menu is built (`FUN_004b4830`: hcIdx 0xfc / 0xc6 / 0x203 / 0x96 → packet 0x38 `{u32 3, u32 npc, u32 player}` via `FUN_004786d0`; server `FUN_0054bca0`). Talking to her therefore creates it first; the server's own talk start does too (`FUN_00572c10`, a player joining the NPC's talkers, calls `FUN_00576770`, which runs `FUN_00576070` for the same four classes while +0x21 is clear). d2d rolls it there (`World::tick`'s talk).
 - The client shows nothing special: packet 0x50 subtype 2 removes the offer from the list at 0x7c0c85, and the merc appears.
 - The hire menu itself is unchanged. It is level-gated (clvl > 7, `FUN_004b6410`), not quest-gated.
 

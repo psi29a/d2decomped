@@ -102,15 +102,18 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // freeze (1) and shatter (107) carry States.txt hide and shatter, so the corpse is
             // hidden and can't be picked (FUN_0063a320: corpse_used), its hit class's element
             // becomes 0xa0, and FUN_004afc10 breaks it into ice (rules::shatter_rows) from it.
-            // ponytail: the create flags 0x2020's placement isn't traced: both stand on the
-            // corpse, direction 0, as fire_blast's guts.
+            // Each stands on the corpse unless its row has a speed (rules::shatter_row_made),
+            // for its Range + LevRange at level 1, facing a draw below 64 (FUN_004cd540, flags 0x2020).
+            // ponytail: the draw is sound_rng (the client's rolls), not the missile's own seed (+0x20).
             if (monster.mode != monster.fx_mode && monster.mode == "DT" && (monster.shatter || now_ms < monster.frozen_until)) {
                 monster.corpse_used = true;
                 monster.hit_class = (monster.hit_class & 0xf) | 0xa0;
                 const auto rows = d2d::rules::shatter_rows(1, monster.npc.height, false, now_ms < monster.frozen_until);
                 for (const int row : { rows.first, rows.second })
-                    if (const auto found = game_data->missiles.find(std::string(d2d::rules::shatter_row_name(row))); found != game_data->missiles.end()) {
-                        Missile ice{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
+                    if (const auto found = game_data->missiles.find(std::string(d2d::rules::shatter_row_name(row)));
+                        found != game_data->missiles.end() && d2d::rules::shatter_row_made(found->second.vel, found->second.vel_lev)) {
+                        const int ice_frames = d2d::rules::missile_range(found->second.range, found->second.lev_range, 1);
+                        Missile ice{ &found->second, monster.unit.x, monster.unit.y, 0, 0, sound_rng(64), now_ms, now_ms + std::uint32_t(std::max(ice_frames, 1)) * 40, {} };
                         ice.visual_only = true;
                         pending.push_back(std::move(ice));
                     }

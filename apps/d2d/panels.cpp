@@ -272,8 +272,10 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // (0xfdf; 0xfe1 "%s\nRating" for Attack) at y-4 / y+4 and the value in
     // font16, font8 from 1000 (FUN_004e9940). The numbers come from the
     // server (rules::attack_line).
-    // ponytail: dual wield's two-value line (FUN_004e9870), the hover
-    // tooltips (FUN_004a7340..), and other languages' y-1 aren't drawn.
+    // FUN_004eda20's y-1 (records 0 and 6, 0x72d844 / 0x72d88c) is for
+    // languages 6..9 (FUN_00525150); d2d reads LNG\ENG only, language 0.
+    // ponytail: dual wield's two-value line (FUN_004e9870) and the hover
+    // tooltips (FUN_004a7340..) aren't drawn.
     for (std::size_t block = 0; block < 2; ++block) {
         const auto& line = panel.attack[block];
         const auto* skill = scene.skills.get(line.skill);

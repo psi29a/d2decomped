@@ -9,6 +9,8 @@
 // (LAB_004b05be).
 #pragma once
 
+#include "missiles.hpp"
+
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -31,6 +33,15 @@ inline ShatterRows shatter_rows(int unit_type, int height, bool uberminion, bool
     if (uberminion && !frozen) return { kUberShatterRows[0], kUberShatterRows[1] };
     return { kShatterFirstRow + (height & 0xff), kShatterSmokeRow };
 }
+// FUN_004cd540 under flags 0x2020: no 1, so it starts on the unit (+8);
+// 0x20 with +0x1c / +0x20 zero, so it aims at subtile (0, 0); no 4, so
+// its speed is the row's at level 1 (+0x30), as missile_velocity. With a
+// speed, a target 100 subtiles or more from the start on either axis ends
+// it unmade (0x4cd7d8): a row with a speed (monglacialspike, Vel 18) is
+// made only within 99 subtiles of (0, 0), which d2d leaves out. One with
+// none stands where it starts, its direction a draw below 64 from its own
+// seed (flag 0x2000, 0x4cd9a5).
+inline bool shatter_row_made(int vel, int vel_lev) { return missile_velocity(vel, vel_lev, 1) == 0; }
 // A row's name in kShatterRows, empty past it.
 inline std::string_view shatter_row_name(int row) {
     const int index = row - kShatterFirstRow;

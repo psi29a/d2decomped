@@ -188,8 +188,10 @@ frame) starts from Cloak of Shadows' state on the player or a Shadow
 sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
 `rules::cairn_dip` from Missiles.txt's row: a player in Stony Field with a
 StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
-0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's state 153 (0xa8 / 0xaa)
-and event 1 don't start one.
+0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's
+S->C 0x89 event 1 starts it the same way (0x46aee0: the client player's room,
+that test, then `FUN_0046ae50(Param1, Range - 2 x Param1, Param1, 4, 1)`;
+`Town`'s net step). A joined game's state 153 (0xa8 / 0xaa) doesn't start one.
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under

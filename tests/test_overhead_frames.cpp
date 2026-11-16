@@ -5,7 +5,7 @@
 // frames. 254 and above are 2157. A shrine's 4-digit id is 157.
 // overhead_string: a monster's or object's text is atol'd, 1..0xfffe
 // (FUN_004a0d20); a player's needs 0xff 0xff and one of FUN_004a0b30's
-// ranges.
+// ranges. overhead_text_shown: FUN_0049e280's language check.
 #include "overhead.hpp"
 
 #include <cassert>
@@ -37,6 +37,16 @@ int main() try {
     assert(overhead_string(0, "\xff\xff" "21894") == 21894);  // 0x5586
     assert(overhead_string(0, "\xff\xff" "22037") == 22037);  // 0x5615
     assert(!overhead_string(0, "\xff\xff" "22038"));
+    // FUN_0049e280: a player's own text, by its language (0x26 +2) and ours.
+    using d2d::client::overhead_text_shown;
+    assert(overhead_text_shown(0, "hello"));
+    assert(overhead_text_shown(0, "caf\xe9"));                // not 6 / 7 / 9 / 0xc: any text
+    assert(overhead_text_shown(6, "hello"));                  // plain ASCII from any language
+    assert(!overhead_text_shown(6, "\x83\x41"));              // 6 to a language 0 client: a byte past 0x7f hides it
+    assert(overhead_text_shown(6, "\x83\x41", 6));            // the same language
+    assert(overhead_text_shown(0xc, "\xb0\xa1", 7));          // 7 and 0xc count as one
+    assert(overhead_text_shown(7, "\xb0\xa1", 0xc));
+    assert(!overhead_text_shown(9, "\xa4\xa4", 7));
     std::puts("overhead stay checks passed");
     return 0;
 } catch (const std::exception& error) {
