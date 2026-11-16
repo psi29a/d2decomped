@@ -4,6 +4,7 @@
 // slots, Name.maN's records written and read back, in a temp dir.
 #include <d2s_automap.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
