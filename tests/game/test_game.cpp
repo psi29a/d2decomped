@@ -1720,6 +1720,17 @@ int main(int argc, char** argv) try {
         // Its physical too: MinDamage / MaxDamage with brackets and DmgSymPerCalc (FUN_0064b860 -> FUN_0064af20 / FUN_0064aff0).
         assert(plain.phys_lo == missile_phys(*data, meteor_fire, none, meteor, 10, false)
                && plain.phys_hi == std::max(missile_phys(*data, meteor_fire, none, meteor, 10, true), plain.phys_lo));
+        // A row with physical columns 2..4, no brackets, Meteor's fire's synergy (60 % at Inferno 20) as its DmgSymPerCalc:
+        // (2 + 1) << 8 and (4 + 2) << 8 with it, 2 << 8 and 4 << 8 without.
+        auto physical_row = meteor_fire;
+        physical_row.min = 2;
+        physical_row.max = 4;
+        physical_row.min_lev = {};
+        physical_row.max_lev = {};
+        physical_row.hitshift = 8;
+        physical_row.dmg_sym = meteor_fire.edmg_sym;
+        const auto bare = world.fight.row_damage(physical_row, 10, none, meteor), boosted = world.fight.row_damage(physical_row, 10, twenty, meteor);
+        assert(bare.phys_lo == 512 && bare.phys_hi == 1024 && boosted.phys_lo == 768 && boosted.phys_hi == 1536);
 
         // Meteor's centre (14) and Immolation Arrow (9) leave fire burning its own row (no fixed
         // damage) for Param3 + (lvl - 1) x Param4 / SHitCalc1 frames (FUN_0059fa30's flag 0x8000).
