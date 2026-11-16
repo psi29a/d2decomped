@@ -41,6 +41,15 @@ int main(int argc, char** argv) try {
 
     // A ring costs its gamble cost whatever the level: 50,000 in the stock tables.
     assert(d2d::rules::gamble_price(data->rules, "rin", 30) == 50000);
+    // An upgraded base costs what its normal one does (FUN_00629370 reads the code FUN_006287d0 answers): a Hatchet
+    // (9ha, exceptional) and a Tomahawk (7ha, elite) cost a Hand Axe's (hax) price. game.exe's numbers, from
+    // tools/emu/gamble_price.py: clvl 1 771, clvl 30 6,896, clvl 45 12,933, and 11,640 with 10 percent reduced prices.
+    for (const char* code : { "hax", "9ha", "7ha" }) {
+        assert(d2d::rules::gamble_price(data->rules, code, 1) == 771);
+        assert(d2d::rules::gamble_price(data->rules, code, 30) == 6896);
+        assert(d2d::rules::gamble_price(data->rules, code, 45) == 12933);
+        assert(d2d::rules::gamble_price(data->rules, code, 45, 10) == 11640);
+    }
     std::printf("OK: gamble prices\n");
     return 0;
 } catch (const std::exception& e) {

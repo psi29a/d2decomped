@@ -2425,10 +2425,14 @@ inline bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     return found->second.nameable && !item.personalized && !item.simple;
 }
 
-// Gheed's price for gambling on `code` (FUN_00629370): rings and amulets
+// Gheed's price for gambling on `item_code` (FUN_00629370): rings and amulets
 // cost their "gamble cost"; the rest mix the base, exceptional and elite
 // costs by upgrade odds and scale with character level.
-inline int gamble_price(const Tables& tables, const std::string& code, int clvl, int reduced = 0) {
+inline int gamble_price(const Tables& tables, const std::string& item_code, int clvl, int reduced = 0) {
+    // An upgraded base (exceptional or elite) is priced as its normal one: FUN_006287d0's normcode.
+    const auto item = tables.item_base.find(item_code);
+    if (item == tables.item_base.end()) return 0;
+    const std::string& code = item->second.normcode.empty() ? item_code : item->second.normcode;
     const auto found = tables.item_base.find(code);
     if (found == tables.item_base.end()) return 0;
     const auto& base = found->second;
