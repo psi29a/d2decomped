@@ -1014,6 +1014,19 @@ int main(int argc, char** argv) try {
         talker.talking = { -1, -1, -1 };
         assert(gamble_list() == kept);                                   // the kept list once more, freed at this close
         assert(gamble_list() != kept);
+        // With split levels the last two leaving one by one (go_alone) free it too.
+        talker.talking = { gheed, -1, -1 };
+        const auto split_kept = gamble_list();
+        assert(gamble_list() == split_kept && !gamblers.kept_gambles.empty());
+        const Level* gamble_town = gamblers.level;
+        const auto* gamble_moor = data->level(d2d::rules::level_ids::kBloodMoor);
+        gamblers.split_levels = true;
+        for (auto& player : gamblers.players) {
+            player->on_level = gamble_town;
+            gamblers.act_as(*player);
+            gamblers.go_alone(gamble_moor, float(gamble_moor->ds1.width()) / 2, float(gamble_moor->ds1.height()) / 2, "test");
+        }
+        assert(gamblers.kept_gambles.empty());
         std::printf("OK: a gamble list outlasts its talk while another player talks to Gheed\n");
     }
     {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100

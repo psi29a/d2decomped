@@ -139,6 +139,10 @@ auto World::go_alone(const Level* destination, float arrive_x, float arrive_y, c
             d2d::log::info("{}: level {} at ({:.1f}, {:.1f}), through {} from {}", actor->character.name, level_name(*destination), free_x, free_y, how, level_name(*from));
         }
         act_as(*mover);
+        // An emptied town frees its gamble lists as leave_town does (FUN_00536580).
+        if (in_town(from) && from != destination
+            && std::ranges::none_of(players, [&](const auto& player) { return (player->on_level ? player->on_level : level) == from; }))
+            std::erase_if(kept_gambles, [&](const auto& entry) { return std::get<0>(entry.first) == from->id; });
     }
 
 // Stage 9: `destination`'s turn: its NPCs, monsters, missiles and floor in,

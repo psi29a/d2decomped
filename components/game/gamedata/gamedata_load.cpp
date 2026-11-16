@@ -544,7 +544,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
         skill_row.restrict_form = number("restrict");
-        for (std::size_t k = 0; k < 3; ++k) skill_row.restrict_states[k] = text("State" + std::to_string(k + 1));
+        for (std::size_t slot = 0; slot < 3; ++slot) skill_row.restrict_states[slot] = text("State" + std::to_string(slot + 1));
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
         skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana"); skill_row.startmana = number("startmana");
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
