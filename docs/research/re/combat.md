@@ -604,6 +604,15 @@ V (`tools/emu/swing_start.py`, game.exe's functions run natively, 11,270 cells o
 - d2d applies the start frame to a plain swing and to a skill whose `anim` is A1 (Power Strike, Charged Strike, Lightning Strike, Fend,
   the bow skills; `Fight::set_pmode`), as game.exe does. A skill whose `anim` is TH (a throw: d2d plays the A1 record) gets the strike rule
   only, start 0, as the game's TH mode has; its record is still d2d's A1. Jab and Impale (`anim` SQ, `start_sequence`) keep their length.
+- A player's attack sequence (anim SQ, mode 0x12) runs 30 points slower than a plain swing: FUN_00623f50's attack branch takes 30 off the
+  percent `effective IAS + stat 68` (`0x624290..0x62429b`: unit type 0, mode 0x12, `sub esi, 0x1e`) before the clamp to 15..175, for a skill
+  whose UseAttackRate is set (FUN_00621580: record +6 against the mask at `0x6ce274`) and whose seqtrans is not SC (FUN_006216e0 sends SC to the
+  cast branch, which has no such term). `seq_rate.py table` runs the function on each sequence record: Jab, Impale, Double Swing,
+  Double Throw, Frenzy and the four Assassin finishers take the 30 points; Lightning and Chain Lightning are casts; Charge, Leap Attack,
+  Whirlwind, Inferno and Arctic Blast (no UseAttackRate) take another stat's rate (U: not checked here). `rules::sequence_sias` is the term;
+  `Fight::start_sequence` adds it to the skill speed. U: Double Throw reaches d2d through `cast_missile` (mode SC), not `start_sequence`, so the term is not applied to it in play yet. A Jab at 0 IAS with bare hands lasts 19 ticks, not 13; Frenzy 25, not 17. U: the AnimData
+  speed game.exe counts a mode 0x12 sequence at (d2d keeps the class's A1 record: the Assassin's claws have 208 there; FUN_00620f00 gives the
+  `GH` record for mode 0x12, speed 256 for no weapon, other weapon classes not run) and the step count are unchanged by this rule.
 - The end event's floor in game.exe is 2 ticks (`frame + max(n, 1) + 1`), not 1: the two differ only when one tick covers the whole rest of the
   animation (rate >= 256 (frames - start)), which no player record reaches; d2d's closed form gives the same for the real records.
 - U: which frames the client draws for a swing that starts in; d2d keeps drawing the whole animation over the shorter swing.

@@ -304,6 +304,8 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
+        // ponytail: a spot skill whose anim is SQ (Double Throw) runs in mode SC here and is not timed by start_sequence, so the
+        // 30-point sequence rate (rules::sequence_sias) does not reach it in play; its timing and projectile scheduling are a separate candidate.
         set_pmode(skill_row->anim == "A1" || skill_row->anim == "TH" ? kModeA1 : kModeSC, now_ms);
         actor->pstruck = false;
         return true;
