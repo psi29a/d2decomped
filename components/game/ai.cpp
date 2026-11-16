@@ -1428,7 +1428,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
-            // ponytail: the flight is a line, not the path FUN_0064ea90 lays.
+            // The flight is a line: the takeoff (FUN_005d9f70) lays path type 9
+            // (FUN_00679f70, table 0x6eb6d8: one point, the landing) with collision
+            // type and mask 0, so nothing blocks it; FUN_005d9d50's FUN_0064ea90 only
+            // stamps the landing spot (pattern 0x80) till it lands (FUN_005da120).
+            // ponytail: flown along the sequence's time, not at the takeoff's pace
+            // (FUN_00648690: FUN_00451f80 row +0x34 << 8, a 16.16 walk), nor the 0x80 stamp.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
