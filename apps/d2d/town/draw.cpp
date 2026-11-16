@@ -191,8 +191,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (net_game) {
             for (const auto& said : std::exchange(net_game->overheads, {})) {
                 const auto number = overhead_string(said.type, said.text);
-                if (said.text.empty() || !number) continue;
-                net_said[std::uint64_t(said.type) << 32 | said.id] = { *number, frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
+                const auto unit_key = std::uint64_t(said.type) << 32 | said.id;
+                if (said.text.empty() || !number) { net_said.erase(unit_key); continue; }   // a new message replaces the old, shown or not
+                net_said[unit_key] = { *number, frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
             }
             std::erase_if(net_said, [&](const auto& entry) { return frame_ms >= entry.second.until; });
             for (const auto& [unit_key, said] : net_said) {
