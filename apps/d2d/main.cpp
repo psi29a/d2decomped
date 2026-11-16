@@ -425,7 +425,11 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
 }
 static int         g_scale = 1;          // window = game res * g_scale
 static SDL_ScaleMode g_scale_mode = SDL_SCALEMODE_PIXELART;   // d2d.cfg scalemode, --toggle scalemode=
+#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
+static bool        g_touch_controls = true;   // phones and tablets start on touch; d2d.cfg touch_controls = 0 turns it off
+#else
 static bool        g_touch_controls = false;
+#endif
 static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
 static bool        g_widescreen = false; // d2d.cfg widescreen = 1 / --widescreen: the game view widens to the window
 static int         g_forced_view_w = 0;  // --view-width: the widescreen width, else the window's aspect
@@ -1998,7 +2002,7 @@ extern "C" void d2d_sigint_handler(int) {
 
 /**
  * Parse launcher/config options and start the game with the selected local data and input settings.
- * Touch controls remain opt-in through the flag or saved configuration.
+ * Touch controls are opt-in through the flag or saved configuration, on by default on Android and iOS.
  */
 int main(int argc, char** argv) {
 #ifdef __ANDROID__
@@ -2096,7 +2100,7 @@ int main(int argc, char** argv) {
                    "Widen the in-game view to the window's aspect (menus stay 800x600)");
     app.add_option("--data", data_dir_str,
                    "D2 MPQ directory (else $D2_MPQ_DIR, d2data.mpq beside d2d or in ./, d2d.cfg data =)");
-    app.add_flag("--touch-controls", g_touch_controls, "Show the touch control prototype");
+    auto* touch_flag = app.add_flag("--touch-controls", g_touch_controls, "Show the touch control prototype");
     app.add_flag  ("--headless", headless,
                    "Run without opening a window");
     app.add_flag  ("--send-crash-reports", send_crash_reports,
@@ -2293,7 +2297,8 @@ int main(int argc, char** argv) {
     g_start_hardcore = start_hardcore;
     g_start_classic  = start_classic;
     g_no_save        = no_save;
-    g_touch_controls = g_touch_controls || cfg["touch_controls"] == "1";
+    if (cfg["touch_controls"] == "1") g_touch_controls = true;
+    else if (cfg["touch_controls"] == "0" && touch_flag->count() == 0) g_touch_controls = false;
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked

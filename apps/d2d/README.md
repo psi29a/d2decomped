@@ -94,6 +94,7 @@ skills stay on the mouse fan. The original controller preset, mouse fan,
 keyboard bindings and `.d2s` hotkeys retain their existing behavior.
 
 For the touch prototype, pass `--touch-controls` (or set `touch_controls = 1`).
+Android and iOS builds start with it on; `touch_controls = 0` turns it off.
 It has a movement area, fixed Attack / Use, four assigned skills, a latching
 I/II page switch and belt access on both pages. In Skills, tap a learned skill,
 then Assign, then a destination; Done returns. Touch assignments use separate

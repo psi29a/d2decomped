@@ -44,7 +44,8 @@ Diablo II 1.14d remains the evidence for original gameplay.
 
 ## Touch prototype
 
-Enable `--touch-controls` or `touch_controls = 1` in d2d.cfg. This is an SDL
+Enable `--touch-controls` or `touch_controls = 1` in d2d.cfg. Android and iOS
+builds start with it on; `touch_controls = 0` turns it off. This is an SDL
 input prototype, not an Android/iOS packaging or device-support claim. Coordinates
 follow the game's existing logical viewport. Use landscape for this prototype.
 
