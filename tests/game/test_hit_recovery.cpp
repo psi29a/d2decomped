@@ -9,6 +9,9 @@
 //   `--hit-modes`: one big hit on a Paladin standing in each of modes DT..SQ (0..18) with a hold running, then in a knockback
 //   slide (19, drawn as GH with `knock` set): `M mode after restarted` (the mode right after the hit, and 1 when the hold's
 //   end moved; the cells FUN_0057edd0 answers for GH).
+//   `--knock-modes`: one knocking hit (Foe::knocked_from set, 1 point of damage: no get-hit of its own) on a Paladin standing in each of
+//   modes DT..SQ (0..18) with a hold running, then in a knockback slide (19): `K mode after knock restarted` (the mode right after, 1 when
+//   a knockback slide is set, and 1 when the hold's end moved: the cells FUN_00580a70 -> FUN_0057edd0 answers for new mode 0x13).
 //   `--interrupt`: one big hit on a Paladin whose used skill is every Skills.txt row d2d parsed, in each swing or cast mode with its
 //   hold queued, with no state and with state 0x36 (a Leap or Whirlwind under way): `I skill mode own state after kicks seq smove`
 //   (own 1 when the mode is the one the swing table plays that skill in; kicks, seq, smove 0 when the swing's repeats, sequence and
@@ -170,6 +173,29 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    if (std::strcmp(argc > 1 ? argv[1] : "", "--knock-modes") == 0) {
+        // The same cells with a knocking hit (result flag 8, Smite / a monster's knock) of 1 point: only the knockback can start a mode.
+        for (int mode = 0; mode <= 19; ++mode) {
+            auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+            World world(&*data, -1, -1);
+            world.enter(hero);
+            world.fight.update_fighters(1000 * kTickMs);
+            auto& actor = *world.actor;
+            std::array<Foe, 2> side{};
+            side[0].hits = 1;
+            side[0].damage = 1;
+            side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 1, .landed = true });
+            side[0].knocked_from = std::pair{ actor.player.x - 1.f, actor.player.y };
+            const std::uint32_t start_ms = 1000 * kTickMs;
+            const std::uint32_t hold_end = start_ms + 17 * 40;
+            actor.pmode = mode == 19 ? kModeGH : mode;
+            actor.pmode_until = hold_end;
+            if (mode == 19) actor.knock = std::array{ float(actor.player.x), float(actor.player.y), float(actor.player.x) + 5.f, float(actor.player.y) };
+            world.fight.hurt_side(side, start_ms + 40);
+            std::printf("K %d %d %d %d\n", mode, actor.pmode, actor.knock ? 1 : 0, actor.pmode_until != hold_end ? 1 : 0);
+        }
+        return 0;
+    }
     // Two big hits on a Paladin 5 ticks apart, through the real Fight::hurt_side; ticks from the first hit to the end of the hold.
     const auto two_hits = [&](int& first_end, int& second_end) {
         auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
@@ -281,6 +307,25 @@ int main(int argc, char** argv) try {
         actor.knock = std::array{ float(actor.player.x), float(actor.player.y), float(actor.player.x) + 5.f, float(actor.player.y) };
         world.fight.hurt_side(side, start_ms + 40);
         assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until < start_ms + 40 * 40);
+    }
+    // A knocking hit during a get-hit starts no knockback and moves nothing (FUN_00580a70 -> FUN_0057edd0 refuses new mode 0x13 from GH at 0x580adc).
+    {
+        auto hero = make_hero(*data, d2d::d2s::kPaladin, "ssd");
+        World world(&*data, -1, -1);
+        world.enter(hero);
+        world.fight.update_fighters(1000 * kTickMs);
+        auto& actor = *world.actor;
+        std::array<Foe, 2> side{};
+        side[0].hits = 1;
+        side[0].damage = 1;
+        side[0].blows.push_back(d2d::rules::StruckBlow{ .damage = 1, .landed = true });
+        side[0].knocked_from = std::pair{ actor.player.x - 1.f, actor.player.y };
+        const std::uint32_t start_ms = 1000 * kTickMs;
+        actor.pmode = kModeGH;
+        actor.pmode_until = start_ms + 17 * 40;
+        const auto x = actor.player.x;
+        world.fight.hurt_side(side, start_ms + 40);
+        assert(actor.pmode == kModeGH && !actor.knock && actor.pmode_until == start_ms + 17 * 40 && actor.player.x == x);
     }
     // A hit interrupts a swing whose skill's `interrupt` is set and leaves Zeal and Smite alone (FUN_0057eec0 through FUN_005809d0): Attack and Sacrifice
     // go to a get-hit and lose the repeats, the sequence and the movement of the swing.
