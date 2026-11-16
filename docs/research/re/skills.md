@@ -825,9 +825,15 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - **The ammo** (`FUN_0056c4e0` / `FUN_0056c3f0`, players only): with a
   bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
   else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
-  takes 1 off its quantity (stat 70), queues the replenish timer
-  (`FUN_00558580`, items.md) and puts its durability back at the max
-  (0x56c383 .. 0x56c39f; d2d doesn't).
+  takes 1 off its quantity (stat 70; `sub` then `jns`: below 0 it writes
+  0, and INT_MIN wraps to INT_MAX and stays), queues the replenish timer
+  (`FUN_00558580`, items.md), puts its durability (stat 0x48) back at the
+  max (`FUN_00625e00`; 0x56c383 .. 0x56c39f, written only when it
+  differs) and calls `FUN_00580310`. It answers 0 when the quantity went
+  below 0, else the new quantity + 1. V (`tools/emu/shot_spent.py`:
+  20,000 cases, every callee hooked, every instruction reached).
+  d2d: `rules::shot_spent` (components/rules/ammo.hpp), from
+  `Fight::spend_ammo` and `Fight::impale_wear`.
 - **Some left** (`FUN_0062a310`, `FUN_0056c4e0`'s answer for the item it
   picked): a quantity above 0; else an item with stat 0x7d
   (item_throwable) always has, its quantity written 0; else only an item

@@ -108,8 +108,10 @@ auto Fight::spend_ammo(int index) -> void {
         if (index < 0) index = ammo_index();
         if (index < 0) return;
         auto& spent = actor->character.items[std::size_t(index)];
-        --spent.quantity;
+        const auto shot = d2d::rules::shot_spent(spent.quantity, d2d::rules::max_durability(spent));   // FUN_0056c310
+        spent.quantity = shot.quantity;
         d2d::rules::replenish_arm(game_data->rules, spent, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+        spent.durability = shot.durability;                                                   // 0x56c39f: back at its max (FUN_00625e00)
         if (spent.quantity <= 0) out_of_ammo(std::size_t(index));
     }
 
@@ -225,8 +227,10 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
                 if (found != game_data->rules.item_base.end() && found->second.stackable) {
-                    --item.quantity;
+                    const auto shot = d2d::rules::shot_spent(item.quantity, d2d::rules::max_durability(item));   // FUN_0056c310
+                    item.quantity = shot.quantity;
                     d2d::rules::replenish_arm(game_data->rules, item, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+                    item.durability = shot.durability;                                                   // 0x56c39f
                     if (item.quantity <= 0) out_of_ammo(i);
                 }
                 else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {

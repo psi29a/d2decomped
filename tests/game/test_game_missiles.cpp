@@ -422,6 +422,7 @@ int main() try {
         std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });
         items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 1 });
         items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true, .quantity = 5 });
+        items.back().max_durability = 20; items.back().durability = 3;   // FUN_0056c310: each shot puts it back at 20
         world.fight.pending.clear();
         world.actor->cast_x = world.actor->player.x + 3; world.actor->cast_y = world.actor->player.y;
         const int double_throw = data->skills.by_name.at("Double Throw");
@@ -432,7 +433,7 @@ int main() try {
         // ... each at the skill's toht (stat 19, FUN_006449f0): ToHit 20 + LevToHit 10 a level past 1.
         assert(std::ranges::all_of(world.fight.pending, [](const Missile& thrown) { return thrown.ar_pct == 20 + 10 * 2; }));
         assert(std::ranges::none_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; }));
-        assert(std::ranges::any_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kLeftArm && item.quantity == 4; }));
+        assert(std::ranges::any_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kLeftArm && item.quantity == 4 && item.durability == 20; }));
         world.fight.pending.clear();
         items = kept_items; dexterity = kept_dexterity;
         std::printf("OK: a spent stack is swapped for a wearable next, on running out or a refused shot\n");
