@@ -42,6 +42,7 @@
 #include <rules.hpp>
 #include <screenshot.hpp>
 #include <shake.hpp>
+#include <shop_action.hpp>
 #include <sound_ids.hpp>
 #include <userdir.hpp>
 #include <weather.hpp>
@@ -1022,7 +1023,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // right click on a multibuy item fills (FUN_004b2650: mouse
             // flag 4, Items +0x1a5).
             const int store_index = store_item_at(*scene, store, mouse.x, mouse.y, touch_store_panel_x());
-            if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
+            // A buy with something on the cursor is never asked (FUN_004b3870 at 0x4b3a77: FUN_0063c1e0 on the
+            // player's inventory, return 0); d2d's server would take it.
+            d2d::rules::ShopClick buy_click;
+            buy_click.npc_class = store.hc_idx;
+            buy_click.sell = 0;
+            buy_click.hand = bool(held);
+            if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)) && d2d::rules::shop_click(buy_click).handled)
             {
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
                 const auto base = scene->rules.item_base.find(stock.code);

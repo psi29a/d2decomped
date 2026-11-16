@@ -365,7 +365,9 @@ it counts durability `!=` max and restocks only a throwable stack
 (`FUN_0062e5d0`).
 
 d2d: `rules::shop_click`, `rules::shop_kind`, `rules::repair_gate` /
-`repair_click_gate` (components/rules/shop_action.hpp). Oracle:
+`repair_click_gate` (components/rules/shop_action.hpp). The town update asks
+`shop_click` before sending a buy: a held item stops it, as at 0x4b3a77 (d2d's
+server would have bought with it). Oracle:
 `tools/emu/shop_action.py [--mutation-check]` runs `FUN_004b3870` for real
 (callees hooked: unit lookup, difficulty, item class, sell test, the repair
 gate, both price calls, the ask, the box, the sound, the click clear) over
