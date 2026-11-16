@@ -1353,7 +1353,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // Run), swinging at the end. The other sequence that walks first,
             // seq_swarmmove (Swarm Move, 166), no think casts: the Swarm's
             // (FUN_005f2460) has no skill, so that one stands.
-            // ponytail: its charge path (type 0x14) and state 0x12 are the run's.
+            // Its run keeps the unit's path type: 0x14 is the path's step cap
+            // (FUN_00648e70: +0x90 / +0x91, at most 77), after +0x14 / +0x16 are
+            // cleared (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
+            // client tests (FUN_004c7890); FUN_00571b70 clears it.
+            // ponytail: the run is path_to's chase, not capped at 20 steps.
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
