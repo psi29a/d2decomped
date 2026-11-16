@@ -390,13 +390,11 @@ std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crow
     });
 }
 
-namespace {
-
 // A move's path to subtile (to_x, to_y) (FUN_00649970) by its path type:
 // rules::monster_path, the toward pather then the wall pather (FUN_00650350,
-// FUN_005a6290); type 7 rules::player_path at its own 5 steps, then the
-// wall pather (type 0xf from then on). Leading points on its own subtile
-// are dropped (FUN_0064fe40).
+// FUN_005a6290); type 7 rules::player_path, then the wall pather (type 0xf
+// from then on); each at the path's steps (+0x91, Monster::path_steps).
+// Leading points on its own subtile are dropped (FUN_0064fe40).
 // FUN_006483a0 refuses a monster that isn't npc / inTown / a pet a path
 // whose end room is in town; a thinking monster here is never in a town
 // level, and its path stays in its level, so none is refused.
@@ -413,19 +411,21 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
     const int x = subtile(unit.x), y = subtile(unit.y);
     const auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); };
     if (monster.path_type == 0) {
-        monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked);
+        monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked, monster.path_steps);
         return !monster.steps.empty();
     }
     if (monster.path_type == 7) {
         const bool end_free = at_foe || !blocked(to_x, to_y) || d2d::rules::end_walk_back(x, y, to_x, to_y, false, blocked);
-        if (end_free) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, 5);
+        if (end_free) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, monster.path_steps);
         else monster.steps.clear();
     }
     if (monster.path_type == 7 && monster.steps.empty()) monster.path_type = 0xf;
-    if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, 5, at_foe, blocked);
+    if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, monster.path_steps, at_foe, blocked);
     monster.steps.erase(monster.steps.begin(), std::ranges::find_if(monster.steps, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); }));
     return !monster.steps.empty();
 }
+
+namespace {
 
 // A move's frame (FUN_00650840): a chase checks its foe first
 // (rules::chase_check: stop at it, re-path when it's moved), then the unit
@@ -805,9 +805,11 @@ auto ThinkCtx::idle(int frames) -> void {                           // FUN_005de
 // A move sets off (FUN_005a7c20) with a re-path budget of 0x14
 // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal (at a
 // unit there: `to_unit`); one with no path can't start, and a spot move
-// then thinks aidel on (FUN_005a73e0).
-auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit) -> bool {
+// then thinks aidel on (FUN_005a73e0). Its path's steps are `path_steps`
+// (FUN_005a6290 -> FUN_00648e70: a walk's 5).
+auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit, int path_steps) -> bool {
     monster.budget = 0x14;
+    monster.path_steps = path_steps;
     monster.path_type = std::exchange(monster.next_path_type, 0);
     monster.wandering = !foe;
     if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe || to_unit, crowd)) {
@@ -1354,10 +1356,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // seq_swarmmove (Swarm Move, 166), no think casts: the Swarm's
             // (FUN_005f2460) has no skill, so that one stands.
             // Its run keeps the unit's path type: 0x14 is the path's step cap
-            // (FUN_00648e70: +0x90 / +0x91, at most 77), after +0x14 / +0x16 are
-            // cleared (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
+            // (FUN_00648e70: +0x90 / +0x91, at most 77; Monster::path_steps, its
+            // chase's re-paths too), after +0x14 / +0x16 are cleared
+            // (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
             // client tests (FUN_004c7890); FUN_00571b70 clears it.
-            // ponytail: the run is path_to's chase, not capped at 20 steps.
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
@@ -1374,7 +1376,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
                     if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); monster.skill_sound = id; return true; }
-                    if (ctx.set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
+                    if (ctx.set_off(true, target, false, 0x14)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
                 }
                 ctx.idle(0);
                 return true;
@@ -2583,6 +2585,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (monster.mode != "WL") {                                // sets off at a think (FUN_005a7c20), else aidel on
             if (now_ms < monster.next_act) return false;
             monster.budget = 0x14;
+            monster.path_steps = 5;                                 // FUN_005a6290's walk
             if (!path_to(level, monster, subtile(foe.x), subtile(foe.y), true, crowd)) {
                 monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
                 if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);

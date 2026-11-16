@@ -311,6 +311,10 @@ struct Monster {
     // FUN_005a63f0 takes and clears it as the move starts); a type 7 path
     // found empty goes 0xf, the wall pather (FUN_005a6290).
     int path_type = 0, next_path_type = 0;
+    // Its path's steps (+0x91, FUN_00648e70, at most 0x4d): every pather's
+    // `steps`, a re-path's too. A walk's start sets 5 (FUN_005a63f0 ->
+    // FUN_005a6290); a charge's run 0x14 (FUN_005cf6b0). Other moves keep it.
+    int path_steps = 5;
     int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Unit flags a skill's young carry (+0xc4): 0x4000000 no experience for
@@ -1245,6 +1249,9 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 }
 
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1, int level_id = -1);
+// A monster move's path to subtile (to_x, to_y) (FUN_00649970) by its
+// path type and Monster::path_steps, into Monster::steps (ai.cpp).
+bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd);
 // The players among the foes (not a pet, not a monster): the game's.
 [[nodiscard]] int players_in(std::span<const Foe> foes);
 

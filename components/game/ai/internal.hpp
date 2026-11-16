@@ -84,7 +84,7 @@ struct ThinkCtx {
     // The acts (ai.cpp): stand (FUN_005de080), set off at a foe or to
     // unit.goal, walk to a spot subtiles off, a mode against the target.
     void idle(int frames);
-    bool set_off(bool running, const Foe* foe, bool to_unit = false);
+    bool set_off(bool running, const Foe* foe, bool to_unit = false, int path_steps = 5);
     bool walk_to(int off_x, int off_y, bool running);   // whether it set off
     void use(std::string_view mode, int skill);
 
