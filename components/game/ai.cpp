@@ -862,9 +862,7 @@ const AiRow* ai_row(std::string_view ai_name) {
 // place of its MonAI's (FUN_005b15d0). Thinks draw the unit's own seed.
 // ponytail: the seed as its look left it (FUN_00573cb0's draws and the
 // rest between aren't taken; the World's spawns (world/) keep the default);
-// FUN_0064d910's 0x40 test on
-// the one subtile under it, not its collision pattern; in melee
-// skips the path test (FUN_00622aa0, mask 0x804); the path types a think
+// in melee skips the path test (FUN_00622aa0, mask 0x804); the path types a think
 // gives its next move (FUN_005de190's EDX: 48 of its 103 calls, 1 / 2 /
 // 7 / 0xd / 0xf) taken only for the Dark Wanderer's (Monster::path_type),
 // the rest as path_to's; a circle as a walk to the point n
@@ -937,7 +935,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.chase = -1;
         if (!row || !row->thinks_alone) {
             const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.got_hit(), level.blocked(unit.x, unit.y, 0x40), nearest);
+            // Bit 0x40 under its own collision pattern (path +0x48, FUN_00649180), not the one subtile.
+            auto on_pattern = unit.shape;
+            on_pattern.mask = 0x40;
+            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.got_hit(), level.unit_blocked(unit.x, unit.y, on_pattern), nearest);
             if (miss.wander) {
                 const auto wander = d2d::rules::think_wander(monster.seed, 5);
                 ctx.walk_to(wander.x, wander.y, false);

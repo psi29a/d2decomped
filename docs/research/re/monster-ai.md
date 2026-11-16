@@ -36,7 +36,10 @@ and goes, stopping at the first step that acts:
 
 1. FUN_005b10e0: state 0x15 stands 3; FUN_005b0f50; FUN_005b0ff0 (flee from the unit at AI control +0x0c).
 2. FUN_005b1650: the target search the MonAI table entry names (0x73ca18 + ai × 16; a special AI's 0x73d358, FUN_005b15d0):
-   - type 1: FUN_005de890 (search; none found: stand or wander),
+   - type 1: FUN_005de890 (search; none found: stand or wander; its
+     collision bit 0x40 test is FUN_0064d910 on the unit's own pattern,
+     path +0x48 via FUN_00649180, at its path x / y: `Level::unit_blocked`
+     with its `UnitShape`, mask 0x40),
    - type 2: FUN_005dd7f0 (search only),
    - types 4 and 5: FUN_005de9d0 (a miss: with a WL mode on collision
      bit 0x40, wander 5; else its think events dropped, FUN_00540e60(unit,
