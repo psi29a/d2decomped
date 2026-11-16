@@ -41,9 +41,28 @@ category, ancestry and stat queries with synthetic values, but executes
 to the ancestry predicate. The cleanup oracle
 runs the real item flag and prefix accessors but hooks stat-list lookup,
 detach and free. It checks original control flow and recorded calls, not
-the real queue, tables, stat-list effects, gameplay, or d2d parity. Creation
-and expiry deletion remain static traces. The runner rejects instruction
+the real queue, tables, stat-list effects, gameplay, or d2d parity. The runner rejects instruction
 budget exhaustion rather than accepting a partial emulator result.
+
+`tools/emu/items_lifecycle_live.py` runs `FUN_00558270`, `FUN_005585d0`,
+`FUN_00558b90`, `FUN_00558cb0` and `FUN_00559130` for real on synthetic units
+with item getters, stat reads, room/path/collision removal, event, create,
+read and placement calls hooked and logged. It confirms: the creation block
+copies game, class (unit `+4`), mode (unit `+0x10`), position, quantity (gold
+stat 14, stackable stat 70) and ear name/class; `FUN_005585d0` (ESI = killer)
+accepts unit types 0 and 1 only and adds the owner's stat `0x50` to the killer's
+(owner from `FUN_0058f0d0`); expiry removes the room, path and collision records
+in that order, clears flag 2 then runs `FUN_005538d0` and `FUN_00555600`, and only
+for items whose deadline is nonzero and not after the frame; the loader sets
+`0x80000` then clears `0x2000` before the two replenish helpers and destroys the
+unit on reader failure or reader error; `FUN_00559130` offsets the point by
+(+2,+3) when `FUN_00463740` accepts it, caps the level at 64 after the
+subtract-one rule, writes mode 3 at block `+0x18` and the level at `+0x0c`,
+and leaves the output untouched on placement failure. `--mutation-check` flips
+five behaviours and the oracle catches each. The area level (`d2d_ai_area_monster_level`,
+`FUN_0061dca0`) and subsystem calls are hooked: their internals are not traced
+here. No d2d function implements these five routines one for one, so d2d is not
+compared.
 
 Artifact identity (local game data is never included):
 

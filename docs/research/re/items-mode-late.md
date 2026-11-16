@@ -50,3 +50,75 @@ not merely a membership check. Conversely, the grid/belt-facing helpers
 so their callers alone establish no additional grid/belt mutation. Packet
 layout, the whole callback table, allocation-failure recovery and live
 inventory synchronization remain outside these bounded traces.
+
+## Live oracle (ten functions)
+
+`tools/emu/items_mode_late_live.py` runs `FUN_0055fa40`, `FUN_0055fcc0`,
+`FUN_00560420`, `FUN_00562250`, `FUN_00562590`, `FUN_005628c0`,
+`FUN_00562c40`, `FUN_00563470`, `FUN_00563840` and `FUN_00563fe0` in
+game.exe. Item-list helpers `FUN_0063dfd0`/`FUN_0063dfa0` run for real; other
+callees are hooked and logged with register and stack arguments, and the
+sequences are compared with models (1077 cases, ten negative controls).
+Details read from the runs, in addition to the table:
+
+- `FUN_0055fa40` (ECX game, EDX owner, no stack): pass one calls `FUN_0055f9c0`
+  (ECX owner, EDX item) for each mode-0 item; pass two calls `FUN_0055c110`
+  (EAX item, EDI owner, push 1) once per counted mode-0 page-0 item, in list
+  order.
+- `FUN_0055fcc0` (ECX game, EDX owner): kind 1 entries first test
+  `FUN_0062ff70(item,owner)`; kind 3 entries skip that test. Removal order:
+  `FUN_0062a360`, `FUN_0063d2b0(inventory,item)`, `FUN_0063ad90`, kind 3 only
+  `FUN_0063c110` then `FUN_0063be30`, `FUN_0055c730(game,item,owner,0,1)`,
+  `FUN_0055dbc0(game,owner,0)`. `FUN_0063e0b0(inventory)` runs once after the
+  walk. Asserts: `0x19fd` (node without item), `0x1a0f` (unlink null),
+  `0x1a10` (unlink returned another item). Null owner or owner without
+  inventory does nothing.
+- `FUN_00560420` (ECX game, EDX owner; stack id, error output, mode flag,
+  flag-0x20 request, inventory override, allow-occupied; `ret 0x18`): asserts
+  `0x906`, `0x907`, `0x910` (no inventory), `0x947` (unlink null), `0x948`
+  (unlink mismatch). The player-page gate (`FUN_00535060` zero and nonzero
+  page) gives output 1. After a successful unlink the cursor is set only for a
+  player whose page is not 1; with the mode flag 1 a player page 2 calls
+  `FUN_00567400`; `FUN_0055f590` nonzero sets flag 1.
+- `FUN_00562250` asserts `0x1249`, `0x124a`, `0x124f`; a missing unit sets the
+  error output, a non-item returns 0 with output 0, wrong mode sets output 1.
+  Success order: `FUN_0063ad90`, `FUN_0063c550(inventory, item X)`, cursor set,
+  `FUN_0055c6e0`, `FUN_0055c730`, mode 4, transient `0x800`, `FUN_00621000`,
+  inventory queue, `FUN_0055edc0(owner, X)`.
+- `FUN_00562590` asserts `0x1383` when transient `0x100000` is set. Success:
+  `FUN_0055fe00(game, owner, item)`, flag 1, optional clear of `0x4000`,
+  inventory queue, `FUN_00621000`, `FUN_00553380(owner, 6, owner)`.
+- `FUN_005628c0` asserts `0x14a7`/`0x14a8`; error output 1 for a missing cube,
+  a cube not in mode 0, a non-`box ` code, a missing source or a source whose
+  mode is not 3 or 4; a restricted cube sends message `0x13` via
+  `FUN_00553380` and returns 0; success sets page 3 and calls `FUN_00560200`
+  with the source id, coordinates 0, 0, and returns 1.
+- `FUN_00562c40` (EAX rate stat, EBX value stat, EDI item, stack game, max):
+  zero rate returns 0 with no calls. An increment above the maximum does not
+  write, notify or schedule but still returns 1. Otherwise: set stat, owner
+  lookup (id -1 stops), client, `FUN_0053d130`, a broken item with a positive
+  value calls `FUN_0055f900(game, owner unit, item)`, event 3 at
+  frame + max(125, 2500/rate + 1) (C division, truncating toward zero).
+- `FUN_00563470` ignores modes 2 and 3; mode 0 saves the page via
+  `FUN_00628320`, sends the player-only action when `FUN_005531c0` gives a
+  client, then `FUN_0055df10(game, owner, item, 0)`; mode 1 calls
+  `FUN_00560cd0` with the slot from `FUN_0063c150` and flag 1; mode 4 calls
+  `FUN_0055eea0`.
+- `FUN_00563840` (stack game, item; EBX owner; `ret 8`): asserts `0x7ff` on a
+  missing Items row and `0x80f`/`0x810` when unlink fails or returns another
+  item. For each page-3 inventory item the page byte is set to 0xff on
+  failure, and the item is dropped to the ground through `FUN_00555da0` and
+  `FUN_00558aa0`; a successful placement through `FUN_0063b950` and
+  `FUN_0063b210` clears the cursor unless the owner is a player and the page
+  is 1, and calls `FUN_00568770` only for a player page 2.
+- `FUN_00563fe0` (ECX game, EDX owner, stack item): asserts `0x1619`, `0x161a`,
+  `0x161b`, `0x161c`, `0x1622` (no row), `0x1627` (replacement code lookup),
+  `0x162d` (creation failed). Rows with byte `+0x139` zero or items not in
+  mode 0 do nothing. Quantity is stat 0x46: 0 unless both `+0x13a` and
+  `+0x13b` are nonzero, else `FUN_0045c3e0` (range `+0x13b - +0x13a`) plus
+  `+0x13a`. Placement tries the descriptor coordinates, then (0,0) with the
+  automatic flag, then `FUN_00563c00`.
+
+d2d has no one-for-one counterpart that cites these ten; d2d is not
+compared. Not traced: the bodies of the hooked callees and the grid, packet
+and event subsystems they reach.
