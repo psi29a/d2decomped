@@ -547,6 +547,13 @@ auto World::carries(std::string_view code) const -> bool {
         return (actor->held && counts(*actor->held, true)) || std::ranges::any_of(actor->character.items, [&](const auto& item) { return counts(item, false); });
     }
 
+auto World::item_event(std::string_view code, std::uint32_t /* now_ms */, bool /* corpse */) -> void {
+        if (hosted_quests) return;
+        // A Bark Scroll (bks / bkd, a1q4's, FUN_00592e20): with +9, LAB_00592130
+        // over the game's players (FUN_005537d0), whoever the event's player is.
+        if (code == "bks" || code == "bkd") each_in_game([&](Player&, int) { cain.item_event(quests()); });
+    }
+
 // FUN_005466b0(code, ilvl, quality): an item made into the player's
 // inventory, left at their feet when there's no room.
 auto World::give_item(std::string_view code, std::uint32_t now_ms, int ilvl, int quality) -> void {

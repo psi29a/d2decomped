@@ -784,7 +784,7 @@ int main() try {
     {
         auto kept = world.actor->character.items;
         world.actor->held = d2d::d2s::Item{ .code = "hp1", .location = d2d::d2s::item_location::kCursor, .slot = 4 };
-        world.make_corpse();
+        world.make_corpse(0);
         const auto& corpse = world.actor->corpses.back();
         assert(!world.actor->held && !corpse.items.empty() && corpse.items[0].code == "hp1");
         assert(corpse.items[0].location == d2d::d2s::item_location::kStored && corpse.items[0].panel == d2d::d2s::item_panel::kInventory && corpse.items[0].slot == 0);

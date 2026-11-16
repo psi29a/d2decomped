@@ -319,7 +319,7 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
         d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", actor->exp_lost, lost, purse - lost);
     }
 
-auto World::make_corpse() -> void {
+auto World::make_corpse(std::uint32_t now_ms) -> void {
         Corpse corpse{ level, actor->player.x, actor->player.y, actor->player.dir, {}, actor->exp_lost * 75 / 100, fight.gfx() };
         for (auto item_it = actor->character.items.begin(); item_it != actor->character.items.end();)
             if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = actor->character.items.erase(item_it); }
@@ -333,6 +333,8 @@ auto World::make_corpse() -> void {
             stored.slot = 0; stored.column = 0; stored.row = 0;
             actor->held.reset();
         }
+        // Each item put on it raises event 4 with the corpse as its player (0x57f9c3).
+        for (const auto& item : corpse.items) item_event(item.code, now_ms, true);
         if (actor->corpses.size() >= 16) actor->corpses.erase(actor->corpses.begin());
         actor->corpses.push_back(std::move(corpse));
     }
@@ -362,6 +364,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                 item_it->slot = to_slot;
                 actor->character.items.push_back(std::move(*item_it));
                 d2d::rules::wield_enters(game_data->rules, actor->character.items, actor->character.items.back());   // FUN_00562f30 -> FUN_0063d1d0
+                item_event(actor->character.items.back().code, now_ms);                                              // FUN_00562f30's event 4
                 item_it = corpse.items.erase(item_it);
                 continue;
             }
@@ -371,7 +374,11 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             for (const auto& x : actor->character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
             if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height, true); column >= 0
-                && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
+                && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) {
+                item_event(item_it->code, now_ms);                                                                     // FUN_005600a0's event 4
+                item_it = corpse.items.erase(item_it);
+                continue;
+            }
             ++item_it;
         }
         settle_requirements(*game_data, actor->character);   // FUN_00562f30 -> FUN_0055dbc0

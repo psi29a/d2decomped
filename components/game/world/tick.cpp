@@ -483,7 +483,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     actor->character.header.status |= 0x08;   // the save's died bit (FUN_00580ec0: FUN_00538650 with 8 at 00580f7c)
                     if (split_levels) { announce({ ev::Message::slain, actor->character.name, {} }); d2d::log::info("{} died", actor->character.name); }   // ponytail: the killer's name (game.exe's "was slain by")
                 }
-                if (actor->pmode == kModeDD) { if (shared_screen()) become_ghost(player); else make_corpse(); }   // co-op (one screen): a ghost, the gear kept; a screen of one's own: a corpse, as game.exe
+                if (actor->pmode == kModeDD) { if (shared_screen()) become_ghost(player); else make_corpse(now_ms); }   // co-op (one screen): a ghost, the gear kept; a screen of one's own: a corpse, as game.exe
                 actor->last_pmode = actor->pmode;
             }
             for (const auto& command : cmds) if (std::holds_alternative<cmd::Say>(command)) apply(command, now_ms);   // the dead chat too
@@ -589,7 +589,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 const auto& ground_item = loot.ground[ground_index];
                 if (std::hypot(ground_item.x - actor->player.x, ground_item.y - actor->player.y) <= 1.f) {
                     const bool malus = ground_item.item.code == "hdm";
+                    const std::string code = ground_item.item.code;
                     loot.take(ground_index, now_ms);
+                    if (loot.index_of(actor->pick_item) < 0) item_event(code, now_ms);   // taken (FUN_00563560's event 4)
                     if (malus && holding_malus() && tools.picked_up(quests())) d2d::log::info("Tools of the Trade: the malus picked up (the player's line, FUN_00553380)");
                     actor->pick_item = -1; actor->player.walking = false; actor->player.path.clear();
                 } else {
