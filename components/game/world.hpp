@@ -18,6 +18,7 @@
 #include "loot.hpp"
 #include "protocol.hpp"
 
+#include <click_spot.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -208,6 +209,8 @@ struct View {
     d2d::d2s::Header header;
     d2d::d2s::Stats stats;
     std::vector<d2d::d2s::Item> items;
+    // FUN_004680a0 returns stock's raw client cursor-item pointer; the typed
+    // optional is its d2d counterpart, tested directly at each call site.
     std::optional<d2d::d2s::Item> held;
     std::optional<Store> store;
     std::vector<d2d::rules::MercOffer> hire_offers;
@@ -876,8 +879,9 @@ struct World {
     // it, the player goes to the level it leads to and stands at that
     // level's warp back, at its ExitWalk. Everything with the player
     // (merc, pets) comes along; the automap and monsters are the new level's.
-    // Close (FUN_00548b00 case 5): warp_close; a click further off walks
-    // toward its tile unit (drlg.md "Taking a warp").
+    // Close (FUN_00548b00 case 5): warp_close, tested when the click comes
+    // and when the walk ends (LAB_00580e73), not on the way; a click
+    // further off walks toward its tile unit (drlg.md "Taking a warp").
     void use_warp();
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
@@ -889,10 +893,10 @@ struct World {
         return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
     }
     // Within reach of the warp's tile unit: rules::unit_distance (the
-    // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
+    // player's size 2, a warp unit's 0) under rules::kWarpReach (FUN_00641530).
     [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
         const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < 5;
+        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < d2d::rules::kWarpReach;
     }
     bool host_warps = false;   // a joined game: the host takes warps; d2d follows its 0x15 there
 

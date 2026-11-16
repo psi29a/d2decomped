@@ -18,7 +18,8 @@ namespace d2d::client {
 void render_title(std::vector<std::uint8_t>& framebuffer,
                   const Scene& scene,
                   std::span<const Button> buttons,
-                  std::uint32_t elapsed_ms);
+                  std::uint32_t elapsed_ms,
+                  std::string_view version = {});
 
 // Character-select screen — RE FUN_004359d0 (init) + FUN_0042ef50 (BG draw).
 // LoD layout: characterselectscreenEXP as BG, 2 columns × 4 rows of
@@ -143,6 +144,7 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
 struct TitleUI {
     std::vector<Button>     buttons;
     std::vector<std::string> labels;   // owns text buffers Button.label points into
+    std::string version;
 };
 
 // Build the main-menu button list. Positions from RE (LoD variant records

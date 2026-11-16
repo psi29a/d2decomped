@@ -69,6 +69,8 @@ int HirelingPanel::input(const Scene& scene, const Mouse& mouse, bool holding) {
     return -1;
 }
 
+// FUN_00493020 / FUN_004930a0 / FUN_00493100 draw the stock name and level;
+// FUN_004934d0 supplies the stock held-item eligibility used by merc_slot.
 void HirelingPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View::MercSheet& sheet, const std::string& name,
                          const std::vector<d2d::d2s::Item>& worn, const std::optional<d2d::d2s::Item>& held, int mouse_x, int mouse_y) const {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;

@@ -606,7 +606,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         SDL_PumpEvents();
         SDL_Event event;
         while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) quit = true;
-        if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()));
+        if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()), boot_title->version);
         SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
         SDL_RenderClear(win.renderer);
         SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
@@ -976,11 +976,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
                 && !touch_mouse && !touch_busy) {
                 pad_in_use = false; mouse_took_over = true;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+                town.last_device = touch::LastDevice::MouseKeyboard;
             }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
                 pad_in_use = false;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+                town.last_device = touch::LastDevice::MouseKeyboard;
             }
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
@@ -1131,7 +1131,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) {
                 pad_in_use = true;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::Gamepad;
+                town.last_device = touch::LastDevice::Gamepad;
             }
             town.skill_actions = pad_actions;
             if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
@@ -1409,7 +1409,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     g_lan_connect = g_cli_lan_connect;
                     g_lan_host_port = g_cli_lan_host_port;
                 }
-                render_title(framebuffer, *scene, title.buttons, now_ms);
+                render_title(framebuffer, *scene, title.buttons, now_ms, title.version);
                 break;
             case Screen::OtherMultiplayer:
                 for (auto& button : other_multiplayer.buttons) update_button(button, mouse, screen, quit);

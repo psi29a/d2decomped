@@ -145,8 +145,8 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
                          + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
     }
     if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end()) {
-        fighter.smite_lo = found->second.mindam;
-        fighter.smite_hi = std::max(found->second.maxdam, fighter.smite_lo);
+        fighter.smite_lo = found->second.mindam + int(stat(kNormalDamage));      // FUN_0057b420 adds stat 111 to both ends (0x57b4c3..0x57b4d6)
+        fighter.smite_hi = found->second.maxdam + int(stat(kNormalDamage));
         fighter.smite_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(kDamagePercent), -90)
                           + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
     }
@@ -844,8 +844,14 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     std::int64_t low, high;                                  // 256ths
     if (swing.smite) {
         const std::int64_t smite_pct = std::max<std::int64_t>(fighter.smite_pct + swing.ed_pct, -90);
-        low = ((std::int64_t(fighter.smite_lo) << 8) + swing.skill_lo) * (100 + smite_pct) / 100;
-        high = ((std::int64_t(fighter.smite_hi) << 8) + swing.skill_hi) * (100 + smite_pct) / 100;
+        // FUN_0057b420 makes a minimum below 1 (in 256ths) one point (0x57b4d8) and, when the maximum is not above the minimum, the minimum plus
+        // one point (0x57b4ea..0x57b4f4), both before the percents.
+        std::int64_t base_low = (std::int64_t(fighter.smite_lo) << 8) + swing.skill_lo;
+        if (base_low < 1) base_low = 256;
+        std::int64_t base_high = (std::int64_t(fighter.smite_hi) << 8) + swing.skill_hi;
+        if (base_high <= base_low) base_high = base_low + 256;
+        low = base_low * (100 + smite_pct) / 100;
+        high = base_high * (100 + smite_pct) / 100;
     } else if (swing.kick) {
         const std::int64_t kick_pct = fighter.kick_pct + swing.ed_pct;
         low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
@@ -1002,8 +1008,11 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     // other pairs (a player or a hireling or pet on a player 17, hireling on
     // hireling 25) don't come up here. The table's +0x20 flag is set on the
     // poison damage row (8, +0x28) but not the poison length's (7, +0x2c).
-    // ponytail: a hireling on a MonStats boss takes the hit context's +0x38
-    // (untraced).
+    // A hireling on a MonStats boss takes the difficulty's DifficultyLevels
+    // row +0x38, HireableBossDamagePercent (the context's +4: FUN_00611d30,
+    // 0x57c206); here the attacker is always a monster, never a hireling.
+    // ponytail: the merc's own blows on a MonStats boss (fight/merc.cpp)
+    // don't take HireableBossDamagePercent; GameData doesn't load it.
     const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
     const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
     taken.raw = pair_scaled(taken.raw);

@@ -45,7 +45,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x89, 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8c, 0x8e, 0x2c, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4, 0x7a })
+    for (const int id : { 0x89, 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8c, 0x8e, 0x65, 0x2c, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4, 0x7a })
         used.set(std::size_t(id));
     return used;
 }
@@ -266,7 +266,14 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     auto walk = [](Unit& unit, float x, float y) { unit.goal_x = x; unit.goal_y = y; unit.moving = true; unit.follow = 0; };
     const std::size_t size = packet.size();
     switch (packet[0]) {
-    case 0x01: if (size >= 2) difficulty = packet[1]; break;
+    case 0x01:
+        if (size >= 2) difficulty = packet[1];
+        if (const auto join_flags = d2d::net::d2gs::s2c::game_flags(packet)) game_flags = *join_flags;
+        break;
+    case 0x65:   // the roster's sort key (0x479b10): kept on a player we know, as game.exe's record
+        if (const auto roster = d2d::net::d2gs::s2c::roster_key(packet))
+            if (const auto found = units.find(key(0, roster->id)); found != units.end()) found->second.sort_key = roster->sort_key;
+        break;
     case 0x03:
         if (size >= 8) { act = packet[1]; map_seed = read_u32(packet, 2); area = read_u16(packet, 6); }
         break;
@@ -411,10 +418,11 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0e:   // object state: +1 type (2), +2 id, +8 u32 the new mode
         if (size >= 12 && packet[1] == 2) object_modes.push_back({ read_u32(packet, 2), int(read_u32(packet, 8)) });
         break;
-    case 0x89:   // quest flag: 12 starts diablo appears (FUN_0046b650 table 0x7129d8)
+    case 0x89:   // quest flag: 12 starts diablo appears (FUN_0046b650 table 0x7129d8); 1 the Cairn Stones' dip
         // 12 also starts the red fill, 13 ends it (rules::release_light).
         if (size >= 2 && packet[1] == 12) { quest_quakes.push_back(d2d::rules::QuestQuake::diablo); diablo_red = true; }
         if (size >= 2 && packet[1] == 13) diablo_red = false;
+        if (size >= 2 && packet[1] == 1) cairn_opened = true;
         break;
     case 0x5d: {   // quest log news: +1 quest record, +2 flags (2: a sound), +3 log state, +4 s16 (quests.md)
         // No flags: the record's log state (its row is its word) and the Quest
@@ -633,7 +641,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 12 && packet[1] == 5) {                   // +3 unit type, +4 id (FUN_0049f410)
             const auto* text = reinterpret_cast<const char*>(packet.data());
             const std::size_t message_at = 10 + strnlen(text + 10, size - 10) + 1;
-            if (message_at <= size) overheads.push_back({ packet[3], read_u32(packet, 4), std::string(text + message_at, strnlen(text + message_at, size - message_at)) });
+            if (message_at <= size) overheads.push_back({ packet[3], read_u32(packet, 4), std::string(text + message_at, strnlen(text + message_at, size - message_at)), packet[2] });
         }
         if (size >= 12 && (packet[1] == 1 || packet[1] == 2)) {
             const auto* text = reinterpret_cast<const char*>(packet.data());

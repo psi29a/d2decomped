@@ -217,6 +217,8 @@ struct Town {
     bool stash_close_down = false;                           // the stash's close button held (0x7bce38)
     bool cube_close_down = false;                            // the Cube's close button held (0x7bce40)
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
+    std::uint32_t warp_click_until = 0;                      // a warp's click is refused till then (0x7a04c8, FUN_00461dc0)
+    std::uint32_t held_walk_tick = 0;                        // the tick the last ground move went (0x7a5268, FUN_004623c0)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
     bool net_clicked_walk = false;                           // this walk went to the host as a click (its target): no follow-ups
@@ -236,7 +238,7 @@ struct Town {
     auto draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
     auto draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
     static constexpr int kCoopPortraitX = 6, kCoopPortraitWidth = 0x42;   // the column, from the frame's left edge
-    struct Said { std::uint16_t string = 0; std::uint32_t until = 0; };
+    struct Said { std::uint16_t string = 0; std::uint32_t until = 0; std::string text; };   // `text`: a player's own, when `string` is 0
     std::map<std::uint64_t, Said> net_said;                 // the host's overhead messages by unit key (0x26 type 5)
     bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
     int merc_portrait_x = -1, merc_portrait_y = 0;          // where last frame drew the merc's (DAT_007beed4 / beed8), -1 none
@@ -494,6 +496,7 @@ struct Town {
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
     bool touch_enabled = false;
+    // Kept with touch off too: pad_playing, pad focus and the pad cue read it.
     touch::LastDevice last_device = touch::LastDevice::MouseKeyboard;
     /** Touch on, last device is a finger/Pencil, and classic PC bottom bar suppressed. */
     [[nodiscard]] bool touch_hides_classic_hud() const;
@@ -725,6 +728,7 @@ struct Town {
     // what's under the cursor: a monster to attack, an item, an object or
     // NPC, else the ground. The right button uses the right skill there.
     [[nodiscard]] std::vector<Command> input(const Mouse& mouse, bool over_ui) const;
+    [[nodiscard]] bool click_goes(cmd::Move& move, std::uint32_t frame_ms);
 
     // The game this frame: what the player asks for (input), the World's
     // step, then what it told the client (events).

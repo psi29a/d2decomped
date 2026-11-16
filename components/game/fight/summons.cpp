@@ -190,9 +190,13 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // FUN_00647d00 >> 8) to A1's, A2's and S1's and its to-hit
         // (FUN_006449f0) to theirs, at the owner's level in it
         // (FUN_00644aa0). Their rows have no damage of their own.
-        // ponytail: SkillDamage isn't loaded: a row with no A1 damage takes
-        // the cast skill (the four rows name the skill that summons them) at
-        // the cast's level, not re-read at each swing.
+        // SkillDamage (MonStats col 149) isn't loaded: in 1.14d only druidhawk,
+        // spiritwolf, fenris and druidbear have one, each its summoning skill
+        // (Raven, Summon Spirit Wolf / Fenris / Grizzly), and they are the
+        // summoned rows with no A1 damage (all three difficulties) whose skill
+        // has MaxDam (bladecreeper, Blade Sentinel's, isn't summoned here):
+        // that test picks the same rows.
+        // ponytail: the level is the cast's, not the owner's at each swing.
         int summon_skill_to_hit = 0;
         if (monster.stats.a1_max == 0 && skill.maxdam > 0) {
             const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);

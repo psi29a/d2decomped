@@ -18,6 +18,7 @@
 #include "unit_slide.hpp"
 #include "world_view.hpp"
 
+#include <ambient_dip.hpp>
 #include <automap_step.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
@@ -129,6 +130,21 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             for (const auto kind : std::exchange(net_game->quest_quakes, {}))
                 if (kind != d2d::rules::QuestQuake::diablo || level->id == d2d::rules::level_ids::kChaosSanctuary)
                     quest_quakes.push_back({ kind, frame_ms });
+            // 0x89 event 1 (0x46aee0): with a StoneAlpha (object 17) in the
+            // rooms near the player's (FUN_0065a620(room, 2, 0x11)), the
+            // ambient dips from missile cairnstones in level 4, as
+            // World::cain_operate's. ponytail: its client missile 0x120 at
+            // the stone (FUN_004cdb40, 0x46af25) isn't made, here or offline.
+            if (std::exchange(net_game->cairn_opened, false) && level)
+                if (const auto stones = world.game_data->missiles.find("cairnstones"); stones != world.game_data->missiles.end()) {
+                    const auto rooms_near = d2d::game::near_rooms(*world.game_data, *level, hero.player.x, hero.player.y);
+                    if (std::ranges::any_of(level->npcs, [&](const Npc& stone) {
+                            return stone.object_id == 17 && std::ranges::any_of(rooms_near, [&](const auto& room) { return room.first == level && room.second == stone.room; });
+                        })) {
+                        const auto frames = d2d::rules::cairn_dip(stones->second.param1, stones->second.range);
+                        dip.start(frames.fade_in, frames.hold, frames.back, d2d::rules::level_ids::kStonyField);
+                    }
+                }
             if (net_game->movie >= 0) world.movie = std::exchange(net_game->movie, -1);
             // Our stats as the host sets them: attributes, points, life / mana /
             // stamina and their maxima (8.8 fixed point, as in a save), level,
@@ -372,7 +388,8 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         }
         if (mouse.press_this_frame || !mouse.down) hold_interact = false;
         if (lan_client) for (const auto& command : net.receive()) send(command);   // the UI's (belt, items, points, waypoints) go to the host, in order
-        for (const auto& command : input(mouse, over_ui)) {
+        for (auto& command : input(mouse, over_ui)) {
+            if (auto* move = std::get_if<cmd::Move>(&command); move && !click_goes(*move, frame_ms)) continue;
             if (mouse.press_this_frame && std::holds_alternative<cmd::Interact>(command)) hold_interact = true;   // set before the tick applies it
             send(command);
         }

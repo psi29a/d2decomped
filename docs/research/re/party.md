@@ -378,8 +378,17 @@ link, the same as the roster list `DAT_007bb5c0`.
   the group's word to the front of the group's list, in scan order.
 - `FUN_004799c0` sorts each group's list. `FUN_0047a980` returns bit 1 of the byte
   at 0x712efc (not traced further). When it is set the list goes to `FUN_004796d0`
-  (EAX = the head): an insertion sort, ascending by the signed dword `+0x18`,
-  returning the head. When it is 0 the list goes to `FUN_004795f0` (the head on the
+  (EAX = the head): an insertion sort by the signed dword `+0x18`, most first
+  (each record goes before the first one it is greater than, `jg` at
+  `004796fa`, else after the last, so a tie goes after the records it ties
+  with), returning the head. The one store to `+0x18` in the roster code
+  (`0x478000`..`0x47b000`, capstone) is `0x479b10` (not in Ghidra's function
+  list; ECX id, DX a word): the record by `FUN_004792e0`,
+  `+0x18` = the word sign-extended (`00479b1e`..`00479b40`), then the regroup
+  `FUN_00479ab0` and `FUN_0049a640`. Its one caller (a scan of every `call` / `jmp` rel32) is the S->C 0x65 handler
+  `0x45e6b0` (table row `0x71198c`, id 0x65 of `0x7114d0`): +1 the id, +5 the
+  word. `FUN_00453b30` draws it as `%d` when the bit is set. The packet is the
+  player kill count in other projects (not traced here). When it is 0 the list goes to `FUN_004795f0` (the head on the
   stack, `ret 4`): a stable insertion sort ascending by the string at `+0`, compared
   as an inlined strcmp of unsigned bytes (two per loop pass). `+0` is the player
   name: `FUN_004793c0`, which `FUN_0047a6f0` calls to fill a record, copies it
@@ -454,7 +463,13 @@ link, the same as the roster list `DAT_007bb5c0`.
 ### d2d's ceilings
 
 - Inside a group the rows come by name (`FUN_004795f0`); with bit 1 of the
-  game flags set game.exe sorts by record `+0x18`, which d2d does not.
+  game flags set game.exe sorts by record `+0x18`, most first.
+  `PartyPanel::order(by_sort_key)` does: NetGame keeps 0x65's word on the
+  player it names (a player it doesn't know drops it, as `FUN_004792e0`
+  finding no record does) and 0x01's flags (`0x45c8b0` passes the u32 at
+  +2 in ECX to `FUN_0047a9a0`), and `Town::party_rows` sorts by the word
+  when bit 1 is set (`d2gs::s2c::roster_key` / `roster_by_sort_key`). A tie
+  keeps d2d's row order, not `FUN_00479800`'s.
 - Area names come from 0x7f's level id.
 - A party member's life bar (`FUN_0049a460`) isn't drawn.
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore

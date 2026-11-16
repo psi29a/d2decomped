@@ -698,8 +698,15 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             for (std::size_t i = 0; i < level->warps.size(); ++i)
                 if (warp_clicked(level->warps[i], x, y)) actor->take_warp = int(i);
             if (actor->take_warp >= 0) {                                            // toward its tile unit (FUN_00548a50)
-                actor->target_x = level->warps[std::size_t(actor->take_warp)].unit_x;
-                actor->target_y = level->warps[std::size_t(actor->take_warp)].unit_y;
+                const auto& warp = level->warps[std::size_t(actor->take_warp)];
+                actor->target_x = warp.unit_x;
+                actor->target_y = warp.unit_y;
+                // In reach the client sends 0x13 with no walk (LAB_00462010) and
+                // FUN_00548b00 takes it at once (LAB_00548c32): use_warp, this tick.
+                if (warp_close(warp, actor->player.x, actor->player.y)) {
+                    actor->player.walking = false;
+                    actor->walk_pending = false;
+                }
             }
         };
         if (const auto* move = std::get_if<cmd::Move>(&command)) { actor->raising = -1; walk_to(move->x, move->y, move->fresh); return; }

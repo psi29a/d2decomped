@@ -315,11 +315,11 @@ Re-check: `python3 tools/ghidra/fn.py 005ab110`, `git grep -n FUN_005ab110 compo
 ## Stat list primitives, run against game.exe (oracles)
 
 Run, not cited: `tools/emu/stats_list_fields.py` (10041 cases),
-`tools/emu/stats_array_ops.py` (33425 cases) and `tools/emu/stats_propagate.py`
-(3000 cases) run these functions in the emulator against a hand-written model
+`tools/emu/stats_array_ops.py` (33425 cases), `tools/emu/stats_propagate.py`
+(3000 cases) and `tools/emu/stats_unit_list.py` (56292 cases) run these functions in the emulator against a hand-written model
 on random lists and rows and compare the return, the allocator and callback
 logs, the list bytes and the bytes `ret n` pops. Each also fails on its
-deliberate model defects (`--mutation-check`: 8, 10 and 8). Callees the
+deliberate model defects (`--mutation-check`: 8, 10, 8 and 10). Callees the
 oracles replace are written with an underscore (0x62_4f60) and are not
 claimed here. A list means the record at unit +0x5c; "row" an ItemStatCost
 row (0x144 bytes); the three flag masks are the bytes at 0x6ce270 (row +4,
@@ -397,6 +397,16 @@ value of a row with +0x53 set.
   the list has flag 0x80000000, else the plain array, at most `max`; returns
   the count copied (0 for a null list). `FUN_006261b0` stack list, stat, out,
   max (`ret 0x10`) is the same with stack arguments.
+- `FUN_006261d0` unit, stat, out, max (`ret 0x10`): the unit's list is
+  `unit +0x5c`; 0 for a null list **and** for a list without flag
+  0x80000000, with `out` untouched. Otherwise it passes the list in EAX,
+  `out` in ECX, stat and max on the stack to `FUN_00626110` and returns that
+  count. So it reads only the expanded array (+0x48): the plain-array branch
+  of `FUN_00626110` is unreachable through it (`FUN_006261b0` still reaches
+  it). It does not null-check the unit (not run). A negative `max` compares
+  signed and copies nothing. Entries are 8 bytes, stat id in the high word
+  of the key. Callers include the charged-skill recharge (`FUN_0055fe80`,
+  `items.md`).
 
 ### Fields and wrappers, in address order (stdcall)
 
@@ -425,6 +435,12 @@ value of a row with +0x53 set.
 - `FUN_00625a00` unit: sets flag 0x100 on the unit's list; `FUN_00625a20`
   unit: that flag as 0 or 1.
 - `FUN_00625a50` list, stat: `0x62_5420`(list, stat, 0).
+- `FUN_00625b70` unit, state (`ret 8`): 0 for a null unit, a null list or a
+  list without flag 0x80000000. Otherwise the state bitmap (list +0x58) dword
+  `state >> 5` (arithmetic shift, so a negative state reads before the
+  bitmap) ANDed with `1 << (state & 31)` (table 0x6ce268, 32 single bits).
+  It returns that masked dword, not 0 or 1, and has no bounds check. Other
+  flag bits of +0x10 do not matter. Caller of record: `FUN_00639df0`.
 - `FUN_00625bb0` unit: list +0x58 when the list has flag 0x80000000, else 0.
   `FUN_00625be0` unit: that pointer plus 4 x ((count at tables +0xc4 + 31)
   / 32, truncated toward zero); 0 without the flag.
@@ -441,6 +457,11 @@ value of a row with +0x53 set.
   list: set / get +0x1c. `FUN_006260f0` / `FUN_00626100`: set / get +0x20.
   `FUN_006260d0`, `FUN_006260e0`, `FUN_006260f0` and `FUN_00626100` have no
   null check (not run with null); `FUN_00626090` returns 0 for null.
+- `FUN_006260b0` list, value (`ret 8`): nothing for a null list. Otherwise
+  flag 2 is set in +0x10 when value is above zero (signed; a zero or
+  negative value never clears it) and value is stored at +0x18, the state's
+  expiry frame that `FUN_00626090` reads back. Missile hits 16 and 19 renew
+  an aura state with it (see above); game-calls.tsv lists 25 call sites in all.
 - `FUN_00626d10` unit: when the unit's list has flag 0x80000000 calls
   `0x62_6c00`(list); then zeroes unit +0x5c. A null list changes nothing.
 

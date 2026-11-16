@@ -758,7 +758,10 @@ ids).
   +0x1a u16 party (0xffff none), +0x1c, +0x1e u16 0, +0x20 u16 **(?)**,
   +0x22 two NUL strings (account / realm **(?)**).
 - **0x5c player leaves** (5): +1 u32 id.
-- **0x65** (7): +1 u32 id, +5 i16 (kills, roster +0x18).
+- **0x65** (7): +1 u32 id, +5 i16 (kills, roster +0x18). `0x45e6b0` ->
+  `0x479b10`: the record by id (none: dropped), the word sign-extended into
+  +0x18, then the regroup. d2d keeps it (`NetGame::Unit::sort_key`); the
+  roster sorts by it when bit 1 of 0x01's flags is set (party.md).
 - **0x75 party roster** (13; `FUN_0047a850`): +1 u32 id, +5 u16 party,
   +7 u16 level, +9, +11 u16 **(?)**.
 - **0x7f party member** (10): +1 u8 is player, +2 u16 life %, +4 u32 id,

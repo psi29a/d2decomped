@@ -109,7 +109,8 @@ struct Act4Ai : ThinkCtx {
         const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
                               && d2d::rules::point_apart(target_x - point_x, target_y - point_y, (target->size >> 1) + 1) < point_far;
         if (input.players_looked > 0) input.score = d2d::rules::diablo_score(pick, target->life_pct, input.in_melee, input.line_clear, point_bonus, !baal_score);
-        input.stuck = level.blocked(unit.x, unit.y, 0x40);
+        // Stuck: FUN_0064d910 pattern 2 (the 3x3 box), mask 0x40 (0x5e889c, 0x5fc6b5).
+        input.stuck = level.unit_blocked(unit.x, unit.y, UnitShape{ 2, 3, 0x40 });
         input.skill_bonus = d2d::rules::monster_skill_level(0, input.difficulty);   // FUN_00573930 +8
         input.in_chaos = level.id == d2d::rules::level_ids::kChaosSanctuary;
         input.target_light_res = target->fighter.res[1];

@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "gamemenu.hpp"
+#include "save_list.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
@@ -119,6 +120,8 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc
 
 namespace {
 
+// Stock's individual UI loads use FUN_004520c0: prefix DATA\\GLOBAL\\UI\\,
+// then FUN_004788b0 appends .dc6. This port names the complete MPQ members.
 void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
@@ -402,17 +405,27 @@ Character made_character(const Scene& scene, int save_cls, const std::string& na
     return character;
 }
 
+// FUN_00438f70 filters the folder's names and passes each WIN32_FIND_DATAA
+// FILETIME to FUN_00438ad0, which inserts expansion entries newest first.
 void load_saves(Scene& scene, const fs::path& dir) {
-    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse, merc; };
+    struct Entry {
+        d2d::d2s::Header header;
+        std::vector<d2d::d2s::Item> items;
+        d2d::d2s::Stats stats;
+        std::vector<d2d::d2s::Item> corpse, merc;
+        fs::file_time_type write_time;
+    };
     std::vector<Entry> out;
     std::error_code error;
     for (const auto& entry : fs::directory_iterator(dir, error)) {
-        if (entry.path().extension() != ".d2s") continue;
+        if (!retail_save_filename(entry.path())) continue;
+        const auto write_time = entry.last_write_time(error);
+        if (error) { error.clear(); continue; }
         std::ifstream file(entry.path(), std::ios::binary);
         std::vector<char> raw{std::istreambuf_iterator<char>(file), {}};
         const auto bytes = std::as_bytes(std::span(raw));
         try {
-            Entry save_entry{ d2d::d2s::parse_header(bytes), {}, {} };
+            Entry save_entry{ d2d::d2s::parse_header(bytes), {}, {}, {}, {}, write_time };
             if (scene.item_tables) {
                 try {
                     save_entry.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
@@ -429,14 +442,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
             d2d::log::warn("{}: {}", entry.path().string(), parse_error.what());
         }
     }
-    // Newest first — LoD inserts each character by last-played time,
-    // descending (FUN_00438ad0), and preselects slot 0.
-    // Ties (e.g. synthetic saves with no timestamp) fall back to name so
-    // the order doesn't depend on directory iteration.
-    std::ranges::sort(out, [](const Entry& first, const Entry& second) {
-        return std::tie(second.header.last_played, first.header.name)
-             < std::tie(first.header.last_played, second.header.name);
-    });
+    retail_sort_saves(out);
     scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear(); scene.save_mercs.clear();
     for (auto& entry : out) {
         scene.saves.push_back(std::move(entry.header));
@@ -453,11 +459,15 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
     if (!data) return std::nullopt;
     const auto start_ms = d2d::log::ms();
     try {
-        Scene scene{ std::move(*data) };
+        // Built in the returned optional: a Scene is ~460 KB, and a local one moved
+        // out doubled this frame past Windows' 1 MB main stack (Sentry D2D-B).
+        std::optional<Scene> loaded;
+        auto& scene = loaded.emplace(std::move(*data));
         const auto& mpqs = scene.mpqs;
         // Prefer the LoD title asset (fenced rogue camp at night). Classic
         // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
         auto title = mpqs.try_read(R"(data\global\ui\FrontEnd\gameselectscreenEXP.dc6)");
+        scene.title_expansion = bool(title);
         if (!title) title = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         if (!title) throw std::runtime_error("no title screen asset");
 
@@ -563,7 +573,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         if (auto bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
             scene.cinematics_panel = d2d::dc6::Sprite(*bytes);
         d2d::log::info("Menus loaded in {} ms.", d2d::log::ms() - start_ms);
-        return scene;
+        return loaded;
     } catch (const std::exception& error) {
         d2d::log::error("load_scene: {}", error.what());
         return std::nullopt;

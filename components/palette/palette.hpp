@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <span>
 #include <stdexcept>
+#include <vector>
 
 namespace d2d::palette {
 
@@ -271,10 +272,12 @@ public:
     }
 
 private:
-    std::array<Rgba, 256>            base_{};
-    std::array<std::uint8_t, 65536>  additive_{};
-    std::array<std::uint8_t, 65536>  blend50_{};
-    std::array<std::uint8_t, 65536>  max_blend_{};
+    // The 64 KB tables live on the heap: a Scene holds two PL2s, and inline
+    // they overflowed Windows' 1 MB main-thread stack in load_scene.
+    std::array<Rgba, 256>      base_{};
+    std::vector<std::uint8_t>  additive_  = std::vector<std::uint8_t>(65536);
+    std::vector<std::uint8_t>  blend50_   = std::vector<std::uint8_t>(65536);
+    std::vector<std::uint8_t>  max_blend_ = std::vector<std::uint8_t>(65536);
     std::array<std::uint8_t, 13 * 256> text_shift_{};
 };
 

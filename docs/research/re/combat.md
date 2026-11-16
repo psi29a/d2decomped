@@ -317,14 +317,18 @@ d2d matches both, and the one-poison-at-a-time rule.
   `rules::frame_rate_flat` on a monster burner's hit (srv_do 5, the MDR
   first, then the resistance); V: `tools/emu/frame_rate_flat.py`, 2000
   records frozen in `tests/frame_rate_flat_cases.inc` (`test_frame_rate_flat`).
-- **The pair percent** (`FUN_0057c060`, EAX the hit context: +4 ?, +8
+- **The pair percent** (`FUN_0057c060`, EAX the hit context
+  `FUN_0057c1e0` builds at ebp-0x34 (0x57c1f6 .. 0x57c20c, 0x57c2a7): +0
+  the game, +4 its difficulty's DifficultyLevels.txt row
+  (`FUN_00611d30(game +0x6d)`: row x 0x58 + `DAT_0096c8ac`), +8
   attacker, +0xc defender; 100 when either is missing or they are one).
   On a player: 17 (0x11) from a player, a hireling (`FUN_0063ee90`: classes
   0x10f, 0x152, 0x167, 0x230, 0x231) or a player's pet (unit +0xc4 bit 31,
   `FUN_00451f30`), else 100. On anything else: 25 (0x19) hireling on
   hireling; a hireling on a MonStats boss (`FUN_0063e9f0(0, ..)`, +0xc &
-  0x40) takes the context's +4 record's +0x38 (100 without one; not
-  traced); a primeevil (`FUN_0063edc0`, +0xc & 0x80: Andariel, Duriel,
+  0x40) takes that row's +0x38, HireableBossDamagePercent (+0x34
+  ChampionDamageBonus and +0x3c MonsterCEDamagePercent sit either side;
+  100 without a row); a primeevil (`FUN_0063edc0`, +0xc & 0x80: Andariel, Duriel,
   Mephisto, Diablo and his clone, Baal and his clone, the ubers) on a
   player's pet: 200 for a hireling, 400 for any other; else 100.
   `FUN_0057c1e0` (0x57c214 on) scales each damage field of the record
@@ -526,13 +530,18 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   slide. One hit is a knockback OR a get-hit (the flag chain at LAB_0057d364),
   so a hit that started a knock in the same call starts no get-hit. Checked
   by `tools/emu/mode_switch.py` (modes 0..19) against
-  `test_hit_recovery --hit-modes`. Not changed: a knocking hit inside a
-  get-hit. `FUN_00580a70`, the knockback's switch (flag 8), calls
-  `FUN_0057edd0` too (0x580adc, new mode 0x13, above 0x11, so the same
-  current-mode table), and game.exe refuses it from GH; d2d still starts the
-  knockback there, which restarts the hold (not checked against a differential
-  for new mode 0x13; follow-up). Not modelled: the `unit + 0x60` branch (a
-  player holding a cursor item refuses mode 4 from modes 0..20: run, not modelled).
+  `test_hit_recovery --hit-modes`. A knocking hit inside a get-hit or block
+  starts no knockback either: `FUN_00580a70`, the knockback's switch (flag 8),
+  calls `FUN_0057edd0` too (0x580adc, new mode 0x13, above 0x11, so the same
+  current-mode table), which refuses it from DT, GH, BL and DD, and the flag
+  chain then returns, so the hit starts nothing (its damage is already taken:
+  callers run `FUN_0057c6c0` before `FUN_0057cee0`). `Fight::hurt_side` skips
+  the knock in a real get-hit (GH without `knock`); checked by
+  `mode_switch.py compare-knock` against `test_hit_recovery --knock-modes`.
+  Not modelled: `FUN_00580a70`'s second gate, `FUN_0057eec0` (0x580af6, the
+  used skill), which decides a knock during a swing or cast, nor the
+  `unit + 0x60` branch (a player holding a cursor item is refused mode 4 from
+  modes 0..20: run; mode 0x13 the same way: read).
 - **A hit interrupts a swing or cast only if its skill's `interrupt` is set** (`FUN_005809d0`
   asks `FUN_0057edd0`, then, as its fifth argument is 0, `FUN_0057eec0(unit, new mode, 1,
   used skill 0)`; the call at 0x57d383 is the get-hit). `FUN_0057eec0` refuses mode 4 and 9

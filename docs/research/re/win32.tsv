@@ -1,0 +1,122 @@
+address	size	apis
+004013a0	17	IsDebuggerPresent
+004013c0	15	GetCurrentProcess TerminateProcess
+004013d0	174	CloseHandle CreateToolhelp32Snapshot GetCurrentProcessId Process32FirstW Process32NextW
+00401480	185	VirtualQuery
+00401540	256	CloseHandle GetCurrentThreadId GetThreadContext OpenThread ResumeThread RtlCaptureContext SuspendThread
+004016a0	5	CreateEventW CreateThread IsDebuggerPresent
+00401a70	136	IsDebuggerPresent RaiseException
+00401b00	381	CloseHandle GetProcAddress LoadLibraryW
+00401cb0	279	GetCurrentProcess GetModuleFileNameA GetProcessId
+00401df0	286	GetModuleHandleA
+004026d0	233	GetCurrentProcessId
+004027c0	96	SetEvent WaitForSingleObject
+00402820	351	CloseHandle CreateFileW GetCurrentThreadId SetEvent WaitForSingleObject
+00402980	111	CreateEventW CreateThread IsDebuggerPresent
+00402a90	70	GetCurrentProcess GetModuleInformation
+00403ac0	640	FormatMessageA GetModuleHandleA
+00403e90	188	GetCurrentThreadId
+00403f60	64	SetUnhandledExceptionFilter
+00404210	287	CloseHandle CreateProcessW
+00404330	136	FindClose FindFirstFileW
+00404450	149	CopyFileW
+004044f0	111	GetTempPathW
+00404560	130	CreateDirectoryW GetFileAttributesW
+00404660	107	CloseHandle GetCurrentThreadId GetThreadContext OpenThread ResumeThread RtlCaptureContext SuspendThread
+00404900	150	IsBadReadPtr
+00404f80	111	IsBadReadPtr IsBadStringPtrA
+00404ff0	107	IsBadReadPtr IsBadStringPtrA
+00405060	471	CloseHandle GetCurrentThreadId GetThreadContext OpenThread ResumeThread RtlCaptureContext SuspendThread
+00406190	33	GetProcAddress
+004061c0	376	FreeLibrary FreeSid GetCurrentProcess GetProcAddress LoadLibraryA
+00406410	84	SetServiceStatus
+00406650	131	CloseServiceHandle GetVersion OpenSCManagerA OpenServiceA StartServiceCtrlDispatcherA
+004067d0	146	CoTaskMemFree GetModuleHandleA GetProcAddress
+00406960	35	CreateFileA
+00406990	8	DeleteFileA
+004069a0	8	CloseHandle
+004069b0	27	ReadFile
+004069d0	27	WriteFile
+004069f0	23	SetFilePointer
+00407990	129	CloseHandle CreateToolhelp32Snapshot Process32First Process32Next
+00407a20	81	CloseHandle GetModuleFileNameExA OpenProcess
+00407de0	318	GetSystemInfo GetVersionExA GlobalMemoryStatus
+004081a0	113	OutputDebugStringA
+00408220	125	GetAsyncKeyState OutputDebugStringA
+00409c80	326	VirtualFree
+0040b500	53	FreeLibrary
+0040c220	103	GetModuleFileNameA
+0040c720	117	GetCurrentProcess
+00410540	189	CreateThread
+00410930	44	GlobalMemoryStatus
+00410960	108	GetVersionExA
+00411a20	48	GetSystemInfo
+00411a80	21	VirtualFree
+00411aa0	239	VirtualFree
+00411bd0	69	VirtualAlloc
+00415940	16	GetFileAttributesA
+0041a880	67	CreateEventA CreateThread SetThreadPriority
+0041bef0	9	GetModuleHandleA
+0041c0f0	78	GetProcessHeap HeapAlloc
+0041c170	46	LoadStringA
+0041fa40	60	FlushFileBuffers WriteFile
+0041fa80	188	VirtualAlloc
+0041fc80	86	VirtualFree
+0041fd00	58	CloseHandle
+004202a0	105	DispatchMessageA GetMessageA PeekMessageA TranslateMessage
+004317d0	131	DispatchMessageA PeekMessageA TranslateMessage
+00431a60	132	GetCursorPos
+0043da50	114	RegCloseKey RegOpenKeyExA RegQueryValueExA
+0044a130	63	CreateThread
+00451290	33	FreeLibrary
+00451a90	32	PostQuitMessage
+00451ad0	43	DefWindowProcA
+00451b00	41	SendMessageA
+0045b960	61	WriteFile
+0047b010	86	GetKeyboardLayout GetSystemDefaultLangID ImmIsIME
+004e06a0	93	FreeLibrary GetModuleHandleA VirtualFree
+004e0730	631	FlushInstructionCache GetCurrentProcess GetProcAddress LoadLibraryA VirtualAlloc VirtualFree VirtualProtect
+004f5050	203	MessageBoxA UnregisterClassA
+004f5510	36	ShowCursor
+004f5540	36	ShowCursor
+004f5ec0	143	GetWindowPlacement SHAppBarMessage ShowWindow
+004f5f60	49	ShowWindow
+00515120	86	CloseHandle SetEvent WaitForSingleObject
+00516ac0	316	CreateFileA CreateFileMappingA MapViewOfFile
+00516c01	56	CloseHandle UnmapViewOfFile
+00516d8b	86	CloseHandle CreateProcessA
+005173df	16	GetCurrentProcess TerminateProcess
+005173ef	28	MessageBoxA
+0051740b	24	MessageBoxA
+00517423	135	MessageBoxA
+00517993	17	VirtualAlloc
+005179a4	15	VirtualFree
+00517df5	58	CertCloseStore CertFreeCertificateContext CryptMsgClose LocalFree
+0051c0e0	141	CreateThread WaitForSingleObject
+0051e440	79	SetFileTime
+0051e640	135	GetFileSize GetFileTime
+0051ebb0	322	SetFileTime
+00605340	417	CloseHandle CreateFileA OutputDebugStringA ReadFile SetFilePointer
+00681a7b	38	GetModuleHandleA GetProcAddress
+00688ada	108	GetModuleHandleA
+00688b46	110	GetModuleHandleA GetProcAddress TlsGetValue
+00688bbd	110	GetModuleHandleA GetProcAddress TlsGetValue
+00688c34	21	TlsGetValue
+00688c4f	50	TlsGetValue TlsSetValue
+0068913f	399	GetModuleFileNameA GetStdHandle WriteFile
+0069a295	439	GetProcAddress LoadLibraryA
+006b1a70	26	RegCloseKey
+006b1a90	101	RegCloseKey RegCreateKeyExA
+006b1b00	30	RegSetValueExA
+006b2f40	24	RegCloseKey
+006bc5a0	118	CreateEventA CreateThread WaitForSingleObject
+006bc620	82	CreateEventA CreateThread
+006bc7e0	35	WaitForSingleObject
+006bc830	27	SetEvent
+006be4e0	38	WaitForSingleObject
+006c2110	358	CloseHandle WaitForMultipleObjects
+006c33d0	55	WaitForSingleObject
+006c5830	381	WriteFile
+006c7fa0	84	SetPaletteEntries
+006c8930	46	CreateFontA
+006c8960	13	DeleteObject

@@ -521,6 +521,14 @@ int main() try {
             assert(act.kind == NpcAct::Kind::stand && act.frames == (think < 4 ? 15 : 8));
         }
         assert(talked.held == 35 && seed.low == before);
+        // +0x14 run out: no think scheduled (FUN_005e68f0), it goes to -1 then back to 0.
+        talked.held = 1;
+        act = d2d::rules::npc_think(talked, seed, path, 10, 10, 0x9a, 0, 1, { .talking = true });
+        assert(act.kind == NpcAct::Kind::stand && act.frames == 8 && talked.held == 0);
+        act = d2d::rules::npc_think(talked, seed, path, 10, 10, 0x9a, 0, 1, { .talking = true });
+        assert(act.kind == NpcAct::Kind::stand && act.frames == -1 && talked.held == -1);
+        act = d2d::rules::npc_think(talked, seed, path, 10, 10, 0x9a, 0, 1, { .talking = true });
+        assert(act.frames == -1 && talked.held == 0 && seed.low == before);
     }
     {
         // The bosses' other thinks (FUN_005fcf30, FUN_005e5280): Diablo's FUN_005e8480 code.

@@ -49,12 +49,87 @@ text lengths from 1 to 300 characters at three `now` values and compares all 0x1
 A shrine's own message is a 4-digit id, 157 frames
 (`components/game/world/tick.cpp`). d2d does not keep the language byte,
 the expiry frame or the list link, and it does not store the node's
-text: only a string id is shown. The network path still accepts an
-all-digit string whose numeric value is 1..65535, including leading
-zeroes.
+text: only a string id is shown.
+
+Which text is a string id: `FUN_004a0e70` walks the client's unit tables
+with a draw callback in ECX (`004a0f10`..`004a0f29`): players
+(`0x7a5e70`) with `FUN_004a0b30`, monsters (`0x7a6070`) and objects
+(`0x7a6270`) with `FUN_004a0d20`. `FUN_004a0d20` copies the node's text
+(`FUN_006611e0`) and draws `_atol` of it as a string id when it is
+1..0xfffe (`lVar2 - 1U < 0xfffe`); any other text draws nothing.
+`FUN_004a0b30` takes a string id only after the bytes 0xff 0xff, with an
+`_atol` of the rest in 0x42d..0x50f, 0x5586..0x5615 or 0x2aa4; any other
+text, a bare number too, is drawn as it is, after `FUN_0049e280`'s
+language check. d2d: `overhead_string` (apps/d2d/overhead.hpp,
+test_overhead_frames); a player's own text isn't drawn (`ponytail:` in
+town/draw.cpp).
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
+
+## Drawing an overhead message (`FUN_004a0a00`, `FUN_0049d8e0`)
+
+Read from the disassembly (`004a0a00`..`004a0b20`, `0049d8e0`..`0049d996`,
+`0049d9a0`..`0049da09`); no oracle.
+
+- The caller (`FUN_004a0b30` players, `FUN_004a0d20` the rest) takes the
+  unit's screen point (`FUN_00620900`) less the view's corner (`0x7bf214`),
+  y up 0x1e (players) or 10, x moved a quarter of the width with one side
+  panel open (`FUN_0045ae90` 1 / 2; 3, both, draws none). It draws only
+  when 0 < y < H and -100 < x < W + 100. `FUN_004a0d20` copies the string
+  (at most 199 units) and passes the point in EAX, the node in ECX, the unit
+  in EDX.
+- `FUN_004a0a00`: drops the node once it has expired (`FUN_006611d0` below
+  `0x7bf20e`) after this frame; font 0xd (FontInGameChat, `0x502ef0`), the
+  text wrapped to 0xb4 (`FUN_00502970`). `FUN_0049d3c0`: width = the widest
+  line (`FUN_00501820`) + 0x14, height = lines x 15 + 6. The point goes to
+  y - 0x32, x - width / 2, then y - 15 x lines - 3: the box's top left.
+- `FUN_0049e070(n)` (n = boxes placed this frame, `0x7bf224`, 1 when the
+  NPC menu holds slot 0; ESI the box's rect {left, top, left + width, top +
+  height}, the slots 16 bytes each from `0x7bf0a8`). `FUN_004a0a00` calls it
+  only while n < 16 (`004a0aaf`); from 16 on a box is drawn where it is and
+  takes no slot. A box that meets no slot (`IntersectRect`) takes slot n as
+  it is. One that meets any is moved: x step 0x32 to 0x15e by 0x32 (outer),
+  y step 0x23 to 0xf5 by 0x23, then each of the 8 dwords at `0x722654`
+  (1, 1, -1, 1, 1, -1, -1, -1; count `0x722674`) times both steps added to
+  left and top. The first spot, 400 wide and 0x118 high whatever the
+  box's size, with left, top >= 0, right <= W, bottom <= H, that meets no
+  slot is stored in slot n and written back to the box; none, and it
+  returns 0: not drawn, n not counted. Each dword scales both axes, so only
+  down-right and up-left are tried (bugs.md #119). Then `FUN_0049d9a0` (the
+  side-panel drop) and `FUN_0049d8e0` take the moved left and top, so a box
+  the side panel drops still holds its slot.
+- `FUN_0049d9a0`: with only the right panel open (`FUN_0045ae90` 1) a box
+  whose left is past W/2 - 10 isn't drawn; only the left (2), one left of
+  W/2 + 10; both (3), none.
+- `FUN_0049d8e0` (ECX node, EDX left, stack top): at most 10 lines; nothing
+  when top < 0 or top + height >= H. `FUN_0046efd0(left, top + 4, width,
+  height - 5, colour 0, mode 1)` darkens the box; font 0xd; each line at
+  left + 10 on the baseline top + 0x12 + 15 x (index - shown + lines),
+  colour 0 (white, `FUN_00502320`).
+
+The screen point: `FUN_00620900` returns path `+8` / `+0xc` for players,
+monsters and missiles (the static path's `+4` / `+8` for objects, items and
+tiles). `FUN_00649d00` and `FUN_0064fb90` set the dynamic pair from the
+16.16 spot: each dword shifted right by 11, then `FUN_00643290` (x - y) >> 1,
+(x + y) >> 2, which is (x - y) x 16, (x + y) x 8 a subtile, floored to the
+pixel. The corner `0x7bf214` / `0x7bf218` is the view's `+0x24` / `+0x28`
+(`FUN_004a0e70` copies it with `FUN_004760c0`); `FUN_0044c990` sets it
+(`FUN_004760a0`) to the player's point less half the view's rect
+(`FUN_00476070`: `+4..+0x10`, {0, 0, W, H - 40} with no side panel), plus
+the shake (`FUN_00476d40`). So the point lands where d2d's floors put the
+camera, `kFloorViewY` = (H - 40) / 2, 12 rows above `kViewY` (H/2 - 8),
+where d2d draws a unit's feet (that row is still in unverified.md). x is
+the player's point less W/2, the side panel's quarter added by the caller,
+as units are drawn.
+
+d2d: `render_ingame` (apps/d2d/ingame.cpp) from `kFloorViewY` (rounded,
+not floored at 1/32 subtile: a pixel off at most), and `place_overhead`
+(apps/d2d/overhead.hpp, tests/test_overhead_place.cpp) for
+`FUN_0049e070`. Not done: slot 0 for the NPC menu (d2d's frame starts
+empty), and game.exe's unit order (`FUN_004a0e70`'s walk of its unit
+tables, not traced here), which decides who moves; d2d goes in its draw
+list's order.
 
 ## Small functions in the same work package (cited)
 

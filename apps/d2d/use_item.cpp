@@ -78,7 +78,7 @@ void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Pane
         box.npc = panel.npc;
         box.lines.push_back({ string_id(scene, 0xd19), 15 });
         layout_npc_menu(scene, box, 150, 130 + 150);                // layout takes the NPC's feet, 150 under the box's spot
-        draw_npc_menu(framebuffer, scene, box, -1, -1, now_ms);
+        draw_npc_menu(framebuffer, scene, box, now_ms);
     }
 }
 

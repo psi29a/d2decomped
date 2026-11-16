@@ -736,7 +736,10 @@ inline int charges_repair_cost(const Tables& tables, const d2d::d2s::Item& item)
 }
 // A repair's recharge (FUN_0055fe80, after FUN_005761c0's durability; the
 // cube's recharge flag 0x400, FUN_00565ab0): each stat 204 below its max
-// back to max (FUN_0065c940). True if any was.
+// back to max (FUN_0065c940). True if any was. game.exe lists a stat's
+// entries with FUN_006261d0, which reads only a list with the expanded flag
+// 0x80000000 (tools/emu/stats_unit_list.py); d2d keeps every prop, so it has
+// no such gate.
 inline bool recharge(d2d::d2s::Item& item) {
     bool any = false;
     for (auto& prop : item.props)
@@ -2396,8 +2399,9 @@ inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
 // Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
 // at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
 // the rest the most. FUN_0062bcb0 caps them at the grid and 6.
-// ponytail: the item's seed is taken fresh from its fingerprint, not where
-// its making left it.
+// The item's seed is taken fresh from its fingerprint: exact for an item
+// loaded from a save (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint,
+// 666}). ponytail: one made or rolled on this game keeps where that left it.
 inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& item) {
     auto made = item;
     int sockets = most_sockets(tables, item);
@@ -2785,7 +2789,9 @@ inline const Tables::Runeword* runeword_row(const Tables& tables, const d2d::d2s
 // sockets spell, not one already, takes the runeword flag (0x4000000)
 // and its T1 mods as the runeword list (stat list 0xab / 0x40), each
 // through FUN_0065fd70 kind 6 on the item's seed.
-// ponytail: the seed is the item's fingerprint, not where its making left it.
+// The seed is the item's fingerprint: exact for an item loaded from a save
+// (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint, 666}). ponytail:
+// one made or rolled on this game keeps where that left it.
 inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     const auto* row = item.runeword ? nullptr : runeword_row(tables, item);
     if (!row) return false;

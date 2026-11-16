@@ -145,8 +145,13 @@ auto Town::lan_publish() -> void {
             auto out = world.view();
             world.act_as(world.lead());
             // The tick's sounds (publish takes them after) that this joiner could hear where it stands,
-            // as delays from now: its clock isn't ours, it adds its own (lan_client_frame).
-            for (const auto& cue : std::span(world.cues.due).subspan(std::min(lan_cue_from, world.cues.due.size()))) {   // this turn's
+            // as delays from now: its clock isn't ours, it adds its own (lan_client_frame). This turn's,
+            // and an earlier turn's on the joiner itself (split levels: a quest line given from another
+            // level's turn, each_in_game); a joiner's published once a frame, so none goes twice.
+            const auto own = game::unit_key(game::kSoundOnPlayer, lan_player.id);
+            for (std::size_t index = 0; index < world.cues.due.size(); ++index) {
+                const auto& cue = world.cues.due[index];
+                if (index < lan_cue_from && cue.unit != own) continue;
                 if (cue.sound <= 0 || std::size_t(cue.sound) >= world.game_data->sounds.size()) continue;
                 const auto& row = world.game_data->sounds[std::size_t(cue.sound)];
                 const auto [screen_x, screen_y2] = d2d::rules::screen_offset(cue.x - out.player.x, cue.y - out.player.y);

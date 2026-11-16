@@ -44,7 +44,8 @@ auto Town::event_ambient() const -> int {
         return dip.light(level->id);
     }
 
-// ponytail: a joined game's state 153 (0xa8 / 0xaa) and 0x89 event 1 don't start one.
+// A joined game's 0x89 event 1 starts one (Town's net step, 0x46aee0).
+// ponytail: a joined game's state 153 (0xa8 / 0xaa) doesn't start one.
 auto Town::dip_tick() -> void {
         if (level) dip.step(level->light >= 0 ? level->light : view.day.intensity(), level->id);   // FUN_00474550 flag 0
     }

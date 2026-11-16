@@ -223,8 +223,10 @@ were not read in the asm); cited, no oracle run.
   The pattern picks the test: 0 `FUN_0064d450` & 0xffff (the decompile
   shows only the mask as its argument; the rest go in registers, unread);
   1 / 3 / 5 `FUN_0064d4e0(room, x, y)` (the plus); 2 / 4 `FUN_0064d7c0`
-  (the decompile shows y and the mask; the others are in registers,
-  unread); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
+  (ECX room, EAX x, stack y and the mask, 0x64d958..0x64d966): the rect
+  {x − 1, y − 1, x + 1, y + 1} (0x64d7c6..0x64d7de; inclusive, as
+  `FUN_0064d0d0` makes them) tested by `FUN_0064cf50`, a fixed 3x3 whatever
+  the unit's SizeX (`Level::unit_blocked`'s box); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
   room, +0x48 pattern, +0x50 mask). d2d: agrees with "Rects and units"
   above and `UnitShape` (gamedata.hpp:61, 274: 0 own subtile, 1 / 3 plus,
   2 / 4 box); the pattern 5 case (the plus again, no footprint) is the one
@@ -514,14 +516,31 @@ d2d (`World::use_warp`):
 - Same reach: `warp_close`, under 5 by `unit_distance`.
 - The two-walk limit as the item's (`walk_pending`, `tick.cpp`): out of reach when the
   walk ends, blocked or not, it walks once more, and `take_warp` goes at the second's end.
-- It tests every tick, so it takes the warp on the way at reach 4; a single click in
-  game.exe walks on to the path's end first. Up to 4 subtiles early.
-- A held button sets `take_warp` only on the press, so after a stop it's gone.
-- No 500 ms refusal. No 0x32 limit, which a click can't reach: at 800x600 the
+- It tests when the click comes and when the walk ends, as FUN_00548b00 does. In reach on
+  the way, the walk goes on to its path's end (`use_warp` waits while it walks); a click
+  already in reach goes through that tick with no walk (`walk_to`, the client's 0x13 at
+  once). `tests/game/test_warp_walk_end.cpp`: from 3 cells off each Blood Moor warp in 8
+  directions, every walk that came into reach walked on and took the warp at its end, and
+  each start in reach took it in the click's tick.
+- The client's gates, before a move is sent (`Town::click_goes`): on a warp, a held
+  frame sends nothing while the player walks (`rules::held_frame_goes`); stopped, it
+  goes as a fresh click, so a held button clicks again after a stop. A warp's click,
+  a press too, goes at most each 500 ms (`rules::warp_click_goes`, `kWarpClickWaitMs`).
+  **Verified**: `tools/emu/click_gates.py` runs FUN_00462930 (nothing hooked) for a
+  held frame over each unit type and player mode, and FUN_00461dc0 with a warp
+  (FUN_00641530, FUN_00481030 and FUN_00460780 hooked, the clocks native) over the
+  refusal's edges, a wrap of the tick count and distances 0 to 50: no call before
+  0x7a04c8, 0x13 alone under 5, else the walk and the queued 0x13, and 0x7a04c8 then
+  500 ms on. `test_click_gates` checks the rules against all of them.
+- d2d tells a warp's click by the move's spot (`World::warp_clicked`), which a press
+  near the player has moved out to `rules::click_spot`'s least distance; game.exe by the
+  unit under the cursor (FUN_00466870). Not measured.
+- No 0x32 limit, which a click can't reach: at 800x600 the
   screen corner is about 31 subtiles from the player, by the iso projection.
 
-All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
-often wasn't measured.
+The bullets above are read from the code; the walk's end is run on real levels by the test, with
+no oracle of game.exe's walk. It takes a crowd or a blocked path on the way to a warp; how often
+wasn't measured.
 
 ### The per-frame queue step (`FUN_00481600`, 0x481600, 277 bytes)
 
@@ -969,14 +988,18 @@ Read from the code, no oracle or packet log.
     (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
   - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
 
-d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
-wait. Its spot is `rules::click_spot`'s, the least distance and the dead zone as above, with
+d2d's `input.cpp` makes a `cmd::Move` each drawn frame, and `Town::click_goes` lets a held one of a
+walking player go once 7 ticks (`kTickMs`, 40 ms) have passed since the last ground move that went,
+a press too (`rules::held_walk_goes`; the tick difference unsigned, as LAB_00462542). **Verified**:
+`tools/emu/click_gates.py` runs FUN_004623c0 for each of the 8 first modes, five flag sets and ten
+clock pairs (the 6 / 7 edges and a wrap), with its stamp read back; `test_click_gates` matches all
+400. Its spot is `rules::click_spot`'s, the least distance and the dead zone as above, with
 the run bit `view.running` and stamina left (FUN_0044bec0: the run key `0x7a065c` or the
-toggle `0x7a0660`; FUN_00462d00 tests stat 10). `Town::send` passes each to `NetGame::move_to`, so a
-joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
-that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
-is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
-By reading both are small, a few subtiles of where a walk ends; neither was measured.
+toggle `0x7a0660`; FUN_00462d00 tests stat 10). `Town::send` passes each that goes to `NetGame::move_to`,
+so a joined game sends C→S 0x01 or 0x03 as game.exe's client does: each 280 ms while the player walks,
+each drawn frame while it stands. `NetGame::send` still drops a packet the same as the last one sent
+within 200 ms, as FUN_00478350 does. d2d's frame time over 40 ms stands in for 0x7a0498, a count of
+the ticks FUN_0044c790 ran; the two part only when ticks are skipped or caught up.
 
 ## The stamp family (`FUN_0064d060` .. `FUN_0064eba0`, 1.14d)
 

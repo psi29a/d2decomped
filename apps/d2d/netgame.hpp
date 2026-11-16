@@ -43,6 +43,7 @@ struct NetGame {
         int area = 0;                 // a party member's level id (0x7f +8)
         int relation = 0;             // the party button's state toward it (0x8b: 0 invite, 2 accept, 3 leave, 4 asked; roster +0x30)
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
+        int sort_key = 0;             // its Party roster sort key (0x65's signed word; roster +0x18)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
@@ -123,6 +124,7 @@ struct NetGame {
     std::uint32_t map_seed = 0;       // 0x03
     int act = 0, area = 0;            // 0x03
     int difficulty = 0;               // 0x01
+    std::uint32_t game_flags = 0;     // 0x01 +2 (0x712efc): bit 1 sorts the Party roster by 0x65
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     // The client's pet list (0x7a, FUN_0045e860 / FUN_00478b10): the portraits'.
@@ -199,13 +201,14 @@ struct NetGame {
     // u8, +8 name[16], +0x18 second name[16] (or a u16), for the client.
     struct Event { int event = 0, colour = 0, sub = 0; std::uint32_t argument = 0; std::string name, second; std::uint16_t second_id = 0; };
     std::vector<Event> events;
-    struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; };   // 0x26 type 5: over a unit
+    struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; int language = 0; };   // 0x26 type 5: over a unit; +2 its language
     std::vector<Overhead> overheads;
     struct Phrase { int cls = 0, phrase = 0; };   // another player's Say (0x2c)
     std::vector<Phrase> phrases;
     int movie = -1;                            // the cinematic the host asked for (0x61), -1 none
     std::vector<d2d::rules::QuestQuake::Kind> quest_quakes;
     bool diablo_red = false;                   // 0x89 event 12 until 13 (rules::release_light)
+    bool cairn_opened = false;                 // 0x89 event 1: the Cairn Stones opened (0x46aee0's dip)
     std::vector<int> quest_news;               // quests (words) whose log state the host sent (0x5d, no flags): the Quest Log button
     // The quest log as the host has it: each quest's log state by its word
     // (0x52 whole, 0x5d one), the game's quest words (0x29), the Den's

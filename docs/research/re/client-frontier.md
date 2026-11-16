@@ -1,4 +1,41 @@
-# Five client frontier helpers — game.exe 1.14d
+# Client frontier helpers — game.exe 1.14d
+
+## UI DC6 path and cursor item
+
+| Address | Name | Observed behavior |
+|---|---|---|
+| `FUN_004520c0` | `ui_dc6_load` | Fastcall ECX is a NUL-terminated relative name. The function formats `DATA\\GLOBAL\\UI\\` into a 260-byte stack buffer, obtains its length through `FUN_00413750` (the stock `strlen` implementation), copies the input including its terminating NUL at that offset, clears EDX, and calls `FUN_004788b0` with ECX pointing at the completed path. It returns that loader's EAX unchanged. There is one branch: an empty input skips the copy loop but still writes the NUL and loads `DATA\\GLOBAL\\UI\\`. `FUN_004788b0` appends `.dc6` for flag zero, reads the archive member, builds its cel-file object, and returns that object (see [mpq-archives.md](mpq-archives.md)). The wrapper neither checks the input nor bounds the copy; 245 or more input bytes overrun its 260-byte local buffer. Its 17 callers supply UI asset names; 11 are ported. |
+| `FUN_004680a0` | `client_cursor_item` | No arguments, branches, calls, or normalization: `MOV EAX,[0x7a6abc]; RET`. The returned pointer is the client unit currently carried by the cursor, or zero. `FUN_00468010` and `FUN_00468070` store their ECX item pointer there; `FUN_00468040` clears it. Callers test cursor occupancy to gate inventory, trade, NPC and click actions; `FUN_00453ec0`, `FUN_00490780`, `FUN_00490ba0` and `FUN_00490fc0` also read the returned unit's class id at `+0xc` before passing it to `FUN_004786a0`. The other seven call sites use only null/non-null. |
+
+The machine-code boundaries are `004520c0..00452124` (101 bytes) and
+`004680a0..004680a5` (6 bytes). `tools/emu/client_ui_frontier.py` runs both
+stock entries: the UI loader's final callee is hooked to record ECX/EDX and
+return a sentinel, while the cursor getter reads controlled dwords. Empty,
+nested and maximum in-bounds UI names are covered. `--mutation-check` proves
+that a local-UI prefix, a nonzero loader flag, and boolean-normalizing the
+cursor pointer are each detected.
+
+### Port assessment
+
+There is no one-to-one d2d function for either entry. `load_ui_sprites` reads
+the same complete `data\\global\\ui\\...dc6` member names through the typed MPQ
+API instead of constructing a prefix and returning a raw cel pointer. The
+server/client view carries the cursor item as `std::optional<Item> held`, so
+callers test typed state rather than call a global-pointer getter. The traced
+semantics agree at those use sites; no substantiated divergence or new C++
+test is required. The stock wrapper's unchecked overlong-input behavior is
+not reproduced because d2d uses owned strings and fixed asset names.
+
+Re-check from `tools/emu`:
+
+```sh
+.venv/bin/python client_ui_frontier.py --mutation-check
+```
+
+Expected: `ok: 4 UI DC6 path cases, 7 cursor-item getter cases`, then three
+`failed as required` mutation lines.
+
+## Earlier five helpers
 
 These are five small entry points selected from the gap map's client-side
 frontier. Disassembly establishes their calling conventions; the executable

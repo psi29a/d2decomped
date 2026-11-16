@@ -5,7 +5,8 @@
 // pattern 3 / 4 stamp 0x2000 (UnitShape::bit, FUN_0064ea90): the subtile,
 // or the plus for pattern 2 / 4. Pattern 0 and 5 stamp nothing. Those bits
 // are not in the walk grid. Another level's drop does not see this crowd.
-// ponytail: one level is searched, no neighbours'.
+// The search reads the rooms FUN_00463740 finds (the dropper's room and its
+// near list), so a drop by a level's edge can land in the next level's room.
 
 #include <ai.hpp>
 #include <cues.hpp>
@@ -14,8 +15,10 @@
 #include <loot.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <utility>
@@ -138,6 +141,28 @@ int main() try {
         bench.loot.standing = &crowd;
         Level other = open_level();
         assert(landed(bench.loot, 10, 10, &other) == std::pair(12, 13));
+    }
+    // Off this level's rooms the search goes on in the next level's close
+    // ones: this level walled in, the drop lands in the level to its east.
+    {
+        Bench bench;
+        Level east = open_level();
+        east.world_x = kWidth - 1;                               // its room starts where ours (the DS1 less its edge) ends
+        bench.level.nearby.push_back({ &east, kWidth - 1, 0 });
+        east.nearby.push_back({ &bench.level, 1 - kWidth, 0 });
+        std::ranges::fill(bench.level.walk, std::uint16_t{ 0x01 });
+        const auto spot = bench.loot.landing(centre(30), centre(10));
+        assert(spot.level == &east && spot.x >= 0 && spot.x < 1);
+        const auto [ours_x, ours_y] = bench.loot.drop_at(centre(30), centre(10));
+        assert(ours_x >= float(kWidth - 1) && std::abs(ours_y - spot.y) < 0.01f);
+        // put keeps it on the east level's floor, at that level's spot, till the player goes there.
+        bench.data.rules.item_info["gld"].flippy = "flpgld";
+        bench.loot.put({ .code = "gld", .gold = 7 }, centre(30), centre(10), 1, bench.rng, 0);
+        assert(bench.loot.ground.empty() && bench.loot.kept[&east].size() == 1);
+        const int put_id = bench.loot.kept[&east].front().id;
+        bench.loot.enter(&east);
+        assert(bench.loot.ground.size() == 1 && bench.loot.ground.front().id == put_id && bench.loot.ground.front().gold == 7);
+        assert(std::abs(bench.loot.ground.front().x - spot.x) < 0.01f && std::abs(bench.loot.ground.front().y - spot.y) < 0.01f);
     }
     return 0;
 } catch (const std::exception& error) {

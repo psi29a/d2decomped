@@ -101,6 +101,15 @@ at `0x6571f4`) and then icebreaksmoke 0x113, each through `FUN_004cd540`
 with create flags 0x2020 and the unit as owner (+4, +8), +0x30 = 1.
 Heights 1..3 are icebreaksmall / medium / large, whose TravelSound is
 impact_shatter_1; Height 0 (townsfolk, critters) gives monglacialspike.
+Flags 0x2020 in `FUN_004cd540`: no 1, so the start is the unit (+8); 0x20
+with +0x1c / +0x20 zero, so the target is subtile (0, 0); no 4, so the
+speed is Vel + VelLev x 1 / 8 (+0x9a, +0x9b), << 8, x 75 / 100. With a
+speed, a target 100 or more subtiles from the start on either axis
+returns 0, no missile (`0x4cd7d8`): monglacialspike (Vel 18) is made only
+near (0, 0). The icebreak rows (no Vel) stand on the corpse for Range +
+LevRange x 1 frames; 0x2000 sets the path direction to a draw below 64
+from the new missile's seed (+0x20, `0x4cd9a5`). d2d:
+`rules::shatter_row_made`.
 Oracle `tools/emu/shatter_missiles.py`. d2d: `rules::shatter_rows`; in
 `Fight::boss_events` a monster going into DT with shatter (107) or a
 freeze still on is `corpse_used` (not drawn, not picked) and makes both

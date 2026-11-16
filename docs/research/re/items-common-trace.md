@@ -1,9 +1,11 @@
 # Common item routines: remaining static traces
 
 Read from the cached Ghidra export of stock game.exe 1.14d and checked
-against `research/game114d.asm` where register arguments, narrow returns or
-an omitted return affect the claim. These are static observations, not
-oracle results or proof that d2d follows the same paths.
+against assembly where register arguments, narrow returns or an omitted
+return affect the claim. `tools/emu/items_common_live.py` additionally runs
+the five live cited routines `FUN_0062ac80`, `FUN_0062af80`, `FUN_0062bb20`,
+`FUN_0062be00` and `FUN_0062c9f0` on synthetic records and compares their
+bit/stat calls and writes with the descriptions below.
 
 `D` below is item data at unit `+0x14`; `R` is the Items record resolved
 from unit class `+0x04` by `FUN_006335f0`. A valid-item guard means nonnull
@@ -89,11 +91,12 @@ zero/sign extended; callers must not assume a clean full EAX.
 
 ## Limits
 
-The numeric fields and branches above are observed statically. Where names
+The numeric fields and branches outside the five live oracle targets above
+are observed statically. Where names
 remain numeric, the semantic table-column meaning has not been established
 in this pass. No oracle was run, invalid pointers were not exercised, and
 all side effects behind a called subsystem remain bounded by that call.
-The serializer trace covers its explicit branches and bit widths; it does
-not establish save/network round-trip parity. The unguarded zero-count
+The serializer oracle covers ground/stored layouts and absent/present save
+tails, but does not establish save/network round-trip parity. The unguarded zero-count
 row selection and parent-mode socket filter are observations, not new
 claims of port defects.

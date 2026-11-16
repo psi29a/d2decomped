@@ -31,6 +31,10 @@ function in the C's text order (a nested `f(g())` lists f first) and lists
 each call to the target it reaches, with a shortest path to it (which
 SetFont is current at a draw, which event a think schedules); without
 `--to` it prints the call tree.
+`tools/ghidra/win32.py > docs/research/re/win32.tsv` lists the Win32
+wrappers (a platform API call, and nothing below but library code or other
+wrappers) that `tools/gaps.py` keeps out of its totals; rerun it after a new
+decompile.
 
 ## Why it exists
 

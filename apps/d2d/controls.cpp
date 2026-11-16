@@ -329,6 +329,9 @@ void ControlsUI::key(std::uint16_t key, std::uint32_t now_ms, Result& result) {
     }
 }
 
+// The hit leaves are FUN_004a47c0, FUN_004a47f0, FUN_004a4860,
+// FUN_004a48b0, FUN_004a4900, FUN_004a4950 and FUN_004a49a0; a release
+// matches its press through FUN_004a4a10.
 // The mouse (FUN_004a4ad0): a press in the list selects (and its release
 // on the same row and column edits it), the arrows and the bar scroll,
 // a button acts on its release over it.

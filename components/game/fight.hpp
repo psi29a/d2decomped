@@ -389,7 +389,9 @@ struct Fight {
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
         // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
         // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
-        // ponytail: a client given the unit anew while it's in NU (FUN_00571f90) adds 1 too; not counted.
+        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y (merc_joins).
+        // ponytail: only the merc's own owner's give is kept (another player coming near
+        // isn't one), and whether the give's own NU send (FUN_00571cd0's queue) adds 1 isn't traced.
         std::uint32_t merc_pierce_idx = 0;
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
@@ -593,8 +595,8 @@ struct Fight {
                                                      d2d::rules::StatSum* sum_out = nullptr) const;
     // The player's fighter this frame, with the self states' aurastats
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
-    // of the panel defense (the override after), damageresist to DR %.
-    // ponytail: other aurastats aren't read.
+    // of the panel defense (the override after), damageresist to DR %;
+    // every other aurastat but life joins the stat sum (below).
     // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
     // aurastats on the player (and allies within aurarangecalc subtiles)
     // the same way; its hitpoints (Prayer) heal on each pulse instead.
@@ -646,10 +648,12 @@ struct Fight {
     // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
     // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
-    // percent, 50) + par1) / 100; Leap Attack (FUN_005da540) waits for its
-    // takeoff event.
-    // ponytail: velocitypercent taken as its base 100; Whirlwind's path is
-    // a straight line (FUN_0064ea90's pathing isn't traced).
+    // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
+    // Burst of Speed, Holy Freeze's slow, ...); Leap Attack (FUN_005da540)
+    // waits for its takeoff event.
+    // ponytail: a chill's slow and the run bonus (FUN_00620e80) aren't in
+    // Charge's velocitypercent; Whirlwind's path is a straight line
+    // (FUN_0064ea90's pathing isn't traced).
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the
     // last) and how many event-1 frames have passed since the start.
@@ -804,8 +808,9 @@ struct Fight {
     // The player's charges' progressive_tohit (stat 0x145, their aurastat 325s): Dragon Flight's to-hit % on top of its own.
     [[nodiscard]] int progressive_tohit();
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
-    // A row with no Skill: its own element at level lvl with its synergy
-    // (EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
+    // A row with no Skill: its own physical and element at level lvl with
+    // their synergies (DmgSymPerCalc, EDmgSymPerCalc on `env`), the weapon
+    // at its SrcDamage.
     [[nodiscard]] d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const;
     // A finishing hit on monster `on` releases every charge (FUN_005d5220):
     // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
@@ -999,9 +1004,11 @@ struct Fight {
     [[nodiscard]] bool missile_skill(const d2d::rules::Skill& skill) const;
     // Casting one at (tx, ty): its mana, then its animation (A1 at the
     // attack's speed for the bow skills, else SC with FCR); the missiles
-    // leave on the action frame (fire).
-    // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
-    // (+400) isn't kept.
+    // leave on the action frame (fire), which starts the skill's delay
+    // (+400, FUN_0056ef90: start_delay). A cast sequence (anim SQ, seqtrans
+    // SC: Lightning) holds SC for its steps (rules::cast_sequence_ticks).
+    // ponytail: its action frame and drawing are SC's scaled over that
+    // hold, not the sequence's own steps.
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
@@ -1084,9 +1091,11 @@ struct Fight {
     // Hit function 1 (FUN_005a9a70) explodes instead: every monster within
     // sHitPar1 subtiles (else the skill's calc1) of the missile takes the
     // skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
-    // distance against the radius squared).
-    // ponytail: a wall or the end of its range doesn't set it off; a row
-    // with no Skill uses no physical columns (MinDamage..) or synergy.
+    // distance against the radius squared). With no unit it goes off at a
+    // wall or where its Range runs out too (burst, kNoUnitHit). A row with
+    // no Skill takes its own damage (FUN_0064b860: Fight::row_damage), its
+    // physical columns and DmgSymPerCalc (FUN_0064af20 / FUN_0064aff0) with
+    // its element and EDmgSymPerCalc.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A missile with no skill on monster i: the merc's plain arrow, its bow's
     // blow. A LastCollide row passes the unit it struck last (FUN_005a8730);

@@ -47,9 +47,10 @@ namespace d2d::game {
 
 // FUN_00463740: whether subtile (x, y) lies in the room holding subtile
 // (from_x, from_y) or in one of that room's near list (FUN_00619790), the
-// next-door levels' close rooms and a warp's room included (missile_rooms).
-static bool room_near_holds(const GameData& game_data, const Level& level, int from_x, int from_y, int x, int y) {
-    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5);
+// next-door levels' close rooms and a warp's room included, those come up
+// (missile_rooms).
+static bool room_near_holds(const GameData& game_data, const Spawning& spawning, const Level& level, int from_x, int from_y, int x, int y) {
+    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5, &spawning);
     const int act_x = level.world_x * 5 + x, act_y = level.world_y * 5 + y;
     return std::ranges::any_of(rects | std::views::drop(1), [&](const auto& rect) {
         return act_x >= rect[0] && act_y >= rect[1] && act_x < rect[0] + rect[2] && act_y < rect[1] + rect[3];
@@ -336,7 +337,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
         const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-        return room_near_holds(*game_data, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
+        return room_near_holds(*game_data, fight.spawning, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
     }
 
 auto World::hire_list(int list_act) -> std::vector<d2d::rules::HireEntry>& {
@@ -359,8 +360,8 @@ auto World::hire_offers(int list_act) const -> std::vector<d2d::rules::MercOffer
 // Kashya's reward (FUN_00579180): the first offer of her hire list as the
 // merc, free — none if there's a merc already (LoD: even a dead one).
 // The offer leaves the list (packet 0x50 subtype 2).
-// ponytail: an unopened list is rolled here (game.exe: the client asks
-// for it as her menu opens: waits for networking).
+// The list is rolled by then: talking to her rolls it (World::tick, as
+// FUN_00572c10 -> FUN_00576770), and her line 92 comes only in a talk.
 auto World::kashya_merc() -> void {
         const auto& header = actor->character.header;
         if (header.merc_seed && (actor->character.expansion || !header.merc_dead)) return;
@@ -429,34 +430,37 @@ auto World::tower_treasure_made() -> void {
 // ago (FUN_004dcaa0); later, the line's dropped. The 0x25 turned the music
 // off for those 1500 ticks (FUN_004dcd40 -> FUN_004ba8f0); the 0x5c brings
 // it back 0x32 ticks after the line (FUN_004dce10).
-// ponytail: it runs only while the player's on its level (game.exe: while its room's up).
+// A missile frames while its room's up, whoever's on the level; the chests'
+// rooms came up to be listed, and d2d's rooms stay up, so it runs from any
+// level, its drops kept on the cellar's floor (Loot::put's `onto`).
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
-            if (spawner.level != level || spawner.left <= 0) continue;
-            const auto& chest = level->npcs[std::size_t(spawner.npc)];
+            if (!spawner.level || spawner.left <= 0 || std::size_t(spawner.npc) >= spawner.level->npcs.size()) continue;
+            const Level& cellar = *spawner.level;
+            const auto& chest = cellar.npcs[std::size_t(spawner.npc)];
             const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
             const auto& area_levels = game_data->area_level;
             auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(diff)] : 1; };
-            const int here = alvl(level->id);
-            if (spawner.left == Tower::kTreasureFrames - Tower::kTreasureOpen && !operated.contains({ level, spawner.npc })) {
+            const int here = alvl(cellar.id);
+            if (spawner.left == Tower::kTreasureFrames - Tower::kTreasureOpen && !operated.contains({ &cellar, spawner.npc })) {
                 const auto [low, high] = d2d::rules::kChestLevels[0];
                 const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
                 std::vector<d2d::rules::Drop> drops;
                 for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4);
                 for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
-                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms);
-                operated[{ level, spawner.npc }] = now_ms;
+                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                operated[{ &cellar, spawner.npc }] = now_ms;
                 d2d::log::info("The Forgotten Tower: the Countess's chest opens ({} drops)", drops.size());
             }
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
                 const float off_x = float(spawner.seed(2 * radius + 1) - radius) / 5, off_y = float(spawner.seed(2 * radius + 1) - radius) / 5;
-                const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
-                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
+                const auto [spot_x, spot_y] = cellar.nearest_free(chest.x + off_x, chest.y + off_y);
+                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms, false, 0, &cellar);
             }
             if (spawner.left == 1)
-                each_player([&](Player& player) {
+                each_in_game([&](Player& player, int) {   // split levels: whoever heard her, on any level
                     if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) {
                         class_cue("act1_complete_tower", now_ms + 1'000);
                         player.events.push_back(ev::MusicCue{ .back_ms = (25 + 0x32) * 40 });   // FUN_004dce10: the music back 0x32 ticks after the line
@@ -505,7 +509,7 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         }
         if (cain_walk.stage < 2) {
             if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
-            if (room_near_holds(*game_data, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
+            if (room_near_holds(*game_data, fight.spawning, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
                 cain_portal = { level, cell(cain_walk.spot_x), cell(cain_walk.spot_y), now_ms };
                 cues.cue("object_townportal", now_ms, cain_portal.x, cain_portal.y);
                 d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);

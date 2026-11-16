@@ -322,7 +322,9 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         if (act.face >= 0) state.dir = facing16(act.face);
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
         switch (act.kind) {
-        case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
+        case d2d::rules::NpcAct::Kind::stand:
+            state.wait_until = act.frames < 0 ? std::numeric_limits<std::uint32_t>::max() : now_ms + std::uint32_t(act.frames) * kFrameMs;
+            break;
         case d2d::rules::NpcAct::Kind::walk:
             state.walking = set_off(level, state, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, false, crowd);   // FUN_005ded90
             state.mode_ms = now_ms;
@@ -683,10 +685,26 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         if (pick.second >= 0) pick.second = near_of[std::size_t(pick.second)];
         return pick;
     };
+    // Terror's init (special 11, 0x5e80e0: an AI table entry Ghidra misses): the unit its path was at
+    // (FUN_00553540, not itself; here the foe it last chased or swung at)
+    // as its skill-set target by id (FUN_00573090, SwitchAI only: a player
+    // kind 1, a monster 2, a missile 4), which its first think's search
+    // takes (FUN_005dd610: by id, alive, no sight test) and the think then
+    // clears (FUN_005e8140 -> FUN_00573120). d2d's kind 1 matches Foe::id,
+    // so it also stands for the merc or a pet (game.exe's kind 2).
+    if (monster.special == 11 && monster.ai_state3 == 0 && monster.set_kind == 0 && type_info.switch_ai && monster.chase >= 0
+        && std::size_t(monster.chase) < foes.size())
+        if (const auto& chased = foes[std::size_t(monster.chase)]; chased.of != &monster) {
+            monster.set_kind = chased.of ? 2 : 1;
+            monster.set_id = chased.of ? chased.of->id : chased.id;
+        }
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
         for (auto& foe : foes)
             if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
+    } else if (monster.set_kind == 1) {                             // Terror's: a player, the merc or a pet, by Foe::id
+        for (auto& foe : foes)
+            if (foe.id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
     } else if (monster.set_kind == 3) {                             // Confuse's: as a random alignment, the primary only
         const auto pick = mode5(d2d::rules::confuse_align(monster.align, monster.seed.next() & 1));
         if (pick.target >= 0) found = { &foes[std::size_t(pick.target)], pick.best };
@@ -846,9 +864,7 @@ const AiRow* ai_row(std::string_view ai_name) {
 // place of its MonAI's (FUN_005b15d0). Thinks draw the unit's own seed.
 // ponytail: the seed as its look left it (FUN_00573cb0's draws and the
 // rest between aren't taken; the World's spawns (world/) keep the default);
-// FUN_0064d910's 0x40 test on
-// the one subtile under it, not its collision pattern; in melee
-// skips the path test (FUN_00622aa0, mask 0x804); the path types a think
+// in melee skips the path test (FUN_00622aa0, mask 0x804); the path types a think
 // gives its next move (FUN_005de190's EDX: 48 of its 103 calls, 1 / 2 /
 // 7 / 0xd / 0xf) taken only for the Dark Wanderer's (Monster::path_type),
 // the rest as path_to's; a circle as a walk to the point n
@@ -921,7 +937,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.chase = -1;
         if (!row || !row->thinks_alone) {
             const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.got_hit(), level.blocked(unit.x, unit.y, 0x40), nearest);
+            // Bit 0x40 under its own collision pattern (path +0x48, FUN_00649180), not the one subtile.
+            auto on_pattern = unit.shape;
+            on_pattern.mask = 0x40;
+            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.got_hit(), level.unit_blocked(unit.x, unit.y, on_pattern), nearest);
             if (miss.wander) {
                 const auto wander = d2d::rules::think_wander(monster.seed, 5);
                 ctx.walk_to(wander.x, wander.y, false);
@@ -1334,7 +1353,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // Run), swinging at the end. The other sequence that walks first,
             // seq_swarmmove (Swarm Move, 166), no think casts: the Swarm's
             // (FUN_005f2460) has no skill, so that one stands.
-            // ponytail: its charge path (type 0x14) and state 0x12 are the run's.
+            // Its run keeps the unit's path type: 0x14 is the path's step cap
+            // (FUN_00648e70: +0x90 / +0x91, at most 77), after +0x14 / +0x16 are
+            // cleared (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
+            // client tests (FUN_004c7890); FUN_00571b70 clears it.
+            // ponytail: the run is path_to's chase, not capped at 20 steps.
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
@@ -1409,7 +1432,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
-            // ponytail: the flight is a line, not the path FUN_0064ea90 lays.
+            // The flight is a line: the takeoff (FUN_005d9f70) lays path type 9
+            // (FUN_00679f70, table 0x6eb6d8: one point, the landing) with collision
+            // type and mask 0, so nothing blocks it; FUN_005d9d50's FUN_0064ea90 only
+            // stamps the landing spot (pattern 0x80) till it lands (FUN_005da120).
+            // ponytail: flown along the sequence's time, not at the takeoff's pace
+            // (FUN_00648690: FUN_00451f80 row +0x34 << 8, a 16.16 walk), nor the 0x80 stamp.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;

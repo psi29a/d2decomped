@@ -918,7 +918,8 @@ void Town::drive_touch_hold(float seconds) {
  * pickup.
  */
 void Town::drive_touch() {
-    if (!touch_enabled || last_device != touch::LastDevice::Touch) return;
+    if (!touch_enabled) return;
+    // Tracked whoever is last: a panel a key opened must not eat the next finger's gesture.
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
                             (char_open ? 4000 : 0) + (game_menu.open ? 8000 : 0) + (skillbar.picking ? 16000 : 0);
     if (panel_state != touch_panel_state) {
@@ -926,6 +927,7 @@ void Town::drive_touch() {
         if (!tree_open) { touch_learn_skill = -1; touch_tree_tap_skill = -1; }
         touch_panel_state = panel_state;
     }
+    if (last_device != touch::LastDevice::Touch) return;
     if (!pad_field() || view.dead) {
         const Send stop = [this](const Command& command) { send(command); };
         pad_walk(touch_player, view.player, view.dead, false, stop);

@@ -403,7 +403,10 @@ lines (missile names aren't passed in). What it does:
   (the item record's +0xfe / +0xff: armor.txt mindam / maxdam, << 8), plus
   Holy Shield's own damage (FUN_00647bc0 / 00647d00) while state 0x65
   (holyshield) is on, into FUN_0057b420 on the shield with ED = **calc1**,
-  SrcDam 128; stun = **calc2** (`min(250, ln12)`, record +0x44), the
+  SrcDam 128. On that path (EDX 0) FUN_0057b420 adds the unit's stat 111
+  << 8 to both ends, lifts a minimum under 1 to 0x100 and a maximum not
+  above the minimum to minimum + 0x100 (0x57b4c3..0x57b4f4), before the
+  percents; stun = **calc2** (`min(250, ln12)`, record +0x44), the
   element; hit check FUN_0057ec10 with no bonus, then flags | 1: **always
   hits** (a block still stops it: FUN_0057dbf0 needs flags & 0x8380 clear);
   record flags 2, so FUN_0057dbf0 **skips FUN_0057b7d0** (no crit, gear
@@ -540,7 +543,9 @@ lines (missile names aren't passed in). What it does:
   (the strike).
 - **Charge**, start 31 (FUN_005cf6b0): velocity = **run velocity**
   (CharStats +0x41 << 8) × (max(velocitypercent (67), 50) + **par1** (150))
-  / 100; players at a distance only (in reach it's a plain attack,
+  / 100 (0x5cf833..0x5cf864: stat 0x43 read, floored at 0x32, plus
+  FUN_004c9460's Param1, then FUN_00483360's MulDiv; d2d: 100 +
+  `Fighter::velocity_pct`, `Fight::start_move`); players at a distance only (in reach it's a plain attack,
   FUN_0056e230). Do 67 (FUN_005cf900) on each event (every run frame of
   sequence 4 is one): the target in reach jumps the sequence to its attack
   frames (FUN_00553dc0); the attack's event hits (toht, **knockback**,
@@ -845,7 +850,11 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (FUN_00644d50 / 00644e40 with flag 1) and length (FUN_00644f20); the
   weapon's damage only when the skill's SrcDam (+0x1a5, as written) is
   non-zero, × SrcDam / 128, with its mastery, strength / dexterity bonus
-  and stat 25 (arrows). Without Skill, the row's own damage columns.
+  and stat 25 (arrows). Without Skill, the row's own damage columns:
+  physical MinDamage / MaxDamage (+0xb0 / +0xb4) with their level
+  brackets and DmgSymPerCalc (+0xe0) % (FUN_0064af20 / FUN_0064aff0), the
+  element with EDmgSymPerCalc (FUN_0064b100 / FUN_0064b1d0), its length
+  FUN_0064b2a0 (`Fight::row_damage`).
 - Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
   of the damage after the synergy: fire 329, lightning 330, cold (and
   freeze) 331, poison 332; none for magic.

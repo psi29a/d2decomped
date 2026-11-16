@@ -48,6 +48,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite      btn_narrow;         // NarrowButtonBlank
     d2d::dc6::Sprite      btn_short;          // ShortButtonBlank
     d2d::dc6::Sprite      credits_bg;         // creditsbckgexpand.dc6 (or classic fallback)
+    bool                   title_expansion = true; // FUN_004336c0 chooses title records 0x10..0x13 when true
     // Character-creation screen (loaded by FUN_004326f0). SP button hops here.
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes

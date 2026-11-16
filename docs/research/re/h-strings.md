@@ -27,11 +27,11 @@ it does not compare a d2d implementation or exercise real storage.
 | `FUN_0060de00` | Store the supplied full dword at `+0x184` and call the registry writer with `Diablo II`, `Persistent Ignore`, zero and that value. The registry implementation is hooked. |
 | `FUN_0060de30` | Copy the prefix before the first `*`, limited to 17 bytes and unsigned `capacity−1`, then NUL-terminate at the copied count. A leading star writes an empty result. Capacity zero wraps the unsigned bound, so it is not an empty-buffer guard. |
 | `FUN_0060dea0` | Find the first star, copy at most 17 suffix bytes, and limit copying against the **source** index and unsigned `capacity−1`. Write the terminator at the final source index, not the copied count. Empty input or an input without a star leaves the destination untouched. Sentinel-filled output cases check this misplaced terminator and the untouched gap. |
-| `FUN_0060df10` | Null/empty names or a false virtual persistence gate return 0 without opening. Otherwise copy/append the line ending to a bounded local buffer, open `this+0x80` in `at+`, store the handle at `+0x7c`, then fwrite and fclose when opened. Assembly returns 1 when fclose returns zero, otherwise 0; fwrite's return is ignored. The corpus supplies fwrite failure with successful close to check that distinction. A failed open stores a null handle and returns 0. |
+| `FUN_0060df10` | Null/empty names or a false virtual persistence gate return 0 without opening. Otherwise copy/append the line ending to a bounded local buffer, open `this+0x80` in `at+` (mode string 0x6e628c; the line end appended is the one byte `\n` at 0x6ffcb0, appended through 0x413800 with bound 0x100; the open is `_fopen` 0x68239a, the write `_fwrite(buf, strlen, 1, file)` 0x684449, the close 0x681fdc, and `RET 4`), store the handle at `+0x7c`, then fwrite and fclose when opened. Assembly returns 1 when fclose returns zero, otherwise 0; fwrite's return is ignored. The corpus supplies fwrite failure with successful close to check that distinction. A failed open stores a null handle and returns 0. |
 | `FUN_0060dff0` | Pre-clear destination, zero a 256-byte temporary, try the star suffix, fall back to the prefix when the temporary's first byte is zero, then copy with the caller's capacity. Its zeroed temporary conceals the suffix helper's misplaced terminator in normal results. A null output is a fatal assertion path, not tested here. |
 | `FUN_0060e130` | Separate assignment instance with the same free/duplicate/store sequence and return as `FUN_0060dcb0`; both entries execute independently in the oracle. |
 | `FUN_0060f870` | Lookup an account name in the table at `this+0x54`; not found returns 0 without touching output. Found reads entry value `+0x18`, copies it with the supplied capacity and returns 1. Hash lookup and bounded copy are hooked. |
-| `FUN_00610d60` | Duplicate the supplied name into a temporary one-pointer wrapper, hash the original name with two zero arguments, call table insertion on the original `this` with the hash/wrapper/two remaining arguments, free the nonnull duplicate with line `0x5e4`, and return insertion's EAX. A failed duplicate still reaches insertion with a null wrapper value. The corpus verifies temporary ownership and call order without claiming exception unwinding. |
+| `FUN_00610d60` | Duplicate the supplied name into a temporary one-pointer wrapper, hash the original name with two zero arguments, call table insertion on the original `this` with the hash/wrapper/two remaining arguments, free the nonnull duplicate with line `0x5e4` (file string 0x6e6218, `\stpl.h`; `FUN_00412650`), and return insertion's EAX (`RET 0xc`). It runs under an SEH frame (handler table 0x6ca3e8, trylevel 0 while the insert runs); the unwind path is not traced. A failed duplicate still reaches insertion with a null wrapper value. The corpus verifies temporary ownership and call order without claiming exception unwinding. |
 | `FUN_00610eb0` | With a nonempty name and true persistence gate, derive its key through the real suffix/prefix helpers, lookup in `this+4`, and only for an absent key insert and request file persistence. Return 1 for both present and newly inserted nonempty keys; return 0 for skipped inputs/gates. This return is present in assembly despite a void decompilation. |
 | `FUN_00610f90` | With a nonempty name and true gate, lookup the name unchanged in `this+0x2c`; if absent insert it and request persistence as `!name`. Return 1 when the permitted nonempty name was already present or insertion was attempted; return 0 for skipped cases. |
 | `FUN_00611050` | Open `this+0x80` in `rt`; on success read 256-byte fgets chunks, truncate at the first CR/LF and insert. A leading `!` with another character routes the rest to `this+0x2c`; a lone `!`, ordinary text and empty stripped lines route unchanged to `this+4`. Close after EOF. Open failure does neither read nor close. Cases include empty files, blank lines, CR inside a line, lone `!` and a 255-byte chunk. |
@@ -41,8 +41,16 @@ it does not compare a d2d implementation or exercise real storage.
 From `tools/emu`, using the existing dependency environment and a local copy:
 
 ```sh
-D2_MPQ_DIR=/path/to/game-data python h_strings.py
+D2_MPQ_DIR=/path/to/game-data python h_strings.py --mutation-check
 ```
+
+Leave out `--mutation-check` for the plain run of the 315 cases.
+
+`--mutation-check` changes one original byte in fresh emulator memory (the
+expected byte is checked first) and requires a failed observation, or the
+emulator fault the change causes: the null-name, empty-name, persistence-gate
+and open-failure branches and the `fclose` result of `FUN_0060df10`, and the
+duplicate-free branch and line number of `FUN_00610d60` (seven in all).
 
 Expected output: `PASS H strings: 19 functions, 315 cases; normal return and RET cleanup checked`.
 
