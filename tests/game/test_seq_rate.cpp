@@ -32,6 +32,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -124,17 +125,20 @@ int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir) return skip("D2_MPQ_DIR");
     const fs::path data_dir = mpq_dir;
-    // d2data.mpq by name in any case, as the loader looks for it: its absence is a skip, a present but unloadable data set is a failure
-    const bool has_data = fs::is_directory(data_dir) && std::ranges::any_of(fs::directory_iterator(data_dir), [](const fs::directory_entry& entry) {
-        std::string name = entry.path().filename().string();
-        std::ranges::transform(name, name.begin(), [](unsigned char ch) { return char(std::tolower(ch)); });
-        return name == "d2data.mpq";
-    });
-    if (!has_data) return skip("no d2data.mpq");
+    // A file of the data folder by name in any case, as the loader looks for it.
+    const auto has_file = [&](std::string_view wanted) {
+        return fs::is_directory(data_dir) && std::ranges::any_of(fs::directory_iterator(data_dir), [&](const fs::directory_entry& entry) {
+            std::string name = entry.path().filename().string();
+            std::ranges::transform(name, name.begin(), [](unsigned char letter) { return char(std::tolower(letter)); });
+            return name == wanted;
+        });
+    };
+    // Missing data, or no 1.14d patch (the loader fails on CD-era tables) is a skip; a data set that is there and does not load is a failure.
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    if (!has_file("d2data.mpq")) return skip("no d2data.mpq");
+    if (!(patch && fs::exists(patch)) && !has_file("patch_d2.mpq") && !has_file("lodpatch_114d.exe")) return skip("no 1.14d patch data");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    assert(data);   // the data set is there but did not load: a broken fixture fails
-    if (!data->patched) return skip("no 1.14d patch data");
+    assert(data && data->patched);
 
     // none, sword (1hs), dagger (1ht), great sword (2hs), spear (2ht), staff (stf), bow, crossbow (xbw), claws (ht1)
     const std::vector<std::string> weapons = { "", "ssd", "dgr", "gsd", "spr", "sst", "sbw", "lxb", "ktr" };
