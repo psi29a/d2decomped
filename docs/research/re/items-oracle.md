@@ -140,3 +140,71 @@ Callees hooked and logged, not verified here: FUN_006335f0, 0062b400,
 00624690, 00628170, 0063cc70, 00621000, 0053eed0, 0063ad90, 006488c0,
 0063c550, 00557fd0, 006280a0, 00629930, 00625e00, 00562c40, 006289f0,
 00623060, 006230c0, 006287b0, 0055da70, 0053c520 and the allocator.
+
+## Third set: items_traces3.py
+
+`tools/emu/items_traces3.py` runs 24 more Items.cpp functions on the same
+rig (1920 cases; `--mutation-check` breaks the model 21 ways). `--coverage`
+reports no instruction of the 24 bodies left unreached, not counting the
+exit code after each fatal halt. Every callee is hooked.
+
+Functions: FUN_00627df0, 0062a8d0, 0062a0f0, 0062a2f0, 006288d0, 00629900,
+006299b0, 0062a1e0, 0062a270, 00629c80, 00629cc0, 00629d40, 00629f70,
+00628480, 0062ba80, 0062e6f0, 0062e740, 0062e790, 0062e880, 0062a5d0,
+0062a620, 00558610, 00558450, 005584c0.
+
+### Confirmed
+
+The readings cited in `drops.md`, `combat.md`, `item-names.md`, `items.md`,
+`store.md`, `weapon-switch.md` and `rules.hpp` held on the cases run:
+
+- the item-data fields D `+0x10` (sockets) and D `+0x18` bit 0x400000
+  (ethereal);
+- quality 4..9 (FUN_0062a0f0) and the plain quality, nonzero and up to 3 or
+  above 9 (FUN_0062a2f0);
+- the Items row's `+0x104`, `+0x137`, `+0xdc` bits 0 and 1, `+0x12a`, the
+  word `+0x11e` (0x27 not sellable) and `+0x13d`;
+- the ItemTypes fields `+0xc` and `+0xe` (signed words), `+0x10`, `+0x13`,
+  `+0x21` (below 7) and `+0x22`;
+- the potion bonus by class: life ×1.5 for classes 0, 3, 6, ×2 for 4 and
+  for a non-player; mana ×1.5 for 0, 3, 6 and ×2 for 1, 2, 5;
+- the fatal lines 0xea6/0xea7, 0x119b/0x119d/0x11a5, 0x1040, 0x104a,
+  0x105e, 0x68d, 0xd5e and 0xd7d.
+
+### Sharpened
+
+- FUN_00558610 takes x in ECX, k in EDX and a second k on the stack (`ret
+  4`). It returns `(x - 100) * stack / (x - 100 + EDX) + 100`, with a
+  32-bit `imul` and an `idiv` rounding toward zero. Its one caller,
+  FUN_00558640, passes the same k in both (0x558746, 0x5587bf, 0x558847),
+  so drops.md's formula holds. x is compared signed (`jg 0x6e`).
+- FUN_0062a5d0 / FUN_0062a620: ×1.5 is `v + (v sar 1)` (arithmetic shift,
+  so it rounds down for negatives too), ×2 is `lea`. Both wrap at 32 bits.
+  A player of class above 6 (unsigned) gets v unchanged.
+- FUN_00558450 / FUN_005584c0: the index is a byte. It is FUN_006427f0's AL,
+  plus 2 when FUN_00554010's byte `+0x6d` is nonzero, so it wraps at 256.
+  An index at or past the table's count (an unsigned `jb`; 4 in stock
+  game.exe) gives the table's last code, `hp4` / `mp4` (0x731f58 /
+  0x731f6c).
+- FUN_0062a2f0 and FUN_0062a270 take their argument in EAX and end with a
+  plain `ret`. FUN_0062a270 returns 1 at the first inventory node whose
+  FUN_0063dfd0 answer is nonzero.
+- FUN_006288d0 writes AL only: the Items row pointer's upper 24 bits stay;
+  a wrong-type unit leaves the unit pointer's; a null unit gives 0.
+- FUN_0062e880 rejects with `or al, 0xff` over whatever EAX held: the unit
+  pointer (wrong type), the type index (out of range) or 0 (a null row).
+  A row byte of 0xff takes the same path. The success value keeps the row
+  pointer's upper 24 bits.
+- FUN_0062a0f0 compares quality signed (`jl` / `jg`). Unsigned would give
+  the same answers for 4..9, so the oracle can't tell the two apart.
+
+### Not exercised
+
+- FUN_006288d0 with a class that has no Items row: it reads the row
+  unchecked, at address 0x104, which the arena does not map.
+- The ItemTypes lookups test only `rows + index * 0xe4` for null, so a null
+  rows pointer with an index above 0 reads near address 0. The cases pair
+  a null table with index 0 only.
+- The callees FUN_006335f0, 0062b400, 00625480, 0063b2c0, 0063dfd0,
+  0063dfa0, 00620bb0, 0061a1b0, 006427f0 and 00554010 are hooked and logged,
+  not verified here.
