@@ -14,11 +14,28 @@ the walk FUN_0056b7e0, returns at 0x56b809 before any room for a radius <= 0
 every room of the near list is walked.
 """
 import argparse
+import math
 
 import emu
 
 RECTS = ((100, 100, 40, 40), (0, 0, 8, 8), (500, 300, 1, 1))   # room +0x4c: x, y, w, h
 RADII = (-50, -5, -1, 0, 1, 4, 20, 50)
+
+def check_pulse_boundary(machine):
+    """Check the squared distance used by FUN_0056b7e0 for the pulse fixtures."""
+    cases = (
+        ((0, 0), (4, 0), 16, True),
+        ((0, 0), (5, 0), 25, True),
+        ((0, 0), (6, 0), 36, False),
+        ((0.1, 0), (5.9, 0), 25, True),
+        ((0.9, 0.9), (4, 4), 32, False),
+    )
+    for caster, target, expected_distance, expected_hit in cases:
+        coordinates = [50 + math.floor(value) for value in (*caster, *target)]
+        distance = machine.call(0x6492A0, *coordinates)
+        # LAB_0056b954 rejects distances strictly greater than radius squared.
+        assert (distance, distance <= 5 * 5) == (expected_distance, expected_hit)
+    return len(cases)
 
 
 def main():
@@ -49,6 +66,8 @@ def main():
     assert not asked
     e.call(0x56B7E0, 100, 200, 1, 0, 0x5AB2A0, e.alloc(0x20), 1, 0, 0, ecx=game, edx=unit)
     assert asked == [unit]                      # at radius 1 it asks (the hooked room is 0: it returns)
+    boundary_cases = check_pulse_boundary(e)
+    print(f"ok: {boundary_cases} FUN_006492a0 aura pulse boundary cases")
     print(f"ok: {cases} FUN_0056b770 cases, 0 rooms refused at a radius >= 0, {refused[False]} at a negative one; the walk stops before any room at radius 0 and -1")
 
 
