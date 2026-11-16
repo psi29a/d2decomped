@@ -18,8 +18,9 @@ namespace d2d::client {
 struct PartyPanel {
     // A row (the roster, FUN_0049a1d0): the player, its class (d2s), level,
     // party (0xffff none), the party button's state, our flags toward it,
-    // where it is (a party member's level name, "" not shown), hostile to us.
-    struct Row { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = 0xffff, relation = 0, flags = 0; std::string area; bool hostile = false; };
+    // where it is (a party member's level name, "" not shown), hostile to us,
+    // its sort key (record +0x18: S->C 0x65's signed word, set at 0x479b10).
+    struct Row { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = 0xffff, relation = 0, flags = 0; std::string area; bool hostile = false; int sort_key = 0; };
     // `fixed`: local co-op's one party, everyone in it from joining: no
     // LEAVE, party buttons or boxes, only the close button takes a click.
     struct Own { std::string name; int level = 0, party = 0xffff; bool in_town = false, fixed = false; };
@@ -28,13 +29,18 @@ struct PartyPanel {
     // The roster's order (FUN_00479ab0's regroup, party.md): by party word
     // ascending, 0xffff (none) last, our own party's group first; inside a
     // group by the player name at record +0 (FUN_004793c0 copies it there),
-    // a byte-wise strcmp insertion sort (FUN_004795f0).
-    // ponytail: with bit 1 of the game flags (0x712efc, S->C 0x01) set,
-    // FUN_004799c0 sorts by record +0x18 instead; that field isn't traced.
-    static void order(std::vector<Row>& rows, int own_party) {
+    // a byte-wise strcmp insertion sort (FUN_004795f0). With bit 1 of the
+    // game flags (0x712efc, S->C 0x01; FUN_0047a980) FUN_004799c0 sorts by
+    // the sort key instead, most first (FUN_004796d0: one goes before the
+    // first with less, signed), a tie after the rows it ties with.
+    // ponytail: NetGame keeps neither S->C 0x65 nor that flag, so callers
+    // pass `by_sort_key` false; a tie keeps d2d's row order, not the group
+    // list's (FUN_00479800's).
+    static void order(std::vector<Row>& rows, int own_party, bool by_sort_key = false) {
         const auto group = [own_party](const Row& row) { return own_party != 0xffff && row.party == own_party ? -1 : row.party; };
-        std::ranges::stable_sort(rows, [&group](const Row& lhs, const Row& rhs) {
-            return group(lhs) != group(rhs) ? group(lhs) < group(rhs) : lhs.name < rhs.name;
+        std::ranges::stable_sort(rows, [&group, by_sort_key](const Row& lhs, const Row& rhs) {
+            if (group(lhs) != group(rhs)) return group(lhs) < group(rhs);
+            return by_sort_key ? lhs.sort_key > rhs.sort_key : lhs.name < rhs.name;
         });
     }
     bool open = false;
