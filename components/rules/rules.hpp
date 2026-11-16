@@ -736,7 +736,10 @@ inline int charges_repair_cost(const Tables& tables, const d2d::d2s::Item& item)
 }
 // A repair's recharge (FUN_0055fe80, after FUN_005761c0's durability; the
 // cube's recharge flag 0x400, FUN_00565ab0): each stat 204 below its max
-// back to max (FUN_0065c940). True if any was.
+// back to max (FUN_0065c940). True if any was. game.exe lists a stat's
+// entries with FUN_006261d0, which reads only a list with the expanded flag
+// 0x80000000 (tools/emu/stats_unit_list.py); d2d keeps every prop, so it has
+// no such gate.
 inline bool recharge(d2d::d2s::Item& item) {
     bool any = false;
     for (auto& prop : item.props)
