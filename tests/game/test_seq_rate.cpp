@@ -22,7 +22,9 @@
 #include <world.hpp>
 
 #include <array>
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -116,13 +118,23 @@ int main(int argc, char** argv) try {
         assert(d2d::rules::attack_ticks(17, 256, 0, 0, sequence_sias(true, "A1")) == 25 && d2d::rules::attack_ticks(17, 256, 0, 0) == 17);   // Frenzy
         assert(d2d::rules::attack_speed(256, 0, 0, sequence_sias(true, "A1")) == 179 && d2d::rules::attack_speed(256, 0, 0, -85) == 38);        // the floor of 15 percent
     }
+    // The checks above need no data and passed: without the data set only the data-backed part is skipped, and the run still passes (tests/README.md);
+    // `--seq-rate` has nothing to print without it, so it reports the skip.
+    const auto skip = [&](const char* why) { std::printf("SKIP: %s\n", why); return grid ? D2D_TEST_SKIPPED : 0; };
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-    if (!mpq_dir) { std::printf("SKIP: D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
+    if (!mpq_dir) return skip("D2_MPQ_DIR");
     const fs::path data_dir = mpq_dir;
+    // d2data.mpq by name in any case, as the loader looks for it: its absence is a skip, a present but unloadable data set is a failure
+    const bool has_data = fs::is_directory(data_dir) && std::ranges::any_of(fs::directory_iterator(data_dir), [](const fs::directory_entry& entry) {
+        std::string name = entry.path().filename().string();
+        std::ranges::transform(name, name.begin(), [](unsigned char ch) { return char(std::tolower(ch)); });
+        return name == "d2data.mpq";
+    });
+    if (!has_data) return skip("no d2data.mpq");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);   // the loader's own (case-insensitive) lookup of d2data.mpq
-    if (!data) { std::printf("SKIP: game data not loadable from D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }
-    if (!data->patched) { std::printf("SKIP: no 1.14d patch data\n"); return D2D_TEST_SKIPPED; }
+    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    assert(data);   // the data set is there but did not load: a broken fixture fails
+    if (!data->patched) return skip("no 1.14d patch data");
 
     // none, sword (1hs), dagger (1ht), great sword (2hs), spear (2ht), staff (stf), bow, crossbow (xbw), claws (ht1)
     const std::vector<std::string> weapons = { "", "ssd", "dgr", "gsd", "spr", "sst", "sbw", "lxb", "ktr" };
@@ -203,7 +215,7 @@ int main(int argc, char** argv) try {
     }
     std::printf("test_seq_rate: %d cells match game.exe\n", checked);
     return 0;
-} catch (const std::exception& e) {
-    std::fprintf(stderr, "test_seq_rate: %s\n", e.what());
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_seq_rate: %s\n", error.what());
     return 1;
 }
