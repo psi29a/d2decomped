@@ -11,7 +11,6 @@ breaks one independently observed rule per routine and requires every
 negative control to be detected.
 """
 import argparse
-import sys
 
 import emu
 

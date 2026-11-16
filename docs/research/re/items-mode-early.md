@@ -48,3 +48,38 @@ are retained numerically where no semantic name was established; the empty
 grid/belt helpers add no effects. Inventory unlink is real through `FUN_0063ad90`/`FUN_0063aaf0`; belt placement `FUN_0063c4f0` checks Beltable and 1x1 dimensions, then `FUN_0063c4c0` calls `FUN_0063afd0` to unlink/relink and update coordinates. The compaction caller ignores placement failure. No gameplay
 correction is proposed by this trace, and no original/port runtime comparison
 was performed.
+
+## Live oracle (seven functions)
+
+`tools/emu/items_mode_early_live.py` runs `FUN_0055ca40`, `FUN_0055cf50`,
+`FUN_0055d560`, `FUN_0055df10`, `FUN_0055e8e0`, `FUN_0055eb30` and
+`FUN_0055edc0` in game.exe with the subsystem calls hooked and logged
+(register and stack arguments), and compares the sequences with models
+written from the decompile and assembly (1150 cases; eight negative controls).
+Results beyond the table above:
+
+- `FUN_0055ca40` walks real item nodes (`FUN_0063dfd0` item, `FUN_0063dfa0`
+  next via item data `+0x5c`/`+8`) and stops at the candidate; a non-item node
+  ends the walk with 0. Rune-group pairs run in both orders through the real
+  `FUN_0055ca00`. Stash (page 1) items did not match in any tested case.
+- `FUN_0055cf50`: cursor occupied or `FUN_00535060` nonzero returns with the
+  output 0 and nothing else; a non-ground mode sets the output to 1; denied
+  pickup sends message `0x13`. Gold takes `FUN_0055c850`; other items run
+  path/collision removal, set the cursor, mode 4, flag `0x40`, page `0xff`,
+  re-own, add to the inventory and `FUN_00543d80`. `FUN_00553380` followed in
+  both tested pickups. Asserts: lines `0x558` (game), `0x559` (player), `0x55e` (inventory).
+- `FUN_0055d560` asserts `0x675` (item null) and `0x676` (owner null); the ten
+  flags are exactly the type tests listed above.
+- `FUN_0055df10` asserts `0xf6f`, `0xf70`, `0xf76` (unlink null) and `0xf77`
+  (unlink returned another item). `FUN_0045ae20` is cdecl and its three stack
+  words are not popped: they become arguments 5..7 of the eight-word
+  `FUN_0063bcf0` call (inventory, `FUN_0045adf0` result, `FUN_0045ae20` result,
+  `FUN_00621050` result, 0, page).
+- `FUN_0055eb30` asserts `0x128a`, `0x128b`, `0x12b8`, `0x12b9`, `0x12d4`
+  (`FUN_0063b210` failure) and `0x12d8` (`FUN_0063c4f0` failure). The source is
+  placed at the slot of the target's `FUN_0045adf0` result.
+- `FUN_0055edc0` ran on the 16 occupancy patterns of a column for indices
+  0..3, 4, 7 and 0xfe (column = index & 3).
+
+None of these seven has a one-for-one d2d function that cites it; d2d is not
+compared. Not traced: the hooked callees' own bodies.
