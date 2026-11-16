@@ -403,7 +403,10 @@ lines (missile names aren't passed in). What it does:
   (the item record's +0xfe / +0xff: armor.txt mindam / maxdam, << 8), plus
   Holy Shield's own damage (FUN_00647bc0 / 00647d00) while state 0x65
   (holyshield) is on, into FUN_0057b420 on the shield with ED = **calc1**,
-  SrcDam 128; stun = **calc2** (`min(250, ln12)`, record +0x44), the
+  SrcDam 128. On that path (EDX 0) FUN_0057b420 adds the unit's stat 111
+  << 8 to both ends, lifts a minimum under 1 to 0x100 and a maximum not
+  above the minimum to minimum + 0x100 (0x57b4c3..0x57b4f4), before the
+  percents; stun = **calc2** (`min(250, ln12)`, record +0x44), the
   element; hit check FUN_0057ec10 with no bonus, then flags | 1: **always
   hits** (a block still stops it: FUN_0057dbf0 needs flags & 0x8380 clear);
   record flags 2, so FUN_0057dbf0 **skips FUN_0057b7d0** (no crit, gear
