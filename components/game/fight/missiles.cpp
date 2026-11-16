@@ -632,12 +632,11 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
         int res = target.res[std::size_t(kRes[damage.etype])];
         if (damage.etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(damage.etype)], -100);
         monster.dot_acc += double(d2d::rules::resisted(rng.range(damage.elo, damage.ehi), res)) / 256;
-        if (soft) { monster.left_mode = "hit"; monster.soft_hit = monster.soft_hit || monster.mode != "GH"; }   // event 4 tests mode 3 at the hit
+        if (soft) { monster.left_mode = "hit"; monster.struck_event = monster.struck_event || monster.mode != "GH"; }   // event 4 tests mode 3 at the hit
         const int whole = int(monster.dot_acc);
         if (whole <= 0) return;
         monster.dot_acc -= whole;
-        monster.hit_points -= whole;
-        monster.last_hp -= whole;                                       // a burn's own drop sets off no event 4
+        monster.hit_points -= whole;                                    // a burn's own drop sets off no event 4 (flag 1 alone)
         monster.aware = true;
         if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(monster_index, now_ms); }
     }

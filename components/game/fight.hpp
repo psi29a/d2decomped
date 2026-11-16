@@ -697,6 +697,8 @@ struct Fight {
     void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms);   // a pet's melee blow, and its thorns back
     // A monster with GH and KB modes knocked back away from (from_x, from_y): land's knockback, a monster foe's (Smite, MonProp knock).
     void knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms);
+    // A landed hit's event 4 on it (Monster::struck_event), after its get-hit and knockback.
+    void struck_event(Monster& target, bool knockback) const;
 
     // Poison and bleeding tick on the monsters near the player.
     void monster_dots(std::uint32_t now_ms, float elapsed);

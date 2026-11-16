@@ -58,7 +58,7 @@ int main() try {
     for (const int row : { horror_row, fallen_row }) {
         Monster dying = make_monster(*data, row, 100, 100, rng, 0);
         dying.align = 0;
-        dying.hit_points = dying.last_hp = 50;
+        dying.hit_points = 50;
         fight.monsters.push_back(std::move(dying));
     }
     fight.boss_events({}, 1000);                                   // alive: nothing

@@ -465,8 +465,16 @@ int main() try {
         Monster enchanted = std::move(struck);
         enchanted.boss = d2d::rules::Boss::unique;
         enchanted.mods = { d2d::rules::umod::lightning };
-        enchanted.last_hp = 100; enchanted.hit_points = 90;
+        enchanted.hit_points = 90;
         world.fight.monsters.push_back(enchanted);
+        // A drop in life with no hit (a poison's) raises no event 4: nothing.
+        world.fight.monsters.back().hit_points = 80;
+        world.fight.boss_events({}, 5990 * kTickMs);
+        assert(world.fight.pending.empty());
+        world.fight.monsters.back().hit_points = 90;
+        // A landed hit, even one of no damage, too small for a get-hit (FUN_0057cee0's flag 4): event 4.
+        world.fight.land(world.fight.monsters.size() - 1, d2d::rules::Blow{ .hit = true }, true, 6000 * kTickMs, -1);
+        assert(world.fight.monsters.back().struck_event && world.fight.monsters.back().mode != "GH");
         world.fight.boss_events({}, 6000 * kTickMs);
         assert(world.fight.pending.size() == 8);
         for (std::size_t k = 0; k < 8; ++k) {
@@ -496,7 +504,6 @@ int main() try {
         // A soft hit while in GH: hook 4 (FUN_005a2ba0) tests mode 3 at the hit and
         // does nothing, even when GH is over by the events; nothing is queued.
         const d2d::rules::MissileDamage flame{ .etype = 0, .elo = 1, .ehi = 1 };   // under a point: no drop
-        in_gh.last_hp = in_gh.hit_points;
         in_gh.bolts_at = 0;
         world.fight.monsters.push_back(std::move(in_gh));
         world.fight.burn(world.fight.monsters.size() - 1, flame, 8000 * kTickMs, true);

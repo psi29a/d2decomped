@@ -415,6 +415,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (const int divisor : foes[i].crushed)
                     if (!dead && struck.alive()) dead = hurt(*game_data, struck, int(crushing_blow(struck.hit_points, divisor, struck.target(*game_data).res[0])), now_ms);
                 if (!dead && was_alive && struck.alive() && foes[i].knocked_from) knock_back(struck, foes[i].knocked_from->first, foes[i].knocked_from->second, now_ms);
+                if (!dead && was_alive && !foes[i].blows.empty()) struck_event(struck, bool(foes[i].knocked_from));   // each landed blow's flag 4
                 if (dead)
                     killed(monster_index, now_ms, cursed(struck) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
             }

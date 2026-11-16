@@ -2001,7 +2001,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     auto& raised = pack[std::size_t(monster.skill_unit)];
                     if (raised.usable_corpse()) {
                         raised.no_exp = raised.no_drop = true;
-                        raised.hit_points = raised.last_hp = raised.stats.hit_points;
+                        raised.hit_points = raised.stats.hit_points;
                         raised.life_frac = raised.max_life_frac;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
@@ -2678,7 +2678,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     // any landed hit kills it, as life <= 0 after one does (0x57c8e2).
     monster.lifeless = monster.stats.hit_points <= 0;
     monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
-    monster.hit_points = monster.last_hp = monster.stats.hit_points;
+    monster.hit_points = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
     // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
     // the row draws on the seed it has yet, which no shipped row feels: 1.14d
@@ -2806,7 +2806,6 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }
     if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: FUN_00639db0(0x76) (state 118), FUN_005b0e00(0xd)
-    monster.last_hp = monster.hit_points;
     if (super >= 0 && std::size_t(super) < game_data.superuniques.size()) monster.npc.name = game_data.superuniques[std::size_t(super)].name;
     else if (kind == d2d::rules::Boss::unique) monster.npc.name = unique_name(game_data, name_seed);
     else if (kind == d2d::rules::Boss::champion) {                      // "Champion Zombie", "Ghostly Fallen" (FUN_004ac870)

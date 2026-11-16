@@ -201,11 +201,10 @@ using OpenDoor = std::function<bool(const Monster&, std::uint32_t now_ms)>;
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
     int type = -1;
-    // Its mods in the fight (uniques.hpp): life as of the last tick (a drop
+    // Its mods in the fight (uniques.hpp): event 4 since the last tick (it
     // sets off Lightning Enchanted's bolts, at most every 10 frames), when
     // its death effect is due, its mana burn per hit.
-    int last_hp = 0;
-    bool soft_hit = false;                    // a burner's soft hit out of GH since (Fight::burn): event 4 with no drop of its own
+    bool struck_event = false;                // FUN_0057cee0's event 4 out of GH: a landed hit with no get-hit (Fight::land), a burner's soft hit (Fight::burn)
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
