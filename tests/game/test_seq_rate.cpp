@@ -21,8 +21,8 @@
 #include <rules.hpp>
 #include <world.hpp>
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cctype>
 #include <cstdint>
