@@ -405,8 +405,11 @@ at the end of the hire window (`0x4b6356`), the Agree-to-trade windows
 (`FUN_004b7180`), -1 off every line, and plays sound 0 when it changes to a
 line. Enter (`FUN_004b79d0`) runs the selected line's handler (+0x170); when
 none is selected it selects the first choosable one. d2d:
-`rules::select_line` (components/rules/shop_action.hpp). Oracle:
+`NpcMenuState::selected`, `select_first`, `select_line`, `track_mouse`
+(ui.hpp), `rules::select_line`; the NPC menu, talk submenu, respec box and
+trade-refused box open with their first choosable line lit and a mouse move
+sets it, as game.exe's (d2d lit a line only under the mouse). Oracle:
 `tools/emu/shop_action.py` runs `FUN_004b82f0` for real over 826 windows (line
 counts 0..10, selectable patterns, indices -3..11, the null window);
-`test_shop_action` gives d2d the cases. Not ported (ponytail): the keys (`FUN_004b7870` / `4b78f0` up and down,
+`test_shop_action` gives d2d the cases, `test_npc_menu_select` the state. Not ported (ponytail): the keys (`FUN_004b7870` / `4b78f0` up and down,
 `FUN_004b79d0` Enter: the table at 0x7273e4) and the move's sound 0.

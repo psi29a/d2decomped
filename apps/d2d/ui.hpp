@@ -10,6 +10,7 @@
 #include <palette.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <shop_action.hpp>
 
 #include <algorithm>
 #include <array>
@@ -17,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -190,6 +192,34 @@ struct NpcMenuState {
         if (list) list->hover = moved.selected;
     }
     bool blue_hover = false;                 // menu mode 1 (FUN_004b8370): the hovered line in text colour 3, no focus16
+    // The selected line (+0x44; the one drawn lit, -1 none). A window starts at -1
+    // (FUN_004b7eb0) and each line added selectable while it is -1 takes it
+    // (FUN_004b85f0 -> FUN_004b82f0): so the first choosable line is lit as soon as
+    // the menu opens (`select_first`); a mouse move then sets it to the line under
+    // the mouse, or -1 off every line (FUN_004b7200: `track_mouse`). The hire
+    // window ends by selecting -1 (FUN_004b82f0 at 0x4b6356).
+    int selected = -1;
+    int seen_x = std::numeric_limits<int>::min(), seen_y = std::numeric_limits<int>::min();   // the mouse as last seen: only a move selects
+    // FUN_004b82f0: select line `index` (-1 none); false where game.exe halts (not a line, or a header).
+    bool select_line(int index) {
+        std::vector<bool> choosable;
+        for (const auto& line : lines) choosable.push_back(!line.header);
+        return d2d::rules::select_line(selected, choosable, index);
+    }
+    // FUN_004b85f0's rule once every line is in: the first choosable line is selected.
+    void select_first() {
+        for (std::size_t i = 0; i < lines.size(); ++i)
+            if (!lines[i].header) { selected = int(i); return; }
+        selected = -1;
+    }
+    // FUN_004b7200 on a mouse move: the line under the mouse (FUN_004b7180), -1 if none. The
+    // first sight of the mouse only records where it is.
+    void track_mouse(int mouse_x, int mouse_y, int pad_y = 0) {
+        const bool first = seen_x == std::numeric_limits<int>::min();
+        const bool moved = mouse_x != seen_x || mouse_y != seen_y;
+        seen_x = mouse_x; seen_y = mouse_y;
+        if (!first && moved) selected = line_at(mouse_x, mouse_y, pad_y);
+    }
     // Each list row's lines with text (FUN_004be340 / FUN_004bea50 count those).
     [[nodiscard]] std::vector<int> list_lines() const {
         std::vector<int> counts;
@@ -324,7 +354,7 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
 // the hovered entry gets focus16 (frame = draw count % 7) bottom-anchored
 // at (x - 24, baseline + 4) and (x + width + 2, baseline + 4).
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
-                   int mouse_x, int mouse_y, std::uint32_t now_ms);
+                   std::uint32_t now_ms);
 // The menu's pieces: the box darkened to half (draw mode 1), and focus16's
 // marks either side of a line `width` wide from x, its baseline at `base`.
 void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height);

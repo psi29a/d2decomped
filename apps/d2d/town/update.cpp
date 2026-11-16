@@ -214,6 +214,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))
                 npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         }
+        // A move over the NPC menu's lines selects the line under it, none off them (FUN_004b7200); before that
+        // the first choosable line stays lit (FUN_004b85f0, FUN_004b82f0).
+        if (npc_menu.npc >= 0) npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             bool box_took_enter = false;

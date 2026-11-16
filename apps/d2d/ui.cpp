@@ -84,6 +84,7 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
                                 : id == 0xfb1 || id == 0x58dc || id == 0x58dd ? NpcMenuState::kImbue
                                 : id == 0x1507 ? NpcMenuState::kResurrectMerc : NpcMenuState::kClose });
     menu.lines.push_back({ string_id(scene, 0x102e), 15 });
+    menu.select_first();                 // FUN_004b85f0 selects the first choosable line it adds
     layout_npc_menu(scene, menu, screen_x, screen_y);
     return menu;
 }
@@ -102,6 +103,7 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
     menu.lines.push_back({ string_id(scene, 0x2ba0), 21, 0, 0, true });
     menu.lines.push_back({ string_id(scene, 0xd49), 15, 0, 0, false, NpcMenuState::kRespecOk });
     menu.lines.push_back({ string_id(scene, 0xd48), 15 });
+    menu.select_first();                 // FUN_004b85f0 selects the first choosable line it adds
     layout_npc_menu(scene, menu, screen_x, screen_y);
     return menu;
 }
@@ -112,6 +114,7 @@ NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade r
     const auto text = std::uint16_t(result == d2d::rules::Trade::refused ? 0xd21 : result == d2d::rules::Trade::no_room ? 0xd1c : 0xd22);
     menu.lines.push_back({ string_id(scene, text), 21, 0, 0, true, NpcMenuState::kClose, -1, true });
     menu.lines.push_back({ string_id(scene, 0xd4b), 15 });
+    menu.select_first();                 // FUN_004b85f0 selects the first choosable line it adds
     layout_npc_menu(scene, menu, mouse_x, mouse_y + 150);   // at the mouse itself, not 150 up as an NPC's
     return menu;
 }
@@ -131,6 +134,7 @@ NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int
         if (!message.greet)
             menu.lines.push_back({ string_id(scene, std::uint16_t(d2d::rules::quest_name(message.string))), 15, 0, 0, false, NpcMenuState::kQuest, message.string });
     menu.lines.push_back({ string_id(scene, 0xd48), 15 });
+    menu.select_first();                 // FUN_004b85f0 selects the first choosable line it adds
     layout_npc_menu(scene, menu, screen_x, screen_y);
     return menu;
 }
@@ -240,11 +244,11 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
 }
 
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
-                   int mouse_x, int mouse_y, std::uint32_t now_ms) {
+                   std::uint32_t now_ms) {
     if (menu.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     shade_box(framebuffer, menu.x, menu.y, menu.box_width, menu.box_height);
-    const int hover = menu.line_at(mouse_x, mouse_y);
+    const int hover = menu.selected;                       // +0x44: the first line on opening, then what the mouse moved to (FUN_004b7200)
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     int base = menu.y;
     const auto& blue = scene.act_text_blue.entries().empty() ? pal : scene.act_text_blue;

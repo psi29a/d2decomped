@@ -415,7 +415,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
             }
         }
-        if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
+        if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms, hud.touch_compact);
         if (hud_stats && !hud.hidden) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
         if (belt && !hud.hidden) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
