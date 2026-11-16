@@ -235,6 +235,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         player_look.x = view.player.x; player_look.y = view.player.y;
         dress(*scene, player_look, -1, look_states, &state_clock);
         flash(*scene, player_look, view.flash_overlay, view.flash_at);
+        if (net_game)   // our own overhead text: the host sends it on our unit like another player's
+            if (const auto own = net_said.find(net_game->self_id); own != net_said.end()) { player_look.says = own->second.string; player_look.said = own->second.text; }
         // A state gone plays its offsound once, where it was; one leaving the
         // view with its unit (the in_view box, 14 cells) hasn't ended.
         for (auto& [key, seen] : state_clock.seen)
