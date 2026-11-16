@@ -993,8 +993,11 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     // other pairs (a player or a hireling or pet on a player 17, hireling on
     // hireling 25) don't come up here. The table's +0x20 flag is set on the
     // poison damage row (8, +0x28) but not the poison length's (7, +0x2c).
-    // ponytail: a hireling on a MonStats boss takes the hit context's +0x38
-    // (untraced).
+    // A hireling on a MonStats boss takes the difficulty's DifficultyLevels
+    // row +0x38, HireableBossDamagePercent (the context's +4: FUN_00611d30,
+    // 0x57c206); here the attacker is always a monster, never a hireling.
+    // ponytail: the merc's own blows on a MonStats boss (fight/merc.cpp)
+    // don't take HireableBossDamagePercent; GameData doesn't load it.
     const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
     const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
     taken.raw = pair_scaled(taken.raw);
