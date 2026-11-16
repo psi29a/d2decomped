@@ -918,9 +918,6 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     stats.unblockable = !(phys.low > 0 && phys.high > 0);            // FUN_005ad730: can-block is the record's physical (+8) != 0
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
-    // ponytail: a boss's enchants ride its A1 / A2 shots and not a cast or S1 one, as d2d had them;
-    // how a missile reads its owner's stats 0x30..0x38 isn't traced.
-    if (cast || s1_shot) stats.enchants = {};
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
     // The owner's poison (game.exe, V read: FUN_0064b860 / FUN_0064a930 / FUN_0064aa60; V run: the
     // re-verifier's vm_game2 oracle, goospit1 with owner poison 40 / 40 / 300, whole OP set): added
@@ -938,6 +935,16 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
         stats.poison_min = int(std::int64_t(stats.poison_min) * src_damage / 128);
         stats.poison_max = int(std::int64_t(stats.poison_max) * src_damage / 128);
     }
+    // A boss's enchants are its own stats 0x30..0x38 (fire / lightning / cold min, max, the
+    // cold's length): FUN_0064a930 adds the owner's to the record in 256ths (EBX 8 at
+    // 0x64becf) only when SrcDamage isn't 0, then FUN_0064aa60 scales the record by
+    // SrcDamage / 128, the length too; so an A1, A2 or S1 shot alike. Kept in whole points.
+    // ponytail: a cast takes its skill's SrcDam there (FUN_0064b860's other branch,
+    // skill +0x1a5); d2d drops them, as monster_shot_phys drops the owner's physical.
+    if (cast || src_damage == 0) stats.enchants = {};
+    for (auto& enchant : stats.enchants)
+        if (enchant) *enchant = { enchant->first * src_damage / 128, enchant->second * src_damage / 128 };
+    stats.enchant_len = stats.enchant_len * src_damage / 128;
     if (!row_poison && row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
         if (const auto free_slot = std::ranges::find_if(stats.elements, [](const auto& element) { return element.type < 0 || element.mode.empty(); }); free_slot != stats.elements.end())
             *free_slot = { row.etype, 100, row.elo >> 8, row.ehi >> 8, row.elen, "A2" };
