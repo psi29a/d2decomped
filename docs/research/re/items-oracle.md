@@ -174,10 +174,11 @@ The readings cited in `drops.md`, `combat.md`, `item-names.md`, `items.md`,
 ### Sharpened
 
 - FUN_00558610 takes x in ECX, k in EDX and a second k on the stack (`ret
-  4`). It returns `(x - 100) * stack / (x - 100 + EDX) + 100`, with a
-  32-bit `imul` and an `idiv` rounding toward zero. Its one caller,
+  4`). For signed x at most 110 (`jg 0x6e` not taken) it returns x
+  unchanged; otherwise `(x - 100) * stack / (x - 100 + EDX) + 100`, with
+  a 32-bit `imul` and an `idiv` rounding toward zero. Its one caller,
   FUN_00558640, passes the same k in both (0x558746, 0x5587bf, 0x558847),
-  so drops.md's formula holds. x is compared signed (`jg 0x6e`).
+  so drops.md's formula holds.
 - FUN_0062a5d0 / FUN_0062a620: ×1.5 is `v + (v sar 1)` (arithmetic shift,
   so it rounds down for negatives too), ×2 is `lea`. Both wrap at 32 bits.
   A player of class above 6 (unsigned) gets v unchanged.
