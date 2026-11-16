@@ -1045,7 +1045,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                         if (store.mode == 2) send(cmd::Sell{ item.id });
-                        else send(cmd::Repair{ item.id });
+                        else if (d2d::rules::repair_click_gate(scene->rules, item)) send(cmd::Repair{ item.id });   // FUN_004b1f80: nothing is asked for an item that wants no repair
                         break;
                     }
                 }

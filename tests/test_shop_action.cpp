@@ -55,6 +55,25 @@ int main() try {
         assert(done == (row.set != 0));
         assert(selected == (done ? row.value : 99));
     }
+    // An unidentified stack short of its max: Repair All's test (rules::needs_repair) counts it, FUN_004b1f80's
+    // refuses it at FUN_0062e660 (identified is required first), so the repair click asks nothing.
+    Tables tables;
+    tables.types["tkf"].repair = true;
+    tables.types["tkf"].throwable = true;
+    tables.item_info["tkn"] = { .type = "tkf", .kind = 2 };
+    tables.item_base["tkn"].stackable = true;
+    tables.item_base["tkn"].max_stack = 60;
+    tables.item_base["tkn"].durability = 0;
+    d2d::d2s::Item knives;
+    knives.code = "tkn";
+    knives.quantity = 20;
+    knives.identified = false;
+    assert(needs_repair(tables, knives));
+    assert(!repair_click_gate(tables, knives));
+    knives.identified = true;
+    assert(repair_click_gate(tables, knives));
+    knives.quantity = 60;
+    assert(!repair_click_gate(tables, knives));
     // The old d2d bought with something on the cursor; game.exe's client never asks.
     ShopClick buy;
     buy.npc_class = 0x94; buy.hand = true;
