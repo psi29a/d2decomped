@@ -641,7 +641,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 12 && packet[1] == 5) {                   // +3 unit type, +4 id (FUN_0049f410)
             const auto* text = reinterpret_cast<const char*>(packet.data());
             const std::size_t message_at = 10 + strnlen(text + 10, size - 10) + 1;
-            if (message_at <= size) overheads.push_back({ packet[3], read_u32(packet, 4), std::string(text + message_at, strnlen(text + message_at, size - message_at)) });
+            if (message_at <= size) overheads.push_back({ packet[3], read_u32(packet, 4), std::string(text + message_at, strnlen(text + message_at, size - message_at)), packet[2] });
         }
         if (size >= 12 && (packet[1] == 1 || packet[1] == 2)) {
             const auto* text = reinterpret_cast<const char*>(packet.data());

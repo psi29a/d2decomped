@@ -266,12 +266,12 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const auto& unit : units) {
-            if (!unit.says) continue;
+            if (!unit.says && unit.said.empty()) continue;
             const bool player = unit.npc == -1 || unit.npc <= -4000;
             const int point_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
             const int point_y = kFloorViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);
             if (point_y <= 0 || point_y >= int(kScreenHeight) || point_x <= -100 || point_x >= world_w + 100) continue;
-            const auto lines = d2d::font::wrap_edit_box(string_id(scene, unit.says).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
+            const auto lines = d2d::font::wrap_edit_box((unit.says ? string_id(scene, unit.says) : unit.said).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
                 if (const auto* glyph = chat_font.find(code)) return int(glyph->width);
                 return 0;
             });
