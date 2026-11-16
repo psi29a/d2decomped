@@ -57,7 +57,7 @@ int main() try {
     for (int i = 0; i < 3; ++i) {
         Monster dying = make_monster(*data, fallen_row, float(100 + i * 3), 100, rng, 0);
         dying.align = 0;
-        dying.hit_points = dying.last_hp = 50;
+        dying.hit_points = 50;
         dying.hit_class = 0x32;                                    // a cold blade's blow
         fight.monsters.push_back(std::move(dying));
     }

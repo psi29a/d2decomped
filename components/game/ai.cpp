@@ -79,9 +79,13 @@ std::vector<std::pair<float, float>> monster_walk(const Level& level, const Unit
     return points;
 }
 
-// FUN_00648eb0: a door's 0x800 (BlocksVis) under the unit's test shape
-// (FUN_0064d9b0) — what an opendoors monster (mask 0x3401) walks onto.
-bool on_door(const Level& level, const UnitState& unit) {
+// FUN_00648eb0: a door's 0x800 (BlocksVis). With the path's velocity
+// (+0x7c) 0 the word under the unit's test shape now (FUN_0064d9b0); else
+// +0x54 as its steps left it (UnitState::path_word). A monster's velocity is
+// its MonStats Velocity (+0x32 << 8, FUN_005735a0) from the start, and only
+// moving modes change it (FUN_00623f50), so one that walks reads +0x54.
+bool on_door(const Level& level, const UnitState& unit, bool moving) {
+    if (moving) return (unit.path_word & 0x0800) != 0;
     UnitShape door_test = unit.shape;
     door_test.mask = 0x0800;
     return level.unit_blocked(unit.x, unit.y, door_test);
@@ -91,7 +95,10 @@ bool on_door(const Level& level, const UnitState& unit) {
 // `velocity` (path +0x7c): rules::walk_frame (FUN_00650840) on the unit's 16.16
 // position, a new subtile tested as the pathers test it (FUN_0064ff90 ->
 // FUN_0064eda0: the walls and the others' stamps under its mask, its own
-// off). False when the walk is over, the unit on a subtile's centre and
+// off; a mask of 0x3401, an opendoors monster's, tests as 0x3c01, so a door
+// stops it). Each new subtile's door bit 0x800 under that shape is or'ed into
+// path +0x54 (UnitState::path_word), which a path's making zeroes
+// (FUN_00649970). False when the walk is over, the unit on a subtile's centre and
 // `point` past the last; `hit` when blocked. Its facing aims at the next
 // point not under it (FUN_0064fe40 -> FUN_006485f0: rules::aim_direction),
 // as the path is made and after each step, and turns a step a frame toward
@@ -118,8 +125,14 @@ bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<i
             }
     };
     aim();
-    const bool going = d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity,
-        [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); }, hit);
+    UnitShape step_test = unit.shape;                                  // FUN_0064ff90: 0x3401 -> 0x3c01
+    if (step_test.mask == 0x3401) step_test.mask = 0x3c01;
+    UnitShape door_test = unit.shape;
+    door_test.mask = 0x0800;
+    const bool going = d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity, [&](int at_x, int at_y) {
+        if ((step_test.mask & 0x0800) && level.unit_blocked(centre(at_x), centre(at_y), door_test)) unit.path_word |= 0x0800;
+        return level.unit_blocked(centre(at_x), centre(at_y), step_test) || crowd.at(centre(at_x), centre(at_y), &unit);
+    }, hit);
     if (going) aim();
     facing.turn();
     if (!going) facing.now = facing.goal;
@@ -134,6 +147,7 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
     unit.budget = 0x14;
     unit.path = monster_walk(level, unit, crowd);
     unit.path_points = int(unit.path.size());
+    unit.path_word = 0;
     return !unit.path.empty();
 }
 
@@ -149,6 +163,7 @@ bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& cro
             unit.goal_x = target->x; unit.goal_y = target->y;
             unit.path = monster_walk(level, unit, crowd);
             unit.path_points = int(unit.path.size());
+            unit.path_word = 0;
         }
     }
     return follow_path(level, unit, velocity, crowd);
@@ -390,13 +405,11 @@ std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crow
     });
 }
 
-namespace {
-
 // A move's path to subtile (to_x, to_y) (FUN_00649970) by its path type:
 // rules::monster_path, the toward pather then the wall pather (FUN_00650350,
-// FUN_005a6290); type 7 rules::player_path at its own 5 steps, then the
-// wall pather (type 0xf from then on). Leading points on its own subtile
-// are dropped (FUN_0064fe40).
+// FUN_005a6290); type 7 rules::player_path, then the wall pather (type 0xf
+// from then on); each at the path's steps (+0x91, Monster::path_steps).
+// Leading points on its own subtile are dropped (FUN_0064fe40).
 // FUN_006483a0 refuses a monster that isn't npc / inTown / a pet a path
 // whose end room is in town; a thinking monster here is never in a town
 // level, and its path stays in its level, so none is refused.
@@ -410,22 +423,25 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
     monster.step = 0;
     monster.end_x = to_x; monster.end_y = to_y;
+    unit.path_word = 0;                                         // FUN_00649970 zeroes +0x54
     const int x = subtile(unit.x), y = subtile(unit.y);
     const auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); };
     if (monster.path_type == 0) {
-        monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked);
+        monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked, monster.path_steps);
         return !monster.steps.empty();
     }
     if (monster.path_type == 7) {
         const bool end_free = at_foe || !blocked(to_x, to_y) || d2d::rules::end_walk_back(x, y, to_x, to_y, false, blocked);
-        if (end_free) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, 5);
+        if (end_free) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, monster.path_steps);
         else monster.steps.clear();
     }
     if (monster.path_type == 7 && monster.steps.empty()) monster.path_type = 0xf;
-    if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, 5, at_foe, blocked);
+    if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, monster.path_steps, at_foe, blocked);
     monster.steps.erase(monster.steps.begin(), std::ranges::find_if(monster.steps, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); }));
     return !monster.steps.empty();
 }
+
+namespace {
 
 // A move's frame (FUN_00650840): a chase checks its foe first
 // (rules::chase_check: stop at it, re-path when it's moved), then the unit
@@ -805,9 +821,11 @@ auto ThinkCtx::idle(int frames) -> void {                           // FUN_005de
 // A move sets off (FUN_005a7c20) with a re-path budget of 0x14
 // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal (at a
 // unit there: `to_unit`); one with no path can't start, and a spot move
-// then thinks aidel on (FUN_005a73e0).
-auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit) -> bool {
+// then thinks aidel on (FUN_005a73e0). Its path's steps are `path_steps`
+// (FUN_005a6290 -> FUN_00648e70: a walk's 5).
+auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit, int path_steps) -> bool {
     monster.budget = 0x14;
+    monster.path_steps = path_steps;
     monster.path_type = std::exchange(monster.next_path_type, 0);
     monster.wandering = !foe;
     if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe || to_unit, crowd)) {
@@ -915,9 +933,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     monster.thought_ms = now_ms;
     // The driver's first step (FUN_005b10e0 → FUN_005b0f50): with opendoors
     // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
-    // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
-    // ponytail: the word read now, not a moving path's cached +0x54.
-    if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    // (FUN_00648eb0: what its last path's steps met, on_door), its door
+    // (OpenDoor) operated, it stands 5.
+    if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
     x = subtile(unit.x); y = subtile(unit.y);
     const auto searched = search_target(game_data, level, monster, foes, seen);
     target = searched.target; best = searched.best; nearest = searched.nearest;
@@ -1354,10 +1372,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // seq_swarmmove (Swarm Move, 166), no think casts: the Swarm's
             // (FUN_005f2460) has no skill, so that one stands.
             // Its run keeps the unit's path type: 0x14 is the path's step cap
-            // (FUN_00648e70: +0x90 / +0x91, at most 77), after +0x14 / +0x16 are
-            // cleared (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
+            // (FUN_00648e70: +0x90 / +0x91, at most 77; Monster::path_steps, its
+            // chase's re-paths too), after +0x14 / +0x16 are cleared
+            // (FUN_00649050). State 0x12 (skill_move, FUN_00639db0) only the
             // client tests (FUN_004c7890); FUN_00571b70 clears it.
-            // ponytail: the run is path_to's chase, not capped at 20 steps.
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
@@ -1374,7 +1392,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
                     if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); monster.skill_sound = id; return true; }
-                    if (ctx.set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
+                    if (ctx.set_off(true, target, false, 0x14)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
                 }
                 ctx.idle(0);
                 return true;
@@ -2001,7 +2019,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     auto& raised = pack[std::size_t(monster.skill_unit)];
                     if (raised.usable_corpse()) {
                         raised.no_exp = raised.no_drop = true;
-                        raised.hit_points = raised.last_hp = raised.stats.hit_points;
+                        raised.hit_points = raised.stats.hit_points;
                         raised.life_frac = raised.max_life_frac;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
@@ -2497,7 +2515,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
                 const int thorns = foe.fighter.thorns + d2d::rules::resisted(foe.fighter.thorns_light, res[3]) + taken.damage * foe.fighter.thorns_pct / 100
                                  + taken.damage * monster.reflect_pct / 100;  // Iron Maiden
-                if (taken.hit && thorns > 0 && hurt(game_data, monster, thorns, now_ms)) return true;
+                if (taken.hit && thorns > 0) {
+                    // Thorns' record carries 0x4021 (FUN_005bf670): FUN_0057cee0 raises event 4
+                    // (FUN_005a43a0) for 0x4000, and hook 4 tests the mode it was struck in.
+                    const bool out_of_gh = monster.mode != "GH";
+                    if (hurt(game_data, monster, thorns, now_ms)) return true;
+                    if (out_of_gh) monster.struck_event = true;
+                }
             }
         }
         if (monster.leaping) {                                          // Leap's flight (do 77, FUN_005d9f70): along the sequence to its landing
@@ -2549,7 +2573,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // monster comes here: see monster_update.)
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
-        if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
+        if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
             if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
             monster.next_act = now_ms + 5 * 40;
             return false;
@@ -2583,6 +2607,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (monster.mode != "WL") {                                // sets off at a think (FUN_005a7c20), else aidel on
             if (now_ms < monster.next_act) return false;
             monster.budget = 0x14;
+            monster.path_steps = 5;                                 // FUN_005a6290's walk
             if (!path_to(level, monster, subtile(foe.x), subtile(foe.y), true, crowd)) {
                 monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
                 if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
@@ -2678,7 +2703,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     // any landed hit kills it, as life <= 0 after one does (0x57c8e2).
     monster.lifeless = monster.stats.hit_points <= 0;
     monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
-    monster.hit_points = monster.last_hp = monster.stats.hit_points;
+    monster.hit_points = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
     // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
     // the row draws on the seed it has yet, which no shipped row feels: 1.14d
@@ -2806,7 +2831,6 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }
     if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: FUN_00639db0(0x76) (state 118), FUN_005b0e00(0xd)
-    monster.last_hp = monster.hit_points;
     if (super >= 0 && std::size_t(super) < game_data.superuniques.size()) monster.npc.name = game_data.superuniques[std::size_t(super)].name;
     else if (kind == d2d::rules::Boss::unique) monster.npc.name = unique_name(game_data, name_seed);
     else if (kind == d2d::rules::Boss::champion) {                      // "Champion Zombie", "Ghostly Fallen" (FUN_004ac870)

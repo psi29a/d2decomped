@@ -80,6 +80,7 @@ struct UnitState {
     float goal_x = 0, goal_y = 0;     // where the route was planned to
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made
+    std::uint16_t path_word = 0;      // path +0x54: the door bit (0x800) its steps met since its path was made (path_frame)
     bool to_unit = false;             // walking up to a unit (near 1, the wall pather's 0x28 steps)
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
     bool alert = false;               // has something new to say on a quest: the balloon over its head
@@ -201,11 +202,10 @@ using OpenDoor = std::function<bool(const Monster&, std::uint32_t now_ms)>;
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
     int type = -1;
-    // Its mods in the fight (uniques.hpp): life as of the last tick (a drop
+    // Its mods in the fight (uniques.hpp): event 4 since the last tick (it
     // sets off Lightning Enchanted's bolts, at most every 10 frames), when
     // its death effect is due, its mana burn per hit.
-    int last_hp = 0;
-    bool soft_hit = false;                    // a burner's soft hit out of GH since (Fight::burn): event 4 with no drop of its own
+    bool struck_event = false;                // FUN_0057cee0's event 4 out of GH: a landed hit with no get-hit (Fight::land), a burner's soft hit (Fight::burn)
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
@@ -312,6 +312,10 @@ struct Monster {
     // FUN_005a63f0 takes and clears it as the move starts); a type 7 path
     // found empty goes 0xf, the wall pather (FUN_005a6290).
     int path_type = 0, next_path_type = 0;
+    // Its path's steps (+0x91, FUN_00648e70, at most 0x4d): every pather's
+    // `steps`, a re-path's too. A walk's start sets 5 (FUN_005a63f0 ->
+    // FUN_005a6290); a charge's run 0x14 (FUN_005cf6b0). Other moves keep it.
+    int path_steps = 5;
     int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Unit flags a skill's young carry (+0xc4): 0x4000000 no experience for
@@ -1246,6 +1250,9 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 }
 
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1, int level_id = -1);
+// A monster move's path to subtile (to_x, to_y) (FUN_00649970) by its
+// path type and Monster::path_steps, into Monster::steps (ai.cpp).
+bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd);
 // The players among the foes (not a pet, not a monster): the game's.
 [[nodiscard]] int players_in(std::span<const Foe> foes);
 

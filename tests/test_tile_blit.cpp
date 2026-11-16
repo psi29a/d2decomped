@@ -258,6 +258,8 @@ std::vector<std::uint8_t> make_framebuffer(Random& random, int width) {
 }  // namespace
 
 int main(int argc, char** argv) try {
+    // FUN_004dd180's tile +0x24 bit 0: set by a fade to 0x80, cleared by one back to 0xff, whatever the alpha now.
+    static_assert(wall_in_front(0x80) && !wall_in_front(0xff));
     Random random{ 12345 };
     const auto pals = make_palettes(random);
     int cases = 0;

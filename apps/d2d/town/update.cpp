@@ -756,8 +756,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // (4), the inventory's to deposit (3) with the stash open, else to drop (1).
         const bool trading = net_game && net_game->trade.state != 0;
         if (!gold_box && !trading && store.npc < 0 && mouse.press_this_frame
-            && ((stash_open && stash_coin_at(mouse.x, mouse.y)) || (inv_open && inventory_coin_at(mouse.x, mouse.y)))) {
-            gold_box = GoldBox{ .mode = stash_open ? (stash_coin_at(mouse.x, mouse.y) ? 4 : 3) : 1 };
+            && ((stash_open && stash_coin_at(mouse.x, mouse.y, character.expansion)) || (inv_open && inventory_coin_at(mouse.x, mouse.y)))) {
+            gold_box = GoldBox{ .mode = stash_open ? (stash_coin_at(mouse.x, mouse.y, character.expansion) ? 4 : 3) : 1 };
             audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
             mouse.press_this_frame = false;
         }

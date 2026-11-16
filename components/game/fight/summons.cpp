@@ -195,12 +195,12 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // (Raven, Summon Spirit Wolf / Fenris / Grizzly), and they are the
         // summoned rows with no A1 damage (all three difficulties) whose skill
         // has MaxDam (bladecreeper, Blade Sentinel's, isn't summoned here):
-        // that test picks the same rows.
-        // ponytail: the level is the cast's, not the owner's at each swing.
+        // that test picks the same rows. Here at the cast's level; each frame
+        // after, pet_skill_damage moves it to the owner's level then.
         int summon_skill_to_hit = 0;
         if (monster.stats.a1_max == 0 && skill.maxdam > 0) {
-            const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
-            const int low = damage.phys_lo >> 8, high = std::max(damage.phys_hi >> 8, low);
+            const int low = d2d::rules::skill_phys(game_data->skills, skill, env, lvl, false) >> 8;
+            const int high = std::max(d2d::rules::skill_phys(game_data->skills, skill, env, lvl, true) >> 8, low);
             const std::array<std::pair<int*, int*>, 3> modes{ { { &monster.stats.a1_min, &monster.stats.a1_max }, { &monster.stats.a2_min, &monster.stats.a2_max },
                                                                  { &monster.stats.s1_min, &monster.stats.s1_max } } };
             for (const auto& [mode_min, mode_max] : modes) {
@@ -208,6 +208,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 *mode_max += high;
             }
             summon_skill_to_hit = d2d::rules::skill_tohit(game_data->skills, skill, env, lvl);
+            pet.skill_damage = true;
+            pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = summon_skill_to_hit;
         }
         monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kDecoy ? clvl : plvl;
         if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
@@ -262,8 +264,14 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         monster.stats.hit_points += stat(kMaxLife) >> 8;                                               // maxhp, 256ths
         monster.stats.hit_points += int(std::int64_t(monster.stats.hit_points) * calc(skill, skill.calc[0], lvl) / 100);
         monster.hit_points = monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
-        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) { *damage += stat(kNormalDamage); *damage += *damage * stat(kDamagePercent) / 100; }   // item_normaldamage, damagepercent
-        monster.stats.to_hit += stat(kToHit); monster.stats.to_hit += monster.stats.to_hit * stat(kToHitPercent) / 100;              // tohit, item_tohit_percent
+        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) *damage += stat(kNormalDamage);                          // item_normaldamage
+        pet.a1_unscaled = { monster.stats.a1_min, monster.stats.a1_max };
+        pet.damage_pct = stat(kDamagePercent);
+        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) *damage += *damage * pet.damage_pct / 100;              // damagepercent
+        monster.stats.to_hit += stat(kToHit);                                                                                       // tohit
+        pet.to_hit_unscaled = monster.stats.to_hit;
+        pet.to_hit_pct = stat(kToHitPercent);
+        monster.stats.to_hit += monster.stats.to_hit * pet.to_hit_pct / 100;                                                        // item_tohit_percent
         monster.stats.armor_class += stat(kArmorClass); monster.stats.armor_class += monster.stats.armor_class * (stat(kArmorPercent) + stat(kSkillArmorPercent)) / 100;   // armorclass, item / skill_armor_percent
         const auto& base_res = type_info.diff[std::size_t(monster.difficulty)].res;
         pet.res = { base_res[2] + stat(kFireResist), base_res[3] + stat(kLightningResist), base_res[4] + stat(kColdResist), base_res[5] + stat(kPoisonResist) };

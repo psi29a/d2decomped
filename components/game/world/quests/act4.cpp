@@ -74,6 +74,11 @@ auto World::act4_join() -> void {
         izual = {};
         izual.join(quests());
         hellforge = {};
+        // A save's corpse loads before the joins (0x53458b): its hammer's event 4
+        // reaches the new record first (World::item_event).
+        for (const auto& corpse : actor->corpses)
+            for (const auto& item : corpse.items)
+                if (item.code == d2d::rules::HellforgeQuest::kHammer) item_event(item.code, now, true);
         if (!actor->character.fresh) hellforge.join(quests(), carries(d2d::rules::HellforgeQuest::kStone));   // fresh: no +0xd4
         terror = {};
         terror.join(quests(), actor->character.header.expansion());
@@ -85,7 +90,6 @@ auto World::act4_join() -> void {
         forge_inited = false;
         seal_bosses.clear();
         fortress_warp_done = end_movie = game_closed = false;
-        actor->had_hammer = carries(d2d::rules::HellforgeQuest::kHammer);
         act4_chain();
     }
 
@@ -346,14 +350,6 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             diablo_dead_at = 0;
             game_closed = true;
             d2d::log::info("Terror's End: the game closes");
-        }
-        // The Hellforge Hammer picked up (LAB_005b5a90, its bound item's event 4): the Hellforge open.
-        // The soulstone's own record (a4q1, 0x16) has no item event (FUN_005b42b0 leaves +0xb0
-        // null, FUN_005439a0 skips it): its pickup does nothing.
-        // ponytail: polled from what's carried, not the item event.
-        if (const bool hammer = carries(d2d::rules::HellforgeQuest::kHammer); hammer != actor->had_hammer) {
-            if (hammer) hellforge.hammer_picked(quests());
-            actor->had_hammer = hammer;
         }
     }
 

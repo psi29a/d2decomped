@@ -191,7 +191,12 @@ StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
 0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's
 S->C 0x89 event 1 starts it the same way (0x46aee0: the client player's room,
 that test, then `FUN_0046ae50(Param1, Range - 2 x Param1, Param1, 4, 1)`;
-`Town`'s net step). A joined game's state 153 (0xa8 / 0xaa) doesn't start one.
+`Town`'s net step). A joined game's state 153 starts one too: S->C 0xa8 and
+0xaa run each state's setfunc as it's read (`FUN_004d9e60`), and
+`FUN_004d87e0` takes the state's stat list's skill (0x15e) and level
+(0x15f), none for a skill past Skills.txt, its auralencalc at that level
+(`FUN_00646ca0`) and the level of the unit's room (`FUN_0061a1b0`)
+(`rules::state_cloak_dip`, `NetGame::cloak_casts`; `test_ambient_dip`).
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under

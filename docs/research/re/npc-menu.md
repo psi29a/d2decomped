@@ -360,7 +360,10 @@ Repair that restocks or has durability), wants none; else yes if it has
 durability (`FUN_00629930`), a max (`FUN_00625e00`) and stat 0x48 is
 **below** it (signed), or it is stackable (`FUN_006289f0`, Items.txt +0x132)
 with stat 0x46 below `FUN_006295b0`, or `FUN_0062a840` finds a missing charge
-and its second answer is 0. Repair All's `FUN_0062fe60` is not the same test:
+and its second answer is 0. `FUN_0062a840` reads up to 0x40 of the item's stat
+0xcc entries (`FUN_006261d0`) and answers whether there are any; its second
+answer starts 1 and goes 0 at the first whose charges left (the low byte) are
+below its most (the value >> 8). Repair All's `FUN_0062fe60` is not the same test:
 it counts durability `!=` max and restocks only a throwable stack
 (`FUN_0062e5d0`).
 
@@ -380,8 +383,7 @@ Not traced, not claimed: what the confirm box (`FUN_004b2f50`, 714 bytes:
 text 0xbf cut at a newline, a number from `FUN_004b2ad0`, handlers
 `0x4b2e70` / `0x4b2f00`) and `FUN_004b2650`'s packet fields do beyond what
 store.md has; `FUN_0062fdc0` / `FUN_0062fe60` prices are hooked (their
-formulas are store.md's, oracle `price_oracle.py`); `FUN_0062a840`'s second
-answer (d2d treats a missing charge as both answers 0); d2d has no confirm
+formulas are store.md's, oracle `price_oracle.py`); d2d has no confirm
 box (a left click on a stock item with Buy toggled on, or on an item with Sell
 or Repair on, sends at once where `0x49032e` etc. pass direct 0 and open the
 box), no 500 ms gate, and no Cain item mode 4.

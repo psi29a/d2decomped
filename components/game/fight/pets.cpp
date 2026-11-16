@@ -235,6 +235,28 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
     }
 
+auto Fight::pet_skill_damage(Pet& pet) -> void {
+        const auto* skill = pet.skill_damage && skill_level ? game_data->skills.get(pet.skill) : nullptr;
+        if (!skill) return;
+        const int lvl = skill_level(skill->id);
+        const auto env = calc_env();
+        const int low = d2d::rules::skill_phys(game_data->skills, *skill, env, lvl, false) >> 8;
+        const int high = std::max(d2d::rules::skill_phys(game_data->skills, *skill, env, lvl, true) >> 8, low);
+        const int to_hit = d2d::rules::skill_tohit(game_data->skills, *skill, env, lvl);
+        const int more_low = low - pet.skill_low, more_high = high - pet.skill_high, more_to_hit = to_hit - pet.skill_to_hit;
+        if (more_low == 0 && more_high == 0 && more_to_hit == 0) return;
+        auto& stats = pet.monster.stats;
+        pet.a1_unscaled[0] += more_low; pet.a1_unscaled[1] += more_high;
+        stats.a1_min = pet.a1_unscaled[0] + pet.a1_unscaled[0] * pet.damage_pct / 100;
+        stats.a1_max = pet.a1_unscaled[1] + pet.a1_unscaled[1] * pet.damage_pct / 100;
+        stats.a2_min += more_low; stats.a2_max += more_high;
+        stats.s1_min += more_low; stats.s1_max += more_high;
+        pet.to_hit_unscaled += more_to_hit;
+        stats.to_hit = pet.to_hit_unscaled + pet.to_hit_unscaled * pet.to_hit_pct / 100;
+        stats.to_hit2 += more_to_hit; stats.to_hit_s1 += more_to_hit;
+        pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = to_hit;
+    }
+
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
@@ -248,6 +270,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (curse_spent) pet.curse = {};
             if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0 || curse_spent) pet_buffs(pet);
             if (!monster.alive() || pet.where != level) continue;
+            pet_skill_damage(pet);                                          // its swings at the owner's level now
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
                     pet.blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, buff.level), 1)) * 40;

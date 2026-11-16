@@ -53,8 +53,12 @@ auto World::act3_join() -> void {
         blade.join(quests(), carries(d2d::rules::BladeQuest::kGidbinn));
         actor->had_gidbinn = carries(d2d::rules::BladeQuest::kGidbinn); gidbinn_in = 0; gidbinn_due = false; gidbinn_altar = -1; gidbinn_level = nullptr;
         golden_bird = {};
+        // A save's corpse loads before the joins (0x53458b): its figurine or bird's
+        // event 4 reaches the new record first (World::item_event).
+        for (const auto& corpse : actor->corpses)
+            for (const auto& item : corpse.items)
+                if (item.code == d2d::rules::GoldenBirdQuest::kFigurine || item.code == d2d::rules::GoldenBirdQuest::kBird) item_event(item.code, now, true);
         golden_bird.join(quests(), carries(d2d::rules::GoldenBirdQuest::kBird), carries(d2d::rules::GoldenBirdQuest::kFigurine));
-        actor->had_figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine); actor->had_bird = carries(d2d::rules::GoldenBirdQuest::kBird);
     }
 
 auto World::act3_enter(const Level& from) -> void {
@@ -101,7 +105,7 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         using Bird = d2d::rules::GoldenBirdQuest;
         const auto bird = golden_bird.said(quests(), game_bits, hc_idx, message_string, carries(Bird::kFigurine), carries(Bird::kBird), actor->id);
         if (bird.takes_figurine) take_carried(Bird::kFigurine);
-        if (bird.gives_bird) { give_item(Bird::kBird, now); actor->had_bird = true; d2d::log::info("The Golden Bird: Meshif's golden bird"); }
+        if (bird.gives_bird) { give_item(Bird::kBird, now); d2d::log::info("The Golden Bird: Meshif's golden bird"); }
         if (bird.takes_bird) take_carried(Bird::kBird);
         if (bird.gives_potion) { give_item(Bird::kPotion, now); d2d::log::info("The Golden Bird: Alkor's Potion of Life"); }
         // Khalim's Will (FUN_005b8060): Cain's bits; the Blackened Temple
@@ -209,15 +213,6 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
         if (std::exchange(guardian.news, false) && d2d::rules::GuardianQuest::told(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
         mephisto_bridge(now_ms);
-        // The Golden Bird's items picked up (FUN_005ba6a0, event 4 on g34 / j34, bound to
-        // a3q4): the same transitions, polled from what's carried.
-        // ponytail: a stash or Cube move into the inventory raises event 4 in game.exe;
-        // carries() counts those already, so it doesn't fire here.
-        if (const bool figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine), bird = carries(d2d::rules::GoldenBirdQuest::kBird); !hosted_quests) {
-            if (figurine && !actor->had_figurine && golden_bird.picked_up(quests(), false)) class_cue("act3_find_jade", now_ms);   // unit event 0x48
-            if (bird && !actor->had_bird) golden_bird.picked_up(quests(), true);
-            actor->had_figurine = figurine; actor->had_bird = bird;
-        }
         // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
         // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0).

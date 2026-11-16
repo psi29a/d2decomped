@@ -554,7 +554,33 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // then plays GH (FUN_005a8520; a Sand Leaper thinks 15 frames on, 45
         // stunned): monster_update.
         if (blow.knockback) knock_back(target, actor->player.x, actor->player.y, now_ms);
+        struck_event(target, blow.knockback);
         return true;
+    }
+
+// FUN_0057cee0's monster branch past a block: flag 8 on a monster with KB
+// (FUN_0046c140; else the flag becomes 4) puts it in KB and returns; flag 4
+// tests the get-hit (FUN_0057cb00, or state 0x15) and sets mode 3 when it
+// takes, then raises event 4 (FUN_005a43a0) either way. The mods' hook 4
+// (FUN_005a2ba0) tests mode 3, so only a landed hit with no get-hit, out
+// of one, sets off Lightning Enchanted's bolts.
+auto Fight::struck_event(Monster& target, bool knockback) const -> void {
+        if (!target.alive() || target.mode == "GH") return;
+        if (const auto* type_info = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
+            knockback && type_info && type_info->can_get_hit && type_info->can_knock_back) return;
+        target.struck_event = true;
+    }
+
+// Each record raises its own event 4 (FUN_0057cee0 runs once a record), so a
+// blow out of GH keeps its event though a later one in the tick puts it in GH.
+// The knockback is the tick's: d2d keeps none per blow.
+auto Fight::take_blows(Monster& struck, const Foe& foe, std::uint32_t now_ms) -> bool {
+        for (const auto& blow : foe.blows) {
+            const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
+            if (hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked)) return true;
+            struck_event(struck, bool(foe.knocked_from));
+        }
+        return false;
     }
 
 auto Fight::knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms) -> void {
