@@ -171,7 +171,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // FUN_006538a0) and the per-mode damage (FUN_005a4f50) take as
         // written, and Align 1 (row +0x4c) skips the players' life bonus
         // (FUN_00573930).
-        // ponytail: the life roll takes d2d's rng, not the pet's unit seed (+0x20).
+        // The life roll is min + rand(max - min + 1) on the pet's unit seed
+        // (+0x20, 0x573f83..0x573f8f), here rng.range on Fight::rng:
+        // deviations.md approximation 18.
         // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
         // stats at its level, life and level brought down to the owner's
         // when it's above it.

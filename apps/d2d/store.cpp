@@ -176,7 +176,7 @@ GoldBoxPart gold_box_at(int mouse_x, int mouse_y) {
     return GoldBoxPart::kNone;
 }
 
-void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms) {
+void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms, int mouse_x, int mouse_y) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     const auto bottom_left = [&](const d2d::dc6::Sprite& sprite, std::uint32_t frame, int left, int bottom) {
@@ -205,6 +205,16 @@ void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     if (((now_ms / 500) & 1) == 0) scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, typed, 228 - cell + 1, "|");
     bottom_left(scene.store_buttons, box.ok_down ? 17 : 16, 250, 287);
     bottom_left(scene.store_buttons, box.cancel_down ? 11 : 10, 355, 287);
+    const auto label = [&](std::uint32_t frame, int left, int bottom, std::uint16_t label_id) {
+        if (frame >= scene.store_buttons.frames_per_direction()) return;
+        const auto& art = scene.store_buttons.frame(0, frame);
+        const int width = int(art.width), height = int(art.height);
+        if (mouse_x < left || mouse_x > left + width || mouse_y < bottom - height || mouse_y > bottom) return;
+        const std::string words = string_id(scene, label_id);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, left + (width - scene.font.measure(words)) / 2, bottom - height - 5 - cell + 1, words);
+    };
+    label(16, 250, 287, 0xd49);
+    label(10, 355, 287, 0x102e);
 }
 
 bool stash_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 153 && mouse_x < 173 && mouse_y > 102 - 18 && mouse_y <= 102; }

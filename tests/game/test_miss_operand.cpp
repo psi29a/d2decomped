@@ -2,7 +2,8 @@
 // test-links: game
 // miss(row, op)'s misscalc operands (FUN_0064b340): a Missiles.txt row's
 // Param1..5, CltParam1..5, sHitPar1..3, cHitPar1..3, dParam1 / 2, Range + LevRange x lvl and the
-// pairs by level (a + b x (lvl - 1), dm FUN_00645b20). No game data.
+// pairs by level (a + b x (lvl - 1), dm FUN_00645b20), the physical part
+// (FUN_0064af20 / FUN_0064aff0). No game data.
 
 #include <gamedata.hpp>
 #include <skill_text.hpp>
@@ -41,7 +42,9 @@ int main() try {
     assert(operand(13, 5) == 31 && operand(15, 5) == 33);   // cHitPar1, cHitPar3 (+0x6c, +0x74)
     assert(operand(33, 3) == 65 && operand(35, 3) == 71 && operand(39, 3) == 95);   // a + b x (lvl - 1)
     assert(operand(34, 1) == 21 && operand(36, 1) == 23 && operand(40, 1) == 31);   // dm at level 1: a
-    assert(operand(24, 5) == 0);                         // damn: not built
+    row.min = 3; row.max = 7; row.min_lev[0] = 2; row.max_lev[0] = 3;   // HitShift 8
+    assert(operand(24, 5) == 11 && operand(25, 5) == 19);   // codes 24 / 25: 3 + 2 x 4, 7 + 3 x 4
+    assert(operand(26, 5) == 11 << 8 && operand(27, 5) == 19 << 8);   // 26 / 27 in 256ths
     assert(skill_text::miss_operand(game_data, env, 0, 8, 0, 5) == 0);   // no such row
     return 0;
 } catch (const std::exception& error) {

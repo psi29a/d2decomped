@@ -351,7 +351,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         draw_portraits(framebuffer, left_panel_open());
         use_item::draw(framebuffer, *scene, use_item, held ? &*held : nullptr, mouse.x, mouse.y, frame_ms);
-        if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
+        if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms, mouse.x, mouse.y);
         draw_chat(framebuffer, left_panel_open(), inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
@@ -511,8 +511,11 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
     darken(0x7f, kHeight - 0x67, kWidth - 0xff, 0x2f);
     // FUN_00502970, width W - 0x109. A trailing space stays when it fits
-    // and the next word does not (FUN_00526d30). ponytail: language ids
-    // 6, 8 and 9 break on the other rule in that function.
+    // and the next word does not (FUN_00526d30). Language ids 6, 8 and 9
+    // (JPN, SIN, CHI: rows of the language table at 0x7303d8) break on that
+    // function's other rule (wrap_edit_box's language_id). d2d reads only
+    // LNG\ENG's tables (gamedata_load.cpp), the language of id 0 (row 0,
+    // which 0x525260 halts unless its id is 0), so it passes 0.
     const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} }
         : d2d::font::wrap_edit_box(*chat_typing, kWidth - 0x109, [&](unsigned char code) {
               if (const auto* glyph = font.find(code)) return int(glyph->width);
@@ -590,11 +593,16 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
 // "" for one d2d doesn't show. The party's (7, FUN_0049e8f0) name the
 // player of +3; a death (6) names the killer by +7: 0 a player (the
 // second name), 1 a monster (MonStats NameStr of +3; a SuperUnique's,
-// +0x18 its row, when set), 2 an object (an Exploding Barrel, 0xb).
-// 0xf (realm going down, 0xe43) and 0x11 (SOJs sold, 0x2afc) format
-// their string with +3 (FUN_005269d0's %d / %u); 0x12 is 0x2afd as is.
-// ponytail: 0xb (0x69b) isn't shown, nor an object's own name in a death;
-// 0x12's sound (FUN_0061c240) and FUN_00476a80(10000, 4000) aren't run.
+// +0x18 its row, when set), 2 an object: Objects.txt row +3 (FUN_00640e90),
+// 0xb 0xc98 "an Exploding Barrel", any other its Name's string (the row's
+// +0x40, FUN_00524e20 of the Name key at load; LAB_0049f170), both with
+// 0xe3f. game.exe halts on a row past the table; d2d says " was slain.".
+// A key with no string shows the key (game.exe: 0x524ac0's "-not xlated").
+// 0xb formats 0x69b with an empty string (0x49f246..0x49f27e; 1.14d's
+// English 0x69b is 33 spaces). 0xf (realm going down, 0xe43) and 0x11
+// (SOJs sold, 0x2afc) format their string with +3 (FUN_005269d0's %d /
+// %u); 0x12 is 0x2afd as is (its eclipse, quake and sound: update.cpp's
+// event loop).
 auto Town::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
@@ -622,7 +630,17 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
         } else if (event.sub == 1 && !event.second.empty() && event.second_id < scene->superuniques.size()) {
             killer = scene->superuniques[event.second_id].name;
             slain_by = 0xe40;
-        } else if (event.sub == 2 && event.argument == 0xb) killer = text(0xc98);
+        } else if (event.sub == 2 && world.game_data && world.game_data->builder) {
+            const auto& builder = *world.game_data->builder;
+            if (const auto row = builder.obj_row.find(std::to_string(event.argument)); row != builder.obj_row.end()) {
+                if (event.argument == 0xb) killer = text(0xc98);
+                else {
+                    const std::string key(builder.objects.get(row->second, "Name"));
+                    const auto found = lookup_string(*scene, key);
+                    killer = found ? u16_to_latin1(*found) : key;
+                }
+            }
+        }
         return killer.empty() ? event.name + text(0xe41) : event.name + text(slain_by) + killer;
     }
     case 7: {
@@ -638,6 +656,7 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
     case 8: return event.name + text(0xfcc);                   // " is busy"
     case 9: return text(0xfcf);
     case 0xa: return event.name.empty() ? text(0x1027) : event.name + text(0x1026);
+    case 0xb: return format(text(0x69b), { std::string{} });
     case 0xd: return event.name + text(0xe44);
     case 0xf:
     case 0x11: {                                               // the first %d / %u takes +3, %% is one %
@@ -699,9 +718,10 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // hint spent all the same) and d2d.cfg's popup_hireling (game.exe: the
 // registry's PopupHireling) is 1.
 // A joined game's summons are the host's: its pet list (0x7a), ours by owner.
-// ponytail: their life is the unit's (0x0c hits), not the list's +0x1c,
-// which 0x7f with +1 = 0 sets (FUN_00479010, net-packets.md); NetGame
-// keeps only a player's 0x7f.
+// Their bar is the list node's life (FUN_00493a00 with the PetType row as
+// its flag, nonzero: FUN_00479080, +0x1c), 100 from 0x7a and then 0x7f's
+// with +1 0 (FUN_00479010, NetGame::Pet::life); 0 draws no bar, over 99 a
+// full one.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
@@ -775,8 +795,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
             const auto row = int(&type - game_data.pet_types.data());
             for (const auto& pet : net_game->pets) {
                 if (pet.owner != net_game->self_id || pet.pettype != row) continue;
-                const auto unit = net_game->units.find(std::uint64_t(1) << 32 | pet.id);
-                if (count++ == 0) { first_class = pet.cls; first_life = unit == net_game->units.end() ? 100 : unit->second.life * 100 / 128; }
+                if (count++ == 0) { first_class = pet.cls; first_life = pet.life == 0 ? -1 : std::min(pet.life, 100); }
             }
         }
         if (count == 0) continue;

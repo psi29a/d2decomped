@@ -493,6 +493,7 @@ struct GameData {
         int pri = 0, shift = -1, item_colour = -1;
         int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         bool curse = false;                // States.txt curse (bit set 11, game +0xf8): its stat list is flagged 0x20, one such at a time (FUN_0056e970)
+        bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
@@ -789,6 +790,7 @@ struct GameData {
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
                          std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
                          std::array<int, 5> min_lev{}, max_lev{};   // MinLevDam1..5 / MaxLevDam1..5: the physical part's level brackets (FUN_00644b70 via FUN_0064af20 / FUN_0064aff0)
+                         std::string dmg_sym_text; d2d::rules::Calc dmg_sym;     // DmgSymPerCalc (+0xe0), compiled with the skills
                          std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
                          std::string hit_calc_text; d2d::rules::Calc hit_calc;   // SHitCalc1 (+0x88): Immolation Arrow's fire length
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
@@ -1131,6 +1133,15 @@ void set_footprint(const Level& level, const Npc& npc, bool solid);
 inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
     int damage = (max ? missile.emax : missile.emin) + d2d::rules::level_bonus(max ? missile.emax_lev : missile.emin_lev, lvl);
     if (const int bonus = missile.edmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.edmg_sym, env, skill_id, lvl); bonus != 0)
+        damage += int(std::int64_t(damage) * bonus / 100);
+    return damage << (missile.hitshift & 31);
+}
+// Its physical part in 256ths (FUN_0064af20 / FUN_0064aff0): (MinDamage /
+// MaxDamage, +0xb0 / +0xb4, + MinLevDam / MaxLevDam brackets) plus its
+// DmgSymPerCalc (+0xe0) % of that, then << HitShift (+0x196).
+inline int missile_phys(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
+    int damage = (max ? missile.max : missile.min) + d2d::rules::level_bonus(max ? missile.max_lev : missile.min_lev, lvl);
+    if (const int bonus = missile.dmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.dmg_sym, env, skill_id, lvl); bonus != 0)
         damage += int(std::int64_t(damage) * bonus / 100);
     return damage << (missile.hitshift & 31);
 }

@@ -175,6 +175,16 @@ inline std::pair<int, int> release_spread_offset(Rng& seed) {
     return { offset_x, offset_y };
 }
 
+// A charge-up's scatter release (srvprgfunc 39, FUN_005d3f90): one try's
+// offset off the target in subtiles, radius - rand(2 x radius) on x, then
+// on y (0x5d4080..0x5d409c: EDX = EDI + EDI), so -radius + 1..radius. A
+// try further than radius (squared) makes nothing (the caller's test).
+inline std::pair<int, int> release_scatter_offset(Rng& seed, int radius) {
+    const int offset_x = radius - seed(2 * radius);
+    const int offset_y = radius - seed(2 * radius);
+    return { offset_x, offset_y };
+}
+
 // Charged Bolt's path (FUN_005c9290 -> path type 10, FUN_0067a240): from
 // subtile (x, y), steps / 2 hops of two subtiles, each the 8-way way
 // toward (to_x, to_y) (FUN_00678c10 -> DAT_006f1518's first) turned -1, 0

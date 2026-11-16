@@ -242,10 +242,11 @@ int main() try {
         assert(std::ranges::equal(writer.out, std::span(bytes).subspan(0x2FD + 4, writer.out.size())));
     }
     // Normal quality (FUN_0062cbe0): a charm has 1 bit, then an 11-bit
-    // prefix (set) or suffix; a body part not a player's has 10 bits. Read,
-    // then written back bit for bit. No game files.
+    // prefix (set) or suffix; a body part not a player's has 10 bits; a
+    // book or scroll (ItemTypes 18 / 22) 5. Read, then written back bit for
+    // bit. No game files.
     {
-        std::vector<std::byte> bytes(0x2FD + 4 + 64);
+        std::vector<std::byte> bytes(0x2FD + 4 + 96);
         bytes[4] = std::byte{ 0x60 };
         std::size_t bit = (0x2FD + 4) * 8;
         auto put = [&](std::uint32_t value, int bits) {
@@ -253,9 +254,9 @@ int main() try {
                 if (value >> i & 1) bytes[bit >> 3] |= std::byte(1 << (bit & 7));
         };
         auto align = [&] { bit = (bit + 7) & ~std::size_t(7); };
-        std::memcpy(bytes.data() + 0x2FD, "JM\x02\x00", 4);
+        std::memcpy(bytes.data() + 0x2FD, "JM\x03\x00", 4);
         const std::size_t first_start = bit / 8;
-        for (const char* code : { "cm1 ", "hrt " }) {
+        for (const char* code : { "cm1 ", "hrt ", "tbk " }) {
             put(0x4d4a, 16);
             put(1u << 23 | 1u << 4, 32);     // extended, identified
             put(101, 10);
@@ -264,7 +265,8 @@ int main() try {
             put(0, 3); put(0x1234, 32); put(5, 7); put(2, 4);   // seed, ilvl 5, normal
             put(0, 1); put(0, 1);            // no picture, no class affix
             if (code[0] == 'c') { put(1, 1); put(300, 11); }   // the prefix 300
-            else put(0x2a5, 10);
+            else if (code[0] == 'h') put(0x2a5, 10);
+            else put(17, 5);                 // a book's 5 bits
             put(0, 1);                       // no realm data
             put(0x1ff, 9);
             align();
@@ -272,9 +274,11 @@ int main() try {
         d2d::d2s::ItemTables item_tables;
         item_tables.charms.insert("cm1");
         item_tables.body_parts.insert("hrt");
+        item_tables.books.insert("tbk");
         const auto items = d2d::d2s::parse_items(bytes, item_tables);
-        assert(items.size() == 2 && items[0].charm_prefix && items[0].prefix == 300 && items[0].suffix == 0);
+        assert(items.size() == 3 && items[0].charm_prefix && items[0].prefix == 300 && items[0].suffix == 0);
         assert(items[1].code == "hrt" && items[1].qsub == 0x2a5);
+        assert(items[2].code == "tbk" && items[2].tome == 17);
         d2d::d2s::detail::BitWriter writer;
         for (const auto& item : items) { d2d::d2s::detail::write_item(writer, item, item_tables, 0x60); writer.align(); }
         assert(std::ranges::equal(writer.out, std::span(bytes).subspan(first_start, writer.out.size())));

@@ -650,6 +650,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0x7f:   // party member: +1 is a player, +2 u16 life %, +4 the id, +8 u16 area
         if (size >= 10 && packet[1] == 1) { auto& member = unit_at(0, read_u32(packet, 4)); member.party_life = read_u16(packet, 2); member.area = read_u16(packet, 8); }
+        else if (size >= 10)   // a pet's (FUN_00479010): its list node's life (+0x1c)
+            if (const auto pet = std::ranges::find(pets, read_u32(packet, 4), &Pet::id); pet != pets.end()) pet->life = read_u16(packet, 2);
         break;
     case 0x5a:   // an event message (FUN_0049eb10)
         if (size >= 40) {

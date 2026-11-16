@@ -444,10 +444,10 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     }
     if (!pad_field()) {
         touch_input.clear();
-        const auto follow_pointer = [&](bool press, bool release) {
-            touch_pointer.active = !release;
+        const auto follow_pointer = [&](bool press, bool lifted) {
+            touch_pointer.active = !lifted;
             touch_pointer.press = press;
-            touch_pointer.release = release;
+            touch_pointer.release = lifted;
             touch_pointer.x = x;
             touch_pointer.y = y;
         };
@@ -1021,7 +1021,7 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (!label || text.empty()) return;
         std::string clipped = text;
         while (!clipped.empty() && font.measure(clipped) > int(box.width) - 8) clipped.pop_back();
-        const int label_x = round ? int(box.x + (box.width - font.measure(clipped)) / 2) : int(box.x) + 4;
+        const int label_x = round ? int(box.x + (box.width - float(font.measure(clipped))) / 2) : int(box.x) + 4;
         const int label_y = round ? int(box.y + box.height * .62f) - 6 : int(box.y) + 12;
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, clipped,
                          gold ? 255 : active ? 255 : 199, gold ? 220 : active ? 220 : 179, gold ? 100 : 119);

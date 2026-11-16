@@ -82,7 +82,8 @@ reads stats 0x5c / 0x5e as 0x5d, 0x5f / 0x61 as 0x60, 0x62 / 100 as 99,
 - A normal charm's bit and affix and a monster body part's 10 bits are
   read and written (`ItemTables::charms` / `body_parts`, from ItemTypes
   rows 13, 40 and not 7 through the item's type and type2, as
-  `FUN_00629bb0` tests them). A book or scroll's 5 bits (types 18 / 22)
-  still go by the code (tbk / ibk): not checked against ItemTypes. None of the 21 saves
+  `FUN_00629bb0` tests them). A scroll or book's 5 bits go by ItemTypes
+  rows 22 / 18 the same way (`ItemTables::books`; 22 tested first, then
+  18, in `FUN_0062cbe0`'s quality-2 case). None of the 21 saves
   has a normal charm or a body part; `test_d2s` checks both on a
   synthetic list.

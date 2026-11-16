@@ -746,10 +746,10 @@ ids).
   | 0 / 1 | name + 0xe37 " dropped due to timeout." / 0xe38 "... errors." |
   | 2 / 3 | 0xe39 "%s joined our world..." / 0xe3a "%s left ..." (0xe3b / 0xe3c "%s(%s)" with the second name); a join of our own name isn't shown |
   | 4 / 5 / 0xd | name + 0xe3d " is not in the game." / 0xe3e " is not logged in." / 0xe44 " is not listening to you." |
-  | 6 | a death, by +7: 0 a player (name + 0xe40 " was slain by " + second name), 1 a monster (0xe3f + MonStats NameStr of +3; a SuperUnique's name, row u16 +0x18, with 0xe40), 2 an object (+3; 0xb: 0xc98 "an Exploding Barrel"); else name + 0xe41 " was slain." |
+  | 6 | a death, by +7: 0 a player (name + 0xe40 " was slain by " + second name), 1 a monster (0xe3f + MonStats NameStr of +3; a SuperUnique's name, row u16 +0x18, with 0xe40), 2 an object (Objects.txt row +3, `FUN_00640e90`, with 0xe3f: 0xb 0xc98 "an Exploding Barrel", any other the row's +0x40, its Name key's string, `LAB_0049f170`); else name + 0xe41 " was slain." |
   | 7 | party news (`FUN_0049e8f0`), the player of +3, by +7 1..11: 0x277a / 0x277b "%s permits you to loot his / her corpse.", 0xfba..0xfbe and 0xfc0 name + " has expressed hostility ..." / " is no longer hostile ..." / " invites you to ally ..." / " has cancelled the party invite." / " has joined your party ..." / " has left your party.", 8 0xfbf "You are now allied with " + name, 0x277c / 0x277d "%s no longer allows ..." |
   | 8 / 9 / 0xa | name + 0xfcc " is busy" / 0xfcf "You must wait ... to trade ..." / name + 0x1026 " has items in his box." (no name: 0x1027) |
-  | 0xb / 0xf / 0x10..0x12 | 0x69b / realm going down 0xe43 / 0x2a38 hostility timeout / 0x2afc SOJs sold / 0x2afd Diablo Walks the Earth |
+  | 0xb / 0xf / 0x10..0x12 | 0x69b formatted with an empty string (1.14d English: 33 spaces) / realm going down 0xe43 / 0x2a38 hostility timeout / 0x2afc SOJs sold / 0x2afd Diablo Walks the Earth; 0x12 then sets the act's day to phase 5, time 0, eclipse (`FUN_0061c240`), quakes (`FUN_00476a80`, ECX 6, EDX 4000, stack 10000, 4000) and plays Sounds.txt 0x1220 (`FUN_004b9a00`, no unit), 0x49f319..0x49f360 |
 
 ### Players and party
 
@@ -768,7 +768,11 @@ ids).
   +0x1c to the life and +0x10 to the area, and for a PetType 7 node (the
   merc) whose unit is known sets its life (stat 6) to max life x life /
   100. So the sender (`FUN_0053cdf0`, +1 0 for a non-player) feeds the
-  portraits' pet life.
+  portraits' pet life: icon type 1 calls `FUN_00493a00` with ECX the
+  pet's id and its PetType row as the flag (0x493e43..0x493e4d); a
+  nonzero flag reads +0x1c through `FUN_00479080` (0 would read the party
+  roster's `+0x14`, `FUN_0047a150`). 0 draws no bar, over 99 a full one.
+  d2d: `NetGame::Pet::life` for every row.
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags. One
   sender is `FUN_0053de20` (ECX unused, EDX the first id, stack the
