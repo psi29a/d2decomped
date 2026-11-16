@@ -6,13 +6,13 @@ Exit 0 only when every case agrees; 1 on a difference, an empty or unequal input
 import sys
 
 
-def rows(path, width):
+def rows(path, width, skip_logs):
     out = []
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             field = line.split()
-            if not field or not field[0].isdigit():
-                continue                     # d2d's log lines are not answers
+            if not field or (skip_logs and not field[0].isdigit()):
+                continue                     # d2d's log lines are not answers; the game side has none
             if len(field) < width or not all(f.lstrip("-").isdigit() for f in (field[:2] + field[width - 1:width])):
                 sys.exit(f"malformed line in {path}: {line.strip()!r}")
             out.append(field)
@@ -22,7 +22,7 @@ def rows(path, width):
 def main():
     if len(sys.argv) not in (3, 4):
         sys.exit(__doc__)
-    game, d2d = rows(sys.argv[1], 5), rows(sys.argv[2], 3)
+    game, d2d = rows(sys.argv[1], 5, False), rows(sys.argv[2], 3, True)
     if not game or len(game) != len(d2d):
         sys.exit(f"empty or unequal: {len(game)} game, {len(d2d)} d2d (an empty file is not a pass)")
     cost = int(sys.argv[3]) if len(sys.argv) == 4 else 6144
