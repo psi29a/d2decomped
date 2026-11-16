@@ -370,6 +370,10 @@ def build(with_issues):
     # Any function a listed gap names that isn't verified yet: one trace there settles them all.
     blocking = sorted((r for r in records if r["gaps"] and r["status"] != "verified" and not r["library"] and not r["dead"] and not r["platform"]),
                       key=lambda r: (-len(r["gaps"]), -r["ported_callers"], r["size"]))
+    # Checked by an oracle but not in d2d: understood already, so the cheapest ports. Not the table
+    # loaders (DATATBLS, EXCEL): d2d reads the tables its own way.
+    port_next = sorted((r for r in counted if r["status"] == "oracle" and r["module"].split("/")[0] not in ("DATATBLS", "EXCEL")),
+                       key=lambda r: (-len(r["gaps"]), -r["ported_callers"], r["size"]))
     # Only Win32 plumbing is out of scope: the renderers, Storm and Battle.net stay counted (Bret, 2026-11-16).
     remaining = {"gaps": sum(g["gap"] for g in gaps), "frontier": len(frontier),
                  "untouched": totals["untouched"]["functions"], "cited": totals["cited"]["functions"],
@@ -382,6 +386,7 @@ def build(with_issues):
         "totals": totals, "modules": dict(sorted(modules.items())),
         "remaining": remaining, "done": not any(remaining.values()),
         "frontier": [r["address"] for r in frontier],
+        "port_next": [r["address"] for r in port_next],
         "blocking": [{"address": r["address"], "gaps": len(r["gaps"]), "status": r["status"]} for r in blocking],
         "gaps": gaps, "credits": credits(with_issues), "oracles": oracles(funcs),
     }, records, frontier
@@ -529,6 +534,14 @@ def write(out, summary, records, frontier):
         md.append(f'<tr><td>{name}</td><td style="background:{shade(share)};color:#fff">{share:.1f}%</td>'
                   + "".join(f"<td>{counts[s]}</td>" for s in ("verified", "ported", "oracle", "cited", "untouched")) + "</tr>")
     md.append("</table>")
+    by_address = {r["address"]: r for r in records}
+    port_next = [by_address[a] for a in summary["port_next"]]
+    md += ["\n## Port next\n", f"{len(port_next):,} functions an oracle or test checks but no d2d code cites: "
+           "understood already, so porting one is cheap (not the table loaders, which d2d does its own way). "
+           "Ported matters more than verified: a port is what players get, an oracle proves it. "
+           "The top 40, the most gaps and callers first:\n", "| Address | Size | Module | Gaps | Ported callers |", "|---|---|---|---|---|"]
+    for r in port_next[:40]:
+        md.append(f"| `{r['address']}` | {r['size']} | {r['module'] or '?'} | {len(r['gaps'])} | {r['ported_callers']} |")
     md += ["\n## Frontier\n", f"{len(frontier):,} untouched functions that ported code calls. "
            "The top 40, the most gaps and callers first:\n", "| Address | Size | Module | Ported callers |", "|---|---|---|---|"]
     for r in frontier[:40]:
