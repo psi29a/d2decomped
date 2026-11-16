@@ -227,21 +227,24 @@ auto World::life_update_frame(std::uint32_t tick_ms) -> void {
 // due this frame gives its item a point of durability or quantity. A point
 // that mends a broken item (FUN_0055f900) puts its stats back on
 // (FUN_0055d970 -> FUN_0063d1d0, then FUN_0055dbc0).
-// ponytail: the merc's items have no timer here (game.exe's runs on any
-// item unit).
+// The merc's items run too (game.exe's timer is on any item unit), never
+// mended: an item's owner id (item data +0xc) is its inventory's owner only
+// when that's a player (FUN_0063afd0), else -1.
 auto World::replenish_frame() -> void {
         const auto& tables = game_data->rules;
         bool mended = false;
-        const auto due = [&](d2d::d2s::Item& item) { return item.replenish_in > 0 && --item.replenish_in == 0 && d2d::rules::replenish_fire(tables, item, true); };
+        const auto due = [&](d2d::d2s::Item& item, bool owned) {
+            return item.replenish_in > 0 && --item.replenish_in == 0 && d2d::rules::replenish_fire(tables, item, owned);
+        };
         for (auto& item : actor->character.items)
-            if (due(item)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
-        if (actor->held) (void)due(*actor->held);
+            if (due(item, true)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
+        if (actor->held) (void)due(*actor->held, true);
+        for (auto& item : actor->character.merc_items) (void)due(item, false);
         if (mended) settle_requirements(*game_data, actor->character);
     }
 
-// The same for what lies on the floors, every level's.
-// ponytail: no item on the ground is mended: whether a dropped item keeps
-// its owner id (item data +0xc, FUN_00562c40's test) is not traced.
+// The same for what lies on the floors, every level's, never mended: an
+// item leaving its inventory gets owner id -1 (FUN_0063aaf0 -> FUN_00629ed0).
 auto World::replenish_ground_frame() -> void {
         const auto due = [&](Loot::GroundItem& lying) {
             if (lying.item.replenish_in > 0 && --lying.item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, lying.item, false);

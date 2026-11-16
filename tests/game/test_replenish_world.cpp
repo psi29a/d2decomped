@@ -7,7 +7,9 @@
 // - a shot's ammunition queues it (FUN_0056c310 -> FUN_00558580);
 // - a magic stack thrown out breaks and stays (FUN_00580030), and its first
 //   one back mends it (FUN_00562c40 -> FUN_0055f900);
-// - an item on the floor keeps its timer.
+// - an item on the floor keeps its timer;
+// - the merc's items are queued on entering and run too, never mended
+//   (their owner id is -1: FUN_0063afd0).
 // The rules themselves are checked against game.exe in tests/test_replenish.cpp.
 
 #include <character.hpp>
@@ -67,6 +69,15 @@ int main() try {
     knives.props = { { .stat = d2d::rules::kReplenishQuantity, .param = 0, .value = 25 } };
     character.items.push_back(knives);
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
+    Item cap;
+    cap.code = "cap";
+    cap.location = d2d::d2s::item_location::kEquipped;
+    cap.slot = d2d::d2s::body_location::kHead;
+    cap.identified = true;
+    cap.quality = 4;
+    cap.durability = 5; cap.max_durability = 20;
+    cap.props = { { .stat = d2d::rules::kReplenishDurability, .param = 0, .value = 25 } };
+    character.merc_items.push_back(cap);
 
     World world(&*data, -1, -1);
     world.enter(character);
@@ -83,6 +94,8 @@ int main() try {
 
     assert(held().wielded && d2d::rules::item_usable(held()));
     assert(held().replenish_in == 2500 / 25 + 1);                       // queued on entering
+    auto& merc_cap = world.actor->character.merc_items.front();
+    assert(merc_cap.replenish_in == 2500 / 25 + 1);
     world.tick({}, now_ms + kTickMs, now_ms); now_ms += kTickMs;        // the day clock's first tick may step no frame
     world.tick({}, now_ms + kTickMs, now_ms); now_ms += kTickMs;
     const int left = held().replenish_in;
@@ -118,6 +131,11 @@ int main() try {
     assert(frames_until([&] { return world.loot.ground[0].item.quantity > 0; }) == 3);
     assert(d2d::rules::broken(world.loot.ground[0].item) && world.loot.ground[0].item.replenish_in == 125);
     std::printf("OK: an item on the floor keeps its timer\n");
+
+    merc_cap.durability = 5; merc_cap.replenish_in = 3;
+    assert(frames_until([&] { return merc_cap.durability > 5; }) == 3);
+    assert(merc_cap.durability == 6 && merc_cap.replenish_in == 125);
+    std::printf("OK: the merc's items run their timers\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_replenish_world: %s\n", error.what());

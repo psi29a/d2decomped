@@ -355,12 +355,17 @@ d2d: `World::replenish_frame` counts each of the player's items' timers
 down a 40 ms frame and runs `rules::replenish_fire` on one that is due; a
 mend puts the item's stats back on (`wield_enters`,
 `settle_requirements`). `World::replenish_ground_frame` does the same for
-the items on the floors, without the mend: whether a dropped item keeps
-its owner id is not traced.
-Not ported (`ponytail:` in components/game/world/tick.cpp and
-components/rules/replenish.hpp): the timer of an item the merc wears or a
-vendor holds, and `FUN_0055f900`'s item flag 0x200 and hand-skill pass
-(`FUN_0055c5c0`), as for a smith's repair.
+the items on the floors, and for the merc's (armed as the save's items
+are), both without the mend: an item's owner id is set only as it goes
+into an inventory, to that inventory's owner when it's a player (type 0;
+`FUN_0063afd0` -> `FUN_00629ed0`), else -1, and back to -1 as it leaves
+one (`FUN_0063aaf0`). So the merc's items and one dropped from an
+inventory have no player owner. The only other writer, `FUN_0057f390`,
+gives an owner id to the gold piles `FUN_0055a090` makes (from
+`FUN_0057f700`); gold has no replenish stat.
+Not ported (`ponytail:` in components/rules/replenish.hpp): the timer of
+an item a vendor holds, and `FUN_0055f900`'s item flag 0x200 and
+hand-skill pass (`FUN_0055c5c0`), as for a smith's repair.
 
 ### The item maker (`FUN_00558cb0`)
 
