@@ -4,6 +4,8 @@
 // the NPC window's line select (FUN_004b82f0), each on the cases
 // tools/emu/shop_action.py ran in game.exe (shop_action_cases.inc,
 // shop_gate_cases.inc, dialog_select_cases.inc).
+#include "d2s_items.hpp"
+#include "rules.hpp"
 #include "shop_action.hpp"
 
 #include <cassert>
