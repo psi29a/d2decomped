@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "scene.hpp"
+#include "title_rules.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
 
@@ -94,7 +95,8 @@ static void draw_button_chrome(std::vector<std::uint8_t>& framebuffer, const d2d
 void render_title(std::vector<std::uint8_t>& framebuffer,
                   const Scene& scene,
                   std::span<const Button> buttons,
-                  std::uint32_t elapsed_ms) {
+                  std::uint32_t elapsed_ms,
+                  std::string_view version) {
     // Full-screen background — no need to clear; the 4×3 grid tiles fill
     // exactly 800×600 with no gaps.
     blit_dc6_grid(framebuffer, scene.background, scene.pal, 0, 0, scene.bg_tiles_across);
@@ -132,6 +134,13 @@ void render_title(std::vector<std::uint8_t>& framebuffer,
         const bool pressed = button.hovered && button.pressed;
         if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, pressed);
         if (button.label) draw_button_label(framebuffer, scene, scene.pal, button, button.label, pressed);
+    }
+    // FUN_004336c0 record 0x115: (0, 599), 200x40, Font16, alignment 2.
+    if (!version.empty()) {
+        const auto box = title_version_box();
+        const int text_x = box.x + (box.width - scene.font.measure(version)) / 2;
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
+                        text_x, rec_top(box.bottom, box.height), version);
     }
 }
 
@@ -858,12 +867,13 @@ TitleUI title_ui(const Scene& scene, bool coop) {
         bool quit = false;
     };
     // ID map derived from menu records — see docs/research/re/frontend-menu-table.md.
+    const auto primary_bottoms = title_primary_bottoms(scene.title_expansion);
     const Spec specs[] = {
-        {264, 324, 272, 35, 0x13f2, "SINGLE PLAYER",     &scene.btn_wide,
-            true, Screen::CharSelect, false},
-        {264, 366, 272, 35, 0x13f3, "BATTLE.NET",        &scene.btn_wide2},
-        {264, 391, 272, 25, 0,      "GATEWAY: LOCAL",    &scene.btn_narrow},
-        {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &scene.btn_wide,
+        {264, primary_bottoms[0], 272, 35, 0x13f2, "SINGLE PLAYER", &scene.btn_wide,
+            true, title_single_player_creates(!scene.saves.empty()) ? Screen::CharCreate : Screen::CharSelect, false},
+        {264, primary_bottoms[1], 272, 35, 0x13f3, "BATTLE.NET",        &scene.btn_wide2},
+        {264, primary_bottoms[2], 272, 25, 0,      "GATEWAY: LOCAL",    &scene.btn_narrow},
+        {264, primary_bottoms[3], 272, 35, 0x13f4, "OTHER MULTIPLAYER", &scene.btn_wide,
             true, Screen::OtherMultiplayer, false},
         {264, 528, 135, 25, 0x13f6, "CREDITS",           &scene.btn_short,
             true, Screen::Credits, false},
@@ -873,6 +883,7 @@ TitleUI title_ui(const Scene& scene, bool coop) {
             false, Screen::Title, true},
     };
     TitleUI title;
+    title.version = std::string(title_version_box().text);
     title.labels.reserve(sizeof(specs) / sizeof(specs[0]));
     title.buttons.reserve(title.labels.capacity());
     for (const auto& spec : specs) {

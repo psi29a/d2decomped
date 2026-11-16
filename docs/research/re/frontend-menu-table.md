@@ -147,6 +147,10 @@ In order:
 6. With `FUN_00514d80` (`DAT_008817c0`) nonzero, `FUN_005148f0(1)` turns
    the frontend playlist on (sound.md "Frontend music").
 
+`tools/emu/title_screen.py` reruns both record-selection branches and the
+version formatting with the surrounding callees hooked, and reads record
+0x115 directly.
+
 `FUN_00431af0` writes the gateway's label: the current gateway's name
 (the client's +0x98, `BNGatewayAccess::Name`) put in a TBL string
 (`FUN_00524a30`; which id is not traced), characters below 0x100 mapped
@@ -164,10 +168,9 @@ The buttons' handlers (record +0x20, read from the table):
 | 0xe | CINEMATICS | `FUN_00431600` |
 | 0xf | EXIT DIABLO II | `0x431c30`: `0x7795e8` = 0, `FUN_00515f50(0xb4)`, `FUN_004f9190` |
 
-d2d (`title_ui`, apps/d2d/frontend.cpp) has the seven LoD buttons, with
-the LoD positions with or without the expansion. It doesn't draw the
-0x115 version text. Its SINGLE PLAYER opens character select even when
-the save folder has no `.d2s`.
+d2d (`title_ui`, apps/d2d/frontend.cpp) uses the matching classic or LoD
+four-button positions, draws record 0x115's version text, and sends SINGLE
+PLAYER to character creation when the filtered save list is empty.
 
 ## Button labels (`FUN_00500db0`, `FUN_00500c50`)
 

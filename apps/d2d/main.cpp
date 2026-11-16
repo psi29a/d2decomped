@@ -606,7 +606,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         SDL_PumpEvents();
         SDL_Event event;
         while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) quit = true;
-        if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()));
+        if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()), boot_title->version);
         SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
         SDL_RenderClear(win.renderer);
         SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
@@ -1409,7 +1409,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     g_lan_connect = g_cli_lan_connect;
                     g_lan_host_port = g_cli_lan_host_port;
                 }
-                render_title(framebuffer, *scene, title.buttons, now_ms);
+                render_title(framebuffer, *scene, title.buttons, now_ms, title.version);
                 break;
             case Screen::OtherMultiplayer:
                 for (auto& button : other_multiplayer.buttons) update_button(button, mouse, screen, quit);
