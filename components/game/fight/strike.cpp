@@ -498,8 +498,9 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             auto& life = actor->character.stats.values[kLife];
             auto& mana = actor->character.stats.values[kMana];
             const auto life_before = life, mana_before = mana;
-            life = std::min(actor->character.stats.values[kMaxLife], life + std::int64_t(blow.life));
-            mana = std::min(actor->character.stats.values[kMaxMana], mana + std::int64_t(blow.mana));
+            // FUN_0057a980 and FUN_0057aa00 write nothing for points < 1 (a wrapped mul_div can be negative)
+            if (blow.life > 0) life = std::min(actor->character.stats.values[kMaxLife], life + std::int64_t(blow.life));
+            if (blow.mana > 0) mana = std::min(actor->character.stats.values[kMaxMana], mana + std::int64_t(blow.mana));
             if (life > life_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_life", now_ms, actor->player.x, actor->player.y);
             if (mana > mana_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_mana", now_ms, actor->player.x, actor->player.y);
         }
