@@ -960,9 +960,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, screen_x, screen_y, npc_quest);
+                npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);   // seed the mouse baseline: the next move selects
                 if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespec) {
                 npc_menu = open_respec_menu(*scene, who, screen_x, screen_y);
+                npc_menu.track_mouse(mouse.x, mouse.y, touch_enabled ? touch::kNpcLinePad : 0);   // seed the mouse baseline: the next move selects
                 if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
