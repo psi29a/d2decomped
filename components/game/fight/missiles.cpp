@@ -116,9 +116,19 @@ auto Fight::spend_ammo(int index) -> void {
 auto Fight::out_of_ammo(std::size_t index) -> void {
         using namespace d2d::d2s;
         auto& item = actor->character.items[index];
+        const auto& tables = game_data->rules;
         item.quantity = 0;
-        const auto info = game_data->rules.item_info.find(item.code);
-        if (info != game_data->rules.item_info.end() && info->second.kind == 2 && item.quality >= 4 && item.quality <= 9) {
+        const auto info = tables.item_info.find(item.code);
+        const auto base = tables.item_base.find(item.code);
+        const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        const bool typed = kind != tables.types.end();
+        const auto spent = d2d::rules::spent_fate({ base != tables.item_base.end() && base->second.stackable, typed && kind->second.throwable,
+                                                    d2d::rules::own_stat(tables, item, d2d::rules::kItemThrowable) != 0, item.quantity,
+                                                    info != tables.item_info.end() && d2d::rules::type_is(tables, info->second.type, "weap"),
+                                                    item.quality >= 4 && item.quality <= 9, d2d::rules::broken(item), typed && kind->second.reload,
+                                                    typed && kind->second.reequip });
+        if (spent.fate == d2d::rules::SpentFate::stays || spent.fate == d2d::rules::SpentFate::emptied) return;
+        if (spent.fate == d2d::rules::SpentFate::breaks) {
             d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
             item.flags |= 0x100u;
             item.durability = 0;
@@ -129,9 +139,12 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         const auto slot = item.slot;
         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
         actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
-        const auto next = std::ranges::find_if(actor->character.items, [&](const Item& other) {
+        // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
+        const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
         // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+        // ponytail: spent.reequip (0x5801bb): when no reload took the slot, FUN_0057ff70 puts back the weapon
+        // wielded before the last one was put on (the player's +0x90, FUN_006233a0), if the pack still holds it.
         if (next != actor->character.items.end()
             && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
             next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
