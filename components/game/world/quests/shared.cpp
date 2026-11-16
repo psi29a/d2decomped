@@ -559,6 +559,10 @@ auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse)
         // 0x48, FUN_00553380 on that player: a corpse is a player unit of their class).
         using Bird = d2d::rules::GoldenBirdQuest;
         if ((code == Bird::kFigurine || code == Bird::kBird) && golden_bird.picked_up(bits, code == Bird::kBird)) class_cue("act3_find_jade", now_ms);
+        // The Hellforge Hammer (hfh, a4q3's, LAB_005b5a90: the event's player's bits at
+        // [edx + 0xc]). The soulstone's record (a4q1, 0x16) has no item event
+        // (FUN_005b42b0 leaves +0xb0 null, FUN_005439a0 skips it).
+        if (code == d2d::rules::HellforgeQuest::kHammer) hellforge.hammer_picked(bits);
     }
 
 // FUN_005466b0(code, ilvl, quality): an item made into the player's

@@ -273,7 +273,6 @@ struct World {
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
-        bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
         bool had_gidbinn = false;
         bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
