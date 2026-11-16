@@ -53,4 +53,37 @@ struct ClickSpot { int x = 0, y = 0; };
     return ClickSpot{ unit_x + delta_x, unit_y + delta_y };
 }
 
+// A player's modes that walk: 2 walk, 3 run, 6 walk in town.
+[[nodiscard]] constexpr bool walk_mode(int mode) noexcept { return mode == 2 || mode == 3 || mode == 6; }
+
+// FUN_004623c0's throttle (LAB_00462537, LAB_00462542): a held frame of a
+// walking player goes on only once 7 ticks of 0x7a0498 (FUN_0044c790 adds
+// one a game tick, 25 a second) have passed since the last that went on;
+// anything else goes. What goes stamps the tick (0x462545), a press too.
+// The difference is unsigned.
+inline constexpr std::uint32_t kHeldWalkTicks = 7;
+[[nodiscard]] constexpr bool held_walk_goes(std::uint32_t flags, int player_mode, std::uint32_t tick, std::uint32_t last_tick) noexcept {
+    return !(flags & kClickHeld) || !walk_mode(player_mode) || tick - last_tick >= kHeldWalkTicks;
+}
+
+// FUN_00462930, a held frame once the press armed it: with a unit under the
+// cursor (type, -1 none), an object, missile or item does nothing
+// (LAB_0046297f); a player, monster or warp does nothing while the player
+// walks (LAB_0046298e..LAB_00462998).
+inline constexpr int kUnitWarp = 5;
+[[nodiscard]] constexpr bool held_frame_goes(int target_type, int player_mode) noexcept {
+    if (target_type < 0) return true;
+    if (target_type > 1 && target_type != kUnitWarp) return false;
+    return !walk_mode(player_mode);
+}
+
+// FUN_00461dc0's warp (type 5, LAB_00461fb7): refused till 0x7a04c8 (an
+// unsigned compare against 0x7a048c, GetTickCount's ms); a click that goes
+// sets it 500 ms on (LAB_00462022), as the queue step's 0x13 does
+// (LAB_0048168f). Under kWarpReach (FUN_00641530) it sends at once
+// (LAB_00462010), else walks and queues 0x13 (LAB_00461fed, LAB_00461ffc).
+inline constexpr std::uint32_t kWarpClickWaitMs = 500;
+inline constexpr int kWarpReach = 5;
+[[nodiscard]] constexpr bool warp_click_goes(std::uint32_t now_ms, std::uint32_t until_ms) noexcept { return now_ms >= until_ms; }
+
 }  // namespace d2d::rules

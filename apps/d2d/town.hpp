@@ -217,6 +217,8 @@ struct Town {
     bool stash_close_down = false;                           // the stash's close button held (0x7bce38)
     bool cube_close_down = false;                            // the Cube's close button held (0x7bce40)
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
+    std::uint32_t warp_click_until = 0;                      // a warp's click is refused till then (0x7a04c8, FUN_00461dc0)
+    std::uint32_t held_walk_tick = 0;                        // the tick the last ground move went (0x7a5268, FUN_004623c0)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
     bool net_clicked_walk = false;                           // this walk went to the host as a click (its target): no follow-ups
@@ -725,6 +727,7 @@ struct Town {
     // what's under the cursor: a monster to attack, an item, an object or
     // NPC, else the ground. The right button uses the right skill there.
     [[nodiscard]] std::vector<Command> input(const Mouse& mouse, bool over_ui) const;
+    [[nodiscard]] bool click_goes(cmd::Move& move, std::uint32_t frame_ms);
 
     // The game this frame: what the player asks for (input), the World's
     // step, then what it told the client (events).
