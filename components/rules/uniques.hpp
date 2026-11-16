@@ -147,9 +147,7 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // (Fight::golem_blast). A golem replaced by a new one is dropped, not killed,
 // so it doesn't blow.
 // The ancients (base 0x21c) take no mod here: FUN_005b1c50 gives each four
-// magic items (monsters.md "The ancients' gear").
-// ponytail: the ancients' gear isn't made: d2d's monsters carry no items,
-// so neither the items' stats nor the seed steps of their making are kept.
+// magic items (monsters.md "The ancients' gear", ancient_gear).
 struct ActBoss {
     std::vector<int> mods;
     bool half_freeze = false;
@@ -170,6 +168,32 @@ inline std::optional<ActBoss> act_boss(int monstats_row, int base) {
     case 0x220: return monstats_row == 0x2c5 ? ActBoss{ { questcomplete, cold, resist, fast }, false } : ActBoss{ { questcomplete }, false };   // Baal, uber
     default: return std::nullopt;
     }
+}
+
+// The ancients' gear (FUN_005b1c50, from FUN_005b1cf0 for base 0x21c): four
+// items each from the table at 0x6e2c90 (8 bytes a row per class, rows 0x18
+// apart: the code, then the BodyLocs row it's worn on), by MonStats row
+// 0x21c..0x21e (Talic, Madawc, Korlic). In Nightmare the code is its
+// record's ubercode (+0x88), in Hell its ultracode (+0x8c); the ring's are
+// 0 (Misc.txt has neither column), so no ring is made past Normal
+// (FUN_00573b20: FUN_00633640 finds no item). Each is magic (quality 4) at
+// the unit's level, made as a drop (FUN_00559ce0: two game seed steps).
+inline std::vector<std::pair<std::string, int>> ancient_gear(const Tables& tables, int monstats_row, int difficulty) {
+    struct Worn { std::string_view code; int loc; };
+    static constexpr std::array<std::array<Worn, 4>, 3> kRows{ {
+        { { { "bsd", 4 }, { "tow", 5 }, { "fld", 3 }, { "hbt", 9 } } },   // Talic: rarm, larm, tors, feet
+        { { { "tax", 4 }, { "tax", 5 }, { "hgl", 10 }, { "hbt", 9 } } },  // Madawc: rarm, larm, glov, feet
+        { { { "vou", 4 }, { "rin", 6 }, { "fld", 3 }, { "crn", 1 } } },   // Korlic: rarm, rrin, tors, head
+    } };
+    std::vector<std::pair<std::string, int>> gear;
+    if (monstats_row < 0x21c || monstats_row > 0x21e) return gear;
+    for (const auto& [code, loc] : kRows[std::size_t(monstats_row - 0x21c)]) {
+        const auto base = tables.item_base.find(std::string(code));
+        if (base == tables.item_base.end()) continue;
+        const std::string& made = difficulty == 1 ? base->second.ubercode : difficulty == 2 ? base->second.ultracode : base->first;
+        if (!made.empty() && tables.item_base.contains(made)) gear.emplace_back(made, loc);
+    }
+    return gear;
 }
 
 // The label under a boss's name (client FUN_004adea0, from FUN_00452580):
