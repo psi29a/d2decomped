@@ -458,6 +458,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         // Prefer the LoD title asset (fenced rogue camp at night). Classic
         // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
         auto title = mpqs.try_read(R"(data\global\ui\FrontEnd\gameselectscreenEXP.dc6)");
+        scene.title_expansion = bool(title);
         if (!title) title = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         if (!title) throw std::runtime_error("no title screen asset");
 
