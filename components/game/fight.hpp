@@ -302,6 +302,13 @@ struct Fight {
             // What the summoning skill's stats gave it (FUN_005c4470).
             std::array<int, 4> res{};                  // fire, lightning, cold, poison
             int thorns = 0, fire_lo = 0, fire_hi = 0, speed_pct = 0;
+            // Its A1 before damagepercent and to-hit before item_tohit_percent,
+            // those percents, and its summoning skill's damage and to-hit in its
+            // swings (a SkillDamage row's: pet_skill_damage) as they stand now.
+            std::array<int, 2> a1_unscaled{};
+            int to_hit_unscaled = 0, damage_pct = 0, to_hit_pct = 0;
+            bool skill_damage = false;
+            int skill_low = 0, skill_high = 0, skill_to_hit = 0;
             const Level* where = nullptr;              // the level it's on (pets follow the player across)
             std::uint32_t until = 0;                   // it goes then (Decoy, Revive, Hydra; 0 never)
             int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
@@ -1258,6 +1265,10 @@ struct Fight {
     // (Idle, 0x5b0cd0) and Bone Wall's / Prison's (BoneWall, FUN_005e0400)
     // only stand (pet.idle).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // A SkillDamage pet's swing damage and to-hit at its owner's level in the
+    // summoning skill now (FUN_0056e000: FUN_00644aa0, FUN_00647bc0 /
+    // FUN_00647d00 >> 8, FUN_006449f0), run each frame before it acts.
+    void pet_skill_damage(Pet& pet);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
