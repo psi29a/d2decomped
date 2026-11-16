@@ -25,6 +25,7 @@
 #include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -549,6 +550,11 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                             constexpr int kRespec = d2d::rules::kRespecQuest;
                             if (quest::bit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !quest::bit(quest_bits, kRespec, 1) && !quest::bit(quest_bits, kRespec, 0)) { d2d::rules::quest::set(quest_bits, kRespec, 13); d2d::rules::quest::set(quest_bits, kRespec, 1); }
                         }
+                        // A hire NPC rolls its list as the player joins its talkers (FUN_00572c10 ->
+                        // FUN_00576770: classes 0x96 Kashya, 0xc6 Greiz, 0xfc Asheara, 0x203 Qual-Kehk;
+                        // FUN_00576070 once, its +0x21), so a free merc (FUN_00579180) finds it rolled.
+                        constexpr std::array kHireNpcs{ d2d::rules::monster_ids::kKashya, 0xc6, d2d::rules::monster_ids::kAsheara, d2d::rules::act5_detail::kQualKehk };
+                        if (std::ranges::contains(kHireNpcs, npc.hc_idx)) hire_list(act());
                         auto lines = quest_talk(npc.hc_idx);
                         // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell;
                         // one with a talk record only once a stay in town (its +0x15, Player::greeted), and

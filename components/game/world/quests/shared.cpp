@@ -359,8 +359,8 @@ auto World::hire_offers(int list_act) const -> std::vector<d2d::rules::MercOffer
 // Kashya's reward (FUN_00579180): the first offer of her hire list as the
 // merc, free — none if there's a merc already (LoD: even a dead one).
 // The offer leaves the list (packet 0x50 subtype 2).
-// ponytail: an unopened list is rolled here (game.exe: the client asks
-// for it as her menu opens: waits for networking).
+// The list is rolled by then: talking to her rolls it (World::tick, as
+// FUN_00572c10 -> FUN_00576770), and her line 92 comes only in a talk.
 auto World::kashya_merc() -> void {
         const auto& header = actor->character.header;
         if (header.merc_seed && (actor->character.expansion || !header.merc_dead)) return;
