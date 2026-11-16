@@ -626,6 +626,12 @@ loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
 5. mana (`FUN_00647540`): 1. An item's entry (+0x34 not -1) asks only for
    its charges (+0x38 above 0); blood_mana (state 0x72) asks life (stat 6)
    instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
+   The payment in state 0x72 (`FUN_0056bfe0`, `FUN_0056c110` ->
+   `FUN_005d2b60`): short of the cost in life, the state goes and life is
+   set to 0x100; else it comes off life, and the state goes once life is
+   under the state's skill's Param5 (+0x158; Blood Mana's 40) points.
+   1.14d puts it on with the succubus witches' Blood Mana (srvdofunc 30,
+   a curse). d2d: `Fight::blood_mana`, `blood_pay` (test_blood_mana).
 6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
    States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
    one of State1..3 (+0x22a), 1 and others pass: 4. In 1.14d's rows 2 is

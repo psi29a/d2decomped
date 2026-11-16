@@ -1337,9 +1337,16 @@ struct Fight {
     // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
     // 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
     // and the skill's delay above 0.
-    // ponytail: blood mana (state 0x72) and an item's charges in its stat (2) aren't asked:
-    // d2d puts no Blood Mana on the player, and a spent entry goes.
+    // In state 0x72 (Blood Mana's curse, curses[0]) the cost is asked of life (FUN_00647540: stat 6, not 8).
+    // FUN_00647840's status 2 (an entry's item at 0 charges) never comes: the stat hook takes the entry
+    // away at 0 (SKILLS_AddOrRemoveItemSkill, skills.md "Item charges"), as charged_skills does.
     [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
+    // The player in state 0x72: a succubus witch's Blood Mana (srvdofunc 30) as its curse, while it lasts.
+    [[nodiscard]] bool blood_mana() const;
+    // FUN_005d2b60, a cost paid in state 0x72 (FUN_0056bfe0, FUN_0056c110): `cost` 256ths off life. Short of
+    // it the state goes and life is set to 1 (0x100), false; paid, the state goes once life is under the
+    // curse's Param5 (+0x158) points.
+    bool blood_pay(std::int64_t cost);
     // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
     // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
     // the skill that goes. Else -1 and the status's line (0x711ddc): 1 needmana, 2..4

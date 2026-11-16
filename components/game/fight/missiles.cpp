@@ -1063,10 +1063,13 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
             }
         }
         // Something healed: FUN_0056c110(caster, cost) takes the cost off its
-        // mana (there's enough: checked above).
+        // mana (there's enough: checked above), off its life in state 0x72 (FUN_005d2b60).
         // With the cost, state 0x55 (nomanaregen) goes on with it
         // (FUN_00639db0(caster, 0x55, 1), 0x5cf244), else off (0x5cf265).
-        if (cost > 0 && changed > 0) values[kMana] -= cost;
+        if (cost > 0 && changed > 0) {
+            if (blood_mana()) (void)blood_pay(cost);
+            else values[kMana] -= cost;
+        }
         if (cost > 0) actor->no_mana_regen = changed > 0;
     }
 
