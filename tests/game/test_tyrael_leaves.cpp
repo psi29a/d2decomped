@@ -3,7 +3,9 @@
 // Tyrael leaving Duriel's Lair (FUN_005e73a0 -> FUN_0059c750): every player
 // (FUN_005537d0) whose Seven Tombs bit 13 is set gets unit event 0x36, the
 // class's act2_complete_tombs (LAB_0059c710: FUN_0065c310(quest 14, bit 13)
-// then FUN_00553380(player, 0x36)); one without it hears nothing.
+// then FUN_00553380(player, 0x36)); one without it hears nothing. His think
+// (World::tyrael_frame, each frame of the Lair's turn) waits while a player is
+// within 12 subtiles of him.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -65,7 +67,7 @@ int main() try {
         world.tombs.tyrael_gone = false;
         world.npc_states[std::size_t(tyrael - lair->npcs.begin())].hidden = false;
         world.cues.due.clear();
-        world.act2_tick();
+        world.tyrael_frame();
         assert(world.tombs.tyrael_gone);
         return std::ranges::count(world.cues.due, voice->second, &Cues::Cue::sound);
     };
@@ -73,6 +75,25 @@ int main() try {
     d2d::rules::quest::set(world.quests(), Tombs::kQuest, 13);
     assert(leaves() == 1);
     std::printf("OK: Tyrael's leaving speaks to the players with bit 13 only\n");
+    world.tombs.tyrael_gone = false;
+    world.actor->player.x = tyrael->x + 2;                          // 10 subtiles: in his 12, he stays
+    world.tyrael_frame();
+    assert(!world.tombs.tyrael_gone);
+    std::printf("OK: a player within 12 keeps him\n");
+    // Split levels: a player ticked in an earlier turn who came to the Lair since (World::elsewhere) keeps him too.
+    world.actor->player.x = tyrael->x + 4;
+    World::Player arrived;
+    arrived.on_level = lair;
+    arrived.player.x = tyrael->x + 1;
+    arrived.player.y = tyrael->y;
+    world.split_levels = true;
+    world.elsewhere.push_back(&arrived);
+    world.tombs.tyrael_gone = false;
+    world.tyrael_frame();
+    assert(!world.tombs.tyrael_gone);
+    world.elsewhere.clear();
+    world.split_levels = false;
+    std::printf("OK: a player arrived from another turn keeps him\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

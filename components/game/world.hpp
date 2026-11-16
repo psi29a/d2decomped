@@ -307,6 +307,8 @@ struct World {
     // other levels, whose turn this isn't, too), acting as each, with the
     // act they're in: a quest's party share goes by act (FUN_00540510), not
     // by level.
+    // The level a player is on (split levels: their own).
+    [[nodiscard]] const Level* level_of(const Player& player) const { return split_levels && player.on_level ? player.on_level : level; }
     template <class Each> void each_in_game(Each&& each) {
         Player& was = *actor;
         const auto visit = [&](Player& player) {
@@ -628,6 +630,7 @@ struct World {
     // A frame of the day clock (40 ms).
     void act1_tick();
     void act2_tick();
+    void tyrael_frame();                   // Tyrael's leave test, each frame of his level's turn (act2.cpp)
     // A step of the quest clock (quest_clock): the quest timers.
     void act1_quest_step();
     void act2_quest_step();
