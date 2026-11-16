@@ -21,7 +21,8 @@ people too.
 | **Fix or port** | the above + a build ([README](README.md#build-and-run)) | a pull request with a test, citing where in game.exe the behaviour comes from; or a batch from one subsystem, one change and its test per commit |
 
 What's left is on the **[gap map](https://psi29a.github.io/d2decomped/)**:
-every game.exe function marked untouched, cited, ported or verified, every
+every game.exe function marked untouched, cited, oracle (checked by an
+oracle or test, not in d2d), ported or verified (ported and checked), every
 listed gap (todo, unverified, `ponytail:` notes, issues), and the
 "frontier", untouched code that ported code calls. Build it yourself with
 `python3 tools/gaps.py`. Any agent that can read a URL can query its

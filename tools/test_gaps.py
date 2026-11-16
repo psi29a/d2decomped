@@ -32,6 +32,13 @@ class GapsTests(unittest.TestCase):
         self.assertEqual(gaps.level("apps/whisper/hooks.cpp"), 1)
         self.assertEqual(gaps.level("docs/research/re/drlg.md"), 1)
 
+    def test_verified_needs_a_port_and_a_check(self):
+        self.assertEqual(gaps.status_of({1, 2, 3}), "verified")
+        self.assertEqual(gaps.status_of({2}), "ported")
+        self.assertEqual(gaps.status_of({1, 3}), "oracle")
+        self.assertEqual(gaps.status_of({1}), "cited")
+        self.assertEqual(gaps.status_of(set()), "untouched")
+
     def test_hooked_functions_are_identified_by_address(self):
         source = """machine.hook(0x401000, callback, 2); machine.call(0x4010c0)
 machine.stub(0, {

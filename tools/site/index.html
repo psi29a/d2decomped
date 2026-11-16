@@ -15,7 +15,7 @@
   --gold: #c7b377;      /* unique items */
   --dim: #8a7a55; --faint: #2a2115;
   --blood: #b01e14; --mana: #6969ff; --set: #3fbf3f; --text: #d8d0c0;
-  --verified: var(--set); --ported: var(--gold); --cited: var(--mana); --untouched: #3b3329;
+  --verified: var(--set); --ported: var(--gold); --oracle: #d08a3a; --cited: var(--mana); --untouched: #3b3329;
   --font-sign: "Cinzel", Georgia, serif;
   --font-ui: "Barlow Condensed", "Arial Narrow", sans-serif;
   color-scheme: dark;
@@ -137,13 +137,14 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
   </section>
   <section id="trend">
     <h2>TREND <small>share of code bytes, at main's last commit each day</small></h2>
-    <svg class="chart" id="trendChart" viewBox="0 0 760 300" role="img" aria-label="Share of game.exe code bytes verified, ported and cited, day by day"></svg>
+    <svg class="chart" id="trendChart" viewBox="0 0 760 300" role="img" aria-label="Share of game.exe code bytes verified, ported, oracle-checked and cited, day by day"></svg>
   </section>
   <section id="modules">
     <h2>MODULES <small>from the source file an assert names; click a column to sort</small></h2>
     <div class="scroll tall"><table>
       <thead id="moduleHead"><tr><th><button data-key="name">Module</button></th><th><button data-key="done">Done</button></th>
         <th class="r"><button data-key="verified">Verified</button></th><th class="r"><button data-key="ported">Ported</button></th>
+        <th class="r"><button data-key="oracle">Oracle</button></th>
         <th class="r"><button data-key="cited">Cited</button></th><th class="r"><button data-key="untouched">Untouched</button></th>
         <th class="r"><button data-key="size">Functions</button></th></tr></thead>
       <tbody id="moduleRows"></tbody>
@@ -166,7 +167,7 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
 </div>
 <script>
 (function () {
-  var LEVELS = ['verified', 'ported', 'cited', 'untouched'];
+  var LEVELS = ['verified', 'ported', 'oracle', 'cited', 'untouched'];
   var onboard = document.getElementById('onboard');
   onboard.addEventListener('click', function (e) {
     var button = e.target.closest('button');
@@ -186,7 +187,7 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function bar(counts, key) {
     var total = LEVELS.reduce(function (sum, s) { return sum + (key ? counts[s][key] : counts[s]); }, 0) || 1;
-    return LEVELS.slice(0, 3).map(function (s) {
+    return LEVELS.slice(0, 4).map(function (s) {
       var n = key ? counts[s][key] : counts[s];
       return '<i title="' + s + ' ' + fmt(n) + '" style="width:' + (100 * n / total) + '%;background:var(--' + s + ')"></i>';
     }).join('');
@@ -213,7 +214,7 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
     var modules = Object.keys(d.modules).map(function (name) {
       var c = d.modules[name], size = LEVELS.reduce(function (sum, s) { return sum + c[s]; }, 0);
       return { name: name, counts: c, size: size, done: (c.verified + c.ported) / (size || 1),
-               verified: c.verified, ported: c.ported, cited: c.cited, untouched: c.untouched };
+               verified: c.verified, ported: c.ported, oracle: c.oracle, cited: c.cited, untouched: c.untouched };
     });
     var head = document.getElementById('moduleHead');
     function sortModules(key, ascending) {
@@ -246,7 +247,7 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
     }).join('');
   }).catch(function (e) { document.getElementById('stamp').textContent = 'gaps.json failed to load (' + e.message + ')'; });
 
-  // Stacked areas, bottom up: verified, then ported, then cited, as a share of all counted code bytes.
+  // Stacked areas, bottom up: verified, then ported, oracle and cited, as a share of all counted code bytes.
   fetch('history.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (points) {
     var svg = document.getElementById('trendChart'), left = 44, right = 744, top = 16, bottom = 270;
     if (points.length < 2) { document.getElementById('trend').hidden = true; return; }
@@ -258,7 +259,7 @@ codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="
         '<text x="' + (left - 6) + '" y="' + (yAt(share) + 4) + '" text-anchor="end">' + share * 100 + '%</text>';
     });
     var below = points.map(function () { return 0; });
-    LEVELS.slice(0, 3).forEach(function (s) {
+    LEVELS.slice(0, 4).forEach(function (s) {
       var above = points.map(function (p, i) {
         var t = p.totals, all = LEVELS.reduce(function (sum, l) { return sum + t[l].bytes; }, 0);
         return below[i] + t[s].bytes / all;
