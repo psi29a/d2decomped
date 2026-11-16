@@ -9,17 +9,19 @@ loaded (skill_tips.boot), FUN_00643d90 and FUN_00629bb0 inside it. Hooked:
 the hands' items (FUN_0063bde0, cells 4 / 5: a unit whose +4 is the item's
 class, FUN_00633640 on its code), the wielded weapon (FUN_0063bef0: the
 wielded hand's item when FUN_00629bb0 calls it a weapon, 0x2d), the item
-flags 0x4000 / 0x100 (FUN_006280a0: none) and the ammo test's stat read
-(FUN_00625500: 0). No bow or crossbow: their ammo test isn't ported
-(fight.hpp hand_fits). One skill for each distinct set of itypea1..3 /
-etypea1..2 / itypeb1..3 / etypeb1..2, each pair of hands from ITEMS; Left
-Hand Throw / Swing (4, 5) with each hand wielded too.
+flags 0x4000 / 0x100 (FUN_006280a0), stat 0x9d (FUN_00625500) and the
+quantity, stat 0x46 (FUN_00625480; 0 for any other, stat 0xfe too). One
+skill for each distinct set of itypea1..3 / etypea1..2 / itypeb1..3 /
+etypeb1..2, each pair of hands from ITEMS, then each from AMMO (bows,
+quivers; a code's suffix: "0" quantity 0, "!" broken, "9" stat 0x9d);
+Left Hand Throw / Swing (4, 5) with each hand wielded too.
 """
 import struct
 
 import skill_tips
 
 ITEMS = ("", "ssd", "hax", "buc", "tax", "jav", "ktr", "gpl", "ne1", "wnd", "sst")
+AMMO = ("", "buc", "sbw", "sbw!", "sbw9", "lxb", "aqv", "aqv0", "aqv9", "cqv")
 SETS = (0x18, 0x1A, 0x1C, 0x24, 0x26, 0x1E, 0x20, 0x22, 0x28, 0x2A)   # the record's itype a / etype a / itype b / etype b shorts
 
 
@@ -29,8 +31,10 @@ def main():
     skills, count = e.r32(tables + 0xB98), e.r32(tables + 0xBA0)
     out_class = e.alloc(4)
     items, weapon = {"": 0}, {"": False}
-    for code in ITEMS[1:]:
-        packed = struct.unpack("<I", code.encode().ljust(4, b" "))[0]
+    flags, no_consume, quantity = {}, {}, {}
+    for code in dict.fromkeys(ITEMS[1:] + AMMO[1:]):
+        base = code[:3]
+        packed = struct.unpack("<I", base.encode().ljust(4, b" "))[0]
         if not e.call(0x633640, packed, out_class):
             raise SystemExit(f"weapon_gate: no item {code}")
         item = e.alloc(0x100)
@@ -38,11 +42,15 @@ def main():
         e.w32(item + 4, e.r32(out_class))
         items[code] = item
         weapon[code] = bool(e.call(0x629BB0, item, 0x2D))
+        flags[item] = 0x100 if code.endswith("!") else 0
+        no_consume[item] = 1 if code.endswith("9") else 0
+        quantity[item] = 0 if code.endswith("0") else 50
     hands, wielded = {}, [0]
     e.hook(0x63BDE0, lambda h: hands.get(h.arg(1), 0), 2)
     e.hook(0x63BEF0, lambda h: wielded[0], 1)
-    e.hook(0x6280A0, lambda h: 0, 4)
-    e.hook(0x625500, lambda h: 0, 3)
+    e.hook(0x6280A0, lambda h: flags.get(h.arg(0), 0) & h.arg(1), 4)
+    e.hook(0x625500, lambda h: no_consume.get(h.arg(0), 0) if h.arg(1) == 0x9D else 0, 3)
+    e.hook(0x625480, lambda h: quantity.get(h.arg(0), 0) if h.arg(1) == 0x46 else 0, 3)
     unit = e.alloc(0x100)
     e.w32(unit + 0x60, unit)                                   # any inventory: the hooks don't read it
     holder = e.alloc(4)
@@ -61,16 +69,17 @@ def main():
     print("// { skill, right hand, left hand, wielded hand (0 none, 4 right, 5 left), usable }")
     for skill, record in picked:
         e.w32(holder, record)
-        for right in ITEMS:
-            for left in ITEMS:
-                for wield in ((0, 4, 5) if skill in (4, 5) else (0,)):
-                    held = right if wield == 4 else left if wield == 5 else ""
-                    if wield and not weapon[held]:
-                        continue
-                    hands[4], hands[5] = items[right], items[left]
-                    wielded[0] = items[held] if wield else 0
-                    usable = e.call(0x643F80, unit, regs={"eax": holder})
-                    print(f'    {{ {skill}, "{right}", "{left}", {wield}, {usable} }},')
+        pairs = [(right, left) for right in ITEMS for left in ITEMS]
+        pairs += [(right, left) for right in AMMO for left in AMMO if (right, left) not in pairs]
+        for right, left in pairs:
+            for wield in ((0, 4, 5) if skill in (4, 5) else (0,)):
+                held = right if wield == 4 else left if wield == 5 else ""
+                if wield and not weapon[held]:
+                    continue
+                hands[4], hands[5] = items[right], items[left]
+                wielded[0] = items[held] if wield else 0
+                usable = e.call(0x643F80, unit, regs={"eax": holder})
+                print(f'    {{ {skill}, "{right}", "{left}", {wield}, {usable} }},')
 
 
 if __name__ == "__main__":

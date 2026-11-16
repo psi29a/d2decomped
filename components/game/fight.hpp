@@ -117,38 +117,60 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
     const auto& item = character.items[std::size_t(index)];
     return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
 }
-// FUN_00643d90: one hand's item type ("" none) against one of a skill's sets. No item: the set is empty, or `bare`:
-// whichever set it is, set a's itype1 (+0x18) is weap / mele / h2h (ItemTypes 0x2d / 0x2e / 0x43), set b's itype1
-// (+0x1e) is empty and the other hand holds no weapon (FUN_00629bb0(.., 0x2d); 0x643dc2..0x643df9).
-// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them.
-// ponytail: the ammo tests (a bow / crossbow needs its quiver in the other hand, stat 70 above 0, unless stat 0x9d) and
-// the flags 0x4000 / 0x100 items (skill 0 only) aren't kept: those pass.
-inline bool hand_fits(const GameData& game_data, const std::string& type, const std::array<std::string, 3>& itypes,
-                      const std::array<std::string, 2>& etypes, bool bare) {
+// FUN_00643d90: one hand's item ("" type: none) against one of a skill's sets, `other` the other hand's. No item: the
+// set is empty, or `bare`: whichever set it is, set a's itype1 (+0x18) is weap / mele / h2h (ItemTypes 0x2d / 0x2e /
+// 0x43), set b's itype1 (+0x1e) is empty and the other hand holds no weapon (FUN_00629bb0(.., 0x2d); 0x643dc2..0x643df9).
+// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them,
+// and one that is: flagged 0x4000 (requirements unmet) or 0x100 (broken) only Attack (skill 0); one that shoots
+// (its type's Shoots, FUN_0062e6f0), unless the skill is noammo (flags bit 16, byte +6 bit 0): Attack with its
+// stat 0x9d goes, else the other hand must hold that ammunition, Attack with its stat 0x9d goes, and a stack
+// (FUN_006295b0) needs its quantity (stat 0x46) above 0.
+inline bool hand_fits(const GameData& game_data, const d2d::d2s::Item* item, const d2d::d2s::Item* other, const d2d::rules::Skill& skill,
+                      const std::array<std::string, 3>& itypes, const std::array<std::string, 2>& etypes, bool bare) {
+    const auto type_of = [&](const d2d::d2s::Item* held) {
+        const auto info = held ? game_data.rules.item_info.find(held->code) : game_data.rules.item_info.end();
+        return info == game_data.rules.item_info.end() ? std::string{} : info->second.type;
+    };
+    const std::string type = type_of(item);
     const auto of_type = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
     if (type.empty()) return (itypes[0].empty() && etypes[0].empty()) || bare;
     if (std::ranges::any_of(etypes, of_type)) return false;
-    return itypes[0].empty() || std::ranges::any_of(itypes, of_type);
+    if (itypes[0].empty()) return true;
+    if (std::ranges::none_of(itypes, of_type)) return false;
+    if (item->flags & 0x4100u) return skill.id == 0;
+    const auto own_type = game_data.rules.types.find(type);
+    const std::string shoots = own_type == game_data.rules.types.end() ? std::string{} : own_type->second.shoots;
+    if (shoots.empty() || skill.noammo) return true;
+    const auto no_consume = [&skill](const d2d::d2s::Item& held) {
+        return skill.id == 0 && std::ranges::any_of(held.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 0x9d && prop.value != 0; });
+    };
+    if (no_consume(*item)) return true;
+    if (!other || !d2d::rules::type_is(game_data.rules, type_of(other), shoots)) return false;
+    if (no_consume(*other)) return true;
+    return d2d::rules::stack_most(game_data.rules, *other) == 0 || other->quantity > 0;
 }
 // FUN_00643f80, the skills' weapon-type gate (FUN_00647960's status 2): no itypea1 and no etypea1 passes; else one
 // hand (right, left: FUN_0063bde0(inv, 4 / 5)) fits set a and the other set b, either way round. For Left Hand
 // Throw / Swing (ids 4 / 5) the wielded weapon's hand (FUN_0063bef0) counts as empty.
 inline bool weapon_gate(const GameData& game_data, const Character& character, const d2d::rules::Skill& skill) {
     if (skill.itype_a[0].empty() && skill.etype_a[0].empty()) return true;
-    std::array<std::string, 2> hands{};   // right, left: the item types
+    std::array<const d2d::d2s::Item*, 2> hands{};   // right, left
     for (const auto& item : character.items)
-        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
-            if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end())
-                hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = info->second.type;
+        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
+            && game_data.rules.item_info.contains(item.code))
+            hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = &item;
     if (skill.id == 4 || skill.id == 5)
         if (const auto* wielded = d2d::rules::wielded_weapon(game_data.rules, character.items))
-            hands[wielded->slot == d2d::d2s::body_location::kRightArm ? 0 : 1].clear();
-    const bool neither_weapon = std::ranges::none_of(hands, [&](const std::string& type) { return !type.empty() && d2d::rules::type_is(game_data.rules, type, "weap"); });
+            hands[wielded->slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = nullptr;
+    const auto is_weapon = [&](const d2d::d2s::Item* held) {
+        return held && d2d::rules::type_is(game_data.rules, game_data.rules.item_info.at(held->code).type, "weap");
+    };
+    const bool neither_weapon = std::ranges::none_of(hands, is_weapon);
     const auto& first = skill.itype_a[0];
     const bool bare = (first == "weap" || first == "mele" || first == "h2h") && skill.itype_b[0].empty() && neither_weapon;
-    const auto fits_a = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_a, skill.etype_a, bare); };
-    const auto fits_b = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_b, skill.etype_b, bare); };
-    return (fits_a(hands[0]) && fits_b(hands[1])) || (fits_b(hands[0]) && fits_a(hands[1]));
+    const auto fits_a = [&](const d2d::d2s::Item* held, const d2d::d2s::Item* other) { return hand_fits(game_data, held, other, skill, skill.itype_a, skill.etype_a, bare); };
+    const auto fits_b = [&](const d2d::d2s::Item* held, const d2d::d2s::Item* other) { return hand_fits(game_data, held, other, skill, skill.itype_b, skill.etype_b, bare); };
+    return (fits_a(hands[0], hands[1]) && fits_b(hands[1], hands[0])) || (fits_b(hands[0], hands[1]) && fits_a(hands[1], hands[0]));
 }
 // A known skill the character can't use now (FUN_00647960 says 2): the
 // picker and the button draw it in text colour 1 (FUN_004aa3a0 /

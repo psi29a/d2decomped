@@ -445,6 +445,7 @@ struct Skill {
     Calc delay;                            // +0x190: frames before it may be used again
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
     bool decquant = false;                 // decquant: a shot spends one ammo (FUN_0056f7f0 -> FUN_0056c3f0)
+    bool noammo = false;                   // noammo (flags bit 16, the field table built at 0x616969): a bow needs no quiver (FUN_00643d90)
     bool attack_no_mana = false;
     // restrict (+0x228) and State1..3 (+0x22a, FUN_00644060): 0 not in a restrict state (wolf, bear,
     // delerium), 2 in one and in one of the listed states, any other value anywhere.

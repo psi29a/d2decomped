@@ -39,15 +39,19 @@ What a skill is, column by column (the ones that matter first):
   (+0x1e) is empty and the other hand isn't a weapon (`FUN_00629bb0(..,
   0x2d)`, 0x643dc2..0x643df9; so Double Swing, mele / mele, refuses bare
   hands); an item of an etype: false; no itype: true;
-  an item of none of the itypes: false; of one: true, except the ammo
-  tests (a bow / crossbow needs its quiver in the other hand with stat 70
-  above 0, unless stat 0x9d; flags 0x4000 / 0x100 items only for skill 0).
+  an item of none of the itypes: false; of one: flagged 0x4000 / 0x100
+  only for skill 0; one whose type shoots (Shoots, `FUN_0062e6f0`) and a
+  skill not noammo (flags bit 16, byte +6 bit 0; the Skills.txt field
+  table built at 0x616969): skill 0 with its stat 0x9d passes, else the
+  other hand must be of that ammunition, skill 0 with its stat 0x9d
+  passes, and a stack (`FUN_006295b0` above 0) needs its quantity (stat
+  0x46) above 0; else true.
   So Holy Shield and Smite (itypea1 shld, no set b) need a shield in
   either hand: the other hand passes set b's empty test.
   d2d: `weapon_gate` / `hand_fits` (fight.hpp, through `skill_refused`;
   `test_weapon_gate` against game.exe's own answers, `tools/emu/weapon_gate.py`:
-  2288 cases, Left Hand Throw / Swing's dropped hand too); not
-  kept: the ammo tests, the 0x4000 / 0x100 items; Throw keeps its own gate.
+  3984 cases, Left Hand Throw / Swing's dropped hand too, bows and quivers
+  full, empty, broken and with stat 0x9d); Throw keeps its own gate.
 - **Damage**: `ToHit` + `LevToHit`, or `ToHitCalc`; `SrcDam` (128 = all of
   the weapon damage); physical `MinDam` / `MaxDam` with `MinLevDam1..5`,
   elemental `EType`, `EMin` / `EMax` with `EMinLev1..5` / `EMaxLev1..5`,
