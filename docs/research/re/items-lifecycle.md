@@ -41,8 +41,9 @@ category, ancestry and stat queries with synthetic values, but executes
 to the ancestry predicate. The cleanup oracle
 runs the real item flag and prefix accessors but hooks stat-list lookup,
 detach and free. It checks original control flow and recorded calls, not
-the real queue, tables, stat-list effects, gameplay, or d2d parity. The runner rejects instruction
-budget exhaustion rather than accepting a partial emulator result.
+the real queue, tables, stat-list effects, gameplay, or d2d parity. The runner does not check that
+`EIP` reached the return sentinel: on instruction-budget exhaustion Unicorn stops without an error and
+`Emu.call` returns EAX, so a partial run is not rejected by the runner itself.
 
 `tools/emu/items_lifecycle_live.py` runs `FUN_00558270`, `FUN_005585d0`,
 `FUN_00558b90`, `FUN_00558cb0` and `FUN_00559130` for real on synthetic units

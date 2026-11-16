@@ -107,8 +107,9 @@ Details read from the runs, in addition to the table:
 - `FUN_00563840` (stack game, item; EBX owner; `ret 8`): asserts `0x7ff` on a
   missing Items row and `0x80f`/`0x810` when unlink fails or returns another
   item. For each page-3 inventory item the page byte is set to 0xff on
-  failure, and the item is dropped to the ground through `FUN_00555da0` and
-  `FUN_00558aa0`; a successful placement through `FUN_0063b950` and
+  failure, and a ground-location search through `FUN_00555da0` is attempted;
+  only when it finds a location is the item dropped through `FUN_00558aa0`
+  (otherwise the sequence ends at `FUN_00555da0`); a successful placement through `FUN_0063b950` and
   `FUN_0063b210` clears the cursor unless the owner is a player and the page
   is 1, and calls `FUN_00568770` only for a player page 2.
 - `FUN_00563fe0` (ECX game, EDX owner, stack item): asserts `0x1619`, `0x161a`,
