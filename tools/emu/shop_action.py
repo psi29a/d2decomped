@@ -129,15 +129,18 @@ def machine_for(exe):
     edx = lambda e: e.mu.reg_read(UC_X86_REG_EDX)
 
     def find(e):
+        """Hook for the NPC lookup: returns the NPC when present and asked by id."""
         state["calls"].append(("find", ecx(e), edx(e)))
         return npc if state["npc_present"] and ecx(e) == NPC_ID_VALUE and edx(e) == 1 else 0
 
     def price(e):
+        """Hook for the single-item price call: logs its arguments."""
         args = tuple(e.arg(i) for i in range(6))
         state["calls"].append(("price", *args))
         return 0x3000 + args[5]
 
     def price_all(e):
+        """Hook for the repair-all price call: logs its arguments."""
         args = tuple(e.arg(i) for i in range(6))
         state["calls"].append(("price_all", *args))
         return 0x2001
@@ -207,6 +210,7 @@ def shop_cases():
     """Cases: every class with every flag at the edges, plus a seeded spread of the rest."""
     cases, seed = [], 12345
     def rnd(n):
+        """Small deterministic generator (LCG) for the case rows."""
         nonlocal seed
         seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
         return (seed >> 8) % n
@@ -284,15 +288,19 @@ def check_gate(exe, mutation=None, rows=None):
     item = m.alloc(0x40)
     cur = {}
     def stat(e):
+        """Hook for the item stat read: durability (0x48) or quantity (0x46)."""
         which = e.arg(1)
         assert e.arg(0) == item and e.arg(2) == 0 and which in (0x48, 0x46), which
         return cur["dur"] if which == 0x48 else cur["qty"]
     def charge(e):
+        """Hook for the charge read: writes the case's charge value."""
         assert e.arg(0) == item
         e.w32(e.arg(1), cur["charge_zero"])
         return cur["charge_missing"]
     def item_arg(fn):
+        """Wrap a hook so it asserts its first argument is the test item."""
         def wrapped(e):
+            """Check the item argument, then run the wrapped hook."""
             assert e.arg(0) == item
             return fn()
         return wrapped
@@ -344,6 +352,7 @@ def check_select(exe, mutation=None, rows=None):
     halts = []
     m.hook(0x408090, lambda e: e.arg(0), 1)       # the error site: its line number is the argument
     def halt(e):
+        """Hook for the error site: records its line argument and stops the run."""
         halts.append(e.arg(1))
         raise StopIteration
     m.hook(0x408A60, lambda e: halts.append(e.arg(1)) or 0, 3)
@@ -379,6 +388,7 @@ MUTATIONS = ("all-mode", "no-debounce", "no-hand", "identified-refuses", "gate-d
 
 
 def main():
+    """Run the shop, repair and dialog-select cases in game.exe and diff them against d2d."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--exe", default=os.environ.get("D2_GAME_EXE"))
     parser.add_argument("--mutation-check", action="store_true")

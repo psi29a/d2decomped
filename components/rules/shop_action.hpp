@@ -16,6 +16,7 @@ namespace d2d::rules {
 // vendors that buy and sell, the repairers (they sell too unless the store's
 // repair button is on), Cain's identify, and every other class: nothing.
 enum class ShopKind { none, sell, repair, identify };
+// What a click on an item does at this NPC class (FUN_004b3870's class switch).
 inline ShopKind shop_kind(int npc_class) {
     switch (npc_class) {
         case 0x93: case 0x94: case 0xb1: case 0xc7: case 0xca: case 0xfc: case 0xfe: case 0xff: case 0x195: case 0x200: case 0x201: case 0x202:

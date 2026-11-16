@@ -13,6 +13,7 @@
 #include <exception>
 #include <vector>
 
+// Replays tools/emu/shop_action.py's game.exe cases (FUN_004b3870, FUN_004b1f80, FUN_004b82f0) against rules::.
 int main() try {
     using namespace d2d::rules;
     struct ClickCase { int session, npc, cls, sell, direct, all, all_flag, late, hand, gamble, repair_mode, gold, sellable, wants_repair, identified,

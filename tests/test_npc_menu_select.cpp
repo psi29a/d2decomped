@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <exception>
 
+// Checks NpcMenuState's line select against FUN_004b82f0's cases.
 int main() try {
     d2d::client::NpcMenuState menu;
     menu.npc = 0;

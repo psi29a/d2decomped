@@ -97,6 +97,7 @@ std::string resurrect_line(const Scene& scene, int merc_type, int name_index, in
     return line;
 }
 
+// The respec confirmation window (FUN_004b85f0 lines: title, confirm, cancel), first choosable line lit.
 NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int screen_y) {
     NpcMenuState menu;
     menu.npc = npc;
@@ -108,6 +109,7 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
     return menu;
 }
 
+// The window that tells why a trade was refused (`result`), opened under the mouse.
 NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade result, int mouse_x, int mouse_y) {
     NpcMenuState menu;
     menu.npc = npc;
