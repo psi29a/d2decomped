@@ -384,6 +384,35 @@ def check_select(exe, mutation=None, rows=None):
     return n + 1
 
 
+def check_charge_status(exe):
+    """Run FUN_0062a840 with synthetic stat 0xcc entries from its leaf reader."""
+    machine = emu.Emu(exe)
+    item = machine.alloc(0x40)
+    output = machine.alloc(4)
+    cases = [[], [(4, 4)], [(0, 4)], [(3, 4)], [(5, 4)],
+             [(4, 4), (3, 4)], [(3, 4), (4, 4)], [(255, 255)], [(254, 255)],
+             [(4, 4)] * 63 + [(0, 4)]]
+    entries = []
+
+    def read_charges(engine):
+        assert engine.arg(0) == item and engine.arg(1) == 0xCC and engine.arg(3) == 64
+        for index, (current, maximum) in enumerate(entries):
+            address = engine.arg(2) + index * 8
+            engine.w32(address, 0xCC0000 + index)
+            engine.w32(address + 4, current | (maximum << 8))
+        return len(entries)
+
+    machine.hook(0x6261D0, read_charges, 4)
+    for entries in cases:
+        machine.w32(output, 0xFFFFFFFF)
+        present = machine.call(0x62A840, item, output)
+        full = machine.r32(output)
+        expected = (int(bool(entries)), int(not any(current < maximum for current, maximum in entries)))
+        assert (present, full) == expected, (entries, present, full, expected)
+        assert machine.call(0x62A840, item, 0) == expected[0]
+    return len(cases)
+
+
 MUTATIONS = ("all-mode", "no-debounce", "no-hand", "identified-refuses", "gate-dur", "gate-charge", "allow-end", "any-line")
 
 
@@ -398,6 +427,8 @@ def main():
     shop = check_shop(args.exe, rows=shop_rows)
     gate = check_gate(args.exe, rows=gate_rows)
     select = check_select(args.exe, rows=select_rows)
+    charges = check_charge_status(args.exe)
+    print(f"ok: {charges} FUN_0062a840 cases with and without an output pointer")
     print(f"ok: {shop} FUN_004b3870 cases, {gate} FUN_004b1f80 cases, {select} FUN_004b82f0 cases")
     if args.dump:
         for name, head, rows in (("shop_action_cases.inc", "tools/emu/shop_action.py: FUN_004b3870 " + ", ".join(FIELDS) + " | " + ", ".join(OUT), shop_rows),
