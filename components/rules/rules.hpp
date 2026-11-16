@@ -2399,8 +2399,9 @@ inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
 // Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
 // at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
 // the rest the most. FUN_0062bcb0 caps them at the grid and 6.
-// ponytail: the item's seed is taken fresh from its fingerprint, not where
-// its making left it.
+// The item's seed is taken fresh from its fingerprint: exact for an item
+// loaded from a save (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint,
+// 666}). ponytail: one made or rolled on this game keeps where that left it.
 inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& item) {
     auto made = item;
     int sockets = most_sockets(tables, item);
