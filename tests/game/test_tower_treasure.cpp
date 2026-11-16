@@ -120,6 +120,21 @@ int main() try {
     assert(lines(61'000) == 0 && !world.actor->tower_line_held);
     assert(hushes(75 * 40) == 1);                        // no second one
     std::printf("OK: her complete_tower line plays 1 s after the treasure's end, within 60 s\n");
+
+    // Split levels: the turn that ends it can be another level's; the
+    // player in the cellar still gets the line.
+    world.split_levels = true;
+    world.actor->on_level = cellar;
+    world.level = &data->town;
+    world.treasure.front().left = 1;
+    world.actor->tower_line_held = 90'000;
+    world.cues.due.clear();
+    world.tower_treasure(100'000);
+    assert(lines(101'000) == 1 && !world.actor->tower_line_held);
+    world.split_levels = false;
+    world.actor->on_level = nullptr;
+    world.level = cellar;
+    std::printf("OK: the line reaches the cellar's player from another level's turn\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

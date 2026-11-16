@@ -459,7 +459,7 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
                 loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms, false, 0, &cellar);
             }
             if (spawner.left == 1)
-                each_player([&](Player& player) {
+                each_in_game([&](Player& player, int) {   // split levels: whoever heard her, on any level
                     if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) {
                         class_cue("act1_complete_tower", now_ms + 1'000);
                         player.events.push_back(ev::MusicCue{ .back_ms = (25 + 0x32) * 40 });   // FUN_004dce10: the music back 0x32 ticks after the line
