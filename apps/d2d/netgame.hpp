@@ -43,6 +43,7 @@ struct NetGame {
         int area = 0;                 // a party member's level id (0x7f +8)
         int relation = 0;             // the party button's state toward it (0x8b: 0 invite, 2 accept, 3 leave, 4 asked; roster +0x30)
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
+        int sort_key = 0;             // its Party roster sort key (0x65's signed word; roster +0x18)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
@@ -123,6 +124,7 @@ struct NetGame {
     std::uint32_t map_seed = 0;       // 0x03
     int act = 0, area = 0;            // 0x03
     int difficulty = 0;               // 0x01
+    std::uint32_t game_flags = 0;     // 0x01 +2 (0x712efc): bit 1 sorts the Party roster by 0x65
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     // The client's pet list (0x7a, FUN_0045e860 / FUN_00478b10): the portraits'.

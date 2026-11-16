@@ -134,7 +134,10 @@ struct Loot {
              int gold_find = 0, const Level* onto = nullptr) {
         {
             GroundItem ground_item;
-            std::tie(ground_item.x, ground_item.y) = drop_at(x, y, onto);
+            const auto spot = landing(x, y, onto);
+            ground_item.x = spot.x;
+            ground_item.y = spot.y;
+            const Level* lands_on = spot.level == (onto ? onto : level) ? onto : spot.level;   // a neighbour's room: its floor
             ground_item.now_ms = now_ms;
             if (dropped.code == "gld") {
                 ground_item.item.code = "gld";
@@ -151,26 +154,51 @@ struct Loot {
                 const auto lines = item_lines(*game_data, ground_item.item, int(character->stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
             }
-            land(std::move(ground_item), now_ms, onto);
+            land(std::move(ground_item), now_ms, lands_on);
         }
     }
-    // FUN_00555da0 on the level's walk grid: walls and object footprints
-    // (0x01) block, as do items already lying there (0x200). On this level,
-    // a unit's footprint blocks too (FUN_0064ea90, UnitShape::bit): 0x1000
-    // for pattern 1 / 2, 0x2000 for pattern 3 / 4, on the subtile, or the
-    // plus for pattern 2 / 4. The walk grid does not hold those bits.
-    // ponytail: one level is searched, no neighbours'.
+    // FUN_00555da0 on the walk grids of the rooms FUN_0064ca50 finds
+    // (FUN_00463740): the dropper's room and its near list (automap_rooms:
+    // the next level's close rooms and a warp's room too), 0x27 off them.
+    // Walls and object footprints (0x01) block, as do items already lying
+    // there (0x200). On this level, a unit's footprint blocks too
+    // (FUN_0064ea90, UnitShape::bit): 0x1000 for pattern 1 / 2, 0x2000 for
+    // pattern 3 / 4, on the subtile, or the plus for pattern 2 / 4. The walk
+    // grid does not hold those bits. `level`: the level whose room took the
+    // spot (`onto`'s, this one's, or a neighbour's), (x, y) in its cells.
+    struct Landing { const Level* level; float x, y; };
+    [[nodiscard]] Landing landing(float x, float y, const Level* onto = nullptr) const {
+        const Level* where = onto ? onto : level;
+        if (where->walk.empty()) return { where, x, y };
+        const auto rooms = automap_rooms(*game_data, *where, x, y);
+        // The room holding subtile (at_x, at_y) of `where`, in act subtiles.
+        const auto room_at = [&](int at_x, int at_y) -> const AutomapRoom* {
+            const int act_x = where->world_x * 5 + at_x, act_y = where->world_y * 5 + at_y;
+            for (const auto& room : rooms)
+                if (room.level && act_x >= room.x * 5 && act_y >= room.y * 5 && act_x < (room.x + room.width) * 5 && act_y < (room.y + room.height) * 5) return &room;
+            return nullptr;
+        };
+        const auto cell_flags = [&](int at_x, int at_y) {
+            const auto* room = room_at(at_x, at_y);
+            if (!room) return 0x27;
+            const Level& holder = *room->level;
+            const int local_x = at_x + (where->world_x - holder.world_x) * 5, local_y = at_y + (where->world_y - holder.world_y) * 5;
+            const int width = holder.ds1.width() * 5;
+            if (local_x < 0 || local_y < 0 || local_x >= width || std::size_t(local_y) * std::size_t(width) + std::size_t(local_x) >= holder.walk.size()) return 0x27;
+            const int flags = (holder.walk[std::size_t(local_y) * std::size_t(width) + std::size_t(local_x)] & 0x01) | items_at(&holder, local_x, local_y);
+            return &holder == level ? flags | units_at(local_x, local_y) : flags;
+        };
+        const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), cell_flags);
+        const auto* room = room_at(spot_x, spot_y);
+        const Level* holder = room ? room->level : where;
+        return { holder, (float(spot_x) + 0.5f) / 5 + float(where->world_x - holder->world_x), (float(spot_y) + 0.5f) / 5 + float(where->world_y - holder->world_y) };
+    }
+    // landing's spot in `onto`'s cells (this level's), past its edge when a
+    // neighbour's room took it.
     [[nodiscard]] std::pair<float, float> drop_at(float x, float y, const Level* onto = nullptr) const {
         const Level* where = onto ? onto : level;
-        const int width = where->ds1.width() * 5, height = where->ds1.height() * 5;
-        if (where->walk.empty()) return { x, y };
-        const bool this_level = where == level;
-        const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
-            if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
-            const int flags = (where->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01) | items_at(where, at_x, at_y);
-            return this_level ? flags | units_at(at_x, at_y) : flags;
-        });
-        return { (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5 };
+        const auto spot = landing(x, y, onto);
+        return { spot.x + float(spot.level->world_x - where->world_x), spot.y + float(spot.level->world_y - where->world_y) };
     }
     // 0x1000 / 0x2000 where `standing` stamps them on subtile (at_x, at_y).
     // Pattern 0 and 5 stamp nothing (UnitShape::stamps). A pattern 0 probe

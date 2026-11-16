@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <exception>
 #include <random>
+#include <span>
 #include <vector>
 
 using namespace d2d::net;
@@ -166,7 +167,13 @@ int main() try {
         assert(lines && lines->id == 0x44 && lines->lines.size() == 2 && lines->lines[0].message == 304 && lines->lines[0].greet && !lines->lines[1].greet);
         info[6] = 1; info[8] = 3;
         assert(!d2gs::s2c::npc_lines(info));
-        assert(d2gs::s2c::quest_word_of_record(8) == 9 && d2gs::s2c::quest_word_of_record(1) == 1 && d2gs::s2c::quest_word_of_record(30) == 34 && d2gs::s2c::quest_word_of_record(7) == -1);
+        // 0x01's flags (bit 1: the roster by 0x65's word) and 0x65's signed word.
+        const std::array<std::uint8_t, 8> flags_packet = { 0x01, 2, 0x06, 0x08, 0x10, 0x00, 1, 0 };
+        assert(d2gs::s2c::game_flags(flags_packet) == 0x00100806u && d2gs::s2c::roster_by_sort_key(0x00100806u) && !d2gs::s2c::roster_by_sort_key(0x00100804u));
+        const std::array<std::uint8_t, 7> kills = { 0x65, 0x07, 0, 0, 0, 0xfe, 0xff };
+        assert(d2gs::s2c::roster_key(kills) && d2gs::s2c::roster_key(kills)->id == 7 && d2gs::s2c::roster_key(kills)->sort_key == -2);
+        assert(!d2gs::s2c::roster_key(std::span(kills).first(6)) && !d2gs::s2c::game_flags(kills));
+        assert(d2gs::s2c::quest_word_of_record(8) == 9 &&d2gs::s2c::quest_word_of_record(1) == 1 && d2gs::s2c::quest_word_of_record(30) == 34 && d2gs::s2c::quest_word_of_record(7) == -1);
     }
     {   // 0xac: Lord De Seis as a 1.14d host sent him (2026-10-18): unique + superunique row 37
         const std::array<std::uint8_t, 26> de_seis = { 0xac, 0x67, 0x01, 0x00, 0x00, 0x38, 0x01, 0x61, 0x1e, 0x38, 0x14, 0x80, 0x1a,

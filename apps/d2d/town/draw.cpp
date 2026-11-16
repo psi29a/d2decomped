@@ -183,13 +183,17 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         // min(length, 254) x 8 + 125 frames (FUN_00661110). An object's
         // goes on d2d's object nearest the host's; a player's or monster's
         // on theirs.
-        // ponytail: text that isn't a string id isn't shown.
+        // Which text is a string id: overhead_string (FUN_004a0d20 /
+        // FUN_004a0b30); a monster's or object's other text isn't drawn.
+        // ponytail: a player's own text (FUN_004a0b30 after FUN_0049e280's
+        // language check) isn't shown.
         std::vector<UnitState> said_npcs;                    // the NPC states drawn, with the host's objects' messages: a copy (the View's are replicated by change)
         if (net_game) {
             for (const auto& said : std::exchange(net_game->overheads, {})) {
-                const auto number = std::strtoul(said.text.c_str(), nullptr, 10);
-                if (said.text.empty() || said.text.find_first_not_of("0123456789") != std::string::npos || number == 0 || number > 0xffff) continue;
-                net_said[std::uint64_t(said.type) << 32 | said.id] = { std::uint16_t(number), frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
+                const auto number = overhead_string(said.type, said.text);
+                const auto unit_key = std::uint64_t(said.type) << 32 | said.id;
+                if (said.text.empty() || !number) { net_said.erase(unit_key); continue; }   // a new message replaces the old, shown or not
+                net_said[unit_key] = { *number, frame_ms + std::uint32_t(overhead_frames(said.text.size())) * kTickMs };
             }
             std::erase_if(net_said, [&](const auto& entry) { return frame_ms >= entry.second.until; });
             for (const auto& [unit_key, said] : net_said) {

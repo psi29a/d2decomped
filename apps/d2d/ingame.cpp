@@ -5,6 +5,7 @@
 #include <overlays.hpp>
 
 #include "common.hpp"
+#include "overhead.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 #include "store.hpp"
@@ -15,6 +16,7 @@
 #include "world_view.hpp"
 
 #include <d2s_items.hpp>
+#include <font.hpp>
 #include <palette.hpp>
 #include <panel_view.hpp>
 #include <rules.hpp>
@@ -237,16 +239,62 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (rain) draw_rain(world, *rain, scene.act_pal.entries().empty() ? scene.pal : scene.act_pal,
                             hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
-        // What a unit says (a shrine's message), centred over it.
-        // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:
-        // font, colour and height (here 100 px over its feet) are guesses.
+        // What a unit says (a shrine's message): FUN_004a0b30 (players)
+        // and FUN_004a0d20 (the rest) take its screen point (FUN_00620900:
+        // the path's +8 / +0xc, FUN_00643290 of its 16.16 spot >> 11, so
+        // (x - y) * 16, (x + y) * 8 a subtile) less the view's corner
+        // 0x7bf214 (FUN_0044c990: the player's point less half the view
+        // {0, 0, W, H - 40}): kFloorViewY, 12 over the feet d2d draws at
+        // kViewY. That 0x1e / 10 up, then they drop
+        // it with the point off screen (y outside 1..H-1, x outside
+        // -99..W+99). FUN_004a0a00: the text (at most 199 characters)
+        // wrapped to 0xb4 in FontInGameChat (0xd, FUN_00502970); a box the
+        // widest line + 0x14 wide, 15 a line + 6 high, centred on x, its
+        // top 0x32 + 15 a line + 3 over that. FUN_0049d9a0 drops a box
+        // that starts under an open side panel (left x past W/2 - 10 with
+        // the right one, under W/2 + 10 with the left, any with both);
+        // FUN_0049d8e0 one not wholly on screen in y, then darkens (left,
+        // top + 4, width, height - 5) (FUN_0046efd0 colour 0, mode 1) and
+        // draws at most 10 lines white at left + 10, on baselines top +
+        // 0x12 + 15 a line (the first lines in the last slots). Before
+        // both, FUN_0049e070 moves a box clear of the frame's earlier ones
+        // (place_overhead), or drops it.
+        // ponytail: game.exe's frame starts with the NPC menu in slot 0
+        // (FUN_004a0e70, 0x7bf1c0 == 1) and walks its unit tables in an
+        // order not traced; d2d starts empty and goes in `units` order.
+        std::vector<OverheadRect> overhead_slots;
+        const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
+        const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const auto& unit : units) {
             if (!unit.says) continue;
-            const auto text = string_id(scene, unit.says);
-            const int pixel_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
-            const int pixel_y = kViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
-            const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-            scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
+            const bool player = unit.npc == -1 || unit.npc <= -4000;
+            const int point_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
+            const int point_y = kFloorViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);
+            if (point_y <= 0 || point_y >= int(kScreenHeight) || point_x <= -100 || point_x >= world_w + 100) continue;
+            const auto lines = d2d::font::wrap_edit_box(string_id(scene, unit.says).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
+                if (const auto* glyph = chat_font.find(code)) return int(glyph->width);
+                return 0;
+            });
+            if (lines.empty()) continue;
+            int widest = 0;
+            for (const auto& line : lines) widest = std::max(widest, chat_font.measure(line));
+            const int count = int(lines.size()), shown = std::min(count, 10);
+            const int width = widest + 0x14, height = count * 15 + 6;
+            const int box_left = point_x - width / 2, box_top = point_y - 0x32 - count * 15 - 3;
+            const auto spot = place_overhead(overhead_slots, { box_left, box_top, box_left + width, box_top + height }, world_w, int(kScreenHeight));
+            if (!spot) continue;
+            const int left = spot->left, top = spot->top;
+            if ((hud.left_open && hud.right_open) || (hud.right_open && left > world_w / 2 - 10) || (hud.left_open && left < world_w / 2 + 10)) continue;
+            if (top < 0 || top + height >= int(kScreenHeight)) continue;
+            for (int row = std::max(top + 4, 0); row < std::min(top + 4 + height - 5, int(kScreenHeight)); ++row)
+                for (int column = std::max(left, 0); column < std::min(left + width, world_w); ++column)
+                    for (std::size_t channel = 0; channel < 3; ++channel) {
+                        auto& value = world[(std::size_t(row) * std::size_t(world_w) + std::size_t(column)) * 4 + channel];
+                        value = std::uint8_t(value / 2);
+                    }
+            for (int line = 0; line < shown; ++line)
+                chat_font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, says_pal, left + 10,
+                                      glyph_top(chat_font, top + 0x12 + 15 * (line + count - shown)), lines[std::size_t(line)], 255, 255, 255);
         }
         // A box under a label (FUN_004f6300): `rgb` at draw mode 1 (half,
         // over black), 2 (a quarter of the colour kept) or 5 (solid).

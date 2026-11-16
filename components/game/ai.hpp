@@ -95,7 +95,7 @@ std::vector<UnitState> npc_start(const Level& level);
 // collision sees them: each stamps its footprint bit (UnitShape: 0x1000,
 // or 0x2000 for the merc and the cow) on its subtile, or the plus for
 // pattern 2 / 4; a mover is blocked where its own test shape (the plus, or
-// its SizeX box) meets a footprint its mask holds. game.exe lifts the
+// the 3x3 box) meets a footprint its mask holds. game.exe lifts the
 // mover's own stamp first (FUN_00649970). So a player (0x1c09) walks
 // through its merc; monsters (0x3c01) don't. Own bits (0x80 player, 0x100
 // monster) are in no walker's mask, so aren't kept.

@@ -976,11 +976,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
                 && !touch_mouse && !touch_busy) {
                 pad_in_use = false; mouse_took_over = true;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+                town.last_device = touch::LastDevice::MouseKeyboard;
             }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
                 pad_in_use = false;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::MouseKeyboard;
+                town.last_device = touch::LastDevice::MouseKeyboard;
             }
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
@@ -1131,7 +1131,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) {
                 pad_in_use = true;
-                if (town.touch_enabled) town.last_device = touch::LastDevice::Gamepad;
+                town.last_device = touch::LastDevice::Gamepad;
             }
             town.skill_actions = pad_actions;
             if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {

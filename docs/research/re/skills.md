@@ -543,7 +543,9 @@ lines (missile names aren't passed in). What it does:
   (the strike).
 - **Charge**, start 31 (FUN_005cf6b0): velocity = **run velocity**
   (CharStats +0x41 << 8) × (max(velocitypercent (67), 50) + **par1** (150))
-  / 100; players at a distance only (in reach it's a plain attack,
+  / 100 (0x5cf833..0x5cf864: stat 0x43 read, floored at 0x32, plus
+  FUN_004c9460's Param1, then FUN_00483360's MulDiv; d2d: 100 +
+  `Fighter::velocity_pct`, `Fight::start_move`); players at a distance only (in reach it's a plain attack,
   FUN_0056e230). Do 67 (FUN_005cf900) on each event (every run frame of
   sequence 4 is one): the target in reach jumps the sequence to its attack
   frames (FUN_00553dc0); the attack's event hits (toht, **knockback**,
@@ -848,7 +850,11 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (FUN_00644d50 / 00644e40 with flag 1) and length (FUN_00644f20); the
   weapon's damage only when the skill's SrcDam (+0x1a5, as written) is
   non-zero, × SrcDam / 128, with its mastery, strength / dexterity bonus
-  and stat 25 (arrows). Without Skill, the row's own damage columns.
+  and stat 25 (arrows). Without Skill, the row's own damage columns:
+  physical MinDamage / MaxDamage (+0xb0 / +0xb4) with their level
+  brackets and DmgSymPerCalc (+0xe0) % (FUN_0064af20 / FUN_0064aff0), the
+  element with EDmgSymPerCalc (FUN_0064b100 / FUN_0064b1d0), its length
+  FUN_0064b2a0 (`Fight::row_damage`).
 - Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
   of the damage after the synergy: fire 329, lightning 330, cold (and
   freeze) 331, poison 332; none for magic.

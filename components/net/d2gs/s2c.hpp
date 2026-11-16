@@ -27,6 +27,23 @@ inline auto npc_lines(std::span<const std::uint8_t> packet) -> std::optional<Npc
     return out;
 }
 
+// 0x01 game flags (0x45c8b0): +2 the u32 FUN_0047a9a0 keeps at 0x712efc.
+// Its bit 1 (FUN_0047a980) has the Party roster sort by 0x65's word
+// (FUN_004799c0, party.md).
+inline auto game_flags(std::span<const std::uint8_t> packet) -> std::optional<std::uint32_t> {
+    if (packet.size() < 6 || packet[0] != 0x01) return std::nullopt;
+    return read_u32(packet, 2);
+}
+inline auto roster_by_sort_key(std::uint32_t flags) -> bool { return (flags >> 1 & 1) != 0; }
+
+// 0x65 (0x45e6b0 -> 0x479b10): +1 u32 a player's id, +5 u16 its roster
+// record's +0x18, sign-extended (00479b1e..00479b40).
+struct RosterKey { std::uint32_t id = 0; int sort_key = 0; };
+inline auto roster_key(std::span<const std::uint8_t> packet) -> std::optional<RosterKey> {
+    if (packet.size() < 7 || packet[0] != 0x65) return std::nullopt;
+    return RosterKey{ .id = read_u32(packet, 1), .sort_key = int(std::int16_t(read_u16(packet, 5))) };
+}
+
 // The quest log's row (= quest word) of a quest record id, as 0x5d's +1
 // names it (FUN_004a1910: the table at 0x723f30, +8 the record, 41 rows;
 // 37 is "none"). -1 when no row has it.

@@ -429,34 +429,37 @@ auto World::tower_treasure_made() -> void {
 // ago (FUN_004dcaa0); later, the line's dropped. The 0x25 turned the music
 // off for those 1500 ticks (FUN_004dcd40 -> FUN_004ba8f0); the 0x5c brings
 // it back 0x32 ticks after the line (FUN_004dce10).
-// ponytail: it runs only while the player's on its level (game.exe: while its room's up).
+// A missile frames while its room's up, whoever's on the level; the chests'
+// rooms came up to be listed, and d2d's rooms stay up, so it runs from any
+// level, its drops kept on the cellar's floor (Loot::put's `onto`).
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
-            if (spawner.level != level || spawner.left <= 0) continue;
-            const auto& chest = level->npcs[std::size_t(spawner.npc)];
+            if (!spawner.level || spawner.left <= 0 || std::size_t(spawner.npc) >= spawner.level->npcs.size()) continue;
+            const Level& cellar = *spawner.level;
+            const auto& chest = cellar.npcs[std::size_t(spawner.npc)];
             const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
             const auto& area_levels = game_data->area_level;
             auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(diff)] : 1; };
-            const int here = alvl(level->id);
-            if (spawner.left == Tower::kTreasureFrames - Tower::kTreasureOpen && !operated.contains({ level, spawner.npc })) {
+            const int here = alvl(cellar.id);
+            if (spawner.left == Tower::kTreasureFrames - Tower::kTreasureOpen && !operated.contains({ &cellar, spawner.npc })) {
                 const auto [low, high] = d2d::rules::kChestLevels[0];
                 const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
                 std::vector<d2d::rules::Drop> drops;
                 for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4);
                 for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
-                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms);
-                operated[{ level, spawner.npc }] = now_ms;
+                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                operated[{ &cellar, spawner.npc }] = now_ms;
                 d2d::log::info("The Forgotten Tower: the Countess's chest opens ({} drops)", drops.size());
             }
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
                 const float off_x = float(spawner.seed(2 * radius + 1) - radius) / 5, off_y = float(spawner.seed(2 * radius + 1) - radius) / 5;
-                const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
-                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
+                const auto [spot_x, spot_y] = cellar.nearest_free(chest.x + off_x, chest.y + off_y);
+                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms, false, 0, &cellar);
             }
             if (spawner.left == 1)
-                each_player([&](Player& player) {
+                each_in_game([&](Player& player, int) {   // split levels: whoever heard her, on any level
                     if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) {
                         class_cue("act1_complete_tower", now_ms + 1'000);
                         player.events.push_back(ev::MusicCue{ .back_ms = (25 + 0x32) * 40 });   // FUN_004dce10: the music back 0x32 ticks after the line

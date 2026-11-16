@@ -56,7 +56,8 @@ struct Act3Ai : ThinkCtx {
         input.grouped = has_leader && (head.alive() || head.mode == "DD");
         input.leader_mode = monster_mode(head.mode, 16);
     }
-    // Its own spot's collision: the frogs' 0xc01, the zealots' 0x40; the
+    // Its own spot's collision: the frogs' 0xc01, the zealots' 0x40 (one
+    // subtile, FUN_0064cb30 at 0x5f704c, not FUN_0064d910's pattern); the
     // zealots' spare: the player's quest 0x15 bit 0 (a3q5 done) in act 3.
     void frog_demon() { input.spot_clear = !level.blocked(unit.x, unit.y, 0xc01); }
     void zakarum_zealot() {

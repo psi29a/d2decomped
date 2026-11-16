@@ -359,8 +359,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         each_player([&](Player&) { item_ids(); });
         // This tick's day frames (tick): the day and the quests' timers step
         // once a tick, in the first turn; every turn's players each frame.
-        // ponytail: split levels run the quest timers (act1_tick, act2_tick)
-        // in the first turn's level only; their level tests see that one.
+        // ponytail: split levels run the quest timers in the first turn's level
+        // only; the level tests (act2_tick's Tyrael, Andariel's portal, the
+        // Summoner's line) see that one. act1_tick's treasure tests none.
         const std::uint32_t day_end = day_at;
         for (const std::uint32_t frame_at : day_frames) {
             day_at = frame_at;
@@ -401,15 +402,18 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             const auto& npc = key.first->npcs[npc_index];
             const int reset = npc.operate_fn == d2d::rules::operate_fn::kShrine && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
             const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
+            const auto on_ticks = object_op_ticks(npc);
+            const bool never_on = on_ticks < 0;
+            const std::uint32_t on_ms = never_on ? 0 : when_ms + std::uint32_t(on_ticks) * kTickMs;
+            const bool opening = never_on || now_ms < on_ms;
+            const std::string_view mode = back ? std::string_view{} : opening ? "OP" : "ON";
+            const bool solid = (npc.collision >> mode_index(mode.empty() ? npc.mode : mode) & 1) != 0;
+            // Its footprint in the new mode (ON: FUN_00623830 when HasCollision2 is off; jugs q4 / q5, xj).
+            // On another level too: the server ends the mode whoever's near (its room stays up), so
+            // the footprint changes as OP turns ON (since the last tick) or as the shrine's back.
+            if (key.first != level && (back || (!never_on && last_ms < on_ms && on_ms <= now_ms))) set_footprint(*key.first, npc, solid);
             if (key.first == level && npc_index < npc_states.size()) {
-                const auto on_ticks = object_op_ticks(npc);
-                const bool never_on = on_ticks < 0;
-                const std::uint32_t on_ms = never_on ? 0 : when_ms + std::uint32_t(on_ticks) * kTickMs;
-                const bool opening = never_on || now_ms < on_ms;
-                const std::string_view mode = back ? std::string_view{} : opening ? "OP" : "ON";
-                // Its footprint in the new mode (ON: FUN_00623830 when HasCollision2 is off; jugs q4 / q5, xj).
-                // ponytail: on this level's tick only; one left mid-OP keeps OP's until it's back in view.
-                if (npc_states[npc_index].mode != mode) set_footprint(*level, npc, npc.collision >> mode_index(mode.empty() ? npc.mode : mode) & 1);
+                if (npc_states[npc_index].mode != mode) set_footprint(*level, npc, solid);
                 npc_states[npc_index].mode = mode;
                 npc_states[npc_index].mode_ms = back ? now_ms : opening ? when_ms : on_ms;   // its animation runs from the mode's start
                 // Its message overhead (ShrMsgN, 3683 + row: FUN_00661110 on

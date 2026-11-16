@@ -455,7 +455,10 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
     if (!data) return std::nullopt;
     const auto start_ms = d2d::log::ms();
     try {
-        Scene scene{ std::move(*data) };
+        // Built in the returned optional: a Scene is ~460 KB, and a local one moved
+        // out doubled this frame past Windows' 1 MB main stack (Sentry D2D-B).
+        std::optional<Scene> loaded;
+        auto& scene = loaded.emplace(std::move(*data));
         const auto& mpqs = scene.mpqs;
         // Prefer the LoD title asset (fenced rogue camp at night). Classic
         // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
@@ -565,7 +568,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         if (auto bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
             scene.cinematics_panel = d2d::dc6::Sprite(*bytes);
         d2d::log::info("Menus loaded in {} ms.", d2d::log::ms() - start_ms);
-        return scene;
+        return loaded;
     } catch (const std::exception& error) {
         d2d::log::error("load_scene: {}", error.what());
         return std::nullopt;

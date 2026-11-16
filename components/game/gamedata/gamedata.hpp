@@ -60,7 +60,7 @@ namespace d2d::game {
 // (unit +0xc4 bit 31, FUN_0056d8d0; FUN_0063e860). Stamped (FUN_0064ea90):
 // 0 nothing, 1 / 3 its footprint bit (0x1000, 3 / 4 0x2000) on its
 // subtile, 2 / 4 on the plus. Tested (FUN_0064d910): 0 its subtile, 1 / 3
-// the plus, 2 / 4 the SizeX box. `mask` (path +0x50) is what blocks it: a player 0x1c09, a
+// the plus, 2 / 4 the 3x3 box. `mask` (path +0x50) is what blocks it: a player 0x1c09, a
 // monster 0x3c01, opendoors 0x3401, flying 0x1804. Players, by default.
 struct UnitShape {
     std::uint8_t pattern = 1, size = 2;
@@ -282,15 +282,16 @@ struct Level {
         return blocked(x, y, mask & 0x0fff) || blocked(x - 0.2f, y, mask & 0x0fff) || blocked(x + 0.2f, y, mask & 0x0fff)
             || blocked(x, y - 0.2f, mask & 0x0fff) || blocked(x, y + 0.2f, mask & 0x0fff);
     }
-    // A unit's grid test by its shape: the plus, or its SizeX box
-    // (FUN_0064d7c0: the subtile less half the size).
+    // A unit's grid test by its shape: the plus, or for 2 / 4 the 3x3 box
+    // x - 1 .. x + 1, y - 1 .. y + 1 whatever its size (FUN_0064d7c0,
+    // 0x64d7c6..0x64d7de: an inclusive rect, FUN_0064cf50).
     [[nodiscard]] bool unit_blocked(float x, float y, const UnitShape& shape) const {
         if (shape.pattern == 0) return blocked(x, y, shape.mask & 0x0fff);
         if (!shape.box()) return unit_blocked(x, y, shape.mask);
-        const float left = std::floor(x * 5) - float(shape.size / 2), top = std::floor(y * 5) - float(shape.size / 2);
-        for (int row = 0; row < shape.size; ++row)
-            for (int column = 0; column < shape.size; ++column)
-                if (blocked((left + float(column) + 0.5f) / 5, (top + float(row) + 0.5f) / 5, shape.mask & 0x0fff)) return true;
+        const float centre_x = std::floor(x * 5), centre_y = std::floor(y * 5);
+        for (int row = -1; row <= 1; ++row)
+            for (int column = -1; column <= 1; ++column)
+                if (blocked((centre_x + float(column) + 0.5f) / 5, (centre_y + float(row) + 0.5f) / 5, shape.mask & 0x0fff)) return true;
         return false;
     }
     // The nearest spot a unit can stand, searching outward a subtile per
