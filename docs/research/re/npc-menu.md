@@ -292,3 +292,117 @@ camp"). d2d stands him on FUN_00545340's size-2 spot there.
 The hover name comes from MonStats `NameStr` (1.14d; `namco` on the CD),
 shown only when MonStats2 `isSel` is 1. The camp's guard rogues and the
 chicken aren't selectable; their key "Dummy" reads "an evil force".
+
+## Shop clicks (FUN_004b3870, UI/npcmenu.cpp)
+
+`FUN_004b3870` (733 bytes; ECX the player, EDX the item, six stack args; ret
+0x18) is what a click on an item does while an NPC session is up. Eight
+callers: `0x487ba0`, the shop panel's click `0x488b00` (its call at
+`0x488c80`), `0x48ffe0`, `0x490780`, `0x490ba0`, `0x490fc0`, `0x491ad0`,
+`0x491d20` (inventory and equipment clicks, right clicks, `0x4912a0`'s
+default). The stack arguments, in order: `sell` (exactly 1: the click is on
+the player's own item; else a vendor's stock item), the click's x and y
+(`0x7c0d4b` / `0x7c0d4f`), a fourth the ask passes on (`FUN_004b2650`'s
+second argument, Shift's multibuy flag byte), `direct` (ask the server at
+once), `repair_all`. The callers push these as: stock right click
+`0x491cca` sell 0, direct 1; inventory left click `0x491ece` sell 1, direct 1;
+the item clicks `0x49032e`, `0x4909ca`, `0x490def`, `0x491200` direct 0;
+`0x487ba0` repair_all 0 and its own direct flag (ESI); Repair All is the shop panel's button of frame 0x12 (`0x488c80`): `0x7bcc48`, sell and repair_all are all its press state (nonzero), set before the call and cleared after (`0x488c85`).
+
+Steps, in order (the oracle runs them all):
+1. Nothing happens (returns 0) unless the session flag `0x7c0d29` is on and
+   the NPC (`FUN_00463990`: unit id `0x7c0d25`, unit type 1) exists. Its class
+   is unit +4.
+2. **Repair All** (`repair_all`): only for the five repairers, classes 0x9a
+   Charsi, 0xb2 Fara, 0xfd Hratli, 0x101 Halbu, 0x1ff Larzuk; any other
+   class returns 0. With the flag `0x7bcc48` (`FUN_00489870`) clear it returns
+   1 and does nothing. Otherwise the price is `FUN_0062fe60` over the player
+   (ECX), difficulty (`FUN_0044dcd0`, `0x7a060c`) and the quest record
+   `0x7c0d43` (store.md "Repair"), stored at `0x7c0d7f`; mode `0x7c0d31` = 3,
+   pending `0x7c0de0` = 1, pending item `0x7c0de5` = 0, the click kept,
+   `FUN_00467a70(0)`, and the request goes at once (`FUN_004b2650(1, arg)`).
+3. A gold item (item type 4, `FUN_0062b400`) returns 0.
+4. With `direct`, a click less than 500 ms after the last ask (`GetTickCount`
+   against `0x7c0df1`, which `FUN_004b2650` sets) returns 0. From here the
+   click's x and y are kept at `0x7c0d4b` / `4f` even if the click is then
+   refused.
+5. **Stock item (sell != 1): a buy.** With an item on the cursor (`FUN_0063c1e0`
+   on the player's inventory, +0x60) it returns 0, no message, nothing sent.
+   Mode 1; the price mode is 2 in gamble mode (`0x7c0db0`, `FUN_004b3500`),
+   else 0.
+6. **Own item (sell == 1)**, by the NPC's class (two byte tables, 0x4b3b60 /
+   0x4b3be8, over jump tables 0x4b3b50 / 0x4b3bd8):
+   - vendors 0x93 0x94 0xb1 0xc7 0xca 0xfc 0xfe 0xff 0x195 0x200 0x201 0x202
+     (and a repairer when the repair button is off, `0x7bcbf0` != 4,
+     `FUN_00489860`): price mode 1 is asked first and stored at `0x7c0d7f`
+     (even for a refusal), then `FUN_0062a130` (flag 0x1000 or the
+     Items.txt quest/ques rules, store.md "Refusals") must take the item,
+     else returns 0; mode 2;
+   - repairers with the repair button on (`0x7bcbf0` == 4): `FUN_004b1f80`
+     (the gate below) must say the item wants a repair, else returns 0; mode
+     3, price mode 3;
+   - Cain, classes 0xf4 0xf5 0xf6 0x109 0x208: mode 4, no price. The code
+     tests `FUN_006280a0(item, 0x10, ...)` (identified) and returns 0 on `== 1`,
+     but that function returns the masked flags, 0 or 0x10, so it never
+     refuses (bugs.md 119);
+   - every other class returns 0.
+7. Common tail: pending `0x7c0de0` = 1, `0x7c0de5` the item's id (+0xc),
+   `0x7c0de1` its class (+4), `FUN_00467a70(0)`. With mode 1 or 2 and `direct`
+   the request goes at once (`FUN_004b2650(1, arg)`, which sends C->S 0x32 buy
+   / 0x33 sell, store.md); otherwise the click sound (`FUN_004b9a00(1, ...)`),
+   the dialog state `0x7c0c6b` = 4 and the confirm box `FUN_004b2f50` (mode 3
+   and 4 always take this way; its state 5 is the waiting box).
+   Returns 1.
+
+`FUN_004b1f80` (137 bytes, `ESI` the item): a gold item, or one `FUN_0062e660`
+refuses (identified, not ethereal, then a charge missing or a type with
+Repair that restocks or has durability), wants none; else yes if it has
+durability (`FUN_00629930`), a max (`FUN_00625e00`) and stat 0x48 is
+**below** it (signed), or it is stackable (`FUN_006289f0`, Items.txt +0x132)
+with stat 0x46 below `FUN_006295b0`, or `FUN_0062a840` finds a missing charge
+and its second answer is 0. Repair All's `FUN_0062fe60` is not the same test:
+it counts durability `!=` max and restocks only a throwable stack
+(`FUN_0062e5d0`).
+
+d2d: `rules::shop_click`, `rules::shop_kind`, `rules::repair_gate` /
+`repair_click_gate` (components/rules/shop_action.hpp). Oracle:
+`tools/emu/shop_action.py [--mutation-check]` runs `FUN_004b3870` for real
+(callees hooked: unit lookup, difficulty, item class, sell test, the repair
+gate, both price calls, the ask, the box, the sound, the click clear) over
+12,814 cases, `FUN_004b1f80` for real over 2,240 leaf-answer combinations;
+`test_shop_action` gives d2d the same cases (fixtures `shop_action_cases.inc`,
+`shop_gate_cases.inc`).
+Not traced, not claimed: what the confirm box (`FUN_004b2f50`, 714 bytes:
+text 0xbf cut at a newline, a number from `FUN_004b2ad0`, handlers
+`0x4b2e70` / `0x4b2f00`) and `FUN_004b2650`'s packet fields do beyond what
+store.md has; `FUN_0062fdc0` / `FUN_0062fe60` prices are hooked (their
+formulas are store.md's, oracle `price_oracle.py`); `FUN_0062a840`'s second
+answer (d2d treats a missing charge as both answers 0); d2d has no confirm
+box (a left click on a stock item with Buy toggled on, or on an item with Sell
+or Repair on, sends at once where `0x49032e` etc. pass direct 0 and open the
+box), no 500 ms gate, and no Cain item mode 4.
+
+## The selected line (FUN_004b82f0)
+
+`FUN_004b82f0` (114 bytes, ECX the NPC window, EDX a line): the window's
+selected line, +0x44 (drawn lit by `FUN_004b8100`: colour 3 in menu mode 1,
+the focus16 flames in mode 2, the default). A null window halts (line 0x4e7);
+an index at or past the line count (+0x50) halts (0x4ed, signed: -1 passes); -1
+stores -1; a lower index finds no line and halts (0x513); a line whose
+selectable word (+0x174 + 0x110 * line) is 0 halts (0x50f); else it stores the
+index. A halt is `FUN_00408a60` ("Unrecoverable internal error") and
+`FUN_00681e09(-1)`. Callers: `FUN_004b85f0` (adding a line: when +0x44 is
+-1 and the line is selectable the new line is selected, so the first choosable
+line of a menu is lit as it opens; `FUN_004b7eb0` makes it -1), selects of -1
+at the end of the hire window (`0x4b6356`), the Agree-to-trade windows
+(`0x4b8b8c`, `0x4b8ca2`) and the message log (`0x4a018b`), and
+`FUN_004b4db0`'s talk window (`0x4b4fba`: its line index + 1). A mouse move
+(`FUN_004b7200`) sets +0x44 and +0x48 to the line under the mouse
+(`FUN_004b7180`), -1 off every line, and plays sound 0 when it changes to a
+line. Enter (`FUN_004b79d0`) runs the selected line's handler (+0x170); when
+none is selected it selects the first choosable one. d2d:
+`rules::select_line` (components/rules/shop_action.hpp). Oracle:
+`tools/emu/shop_action.py` runs `FUN_004b82f0` for real over 826 windows (line
+counts 0..10, selectable patterns, indices -3..11, the null window);
+`test_shop_action` gives d2d the cases. Not ported (ponytail): the keys (`FUN_004b7870` / `4b78f0` up and down,
+`FUN_004b79d0` Enter: the table at 0x7273e4) and the move's sound 0.
