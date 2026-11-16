@@ -370,6 +370,9 @@ dropped, otherwise the cel decides.
 
 **Reading** (`FUN_00458750`):
 - head short: nothing. Otherwise from head[layer] along `next`:
+  - each 32-byte record header is zeroed, then read as eight unchecked
+    4-byte words; EOF leaves any missing trailing words zero, so a header
+    cut after `cel_file` still applies that value and ends at its zero `next`;
   - a record of another layer cuts the chain (`FUN_004586e0`: the previous
     record's next, or head[layer], set to 0) and stops;
   - list 2 is read only if the record's object seed is the game's (game

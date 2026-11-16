@@ -4,6 +4,7 @@
 // slots, Name.maN's records written and read back, in a temp dir.
 #include <d2s_automap.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -77,6 +78,21 @@ int main() try {
     const auto after = bytes_of(file);
     assert(u32(after, 4) == 0 && u32(after, 400) == 0 && u32(after, 0) == 450);
     assert(read_automap(file, 1, 78).lists[0].empty());
+
+    // FUN_00458750 clears a record header before its eight unchecked word
+    // reads: a header cut after cel_file keeps that word and zeros the rest.
+    const auto truncated = dir / "truncated.ma0";
+    {
+        std::ofstream stream(truncated, std::ios::binary);
+        std::vector<unsigned char> bytes(400 + 12);
+        bytes[4] = 0x90; bytes[5] = 0x01;       // layer 1 head = 400
+        bytes[404] = 1;                         // record layer
+        bytes[408] = 3;                         // cel_file
+        stream.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
+    }
+    const auto truncated_back = read_automap(truncated, 1, 0);
+    assert(truncated_back.cel_file == 3);
+    assert(std::ranges::all_of(truncated_back.lists, [](const auto& list) { return list.empty(); }));
 
     // Other seeds take the next slots; the first is found again; a fifth
     // wraps to slot 0 and drops its old file.
