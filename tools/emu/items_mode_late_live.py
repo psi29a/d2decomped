@@ -543,8 +543,9 @@ def replenish_worker():
             quotient = int(2500 / signed)           # C division truncates toward zero
             delay = max(125 if mutation != "worker-min" else 100, quotient + 1)
             want.append(("event", 0x0, item, 3, 1000 + delay, 0, 0))
-        norm = [entry if entry[0] != "event" else ("event", 0x0) + entry[3:] for entry in log]
-        wnorm = [entry if entry[0] != "event" else ("event", 0x0) + entry[3:] for entry in want]
+        # Mask only ECX (the scheduler pointer); EDX is the item and must match.
+        norm = [entry if entry[0] != "event" else ("event", 0x0, *entry[2:]) for entry in log]
+        wnorm = [entry if entry[0] != "event" else ("event", 0x0, *entry[2:]) for entry in want]
         need(norm == wnorm, f"00562c40 {rate} {value} {maximum} {broken} {owner_state}: {norm} != {wnorm}")
         count += 1
     return count
@@ -571,12 +572,13 @@ def remove_item():
             rig.hook(0x63C150, "slot", 2, 0x7)
             rig.hook(0x560CD0, "unequip", 3, 0, ("ecx", "edx"))
             rig.hook(0x55EEA0, "cursor", 1, 0, ("ecx", "edx"))
-            rig.fatal_call(0x563470, item, ecx=0 if guard == "no-game" else rig.game,
-                           edx=0 if guard == "no-owner" else rig.owner) if guard != "no-item" else rig.fatal_call(
+            _, fatal = rig.fatal_call(0x563470, item, ecx=0 if guard == "no-game" else rig.game,
+                                      edx=0 if guard == "no-owner" else rig.owner) if guard != "no-item" else rig.fatal_call(
                 0x563470, 0, ecx=rig.game, edx=rig.owner)
             names = [entry[0] for entry in rig.log]
             if guard:
                 need(names == [], f"00563470 {guard} {names}")
+                need(fatal is None, f"00563470 {guard} asserted line {fatal}")
             elif mode == 0:
                 want = ["set-page"]
                 if owner_kind == 0 and has_client:
