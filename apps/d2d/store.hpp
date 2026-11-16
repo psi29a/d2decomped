@@ -56,8 +56,10 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
 void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, bool store);
 // The stash's (FUN_00488100 with 0): goldcoinbtn at (155, bottom 100),
 // the stash gold at x 245, baseline 100, and over the coin's box
-// (stash_coin_at) string 0x101c at x 133, baseline 82.
-void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y);
+// (stash_coin_at) string 0x101c at x 133, baseline 82; a classic game's
+// all stash_gold_drop lower.
+void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y,
+                     bool expansion = true);
 // The gold box (0x454150): how much gold to drop (mode 0 / 1), offer in a
 // trade (2), deposit (3) or withdraw (4); prompts 0xfc1 / 0xfce / 0xfd1 /
 // 0xfd2 wrapped to 200 px from 24 down. MENU\dialogbackground (210x158)
@@ -85,8 +87,9 @@ GoldBoxPart gold_box_at(int mouse_x, int mouse_y);
 void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms, int mouse_x, int mouse_y);
 
 // FUN_00486820's boxes, 20x18 up from the bottom-left: the stash's coin
-// at (153, 102), the inventory's at (483, 471).
-bool stash_coin_at(int mouse_x, int mouse_y);
+// at (153, 102) (a classic game's stash_gold_drop lower), the inventory's
+// at (483, 471).
+bool stash_coin_at(int mouse_x, int mouse_y, bool expansion = true);
 bool inventory_coin_at(int mouse_x, int mouse_y);
 
 }  // namespace d2d::client

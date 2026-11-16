@@ -33,6 +33,18 @@ inline constexpr int kStoragePanelX = 80, kStoragePanelFoot = 540;
 [[nodiscard]] constexpr StorageClose stash_close(bool expansion, int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
     return { panel_x + (expansion ? 0x110 : 0x113), foot - (expansion ? 0x40 : 0x41) };
 }
+// The stash's art (FUN_0048edf0 states 0xc..0xd): the classic game's bank
+// and the expansion's TradeStash (FUN_0044dcc0) alike, frame n at
+// x + 0x100 * (n & 1), its bottom foot - 0xe0 (frames 0, 1) or foot - 0x30
+// (2, 3), drawn by its bottom (FUN_004f6480: top = bottom - height).
+[[nodiscard]] constexpr StorageClose stash_art_spot(int frame, int panel_x = kStoragePanelX, int foot = kStoragePanelFoot) {
+    return { panel_x + ((frame & 1) != 0 ? 0x100 : 0), foot - (frame < 2 ? 0xe0 : 0x30) };
+}
+// The stash's gold (FUN_00488100 with 0): in a classic game the coin
+// (bottom foot - 0xf4 against - 0x1b8), its box (foot - 0xf2 against
+// - 0x1b6), the gold's baseline and Withdraw's (foot - 0x106 against
+// - 0x1ca) all sit 0xc4 lower than the expansion's.
+[[nodiscard]] constexpr int stash_gold_drop(bool expansion) { return expansion ? 0 : 0xc4; }
 // Over it (FUN_00489980), every edge excluded: left .. left + 0x28,
 // bottom - 0x23 .. bottom + 5. Oracle: tools/emu/storage_close.py.
 [[nodiscard]] constexpr bool over_stash_close(bool expansion, int mouse_x, int mouse_y,

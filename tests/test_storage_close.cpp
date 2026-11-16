@@ -45,6 +45,12 @@ int main() try {
     // Drawn where FUN_0048edf0 puts it.
     static_assert(d2d::client::stash_close(false).left == 80 + 0x113 && d2d::client::stash_close(false).bottom == 540 - 0x41);
     static_assert(d2d::client::stash_close(true).left == 80 + 0x110 && d2d::client::stash_close(true).bottom == 540 - 0x40);
+    // FUN_0048edf0: the classic bank's quarters where the expansion's TradeStash's go.
+    static_assert(d2d::client::stash_art_spot(0).left == 80 && d2d::client::stash_art_spot(0).bottom == 540 - 0xe0);
+    static_assert(d2d::client::stash_art_spot(1).left == 80 + 0x100 && d2d::client::stash_art_spot(1).bottom == 540 - 0xe0);
+    static_assert(d2d::client::stash_art_spot(3).left == 80 + 0x100 && d2d::client::stash_art_spot(3).bottom == 540 - 0x30);
+    // FUN_00488100: a classic game's stash coin bottom foot - 0xf4, the expansion's foot - 0x1b8.
+    static_assert(540 - 0x1b8 + d2d::client::stash_gold_drop(false) == 540 - 0xf4 && d2d::client::stash_gold_drop(true) == 0);
     static_assert(d2d::client::cube_close().left == 80 + 0x113 && d2d::client::cube_close().bottom == 540 - 0x41);
     std::printf("OK: the inventory's close button shuts the stash, Cube or store; %zu panel keys, %zu close-button points as game.exe's\n",
                 sizeof(key_cases) / sizeof(key_cases[0]), sizeof(hit_cases) / sizeof(hit_cases[0]));

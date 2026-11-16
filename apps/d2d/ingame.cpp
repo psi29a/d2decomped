@@ -460,7 +460,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             {
                 draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], d2d::d2s::item_panel::kStash,
                              mouse_x, mouse_y, hover_wearer);
-                if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
+                if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y, stash_expansion);
             }
         }
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, elapsed_ms);

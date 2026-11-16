@@ -6,6 +6,7 @@
 #include "items.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
+#include "storage_close.hpp"
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
@@ -217,19 +218,24 @@ void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     label(10, 355, 287, 0x102e);
 }
 
-bool stash_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 153 && mouse_x < 173 && mouse_y > 102 - 18 && mouse_y <= 102; }
+bool stash_coin_at(int mouse_x, int mouse_y, bool expansion) {
+    const int bottom = 102 + stash_gold_drop(expansion);
+    return mouse_x >= 153 && mouse_x < 173 && mouse_y > bottom - 18 && mouse_y <= bottom;
+}
 bool inventory_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 483 && mouse_x < 503 && mouse_y > 471 - 18 && mouse_y <= 471; }
 
-void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y) {
+void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y,
+                     bool expansion) {
+    const int drop = stash_gold_drop(expansion);
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     auto text = [&](int x, int baseline, const std::string& label) { scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x, baseline - cell + 1, label); };
     if (scene.gold_coin.frames_per_direction() > 0) {
         const auto& frame = scene.gold_coin.frame(0, 0);
-        blit_sprite(framebuffer, frame, pal, 155, 100 - int(frame.height) + 1);
+        blit_sprite(framebuffer, frame, pal, 155, 100 + drop - int(frame.height) + 1);
     }
-    text(245, 100, std::to_string(stats.get(d2d::d2s::kGoldBank)));
-    if (stash_coin_at(mouse_x, mouse_y)) text(133, 82, string_id(scene, 0x101c));
+    text(245, 100 + drop, std::to_string(stats.get(d2d::d2s::kGoldBank)));
+    if (stash_coin_at(mouse_x, mouse_y, expansion)) text(133, 82 + drop, string_id(scene, 0x101c));
 }
 
 }  // namespace d2d::client
