@@ -21,6 +21,16 @@ int main() try {
     // This file checks file colours. The lookup ramp defaults to DirectDraw's
     // gamma 155 (test_gamma.cpp); 100 leaves them alone.
     d2d::palette::Palette::set_ramp(100, 100);
+
+    // A Scene holds two Pl2s on load_scene's stack: inline 64 KB tables
+    // overflowed Windows' 1 MB main thread. A default Pl2 still reads zeros.
+    // No game data needed, so this runs before the archive guard.
+    static_assert(sizeof(d2d::palette::Pl2) < 16 * 1024, "Pl2's tables belong on the heap");
+    {
+        const d2d::palette::Pl2 empty;
+        assert(empty.additive(255, 255) == 0 && empty.blend50(255, 255) == 0 && empty.max_blend(255, 255) == 0);
+    }
+
     const char* env = std::getenv("D2_MPQ_DIR");
     const fs::path dir = env ? fs::path(env)
         : fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
@@ -121,14 +131,6 @@ int main() try {
         try { d2d::palette::Pl2 pl2(tiny); }
         catch (const std::runtime_error&) { threw = true; }
         assert(threw);
-    }
-
-    // A Scene holds two Pl2s on load_scene's stack: inline 64 KB tables
-    // overflowed Windows' 1 MB main thread. A default Pl2 still reads zeros.
-    static_assert(sizeof(d2d::palette::Pl2) < 16 * 1024, "Pl2's tables belong on the heap");
-    {
-        const d2d::palette::Pl2 empty;
-        assert(empty.additive(255, 255) == 0 && empty.blend50(255, 255) == 0 && empty.max_blend(255, 255) == 0);
     }
 
     std::printf("OK\n");
