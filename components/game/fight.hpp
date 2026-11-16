@@ -593,8 +593,8 @@ struct Fight {
                                                      d2d::rules::StatSum* sum_out = nullptr) const;
     // The player's fighter this frame, with the self states' aurastats
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
-    // of the panel defense (the override after), damageresist to DR %.
-    // ponytail: other aurastats aren't read.
+    // of the panel defense (the override after), damageresist to DR %;
+    // every other aurastat but life joins the stat sum (below).
     // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
     // aurastats on the player (and allies within aurarangecalc subtiles)
     // the same way; its hitpoints (Prayer) heal on each pulse instead.
