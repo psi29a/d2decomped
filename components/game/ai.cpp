@@ -683,7 +683,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         if (pick.second >= 0) pick.second = near_of[std::size_t(pick.second)];
         return pick;
     };
-    // Terror's init (special 11, FUN_005e80e0): the unit its path was at
+    // Terror's init (special 11, 0x5e80e0: an AI table entry Ghidra misses): the unit its path was at
     // (FUN_00553540, not itself; here the foe it last chased or swung at)
     // as its skill-set target by id (FUN_00573090, SwitchAI only: a player
     // kind 1, a monster 2, a missile 4), which its first think's search
