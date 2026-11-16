@@ -15,6 +15,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -104,7 +105,10 @@ auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
 auto Fight::spend_ammo(int index) -> void {
         if (index < 0) index = ammo_index();
         if (index < 0) return;
-        if (--actor->character.items[std::size_t(index)].quantity <= 0) out_of_ammo(std::size_t(index));
+        auto& spent = actor->character.items[std::size_t(index)];
+        --spent.quantity;
+        d2d::rules::replenish_arm(game_data->rules, spent, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+        if (spent.quantity <= 0) out_of_ammo(std::size_t(index));
     }
 
 auto Fight::out_of_ammo(std::size_t index) -> void {
@@ -144,7 +148,11 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item) || d2d::rules::broken(item)) return;
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
-        if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
+        if (item.durability - 1 >= 1) {
+            item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item));
+            d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);   // 0x559ef4
+            return;
+        }
         if (armor) {
             item.flags |= 0x100u; item.durability = 0;
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
@@ -157,6 +165,8 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
             cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             return;
         }
+        // 0x55a040: a stack with a max (FUN_006295b0 above 0) queues the durability timer, whichever way it went.
+        if (d2d::rules::stack_most(tables, item) > 0) d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);
         if (item.quantity < 2) { out_of_ammo(index); return; }
         --item.quantity;
         item.durability = d2d::rules::max_durability(item);
@@ -199,7 +209,11 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
             if (auto& item = actor->character.items[i]; item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
-                if (found != game_data->rules.item_base.end() && found->second.stackable) { if (--item.quantity <= 0) out_of_ammo(i); }
+                if (found != game_data->rules.item_base.end() && found->second.stackable) {
+                    --item.quantity;
+                    d2d::rules::replenish_arm(game_data->rules, item, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+                    if (item.quantity <= 0) out_of_ammo(i);
+                }
                 else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {

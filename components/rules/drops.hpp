@@ -4,6 +4,7 @@
 // (docs/research/re/drops.md).
 #pragma once
 
+#include "replenish.hpp"
 #include "rules.hpp"
 
 #include <algorithm>
@@ -322,6 +323,7 @@ inline std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const
         auto item = generate_item(tables, code, ask.ilvl, made_quality(tables, code, ask.quality), item_seed, &unit_seed, found_uniques, false, difficulty);
         if (item.quality == 1 && item.qsub == 1) continue;
         if (ask.fill && found->second.max_stack > 0) item.quantity = found->second.max_stack;
+        replenish_arm(tables, item);   // FUN_00558d90's end (0x559117, 0x559120)
         return item;
     }
     return std::nullopt;

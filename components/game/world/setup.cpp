@@ -20,6 +20,7 @@
 #include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
 
@@ -207,6 +208,7 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
         actor->character.fresh = entering.fresh;
         d2d::rules::wield_settle(game_data->rules, actor->character.items);
+        for (auto& item : actor->character.items) d2d::rules::replenish_arm(game_data->rules, item);   // each saved item made: FUN_00558cb0 -> FUN_00558530 / FUN_00558580
         settle_requirements(*game_data, actor->character);   // the join: FUN_0052d440 -> FUN_0055df00 -> FUN_0055dbc0
         // A new game keeps the life and mana the save held, exactly, fraction
         // and all, even above the maximum: game.exe's loader FUN_0056b180 reads

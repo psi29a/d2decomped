@@ -935,6 +935,8 @@ struct World {
     void tower_treasure(std::uint32_t now_ms);
     void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
+    void replenish_frame();                // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
+    void replenish_ground_frame();         // the same for the items on the floors
     void life_update_frame(std::uint32_t tick_ms);   // a 40 ms frame's life update to the client (FUN_0052d980; rules::life_update_frame)
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
     [[nodiscard]] static int walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled, int velocity_pct = 0);   // the same from its parts

@@ -269,7 +269,10 @@ decompile's.
 
 ### Arming the replenish events (`FUN_00558530`, `FUN_00558580`)
 
-Two twins, the same body but for the stat. Cited.
+Two twins, the same body but for the stat (ECX the game, EDX the item).
+V (`tools/emu/replenish.py`: game.exe's two functions on 16,383 of its
+50,000 cases, the whole 32-bit range of the rate; `rules::replenish_first`
+matches all).
 
 | Function | Stat read (`FUN_00625480(item, stat, 0)`) | Meaning |
 |---|---|---|
@@ -281,18 +284,83 @@ returns 0), each queues one event of type 3 at `game +0xa8` (the frame)
 `+ 2500 / N + 1` (`FUN_005417d0`). 2500 is 100 seconds at 25 frames a
 second: a rate of N means one point every 100 / N seconds. The stat ids
 are named after d2d's `kReplenishDurability` / `kReplenishQuantity`
-(components/rules/rules.hpp:526); that reads the same, cited from the decompile, no oracle run.
+(components/rules/rules.hpp). The division is a 32-bit `idiv` (toward
+zero), so a negative rate gives a frame at or before the game's;
+`FUN_005417d0` -> `FUN_005416b0` then takes the game's frame + 1 (`cmp esi,
+eax / jg` at 0x5416e9; read, not run by the oracle).
 
 Callers (each re-arms after an item is created or moved): `FUN_00558cb0`
 (a new item), `FUN_00558d90`, `FUN_00562660` (after a socketed runeword is
 made, `FUN_006600a0`), `FUN_00562f30` (an item put on a corpse-take pass,
 twice) and `FUN_0056c310`; `FUN_00559e30` calls the durability twin only.
 
-d2d: not ported. d2d reads the two stats for prices (`rules.hpp:557`,
-`:818`) but nothing ticks them: no event 3 for an item, so a replenishing
-belt potion / javelin / durability is not regrown (no d2d code does it). Not a
-disagreement, a gap: it needs the event-3 handler for items (not traced:
-the handler is whatever event 3 calls on an item unit).
+In `FUN_00559e30` (a hit's wear) the durability twin is called twice: at
+0x559ef4 when the item keeps 1 durability or more, and at 0x55a040 after a
+stack lost one of its quantity or ran out, when its max stack
+(`FUN_006295b0`) is above 0. `FUN_0056c310` (a shot's ammunition) calls the
+quantity twin (0x56c35d) after the new quantity is written.
+
+d2d: `rules::replenish_arm` (components/rules/replenish.hpp), on the item's
+`replenish_in` (frames to its timer, 0 none), called where game.exe calls
+the twins: a character's items on entering (`World::take_character`), a
+socket filled, an item back off the corpse, `Fight::wear`,
+`Fight::spend_ammo`, `Fight::impale_wear`, and a made item (`FUN_00558d90`
+ends with both, 0x559117 / 0x559120): a monster's drop (`Loot::put`), a
+vendor's stock (`rules::make_store_item`) and what the cube makes.
+
+### The replenish timer (`FUN_00562d30`, `FUN_00562c40`)
+
+Event 3 on an item unit is timer 3: `FUN_00541320` runs an event without
+its own function through `FUN_00562da0`, whose table at 0x6e117c holds
+`FUN_00562d30` at index 3 (items-oracle.md).
+
+`FUN_00562d30` (ECX the game, EDX the item):
+
+1. When the item isn't broken (flag 0x100, `FUN_006280a0`) and has
+   durability (`FUN_00629930`): `FUN_00562c40` with EAX 0xfc (the rate's
+   stat), EBX 0x48 (durability) and the max durability (`FUN_00625e00`).
+   A nonzero answer ends the timer.
+2. Else, or on a 0 answer, when the item is stackable (`FUN_006289f0`):
+   `FUN_00562c40` with EAX 0xfd, EBX 0x46 (quantity) and the max stack
+   (`FUN_006295b0`).
+
+`FUN_00562c40` (EAX the rate's stat, EBX the value's, EDI the item; the
+game and the most on the stack, `ret 8`):
+
+1. The rate is the item's stat EAX; 0 returns 0.
+2. The value + 1 (`add esi, 1`: it wraps) above the most (`jg`, signed)
+   returns 1 and queues nothing: a full item's timer ends, and so does that
+   of an item whose durability rate is set, whatever its quantity (step 1
+   above has answered).
+3. Else the value is written (`FUN_00627260`). When the item's owner id
+   (item data +0xc, `FUN_00629f20`) isn't -1, is a player unit of the game
+   (`FUN_00552f60`, type 0) and has a client (`FUN_005531c0`, line 0x1580),
+   the client is sent the stat (`FUN_0053d130`), and a value of 1 or more
+   on a broken item (flag 0x100, line 0x1586) mends it: `FUN_0055f900(game,
+   owner, item)`. A broken item only gets here by its quantity (step 1
+   skips it), so a thrown-out magic stack comes back usable with its first
+   one, and its durability at the max (`FUN_0055f900`).
+4. Timer 3 is queued again at the game's frame + max(2500 / rate + 1, 125)
+   (0x562ce7 .. 0x562d11): never under 5 seconds a point, though the first
+   one (the twins above) has no such floor.
+
+V (`tools/emu/replenish.py`: `FUN_00562d30` with `FUN_00562c40` run inside
+it on 33,617 of the 50,000 cases; every callee hooked, their arguments
+checked; `coverage` reaches every instruction of the four bodies).
+`rules::replenish_step` matches all: both stats after, the queueing, its
+wait and the mend (`tests/test_replenish.cpp`, 1,500 of game.exe's cases
+as a fixture).
+
+d2d: `World::replenish_frame` counts each of the player's items' timers
+down a 40 ms frame and runs `rules::replenish_fire` on one that is due; a
+mend puts the item's stats back on (`wield_enters`,
+`settle_requirements`). `World::replenish_ground_frame` does the same for
+the items on the floors, without the mend: whether a dropped item keeps
+its owner id is not traced.
+Not ported (`ponytail:` in components/game/world/tick.cpp and
+components/rules/replenish.hpp): the timer of an item the merc wears or a
+vendor holds, and `FUN_0055f900`'s item flag 0x200 and hand-skill pass
+(`FUN_0055c5c0`), as for a smith's repair.
 
 ### The item maker (`FUN_00558cb0`)
 
@@ -319,7 +387,7 @@ address is passed as `&err`); the ref struct is read before that.
 
 d2d: not ported by name. The nearest is `d2s::item` / `parse_net_item`,
 which parse the stream into an `Item` value, not a unit. Agrees on the
-stream; the replenish arming in step 6 has no d2d counterpart (see above).
+stream; the replenish arming in step 6 is `World::take_character`'s (see above).
 
 ### The stream entry (`FUN_0062e430`)
 

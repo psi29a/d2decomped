@@ -108,6 +108,7 @@ struct Item {
     int id = -1;                       // the game's unit id while it's in play (not saved)
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
+    int  replenish_in = 0;             // frames to its timer 3 (FUN_00562d30: a replenishing item's next point), 0 none (not saved)
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, dur_extra = 0, set_lists = 0;
     bool charm_prefix = false;         // a normal charm's 1 bit: its 11 are the prefix (set) or the suffix

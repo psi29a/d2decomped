@@ -18,6 +18,7 @@
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <town_npcs.hpp>
 
@@ -362,11 +363,13 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                 item_it->slot = to_slot;
                 actor->character.items.push_back(std::move(*item_it));
                 d2d::rules::wield_enters(game_data->rules, actor->character.items, actor->character.items.back());   // FUN_00562f30 -> FUN_0063d1d0
+                d2d::rules::replenish_arm(game_data->rules, actor->character.items.back());   // 0x563139 / 0x563142
                 item_it = corpse.items.erase(item_it);
                 continue;
             }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
+            d2d::rules::replenish_arm(game_data->rules, *held_item);   // 0x563018 / 0x563022, once FUN_005600a0 has placed it
             std::vector<const Item*> inv;
             for (const auto& x : actor->character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
