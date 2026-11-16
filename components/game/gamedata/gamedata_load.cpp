@@ -924,6 +924,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.static_field_min[row] = std::atoi(std::string(difficulty_table.get(row, "StaticFieldMin")).c_str());
             game_data.curse_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "AiCurseDivisor")).c_str());
             game_data.freeze_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterFreezeDivisor")).c_str());
+            game_data.life_steal_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "LifeStealDivisor")).c_str());
+            game_data.mana_steal_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "ManaStealDivisor")).c_str());
         }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.

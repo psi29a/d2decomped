@@ -587,13 +587,19 @@ struct Target {
     int crush_divisor = 4;
     bool undead = false;                            // MonStats lUndead or hUndead (FUN_0063e990)
     bool demon = false;                             // MonStats demon (FUN_0063e940)
+    // The leech's two inputs from the game (FUN_0057c6c0 0x57c7f8, FUN_0057c420): the target's life in 256ths (the
+    // physical is cut to it before the leech; -1: hit_points x 256) and the difficulty's LifeStealDivisor /
+    // ManaStealDivisor (DifficultyLevels, 1 / 2 / 3), which divide a PLAYER's steal.
+    int life_fine = -1;
+    int life_steal_divisor = 1, mana_steal_divisor = 1;
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
 // poison (total and ticks), chill ticks, and whether it bled, knocked back.
 struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
-    int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
+    int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
+    int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
@@ -827,6 +833,21 @@ struct Swing {
     bool missile = false;                 // a missile's blow: Crushing Blow's divisor doubled (event 6, FUN_005bffc0)
 };
 
+// A player's leech of a blow (FUN_0057c6c0 0x57c7f8 -> FUN_0057c420), in 256ths: the physical (record +8, after
+// resistance) is cut to the target's life; the steal % is shifted left 6 and divided by the difficulty's
+// LifeStealDivisor / ManaStealDivisor (whole division); then MulDiv by the physical over 100, MulDiv by the
+// monster's Drain over 100 (skipped at 100), and / 64 toward zero. A Drain of 0 or less takes nothing.
+inline int leech_fine(int physical_fine, const Target& target, int steal, int divisor) {
+    if (target.drain <= 0 || steal == 0) return 0;
+    const int life = target.life_fine >= 0 ? target.life_fine : target.hit_points * 256;
+    const int physical = std::min(physical_fine, life);
+    const int per = (steal << 6) / std::max(divisor, 1);
+    if (per == 0 || physical <= 0) return 0;
+    int amount = mul_div(physical, per, 100);
+    if (target.drain != 100) amount = mul_div(amount, target.drain, 100);
+    return amount / 64;
+}
+
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
@@ -898,8 +919,8 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         blow.stun_ticks = std::min(stun, 250);
         return blow;
     }
-    blow.life = phys * fighter.life_steal * target.drain / 10000;
-    blow.mana = phys * fighter.mana_steal * target.drain / 10000;
+    blow.life = leech_fine(fine, target, fighter.life_steal, target.life_steal_divisor);
+    blow.mana = leech_fine(fine, target, fighter.mana_steal, target.mana_steal_divisor);
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(conv >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
     int marking = swing.conv_type != 4 ? elem : 0;                 // what FUN_0057ce30 sees: the record's fire / lightning / cold / poison, not magic (+0x20)
