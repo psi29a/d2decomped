@@ -999,9 +999,11 @@ struct Fight {
     [[nodiscard]] bool missile_skill(const d2d::rules::Skill& skill) const;
     // Casting one at (tx, ty): its mana, then its animation (A1 at the
     // attack's speed for the bow skills, else SC with FCR); the missiles
-    // leave on the action frame (fire).
-    // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
-    // (+400) isn't kept.
+    // leave on the action frame (fire), which starts the skill's delay
+    // (+400, FUN_0056ef90: start_delay). A cast sequence (anim SQ, seqtrans
+    // SC: Lightning) holds SC for its steps (rules::cast_sequence_ticks).
+    // ponytail: its action frame and drawing are SC's scaled over that
+    // hold, not the sequence's own steps.
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
