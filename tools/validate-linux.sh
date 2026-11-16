@@ -30,7 +30,7 @@ if [[ "${1:-}" == "--asan" ]]; then
         [[ -n "${!var:-}" ]] || continue
         mounts+=(-v "${!var}:/data/$var:ro") envs+=(-e "$var=/data/$var")
     done
-    exec docker run --rm -t ${limits[@]+"${limits[@]}"} -e JOBS="$jobs" "${mounts[@]}" "${envs[@]}" \
+    exec docker run --rm -t ${limits[@]+"${limits[@]}"} -e JOBS="$jobs" ${mounts[@]+"${mounts[@]}"} ${envs[@]+"${envs[@]}"} \
         -e ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 -e UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
         -v "$PWD:/src" -v "$volume-asan:/src/build-linux-asan" -w /src \
         "$tag" bash -euxc '
