@@ -359,8 +359,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         each_player([&](Player&) { item_ids(); });
         // This tick's day frames (tick): the day and the quests' timers step
         // once a tick, in the first turn; every turn's players each frame.
-        // ponytail: split levels run the quest timers (act1_tick, act2_tick)
-        // in the first turn's level only; their level tests see that one.
+        // ponytail: split levels run the quest timers in the first turn's level
+        // only; the level tests (act2_tick's Tyrael, Andariel's portal, the
+        // Summoner's line) see that one. act1_tick's treasure tests none.
         const std::uint32_t day_end = day_at;
         for (const std::uint32_t frame_at : day_frames) {
             day_at = frame_at;

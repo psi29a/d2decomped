@@ -10,6 +10,7 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <loot.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -86,6 +87,19 @@ int main() try {
     world.tower_treasure(0);
     assert(opened());
     std::printf("OK: only chests up when it's made get spawners; the chest opens on the 152nd frame\n");
+
+    // The spawner frames while its room's up, the player elsewhere (in camp):
+    // the chest opens all the same, its drops kept on the cellar's floor.
+    world.operated.clear();
+    world.loot.kept[cellar].clear();
+    world.loot.ground.clear();
+    world.treasure.front().left = Tower::kTreasureLife;
+    world.level = &data->town;
+    for (int frame = 0; frame < 152; ++frame) world.tower_treasure(0);
+    const auto on_cellar_floor = world.loot.ground_level == cellar ? world.loot.ground.size() : world.loot.kept[cellar].size();
+    assert(opened() && on_cellar_floor >= 4);   // three rounds, then hp / hp / mp / mp
+    world.level = cellar;
+    std::printf("OK: the treasure runs with the player off its level\n");
 
     // Her line waits for the treasure's end (unit event 0x5c at 1 left,
     // FUN_005af300 -> FUN_004dce10): 1 s after it, within 60 s of her death.
