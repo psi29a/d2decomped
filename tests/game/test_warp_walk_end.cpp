@@ -105,7 +105,7 @@ int main() try {
         }
     }
     std::printf("%d starts 3 cells off: %d taken, %d walked on in reach; %d of %d in reach taken in the click's tick\n", starts, taken, walked_in_reach, at_once, in_reach);
-    const bool ok = starts > 0 && walked_in_reach > 0 && at_once == in_reach;
+    const bool ok = starts > 0 && taken == starts && walked_in_reach > 0 && at_once == in_reach;
     std::printf("%s\n", ok ? "OK: a warp is taken when the walk ends, or at once in reach" : "FAIL");
     return ok ? 0 : 1;
 } catch (const std::exception& error) {
