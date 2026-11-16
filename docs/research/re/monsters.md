@@ -241,8 +241,11 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   unique mods, at most 8 in all (FUN_005a0600: rows without `champion`,
   `upick` weights, none twice). A row is allowed (FUN_005a03e0) when
   enabled, not an LoD row in a classic game, the monster isn't of an
-  `exclude1/2` MonType, and fPick 2 (multishot) isn't on a melee monster
-  (fPick 1 / 3 test FUN_0046c140).
+  `exclude1/2` MonType, and fPick 2 (multishot) isn't on a monster with
+  MonStats +0xc bit 1 (isMelee) or +0xe bit 1 (nomultishot: vampire1..9,
+  slinger5, slinger6), `0x5a046e..0x5a04c7` (fPick 1 / 3 test
+  FUN_0046c140). `tools/emu/umod_can_take.py`: every MonStats row x every
+  MonUMod row, 31,562 pairs.
 - **Its company**: a champion (FUN_0054e1e0) brings `rand(3) + 1` more of
   its type at radius 4, each a champion with mod 16 (FUN_005a48c0); a
   unique (FUN_005a0c00 from FUN_005a2120) brings `rand(4) + 3` of MonStats

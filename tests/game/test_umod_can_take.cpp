@@ -8,6 +8,7 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <montypes.hpp>
 #include <uniques.hpp>
 
 #include <cassert>
@@ -41,6 +42,33 @@ int main(int argc, char** argv) try {
         for (std::size_t monster = 0; monster < data->monsters.types.size(); ++monster) std::printf("%zu %s\n", monster, data->monsters.types[monster].id.c_str());
         return 0;
     }
+    // A monster that must not multishoot (nomultishot: the vampires, two slingers) refuses the Multiple Shots mod
+    // (fPick 2, FUN_005a03e0 0x5a046e..0x5a04c5 reads MonStats +0xe bit 1) although it isn't melee; a ranged monster
+    // without the flag takes it. game.exe's counts (tools/emu/umod_can_take.py): vampire1 and slinger5 take 40 of the
+    // 43 rows (not 0, 24, 29), sk_archer1 41 (not 0, 24).
+    const auto type_of = [&](const char* name) -> const d2d::rules::MonType& {
+        const auto row = data->monsters.row(name);
+        assert(row >= 0);
+        return data->monsters.types[std::size_t(row)];
+    };
+    const auto taken = [&](const d2d::rules::MonType& type) {
+        int count = 0;
+        for (const auto& mod : data->umods.rows) count += int(d2d::rules::unique_detail::can_take(mod, type));
+        return count;
+    };
+    const auto& vampire = type_of("vampire1");
+    const auto& slinger = type_of("slinger5");
+    const auto& archer = type_of("sk_archer1");
+    assert(!vampire.melee && !slinger.melee && !archer.melee);
+    int multishot_rows = 0;
+    for (const auto& mod : data->umods.rows) {
+        if (mod.fpick != 2) continue;
+        ++multishot_rows;
+        assert(!d2d::rules::unique_detail::can_take(mod, vampire) && !d2d::rules::unique_detail::can_take(mod, slinger));
+        assert(d2d::rules::unique_detail::can_take(mod, archer));
+    }
+    assert(multishot_rows == 1 && data->umods.rows.size() == 43);
+    assert(taken(vampire) == 40 && taken(slinger) == 40 && taken(archer) == 41);
     std::printf("OK: umod can_take\n");
     return 0;
 } catch (const std::exception& e) {
