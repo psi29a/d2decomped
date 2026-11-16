@@ -1717,6 +1717,9 @@ int main(int argc, char** argv) try {
         const int base_lo = plain.elo >> meteor_fire.hitshift, base_hi = plain.ehi >> meteor_fire.hitshift;
         assert(plain.elo > 0 && synergy.elo == (base_lo + base_lo * 60 / 100) << meteor_fire.hitshift && synergy.ehi == (base_hi + base_hi * 60 / 100) << meteor_fire.hitshift);
         std::printf("OK: Meteor's fire takes Inferno's synergy in the fight\n");
+        // Its physical too: MinDamage / MaxDamage with brackets and DmgSymPerCalc (FUN_0064b860 -> FUN_0064af20 / FUN_0064aff0).
+        assert(plain.phys_lo == missile_phys(*data, meteor_fire, none, meteor, 10, false)
+               && plain.phys_hi == std::max(missile_phys(*data, meteor_fire, none, meteor, 10, true), plain.phys_lo));
 
         // Meteor's centre (14) and Immolation Arrow (9) leave fire burning its own row (no fixed
         // damage) for Param3 + (lvl - 1) x Param4 / SHitCalc1 frames (FUN_0059fa30's flag 0x8000).

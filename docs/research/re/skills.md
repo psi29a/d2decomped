@@ -845,7 +845,11 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (FUN_00644d50 / 00644e40 with flag 1) and length (FUN_00644f20); the
   weapon's damage only when the skill's SrcDam (+0x1a5, as written) is
   non-zero, × SrcDam / 128, with its mastery, strength / dexterity bonus
-  and stat 25 (arrows). Without Skill, the row's own damage columns.
+  and stat 25 (arrows). Without Skill, the row's own damage columns:
+  physical MinDamage / MaxDamage (+0xb0 / +0xb4) with their level
+  brackets and DmgSymPerCalc (+0xe0) % (FUN_0064af20 / FUN_0064aff0), the
+  element with EDmgSymPerCalc (FUN_0064b100 / FUN_0064b1d0), its length
+  FUN_0064b2a0 (`Fight::row_damage`).
 - Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
   of the damage after the synergy: fire 329, lightning 330, cold (and
   freeze) 331, poison 332; none for magic.

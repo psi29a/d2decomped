@@ -803,8 +803,9 @@ struct Fight {
     // The player's charges' progressive_tohit (stat 0x145, their aurastat 325s): Dragon Flight's to-hit % on top of its own.
     [[nodiscard]] int progressive_tohit();
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
-    // A row with no Skill: its own element at level lvl with its synergy
-    // (EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
+    // A row with no Skill: its own physical and element at level lvl with
+    // their synergies (DmgSymPerCalc, EDmgSymPerCalc on `env`), the weapon
+    // at its SrcDamage.
     [[nodiscard]] d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const;
     // A finishing hit on monster `on` releases every charge (FUN_005d5220):
     // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
@@ -1083,9 +1084,11 @@ struct Fight {
     // Hit function 1 (FUN_005a9a70) explodes instead: every monster within
     // sHitPar1 subtiles (else the skill's calc1) of the missile takes the
     // skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
-    // distance against the radius squared).
-    // ponytail: a wall or the end of its range doesn't set it off; a row
-    // with no Skill uses no physical columns (MinDamage..) or synergy.
+    // distance against the radius squared). With no unit it goes off at a
+    // wall or where its Range runs out too (burst, kNoUnitHit). A row with
+    // no Skill takes its own damage (FUN_0064b860: Fight::row_damage), its
+    // physical columns and DmgSymPerCalc (FUN_0064af20 / FUN_0064aff0) with
+    // its element and EDmgSymPerCalc.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A missile with no skill on monster i: the merc's plain arrow, its bow's
     // blow. A LastCollide row passes the unit it struck last (FUN_005a8730);
