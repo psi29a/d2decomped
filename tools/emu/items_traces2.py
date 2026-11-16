@@ -22,7 +22,7 @@ bytes `ret n` pops. Run for real inside them: FUN_00629620, 006296b0,
 00629a00, 0055c4d0 (verified by items_traces.py), the CRT memset, the bare
 `ret` at 0x55f120 (timer 4) and, where they call each other, 0055d9d0,
 0055ed30 and 00562d30. Every other callee is hooked and logged, not claimed.
-`--mutation-check` breaks the model 24 ways; `--coverage` lists any instruction
+`--mutation-check` breaks the model 25 ways; `--coverage` lists any instruction
 of the 37 bodies the cases never reach (none, apart from the fatal-exit tails).
 """
 # gaps-runs: 00627d90 006282f0 00629f20 0062a670 00627e20 00629e40 00627c90 0062a060 00629660 006296f0
@@ -55,6 +55,7 @@ SETS = 0x3900           # SetItems rows, 0x1b8 apart
 ITEMS_CPP = 0x6E_1150   # ".\\ITEMS\\Items.cpp"
 ITEMMODE_CPP = 0x6E_1164  # ".\\ITEMS\\ItemMode.cpp"
 TIMERS = 0x6E_117C      # item timer table: entry 3 FUN_00562d30, entry 4 a bare ret
+POISON = b"\xcd"        # what the stand-in allocator fills a new block with
 
 
 def mut(name):
@@ -290,10 +291,19 @@ class Suite:
                 m.log.append(("alloc", pool, 0x74, ITEMS_CPP, 0xD2, 0))
                 raise Halt(0xD5)
             block = m.alloc(pool, 0x74, 0xD2, ITEMS_CPP)
+            if mut("alloc-unzeroed"):
+                m.w(block, int.from_bytes(POISON * 0x74, "little"), 0x74)
             m.w(block + 0xC, M32 if not mut("alloc-c0") else 0)
             m.w(u + 0x14, block)
             return None
-        rig.custom["alloc"] = lambda e: 0 if self.pick["fail"] else e.alloc(max(e.mu.reg_read(UC_X86_REG_EDX), 1))
+
+        def poisoned(e):
+            """A block filled with POISON, so only the stock memset can make it the model's zeros."""
+            size = max(e.mu.reg_read(UC_X86_REG_EDX), 1)
+            block = e.alloc(size, zero=False)
+            e.mu.mem_write(block, POISON * size)
+            return block
+        rig.custom["alloc"] = lambda e: 0 if self.pick["fail"] else poisoned(e)
         rig.run("FUN_00627c90", 0x627C90, b_alloc, m_alloc, 2)
         del rig.custom["alloc"]
 
@@ -804,7 +814,7 @@ MUTATIONS = {
     for name in ("type3", "seed-off", "line-1506", "pair-1c", "alloc-c0", "tmog-off", "line-f3f", "sound-off",
                  "type-count", "default-0", "cap-6", "set-unsigned", "max-lt", "child-mode", "book-out-1", "arm-swap",
                  "status-6", "type-unsigned", "same-2", "owner-1", "snap-zero", "tell-arg", "cursor-mode",
-                 "timer-stat")
+                 "timer-stat", "alloc-unzeroed")
 }
 
 

@@ -73,7 +73,7 @@ hooked and logged, not verified here.
 ## Second set: items_traces2.py
 
 `tools/emu/items_traces2.py` runs 37 more ITEMS functions on the same rig
-(2960 cases; `--mutation-check` breaks the model 24 ways). `--coverage`
+(2960 cases; `--mutation-check` breaks the model 25 ways). `--coverage`
 reports no instruction of the 37 bodies left unreached, not counting the
 exit code after each fatal halt.
 
