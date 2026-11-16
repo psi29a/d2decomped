@@ -239,8 +239,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                             hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // What a unit says (a shrine's message): FUN_004a0b30 (players)
-        // and FUN_004a0d20 (the rest) take its feet 0x1e / 10 up and drop
-        // it with the feet off screen (y outside 1..H-1, x outside
+        // and FUN_004a0d20 (the rest) take its screen point (FUN_00620900:
+        // the path's +8 / +0xc, FUN_00643290 of its 16.16 spot >> 11, so
+        // (x - y) * 16, (x + y) * 8 a subtile) less the view's corner
+        // 0x7bf214 (FUN_0044c990: the player's point less half the view
+        // {0, 0, W, H - 40}): kFloorViewY, 12 over the feet d2d draws at
+        // kViewY. That 0x1e / 10 up, then they drop
+        // it with the point off screen (y outside 1..H-1, x outside
         // -99..W+99). FUN_004a0a00: the text (at most 199 characters)
         // wrapped to 0xb4 in FontInGameChat (0xd, FUN_00502970); a box the
         // widest line + 0x14 wide, 15 a line + 6 high, centred on x, its
@@ -258,9 +263,9 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         for (const auto& unit : units) {
             if (!unit.says) continue;
             const bool player = unit.npc == -1 || unit.npc <= -4000;
-            const int feet_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
-            const int feet_y = kViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);
-            if (feet_y <= 0 || feet_y >= int(kScreenHeight) || feet_x <= -100 || feet_x >= world_w + 100) continue;
+            const int point_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
+            const int point_y = kFloorViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);
+            if (point_y <= 0 || point_y >= int(kScreenHeight) || point_x <= -100 || point_x >= world_w + 100) continue;
             const auto lines = d2d::font::wrap_edit_box(string_id(scene, unit.says).substr(0, 199), 0xb4, [&chat_font](unsigned char code) {
                 if (const auto* glyph = chat_font.find(code)) return int(glyph->width);
                 return 0;
@@ -270,7 +275,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             for (const auto& line : lines) widest = std::max(widest, chat_font.measure(line));
             const int count = int(lines.size()), shown = std::min(count, 10);
             const int width = widest + 0x14, height = count * 15 + 6;
-            const int left = feet_x - width / 2, top = feet_y - 0x32 - count * 15 - 3;
+            const int left = point_x - width / 2, top = point_y - 0x32 - count * 15 - 3;
             if ((hud.left_open && hud.right_open) || (hud.right_open && left > world_w / 2 - 10) || (hud.left_open && left < world_w / 2 + 10)) continue;
             if (top < 0 || top + height >= int(kScreenHeight)) continue;
             for (int row = std::max(top + 4, 0); row < std::min(top + 4 + height - 5, int(kScreenHeight)); ++row)

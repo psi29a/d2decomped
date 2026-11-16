@@ -97,8 +97,24 @@ Read from the disassembly (`004a0a00`..`004a0b20`, `0049d8e0`..`0049d996`,
   left + 10 on the baseline top + 0x12 + 15 x (index - shown + lines),
   colour 0 (white, `FUN_00502320`).
 
-d2d: `render_ingame` (apps/d2d/ingame.cpp), from the unit's feet as d2d
-draws it; `ponytail:` there for `FUN_0049e070`.
+The screen point: `FUN_00620900` returns path `+8` / `+0xc` for players,
+monsters and missiles (the static path's `+4` / `+8` for objects, items and
+tiles). `FUN_00649d00` and `FUN_0064fb90` set the dynamic pair from the
+16.16 spot: each dword shifted right by 11, then `FUN_00643290` (x - y) >> 1,
+(x + y) >> 2, which is (x - y) x 16, (x + y) x 8 a subtile, floored to the
+pixel. The corner `0x7bf214` / `0x7bf218` is the view's `+0x24` / `+0x28`
+(`FUN_004a0e70` copies it with `FUN_004760c0`); `FUN_0044c990` sets it
+(`FUN_004760a0`) to the player's point less half the view's rect
+(`FUN_00476070`: `+4..+0x10`, {0, 0, W, H - 40} with no side panel), plus
+the shake (`FUN_00476d40`). So the point lands where d2d's floors put the
+camera, `kFloorViewY` = (H - 40) / 2, 12 rows above `kViewY` (H/2 - 8),
+where d2d draws a unit's feet (that row is still in unverified.md). x is
+the player's point less W/2, the side panel's quarter added by the caller,
+as units are drawn.
+
+d2d: `render_ingame` (apps/d2d/ingame.cpp) from `kFloorViewY` (rounded,
+not floored at 1/32 subtile: a pixel off at most); `ponytail:` there for
+`FUN_0049e070`.
 
 ## Small functions in the same work package (cited)
 
