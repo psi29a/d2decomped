@@ -79,9 +79,13 @@ std::vector<std::pair<float, float>> monster_walk(const Level& level, const Unit
     return points;
 }
 
-// FUN_00648eb0: a door's 0x800 (BlocksVis) under the unit's test shape
-// (FUN_0064d9b0) — what an opendoors monster (mask 0x3401) walks onto.
-bool on_door(const Level& level, const UnitState& unit) {
+// FUN_00648eb0: a door's 0x800 (BlocksVis). With the path's velocity
+// (+0x7c) 0 the word under the unit's test shape now (FUN_0064d9b0); else
+// +0x54 as its steps left it (UnitState::path_word). A monster's velocity is
+// its MonStats Velocity (+0x32 << 8, FUN_005735a0) from the start, and only
+// moving modes change it (FUN_00623f50), so one that walks reads +0x54.
+bool on_door(const Level& level, const UnitState& unit, bool moving) {
+    if (moving) return (unit.path_word & 0x0800) != 0;
     UnitShape door_test = unit.shape;
     door_test.mask = 0x0800;
     return level.unit_blocked(unit.x, unit.y, door_test);
@@ -91,7 +95,10 @@ bool on_door(const Level& level, const UnitState& unit) {
 // `velocity` (path +0x7c): rules::walk_frame (FUN_00650840) on the unit's 16.16
 // position, a new subtile tested as the pathers test it (FUN_0064ff90 ->
 // FUN_0064eda0: the walls and the others' stamps under its mask, its own
-// off). False when the walk is over, the unit on a subtile's centre and
+// off; a mask of 0x3401, an opendoors monster's, tests as 0x3c01, so a door
+// stops it). Each new subtile's door bit 0x800 under that shape is or'ed into
+// path +0x54 (UnitState::path_word), which a path's making zeroes
+// (FUN_00649970). False when the walk is over, the unit on a subtile's centre and
 // `point` past the last; `hit` when blocked. Its facing aims at the next
 // point not under it (FUN_0064fe40 -> FUN_006485f0: rules::aim_direction),
 // as the path is made and after each step, and turns a step a frame toward
@@ -118,8 +125,14 @@ bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<i
             }
     };
     aim();
-    const bool going = d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity,
-        [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); }, hit);
+    UnitShape step_test = unit.shape;                                  // FUN_0064ff90: 0x3401 -> 0x3c01
+    if (step_test.mask == 0x3401) step_test.mask = 0x3c01;
+    UnitShape door_test = unit.shape;
+    door_test.mask = 0x0800;
+    const bool going = d2d::rules::walk_frame(unit.x.raw, unit.y.raw, points, point, velocity, [&](int at_x, int at_y) {
+        if ((step_test.mask & 0x0800) && level.unit_blocked(centre(at_x), centre(at_y), door_test)) unit.path_word |= 0x0800;
+        return level.unit_blocked(centre(at_x), centre(at_y), step_test) || crowd.at(centre(at_x), centre(at_y), &unit);
+    }, hit);
     if (going) aim();
     facing.turn();
     if (!going) facing.now = facing.goal;
@@ -134,6 +147,7 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
     unit.budget = 0x14;
     unit.path = monster_walk(level, unit, crowd);
     unit.path_points = int(unit.path.size());
+    unit.path_word = 0;
     return !unit.path.empty();
 }
 
@@ -149,6 +163,7 @@ bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& cro
             unit.goal_x = target->x; unit.goal_y = target->y;
             unit.path = monster_walk(level, unit, crowd);
             unit.path_points = int(unit.path.size());
+            unit.path_word = 0;
         }
     }
     return follow_path(level, unit, velocity, crowd);
@@ -408,6 +423,7 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
     monster.step = 0;
     monster.end_x = to_x; monster.end_y = to_y;
+    unit.path_word = 0;                                         // FUN_00649970 zeroes +0x54
     const int x = subtile(unit.x), y = subtile(unit.y);
     const auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); };
     if (monster.path_type == 0) {
@@ -917,9 +933,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     monster.thought_ms = now_ms;
     // The driver's first step (FUN_005b10e0 → FUN_005b0f50): with opendoors
     // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
-    // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
-    // ponytail: the word read now, not a moving path's cached +0x54.
-    if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    // (FUN_00648eb0: what its last path's steps met, on_door), its door
+    // (OpenDoor) operated, it stands 5.
+    if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
     x = subtile(unit.x); y = subtile(unit.y);
     const auto searched = search_target(game_data, level, monster, foes, seen);
     target = searched.target; best = searched.best; nearest = searched.nearest;
@@ -2551,7 +2567,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // monster comes here: see monster_update.)
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
-        if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
+        if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
             if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
             monster.next_act = now_ms + 5 * 40;
             return false;

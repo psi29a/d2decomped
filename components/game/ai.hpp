@@ -80,6 +80,7 @@ struct UnitState {
     float goal_x = 0, goal_y = 0;     // where the route was planned to
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made
+    std::uint16_t path_word = 0;      // path +0x54: the door bit (0x800) its steps met since its path was made (path_frame)
     bool to_unit = false;             // walking up to a unit (near 1, the wall pather's 0x28 steps)
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
     bool alert = false;               // has something new to say on a quest: the balloon over its head
