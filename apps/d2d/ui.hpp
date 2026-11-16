@@ -221,6 +221,7 @@ struct NpcMenuState {
     }
 };
 
+// FUN_00453ab0 supplies game.exe's selected-line marker sprite; d2d reads the typed scene sprite directly.
 void layout_npc_menu(const Scene& scene, NpcMenuState& menu, int screen_x, int screen_y);
 void layout_npc_menu_touch(const Scene& scene, NpcMenuState& menu);
 

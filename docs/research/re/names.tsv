@@ -49,6 +49,11 @@ address	name	evidence
 00453060	kept_label_draw	no args: draws the text kept at 0x7a2c80 (FUN_00452be0 mode 1) centred on 0x7a2d20 at 0x7a2d24 + 2 - 2, clamped to the screen, then clears it (cursor-units.md "The kept label's draw")
 00453100	death_screen_draw	no args: the local player dead (FUN_00464820): youdiedhardcore / youdiedinst cels at H/2 - 0x5e, +0x30, then red Font30 lines 0x13e8 (hardcore) or 0x13e6 with stat 0xaf, and 0x13e7 above difficulty 0; sets 0x7a2890 (cursor-units.md "The death screen")
 00453a90	ui_flag_get	ECX index: returns the exact dword at 0x7a27c0 + index * 4, with no bounds check (client-frontier.md)
+00453aa0	ui_pentagram_sprite	returns exact dword at 0x7a2878; options-menu load/draw callers; ui-frontier.md and ui_frontier_helpers.py
+00453ab0	ui_npc_menu_marker_sprite	returns exact dword at 0x7a2880; NPC-menu draw caller; ui-frontier.md and ui_frontier_helpers.py
+00453ac0	ui_cursor_suppress_begin	clears 0x70fa9c and 0x7a2790; bracket in FUN_0047ec50; ui-frontier.md and ui_frontier_helpers.py
+00453ad0	ui_cursor_suppress_end	sets 0x70fa9c to 1; bracket in FUN_0047ec50; ui-frontier.md and ui_frontier_helpers.py
+00453b00	ui_mouse_move_refresh	SendMessageA(window, WM_MOUSEMOVE, 0, low16(x) | low16(y) << 16); ui-frontier.md and ui_frontier_helpers.py
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 00457460	unit_flags_c4_toggle	ECX unit, EDX mask, stack enabled: nonnull unit +0xc4 OR mask when enabled is nonzero, else AND inverse mask; null is a no-op (client-frontier.md)
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
