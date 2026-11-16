@@ -47,9 +47,10 @@ namespace d2d::game {
 
 // FUN_00463740: whether subtile (x, y) lies in the room holding subtile
 // (from_x, from_y) or in one of that room's near list (FUN_00619790), the
-// next-door levels' close rooms and a warp's room included (missile_rooms).
-static bool room_near_holds(const GameData& game_data, const Level& level, int from_x, int from_y, int x, int y) {
-    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5);
+// next-door levels' close rooms and a warp's room included, those come up
+// (missile_rooms).
+static bool room_near_holds(const GameData& game_data, const Spawning& spawning, const Level& level, int from_x, int from_y, int x, int y) {
+    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5, &spawning);
     const int act_x = level.world_x * 5 + x, act_y = level.world_y * 5 + y;
     return std::ranges::any_of(rects | std::views::drop(1), [&](const auto& rect) {
         return act_x >= rect[0] && act_y >= rect[1] && act_x < rect[0] + rect[2] && act_y < rect[1] + rect[3];
@@ -336,7 +337,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
         const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-        return room_near_holds(*game_data, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
+        return room_near_holds(*game_data, fight.spawning, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
     }
 
 auto World::hire_list(int list_act) -> std::vector<d2d::rules::HireEntry>& {
@@ -508,7 +509,7 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         }
         if (cain_walk.stage < 2) {
             if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
-            if (room_near_holds(*game_data, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
+            if (room_near_holds(*game_data, fight.spawning, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
                 cain_portal = { level, cell(cain_walk.spot_x), cell(cain_walk.spot_y), now_ms };
                 cues.cue("object_townportal", now_ms, cain_portal.x, cain_portal.y);
                 d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);

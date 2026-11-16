@@ -423,15 +423,22 @@ std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, 
 }
 
 
-std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y) {
+std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y, const Spawning* spawning) {
     const int room = room_holding(room_rects(level), level, x, y);
     if (room < 0) return {};
     const auto list = near_list(game_data, level, room);
+    const bool kept = spawning && spawning->levels.contains(&level);
+    const auto made = [&](const NearRoom& near_room) {
+        if (!kept) return true;
+        const auto found = spawning->levels.find(near_room.level);
+        return found != spawning->levels.end() && std::ranges::contains(found->second.order, std::size_t(near_room.room));
+    };
     std::vector<std::array<int, 4>> rects{ { 0, 0, 0, 0 } };
     for (const auto& near_room : list) {
         const std::array<int, 4> rect{ near_room.rect.x * 5, near_room.rect.y * 5, near_room.rect.width * 5, near_room.rect.height * 5 };
-        if (near_room.level == &level && near_room.room == room) rects[0] = rect;
-        rects.push_back(rect);
+        const bool own = near_room.level == &level && near_room.room == room;
+        if (own) rects[0] = rect;
+        if (own || made(near_room)) rects.push_back(rect);   // FUN_00463740: a null slot of room1 +0 is skipped
     }
     return rects;
 }
