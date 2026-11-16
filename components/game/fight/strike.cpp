@@ -571,6 +571,18 @@ auto Fight::struck_event(Monster& target, bool knockback) const -> void {
         target.struck_event = true;
     }
 
+// Each record raises its own event 4 (FUN_0057cee0 runs once a record), so a
+// blow out of GH keeps its event though a later one in the tick puts it in GH.
+// The knockback is the tick's: d2d keeps none per blow.
+auto Fight::take_blows(Monster& struck, const Foe& foe, std::uint32_t now_ms) -> bool {
+        for (const auto& blow : foe.blows) {
+            const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
+            if (hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked)) return true;
+            struck_event(struck, bool(foe.knocked_from));
+        }
+        return false;
+    }
+
 auto Fight::knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms) -> void {
         const auto& type_info = game_data->monsters.types[std::size_t(target.type)];
         if (!type_info.can_get_hit || !type_info.can_knock_back) return;   // LAB_005a77d0: FUN_0046c140 bits 3 and 13

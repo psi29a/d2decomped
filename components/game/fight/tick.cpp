@@ -404,18 +404,12 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 const bool was_alive = struck.alive();
                 // One damage record a landed blow (FUN_0057c6c0 then FUN_0057cee0's monster branch, which a
                 // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
-                bool dead = false;
-                for (const auto& blow : foes[i].blows)
-                    if (!dead) {
-                        const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
-                        dead = hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked);
-                    }
+                bool dead = was_alive && take_blows(struck, foes[i], now_ms);
                 // Its Crushing Blows after the hits, less its own damageresist
                 // (FUN_005bffc0), and a knockback as the player's (knock_back).
                 for (const int divisor : foes[i].crushed)
                     if (!dead && struck.alive()) dead = hurt(*game_data, struck, int(crushing_blow(struck.hit_points, divisor, struck.target(*game_data).res[0])), now_ms);
                 if (!dead && was_alive && struck.alive() && foes[i].knocked_from) knock_back(struck, foes[i].knocked_from->first, foes[i].knocked_from->second, now_ms);
-                if (!dead && was_alive && !foes[i].blows.empty()) struck_event(struck, bool(foes[i].knocked_from));   // each landed blow's flag 4
                 if (dead)
                     killed(monster_index, now_ms, cursed(struck) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
             }

@@ -473,6 +473,16 @@ int main() try {
         assert(world.fight.pending.empty());
         world.fight.monsters.back().hit_points = 90;
         // A landed hit, even one of no damage, too small for a get-hit (FUN_0057cee0's flag 4): event 4.
+        {
+            // A monster foe's two blows in one tick: the small one's event 4 stays though
+            // the big one after it puts it in GH (FUN_0057cee0 runs once a record).
+            Monster twice = enchanted;
+            twice.stats.hit_points = twice.hit_points = 90;
+            Foe blows;
+            blows.blows = { d2d::rules::StruckBlow{ .damage = 1 }, d2d::rules::StruckBlow{ .damage = 80 } };
+            assert(!world.fight.take_blows(twice, blows, 6000 * kTickMs));
+            assert(twice.mode == "GH" && twice.struck_event);
+        }
         world.fight.land(world.fight.monsters.size() - 1, d2d::rules::Blow{ .hit = true }, true, 6000 * kTickMs, -1);
         assert(world.fight.monsters.back().struck_event && world.fight.monsters.back().mode != "GH");
         world.fight.boss_events({}, 6000 * kTickMs);

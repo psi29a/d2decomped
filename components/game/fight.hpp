@@ -706,6 +706,8 @@ struct Fight {
     void knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms);
     // A landed hit's event 4 on it (Monster::struck_event), after its get-hit and knockback.
     void struck_event(Monster& target, bool knockback) const;
+    // A monster foe's landed blows of a tick, one damage record each; true when they kill it.
+    auto take_blows(Monster& struck, const Foe& foe, std::uint32_t now_ms) -> bool;
 
     // Poison and bleeding tick on the monsters near the player.
     void monster_dots(std::uint32_t now_ms, float elapsed);
