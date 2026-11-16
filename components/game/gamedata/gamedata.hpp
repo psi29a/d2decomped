@@ -1060,6 +1060,9 @@ struct Spawning {
         // A room's room1 seed stepped before it populated: a water monster's
         // party searching the room its leader stands in (FUN_005b2700).
         std::vector<std::optional<d2d::rules::Rng>> early_seeds;
+        // Gold piles its gold placeholders made (InitFn 28, FUN_00559300), not yet
+        // on the floor: level subtile x, y and the coins. World::drop_new_gold takes them.
+        std::vector<std::array<int, 3>> gold;
     };
     int difficulty = 0;
     d2d::rules::Rng game;

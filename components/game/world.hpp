@@ -647,6 +647,9 @@ struct World {
     void act3_bind_new_bosses();
     // The quest objects' InitFns on the objects made since the last call (rooms_up adds them room by room).
     void init_new_objects();
+    // The gold piles the rooms just up made (Spawning::LevelState::gold): onto
+    // their level's floor, lying already. A joined game's come from its host.
+    void drop_new_gold();
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.

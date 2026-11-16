@@ -629,7 +629,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     // The gold placeholder (InitFn 28, FUN_0054f8c0): ON (its first call,
     // FUN_00624690 mode 2), then 1..9 piles at rand(4), rand(4) subtiles
     // off it, where free in its room.
-    // ponytail: only its seed steps; the piles (FUN_00559300) aren't dropped.
+    // Its piles' spots and coins are objgroups.cpp's (ObjectRooms::piles), on the floor by World::drop_new_gold.
     const char* init_mode = nullptr;
     if (objects.get(row, "InitFn") == "28") {
         init_mode = "ON";

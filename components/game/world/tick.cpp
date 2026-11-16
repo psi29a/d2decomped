@@ -258,6 +258,23 @@ auto World::replenish_ground_frame() -> void {
         for (auto& [vendor, stock] : kept_gambles) for (auto& page : stock.tabs) for (auto& item : page) due(item);
     }
 
+auto World::drop_new_gold() -> void {
+        for (auto& [floor, state] : fight.spawning.levels) {
+            if (fight.remote_monsters) state.gold.clear();
+            for (const auto& [at_x, at_y, coins] : state.gold) {
+                Loot::GroundItem pile;
+                pile.item.code = "gld";
+                pile.gold = coins;
+                pile.label = std::to_string(coins) + " Gold";
+                pile.x = (float(at_x) + 0.5f) / 5;
+                pile.y = (float(at_y) + 0.5f) / 5;
+                pile.id = loot.next_id++;
+                (floor == loot.ground_level ? loot.ground : loot.kept[floor]).push_back(std::move(pile));
+            }
+            state.gold.clear();
+        }
+    }
+
 auto World::stamina_frame() -> void {
         using namespace d2d::d2s;
         if (fight.dead()) return;
@@ -804,6 +821,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         for (const auto& player : players) if (here(*player)) fight.rooms_up(*level, player->player.x, player->player.y, false);
         act3_bind_new_bosses();
         init_new_objects();
+        drop_new_gold();
         reopen_doors();
         const auto grown_from = npc_states.size();
         grow_states(npc_states, *level);
