@@ -166,7 +166,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     floors.reserve(1024);
     // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
     // `source`: the Level::Pick or DS1 layer cell it's drawn for (g_drawn).
-    auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, const void* source, int alpha = 255) -> bool {
+    // `in_front`: the wall's tile +0x24 bit 0 (wall_in_front).
+    auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, const void* source, int alpha = 255, bool in_front = false) -> bool {
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
         const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
@@ -181,7 +182,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         if (drawn) g_drawn.cells.push_back({ cell_x, cell_y, source });
         if (layer == 1) { floors.push_back({ &tile, screen_x, screen_y, cell_x, cell_y }); return drawn; }   // drawn after the sweep, below
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
-        else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
+        else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, in_front, alpha);
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha);
         else blit_dt1_tile(framebuffer, tile, pal, screen_x, screen_y, alpha);
         return drawn;
@@ -225,7 +226,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const auto* area = area_at(level, pcx, pcy);
         standing.push_back({ pcx, pcy, area ? area->id : 1u });
     }
-    auto wall_alpha = [&](const Level* wall_level, int off, int type, int wall_index, int cell_x, int cell_y) {
+    // A wall's alpha now and the target it fades to (Fade::target).
+    struct WallFade { int alpha = 255, target = 255; };
+    auto wall_alpha = [&](const Level* wall_level, int off, int type, int wall_index, int cell_x, int cell_y) -> WallFade {
         const void* level_key = wall_level;
         int shift_x = 0, shift_y = 0;                     // a neighbour level's cells from this one's
         for (const auto& neighbour : level.nearby)
@@ -237,7 +240,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const int want = see ? 0x80 : 0xff;
         const auto key = std::uint64_t(reinterpret_cast<std::uintptr_t>(level_key)) * 1000003u ^ (std::uint64_t(off) << 12 | std::uint64_t(type) << 6 | std::uint64_t(wall_index));
         auto found = fades.find(key);
-        if (found == fades.end()) { if (!see) return 255; found = fades.emplace(key, Fade{ 255, 255, elapsed_ms }).first; }
+        if (found == fades.end()) { if (!see) return {}; found = fades.emplace(key, Fade{ 255, 255, elapsed_ms }).first; }
         auto& fade = found->second;
         const auto now_a = [&] {                // 0x7f every 500 ms, from where it was
             const int step = int(std::min<std::uint32_t>(elapsed_ms - fade.changed_at, 1000)) * 0x7f / 500;
@@ -245,8 +248,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         };
         if (fade.target != want) { fade.from = now_a(); fade.target = want; fade.changed_at = elapsed_ms; }
         const int fade_alpha = now_a();
+        const int fade_target = fade.target;
         if (fade_alpha >= 255 && !see) fades.erase(found);
-        return fade_alpha;
+        return { fade_alpha, fade_target };
     };
 
     auto find_tile = [&](const Level& tile_level, int style, int seq, int type)
@@ -528,7 +532,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level) continue;
             const auto& cell_map = cell_level->ds1;
             auto draw_wall = [&](int type, const d2d::dt1::Tile& tile, int wall_index, const void* source, bool no_fade) {
-                if (type != 15) { blit_cell(cell_x, cell_y, tile, 0, source, no_fade ? 255 : wall_alpha(cell_level, int(off), type, wall_index, cell_x, cell_y)); return; }
+                if (type != 15) {
+                    const WallFade wall_fade = no_fade ? WallFade{} : wall_alpha(cell_level, int(off), type, wall_index, cell_x, cell_y);
+                    blit_cell(cell_x, cell_y, tile, 0, source, wall_fade.alpha, wall_in_front(wall_fade.target));
+                    return;
+                }
                 roofs.push_back({ cell_x, cell_y, &tile, source });   // roofs go last, over every wall and unit (FUN_004dea70 after FUN_004df1c0)
             };
             if (!cell_level->picks.empty()) {
