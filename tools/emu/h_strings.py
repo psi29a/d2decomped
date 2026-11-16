@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Check 19 H/stpl.h string and ignore-list routines in stock 1.14d.
 
-Run: D2_MPQ_DIR=/path/to/game-data python h_strings.py
+Run: D2_MPQ_DIR=/path/to/game-data python h_strings.py [--mutation-check]
 Only game.exe's mapped code executes. String allocation, Storm string calls,
 registry, file I/O, hash-table operations and virtual methods are synthetic
 hooks; apart from reading the local executable, no registry, user ignore
@@ -9,6 +9,10 @@ file, MPQ or game process is accessed. See
 docs/research/re/h-strings.md for the exact claims and limitations.
 """
 
+# gaps-runs: 0060dcb0 0060dd00 0060dd20 0060dd50 0060dd60 0060dd90 0060ddb0 0060ddf0
+# gaps-runs: 0060de00 0060de30 0060dea0 0060df10 0060dff0 0060e130 0060f870
+# gaps-runs: 00610d60 00610eb0 00610f90 00611050
+import argparse
 import hashlib
 from pathlib import Path
 
@@ -23,6 +27,7 @@ CLAIMED = {0x60dcb0, 0x60dd00, 0x60dd20, 0x60dd50, 0x60dd60, 0x60dd90,
            0x60dff0, 0x60e130, 0x60f870, 0x610d60, 0x610eb0, 0x610f90, 0x611050}
 STPL_FILE, DELETE_TAG = 0x6e6218, 0x6cc824
 VIRTUAL = 0x6615e4
+MUTATION = None
 
 
 def require(condition, message):
@@ -37,6 +42,10 @@ class Rig:
     def __init__(self, exe):
         """Load the selected stock image and initialize call accounting."""
         self.machine = emu.Emu(str(exe))
+        if MUTATION is not None:
+            address, original, changed = MUTATION
+            require(self.machine.read(address, 1) == bytes([original]), f"unexpected mutation byte at {address:08x}")
+            self.machine.mu.mem_write(address, bytes([changed]))
         self.log = []
         self.calls = 0
         self.covered = set()
@@ -422,8 +431,36 @@ def files(exe):
     return rig
 
 
+def mutation_check():
+    """Require seven altered original-code bytes of FUN_0060df10 and FUN_00610d60 to fail an observation."""
+    global MUTATION
+    exe = Path(emu.data_path()) / "bin" / "game.exe"
+    changes = (("append: null-name branch", files, (0x60df2d, 0x84, 0x85)),
+               ("append: empty-name branch", files, (0x60df36, 0x84, 0x85)),
+               ("append: persistence gate", files, (0x60df45, 0x84, 0x85)),
+               ("append: open-failure branch", files, (0x60df8e, 0x74, 0x75)),
+               ("append: fclose result", files, (0x60dfc0, 0x01, 0x02)),
+               ("insert: free of the duplicate", table_wrappers, (0x610dbe, 0x74, 0x75)),
+               ("insert: free's line number", table_wrappers, (0x610dc3, 0xe4, 0xe5)))
+    try:
+        for label, group, change in changes:
+            MUTATION = change
+            try:
+                group(exe)
+            except (AssertionError, RuntimeError):   # a failed observation, or an emulator fault the change causes
+                print(f"PASS H strings mutation caught: {label}")
+            else:
+                raise RuntimeError(f"mutation survived: {label}")
+    finally:
+        MUTATION = None
+    return len(changes)
+
+
 def main():
     """Run the fixed synthetic corpus and require coverage of all nineteen entry points."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mutation-check", action="store_true", help="alter original branches and require failures")
+    options = parser.parse_args()
     exe = Path(emu.data_path()) / "bin" / "game.exe"
     require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d")
     cases, covered = 0, set()
@@ -433,6 +470,8 @@ def main():
         covered.update(rig.covered)
     require(covered == CLAIMED, f"wrong entry coverage: missing {CLAIMED-covered}, extra {covered-CLAIMED}")
     print(f"PASS H strings: {len(covered)} functions, {cases} cases; normal return and RET cleanup checked")
+    if options.mutation_check:
+        print(f"PASS H strings: {mutation_check()} mutations rejected")
 
 
 if __name__ == "__main__":
