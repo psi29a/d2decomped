@@ -9,6 +9,7 @@
 #include "inventory.hpp"
 #include "item_text.hpp"
 
+#include <ammo.hpp>
 #include <aura_filter.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
@@ -70,7 +71,8 @@ auto Fight::ammo_index() const -> int {
         if (bow(right) || bow(left)) found = ammo(right) && !bow(right) ? right : ammo(left) && !bow(left) ? left : -1;
         else found = right >= 0 && throwable(*game_data, actor->character.items[std::size_t(right)].code) ? right
                    : left >= 0 && throwable(*game_data, actor->character.items[std::size_t(left)].code) ? left : -1;
-        return found >= 0 && actor->character.items[std::size_t(found)].quantity > 0 ? found : -1;
+        // FUN_0062a310. Its write of quantity 0 (stat 0x7d) changes nothing here: d2d's quantity is never under 0 but for none.
+        return found >= 0 && d2d::rules::quantity_left(tables, actor->character.items[std::size_t(found)]) ? found : -1;
     }
 
 auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
