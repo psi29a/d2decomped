@@ -272,6 +272,7 @@ struct Fight {
         std::optional<Leap> leap;
         bool  pstruck = false;                 // this swing's hit is resolved
         struct Owed { int skill = -1, lvl = 0; } owed;   // a cast's mana, taken on its action frame (FUN_0056f7f0)
+        std::int64_t last_paid = 0;                      // what the last pay() took (a refused Teleport gives it back)
         std::uint32_t action_ms = 0;           // the current mode's action frame, ms from its start
         float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame

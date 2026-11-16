@@ -1406,6 +1406,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   calc1..calc2 %, half fire half physical, within aurarange / 2. **63**
   (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**
   (FUN_005ca360, Teleport): to the point if it's open and not in town.
+  It returns 0 on a refusal (no room, the level's Teleport 0, Teleport
+  2's line not clear, FUN_00554ea0 finding no spot) and FUN_0056f7f0,
+  with no srvmissile, then leaves at 0x56fa3d before the payment
+  FUN_0056bfe0 (0x56fa7a): a refused hop costs no mana.
   **74** (FUN_005d88b0, Double Throw): both weapons' missiles (flag 1)
   with the skill's toht (stat 19) and calc1 damage % (stat 25).
 - Built: `Fight::burst / strike / area / spot / spot_skill /
