@@ -389,7 +389,9 @@ struct Fight {
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
         // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
         // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
-        // ponytail: a client given the unit anew while it's in NU (FUN_00571f90) adds 1 too; not counted.
+        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y (merc_joins).
+        // ponytail: only the merc's own owner's give is kept (another player coming near
+        // isn't one), and whether the give's own NU send (FUN_00571cd0's queue) adds 1 isn't traced.
         std::uint32_t merc_pierce_idx = 0;
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.

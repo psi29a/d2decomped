@@ -93,6 +93,13 @@ int main() try {
     bare.pierce = 2;
     assert(fight.skill_missile_hits(bare, 0, 7000) && bare.pierce == 2);   // the player's stats don't arm a merc's missile
 
+    // Given to the client (FUN_00571f90): stat 0x148 starts over at its subtile x + y.
+    hero.merc = Monster{};
+    hero.merc->unit.x = 3.1f;
+    hero.merc->unit.y = 4.5f;
+    fight.merc_joins();
+    assert(hero.merc_pierce_idx == 15 + 22);
+
     std::puts("OK: a merc's Pierce charges are its gear's and its stat 0x148");
     return 0;
 } catch (const std::exception& error) {

@@ -625,10 +625,15 @@ change (`FUN_00598220` calls it for each client while unit +0xc4 bit 0 is
 set; `FUN_00571f90` when a client is given the unit). Its default branch,
 for mode 1 (NU), sends the stop (`FUN_0053bb70`) and adds 1 to the
 monster's stat 0x148. So a merc's pierce_idx goes up by one for each
-client told of each turn to NU. d2d: `merc_pierce_idx`, one a player
-near it at each turn to NU. ponytail: a client given the unit anew while
-it stands in NU isn't counted, and `pierce_idx` counts d2d's commands,
-not game.exe's packets.
+client told of each turn to NU. Giving a client a monster
+(`FUN_00571f90`, case 1, unless `FUN_005541b0` and its corpse is used,
+`FUN_0063a320`) sets its stat 0x148 to its x + y (`FUN_00620870`, & 0xffff;
+`FUN_00627260`) before the queue goes out (`FUN_00571cd0`). d2d:
+`merc_pierce_idx`, one a player near it at each turn to NU, and its subtile
+x + y when it joins its owner (`Fight::merc_joins`, tests/game/test_merc_pierce.cpp).
+ponytail: another client's give isn't modelled, whether the give's own
+NU send adds 1 isn't traced, and `pierce_idx` counts d2d's commands, not
+game.exe's packets.
 
 ## Server hit function 20 helper — FUN_005ab2a0 (area callback)
 
