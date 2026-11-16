@@ -188,6 +188,8 @@ def main():
     parser.add_argument("--mutation-check", action="store_true", help="break the model on purpose and require failures")
     options = parser.parse_args()
     if options.mutation_check:
+        mutation = None
+        run_all(1, 1)   # the unmodified model must pass first: a baseline failure stops the command
         for name in MUTATIONS:
             mutation = name
             try:

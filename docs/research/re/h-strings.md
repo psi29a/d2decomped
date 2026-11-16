@@ -41,8 +41,10 @@ it does not compare a d2d implementation or exercise real storage.
 From `tools/emu`, using the existing dependency environment and a local copy:
 
 ```sh
-D2_MPQ_DIR=/path/to/game-data python h_strings.py [--mutation-check]
+D2_MPQ_DIR=/path/to/game-data python h_strings.py --mutation-check
 ```
+
+Leave out `--mutation-check` for the plain run of the 315 cases.
 
 `--mutation-check` changes one original byte in fresh emulator memory (the
 expected byte is checked first) and requires a failed observation, or the

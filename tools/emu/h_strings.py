@@ -44,7 +44,9 @@ class Rig:
         self.machine = emu.Emu(str(exe))
         if MUTATION is not None:
             address, original, changed = MUTATION
-            require(self.machine.read(address, 1) == bytes([original]), f"unexpected mutation byte at {address:08x}")
+            if self.machine.read(address, 1) != bytes([original]):
+                # a setup error, not a failed observation: mutation_check must not count it as a caught mutation
+                raise ValueError(f"unexpected mutation byte at {address:08x}")
             self.machine.mu.mem_write(address, bytes([changed]))
         self.log = []
         self.calls = 0
