@@ -7,6 +7,7 @@
 #pragma once
 
 #include "drops.hpp"
+#include "replenish.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>
@@ -335,6 +336,7 @@ inline CubeMade cube_make(const Tables& tables, const CubeRecipe& recipe, const 
             if (named && quality == 7) item.unique_id = named - 1;
             if (named && quality == 5) item.set_id = named - 1;
             if (output.flags & kEthereal) item.ethereal = true;
+            replenish_arm(tables, item);   // FUN_00558d90's end (0x559117, 0x559120)
             made = std::move(item);
         } else if (source) {
             auto item = *source;

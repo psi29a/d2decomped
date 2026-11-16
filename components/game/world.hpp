@@ -271,7 +271,6 @@ struct World {
         // treasure's end (0x5c) plays it within 60 s (World::tower_treasure).
         std::optional<std::uint32_t> tower_line_held;
         std::vector<Event> events;             // for the client, since it last looked
-        std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
         bool had_gidbinn = false;
         bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
@@ -931,6 +930,8 @@ struct World {
     void tower_treasure(std::uint32_t now_ms);
     void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
+    void replenish_frame();                // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
+    void replenish_ground_frame();         // the same for the items on the floors
     void life_update_frame(std::uint32_t tick_ms);   // a 40 ms frame's life update to the client (FUN_0052d980; rules::life_update_frame)
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
     [[nodiscard]] static int walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled, int velocity_pct = 0);   // the same from its parts

@@ -57,6 +57,7 @@ struct ItemType {
     int rarity = 1;                    // Rarity: its bases' weight in those classes
     bool autostack = false;            // AutoStack: a pickup joins the inventory's stacks of it (keys)
     bool throwable = false;            // Throwable (the item's own type, FUN_0062ba80)
+    bool reload = false, reequip = false;   // Reload / ReEquip (+0x11 / +0x12, FUN_0062e7e0 / FUN_0062e830): a spent stack's slot (rules::spent_fate)
     bool repair = false;               // Repair (+0x08): a smith may repair it (FUN_0062e660)
     std::string shoots, quiver;        // Shoots / Quiver: a bow's ammunition, a quiver's bow (+0xc / +0xe, FUN_0062e6f0 / FUN_0062e740)
     std::array<int, 3> max_sock{};     // MaxSock1 / 25 / 40: by ilvl <= 25, <= 40, above

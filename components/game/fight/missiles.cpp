@@ -9,12 +9,14 @@
 #include "inventory.hpp"
 #include "item_text.hpp"
 
+#include <ammo.hpp>
 #include <aura_filter.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -69,7 +71,8 @@ auto Fight::ammo_index() const -> int {
         if (bow(right) || bow(left)) found = ammo(right) && !bow(right) ? right : ammo(left) && !bow(left) ? left : -1;
         else found = right >= 0 && throwable(*game_data, actor->character.items[std::size_t(right)].code) ? right
                    : left >= 0 && throwable(*game_data, actor->character.items[std::size_t(left)].code) ? left : -1;
-        return found >= 0 && actor->character.items[std::size_t(found)].quantity > 0 ? found : -1;
+        // FUN_0062a310. Its write of quantity 0 (stat 0x7d) changes nothing here: d2d's quantity is never under 0 but for none.
+        return found >= 0 && d2d::rules::quantity_left(tables, actor->character.items[std::size_t(found)]) ? found : -1;
     }
 
 auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
@@ -104,28 +107,49 @@ auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
 auto Fight::spend_ammo(int index) -> void {
         if (index < 0) index = ammo_index();
         if (index < 0) return;
-        if (--actor->character.items[std::size_t(index)].quantity <= 0) out_of_ammo(std::size_t(index));
+        auto& spent = actor->character.items[std::size_t(index)];
+        const auto shot = d2d::rules::shot_spent(spent.quantity, d2d::rules::max_durability(spent));   // FUN_0056c310
+        spent.quantity = shot.quantity;
+        d2d::rules::replenish_arm(game_data->rules, spent, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+        spent.durability = shot.durability;                                                   // 0x56c39f: back at its max (FUN_00625e00)
+        if (spent.quantity <= 0) out_of_ammo(std::size_t(index));
     }
 
 auto Fight::out_of_ammo(std::size_t index) -> void {
         using namespace d2d::d2s;
         auto& item = actor->character.items[index];
+        const auto& tables = game_data->rules;
         item.quantity = 0;
-        const auto info = game_data->rules.item_info.find(item.code);
-        if (info != game_data->rules.item_info.end() && info->second.kind == 2 && item.quality >= 4 && item.quality <= 9) {
+        const auto info = tables.item_info.find(item.code);
+        const auto base = tables.item_base.find(item.code);
+        const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        const bool typed = kind != tables.types.end();
+        const auto spent = d2d::rules::spent_fate({ base != tables.item_base.end() && base->second.stackable, typed && kind->second.throwable,
+                                                    d2d::rules::own_stat(tables, item, d2d::rules::kItemThrowable) != 0, item.quantity,
+                                                    info != tables.item_info.end() && d2d::rules::type_is(tables, info->second.type, "weap"),
+                                                    item.quality >= 4 && item.quality <= 9, d2d::rules::broken(item), typed && kind->second.reload,
+                                                    typed && kind->second.reequip });
+        if (spent.fate == d2d::rules::SpentFate::stays || spent.fate == d2d::rules::SpentFate::emptied) return;
+        if (spent.fate == d2d::rules::SpentFate::breaks) {
             d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
             item.flags |= 0x100u;
             item.durability = 0;
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
             return;
         }
+        // FUN_00560cd0 refuses with an item on the cursor (FUN_0063c1e0 at 0x560d23): the spent stack
+        // stays in its slot, so no reload takes it (0x5801a3); the next refused shot tries again.
+        if (actor->held) return;
         const std::string code = item.code;
         const auto slot = item.slot;
         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
         actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
-        const auto next = std::ranges::find_if(actor->character.items, [&](const Item& other) {
+        // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
+        const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
         // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+        // ponytail: spent.reequip (0x5801bb): when no reload took the slot, FUN_0057ff70 puts back the weapon
+        // wielded before the last one was put on (the player's +0x90, FUN_006233a0), if the pack still holds it.
         if (next != actor->character.items.end()
             && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
             next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
@@ -144,7 +168,11 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item) || d2d::rules::broken(item)) return;
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
-        if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
+        if (item.durability - 1 >= 1) {
+            item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item));
+            d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);   // 0x559ef4
+            return;
+        }
         if (armor) {
             item.flags |= 0x100u; item.durability = 0;
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
@@ -157,6 +185,8 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
             cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             return;
         }
+        // 0x55a040: a stack with a max (FUN_006295b0 above 0) queues the durability timer, whichever way it went.
+        if (d2d::rules::stack_most(tables, item) > 0) d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);
         if (item.quantity < 2) { out_of_ammo(index); return; }
         --item.quantity;
         item.durability = d2d::rules::max_durability(item);
@@ -199,7 +229,13 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
             if (auto& item = actor->character.items[i]; item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
-                if (found != game_data->rules.item_base.end() && found->second.stackable) { if (--item.quantity <= 0) out_of_ammo(i); }
+                if (found != game_data->rules.item_base.end() && found->second.stackable) {
+                    const auto shot = d2d::rules::shot_spent(item.quantity, d2d::rules::max_durability(item));   // FUN_0056c310
+                    item.quantity = shot.quantity;
+                    d2d::rules::replenish_arm(game_data->rules, item, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
+                    item.durability = shot.durability;                                                   // 0x56c39f
+                    if (item.quantity <= 0) out_of_ammo(i);
+                }
                 else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {

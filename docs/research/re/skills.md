@@ -825,17 +825,65 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - **The ammo** (`FUN_0056c4e0` / `FUN_0056c3f0`, players only): with a
   bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
   else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
-  takes 1 off its quantity (stat 70); at 0 there's none.
+  takes 1 off its quantity (stat 70; `sub` then `jns`: below 0 it writes
+  0, and INT_MIN wraps to INT_MAX and stays), queues the replenish timer
+  (`FUN_00558580`, items.md), puts its durability (stat 0x48) back at the
+  max (`FUN_00625e00`; 0x56c383 .. 0x56c39f, written only when it
+  differs) and calls `FUN_00580310`. It answers 0 when the quantity went
+  below 0, else the new quantity + 1. V (`tools/emu/shot_spent.py`:
+  20,000 cases, every callee hooked, every instruction reached).
+  d2d: `rules::shot_spent` (components/rules/ammo.hpp), from
+  `Fight::spend_ammo` and `Fight::impale_wear`.
+- **Some left** (`FUN_0062a310`, `FUN_0056c4e0`'s answer for the item it
+  picked): a quantity above 0; else an item with stat 0x7d
+  (item_throwable) always has, its quantity written 0; else only an item
+  whose max stack (`FUN_006295b0`) is 0 or less. V
+  (`tools/emu/items_traces2.py`). d2d: `rules::quantity_left`
+  (components/rules/ammo.hpp), `Fight::ammo_index`.
 - **Out of ammo** (`FUN_00580310`, after a spend and when srvstfunc 4
-  refuses): for hand 4, then hand 5, a stackable (`FUN_006289f0`, ItemsTxt
-  +0x132), throwable or stat-125 item under 1 goes to `FUN_00580030`: a
-  magic or better weapon (type 0x2d, `FUN_0062a0f0`) breaks and stays
-  (`FUN_0055f850`); anything else leaves, and the inventory's first of its
-  code (`FUN_0063cd80`), not broken (0x100), takes the empty slot through
-  `FUN_00562a30`, which refuses one `FUN_0062eaf0` (requirements) won't
-  wear. Only that first one is tried. srvstfunc 4 also runs
-  `FUN_00580380` (a stackable weapon at 0 durability breaks; not ported).
-  d2d: `Fight::out_of_ammo`, `cast_missile`; test_game checks both.
+  refuses): hand 4's item, then hand 5's, goes to `FUN_00580030` (the item
+  in EAX, the player in EBX, the game on the stack). It acts on a
+  stackable (`FUN_006289f0`, ItemsTxt +0x132), throwable (`FUN_0062ba80`)
+  or stat-0x7d item whose quantity is under 1 (`jg`, signed):
+  1. stat 0x7d set: the quantity is written 0 and the item stays;
+  2. a magic or better weapon (type 0x2d, `FUN_0062a0f0`): it breaks
+     (`FUN_0055f850`) unless it is broken already, and stays;
+  3. anything else leaves its slot (`FUN_00560cd0` with flag 1, the
+     player's mode set to 1 first). Then, when its ItemTypes row has
+     **Reload** (`+0x11`, `FUN_0062e7e0`; 0x580120), the pack's items of
+     its type are walked (`FUN_0063cd80`) to the first of its class (its
+     code) that isn't broken (0x100, line 0x531); that one alone is tried:
+     it takes the slot when the slot is empty (`FUN_0063bde0`) and
+     `FUN_00562a30` puts it on (it refuses one `FUN_0062eaf0`, the
+     requirements, won't wear);
+  4. when no reload took the slot and the row has **ReEquip** (`+0x12`,
+     `FUN_0062e830`; 0x5801bb): `FUN_0057ff70(game, slot)`, the player in
+     EDI.
+
+  V (`tools/emu/ammo_out.py`: 20,000 cases, every callee but
+  `FUN_00451f60` hooked; every instruction reached but the null-item
+  fallback at 0x580186, which can't run: the item was read before).
+  `rules::spent_fate` and `rules::reload_pick` match all
+  (`tests/test_ammo_out.cpp`). srvstfunc 4 also runs `FUN_00580380` (a
+  worn weapon with durability at 0 breaks).
+  d2d: `Fight::out_of_ammo`, `cast_missile`; test_game_missiles checks
+  both. Step 3's `FUN_00560cd0` refuses with something on the cursor
+  (`FUN_0063c1e0` at 0x560d23, answer 0 before the slot is asked) and
+  `FUN_00580030` ignores its answer: the spent stack stays in its slot,
+  which the reload then finds full (0x5801a3). V
+  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` returns while
+  `Hero::held` is set. Not ported: step 4 (a `ponytail:` in
+  `Fight::out_of_ammo`).
+- **ReEquip** (`FUN_0057ff70`, cited, not run): the player keeps one item
+  id (player data `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads
+  it): the wielded weapon (`FUN_0063bef0`) at the time an item is put on a
+  body slot (`FUN_005606b0`, not the switch slots 11 / 12; `FUN_00560f00`,
+  a swap, before its requirements check; `FUN_00563d20`, after it). With
+  an id kept, the item it names is put on when it is of the game
+  (`FUN_00552f60`), on page 0 (`FUN_00628250`), in the player's inventory
+  (`FUN_0063ad50`) and `FUN_0055d710` (mode 0, the auto-equip) finds it a
+  slot: `FUN_00562a30`; a slot found that isn't empty is fatal (line
+  0x4ea). The id is then cleared, found or not. d2d: not ported.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the

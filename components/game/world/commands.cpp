@@ -22,6 +22,7 @@
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -653,6 +654,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 target->socketed_items.push_back(std::move(*actor->held));
                 actor->held.reset();
                 d2d::rules::make_runeword(tables, *target);
+                d2d::rules::replenish_arm(tables, *target);   // 0x56282c / 0x562835: what the socket added may replenish it
                 const auto& type = tables.item_info.at(target->socketed_items.back().code).type;   // misc.txt's usesound by kind
                 cues.cue(d2d::rules::type_is(tables, type, "rune") ? "item_rune" : d2d::rules::type_is(tables, type, "jewl") ? "item_jewel" : "item_gem", now_ms, actor->player.x, actor->player.y);
             }

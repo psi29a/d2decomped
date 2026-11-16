@@ -1027,8 +1027,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                                           found->second.range + found->second.lev_range * lvl, now_ms);
                     thrown.ed_pct = calc(skill, skill.calc[0], lvl);
                     thrown.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, calc_env(), lvl);
-                    const auto index = std::size_t(hand - items.begin());
-                    if (--items[index].quantity <= 0) out_of_ammo(index);
+                    spend_ammo(int(hand - items.begin()));   // FUN_0056ecb0 -> FUN_0056c3f0 -> FUN_0056c310
                 }
                 break;
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):

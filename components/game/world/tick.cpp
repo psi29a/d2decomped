@@ -11,6 +11,7 @@
 #include "internal.hpp"
 #include "inventory.hpp"
 #include "log.hpp"
+#include "loot.hpp"
 #include "npc_talk.hpp"
 #include "protocol.hpp"
 
@@ -26,6 +27,7 @@
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
+#include <replenish.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -221,6 +223,33 @@ auto World::life_update_frame(std::uint32_t tick_ms) -> void {
         d2d::rules::life_update_frame(actor->life_sent, int(values[d2s::kLife] >> 8), int(values[d2s::kMaxLife] >> 8), life_percent, mana_percent);
     }
 
+// The items' timers, kind 3 (FUN_00541320 -> FUN_00562da0 -> FUN_00562d30): one
+// due this frame gives its item a point of durability or quantity. A point
+// that mends a broken item (FUN_0055f900) puts its stats back on
+// (FUN_0055d970 -> FUN_0063d1d0, then FUN_0055dbc0).
+// ponytail: the merc's items have no timer here (game.exe's runs on any
+// item unit).
+auto World::replenish_frame() -> void {
+        const auto& tables = game_data->rules;
+        bool mended = false;
+        const auto due = [&](d2d::d2s::Item& item) { return item.replenish_in > 0 && --item.replenish_in == 0 && d2d::rules::replenish_fire(tables, item, true); };
+        for (auto& item : actor->character.items)
+            if (due(item)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
+        if (actor->held) (void)due(*actor->held);
+        if (mended) settle_requirements(*game_data, actor->character);
+    }
+
+// The same for what lies on the floors, every level's.
+// ponytail: no item on the ground is mended: whether a dropped item keeps
+// its owner id (item data +0xc, FUN_00562c40's test) is not traced.
+auto World::replenish_ground_frame() -> void {
+        const auto due = [&](Loot::GroundItem& lying) {
+            if (lying.item.replenish_in > 0 && --lying.item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, lying.item, false);
+        };
+        for (auto& lying : loot.ground) due(lying);
+        for (auto& [floor, items] : loot.kept) for (auto& lying : items) due(lying);
+    }
+
 auto World::stamina_frame() -> void {
         using namespace d2d::d2s;
         if (fight.dead()) return;
@@ -368,10 +397,11 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             day_at = frame_at;
             if (first_turn) {
                 day.step(act(), level->id);
+                replenish_ground_frame();
                 const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
                 credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
-            each_player([&](Player&) { stamina_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
+            each_player([&](Player&) { stamina_frame(); replenish_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
         day_at = day_end;
         each_player([&](Player& player) {
