@@ -77,6 +77,11 @@ int main() try {
     assert(repair_click_gate(tables, knives));
     knives.quantity = 60;
     assert(!repair_click_gate(tables, knives));
+    // FUN_0062a840: a charged skill (stat 0xcc) at its most asks nothing, one below it does.
+    knives.props.push_back({ .stat = d2d::d2s::kChargedSkill, .param = 0, .value = (10 << 8) | 10 });
+    assert(!repair_click_gate(tables, knives));
+    knives.props.back().value = (10 << 8) | 9;
+    assert(repair_click_gate(tables, knives));
     // The old d2d bought with something on the cursor; game.exe's client never asks.
     ShopClick buy;
     buy.npc_class = 0x94; buy.hand = true;
