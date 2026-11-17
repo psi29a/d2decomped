@@ -34,12 +34,16 @@ FUN_004bcbb0; else the COF's), and every missile, overlay or item sprite
 the data names that no MPQ holds. What's known (bugs.md) is listed
 apart and doesn't fail the run; anything else exits 1. (Fewer directions than the COF is fine: a layer takes its
 own DCC's, FUN_005ff760.)
+
+--animdata (with --audit's files, LoD's included) lists the COFs the data
+shows that AnimData.d2 has no record for: game.exe times those by its
+default record (FUN_0066a9b0, deviations.md approximation 19).
 """
 import collections, os, re, subprocess, sys, tempfile
 from pathlib import Path
 
-kBase = ("d2data", "d2char") + (("d2exp",) if "--audit" in sys.argv else ())
-kClasses = ("am", "ba", "ne", "pa", "so")                     # the base game's five
+kBase = ("d2data", "d2char") + (("d2exp",) if "--audit" in sys.argv or "--animdata" in sys.argv else ())
+kClasses = ("am", "ba", "ne", "pa", "so") + (("ai", "dz") if "--animdata" in sys.argv else ())   # the base game's five (LoD's two for --animdata)
 kMonModes = ("DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN")
 kObjectModes = ("NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5")   # gamedata.hpp kObjectModes
 
@@ -103,6 +107,22 @@ for (root, token), stems in cofs.items():
         named = (mode in mon_modes[token] and weapon in weapons) if root == "monsters" else mode in obj_modes[token]
         if named: shows[(root, stem)] = mode; token_of[(root, stem)] = token
         else: unused[root] += 1
+
+if "--animdata" in sys.argv:
+    data, records, at = cat(r"data\global\animdata.d2").encode("latin-1"), set(), 0
+    for _ in range(256):                                      # 256 blocks of u32 count + count * 160-byte records
+        if at + 4 > len(data):
+            sys.exit("anim_coverage: animdata.d2 ends inside a block's count")
+        count = int.from_bytes(data[at:at + 4], "little")
+        at += 4
+        if at + count * 160 > len(data):
+            sys.exit("anim_coverage: animdata.d2 ends inside a block's records")
+        for _ in range(count):
+            records.add(data[at:at + 8].split(b"\0")[0].decode("latin-1").lower())
+            at += 160
+    lacking = sorted(f"{root} {stem}" for (root, stem) in shows if stem.lower() not in records)
+    print(f"{len(shows)} COFs shown, {len(lacking)} with no AnimData record: {' '.join(lacking)}")
+    sys.exit(0)
 
 missing = []                                                  # --audit: sprites the data names that no MPQ holds
 def sprites(kind, rows, column, folder, ext):

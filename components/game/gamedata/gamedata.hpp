@@ -439,7 +439,8 @@ struct GameData {
     // A mode's timing, all the World needs of an animation: its COF name
     // ("AITW1HS"), animdata.d2's rate (256 = a frame per tick), frames per
     // direction and event frame (the hit), the COF's own rate and frames
-    // for modes animdata lacks, and its directions (0: no such mode).
+    // for modes animdata lacks (game.exe's default record instead:
+    // deviations.md approximation 19), and its directions (0: no such mode).
     struct AnimTiming {
         std::string   name;
         std::uint32_t speed = 0, frames = 0;
