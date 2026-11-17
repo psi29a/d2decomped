@@ -237,7 +237,7 @@ at the start, FrameCnt1 9), is the "stairsr" the Durance stairs hang on. On
 success the missile's end is hit function 35 (`FUN_005abee0`, missiles.md): the
 object by the id stored in the missile's data +0x28, mode 0 to 1, event 1
 `FrameCnt1 >> 8` frames on; the failure branch above does the same at once.
-OperateFn 50 (`FUN_00582180`, table entry 0x732de0) returns 0 unless the object is
+OperateFn 50 (`LAB_00582180`, table entry 0x732de0) returns 0 unless the object is
 in mode 2, then runs `FUN_00581f60` (OperateFn 47, the stairs). d2d: not ported,
 objects.cpp's ponytail: row 386 has an empty Token, so `add_object` makes no
 Npc for it, and hit function 35 would be in fight/missiles.cpp.

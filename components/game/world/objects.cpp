@@ -353,7 +353,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // ponytail: the break's FUN_005dfee0 (the orb monster's orbmist, row 368, at object 386, else
         // 386 to mode 1 and event 1) isn't run: object 386 ("Dummy" stairsr) has no Token, so
         // add_object makes no Npc for it, and the missile's end (hit function 35, FUN_005abee0) is
-        // fight/missiles.cpp's, not ported. Its OperateFn 50 (FUN_00582180: in mode 2 FUN_00581f60)
+        // fight/missiles.cpp's, not ported. Its OperateFn 50 (LAB_00582180: in mode 2 FUN_00581f60)
         // has nothing to run on. Traced in ai-control.md and missiles.md.
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
