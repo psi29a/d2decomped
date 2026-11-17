@@ -746,7 +746,7 @@ struct Fight {
     // The swing's hits: a sequence's on each of its event-1 frames, else
     // one on the attack's event frame.
     void strike(std::uint32_t now_ms);
-    void hit(std::uint32_t now_ms, float reach = kMeleeReach + 0.5f);
+    void hit(std::uint32_t now_ms, float reach = -1.f);   // reach < 0: game.exe's (FUN_0057ec10); else the cells
 
     // Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
     // monster struck, on away from the player (to twice its spot less the
@@ -1403,6 +1403,9 @@ struct Fight {
     // Closing in on the monster being attacked: in reach, swing; else the
     // point to walk to (nullopt: nothing to do).
     std::optional<std::pair<float, float>> engage(std::uint32_t now_ms);
+    // The monster is in the player's melee reach (FUN_00622c40: the unit distance and the line of mask
+    // 0x804), as the walk's end has it (`blow` false) or as the blow's to-hit test does (true).
+    [[nodiscard]] bool melee_reach_to(const Monster& target, bool blow) const;
     // The monsters around the player, in the crowd that blocks walkers.
     void crowd(Crowd& crowd_out);
     // One frame of the fight outside town (`in_moor`: in the level whose

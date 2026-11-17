@@ -40,6 +40,30 @@ using namespace d2d::game;
 
 namespace {
 
+// One case as the oracle's files have it, and what game.exe answers (tools/emu/player_reach.py,
+// V run: `game` = the swing starts, `hit` = the blow reaches).
+struct Pin { const char* line; int start, hit; };
+constexpr Pin kPins[] = {
+    { "1 30 30 34 30 2 0 0 0", 0, 1 },                                // 4 subtiles off, standing: the blow reaches, the walk goes on
+    { "2 30 30 34 30 2 0 0 1 32 30 4", 0, 0 },                        // a missile wall (4) on the line: no blow either
+    { "3 30 30 34 30 2 1 0 0", 1, 1 },                                // walking: one more (FUN_00622dc0), the swing starts
+    { "4 30 30 34 30 2 1 0 1 32 30 4", 0, 0 },                        // a wall on the line stops the start and the blow
+    { "5 30 30 34 30 2 1 0 1 32 30 2048", 0, 0 },                     // a door's word 0x800 does too
+    { "6 30 30 34 30 2 1 0 1 32 30 1", 1, 1 },                        // a walk-only wall (1) does not
+    { "7 30 30 34 30 2 1 0 1 32 30 1024", 1, 1 },                     // nor an object's word (0x400)
+    { "8 30 30 34 30 2 1 0 1 32 31 4", 1, 1 },                        // a wall off the line
+    { "9 30 30 34 30 2 1 0 1 33 30 4", 1, 1 },                        // the line's ends step in by the units' sizes: (33, 30) is not on it
+    { "10 30 30 34 31 2 1 0 2 32 30 4 32 31 4", 0, 0 },               // a two-subtile wall across it
+    { "11 30 30 35 30 2 0 2 0", 0, 1 },                               // a polearm (range 2): the blow reaches 5 off, the swing starts only inside
+    { "12 30 30 33 30 2 0 0 1 31 30 4", 1, 1 },                       // 3 off the units' sizes overlap: no line to cut
+    { "13 30 30 36 30 3 0 0 0", 0, 0 },                               // a big one 6 off: out of reach
+    { "14 30 30 33 30 1 0 0 0", 1, 1 },                               // a small one (size 1) 3 off: the distance table is by size
+    { "15 30 30 34 30 1 0 0 0", 0, 0 },                               // 4 off: neither (a size 2 one is reached by the blow here)
+    { "16 30 30 34 30 3 0 0 0", 1, 1 },                               // a big one (size 3) 4 off: the swing starts as well
+    { "17 30 30 27 29 1 0 0 0", 0, 1 },                               // a small one 3 across and 1 down: the walk goes on, the blow reaches
+    { "18 26 27 27 24 2 0 2 1 26 25 4", 0, 0 },                       // a polearm, 3 down and 1 across, a wall on the line: neither
+};
+
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -160,7 +184,16 @@ int main(int argc, char** argv) try {
     }
 
     if (argc > 1) { std::fprintf(stderr, "usage: test_player_reach [--player-reach CASES | --player-hit CASES]\n"); return 1; }
-    std::puts("OK: no mode given (the oracle prints per case)");
+    // game.exe's answers for the pins (V run, tools/emu/player_reach.py).
+    for (const auto& pin : kPins) {
+        int id = 0;
+        const auto [started, landed] = run_case(pin.line, id);
+        if (started != pin.start || landed != pin.hit) {
+            std::fprintf(stderr, "pin %d: swing %d (game.exe %d), blow %d (game.exe %d)\n", id, started, pin.start, landed, pin.hit);
+            return 1;
+        }
+    }
+    std::puts("OK: the player's melee reach and line");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_player_reach: %s\n", error.what());
