@@ -32,7 +32,7 @@ struct Move { float x = 0, y = 0; bool fresh = false; };
 // again while the button's held keeps an attack going. `item`: the
 // charged entry's item (its unit id; -1 a skill of the character's own),
 // as the skill select carries the entry's owner (SelectSkillLeft's guid).
-struct UseSkill { int skill = 0; float x = 0, y = 0; int unit = -1; bool left = false; int item = -1; };
+struct UseSkill { int skill = 0; float x = 0, y = 0; int unit = -1; bool left = false; int item = -1; bool stand = false; };   // stand: shift (stand still) held, the click flag 0x20
 // 0x13: interact with an object or NPC (walk up, then operate / talk), by
 // its Level::npcs index: objects and NPCs come with their rooms and never
 // go, and every machine makes the same list from the map seed.
@@ -238,7 +238,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
     std::visit([&](const auto& message) {
         using T = std::decay_t<decltype(message)>;
         if constexpr (std::is_same_v<T, cmd::Move>) out.u8(opcode::kMove).f32(message.x).f32(message.y).u8(message.fresh);
-        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item).u8(message.stand ? 1 : 0);
         else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(opcode::kInteract).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
@@ -295,7 +295,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
     std::optional<Command> command;
     switch (bytes[0]) {
         case opcode::kMove: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
-        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, i32() }; break; }
+        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); const int item = i32(); command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, item, byte() != 0 }; break; }
         case opcode::kInteract: command = cmd::Interact{ i32() }; break;
         case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
         case opcode::kResurrect: command = cmd::Resurrect{}; break;

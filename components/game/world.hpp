@@ -925,6 +925,7 @@ struct World {
     void mephisto_bridge(std::uint32_t now_ms);
     void blood_raven_died(std::uint32_t now_ms);
     void radament_died(const Fight::Kill& kill, std::uint32_t now_ms);
+    [[nodiscard]] std::string killer_name(const Fight::Hero::Striker& killer) const;   // the slain message's (FUN_0049eb10), "" none
     // (x, y) in the room of (from_x, from_y) or one next to it (FUN_00463740).
     [[nodiscard]] bool near_room(float from_x, float from_y, float x, float y) const;
     void transmute(std::uint32_t now_ms);

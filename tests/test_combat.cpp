@@ -391,7 +391,23 @@ int main(int argc, char** argv) try {
     assert(cast_ticks(17, 256, 0) == 16 && cast_ticks(17, 256, 8) == 15 && cast_ticks(17, 256, 174) == 9);   // Assassin SC
     assert(cast_speed(256, 200) == 448 && cast_speed(256, 400) == 448);                                       // the rate stops at 175
     assert(cast_ticks(0, 256, 105) == 0 && cast_ticks(1, 256, 0) == 1);
-    assert(open_wounds_per_sec(1) == 3 && open_wounds_per_sec(81) == 227);
+    // Open Wounds' life regeneration a frame, 256ths: game.exe's handler FUN_005bfe60, tools/emu/open_wounds.py game on these levels.
+    assert(open_wounds_fine(1, false) == 40 && open_wounds_fine(15, false) == 166 && open_wounds_fine(16, false) == 184);
+    assert(open_wounds_fine(30, false) == 436 && open_wounds_fine(61, false) == 1426 && open_wounds_fine(99, false) == 3136);
+    assert(open_wounds_fine(1, true) == 20 && open_wounds_fine(30, true) == 218 && open_wounds_fine(61, true) == 713 && open_wounds_fine(99, true) == 1568);   // half on a champion, unique, superunique
+    assert(open_wounds_fine(0, false) == 40 && kOpenWoundsFrames == 200);
+    {                                                                  // through player_blow: the struck Target's `special` halves it toward zero (level 2: 49, half 24)
+        Fighter wounding = simple_fighter(1, 1, 1000000);
+        wounding.open_wounds = 100;
+        for (const bool special : { false, true }) {
+            Target struck{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1 };
+            struck.special = special;
+            Rng roll{ 3 };
+            auto wound = player_blow(wounding, struck, 2, roll);
+            for (int i = 0; i < 20 && !wound.hit; ++i) wound = player_blow(wounding, struck, 2, roll);   // 95 % to hit
+            assert(wound.hit && wound.bleed && wound.bleed_fine == (special ? 24 : 49));
+        }
+    }
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
     // quarter of what the hit leaves (FUN_005bffc0), resistances cut, leech per Drain.

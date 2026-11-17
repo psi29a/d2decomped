@@ -27,7 +27,7 @@ Ranked by Seen, then by how much play it touches.
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
 | 7 | Council S1: compare built d2d timing, including speed modifiers. The original event is traced; the current source already waits for the action frame. | check | maybe | [council-s1.md](council-s1.md): stock original scheduler/dispatch checked; no built-d2d differential yet |
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
-| 9 | Unique monster mods still untraced: the act bosses' deaths (the thief is traced: never applied, monsters.md) | trace | maybe | PLAN.md phase 6, monster-ai.md |
+| 9 | Unique monster mods traced, two not ported: 14 spcdamage (the trap monsters' level and damage from the area level) and 34 ai_after_death (the Reanimated Horde rising again, Act 5); 15 partydead is in (Diablo's Bone Prison) | build | maybe | monsters.md's hook table |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
 | 15 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game. Every server unit but a player, missiles too, takes a game seed step as it's made (FUN_00555230 -> FUN_00552df0: +0x28 the low, its seed {low, 666} by FUN_00650e40): d2d's missiles take none, so the game seed's later rolls (drops) drift after any missile |
@@ -46,8 +46,7 @@ to 70% and the menu's fade-out.
 
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
-| 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues, Andariel's quake, Diablo's arrival taunt and Diablo's death schwing / hit are wired. The monster cast / skeleton cast / Izual taunt_2 rows are never played (unit-sounds.md). |
-| 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
+| 18 | Seven rows with no trigger traced either way: `event_desert_night_1..5` (no SoundEnviron row names them; the night may pick its event group by arithmetic, not traced), `scene_tavern_interior` (row 66, cathedral.wav), `monster_diablo_taunt_2` | 7 | trace | maybe | unit-sounds.md "In d2d"; every other code-played sound is wired or traced as never played (`tools/sound_coverage.py`: 3,416 of 3,520, the 97 others never played by stock) |
 
 ## Animation and drawing
 
