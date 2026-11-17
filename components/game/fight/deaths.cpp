@@ -279,7 +279,7 @@ auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t n
                 taken.damage += cold;
                 if (cold > 0) taken.chill_ticks = d2d::rules::resisted(element, foe.fighter.res[2]);
             }
-            foe.take(taken);
+            foe.take(taken, monster.id);
         }
         const char* const look = element == 1 ? "suicidefireexplode" : element >= 2 ? "suicideiceexplode" : "suicidecorpseexplode";
         if (const auto found = game_data->missiles.find(look); found != game_data->missiles.end()) {
@@ -311,7 +311,7 @@ auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_
             d2d::rules::Taken taken;
             taken.hit = true;
             taken.damage = std::max(pts * (100 - foe.fighter.dr_pct) / 100 - foe.fighter.dr_flat, 0) + d2d::rules::resisted(pts, foe.fighter.res[0]);
-            foe.take(taken);
+            foe.take(taken, monster.id);
         }
         if (const auto found = game_data->missiles.find("monstercorpseexplode"); found != game_data->missiles.end()) {
             Missile x{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };

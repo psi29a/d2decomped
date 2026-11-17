@@ -764,12 +764,15 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
         bool died = false;
+        if (foe.striker_id >= 0) actor->struck_by = { 1, foe.striker_id };
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
             life -= (std::int64_t(foe.damage) << 8) + fine;
             if (life < 0x100) life = 0;                     // under one whole point is dead (FUN_0057c6c0, 0057c865)
             if (life <= 0) { die(now_ms); died = true; }
         }
+        // A blast (a trap object, an exploding barrel: take_blast) takes the life itself.
+        if (!dead() && actor->struck_by.kind == 2 && actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
         for (const int divisor : foe.crushed) {             // Crushing Blows, after the hits (crushing_blow, FUN_005bffc0)
             if (died || dead()) break;
             auto& life = actor->character.stats.values[kLife];
@@ -845,6 +848,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                     const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
+                    foe.striker_id = aura_monster.id;
                 }
         }
     }

@@ -623,9 +623,12 @@ struct Foe {
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame
     d2d::rules::DiabloPick pick;              // what Diablo's target score reads off it (FUN_005e8530)
     int id = -1;                              // a pet's or monster's Monster::id; a player's -2 - 2 x Hero::id, their merc's one below
-    void take(const d2d::rules::Taken& taken) {
+    int striker_id = -1;                      // the Monster::id of the last blow that landed this frame, -1 none (the killer, FUN_0057cee0)
+    // `striker`: the Monster::id it came from (FUN_0057cee0's attacker), -1 none.
+    void take(const d2d::rules::Taken& taken, int striker = -1) {
         blocked = blocked || taken.blocked;
         hits += taken.hit ? 1 : 0;
+        if (taken.hit && striker >= 0) striker_id = striker;
         if (taken.hit) {
             Blow blow{ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat };
             for (std::size_t type = 0; type < blow.parts.size(); ++type)
@@ -1100,6 +1103,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 d2d::rules::StruckBlow blow{ dealt, 0, true, 0, dealt, false, burn & 255 };   // its own record (absorbed alone), no get-hit
                 blow.landed = false;
                 foe.blows.push_back(blow);
+                if (missile.owner >= 0) foe.striker_id = missile.owner;
                 // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
                 // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
                 foe.hit_class = missile.info->hit_class;
@@ -1124,7 +1128,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 missile.struck->push_back(key);
             }
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
-            foe.take(taken);
+            foe.take(taken, missile.owner);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
             if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);
             if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
