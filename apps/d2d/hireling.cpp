@@ -173,7 +173,7 @@ void HirelingPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& sc
     }
     if (hover && !held) {
         const d2d::rules::Wearer merc{ -1, sheet.str, sheet.dex, sheet.level };
-        draw_hover_text(framebuffer, scene, item_lines(scene, *hover, sheet.level, &merc), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
+        draw_hover_text(framebuffer, scene, item_lines(scene, *hover, sheet.level, &merc, &worn), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
     }
 }
 

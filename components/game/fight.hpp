@@ -371,6 +371,10 @@ struct Fight {
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
         int   shown_class = 0;                // the hit class the client last had, any landed hit's (GH or S->C 0x0c): its block sound
         std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
+        // Who last hurt the player (FUN_0057cee0's attacker; kind 1 a monster, id its Monster::id;
+        // 2 an object, id its Objects.txt row; -1 none), and so who killed them (FUN_00580ec0's
+        // killer, the slain message FUN_0054d8a0 names).
+        struct Striker { int kind = -1, id = -1; } struck_by, killer;
         int merc_hurt = 0;                     // life the merc lost besides the hits (thorns on its swings, its poison), taken with the monsters' hits
         // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
         // class): its frames, each seq_frame_ms long, and the hits (event 1)

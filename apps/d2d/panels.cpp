@@ -170,7 +170,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
                      hover_box[1] + (hover_box[3] - height * layout.box_h) / 2, pal);
     }
     if (hover) {
-        auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
+        auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer, &items);
         if (price && *price) add_price_line(lines, (*price)(*hover));
         draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
@@ -608,7 +608,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         blit_sprite(framebuffer, frame, pal, kCharPanelX + 0x90, cube_bottom(scene) - 0xbc - int(frame.height) + 1);
     }
     if (hover) draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0], hover_box[1], pal);
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
+    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer, panel < 100 ? &items : nullptr), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
 namespace {

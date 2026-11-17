@@ -565,6 +565,7 @@ auto Fight::dead() const -> bool { return actor->pmode == kModeDT || actor->pmod
 
 auto Fight::die(std::uint32_t now_ms) -> void {
     actor->character.stats.values[d2d::d2s::kLife] = 0;
+    actor->killer = std::exchange(actor->struck_by, {});
     set_pmode(kModeDT, now_ms);
     actor->attack_mon = -1;
     actor->smove = {};           // a Whirlwind / Charge / Leap cut short isn't resumed by the next attack mode

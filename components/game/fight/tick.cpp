@@ -474,7 +474,12 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         born.push_back(std::move(young));
                     }
             foes.resize(allies);
-            for (auto& young : born) add_monster(std::move(young));
+            std::vector<int> born_ids;
+            for (auto& young : born) {
+                if (young.owner_born >= 0 && std::size_t(young.owner_born) < born_ids.size()) young.party_owner = born_ids[std::size_t(young.owner_born)];
+                add_monster(std::move(young));
+                born_ids.push_back(next_id - 1);
+            }
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
             for (auto& monster : monsters) monster.in_aura = false;
@@ -784,6 +789,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
         bool died = false;
+        // A blast (a trap object, an exploding barrel: take_blast) took the life itself: that death
+        // first, before this frame's blows name another striker.
+        if (!dead() && actor->struck_by.kind == 2 && actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
+        if (foe.striker_id >= 0) actor->struck_by = { 1, foe.striker_id };
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
             life -= (std::int64_t(foe.damage) << 8) + fine;
@@ -865,6 +874,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                     const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
+                    foe.striker_id = aura_monster.id;
                 }
         }
     }
