@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <string_view>
 
 namespace d2d::rules::sound_ids {
@@ -235,6 +236,22 @@ inline std::array<StartCue, 3> skill_start(const SkillStart& skill, int unit_typ
     if (skill.weapon && swing.sound != 0) cues[1] = { swing.sound, swing_ticks };
     if (!item && skill.st_sound_class > 0 && unit_type == 0 && unit_class == skill.char_class) cues[2] = { skill.st_sound_class, held };
     return cues;
+}
+
+// A charge-up's charge landing (FUN_004c6ac0 runs the skill's cltprgfunc for
+// the count): cltprgfunc 12 (FUN_004f30a0, Tiger Strike) and 13
+// (FUN_004f31a0, Cobra Strike) play the prgsound (+0x10e) on the caster, one
+// row on per charge past the first, 3 at most (tiger_1..3). The count is the
+// stat (+0x54, aurastat1) on the aurastate's (+0x80) list, read only for a
+// progressive skill (+4 bit 2) whose state and stat are in range and whose
+// list is on the unit; otherwise the first row. A sound below 1 plays nothing
+// (FUN_004b9a00). `untargeted`: cltprgfunc 12 without a target (FUN_004648f0):
+// nothing at all.
+struct ChargeUp { int prg_sound = 0; bool progressive = false; int state = -1, states = 0, stat = -1, stats = 0; bool listed = false; int count = 0; bool untargeted = false; };
+inline std::optional<int> charge_up(const ChargeUp& skill) {
+    if (skill.untargeted) return std::nullopt;
+    const bool counted = skill.progressive && skill.state >= 0 && skill.state < skill.states && skill.stat >= 0 && skill.stat < skill.stats && skill.listed;
+    return skill.prg_sound + (counted ? std::clamp(skill.count, 1, 3) - 1 : 0);
 }
 
 }  // namespace d2d::rules::sound_ids

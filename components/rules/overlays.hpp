@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <span>
+#include <vector>
 
 namespace d2d::rules {
 
@@ -33,6 +36,56 @@ constexpr int cast_overlay_row(int cast_row, int item_row, bool from_item) {
 }
 constexpr bool cast_overlay_starts(int row, int shown, std::uint32_t shown_ms, int rate, int frames) {
     return row > 0 && !(row == shown && overlay_frame(shown_ms, rate, frames, true) >= 0);
+}
+
+// A unit's kind-8 overlays: a state in the `aura` list (States.txt bit 1,
+// data tables +0xd0) makes its overlay1 / overlay2 so (FUN_004d9920), one
+// state's shown at a time. In the unit's list order, newest first
+// (FUN_00470390 puts a new one at the head, +0x2c). `count` is +8, `shown`
+// +0x3c. The algorithm is tools/emu/engine_overlay_frames.py's model,
+// checked there against game.exe.
+struct AuraOverlay { int state = 0, row = 0; bool shown = false; int count = 0; };
+// FUN_0046def0, a new one at the head: the first other with its state lends
+// it its shown and count; else, past one of another state that's shown, it
+// starts hidden; else shown from 0.
+inline void aura_overlay_made(std::vector<AuraOverlay>& list, AuraOverlay made) {
+    made.shown = true; made.count = 0;
+    for (const auto& other : list) {
+        if (other.state == made.state) { made.shown = other.shown; made.count = other.count; break; }
+        if (other.shown) { made.shown = false; break; }
+    }
+    list.insert(list.begin(), made);
+}
+// FUN_0046df40 from state `from`: its overlays hidden (count -1), then those
+// of the next higher state shown from 0, or the lowest's when none is higher
+// (0 counts as none). The unit's state off / on around it changes nothing here.
+inline void aura_overlays_rotate(std::span<AuraOverlay> list, int from) {
+    int next = 0, low = 0;
+    for (auto& overlay : list) {
+        if (overlay.state == from) { overlay.shown = false; overlay.count = -1; }
+        if ((next == 0 || overlay.state < next) && overlay.state > from) next = overlay.state;
+        if (low == 0 || overlay.state < low) low = overlay.state;
+    }
+    if (next == 0) next = low;
+    for (auto& overlay : list) if (overlay.state == next) { overlay.shown = true; overlay.count = 0; }
+}
+// One client tick of them (FUN_00470c30 case 8, in list order): one whose
+// state is off is removed (FUN_0046e040, which rotates from its state); a
+// shown one counts to 50, then rotates.
+template <class Active> void aura_overlays_tick(std::vector<AuraOverlay>& list, Active&& active) {
+    for (std::size_t index = 0; index < list.size();) {
+        if (!active(list[index].state)) {
+            const int from = list[index].state;
+            list.erase(list.begin() + std::ptrdiff_t(index));
+            aura_overlays_rotate(list, from);
+            continue;
+        }
+        if (list[index].shown) {
+            if (list[index].count < 50) ++list[index].count;
+            else aura_overlays_rotate(list, list[index].state);
+        }
+        ++index;
+    }
 }
 
 // A quest balloon begins when its alert appears, independent of the NPC's

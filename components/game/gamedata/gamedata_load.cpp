@@ -554,6 +554,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound = sound("stsound"); skill_row.st_sound_class = sound("stsoundclass"); skill_row.item_cast_sound = sound("ItemCastSound");
         skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound"); skill_row.prg_sound = sound("prgsound"); skill_row.clt_st_func = number("cltstfunc");
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
+        for (std::size_t prg = 0; prg < skill_row.clt_prg_func.size(); ++prg) skill_row.clt_prg_func[prg] = number("cltprgfunc" + std::to_string(prg + 1));
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.noammo = number("noammo") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
@@ -863,9 +864,13 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.group = std::atoi(std::string(states_table.get(row, "group")).c_str());
             state.curse = states_table.get(row, "curse") == "1";
             state.restrict_form = states_table.get(row, "restrict") == "1";
+            state.row = int(row);
+            state.aura = states_table.get(row, "aura") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
+            state.set_func = std::atoi(std::string(states_table.get(row, "setfunc")).c_str());
+            state.rem_func = std::atoi(std::string(states_table.get(row, "remfunc")).c_str());
             state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
             state_sounds.push_back({ std::string(states_table.get(row, "state")), std::string(states_table.get(row, "onsound")), std::string(states_table.get(row, "offsound")) });
             for (const auto& [bit, blue, red] : { std::tuple{ d2d::rules::kPanelDefense, "armblue", "armred" }, { d2d::rules::kPanelFire, "rfblue", "rfred" },

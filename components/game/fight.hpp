@@ -837,9 +837,10 @@ struct Fight {
     // FUN_005c3b90; ai.cpp's FUN_005dd610).
     void monster_states(std::uint32_t now_ms);
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
-    // ticks more (FUN_005d3320).
+    // ticks more (FUN_005d3320), and its prgsound row for the count on the
+    // unit (`unit`, at x, y; rules::sound_ids::charge_up).
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
-    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
+    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms, std::uint64_t unit, float x, float y);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
     // at the higher of the stored level and today's), and progressive_tohit's
     // par4 a charge as the swing's to-hit %.
