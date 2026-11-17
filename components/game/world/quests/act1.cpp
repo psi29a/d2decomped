@@ -140,10 +140,12 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         if (cain_said == Said::ring) {            // FUN_005466b0: into the inventory, else at the feet
             static constexpr int kIlvl[3] = { 7, 30, 60 };
             const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
-            loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, actor->player.x, actor->player.y, kIlvl[diff], fight.spawning.game, now);
-            loot.take(loot.ground.size() - 1, now);
-            cues.cue("item_ring", now, actor->player.x, actor->player.y);   // FUN_005458e0(4): S->C 0x5d flags 2, the client's item_ring (FUN_004a2cb0)
-            d2d::log::info("Search for Cain: done, Akara's ring");
+            // A put that finds no floor makes no item (FUN_00555da0 returns 0): nothing to take, cue or log.
+            if (loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, actor->player.x, actor->player.y, kIlvl[diff], fight.spawning.game, now)) {
+                loot.take(loot.ground.size() - 1, now);
+                cues.cue("item_ring", now, actor->player.x, actor->player.y);   // FUN_005458e0(4): S->C 0x5d flags 2, the client's item_ring (FUN_004a2cb0)
+                d2d::log::info("Search for Cain: done, Akara's ring");
+            }
         }
         const int den_was = den.state, burial_was = burial.state;
         if (den.said(quests(), hc_idx, message_string)) {
