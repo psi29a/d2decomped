@@ -575,12 +575,17 @@ inline int cast_action_ticks(int frame, int rate, int fcr) {
     return std::max(256 * frame + std::max(cast_speed(rate, fcr), 1) - 1, 0) / std::max(cast_speed(rate, fcr), 1);
 }
 
-// Open wounds: bleeding per second for a character level (1.10's table in
-// 256ths a tick, times 25 ticks), for 8 seconds.
-inline int open_wounds_per_sec(int clvl) {
-    const int value = clvl < 15 ? 9 * clvl + 31 : clvl < 31 ? 18 * clvl - 104 : clvl < 46 ? 27 * clvl - 374
-                : clvl < 61 ? 36 * clvl - 779 : 45 * clvl - 1319;
-    return std::max(value, 0) * 25 / 256;
+// Open Wounds (item_openwounds, stat 135; its item event is FUN_005bfe60): a hit that rolls it puts state 0x3e on the struck
+// monster for 200 frames with a negative life regeneration (stat 0x4a, 256ths a frame): a bracket of the attacker's level
+// (FUN_005bfda0 over 9, 18, 27, 36, 45: 9 a level to 15, then 18 to 30, 27 to 45, 36 to 60, 45 above) plus 40, and half of
+// that on a champion, a unique or a superunique (FUN_005a0180 over the monster's data word +0x16 & 12). tools/emu/open_wounds.py
+// runs the handler on game.exe.
+inline constexpr int kOpenWoundsFrames = 200;
+inline int open_wounds_fine(int clvl, bool special) {
+    const int level = std::max(clvl, 1);
+    const int bracket = level <= 15 ? 9 * (level - 1) : level <= 30 ? 126 + 18 * (level - 15) : level <= 45 ? 396 + 27 * (level - 30)
+                      : level <= 60 ? 801 + 36 * (level - 45) : 1341 + 45 * (level - 60);
+    return special ? (bracket + 40) / 2 : bracket + 40;
 }
 
 // A monster being struck: its life now and max, defense, level, block
@@ -598,6 +603,7 @@ struct Target {
     // resistances (FUN_0057c1e0): a hireling's blow on a MonStats boss takes
     // DifficultyLevels HireableBossDamagePercent (row +0x38). 100 none.
     int pair_pct = 100;
+    bool special = false;                           // a champion, unique or superunique (monster data +0x16 & 12, FUN_005a0180): Open Wounds takes half
     [[nodiscard]] std::int64_t paired(std::int64_t field) const { return field > 0 && pair_pct != 100 ? field * pair_pct / 100 : field; }
 };
 // What one player hit does: the instant damage (physical after resistance,
@@ -605,6 +611,7 @@ struct Target {
 // poison (total and ticks), chill ticks, and whether it bled, knocked back.
 struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
+    int bleed_fine = 0;                  // Open Wounds' life regeneration if `bleed`, 256ths a frame, for kOpenWoundsFrames (open_wounds_fine)
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
@@ -950,6 +957,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         if (target.res[0] > 0) crushing_blow -= crushing_blow * std::min(target.res[0], 100) / 100;
     }
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
+    if (blow.bleed) blow.bleed_fine = open_wounds_fine(clvl, target.special);
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(stun, 250);
     blow.damage = phys + elem + crushing_blow;

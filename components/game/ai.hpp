@@ -519,8 +519,10 @@ struct Monster {
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
-        return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
-                 crush_divisor(game_data), type_info.undead, type_info.demon };
+        d2d::rules::Target built{ hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
+                                  crush_divisor(game_data), type_info.undead, type_info.demon };
+        built.special = boss != d2d::rules::Boss::none && boss != d2d::rules::Boss::minion;
+        return built;
     }
     // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling
     // (FUN_0063ee90's classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8

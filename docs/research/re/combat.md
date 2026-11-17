@@ -461,7 +461,12 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
-- Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
+- Leech: × MonStats Drain.
+- Open Wounds (stat 135) is the item event function 15, `FUN_005bfe60` (entry 15 of the table at `0x7325b0`; Crushing Blow's
+  `FUN_005bffc0` is entry 16): chance `rand % 100`, then `FUN_005bfda0(level, 9, 18, 27, 36, 45)` plus 40 (`rules::open_wounds_fine`),
+  halved when the struck monster's data word `+0x16 & 12` (champion, unique, superunique; `Target::special`), handed to `FUN_0056e970`
+  as stat 0x4a, state 0x3e, 200 frames (`kOpenWoundsFrames`), 256ths a frame. A player struck would take a quarter (an eighth from a
+  missile): not modelled, no monster of d2d wounds a player. Oracle: `tools/emu/open_wounds.py`.
 - Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's
   socketed in them (gems.txt by weapon / shield / other), inventory charms,
   and a set piece's bonus lists that are on (list i with i + 2 pieces of
