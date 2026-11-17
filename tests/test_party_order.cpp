@@ -53,6 +53,10 @@ std::vector<std::uint32_t> ids(int own_word, bool by_sort_key = false) {
 
 int print_file(const char* path) {
     std::ifstream file(path);
+    if (!file) {
+        std::fprintf(stderr, "can't read %s\n", path);
+        return 1;
+    }
     std::string line;
     while (std::getline(file, line)) {
         std::istringstream fields(line);
