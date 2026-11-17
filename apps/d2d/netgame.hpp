@@ -125,6 +125,10 @@ struct NetGame {
     int act = 0, area = 0;            // 0x03
     int difficulty = 0;               // 0x01
     std::uint32_t game_flags = 0;     // 0x01 +2 (0x712efc): bit 1 sorts the Party roster by 0x65
+    // The Party roster's list (0x7bb5c0, from its head): the players' ids, ours too. 0x5b puts a
+    // new one first (FUN_0047a6f0), 0x5c takes it out (0x47a8b0), and each of those, 0x65,
+    // 0x75, 0x7f, 0x8d, the party button and LEAVE regroup it (FUN_00479ab0: regroup_roster).
+    std::vector<std::uint32_t> roster;
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     // The client's pet list (0x7a, FUN_0045e860 / FUN_00478b10): the portraits'.
@@ -188,6 +192,7 @@ struct NetGame {
     auto party_button(std::uint32_t player) -> void;
     auto relation(std::uint32_t player, int flag) -> void;
     auto leave_party() -> void;                   // LEAVE (FUN_00479f60: 0x5e 9)
+    auto regroup_roster() -> void;                // FUN_00479ab0 on `roster` (PartyPanel::regroup)
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)

@@ -2,6 +2,7 @@
 #include "netgame.hpp"
 
 #include "game_api.hpp"
+#include "party.hpp"
 
 #include <d2gs/c2s.hpp>
 #include <d2gs/c2s_names.hpp>
@@ -50,7 +51,7 @@ constexpr std::uint32_t kStateSkillStat = 0x15e, kStateLevelStat = 0x15f;
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x89, 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8c, 0x8e, 0x65, 0x2c, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4, 0x7a })
+    for (const int id : { 0x89, 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8c, 0x8e, 0x65, 0x2c, 0x51, 0x59, 0x5b, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4, 0x7a })
         used.set(std::size_t(id));
     return used;
 }
@@ -154,12 +155,37 @@ auto NetGame::party_button(std::uint32_t player) -> void {
     if (action == 7 || action == 9) { if (!std::ranges::contains(no_auto_invite, player)) no_auto_invite.push_back(player); }
     else std::erase(no_auto_invite, player);
     send({ d2d::net::d2gs::c2s::party(std::uint8_t(action), player) });
+    regroup_roster();                                                             // FUN_00479eb0, after the send
 }
 
 auto NetGame::leave_party() -> void {
     for (const auto& [unit_key, unit] : units)                                    // the party left: autoparty doesn't ask them back
         if (unit.type == 0 && unit.id != self_id && unit.relation == 3 && !std::ranges::contains(no_auto_invite, unit.id)) no_auto_invite.push_back(unit.id);
+    if (const auto self = units.find(key(0, self_id)); self != units.end() && std::ranges::contains(roster, self_id)) {
+        self->second.party = 0xffff;                                              // FUN_00479f60: our record out of the party, then the regroup
+        self->second.relation = 1;
+        regroup_roster();
+    }
     send({ d2d::net::d2gs::c2s::party(9, self_id) });
+}
+
+auto NetGame::regroup_roster() -> void {
+    std::vector<d2d::client::PartyPanel::Row> rows;
+    rows.reserve(roster.size());
+    for (const auto id : roster) {
+        d2d::client::PartyPanel::Row row{ .id = id };
+        if (const auto found = units.find(key(0, id)); found != units.end()) {
+            row.name = found->second.name;
+            row.party = found->second.party;
+            row.sort_key = found->second.sort_key;
+        }
+        rows.push_back(std::move(row));
+    }
+    const auto self = units.find(key(0, self_id));
+    const int own_party = self != units.end() && std::ranges::contains(roster, self_id) ? self->second.party : 0xffff;   // FUN_004792e0's record, else 0xffff
+    d2d::client::PartyPanel::regroup(rows, self_id, own_party, d2d::net::d2gs::s2c::roster_by_sort_key(game_flags));
+    roster.clear();
+    for (const auto& row : rows) roster.push_back(row.id);
 }
 
 auto NetGame::relation(std::uint32_t player, int flag) -> void {
@@ -275,9 +301,27 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 2) difficulty = packet[1];
         if (const auto join_flags = d2d::net::d2gs::s2c::game_flags(packet)) game_flags = *join_flags;
         break;
-    case 0x65:   // the roster's sort key (0x479b10): kept on a player we know, as game.exe's record
-        if (const auto roster = d2d::net::d2gs::s2c::roster_key(packet))
-            if (const auto found = units.find(key(0, roster->id)); found != units.end()) found->second.sort_key = roster->sort_key;
+    case 0x65:   // the roster's sort key (0x479b10): kept on a player in the roster, then the regroup; none: dropped
+        if (const auto keyed = d2d::net::d2gs::s2c::roster_key(packet); keyed && std::ranges::contains(roster, keyed->id))
+            if (const auto found = units.find(key(0, keyed->id)); found != units.end()) {
+                found->second.sort_key = keyed->sort_key;
+                regroup_roster();
+            }
+        break;
+    case 0x5b:   // player joins (FUN_0047a6f0): +3 the id, +7 class, +8 name, +0x18 level, +0x1a party; a new record goes first, then the regroup
+        if (size >= 0x1c) {
+            const std::uint32_t id = read_u32(packet, 3);
+            auto& player = unit_at(0, id);
+            player.cls = packet[7];
+            player.name = std::string(read_name(packet, 8, 16));
+            player.level = read_u16(packet, 0x18);
+            player.party = read_u16(packet, 0x1a);
+            if (!std::ranges::contains(roster, id)) {
+                roster.insert(roster.begin(), id);
+                player.sort_key = 0;                                              // a new record starts zeroed (its 0x84 bytes)
+            }
+            regroup_roster();
+        }
         break;
     case 0x03:
         if (size >= 8) { act = packet[1]; map_seed = read_u32(packet, 2); area = read_u16(packet, 6); }
@@ -684,14 +728,27 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (message_at < size) chat.push_back({ packet[1], packet[8], name, std::string(text + message_at, strnlen(text + message_at, size - message_at)) });
         }
         break;
-    case 0x8d:   // assign party: +1 the player, +5 u16 party (0xffff none)
-        if (size >= 7) unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
+    case 0x8d:   // assign party: +1 the player, +5 u16 party (0xffff none); a known record regroups (0x47a330)
+        if (size >= 7) {
+            unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
+            if (std::ranges::contains(roster, read_u32(packet, 1))) regroup_roster();
+        }
         break;
-    case 0x75:   // party roster: +1 the player, +5 u16 party, +7 u16 level
-        if (size >= 13) { auto& player = unit_at(0, read_u32(packet, 1)); player.party = read_u16(packet, 5); player.level = read_u16(packet, 7); }
+    case 0x75:   // party roster: +1 the player, +5 u16 party, +7 u16 level; a known record regroups (FUN_0047a850)
+        if (size >= 13) {
+            auto& player = unit_at(0, read_u32(packet, 1));
+            player.party = read_u16(packet, 5);
+            player.level = read_u16(packet, 7);
+            if (std::ranges::contains(roster, read_u32(packet, 1))) regroup_roster();
+        }
         break;
-    case 0x7f:   // party member: +1 is a player, +2 u16 life %, +4 the id, +8 u16 area
-        if (size >= 10 && packet[1] == 1) { auto& member = unit_at(0, read_u32(packet, 4)); member.party_life = read_u16(packet, 2); member.area = read_u16(packet, 8); }
+    case 0x7f:   // party member: +1 is a player, +2 u16 life %, +4 the id, +8 u16 area; a known player regroups (FUN_0047a0d0)
+        if (size >= 10 && packet[1] == 1) {
+            auto& member = unit_at(0, read_u32(packet, 4));
+            member.party_life = read_u16(packet, 2);
+            member.area = read_u16(packet, 8);
+            if (std::ranges::contains(roster, read_u32(packet, 4))) regroup_roster();
+        }
         else if (size >= 10)   // a pet's (FUN_00479010): its list node's life (+0x1c)
             if (const auto pet = std::ranges::find(pets, read_u32(packet, 4), &Pet::id); pet != pets.end()) pet->life = read_u16(packet, 2);
         break;
@@ -714,8 +771,12 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); store_items.erase(read_u32(packet, 2)); }
         }
         break;
-    case 0x5c:   // a player leaves
-        if (size >= 5) units.erase(key(0, read_u32(packet, 1)));
+    case 0x5c:   // a player leaves: out of the roster too, then the regroup (0x47a8b0)
+        if (size >= 5) {
+            units.erase(key(0, read_u32(packet, 1)));
+            std::erase(roster, read_u32(packet, 1));
+            regroup_roster();
+        }
         break;
     default:
         break;

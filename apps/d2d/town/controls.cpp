@@ -17,7 +17,6 @@
 
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
-#include <d2gs/s2c.hpp>
 #include <d2gs/wire.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -39,7 +38,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -183,7 +181,8 @@ auto Town::clear_screen() -> void {
 // The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
 // it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
 // The Party screen's roster (FUN_0049a640): the other players of the
-// joined game, in the regrouped roster's order (PartyPanel::order).
+// joined game, in the roster list's order, which NetGame regroups as game.exe
+// does (NetGame::roster, PartyPanel::regroup).
 auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
@@ -201,14 +200,15 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
             return rows;
         }
         if (!net_game) return party_preview;
-        for (const auto& [unit_key, unit] : net_game->units) {
+        for (const auto id : net_game->roster) {
+            const auto found = net_game->units.find(std::uint64_t(id));
+            if (found == net_game->units.end()) continue;
+            const auto& unit = found->second;
             if (unit.type != 0 || unit.id == net_game->self_id || unit.name.empty()) continue;
             PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0, unit.sort_key };
             row.area = area_name(unit.area);
             rows.push_back(std::move(row));
         }
-        const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
-        PartyPanel::order(rows, self != net_game->units.end() ? self->second.party : 0xffff, d2d::net::d2gs::s2c::roster_by_sort_key(net_game->game_flags));
         return rows;
     }
 
