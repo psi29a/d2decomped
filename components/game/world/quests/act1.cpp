@@ -162,7 +162,8 @@ auto World::act1_tick() -> void {
     }
 
 auto World::act1_quest_step() -> void {
-        if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) actor->portal_due = true;   // her timer's 10 (FUN_00596490)
+        if (andy.tick())                                    // her timer's 10 (FUN_00596490): each player in level 0x25, a town portal at them
+            each_in_game([&](Player& player, int) { if (level_of(player)->id == d2d::rules::level_ids::kCatacombsLevel4) player.portal_due = true; });
         burial.tick();
         tower.tick();
         if (den_log_in > 0 && --den_log_in == 0 && den.state == 4) den.log = 5;   // LAB_00590230: "Return to Akara", only still cleared (0x590232)

@@ -56,7 +56,7 @@ by the record accessors below. The oracle substitutes a synthetic record.
 | `FUN_00628830` | Clamp an affix required level using a custom fastcall convention: `ECX` is the affix record, `EDX` the optional player unit, and `EAX` the initial value. A null affix preserves `EAX`. Select byte `+0x65`, or byte `+0x68` when byte `+0x67` is not `0xff`, the player is nonnull, and that byte equals the player class at `+0x04`; raise a signed initial value to the selected byte, but preserve higher values. `FUN_0062b5b0` calls this helper. |
 | `FUN_00628860` | Resolve the data-table state through global pointer `0x744304`; index the item-type table at state `+0xbf8`, with count at `+0xbfc` and record stride `0xe4`. Return the zero-extended byte at item-type record `+0x10`, or 0 for a negative index, an index greater than or equal to the count, or a computed null record. `FUN_0055a6d0` uses the result when rerolling classic drops. |
 | `FUN_0062b400` | Return the item-type index of an item unit: `FUN_00628700(unit +0x04)` when the unit type (`+0x00`) is 4, else 0. A null unit reports string id `0x67d` and exits with `FUN_00681e09(-1)`. Note the 0 for a non-item is also ItemTypes row 0. d2d: reads the same, cited from the decompile, no oracle run (`rules.hpp:749` comment, `type_mends`). |
-| `FUN_0062e830` | Return the byte at ItemTypes record `+0x12` (table at state `+0xbf8`, count `+0xbfc`, stride `0xe4`, as `FUN_00555c90`) for an item unit's type index (`FUN_0062b400`); 0 for a null or non-item unit, an out-of-range index or a null record. Its only caller `FUN_00580030` (ammo run out, `.\PLAYER\PlrModes.cpp`) saves the answer and, when nonzero, ends by calling `FUN_0057ff70`, which resolves a unit with `FUN_00623410`/`FUN_00552f60` and, if `FUN_0055d710` finds a slot, moves it there (`FUN_00562a30`). The sibling `FUN_0062e7e0` reads `+0x11` the same way and gates the same-code search loop (`FUN_0063cd80`) earlier in the function. Whether the columns are Reload (`+0x11`) and ReEquip (`+0x12`) is an unverified guess from ItemTypes.txt's column order, not read from game.exe. d2d: `out_of_ammo` (`components/game/fight.hpp:862`) models the `+0x11` search branch; the `+0x12` branch (`FUN_0057ff70`) is not ported. Reads the same, cited from the decompile, no oracle run. |
+| `FUN_0062e830` | Return the byte at ItemTypes record `+0x12` (table at state `+0xbf8`, count `+0xbfc`, stride `0xe4`, as `FUN_00555c90`) for an item unit's type index (`FUN_0062b400`); 0 for a null or non-item unit, an out-of-range index or a null record. Its only caller `FUN_00580030` (ammo run out, `.\PLAYER\PlrModes.cpp`) saves the answer and, when nonzero, ends by calling `FUN_0057ff70`, which resolves a unit with `FUN_00623410`/`FUN_00552f60` and, if `FUN_0055d710` finds a slot, moves it there (`FUN_00562a30`). The sibling `FUN_0062e7e0` reads `+0x11` the same way and gates the same-code search loop (`FUN_0063cd80`) earlier in the function. Whether the columns are Reload (`+0x11`) and ReEquip (`+0x12`) is an unverified guess from ItemTypes.txt's column order, not read from game.exe. d2d: `out_of_ammo` (`components/game/fight/missiles.cpp`) models the `+0x11` search branch and the `+0x12` one (`FUN_0057ff70`, `Fight::reequip`; skills.md "Shots and ammo"). Reads the same, cited from the decompile, no oracle run. |
 
 Re-check these claims against game.exe 1.14d:
 
@@ -355,12 +355,18 @@ d2d: `World::replenish_frame` counts each of the player's items' timers
 down a 40 ms frame and runs `rules::replenish_fire` on one that is due; a
 mend puts the item's stats back on (`wield_enters`,
 `settle_requirements`). `World::replenish_ground_frame` does the same for
-the items on the floors, without the mend: whether a dropped item keeps
-its owner id is not traced.
-Not ported (`ponytail:` in components/game/world/tick.cpp and
-components/rules/replenish.hpp): the timer of an item the merc wears or a
-vendor holds, and `FUN_0055f900`'s item flag 0x200 and hand-skill pass
-(`FUN_0055c5c0`), as for a smith's repair.
+the items on the floors, and for the merc's (armed as the save's items
+are), both without the mend: an item's owner id is set only as it goes
+into an inventory, to that inventory's owner when it's a player (type 0;
+`FUN_0063afd0` -> `FUN_00629ed0`), else -1, and back to -1 as it leaves
+one (`FUN_0063aaf0`). So the merc's items and one dropped from an
+inventory have no player owner. The only other writer, `FUN_0057f390`,
+gives an owner id to the gold piles `FUN_0055a090` makes (from
+`FUN_0057f700`); gold has no replenish stat. A vendor's stock (the open
+window, the kept stock and gamble lists) runs too, unowned as the merc's.
+Not ported (`ponytail:` in components/rules/replenish.hpp):
+`FUN_0055f900`'s item flag 0x200 and
+hand-skill pass (`FUN_0055c5c0`), as for a smith's repair.
 
 ### The item maker (`FUN_00558cb0`)
 

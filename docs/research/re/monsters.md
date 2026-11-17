@@ -241,8 +241,11 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   unique mods, at most 8 in all (FUN_005a0600: rows without `champion`,
   `upick` weights, none twice). A row is allowed (FUN_005a03e0) when
   enabled, not an LoD row in a classic game, the monster isn't of an
-  `exclude1/2` MonType, and fPick 2 (multishot) isn't on a melee monster
-  (fPick 1 / 3 test FUN_0046c140).
+  `exclude1/2` MonType, and fPick 2 (multishot) isn't on a monster with
+  MonStats +0xc bit 1 (isMelee) or +0xe bit 1 (nomultishot: vampire1..9,
+  slinger5, slinger6), `0x5a046e..0x5a04c7` (fPick 1 / 3 test
+  FUN_0046c140). `tools/emu/umod_can_take.py`: every MonStats row x every
+  MonUMod row, 31,562 pairs.
 - **Its company**: a champion (FUN_0054e1e0) brings `rand(3) + 1` more of
   its type at radius 4, each a champion with mod 16 (FUN_005a48c0); a
   unique (FUN_005a0c00 from FUN_005a2120) brings `rand(4) + 3` of MonStats
@@ -734,8 +737,8 @@ diff_drlg.py game`. Kurast needed nothing new. Travincal:
   the ancients (0x21c) FUN_005b1c50; Baal (0x220) 22 + quest 0x24, uber
   (0x2c5) 22, 18, 8, 6. d2d `rules::act_boss` has every mod list (read
   from the code; only Act 1's, the Maggot Queen's and the orb's diffed);
-  the Fire Golem's is `Fight::golem_blast`, the ancients' gear isn't made
-  (below).
+  the Fire Golem's is `Fight::golem_blast`, the ancients' gear is
+  `rules::ancient_gear` (below).
 - **The ancients' gear** (FUN_005b1c50, `EBX` the unit; no mod, no
   quest): four items each from the table at 0x6e1bb0 + class × 8, one
   row of 8 bytes per ancient, 0x18 apart (the code, then at +4 the
@@ -756,10 +759,13 @@ diff_drlg.py game`. Kurast needed nothing new. Travincal:
   Re-check: the 96 bytes at 0x6e2c90..0x6e2cef in game.exe (rows 0x18
   apart, an 8-byte entry per ancient); the codes from
   Weapons.txt / Armor.txt ubercode and ultracode. Misc.txt has neither
-  column: whether the ring is made in Nightmare or Hell is not traced (the
-  loader's value for a missing column). d2d's monsters carry no items, so
-  none of this is built: not the items' stats, nor the game seed steps
-  their making takes.
+  column: the ring's record +0x88 / +0x8c are 0 (read from game.exe's
+  loaded tables in tools/emu), so FUN_00573b20's FUN_00633640 finds no
+  item and Korlic wears no ring past Normal, no seed stepped for it.
+  FUN_005b1cf0 runs inside FUN_005b2a00, before FUN_005a49b0's superunique
+  setup: the items take the unit's start level. d2d: `rules::ancient_gear`,
+  made by `World::seal_boss` on the game seed (`spawn_gear`), worn as any
+  monster's (`wear_gear`); test_ancient_gear.
 - The oracle needs `objgroups.QUEST_STUBS` here: the council's
   superunique specials read quest flags (FUN_00544760).
 

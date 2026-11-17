@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <ranges>
 
 using namespace d2d::game;
 
@@ -51,6 +52,9 @@ int main() try {
     const float corpse_x = corpse->x, corpse_y = corpse->y;
     world.arrive(tristram, corpse_x + 3, corpse_y, "test");
     world.autoloot_gold = false;
+    world.drop_new_gold();                                   // Tristram's own gold placeholders' piles (InitFn 28)
+    const auto placed = count("gld");
+    const auto wirt_gold = [&] { return count("gld") - placed; };
 
     // Follow the same interaction command and walk-to-object ticks as a click.
     std::uint32_t now = 1000;
@@ -61,25 +65,25 @@ int main() try {
     world.apply(cmd::Interact{ index }, now);
     assert(world.actor->interact_npc == index);
     while (world.actor->interact_npc >= 0 && now < 9000) tick();
-    assert(count("leg") == 1 && count("gld") == 0);
+    assert(count("leg") == 1 && wirt_gold() == 0);
 
     for (int frame = 0; frame < 9; ++frame) tick();
-    assert(count("gld") == 0);
+    assert(wirt_gold() == 0);
     const auto [blocked_x, blocked_y] = world.loot.drop_at(corpse_x, corpse_y);
     world.actor->player.x = blocked_x;
     world.actor->player.y = blocked_y;
     tick();
-    assert(count("gld") == 1);
-    const auto gold = std::ranges::find_if(world.loot.ground, [](const auto& item) { return item.item.code == "gld"; });
+    assert(wirt_gold() == 1);
+    const auto gold = std::ranges::find_if(world.loot.ground | std::views::reverse, [](const auto& item) { return item.item.code == "gld"; });
     assert(gold->x != blocked_x || gold->y != blocked_y);
     for (int frame = 0; frame < 190; ++frame) tick();
-    const auto piles = count("gld");
+    const auto piles = wirt_gold();
     assert(piles >= 10 && piles < 20);
 
     world.apply(cmd::Interact{ index }, now);
     assert(world.actor->interact_npc == -1);
     for (int frame = 0; frame < 10; ++frame) tick();
-    assert(count("leg") == 1 && count("gld") == piles);
+    assert(count("leg") == 1 && wirt_gold() == piles);
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_wirt_body: %s\n", error.what());
     return 1;
