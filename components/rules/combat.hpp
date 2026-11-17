@@ -521,6 +521,12 @@ inline int get_hit_frame(int frames, int rate, int tick) {
     const int held = (frames * 256 - 1) / rate;
     return std::min(tick, held) * rate / 256;
 }
+// A player's (FUN_00463390, row 4 of 0x711e00): get_hit_frame's stepping, but
+// re-testing after the step the client's mode ends a tick before the server's
+// event, `held` ticks after the mode was set: -1 from then (the client stands).
+inline int player_get_hit_frame(int frames, int rate, int tick, int held) {
+    return tick + 1 >= held ? -1 : get_hit_frame(frames, rate, tick);
+}
 
 // A player's attack sequence (mode SQ, 0x12) runs 30 points slower than its attack rate: FUN_00623f50's attack branch takes 30 off the
 // percent (0x624290..0x62429b: unit type 0, mode 0x12, sub esi, 0x1e) before the clamp to 15..175. The branch is the one FUN_00621580 picks for

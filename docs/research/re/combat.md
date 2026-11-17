@@ -581,10 +581,10 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
   the same way and, re-testing after the step, ends the mode a tick before
   the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
-  (`Unit::get_hit_rate` in the renderer), checked by the oracle `tools/emu/hit_render.py`
+  (`Unit::get_hit_rate` in the renderer; the player's own in `town/draw.cpp`, a knockback slide aside), checked by the oracle `tools/emu/hit_render.py`
   (game.exe's step and draw run natively on hit_len.py's cases and its rate and ticks) against
-  `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. Not ported: the player's own frames
-  (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
+  `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. A joined
+  game's merc has no FHR on the wire.
 
 ## A player's attack swing: the start frame and the strike tick (FUN_00623b10, FUN_005539b0)
 

@@ -230,6 +230,9 @@ int main(int argc, char** argv) try {
         blows = { { .damage = 32, .hit_class = 2, .physical = 32, .frac = 1 } };
         for (int sample = 0; sample < 64; ++sample) assert(struck_big(blows, (64 << 8) + 2, seed));
     }
+    // A player's get-hit drawn (FUN_00463390): the monster's stepping, ended a tick before the server's event.
+    assert(player_get_hit_frame(6, 256, 3, 10) == get_hit_frame(6, 256, 3) && player_get_hit_frame(6, 256, 8, 10) == 5);
+    assert(player_get_hit_frame(6, 256, 9, 10) == -1 && player_get_hit_frame(6, 256, 0, 1) == -1);
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
     assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);

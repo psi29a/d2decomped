@@ -132,6 +132,10 @@ struct View {
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
+    // A get-hit as the client draws it (FUN_00463390): the server's end, a knockback slide (drawn GH, not stepped), the FHR.
+    std::uint32_t pmode_until = 0;
+    bool knocked = false;
+    int fhr = 0;
     int walk_percent = 100;                // a walk's / run's % (World::walk_percent): its animation's rate
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
     std::uint32_t seq_frame_ms = 40;
