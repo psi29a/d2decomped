@@ -787,9 +787,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // (srvstfunc 1, FUN_0056ca40) asks for no target, only a bow's ammo, so the player swings where
         // it stands, turned to the spot; the do (FUN_0056f070) has no unit to hit. A bow's or a thrown
         // weapon's goes as its missile (cast_missile). Only with no unit named: the client's null target
-        // (the ground, shift); a held click on a converted monster walks (cursor-units.md).
-        // ponytail: the click's own pick of an enemy by the spot (Skills.txt SearchEnemyXY, FUN_00467880)
-        // isn't made, and another melee skill at a spot (Bash with shift) isn't swung: their starts aren't traced.
+        // (the ground, shift); a held click on a converted monster walks (cursor-units.md). A shift-click's
+        // monster beside the player (Skills.txt SearchEnemyXY, FUN_00467660) comes named: the client picks it.
+        // ponytail: another melee skill at a spot (Bash with shift) isn't swung: its start isn't traced.
         const auto attack_spot = [&] {
             const auto* attack = game_data->skills.get(0);
             actor->interact_npc = actor->pick_item = -1;

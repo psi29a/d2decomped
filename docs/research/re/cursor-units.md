@@ -249,7 +249,8 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
 - `FUN_004621d0` re-picks the target through `FUN_00467880` for skills
   whose Skills.txt +6 bits are 0x40 SearchEnemyNear (`FUN_00467490`), 0x20
   SearchEnemyXY with no target (`FUN_00467660`) or 0x80 SearchOpenXY
-  (`FUN_004677b0`). The Skills.txt field table built in `FUN_00613f80`
+  (`FUN_004677b0`; "The skill's own target search" below). The
+  Skills.txt field table built in `FUN_00613f80`
   gives TargetableOnly bit 0x14, SearchEnemyXY 0x15, SearchEnemyNear 0x16,
   SearchOpenXY 0x17 (0x616a21..0x616a9f; TargetableOnly's is EDX, 0x14
   since 0x6141a7), tested as byte +6 against the
@@ -308,6 +309,90 @@ Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
 `FUN_00462a20` and `FUN_00462d00` itself (read from the code only; that
 kind 4 is the held frame is read from `FUN_00462c20` matching the press, as
 the callers pass the kind through registers the decompiler loses).
+
+## The skill's own target search (`FUN_00467880`)
+
+Read from the disassembly; `FUN_00467660` and the `FUN_00641cb0` under it
+run natively in `tools/emu/search_enemy_xy.py` (below). `FUN_004621d0`
+calls `FUN_00467880(ECX &x, EDX target, &y, flags, near)` with the click
+struct's x, y (+0xc, +0x10), its target (+8), flags (+0) and `near`: flag
+0x20 (shift) or flag 2 with no target (+8 null). The answer is the new
+target (+8).
+
+**The Skills.txt bits.** The skill row's flag dword (+4) is filled from the
+field table built in `FUN_00613f80`, an entry {name, type, bit, ...} each
+(0x616a11..0x616ac5): TargetableOnly bit 0x14 (EDX, set at 0x6141a7), SearchEnemyXY 0x15,
+SearchEnemyNear 0x16, SearchOpenXY 0x17, TargetCorpse 0x18 (the strings at
+0x6e6bbc..0x6e6bec, 0x6e6bac). The tests read byte (bit >> 3) + 4 against
+the mask table at 0x6ce268 (1, 2, 4, ..., 0x80): TargetableOnly +6 & 0x10
+(0x6ce278), SearchEnemyXY +6 & 0x20 (0x6ce27c), SearchEnemyNear +6 & 0x40
+(0x6ce280), SearchOpenXY +6 & 0x80 (0x6ce284), TargetCorpse +7 & 1
+(0x6ce268). Re-check: `read_memory 006ce260 40` and disassemble
+0x616a10..0x616ac5.
+
+**`FUN_00467880`** (0x467880, ret 0x10):
+
+1. A target: a dead player (type 0 and `FUN_00464820`: +0xc4 bit 0x10000,
+   or mode 0 / 0x11; a monster's modes are 0 / 0xc) stays the target. A
+   dead unit with a skill not TargetCorpse becomes the ground at its spot
+   (`FUN_00466de0`, x / y = `FUN_0045adf0` / `FUN_0045ae20`, target null).
+   A click on the player's own subtile calls `FUN_004c51e0`.
+2. A held frame (flag 8) with flag 1 and without shift (0x20), while the player
+   walks or runs (`FUN_00622d00`: mode 2, 3 or 6) keeps the target.
+3. The skill's status (`FUN_004d9fc0`) not 0 keeps it.
+4. SearchEnemyNear: `FUN_00467490`. Else SearchEnemyXY with no target and
+   `near`: `FUN_00467660`. Else SearchOpenXY: `FUN_004677b0` (above).
+   Else the target as it was.
+
+**`FUN_00467660` (SearchEnemyXY)** (EBX the player, the skill row on the
+stack, ret 4): the player's facing (`FUN_006238c0`: its path's +0x65 when
+it stands at its path's target, else the way to that target), its
+eighth `(dir & 0xff) >> 3`, and five turns of it from 0x6d6b34 (0, -1, 1,
+-2, 2). Each turn's spot is the player's subtile plus x 0x6d6b14 {0, -2,
+-3, -2, 0, 2, 3, 2} and y 0x6d6af4 {3, 2, 0, -2, -3, -2, 0, 2} for that
+eighth: about 3 subtiles out, the facing's own first. A spot is taken when
+
+- its collision word has a unit's own bit (`FUN_0064d9b0(room, x, y, 1,
+  0x180)` -> `FUN_0064d450`: 0x80 a player, 0x100 a monster; 0x27 off the
+  rooms);
+- `FUN_00641cb0(room, x, y, LAB_00467640, 0, 1)` finds a unit there: the
+  near rooms (`FUN_00619790`) whose rect is near (`FUN_00641930`), each
+  room's units from its list head (+0x74, next +0xe8), only players not in
+  mode 0 / 0x11, monsters not in 0 / 0xc, and missiles; its size
+  (`FUN_00620510`) taken to 1..3 (under 1: never): 1 its own subtile, 2 the
+  plus round it, 3 the 3 x 3 square; and the first that `LAB_00467640`
+  (0x467640: a monster) passes;
+- that unit has +0xc4 bit 2;
+- with TargetableOnly, it is MonStats2 shiftSel (`FUN_004638a0(class, 6)`:
+  the MonStats2 field table puts shiftSel at bit 6, 0x657f8f; noSel 5,
+  corpseSel 7) or `FUN_00465c60` lets the player interact with it.
+
+A spot that fails any of these moves on to the next turn, not the next
+unit. The first that passes is set as the player's path target
+(`FUN_00620c10` -> `FUN_00648b90`: path +0x58 the unit, +0x5c its type,
++0x60 its id) and returned; none returns null.
+
+In 1.14d's Skills.txt SearchEnemyXY is on Attack, Kick, Left Hand Swing and
+the class melee skills (Jab, Bash, Smite, Zeal, Dragon Claw, Maul and the
+rest; 49 rows, 35 of them class skills), so a shift-click at the ground beside a monster swings at
+it. SearchEnemyNear (`FUN_00467490`: the nearest unit to the click under
+10 by `FUN_006417f0`, max + min / 2, that `FUN_00466870(0,0)` passes) is on
+Raise Skeleton, Corpse Explosion, Psychic Hammer, Fist of the Heavens,
+Taunt and the other corpse skills.
+
+Oracle: `tools/emu/search_enemy_xy.py` runs `FUN_00467660` and everything
+under it but the hooks its docstring lists, on generated rooms (units of
+every type, mode and size round the five spots, collision words with and
+without the unit bits); `tests/test_search_enemy_xy.cpp` gives d2d's
+`rules::search_enemy_xy` the same cases (fixture
+`search_enemy_xy_cases.inc`, 2000; `gen 20000 3`: 20000 cases, 4965 picks,
+no difference). d2d: `Town::shift_pick` (apps/d2d/town/input.cpp) runs it on
+a click with stand still held and no unit under the cursor, with the units'
+own bits from the players' and live monsters' collision shapes.
+
+Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, and the order
+of units across near rooms in `FUN_00641cb0` (the oracle puts all of them
+in the player's room).
 
 ## The label helpers of `FUN_00454f30`
 

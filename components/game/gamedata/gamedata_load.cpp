@@ -250,7 +250,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.can_walk = ms2.get(monstats2_row, "mWL") == "1"; type_info.can_swing = ms2.get(monstats2_row, "mA1") == "1";
             type_info.can_get_hit = ms2.get(monstats2_row, "mGH") == "1"; type_info.height = num(ms2.get(monstats2_row, "Height"));
             type_info.can_knock_back = ms2.get(monstats2_row, "mKB") == "1";
-            type_info.al_sel = ms2.get(monstats2_row, "alSel") == "1"; type_info.no_sel = ms2.get(monstats2_row, "noSel") == "1";
+            type_info.al_sel = ms2.get(monstats2_row, "alSel") == "1"; type_info.no_sel = ms2.get(monstats2_row, "noSel") == "1"; type_info.shift_sel = ms2.get(monstats2_row, "shiftSel") == "1";
             type_info.corpse_sel = ms2.get(monstats2_row, "corpseSel") == "1";
             type_info.critter = ms2.get(monstats2_row, "critter") == "1";
             type_info.small = ms2.get(monstats2_row, "small") == "1"; type_info.large = ms2.get(monstats2_row, "large") == "1";
@@ -557,7 +557,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.noammo = number("noammo") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
-        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1";
+        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1"; skill_row.targetable_only = text("TargetableOnly") == "1"; skill_row.search_enemy_xy = text("SearchEnemyXY") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
             skill_row.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");

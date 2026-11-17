@@ -681,9 +681,10 @@ or a shift click's own (`FUN_00461700(0)`), swings where the player
 stands: its start, srvstfunc 1 `FUN_0056ca40`, sets the animation's first
 frame, takes the state 0x26 branch (`FUN_005c8980`), checks a missile
 weapon's ammo (`FUN_0056c4e0`) and asks for no target; d2d
-`World::apply`'s `attack_spot`. Not kept: the click's pick of an enemy by
-the spot (SearchEnemyXY, `FUN_00467880`), another melee skill at a spot,
-and a joined game asks only the weapon (the host asks the rest).
+`World::apply`'s `attack_spot`. A shift click first picks a monster beside
+the player (SearchEnemyXY, `FUN_00467660`; d2d `Town::shift_pick`). Not
+kept: another melee skill at a spot, and a joined game asks only the
+weapon (the host asks the rest).
 
 Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
 LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in

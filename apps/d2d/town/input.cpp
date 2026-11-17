@@ -42,6 +42,7 @@
 #include <monsters.hpp>
 #include <object_sounds.hpp>
 #include <rules.hpp>
+#include <search_enemy.hpp>
 #include <skills.hpp>
 
 #include <algorithm>
@@ -81,8 +82,12 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
         // A hand's skill at the cursor, at `unit` or the ground (-1): the press's FUN_004629a0 (left) /
         // FUN_00462ba0 (right), and a held frame's FUN_00462a20 / FUN_00462c20, all into FUN_004625b0.
+        // With no unit there and shift (stand still) held, the skill's own search may name one
+        // first (FUN_004621d0 -> FUN_00467880: shift_pick).
         const auto use_hand = [&](bool left, int unit) {
-            out.push_back(cmd::UseSkill{ left ? skillbar.left : skillbar.right, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item });
+            const int skill = left ? skillbar.left : skillbar.right;
+            if (unit < 0 && function_held(keys::kStandStill)) unit = shift_pick(skill);
+            out.push_back(cmd::UseSkill{ skill, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item });
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {
@@ -139,6 +144,50 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.rpress_this_frame) right_press();
         else if (mouse.rdown && right_hold && skillbar.right != kResurrectSkill) hold_hand(false);
         return out;
+    }
+
+// A shift-click at the ground with a SearchEnemyXY skill (Attack, Bash, Jab, Zeal...): game.exe's
+// client first takes a monster on one of five spots about 3 subtiles from the player, its facing's
+// way first (FUN_00467880 -> FUN_00467660, rules::search_enemy_xy; cursor-units.md "The skill's
+// own target search"). A spot counts with a unit's own collision bit on it (0x180: a player's or
+// a live monster's plus, a SizeX 3 monster's 3 x 3). The monster's id, or -1.
+// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0: mana, the weapon), a
+// walking player faces its path's target there (FUN_006238c0), the units go in the near rooms'
+// list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
+// press flag 2 that also asks for the search, SearchEnemyNear (FUN_00467490) and SearchOpenXY
+// (FUN_004677b0) aren't made.
+auto Town::shift_pick(int skill) const -> int {
+        const auto* info = scene ? scene->skills.get(skill) : nullptr;
+        if (!info || !info->search_enemy_xy) return -1;
+        const auto subtile = [](d2d::game::Fine fine) { return int(fine.raw >> 16); };
+        const int level_id = level ? level->id : 0;
+        std::vector<d2d::rules::SearchUnit> units;
+        units.reserve(view.monsters.size());
+        for (const auto& monster : view.monsters) {
+            const bool known = monster.type >= 0 && std::size_t(monster.type) < scene->monsters.types.size();
+            const bool shift_sel = known && scene->monsters.types[std::size_t(monster.type)].shift_sel;
+            units.push_back({ subtile(monster.unit.x), subtile(monster.unit.y), monster.unit.shape.size, 1, monster.alive() ? 1 : 0, monster.targetable(), shift_sel,
+                              !monster.ally_not_interact(*scene, level_id) });
+        }
+        const auto stamped = [&subtile](const UnitState& unit, int spot_x, int spot_y) {
+            if (!unit.shape.stamps()) return false;
+            const int across = std::abs(spot_x - subtile(unit.x)), down = std::abs(spot_y - subtile(unit.y));
+            return unit.shape.box() ? across <= 1 && down <= 1 : across + down <= 1;
+        };
+        const auto unit_bits = [&](int spot_x, int spot_y) {
+            return stamped(view.player, spot_x, spot_y)
+                || std::ranges::any_of(view.others, [&](const auto& other) { return !other.ghost && stamped(other.unit, spot_x, spot_y); })
+                || std::ranges::any_of(view.monsters, [&](const auto& monster) { return monster.alive() && stamped(monster.unit, spot_x, spot_y); });
+        };
+        // The facing in 64 (path +0x65, FUN_00648810); one drawn apart from it is the 16 way's.
+        const auto& self = view.player;
+        int facing = self.facing.goal;
+        if (d2d::game::missile_direction(self.facing.now, 16) != self.dir) {
+            const auto sector = std::ranges::find(d2d::game::kDir16FromSector, self.dir) - std::begin(d2d::game::kDir16FromSector);
+            facing = int(sector * 4) & 0x3f;
+        }
+        const int pick = d2d::rules::search_enemy_xy(facing, subtile(self.x), subtile(self.y), info->targetable_only, units, unit_bits);
+        return pick < 0 ? -1 : view.monsters[std::size_t(pick)].id;
     }
 
 // Whether the mouse's move goes out, as game.exe's client lets it
