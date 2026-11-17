@@ -735,6 +735,7 @@ struct Town {
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
+    [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
     [[nodiscard]] int hovered_ground() const;
     // The New Stats / New Skills buttons as the panels stand.
     [[nodiscard]] LevelButtons level_buttons_now() const;

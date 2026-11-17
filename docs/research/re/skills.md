@@ -666,11 +666,17 @@ or Bash out of mana swings a plain attack, with no voice. Oracle:
 Every click path that sends a skill reaches it (traced 2026-11-08). A click
 goes to `FUN_004625b0`, which first picks the target through `FUN_004621d0`
 -> `FUN_00467880`. That one only asks whether the status is 0, to let the
-skill's own search (Skills.txt +6 bits 0x40 / 0x20 / 0x80) pick a target;
-it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
+skill's own search (Skills.txt +6 bits 0x40 SearchEnemyNear / 0x20
+SearchEnemyXY / 0x80 SearchOpenXY; cursor-units.md "The skill's own
+target search") pick a target; it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
 held, a spot skill, or a cast at the point: three calls), or a unit in
-reach asks through `FUN_00461c70`. A unit out of reach is walked to, and
-the walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
+reach asks through `FUN_00461c70`. A unit out of reach is walked to
+(`FUN_00481030`), unless shift (flag 0x20) is held with a melee skill
+(`FUN_00645460` 1 or 4: the row's +0x14 range kind, 3 resolved by the
+weapon to 1 or 2; what 4 is wasn't traced): then `FUN_00461700(0)`
+swings at the spot and nothing walks (d2d: `UseSkill::stand`,
+World::apply; `tests/game/test_stand_attack.cpp`). The
+walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
 `FUN_00461180` -> `FUN_004610c0`, Attack's entry kept in the slot when it
 fell back. d2d: `Fight::skill_status` / `Fight::ask`, asked at the click
 for a spot or self cast (world/commands.cpp) and in `start_swing` for a
@@ -679,9 +685,10 @@ or a shift click's own (`FUN_00461700(0)`), swings where the player
 stands: its start, srvstfunc 1 `FUN_0056ca40`, sets the animation's first
 frame, takes the state 0x26 branch (`FUN_005c8980`), checks a missile
 weapon's ammo (`FUN_0056c4e0`) and asks for no target; d2d
-`World::apply`'s `attack_spot`. Not kept: the click's pick of an enemy by
-the spot (SearchEnemyXY, `FUN_00467880`), another melee skill at a spot,
-and a joined game asks only the weapon (the host asks the rest).
+`World::apply`'s `attack_spot`. A shift click first picks a monster beside
+the player (SearchEnemyXY, `FUN_00467660`; d2d `Town::shift_pick`). Not
+kept: another melee skill at a spot, and a joined game asks only the
+weapon (the host asks the rest).
 
 Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
 LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
