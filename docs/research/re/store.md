@@ -349,8 +349,15 @@ worn items only: the 13 body slots, not the inventory grid or the stash
 
 ## Gambling (FUN_0062efb0 mode 2 → FUN_00629370)
 
-Menu entry 0xd46. Price: rings and amulets cost their "gamble cost"
-column. Everything else, with C = max(clvl, 5), qlvl the base's level:
+Menu entry 0xd46. The price is the item's normal version's: FUN_00629370
+looks up FUN_006287d0(item), the Items record's normcode (+0x84) when it
+is non-zero, else its code (+0x80) (`0x629379..0x62938b`), so an
+exceptional or elite base on the tab costs what its normal one does
+(`tools/emu/gamble_price.py`, 73,062 cases). Mode 2 takes this path when
+the item's version (item data +0x30, FUN_0062a670) is at least 1; with 0
+it is the normal record's +0xd4 (`0x62f09d..0x62f0af`, read, not run).
+Rings and amulets cost their "gamble cost" column. Everything else, with
+C = max(clvl, 5), qlvl the normal base's level and its uber / ultra codes:
 
     pb  = max(0, (clvl − exceptional qlvl) × 100 / 2 + 1)    (of 10000)
     pu  = max(0, (clvl − elite qlvl)       × 100 / 4 + 1)
