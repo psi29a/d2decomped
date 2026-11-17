@@ -135,6 +135,8 @@ auto Fight::merc_level_stats() -> void {
                 return skill ? skill->reqlevel : 0x7fff;
             });
         }
+        // The level-up sets stat 0x4a again (FUN_00572840); a merc whose regeneration runs takes the new one.
+        if (actor->merc && actor->merc->stats.regen > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
     }
 
 auto Fight::revive(std::uint32_t now_ms) -> void {
@@ -196,6 +198,8 @@ auto Fight::merc_drinks(const std::string& code, std::uint32_t now_ms) -> void {
             const double left = actor->merc_heal_until > now_ms ? actor->merc_heal_rate * double(actor->merc_heal_until - now_ms) : 0;
             actor->merc_heal_until = std::max(actor->merc_heal_until, now_ms) + std::uint32_t(len) * 40;
             actor->merc_heal_rate = (left + amount) / double(actor->merc_heal_until - now_ms);
+            // A non-player's potion state files its event 3 (FUN_005be3f0, 0x5be62b..0x5be659): its regeneration starts.
+            if (actor->merc->hit_points > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
         }
         cues.cue("item_potion_drink", now_ms, actor->merc->unit.x, actor->merc->unit.y);
     }
@@ -286,6 +290,32 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
             const int gain = int(actor->merc_heal_acc);
             actor->merc_heal_acc -= gain;
             actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + gain);
+        }
+        // The merc's own regeneration, a monster's unit event 3 once a frame
+        // (FUN_005a6920: a merc is unit type 1, FUN_005417d0 files it in list 1):
+        // its total stat 0x4a (the level-up's, `stats.regen`, and its items'
+        // Replenish Life) on its life. A total of 0 ends the event; a negative one
+        // under one point of life does nothing in a town (FUN_0061ab00) or out of
+        // a room; over its max life it's the max and the event ends; under one
+        // point it dies. stats.regen is 0 while the event isn't filed (a hurt or a
+        // poison files it in hurt_side, a healing potion in merc_drinks).
+        if (actor->merc && actor->merc->stats.regen > 0 && actor->merc->hit_points > 0) {
+            const std::int64_t total = actor->merc->stats.regen + merc_gear().sum[kHitPointRegeneration];
+            const std::int64_t max_life = std::int64_t(merc_max_life()) << 8;
+            const bool in_town = !level || d2d::rules::level_ids::is_town(level->id);
+            std::int64_t merc_life = actor->merc->life_fine();
+            for (auto frames = now_ms / 40 - last_ms / 40; frames > 0 && actor->merc->stats.regen > 0 && merc_life > 0; --frames) {
+                if (total == 0) { actor->merc->stats.regen = 0; break; }
+                if (total < 0 && merc_life < 0x100 && in_town) continue;
+                merc_life += total;
+                if (merc_life > max_life) { merc_life = max_life; actor->merc->stats.regen = 0; }
+                merc_life = std::max<std::int64_t>(merc_life, 0);
+            }
+            actor->merc->set_life_fine(int(merc_life));
+            if (merc_life == 0) {                                     // the kill (FUN_0057ccb0), as a hit's in hurt_side
+                actor->merc->mode = "DT"; actor->merc->unit.mode_ms = now_ms; actor->merc->unit.walking = false; actor->merc->unit.path.clear();
+                actor->merc->mode_until = now_ms + game_data->npc_timing(actor->merc->npc, "DT").length_ms();
+            }
         }
         const auto life_gain = std::int64_t(actor->regen_acc_life), mana_gain = std::int64_t(actor->regen_acc_mana);
         actor->regen_acc_life -= double(life_gain); actor->regen_acc_mana -= double(mana_gain);

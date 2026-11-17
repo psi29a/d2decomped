@@ -201,6 +201,15 @@ std::array<int, 6> merc_skill_levels(const Hireling& row, const std::array<int, 
     return levels;
 }
 
+// Its life regeneration, stat 0x4a (the level-up FUN_00572840,
+// 0x572ac2..0x572af2): its level-up life (the base stat 7, `level_up_life`
+// whole points) in 256ths / 2000, 0 at least. 256ths of life a frame
+// (a monster's event 3, FUN_005a6920).
+constexpr int merc_life_regen(int level_up_life) {
+    const int regen = level_up_life * 256 / 2000;
+    return regen > 0 ? regen : 0;
+}
+
 // The attack think's view: its class (hcIdx), level, MonStats aip1 for the
 // difficulty, its gap to the foe (merc_gap), the skill-0x29 distance (that gap
 // + 1), in melee (FUN_00622c40), its row and skills (ids, levels,
