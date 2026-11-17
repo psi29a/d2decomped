@@ -29,6 +29,8 @@ ROWS = {"poisonjavcloud": 39, "corpsepoisoncloud": 155, "blizzard1": 159, "poiso
 
 def main():
     frames = int(sys.argv[1]) if len(sys.argv) > 1 else 8
+    if frames < 1:
+        sys.exit("standing_rehit: FRAMES must be a positive integer")
     g = missiles.Game()
     e = g.e
     state = {"missile": 0, "units": {}}
