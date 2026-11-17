@@ -719,6 +719,20 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     × 500, and only from the purse; the rest of the purse falls where the
     player dies (`FUN_00535510`, split into piles by `FUN_0055a090`); the
     purse goes to 0 and goldlost (stat 175) holds the loss.
+- **The slain message** (`FUN_0054d8a0`, from `FUN_00580ec0` only when it has
+  a killer, 0x580ff2): a player's death puts it in mode 0 through
+  `FUN_0057cee0` (`FUN_00580a70(0, 0, attacker type, attacker id)`), the
+  attacker that dealt the record, so the death mode's unit is the killer; a
+  monster owned by a player (`FUN_0058f0d0`) is put on that player. The
+  builder fills S->C 0x5a at 0x54d91f: event 6, colour 4, +3 the killer's
+  class (unit +4, -1 none), +7 its unit type (6 none), the dead player's
+  name, and the killer's name (a player) or SuperUnique row (+0x18, a
+  monster with `FUN_005a0180`); `FUN_0054aa40` sends it. With no killer
+  there's no message. The client's line is net-packets.md's 0x5a event 6.
+  d2d: `Foe::striker_id` (each blow's `Monster::id`, `Foe::take`), `Hero::struck_by`
+  (a trap object's or barrel's blast too), `Fight::die` keeps it as
+  `Hero::killer`, `World::killer_name` names it (test_slain_message). Cited,
+  no oracle run.
 - **A player's kill leaves an ear** (`FUN_0055a200`, `FUN_00580ec0`'s death
   mode; cited, decompile only, no disassembly or oracle run). `FUN_00580ec0`
   calls it, after the died bit and the experience and gold losses, when the

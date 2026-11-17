@@ -98,6 +98,18 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
             // 0), whatever the kill: no corpse to raise or blow up.
             if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
+            // Partydead (MonUMod 15, boneprison1..4 by FUN_005b21b0): hook 1 FUN_005a2d10 as it dies,
+            // with an owner (FUN_0058f0d0): each of the owner's minions leaves the group and dies
+            // (FUN_0058f380 -> FUN_005a2cc0: FUN_005a7e60 mode 0, no credit), then the owner; the
+            // first bone has none, so it falls alone.
+            if (std::ranges::contains(family, d2d::rules::umod::partydead) && monster.mode != monster.fx_mode && monster.mode == "DT" && monster.party_owner >= 0) {
+                const int owner = std::exchange(monster.party_owner, -1);
+                for (auto& other : monsters)
+                    if ((other.party_owner == owner || other.id == owner) && &other != &monster) {
+                        if (other.party_owner == owner) other.party_owner = -1;
+                        if (other.alive()) { other.hit_points = 0; set_mode(*game_data, other, "DT", now_ms); }
+                    }
+            }
             // A shattered death (the client's unit command 8, FUN_004aff60 from LAB_004b053e):
             // freeze (1) and shatter (107) carry States.txt hide and shatter, so the corpse is
             // hidden and can't be picked (FUN_0063a320: corpse_used), its hit class's element
@@ -161,8 +173,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 if (!monster.fx_at) monster.fx_at = now_ms + 4 * 40;
                 else if (now_ms >= monster.fx_at) {
                     monster.fx_done = true;
-                    // Poisondead (FUN_005a3800 / FUN_005a2c20): corpsepoisoncloud (155) on its spot at its level.
-                    // ponytail: poisons each foe within 0.4 cells once; srvdofunc 3's own area and ticks untraced.
+                    // Poisondead (FUN_005a3800 / FUN_005a2c20): corpsepoisoncloud (155) on its spot at its level,
+                    // a standing cloud (srvdofunc 3, CollideKill 0): its Size 1 footprint, one foe a frame, never
+                    // the one it struck last (missiles_update's last_unit_rule; tools/emu/standing_rehit.py).
                     if (mummy) {
                         d2d::log::info("{} leaves a poison cloud", monster.npc.name);
                         boss_missile(monster, "corpsepoisoncloud", 0, 0, std::make_shared<std::vector<int>>(), now_ms, mlvl);
@@ -278,7 +291,7 @@ auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t n
                 taken.damage += cold;
                 if (cold > 0) taken.chill_ticks = d2d::rules::resisted(element, foe.fighter.res[2]);
             }
-            foe.take(taken);
+            foe.take(taken, monster.id);
         }
         const char* const look = element == 1 ? "suicidefireexplode" : element >= 2 ? "suicideiceexplode" : "suicidecorpseexplode";
         if (const auto found = game_data->missiles.find(look); found != game_data->missiles.end()) {
@@ -310,7 +323,7 @@ auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_
             d2d::rules::Taken taken;
             taken.hit = true;
             taken.damage = std::max(pts * (100 - foe.fighter.dr_pct) / 100 - foe.fighter.dr_flat, 0) + d2d::rules::resisted(pts, foe.fighter.res[0]);
-            foe.take(taken);
+            foe.take(taken, monster.id);
         }
         if (const auto found = game_data->missiles.find("monstercorpseexplode"); found != game_data->missiles.end()) {
             Missile x{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };

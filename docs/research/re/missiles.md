@@ -567,11 +567,19 @@ struck last, FUN_0064a470), and FUN_005adf10 makes that unit the last one
 at most, and a monster the missile left for another may be struck again. The
 player skills with such a row are Lightning, Lightning Fury, Inferno, Bone Spear
 and Arctic Blast. `Fight::skill_missile_hits` keeps `last_hit` for these rows as
-it does for NextHit rows (no `struck` list). The Pierce rows (arrows, javelins,
-Blessed Hammer) and the srvdofunc 3 rows (Blizzard shards, Poison Explosion and
-the javelin clouds, which stand at velocity 0) keep their `struck` list: the
-first need ToHit and the hit and damage functions in the oracle, the second take
-FUN_005ae480's standing path (FUN_0064cb90), not run. tools/emu/light_pierce.py
+it does for NextHit rows (no `struck` list). The srvdofunc 3 rows (the standing
+clouds: Blizzard's shards, Poison Explosion's, the javelin clouds, the Mummy's
+corpsepoisoncloud, monbliz) take the same rule: FUN_005ae480 marks the cloud's
+subtile (FUN_0064cb90, 0x40) and runs FUN_005ae1f0, so a cloud strikes one unit
+a frame, never the one it struck last, and with CollideKill 0 every hit
+function returns 2 and it stands on: two units in it take turns, one alone is
+struck once. V (`tools/emu/standing_rehit.py`: two size-1 monsters in
+poisonjavcloud, blizzard1 and poisonexplosioncloud strike B A B A ... for 8
+frames; corpsepoisoncloud's Size 1 reaches only A, once). `missiles_update`
+does the same for a monster's cloud, keyed by `Foe::id`, and keeps a monster
+missile only while its row lacks CollideKill (test_standing_missile). The
+Pierce rows (arrows, javelins, Blessed Hammer) keep their `struck` list: they
+need ToHit and the hit and damage functions in the oracle, not run. tools/emu/light_pierce.py
 and test_light_pierce check 1,192 casts a seed. Which unit of a frame goes first
 is d2d's monster order here; game.exe walks the subtiles in path order (not read).
 
