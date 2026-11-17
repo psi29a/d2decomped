@@ -222,8 +222,11 @@ def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
 
 
-def read_tsv(name):
-    with open(os.path.join(RE_DIR, name), encoding="utf-8") as f:
+def read_tsv(name, optional=False):
+    path = os.path.join(RE_DIR, name)
+    if optional and not os.path.exists(path):   # the trend runs trees from before the file came in
+        return []
+    with open(path, encoding="utf-8") as f:
         return [line.rstrip("\n").split("\t") for line in f][1:]
 
 
@@ -270,7 +273,7 @@ def build(with_issues):
                     entry["refs"].append(f"{path}:{number}")
 
     # Names traced by hand (names.tsv: a function no C++ function is named after).
-    traced = {int(a, 16): name for a, name, *_ in read_tsv("names.tsv")}
+    traced = {int(a, 16): name for a, name, *_ in read_tsv("names.tsv", optional=True)}
     for a in traced.keys() - info.keys():
         sys.exit(f"names.tsv: {a:08x} isn't a function's entry (game-functions.tsv)")
 
@@ -335,7 +338,7 @@ def build(with_issues):
     # Only a stub row's own Address: its other cells name callers and kin.
     dead = {h for g in gaps if g["kind"] == "stub"
             for h in map(funcs.holding, addresses(g["row"].get("Address", ""))) if h}
-    platform = {int(a, 16) for a, *_ in read_tsv("win32.tsv")}
+    platform = {int(a, 16) for a, *_ in read_tsv("win32.tsv", optional=True)}
 
     # Per function.
     records = []
