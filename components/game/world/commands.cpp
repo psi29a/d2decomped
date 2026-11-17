@@ -838,10 +838,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
             // both) swings where the player stands, at the click (FUN_00461c70: flag 0x20 -> FUN_00461700(0)),
             // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot;
-            // another skill's isn't swung (the ponytail above), but an earlier walk stops all the same.
+            // another skill's isn't swung (the ponytail above), but an earlier walk stops all the same,
+            // and a queued pickup or interaction goes with it, as attack_spot's does (the skill takes their place).
             actor->attack_mon = -1;
             if (use_skill.skill == 0) attack_spot();
-            else actor->player.walking = false;
+            else {
+                actor->interact_npc = actor->pick_item = -1;
+                actor->player.walking = false;
+            }
         } else if (live) {                                                   // walk up to it, then attack
             actor->target_x = use_skill.x; actor->target_y = use_skill.y;
             actor->player.walking = true;
