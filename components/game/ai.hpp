@@ -209,6 +209,8 @@ struct Monster {
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
+    std::uint32_t rise_at = 0;                // MonUMod 34 (ai_after_death)'s event 7 (FUN_005a3910), 0 none
+    bool rising = false;                      // its S1 rise (skill 0x125): unit flags 0xe off, not targetable
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
@@ -508,7 +510,7 @@ struct Monster {
     // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used
     // stands for revive / corpseexp / redeemed), not shattered (state 107).
     [[nodiscard]] bool usable_corpse() const { return !alive() && mode == "DD" && !corpse_used && !shatter; }
-    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
+    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding && !rising; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
     // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
     // the player's alignment (2: a converted monster, FUN_00650d70) refuses.

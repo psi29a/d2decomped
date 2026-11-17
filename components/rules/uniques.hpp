@@ -436,6 +436,50 @@ inline SpcDamage spcdamage(int base_id, std::optional<int> area_level) {
     return out;
 }
 
+// MonUMod 34 (ai_after_death, every reanimatedhorde1, BaseId 0x1b4) hook 1,
+// FUN_005a3840 (after a mode change): into mode 0 (death) of an evil unit
+// (alignment 0, FUN_006259b0), it drops the unit's queued event 7
+// (FUN_00540e60) and rolls rand(100) on its seed under MonStats aip8
+// (+0x80, by difficulty): then event 7 comes aip1 (+0x56) x 10 + 1 frames on.
+struct AfterDeathQueue {
+    bool cleared = false;                // event 7 dropped (the hook ran)
+    std::optional<int> frames;           // event 7 due this many frames on
+};
+inline AfterDeathQueue ai_after_death_queue(int mode, int alignment, int chance, int aip1, Rng& rng) {
+    AfterDeathQueue out;
+    if (mode != 0 || alignment != 0) return out;
+    out.cleared = true;
+    if (rng(100) < chance) out.frames = aip1 * 10 + 1;
+    return out;
+}
+
+// Hook 2, FUN_005a3910 (event 7 comes due): what the unit does. It first
+// drops the unit's event 2 (its think). Then, in this order: not dead
+// (FUN_005541b0: mode 0 or 0xc), a hidden corpse (FUN_0063a770) or a unique
+// (monster data +0x16 & 8) or a good unit (alignment 2) does nothing; its
+// spot taken (FUN_0064d870, pattern 1, mask 0x3c01) tries again aip1 x 10 + 1
+// frames on; with the AI scratch (+0x14) at 2 or more, or not a corpse to
+// raise (FUN_00645510: mode 0xc, not hidden, MonStats2 corpseSel, MonStats
+// Velocity) or not evil, nothing; else skill 0x125 in mode 8 (FUN_005dead0),
+// unit flags &= ~0x4020000, the scratch + 1, its think 0x33 frames on.
+struct RiseIn {
+    bool dead = false, hidden = false, unique = false, blocked = false, can_raise = false;
+    int alignment = 0, scratch = 0, aip1 = 0;
+};
+enum class RiseKind { nothing, again, rise };
+struct Rise {
+    RiseKind kind = RiseKind::nothing;
+    int frames = 0;                      // again: event 7, rise: its think, this many frames on
+};
+inline constexpr std::uint32_t kRiseFlagsKept = 0xfbfdffffu;   // unit flags (+0xc4) AND-ed after the skill starts
+inline constexpr int kRiseSkill = 0x125, kRiseMode = 8, kRiseThink = 0x33, kRiseLimit = 2;
+inline Rise ai_after_death_rise(const RiseIn& input) {
+    if (!input.dead || input.hidden || input.unique || input.alignment == 2) return {};
+    if (input.blocked) return { RiseKind::again, input.aip1 * 10 + 1 };
+    if (input.scratch >= kRiseLimit || !input.can_raise || input.alignment != 0) return {};
+    return { RiseKind::rise, kRiseThink };
+}
+
 // MonUMod 22's death hook (0x5a3250: event 1 into mode 0, by MonStats
 // row). Five rows give MonUMod 21 (killself) to the monsters about them
 // (FUN_005dfbf0(radius, first, end, undead only), the boss's seed): Andariel
