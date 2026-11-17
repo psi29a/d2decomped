@@ -6,7 +6,8 @@
 //   `--life CASES` reads tools/emu/gear_absorb.py's case lines and prints `id life`: the player's life after the blows,
 //   in 256ths; `gear_absorb.py compare` checks it against game.exe's FUN_0057c6c0. Needs the MPQs and 1.14d's tables
 //   (D2_MPQ_DIR, D2_PATCH_INSTALLER, as test_game); it skips without.
-//   no argument: a skip (the compare is the test).
+//   no argument: game.exe's lives for the pinned cases (gear_absorb.py game) through Fight::hurt_side, and a merc's gear
+//   absorb left out; the same cases through the rules alone are test_gear_absorb_rules.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -59,10 +60,7 @@ std::int64_t life_after(World& world, int cyclone, const Case& one, std::uint32_
     fighter.mdr = int(one.mdr);
     for (std::size_t k = 0; k < 3; ++k) fighter.res[k] = int(one.res[k]);
     constexpr std::array<std::size_t, 4> kTypes{ 0, 1, 2, 4 };   // the case's columns are fire, lightning, cold, magic
-    [&](auto& unit) {   // the gear's absorb exists from the claim on; the parent has none
-        if constexpr (requires { unit.absorb_pct; })
-            for (std::size_t k = 0; k < 4; ++k) { unit.absorb_pct[kTypes[k]] = int(one.pct[k]); unit.absorb_flat[kTypes[k]] = int(one.flat[k]); }
-    }(fighter);
+    for (std::size_t k = 0; k < 4; ++k) { fighter.absorb_pct[kTypes[k]] = int(one.pct[k]); fighter.absorb_flat[kTypes[k]] = int(one.flat[k]); }
     for (const auto& blow : one.blows) {
         d2d::rules::MonStats attacker;
         for (std::size_t k = 0; k < blow.fields.size(); ++k)
@@ -79,7 +77,7 @@ std::int64_t life_after(World& world, int cyclone, const Case& one, std::uint32_
 int main(int argc, char** argv) try {
     const std::string_view mode = argc > 1 ? std::string_view(argv[1]) : std::string_view{};
     const bool oracle = mode == "--life" && argc > 2;
-    if (!oracle) {
+    if (!oracle && argc > 1) {
         std::printf("SKIP: an oracle mode, `test_gear_absorb --life CASES`\n");
         return D2D_TEST_SKIPPED;
     }
@@ -119,8 +117,34 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
-    std::printf("SKIP: an oracle mode, `test_gear_absorb --life CASES`\n");
-    return D2D_TEST_SKIPPED;
+    // game.exe's lives for these case lines (tools/emu/gear_absorb.py game, FUN_0057c6c0 on a player), 256ths.
+    // Columns: id life max mdr res x 3, absorb percent x 4, flat x 4 (fire, lightning, cold, magic), Cyclone pool, blows.
+    const auto run = [&](const std::string& line) { Case one; const bool ok = parse(line, one); assert(ok); return life_after(world, cyclone, one, now); };
+    for (const auto& [line, life] : gear_absorb::kPins) {
+        Case one;
+        const bool ok = parse(line, one);
+        assert(ok);
+        assert(run(line) == life);            // through Fight::hurt_side
+    }
+    // Players only: a hireling's gear absorb is not modelled (merc.cpp), whatever its stats carry. A potion state's stats join
+    // the merc's stat sum exactly as its gear's do (merc_fighter), so a cold absorb and a cold resistance given that way show
+    // which reach its Fighter: the resistance does, the absorb does not.
+    {
+        auto& actor = *world.actor;
+        Monster merc;
+        merc.hit_points = 100;
+        actor.merc = merc;
+        actor.merc_st.level = 20;
+        const int bare_cold = world.fight.merc_fighter().res[2];
+        actor.merc_potion_states[0] = { { { d2d::d2s::kColdResist, 25 }, { d2d::d2s::kAbsorbColdPercent, 20 }, { d2d::d2s::kAbsorbCold, 5 } }, ~0u };
+        const auto fighter = world.fight.merc_fighter();
+        assert(fighter.res[2] == bare_cold + 25);
+        assert(fighter.absorb_pct[2] == 0 && fighter.absorb_flat[2] == 0);
+        actor.merc_potion_states[0] = {};
+        actor.merc.reset();
+    }
+    std::printf("ok\n");
+    return 0;
 } catch (const std::exception& e) {
     std::fprintf(stderr, "FAIL: %s\n", e.what());
     return 1;

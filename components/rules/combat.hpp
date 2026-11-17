@@ -73,6 +73,8 @@ struct Fighter {
     int def_melee = 0, def_missile = 0;             // stats 33 / 32: extra defense vs each
     int dodge = 0, avoid = 0, evade = 0;            // stats 338 / 339 / 340, %
     int dr_pct = 0, dr_flat = 0, mdr = 0;
+    // The gear's absorb by element type (0 fire, 1 lightning, 2 cold, 4 magic; stats 142..149): percent, and flat in whole points.
+    std::array<int, 5> absorb_pct{}, absorb_flat{};
     std::array<int, 4> res{};                       // fire, lightning, cold, poison, %
     int plr = 0;                                    // poison length reduced, % (stat 110 + the difficulty's penalty, at most 75)
     bool half_freeze = false, cannot_freeze = false; // stats 118 / 153
@@ -171,6 +173,8 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     fighter.dodge = int(stat(kPassiveDodge)); fighter.avoid = int(stat(kPassiveAvoid)); fighter.evade = int(stat(kPassiveEvade));
     fighter.dr_pct = int(std::min<std::int64_t>(stat(kDamageResist), 50)); fighter.dr_flat = int(stat(kNormalDamageReduction)); fighter.mdr = int(stat(kMagicDamageReduction));
     fighter.res = res;
+    fighter.absorb_pct = { int(stat(kAbsorbFirePercent)), int(stat(kAbsorbLightningPercent)), int(stat(kAbsorbColdPercent)), 0, int(stat(kAbsorbMagicPercent)) };
+    fighter.absorb_flat = { int(stat(kAbsorbFire)), int(stat(kAbsorbLightning)), int(stat(kAbsorbCold)), 0, int(stat(kAbsorbMagic)) };
     fighter.thorns = int(stat(kAttackerTakesDamage)); fighter.thorns_light = int(stat(kAttackerTakesLightningDamage)); fighter.thorns_pct = int(stat(kThornsPercent));
     fighter.life_regen = int(stat(kHitPointRegeneration)); fighter.mana_regen = int(stat(kManaRecoveryBonus));
     return fighter;
@@ -341,7 +345,8 @@ struct StruckBlow {
     // An Energy Shield works on these, as game.exe's absorb event runs before the resistance pass (energy_shield_blows).
     // `fine`: the field as the resistance pass stores it, in 256ths and possibly under 0 (kNoFine: not known, `dealt` x 256 stands).
     static constexpr int kNoFine = std::numeric_limits<int>::min();
-    struct Part { int raw = 0, dealt = 0, res = 0, fine = kNoFine; };
+    // abs_*: the gear's absorb (Fighter::absorb_pct / absorb_flat); took: what that absorb took off the field, in 256ths and signed (FUN_0057bf10 adds it to the record's +0x48)
+    struct Part { int raw = 0, dealt = 0, res = 0, fine = kNoFine, abs_pct = 0, abs_flat = 0, took = 0; };
     std::array<Part, 5> parts{};
     int mdr = 0;                         // the flat magic damage reduction taken off each of them before the resistance
     // The record total (+0x4c) in 256ths BEFORE it is clamped, when monster_blow built the blow from its fields: `damage` and
@@ -352,6 +357,12 @@ struct StruckBlow {
     bool landed = true;
 };
 inline int part_fine(const StruckBlow::Part& part) { return part.fine != StruckBlow::kNoFine ? part.fine : part.dealt * 256; }
+// The record's absorbed total (+0x48) in 256ths: the sum over the four fields of what FUN_0057bf10 took, signed (a field under 0 gives a negative share).
+inline std::int64_t blow_absorbed(const StruckBlow& blow) {
+    std::int64_t total = 0;
+    for (const auto& part : blow.parts) total += part.took;
+    return total;
+}
 // The record total in 256ths, unclamped when known.
 inline std::int64_t blow_total(const StruckBlow& blow) { return blow.sum ? *blow.sum : (std::int64_t(blow.damage) << 8) + blow.frac; }
 // The physical field now, in 256ths: under 0 when the blow keeps its fields signed (`sum`), else as `damage` holds it (clamped).
@@ -375,14 +386,48 @@ inline int cyclone_take(int& pool, int field) {
     pool -= cut;
     return cut;
 }
+// The gear's absorb of one elemental or magic field (FUN_0057bf10, which FUN_0057bf80 calls last unless the record ignores
+// resistances, 0x57c027): the percent stat (142 / 144 / 146 / 148) at most 40 takes MulDiv(field, percent, 100) (a field under 0 is
+// taken the same way, which moves it toward 0), then the flat stat (143 / 145 / 147 / 149, whole points << 8) takes at most what
+// is left (a field under 0 is cleared to 0). tools/emu/gear_absorb.py runs it on game.exe.
+inline int absorbed_fine(int field, int pct, int flat) {
+    if (pct > 0) field -= mul_div(field, std::min(pct, 40), 100);
+    if (flat > 0) field -= std::min(flat << 8, field);
+    return field;
+}
 // FUN_0057bf80 on an elemental or magic field in 256ths after the absorb: one at or under 0 is stored as 0; else the flat magic
 // reduction comes off FIRST (and may leave it under 0, which is stored and summed), then the resistance on what is still above 0
 // (magic has none on a monster blow here: `resist` false).
-inline int elemental_fine(int field, int mdr_fine, int res, bool resist) {
+inline int elemental_fine(int field, int mdr_fine, int res, bool resist, int abs_pct = 0, int abs_flat = 0) {
     if (field <= 0) return 0;
     field -= mdr_fine;
     if (field > 0 && resist) field = resisted_fine(field, res);
-    return field;
+    return absorbed_fine(field, abs_pct, abs_flat);
+}
+// What the absorb took off that same field (elemental_fine without it less elemental_fine with it), in 256ths, signed.
+inline int elemental_took(int field, int mdr_fine, int res, bool resist, int abs_pct, int abs_flat) {
+    return elemental_fine(field, mdr_fine, res, resist) - elemental_fine(field, mdr_fine, res, resist, abs_pct, abs_flat);
+}
+// The life the absorbed amounts give back, in 256ths: FUN_0057c6c0 hands the record's +0x48 to FUN_0057a980 (0x57c844) BEFORE it takes
+// the record total (+0x4c) off the life (0x57c852..0x57c874). FUN_0057a980: nothing when the amount is 0 or less or the unit is dead,
+// else life = min(life + amount, max life) (a life over the max is brought down to it); the total then comes off, and one that
+// leaves under 0x100 is 0 (dead; the later blows then heal nothing). One record at a time, in landing order, as game.exe applies them:
+// the cap is hit per blow, so two blows in one frame are not one summed heal. `life` is the life before the frame's blows.
+inline std::int64_t absorb_heal(std::span<const StruckBlow> blows, std::int64_t life, std::int64_t max_life) {
+    std::int64_t healed = 0;
+    for (const auto& blow : blows) {
+        if (life < 0x100) break;
+        if (const std::int64_t took = blow_absorbed(blow); took > 0) {
+            const std::int64_t gain = std::min(life + took, max_life) - life;
+            life += gain;
+            healed += gain;
+        }
+        if (const std::int64_t total = blow_total(blow); total > 0) {
+            life -= total;
+            if (life < 0x100) life = 0;
+        }
+    }
+    return healed;
 }
 
 // Puts a blow's reduced physical (`physical`, and its share of the total) back in line with `raw`; `old` is the physical field it had
@@ -422,7 +467,8 @@ inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) 
                 const int field = part.raw * 256;
                 const int cut = cyclone_take(pool, field);
                 if (cut <= 0) continue;
-                const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, true);
+                const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, true, part.abs_pct, part.abs_flat);
+                part.took = elemental_took(field - cut, blow.mdr * 256, part.res, true, part.abs_pct, part.abs_flat);
                 total += fine - part_fine(part);
                 blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
                 part.dealt = std::max(fine, 0) >> 8;
@@ -665,7 +711,8 @@ inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shiel
             const int field = part.raw * 256;
             const int cut = shield.take(field);
             if (cut <= 0) continue;
-            const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, type != 4);
+            const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, type != 4, part.abs_pct, part.abs_flat);
+            part.took = elemental_took(field - cut, blow.mdr * 256, part.res, type != 4, part.abs_pct, part.abs_flat);
             total += fine - part_fine(part);
             if (type != 4) {
                 blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
@@ -989,7 +1036,7 @@ inline int chill_length(const Fighter& defender, int len) {
 // `raw`: the physical before the reduction, in 256ths (what absorbs take from first, StruckBlow::raw).
 // `element_raw` / `element_dealt`: per element type (0 fire, 1 lightning, 2 cold, 4 magic) the rolls summed and what they dealt, whole points.
 struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0, frac = 0, raw = -1;
-             std::array<int, 5> element_raw{}, element_dealt{}, element_fine{};
+             std::array<int, 5> element_raw{}, element_dealt{}, element_fine{}, element_took{};   // element_took: what the gear's absorb took off each field (256ths, signed)
              std::optional<int> sum; };   // element_fine: each field after the reduction in 256ths, under 0 kept; sum: the record total before the clamp; `damage` / `frac` are it clamped   // by element type: the rolls before the resistance and what they dealt after it (whole points)
 enum class Motion : std::uint8_t { standing, walking, running };
 inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
@@ -1055,9 +1102,11 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
         if (pair_pct != 100) taken.element_raw[std::size_t(type)] = pair_scaled(taken.element_raw[std::size_t(type)] * 256) >> 8;   // 200 / 400: whole points stay whole
         const int roll = taken.element_raw[std::size_t(type)];
         if (roll <= 0) continue;
-        int fine = roll * 256 - defender.mdr * 256;
-        if (fine > 0 && type != 4) fine = resisted_fine(fine, defender.res[std::size_t(type)]);
+        const int fine = elemental_fine(roll * 256, defender.mdr * 256, type != 4 ? defender.res[std::size_t(type)] : 0, type != 4,
+                                        defender.absorb_pct[std::size_t(type)], defender.absorb_flat[std::size_t(type)]);
         taken.element_fine[std::size_t(type)] = fine;
+        taken.element_took[std::size_t(type)] = elemental_took(roll * 256, defender.mdr * 256, type != 4 ? defender.res[std::size_t(type)] : 0, type != 4,
+                                                               defender.absorb_pct[std::size_t(type)], defender.absorb_flat[std::size_t(type)]);
         taken.element_dealt[std::size_t(type)] = std::max(fine, 0) >> 8;
         if (type != 4) taken.elemental += taken.element_dealt[std::size_t(type)];
         total += fine;

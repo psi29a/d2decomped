@@ -764,6 +764,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
         bool died = false;
+        // What the gear's absorb took off the blows is given back as life first, a blow at a time (FUN_0057c6c0 -> FUN_0057a980, 0x57c844),
+        // capped at the max life; the blows' totals then come off below.
+        if (!foe.blows.empty() && !dead()) {
+            auto& life = actor->character.stats.values[kLife];
+            life += d2d::rules::absorb_heal(foe.blows, life, actor->character.stats.values[kMaxLife]);
+        }
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
             life -= (std::int64_t(foe.damage) << 8) + fine;
