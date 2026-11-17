@@ -6,7 +6,6 @@
 #include "log.hpp"
 #include "world.hpp"
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -112,26 +111,39 @@ auto World::act2_quest_step() -> void {
         radament.tick();
         tainted.tick(quests());
         if (tombs.tick()) durielportal_open(day_at);
-        if (summoner.tick() && d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level->id == d2d::rules::SummonerQuest::kSanctuary)
-            class_cue("act2_complete_summoner", day_at);   // voice 0x33
+        if (summoner.tick())                                // each player with bit 13 in the Sanctuary: voice 0x33
+            each_in_game([&](Player& player, int) {
+                if (d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level_of(player)->id == d2d::rules::SummonerQuest::kSanctuary)
+                    class_cue("act2_complete_summoner", day_at);
+            });
+    }
+
+// Tyrael's think (NpcStationary, FUN_005e73a0), each frame of the Lair's
+// turn: once his portal is open (FUN_0059df50: record +0xf) and no player is
+// within 12 of him (FUN_006416d0, the sweep at 0x59df30), not in a talk
+// (FUN_005e7350: FUN_00572dc0 0, then mode 0), he leaves (FUN_005ddfc0 mode
+// 0), for good; every player (FUN_0059c750 -> FUN_005537d0) with the quest's
+// bit 13 gets unit event 0x36, act2_complete_tombs (LAB_0059c710).
+auto World::tyrael_frame() -> void {
+        if (level->id != d2d::rules::SevenTombsQuest::kLair || !tombs.tyrael_portal || tombs.tyrael_gone) return;
+        for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i) {
+            const auto& npc = level->npcs[i];
+            if (npc.hc_idx != d2d::rules::SevenTombsQuest::kTyrael) continue;
+            // Every player on the Lair: this turn's, and one ticked in an earlier turn that came here since (elsewhere).
+            const auto holds = [&](const Player& player) {
+                return level_of(player) == level && (player.talking[0] == int(i) || std::hypot(npc.x - player.player.x, npc.y - player.player.y) * 5 < 12);
+            };
+            const bool held = std::ranges::any_of(players, [&](const auto& player) { return holds(*player); })
+                           || std::ranges::any_of(elsewhere, [&](const Player* player) { return holds(*player); });
+            if (held) continue;
+            npc_states[i].hidden = true;
+            tombs.tyrael_gone = true;
+            each_in_game([&](Player&, int) { if (d2d::rules::quest::bit(quests(), d2d::rules::SevenTombsQuest::kQuest, 13)) class_cue("act2_complete_tombs", day_at); });
+            d2d::log::info("The Seven Tombs: Tyrael leaves");
+        }
     }
 
 auto World::act2_tick() -> void {
-        // Tyrael's think (NpcStationary, FUN_005e73a0): once his portal is
-        // open (FUN_0059df50: record +0xf) and no player is within 12 of
-        // him (FUN_006416d0, the sweep at 0x59df30), not in a talk
-        // (FUN_005e7350: FUN_00572dc0 0, then mode 0), he leaves (FUN_005ddfc0 mode 0), for good; every
-        // player (FUN_0059c750 -> FUN_005537d0) with the quest's bit 13 gets
-        // unit event 0x36, act2_complete_tombs (LAB_0059c710).
-        if (level->id == d2d::rules::SevenTombsQuest::kLair && tombs.tyrael_portal && !tombs.tyrael_gone)
-            for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
-                if (level->npcs[i].hc_idx == d2d::rules::SevenTombsQuest::kTyrael && actor->talking[0] != int(i)
-                    && std::hypot(level->npcs[i].x - actor->player.x, level->npcs[i].y - actor->player.y) * 5 >= 12) {
-                    npc_states[i].hidden = true;
-                    tombs.tyrael_gone = true;
-                    each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::SevenTombsQuest::kQuest, 13)) class_cue("act2_complete_tombs", day_at); });
-                    d2d::log::info("The Seven Tombs: Tyrael leaves");
-                }
         // The act's sky (S->C 0x53, FUN_0059a100 / FUN_0059a170): dark
         // while the Tainted Sun has it out and the player's in Act 2; a
         // joined game's comes from the host.

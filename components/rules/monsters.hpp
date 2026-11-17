@@ -1043,11 +1043,11 @@ inline int chase_check(bool target, int distance, int stop, bool mover, int move
 // after the players): same act (`away`: another act), sight, no 0x37 or
 // death test. List 8 is tried as a player is. List 9's nearest is taken
 // from its own 0x7fffffff only when nothing else was found (FUN_005dd510:
-// with a best it keeps it unless that's under 6 away with no path to it).
-// ponytail: FUN_005dd510's path test (FUN_00649970) always finds a path.
+// with a best, FUN_005dd510 keeps it unless list 9's is under 6 away and
+// there's no path to the best: the caller's, with `nine` / `nine_best`).
 // tools/emu/search.py checks this against game.exe.
 struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = false, blocked = false; int list = 0; };
-struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff; };
+struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff, nine = -1, nine_best = 0x7fffffff; };
 inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight) {
     SearchPick pick{ -1, best };
     bool skip = true;
@@ -1071,6 +1071,7 @@ inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool ne
         pick.target = int(i); pick.best = distance;
     }
     if (nine >= 0 && pick.target < 0) { pick.target = nine; pick.best = nine_best; }
+    pick.nine = nine; pick.nine_best = nine_best;
     return pick;
 }
 
@@ -1164,6 +1165,18 @@ inline int search_threat(std::span<const SightFoe> foes, int skip, int& distance
         best = int(i); distance = foe.distance;
     }
     return best;
+}
+
+// FUN_005dd510's path test: a type 2 path (the toward pather, near 1 at a
+// unit; path type flags 0, 0x6eb690: no stamp lifted) at the path's `steps`
+// (+0x91, kept) from (x, y) to the foe at (to_x, to_y) has a point once its
+// leading points on its own subtile are dropped (FUN_00648780: the count,
+// +0x28). FUN_00649970 makes none at its own subtile or over 100 off.
+template <class Blocked>
+bool path_found(int x, int y, int to_x, int to_y, int steps, Blocked&& blocked) {
+    if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return false;
+    const auto points = toward_path(x, y, to_x, to_y, steps, 1, blocked);
+    return std::ranges::any_of(points, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); });
 }
 
 // FUN_005dd510 for a monster searcher: no secondary, the primary; no

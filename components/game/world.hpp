@@ -132,6 +132,10 @@ struct View {
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
+    // A get-hit as the client draws it (FUN_00463390): the server's end, a knockback slide (drawn GH, not stepped), the FHR.
+    std::uint32_t pmode_until = 0;
+    bool knocked = false;
+    int fhr = 0;
     int walk_percent = 100;                // a walk's / run's % (World::walk_percent): its animation's rate
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
     std::uint32_t seq_frame_ms = 40;
@@ -307,6 +311,8 @@ struct World {
     // other levels, whose turn this isn't, too), acting as each, with the
     // act they're in: a quest's party share goes by act (FUN_00540510), not
     // by level.
+    // The level a player is on (split levels: their own).
+    [[nodiscard]] const Level* level_of(const Player& player) const { return split_levels && player.on_level ? player.on_level : level; }
     template <class Each> void each_in_game(Each&& each) {
         Player& was = *actor;
         const auto visit = [&](Player& player) {
@@ -628,6 +634,7 @@ struct World {
     // A frame of the day clock (40 ms).
     void act1_tick();
     void act2_tick();
+    void tyrael_frame();                   // Tyrael's leave test, each frame of his level's turn (act2.cpp)
     // A step of the quest clock (quest_clock): the quest timers.
     void act1_quest_step();
     void act2_quest_step();
@@ -647,6 +654,9 @@ struct World {
     void act3_bind_new_bosses();
     // The quest objects' InitFns on the objects made since the last call (rooms_up adds them room by room).
     void init_new_objects();
+    // The gold piles the rooms just up made (Spawning::LevelState::gold): onto
+    // their level's floor, lying already. A joined game's come from its host.
+    void drop_new_gold();
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.

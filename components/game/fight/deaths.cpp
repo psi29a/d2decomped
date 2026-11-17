@@ -408,7 +408,7 @@ auto Fight::gain_exp(std::int64_t share, const Monster& monster, std::uint32_t n
 auto Fight::merc_strike(std::size_t target, const d2d::rules::Swing& swing, std::uint32_t now_ms) -> void {
         const auto fighter = merc_fighter();
         const int thorns = monsters[target].props.thorns;
-        const auto blow = d2d::rules::player_blow(fighter, target_of(target), actor->merc_st.level, rng, swing);
+        const auto blow = d2d::rules::player_blow(fighter, merc_target(target), actor->merc_st.level, rng, swing);
         merc_blow = true;
         const bool landed = land(target, blow, false, now_ms, merc_foe_id());
         merc_blow = false;

@@ -787,9 +787,11 @@ jobs:
         run: exit 1
       - run: echo ok
 
+  # Publishes whatever built: one broken platform doesn't hold back the rest
+  # (CI ok still goes red, and re-running that job uploads its assets later).
   release:
     name: Publish release assets
-    if: startsWith(github.ref, 'refs/tags/')
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/') }}
     needs:
       - build
       - ports

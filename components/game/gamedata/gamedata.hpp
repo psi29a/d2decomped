@@ -569,6 +569,7 @@ struct GameData {
     std::array<int, 3> static_field_min{};       // DifficultyLevels StaticFieldMin (+0x40): no Static Field at or under this % of max life (FUN_005c9800, expansion)
     std::array<int, 3> cold_divisor{};           // DifficultyLevels MonsterColdDivisor (+0x18): a monster's chill length / it
     std::array<int, 3> freeze_divisor{};         // DifficultyLevels MonsterFreezeDivisor (+0x14): a monster's freeze length / it
+    std::array<int, 3> hireling_boss_pct{ 100, 100, 100 };   // DifficultyLevels HireableBossDamagePercent (+0x38): a hireling's damage % on a MonStats boss (FUN_0057c060)
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
@@ -1059,6 +1060,9 @@ struct Spawning {
         // A room's room1 seed stepped before it populated: a water monster's
         // party searching the room its leader stands in (FUN_005b2700).
         std::vector<std::optional<d2d::rules::Rng>> early_seeds;
+        // Gold piles its gold placeholders made (InitFn 28, FUN_00559300), not yet
+        // on the floor: level subtile x, y and the coins. World::drop_new_gold takes them.
+        std::vector<std::array<int, 3>> gold;
     };
     int difficulty = 0;
     d2d::rules::Rng game;

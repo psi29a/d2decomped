@@ -211,6 +211,7 @@ auto World::take_character(const Character& entering) -> void {
         item_ids();                                    // the kept weapon is its unit id (FUN_006233a0)
         actor->kept_weapon = kept >= 0 ? actor->character.items[std::size_t(kept)].id : 0;
         for (auto& item : actor->character.items) d2d::rules::replenish_arm(game_data->rules, item);   // each saved item made: FUN_00558cb0 -> FUN_00558530 / FUN_00558580
+        for (auto& item : actor->character.merc_items) d2d::rules::replenish_arm(game_data->rules, item);   // the merc's "JM" list: the same item loader
         settle_requirements(*game_data, actor->character);   // the join: FUN_0052d440 -> FUN_0055df00 -> FUN_0055dbc0
         // A new game keeps the life and mana the save held, exactly, fraction
         // and all, even above the maximum: game.exe's loader FUN_0056b180 reads

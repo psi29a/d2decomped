@@ -83,7 +83,7 @@ auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
         if (row->passive) return 5;
         if (skill_refused(*game_data, actor->character, skill)) return 2;
         const auto mana = actor->character.stats.values[d2d::d2s::kMana];
-        if (mana < cost_of(*row, lvl)) return 1;
+        if ((blood_mana() ? actor->character.stats.values[d2d::d2s::kLife] : mana) < cost_of(*row, lvl)) return 1;
         // FUN_00644060: restrict 0 refuses a player in a restrict state (FUN_0063a510: wolf, bear), 2 asks for
         // one and for one of State1..3 (the list ends at the first empty), any other value passes.
         if (row->restrict_form == 0 || row->restrict_form == 2) {
@@ -127,7 +127,22 @@ auto Fight::pay(const d2d::rules::Skill& skill, int lvl) -> void {
         auto& mana = actor->character.stats.values[d2d::d2s::kMana];
         actor->last_paid = 0;
         if (from_charges(skill.id)) (void)use_charge(actor->character.items, actor->item_charge);
+        else if (blood_mana()) { if (skill.mana != 0 || skill.lvlmana != 0) (void)blood_pay(d2d::rules::mana_cost(skill, lvl)); }   // FUN_0056bfe0 -> FUN_005d2b60
         else { actor->last_paid = d2d::rules::mana_paid(skill, lvl, mana); mana -= actor->last_paid; }
+    }
+
+auto Fight::blood_mana() const -> bool {
+        const auto* curse = game_data->skills.get(actor->curses[0].skill);
+        return curse && curse->auratarget == "blood_mana";
+    }
+
+auto Fight::blood_pay(std::int64_t cost) -> bool {
+        auto& life = actor->character.stats.values[d2d::d2s::kLife];
+        const auto* curse = game_data->skills.get(actor->curses[0].skill);
+        if (life < cost) { actor->curses[0] = {}; life = 0x100; return false; }
+        life -= cost;
+        if (curse && life < std::int64_t(curse->par[4]) * 256) actor->curses[0] = {};
+        return true;
     }
 
 // A skill with no start function pays in its do, on the cast mode's action frame (FUN_0056f7f0 ->
@@ -337,6 +352,7 @@ auto Fight::near_players(float x, float y) const -> bool {
 
 auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         Hero& acting = *actor;
+        if (now_ms >= acting.curses[0].until) acting.curses[0] = {};   // its state's end, in town too (blood_mana asks for it gone)
         // Monsters think while a player is near (D2 runs the rooms around
         // each player); what they hit comes off that player's life, and a hit
         // of a twelfth of max life or more makes them flinch (GH).
@@ -444,6 +460,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (auto& monster : monsters) monster.in_aura = false;
             for (const auto& side : sides) {
                 act_as(*side.hero);
+                if (now_ms >= actor->curses[0].until) actor->curses[0] = {};   // its state's end (blood_mana asks for it gone)
                 monster_states(now_ms);
                 buff_events(foes[side.at], now_ms);
                 if (actor->merc) merc_buff_events(foes[side.at + 1], now_ms);
@@ -768,7 +785,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // is refused. A hit inside a get-hit or block starts no new one,
         // stunned or not (FUN_0057edd0 refuses mode 4 from modes 4 and 9).
         // Else the size test per landed blow (rules::struck_big).
-        // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
+        // The rolls are the fight's rng, not the player's own seed (deviations.md approximation 18).
         const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
         // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
         // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide. A swing or cast is cut only if its skill allows it (FUN_0057eec0).

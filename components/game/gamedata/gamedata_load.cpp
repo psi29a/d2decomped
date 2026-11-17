@@ -556,7 +556,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
-        skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
+        skill_row.decquant = number("decquant") != 0; skill_row.noammo = number("noammo") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
         skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
@@ -924,6 +924,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.static_field_min[row] = std::atoi(std::string(difficulty_table.get(row, "StaticFieldMin")).c_str());
             game_data.curse_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "AiCurseDivisor")).c_str());
             game_data.freeze_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterFreezeDivisor")).c_str());
+            game_data.hireling_boss_pct[row] = std::atoi(std::string(difficulty_table.get(row, "HireableBossDamagePercent")).c_str());
         }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
