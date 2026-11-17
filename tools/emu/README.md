@@ -28,6 +28,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Checks | Command (in tools/emu) | Good output |
 |---|---|---|
 | The ambient's dip to black, a frame at a time (FUN_0046ae50, FUN_0046ad10, the fill FUN_00474550 flag 1) | `set -o pipefail; uv run python ambient_dip.py gen 20000 7 > cases.tsv && uv run python ambient_dip.py game cases.tsv > g.txt && ../../build/tests/test_ambient_dip cases.tsv \| diff g.txt -` | no output |
+| Cairn Stones client event (LAB_0046aee0: current player and room, StoneAlpha in the near list, FUN_004cdb40 missile 0x120 request, FUN_0046ae50 dip; `--mutation-check` 6 ways) | `.venv/bin/python cairn_event.py --mutation-check` | `ok: 6 LAB_0046aee0 Cairn client-event cases`, then six caught negative controls |
 | The animated image control (D2WinAnimImage.cpp FUN_00500850: its fields, draw mode 0 stored as 5, on all 15 kind-3 screen records) | `uv run python anim_image.py` | `ok` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Automap top-right lines (FUN_00459ff0 EXPANSION, FUN_0045a0a0 version, FUN_0045a190 difficulty: string ids, colour, line step, right edge) | `uv run python automap_lines.py` | `ok: 15 automap top-right line runs` |

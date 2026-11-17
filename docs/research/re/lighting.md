@@ -156,8 +156,15 @@ and the day's:
   setfunc 2 (`FUN_004d87e0`, from the state's table at 0x72a690), which only
   `cloak_of_shadows` (state 153) has: in 5, hold 3/5 of the skill's auralen,
   back 2/5, so level 1's 200 frames are about 5 s black then 3 s back. And
-  event 1 in level 4 (0x46aee0, sent by `FUN_00593710` as the Cairn Stones
-  open): in 40, hold 220, back 40, from missile `cairnstones` (288).
+  event 1 in level 4 (`LAB_0046aee0`, sent by `FUN_00593710` as the Cairn
+  Stones open): the current client player (`FUN_00463de0`) and its room
+  (`FUN_00620bb0`) must exist. `FUN_0065a620(room, 2, 0x11)` walks the room's
+  near list for StoneAlpha; none ends the handler. Its x and y from
+  `FUN_0045adf0` / `FUN_0045ae20` go to `FUN_004cdb40` as client missile
+  request 0x120, flags 1. Then the dip is in 40, hold 220, back 40, from
+  missile `cairnstones` (288). `tools/emu/cairn_event.py` runs this entry and
+  those boundaries for real; `test_cairn_client_event` freezes its six
+  gate, position, row and lifetime cases against `rules::cairn_client_event`.
 - **The dip, frame by frame** (`FUN_0046ad10`, from `FUN_0046beb0` while
   0x7a742c is set): the fill with no event (`FUN_00474550` flag 0: the
   level's light, else the day's) times the cosine (the table at 0x707800)
@@ -189,7 +196,7 @@ sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
 `rules::cairn_dip` from Missiles.txt's row: a player in Stony Field with a
 StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
 0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's
-S->C 0x89 event 1 starts it the same way (0x46aee0: the client player's room,
+S->C 0x89 event 1 starts it the same way (`LAB_0046aee0`: the client player's room,
 that test, then `FUN_0046ae50(Param1, Range - 2 x Param1, Param1, 4, 1)`;
 `Town`'s net step). A joined game's state 153 starts one too: S->C 0xa8 and
 0xaa run each state's setfunc as it's read (`FUN_004d9e60`), and

@@ -171,7 +171,13 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         sync_panel_cam();
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
+        std::vector<View::Shot> client_effects = den_beams;
+        if (cairn_flash) {
+            const std::uint32_t lifetime = std::uint32_t(std::max(cairn_flash->info ? cairn_flash->info->range : 0, 1)) * kTickMs;
+            if (frame_ms - cairn_flash->born < lifetime) client_effects.push_back(*cairn_flash);
+            else cairn_flash.reset();
+        }
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, client_effects, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
         if (view.level) rank_ground_labels(*world.game_data, *view.level, unit.x, unit.y, extra);
         for (const auto& critter : critters)                      // the client's critters: walking or standing, never hovered
             if (std::size_t(critter.row) < world.game_data->mon_npc.size() && std::abs(critter.x - cam_x) < 14 && std::abs(critter.y - cam_y) < 14) {
@@ -285,7 +291,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             else mode_ms = frame_ms - std::uint32_t(frame) * per_frame - per_frame / 2;
             rate = 1.f;
         }
-        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, event_ambient(), extra, &player_look, frame_ms, &hero_at);
+        const auto light = frame_light(*scene, view, cam_x, cam_y, client_effects, event_ambient(), extra, &player_look, frame_ms, &hero_at);
         // A pad in the field shows no cursor. The highlight is the same PadPick the
         // press uses, by id. A screen point would let a sprite in front take it.
         int hover_x = held ? -1 : mouse.x, hover_y = held ? -1 : mouse.y;
