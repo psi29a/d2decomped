@@ -109,7 +109,7 @@ def compare(cases, gfile, dfile):
         case, g, d = parse(case_line), g_line.split(), d_line.split()
         try:
             g_nums = [int(x) for x in g]
-            if case[2] != 0:                               # a player row's d2d side is `id -`
+            if case[2] != 0:
                 for x in d:
                     int(x)
         except ValueError:
@@ -117,6 +117,8 @@ def compare(cases, gfile, dfile):
         if len(g) != 6 or len(d) not in (2, 3) or g[0] != d[0] or g[0] != str(case[0]):
             raise SystemExit(f"compare: malformed or out-of-step line near id {case[0]}")
         if case[2] == 0:                                   # a player struck: d2d has no monster with Open Wounds (printed `id -`)
+            if d != [str(case[0]), "-"]:
+                raise SystemExit(f"compare: bad player row near id {case[0]}")
             by_kind.setdefault("player (not modelled)", [0, 0])[0] += 1
             continue
         applied, value, duration = int(g[1]), -int(g[2]), int(g[3])
