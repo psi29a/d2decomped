@@ -2,7 +2,10 @@
 // test-links: game
 // The class's find line (FUN_004cc270) waits 62 ticks after the class last
 // spoke; a quest line still due (class_cue's later at_ms, unit event 0x22
-// and the like) counts as speaking, so no find line goes ahead of it.
+// and the like) counts as speaking, so no find line goes ahead of it. It
+// also needs the player's last swing sound (unit +0x7c, FUN_004cb6a0) more
+// than 62 ticks old (0x3e < now - +0x7c): a swing mode begun 62 ticks
+// before holds it back, 63 does not; a Sorceress's S3 is no swing.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -62,6 +65,20 @@ int main() try {
     };
     assert(find_lines(0) == 1);
     assert(find_lines(1000 + kWait + 5000) == 0);   // a quest line still due
+    // A swing begun at `swing_ms` (mode A1, or S3 as `cls`) holds the find line back until 63 ticks on.
+    const auto swung_lines = [&](int mode, std::uint32_t swing_ms, std::uint32_t asked_ms) {
+        World world(&*data, -1, -1);
+        world.enter(character);
+        world.level = den;
+        world.find_voice(1000);
+        world.actor->pmode = mode;
+        world.actor->player.mode_ms = swing_ms;
+        world.find_voice(asked_ms);
+        return std::ranges::count(world.cues.due, found_line->second, &Cues::Cue::sound);
+    };
+    assert(swung_lines(kModeA1, 1000 + 40, 1000 + kWait + 40) == 0);        // 62 ticks after the swing: not over
+    assert(swung_lines(kModeA1, 1000 + 40, 1000 + kWait + 80) == 1);        // 63 ticks: over
+    assert(swung_lines(kModeS3, 1000 + 40, 1000 + kWait + 40) == 1);        // the Sorceress's S3 plays no swing
     std::puts("OK: a quest line still due holds the find line");
     return 0;
 } catch (const std::exception& error) {
