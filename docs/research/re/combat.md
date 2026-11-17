@@ -338,6 +338,9 @@ d2d matches both, and the one-poison-at-a-time rule.
   lightning +0x1c, cold +0x24, magic +0x20), 8 (poison damage +0x28) and
   9-11 (+0x38, +0x3c, +0x40); not on 5-7 (cold length +0x30, freeze
   length +0x34, poison length +0x2c), read from game.exe's bytes.
+  d2d: the prime-evil pairs in `rules::monster_blow`; the hireling on a
+  boss as `Target::pair_pct` (`Fight::merc_target`: the merc's swings
+  and missiles), DifficultyLevels HireableBossDamagePercent 50 / 35 / 25.
 - Deadly strike (stat 141), critical strike (stat 337) and mastery crit
   (`macr`) are **separate** rolls against rand(100); any one doubles the
   physical damage.
@@ -578,10 +581,10 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
   the same way and, re-testing after the step, ends the mode a tick before
   the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
-  (`Unit::get_hit_rate` in the renderer), checked by the oracle `tools/emu/hit_render.py`
+  (`Unit::get_hit_rate` in the renderer; the player's own in `town/draw.cpp`, a knockback slide aside), checked by the oracle `tools/emu/hit_render.py`
   (game.exe's step and draw run natively on hit_len.py's cases and its rate and ticks) against
-  `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. Not ported: the player's own frames
-  (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
+  `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. A joined
+  game's merc has no FHR on the wire.
 
 ## A player's attack swing: the start frame and the strike tick (FUN_00623b10, FUN_005539b0)
 

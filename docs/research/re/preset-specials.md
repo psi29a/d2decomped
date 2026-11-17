@@ -521,7 +521,7 @@ Gaps, most important first:
      Andariel gem drop.
 4. Ordinary dungeon objects are built (World::operate): ops 1/3/5/7/14,
    8/16/18, 19/20, 22 and 26, plus InitFn 2 (the trap roll, not an urn frame)
-   and InitFn 28 (its seed steps only; the gold piles are not dropped). Still
+   and InitFn 28 (its gold piles, World::drop_new_gold). Still
    missing:
    - op 30 (trap)
    - monster door opening (FUN_005b0f50)

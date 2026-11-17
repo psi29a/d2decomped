@@ -542,6 +542,10 @@ Findings along the way:
   `data\global\expfield.d2` (FUN_0066a2a0 loads it: a 10-byte header,
   then 256 x 256 directions 0..7 toward the centre, 8 at it; dx/dy tables
   at 0x749780 / 0x7497a4).
+  Each pile is item `gld ` (0x20646c67, cached at 0x88c6f8) made by
+  FUN_00558d90 at ilvl the area level (less 1 above 1), its coins the
+  first draw on its unit seed (rules::gold_amount). d2d: ObjectRooms::piles,
+  then World::drop_new_gold puts them on the floor.
 - An object's footprint takes its start mode's HasCollision, and that
   mode is ON only when preoperated. A lit Mode2 doesn't count: Tristram's
   bodies (239) start NU and block.

@@ -411,15 +411,16 @@ int main() try {
         assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kStored && item.quantity == 9; }) == 1);
         world.actor->held.reset();
         dexterity = kept_dexterity;
-        // An empty quiver in hand: the shot is refused and the inventory's quiver swapped in (FUN_005da8b0 -> FUN_00580310).
+        // An empty quiver in hand: the client's gate refuses Attack (FUN_00643d90: the other hand's ammunition at
+        // quantity 0, status 2; weapon_gate.py), so srvstfunc 4's swap (FUN_005da8b0 -> FUN_00580310) isn't reached.
         items = kept_items;
         std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });
         items.push_back({ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
         items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 0 });
         items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 50 });
         assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
-        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 1 && world.fight.ammo_index() >= 0);
-        // FUN_00580380 after it: a worn weapon with durability (the switch hand's sword) at 0 breaks; a bow has none.
+        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 2 && world.fight.ammo_index() < 0);
+        // No quiver: refused there too, so srvstfunc 4's FUN_00580380 (a worn weapon at 0 durability breaks) isn't run.
         items = kept_items;
         std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm || item.slot == d2d::d2s::body_location::kRightArmSwitch); });
         items.push_back({ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
@@ -428,7 +429,7 @@ int main() try {
         assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
         const auto sword = std::ranges::find(items, std::string("ssd"), &d2d::d2s::Item::code);
         const auto bow = std::ranges::find(items, std::string("sbw"), &d2d::d2s::Item::code);
-        assert(sword != items.end() && d2d::rules::broken(*sword) && bow != items.end() && !d2d::rules::broken(*bow));
+        assert(sword != items.end() && !d2d::rules::broken(*sword) && bow != items.end() && !d2d::rules::broken(*bow));
         // Double Throw (FUN_005d88b0 -> FUN_0056ecb0 last argument 1 -> FUN_0056c3f0): each hand's
         // throw spends one; the hand that runs out is swapped as any spent stack.
         items = kept_items;

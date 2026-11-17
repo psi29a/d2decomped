@@ -3,8 +3,9 @@
 // FUN_005ddc30 (0x5ddc30) for a pet (the Vines', the Sentries' foe2):
 // FUN_005dd0b0 mode 6 (FUN_005dcbd0, 0x5dcbd0) over the near rooms'
 // monsters takes the nearest of threat 2 or more under 0x31 over a nearer
-// one of less threat (a pet is a monster: FUN_005dd510 takes the primary),
-// where the mode 5 search would take the nearer one. Needs the game data.
+// one of less threat (FUN_005dd510 keeps the primary: the secondary isn't
+// under 6 off, so no path is asked), where the mode 5 search would take the
+// nearer one. Needs the game data.
 
 #include <ai.hpp>
 #include <fight.hpp>
@@ -54,25 +55,29 @@ int main() try {
     // An open spot: a room with no wall between the three spots.
     for (const auto& room : moor->rooms) {
         const float at_x = float(room.x) + float(room.width) / 2, at_y = float(room.y) + float(room.height) / 2;
-        if (moor->blocked(at_x, at_y, 0x805) || moor->blocked(at_x + 1, at_y, 0x805) || moor->blocked(at_x + 3, at_y, 0x805)) continue;
+        if (moor->blocked(at_x, at_y, 0x805) || moor->blocked(at_x + 2, at_y, 0x805) || moor->blocked(at_x + 4, at_y, 0x805)) continue;
         // Both lines clear (mask 4, as pet_second_foe tests them), else another room.
         const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
         const auto wall = [&](int sub_x, int sub_y) { return moor->blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, 0x04); };
         const auto line_clear = [&](int row, float foe_x) {
             return !d2d::rules::sight_blocked(sub(foe_x), sub(at_y), data->monsters.types[std::size_t(row)].size, sub(at_x), sub(at_y), 1, wall);
         };
-        if (!line_clear(weak, at_x + 1) || !line_clear(strong, at_x + 3)) continue;
+        if (!line_clear(weak, at_x + 2) || !line_clear(strong, at_x + 4)) continue;
         d2d::rules::Rng rng{ 3 };
         fight.monsters.clear();
-        // The strong one first, the near weak one newest: a pick by order alone would take the weak one.
-        Monster far_one = make_monster(*data, strong, at_x + 3, at_y, rng, 0), near_one = make_monster(*data, weak, at_x + 1, at_y, rng, 0);
+        // The strong one first, the near weak one newest: a pick by order alone would take the weak one. The weak one
+        // stands 6 or more off, so FUN_005dd510 keeps the primary without asking for a path to it.
+        Monster far_one = make_monster(*data, strong, at_x + 4, at_y, rng, 0), near_one = make_monster(*data, weak, at_x + 2, at_y, rng, 0);
         near_one.align = far_one.align = 0;
         fight.monsters.push_back(std::move(far_one));
         fight.monsters.push_back(std::move(near_one));
+        const Monster searcher = make_monster(*data, weak, at_x, at_y, rng, 0);
+        const Crowd crowd;
         int gap = 0;
-        assert(fight.pet_second_foe(at_x, at_y, 1, gap) == 0 && gap > 0 && gap < 0x31);
+        assert(fight.pet_second_foe(searcher, 1, crowd, gap) == 0 && gap > 0 && gap < 0x31);
+        assert(d2d::rules::near_distance(10, 0, data->monsters.types[std::size_t(weak)].size) >= 6);   // the secondary's: no path test
         fight.monsters[0].hit_points = 0;   // no primary: the secondary
-        assert(fight.pet_second_foe(at_x, at_y, 1, gap) == 1);
+        assert(fight.pet_second_foe(searcher, 1, crowd, gap) == 1);
         std::printf("pet_second_foe: ok (gap %d)\n", gap);
         return 0;
     }

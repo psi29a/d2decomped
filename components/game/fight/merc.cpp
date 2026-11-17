@@ -343,12 +343,9 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         int target_gap = 0x7fffffff;
         const auto path_to_primary = [&](int pick) {
             const auto& foe = monsters[std::size_t(sight_index[std::size_t(pick)])];
-            const int foe_x = sub(foe.unit.x), foe_y = sub(foe.unit.y);
-            if ((foe_x == merc_x && foe_y == merc_y) || std::abs(foe_x - merc_x) > 100 || std::abs(foe_y - merc_y) > 100) return false;   // FUN_00649970
-            const auto points = d2d::rules::toward_path(merc_x, merc_y, foe_x, foe_y, 5, 1, [&](int at_x, int at_y) {
+            return d2d::rules::path_found(merc_x, merc_y, sub(foe.unit.x), sub(foe.unit.y), 5, [&](int at_x, int at_y) {
                 return level->unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
             });
-            return std::ranges::any_of(points, [&](const std::pair<int, int>& point) { return point != std::pair(merc_x, merc_y); });
         };
         const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), path_to_primary, target_gap);
         actor->merc_target = chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;

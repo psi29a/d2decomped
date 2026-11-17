@@ -179,8 +179,9 @@ mode 5 one: the skill-set target (`FUN_005dd610`) when there is one, else
 `FUN_005dd0b0` mode 6 (`FUN_005dcbd0`, monster-ai.md "Second target"): the
 near rooms' units, each room's newest first, its enemies, alive, out of
 town, distance (`FUN_005dc380`) under 0x31 with the line from them tested
-(mask 4) always, threat 2 or more the primary, else the secondary; a pet is
-a monster, so `FUN_005dd510` takes the primary (no path test).
+(mask 4) always, threat 2 or more the primary, else the secondary; then
+`FUN_005dd510`, which skips only a player searcher: a pet asks the type 2
+path test (`rules::path_found`) as the merc does.
 
 - **Hydra** (`0x5e9e60`): past its last frame (+0x14) it dies
   (`FUN_005ddfc0(0)`); the driver's target under 25 off, a seed step % 100

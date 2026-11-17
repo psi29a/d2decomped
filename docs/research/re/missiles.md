@@ -34,6 +34,11 @@ its EDX, run after the path is set.
   d2d keeps both when the missile has no target point: `missile_fly` aims
   with FUN_0064fc60 at the start plus (1, 1), and the room follows only
   when that point lies outside the first room.
+  A re-plan in flight (FUN_00649970 on the missile: Guided Arrow's do 7,
+  FUN_005ae780) runs FUN_006492f0 again: the one point the target unit's
+  subtile, the path's fine position kept, FUN_0064fe40 -> FUN_0064fc60
+  from there, flag 1 set when the point is outside the path's room, none
+  over 99 subtiles off. d2d: `Missile::retarget`, aimed in `missile_fly`.
 - Flag 0x400 (FUN_0056ee90): range = (FUN_006417f0 distance << 16) /
   (velocity << 4), the frames to arrive.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit

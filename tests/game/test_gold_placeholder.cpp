@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // The gold placeholder (object 269, InitFn 28 FUN_0054f8c0): mode 2 (ON)
-// first, before its piles (FUN_00559300, not dropped yet). Needs the data.
+// first, then its piles (FUN_00559300): gold at ilvl the area level less
+// 1, on Tower 5's floor as its rooms come up. Needs the data.
 
+#include <ai.hpp>
+#include <character.hpp>
+#include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <loot.hpp>
 #include <rules.hpp>
+#include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +42,29 @@ int main() try {
     assert(one.npcs.size() == 1);
     assert(one.npcs[0].mode == "ON");                    // FUN_00624690(unit, 2)
     std::printf("OK: the gold placeholder starts ON\n");
+
+    d2d::rules::Rng rng(7);
+    constexpr int kAmazon = 0;
+    auto made = new_character(*data, kAmazon, "Coins", false, true, rng);
+    Character character;
+    character.character_class = kAmazon;
+    character.name = "Coins";
+    character.header = made.header;
+    character.stats = made.stats;
+    character.items = made.items;
+    character.panel = panel_stats(*data, character.header, character.items, character.stats);
+    World world(&*data, -1, -1);
+    world.enter(character);
+    populate_level(*data, world.fight.spawning, *tower);
+    const auto piles = world.fight.spawning.levels[tower].gold.size();
+    assert(piles > 0);
+    world.drop_new_gold();
+    assert(world.fight.spawning.levels[tower].gold.empty());
+    const auto& floor = tower == world.loot.ground_level ? world.loot.ground : world.loot.kept[tower];
+    assert(floor.size() == piles);
+    const int area = area_monster_level(*data, tower->id, 0), ilvl = area > 1 ? area - 1 : area;
+    assert(std::ranges::all_of(floor, [&](const Loot::GroundItem& pile) { return pile.item.code == "gld" && pile.gold >= ilvl && pile.gold < 6 * ilvl; }));
+    std::printf("OK: %zu gold piles on Tower 5's floor\n", piles);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_gold_placeholder: %s\n", error.what());

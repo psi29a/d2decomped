@@ -68,6 +68,7 @@ using game::kModeA1;
 using game::kModeCode;
 using game::kModeDD;
 using game::kModeDT;
+using game::kModeGH;
 using game::kModeNU;
 using game::kModeRN;
 using game::kModeSC;
