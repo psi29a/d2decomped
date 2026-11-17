@@ -524,7 +524,8 @@ struct Monster {
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
         d2d::rules::Target built{ hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
-                                  crush_divisor(game_data), type_info.undead, type_info.demon };
+                                  crush_divisor(game_data), type_info.undead, type_info.demon, life_fine(),
+                                  game_data.life_steal_divisor[std::size_t(difficulty)], game_data.mana_steal_divisor[std::size_t(difficulty)] };
         built.special = boss != d2d::rules::Boss::none && boss != d2d::rules::Boss::minion;
         return built;
     }

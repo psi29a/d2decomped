@@ -242,6 +242,20 @@ d2d matches both, and the one-poison-at-a-time rule.
 
 ## To hit — FUN_0057ec10 → FUN_0057d9b0
 
+- Reach first (0x57ec7e..0x57eca6): FUN_00622c40(attacker, target, extra)
+  must hold, else no hit and no roll: the unit distance FUN_00641530 within
+  the attacker's range + extra + 1 (always at 0 or less) and no wall of
+  collision mask 0x804 on the line (FUN_00622aa0), the line's ends stepped
+  in by the units' sizes. extra is 1 for a player and 3 for a monster when
+  the caller's third argument is 0, as from every caller but one; a
+  non-zero one takes itself and the range off (0x57ec94..0x57ec9e):
+  FUN_0056e6f0 passes 1 for Blade Shield's area hits (FUN_005d7c40). A swing starts on a monster
+  under the same test with extra 1 only while the monster moves (FUN_00622dc0):
+  the client's walk ends there (FUN_00480c80, 0x480d0f) and the server asks
+  again (FUN_00549ba0, 0x549cc8). Attack's do (FUN_0056f070) tests no other
+  distance: it hits the target FUN_00553540 returns. d2d:
+  `Fight::melee_reach_to` (engage and the default `hit`), checked by
+  `tools/emu/player_reach.py`.
 - Defense: FUN_006223f0 + stat 33 (vs melee) or 32 (vs missiles).
 - Player attack rating (FUN_00622560): stat 19 + (dex − 7) × 5 + CharStats
   ToHitFactor; then × (100 + mastery to-hit + stat 119 + the skill's

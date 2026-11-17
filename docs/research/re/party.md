@@ -375,7 +375,10 @@ link, the same as the roster list `DAT_007bb5c0`.
   yet (prepended), then `FUN_00479800` moves each roster record with that word
   into the group. It repeats until `DAT_007bb5c0` is empty.
 - `FUN_00479800` (EDI = the group): moves each roster record whose `+0x22` equals
-  the group's word to the front of the group's list, in scan order.
+  the group's word to the front of the group's list, in scan order, so a group
+  holds its records in the reverse of their list order. The sorts after it are
+  insertions that put a tie after the records it ties with, so by the sort key
+  (names are unique) records that tie trade places at each regroup.
 - `FUN_004799c0` sorts each group's list. `FUN_0047a980` returns bit 1 of the byte
   at 0x712efc (not traced further). When it is set the list goes to `FUN_004796d0`
   (EAX = the head): an insertion sort by the signed dword `+0x18`, most first
@@ -403,6 +406,38 @@ link, the same as the roster list `DAT_007bb5c0`.
   `FUN_0040b3c0`) and sets `DAT_007bb5c8` to 0.
 - `FUN_00479a60` (ESI = an id) moves each roster record with that `+0x10` that is not
   already the head to the front of `DAT_007bb5c0`.
+
+When the regroup runs (every caller of `FUN_00479ab0`, and the packets that
+reach them through the S->C table at 0x7114d0, 12-byte rows):
+
+| Event | Function | What it does first |
+|---|---|---|
+| S->C 0x5b player joins (`0x45e4e0`, row `0x711914`) | `FUN_0047a6f0` (call at `0x45e525`) | a record not in the list (`FUN_00479360`) is taken from `DAT_007bb5c4` or made, filled (`FUN_004793c0`) and put at the head of `DAT_007bb5c0`; a known one is refilled where it is |
+| S->C 0x5c player leaves (`0x45e530`, row `0x711920`) | `0x47a8b0` (not in Ghidra's function list; only jumps reach it) | the record unlinked and freed (none found: the regroup still runs) |
+| S->C 0x65 sort key (`0x45e6b0`) | `0x479b10` | `+0x18` set, sign-extended (no record: nothing, `0x479b1c`) |
+| S->C 0x75 party roster (`0x45e7e0`, row `0x711a4c`) | `FUN_0047a850` (call at `0x45e7f6`) | `+0x22`, `+0x20`, `+0x30` set, unless the id is in the record's `+0x38` list |
+| S->C 0x7f party member, +1 nonzero (`0x45e990`) | `FUN_0047a0d0` | `+0x14`, `+0x24` set |
+| S->C 0x8d assign party (`0x45ea90`, row `0x711b6c`) | `0x47a330` (likewise) | `+0x22` set (no record: nothing) |
+| the party button | `FUN_00479eb0` | `+0x30` stepped, C->S 0x5e sent |
+| LEAVE | `FUN_00479fc0` -> `FUN_00479f60` | our own `+0x22` = 0xffff, `+0x30` = 1 |
+
+S->C 0x8b (`0x47a350`) sets `+0x30` and only redraws.
+
+Oracle: `tools/emu/party_regroup.py` runs `FUN_00479ab0` and everything under
+it (the local unit and the pool hooked) on generated rosters: up to 8
+records with party words 0, 1, 2, 5, 0x7fff, 0x8000 and 0xffff, keys that
+tie, names with bytes above 0x7f, the local record in the list, absent or no
+local unit. `tests/test_party_order.cpp` gives `PartyPanel::regroup` the same
+cases (fixture `party_regroup_cases.inc`, 2000; `gen 20000 3`: 20000 cases,
+no difference):
+
+```sh
+cd tools/emu
+uv run python party_regroup.py gen 20000 3 > cases.tsv
+uv run python party_regroup.py game cases.tsv > g.txt
+../../build/tests/test_party_order cases.tsv > d.txt && diff g.txt d.txt
+uv run python party_regroup.py inc 2000 7 | diff - ../../tests/party_regroup_cases.inc
+```
 
 ### Drawing
 
@@ -464,12 +499,20 @@ link, the same as the roster list `DAT_007bb5c0`.
 
 - Inside a group the rows come by name (`FUN_004795f0`); with bit 1 of the
   game flags set game.exe sorts by record `+0x18`, most first.
-  `PartyPanel::order(by_sort_key)` does: NetGame keeps 0x65's word on the
-  player it names (a player it doesn't know drops it, as `FUN_004792e0`
+  `PartyPanel::regroup(by_sort_key)` does: NetGame keeps 0x65's word on the
+  record it names (a player with no record drops it, as `FUN_004792e0`
   finding no record does) and 0x01's flags (`0x45c8b0` passes the u32 at
-  +2 in ECX to `FUN_0047a9a0`), and `Town::party_rows` sorts by the word
-  when bit 1 is set (`d2gs::s2c::roster_key` / `roster_by_sort_key`). A tie
-  keeps d2d's row order, not `FUN_00479800`'s.
+  +2 in ECX to `FUN_0047a9a0`), and sorts by the word when bit 1 is set
+  (`d2gs::s2c::roster_key` / `roster_by_sort_key`). The rows come in the
+  roster list's order: NetGame keeps the list (`NetGame::roster`, a
+  `PartyRoster`: 0x5b puts a new record first, 0x5c takes one out) and
+  regroups it at each event of the table above (`regroup_roster`,
+  `PartyRoster::regroup`), so ties trade places as in game.exe. Its records
+  are its own, apart from the world's units, as game.exe's are: S->C 0x0a
+  (`FUN_0045cc10`, row `0x711548`) only unlinks and frees the unit
+  (`FUN_00465e80`, `FUN_00465870`), so a player out of sight keeps its row
+  until 0x5c. Not kept: a record's `+0x38` id list (0x75's skip and
+  `FUN_004792e0`'s second match), its life (`+0x14`), 0x75's `+0x30`.
 - Area names come from 0x7f's level id.
 - A party member's life bar (`FUN_0049a460`) isn't drawn.
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore

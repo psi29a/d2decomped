@@ -423,7 +423,15 @@ int main(int argc, char** argv) try {
     blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     assert(blow.hit && blow.damage == 50 + 11);                       // 350 / 16 = 21, less 50 %
-    assert(blow.life == 50 * 10 * 50 / 10000);
+    assert(blow.life == 640);                                         // 50 phys (12,800) x (10 << 6) / 100 x Drain 50 / 100 / 64, in 256ths (FUN_0057c420)
+    // The difficulty's divisor and the cut to the target's life (FUN_0057c420, FUN_0057c6c0 0x57c7f8): game.exe's values,
+    // tools/emu/leech.py game on these cases (12,800 = 50 points of physical, a 10 % steal, Drain 50 unless 100).
+    assert(leech_fine(12'800, target, 10, 2) == 320 && leech_fine(12'800, target, 10, 3) == 213);   // Nightmare, Hell
+    Target nearly_dead = target;
+    nearly_dead.life_fine = 20 * 256;
+    assert(leech_fine(12'800, nearly_dead, 10, 1) == 256);                                         // only the 20 points it had
+    Target full_drain{ .hit_points = 400, .max_hp = 400, .drain = 100 };
+    assert(leech_fine(128, full_drain, 10, 1) == 12 && leech_fine(128, full_drain, 0, 1) == 0);      // half a point: 12 / 256ths, not 0
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);
     crit.critical = 100;
