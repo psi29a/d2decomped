@@ -34,18 +34,13 @@ Ranked by Seen, then by how much play it touches.
 ## Sounds
 
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
-sounds play, 104 don't (2026-10-29). 97 of the 104 are traced as never
-played by stock 1.14d (the class quest phrases, the rogue confirms, 13 NPC
-lines and 6 monster rows), so d2d plays 3,416 of the 3,423 the original does
-(unit-sounds.md "In d2d").
+sounds play, 104 don't (2026-10-29). All 104 are traced as never played
+by stock 1.14d (unit-sounds.md "In d2d"), so d2d plays every sound the
+original does.
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
-to 70% and the menu's fade-out.
-
-| # | What | Count | Kind | Seen | Notes |
-|---|---|---|---|---|---|
-| 18 | Seven rows with no trigger traced either way: `event_desert_night_1..5` (no SoundEnviron row names them; the night may pick its event group by arithmetic, not traced), `scene_tavern_interior` (row 66, cathedral.wav), `monster_diablo_taunt_2` | 7 | trace | maybe | unit-sounds.md "In d2d"; every other code-played sound is wired or traced as never played (`tools/sound_coverage.py`: 3,416 of 3,520, the 97 others never played by stock) |
+to 70% and the menu's fade-out. Nothing open.
 
 ## Animation and drawing
 
