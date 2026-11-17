@@ -94,6 +94,7 @@ int main() try {
     cached.stamp_shaded(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255, kept);
     fresh.stamp_shaded(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255, LightGrid::shade_square(100 * 8 + 4, 100 * 8 + 4, 13 * 8, [](int, int) { return false; }));
     assert(cached.at(107, 100) == walled.at(107, 100) && fresh.at(107, 100) == open.at(107, 100));
+    assert(LightGrid::shade_square(0, 0, 247, wall).size() == std::size_t(62 * 62) && LightGrid::shade_square(0, 0, 248, wall).empty());
     // A bigger grid: a light 40 subtiles off still lands; game.exe's size loses it.
     LightGrid big, game;
     big.reset(100, 100, 0, 120); game.reset(100, 100, 0);

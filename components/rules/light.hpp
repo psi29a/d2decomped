@@ -208,8 +208,10 @@ struct LightGrid {
     // two by the angle (FUN_00474b50 / FUN_00474c00) — a blocked neighbour
     // passes its 16 on. `blocked(subtile x, y)`: its collision has 0x22.
     template <class Blocked> static std::vector<int> shade_square(int x, int y, int radius, Blocked&& blocked) {
-        if (radius < 1 || radius > 255) return {};
         constexpr int kShadeGrid = 64, kShadeCenter = 32;
+        // A square that leaves the 64 x 64 (radius 248 and up) is none here; game.exe's overruns
+        // its buffers (lighting.md "Static-light shadow cache"), and d2d's lights stop at 18 x 8.
+        if (radius < 1 || radius >> 3 >= kShadeCenter - 1) return {};
         std::vector<int> blocking(kShadeGrid * kShadeGrid, 0), shaded(kShadeGrid * kShadeGrid, 0);
         const int light_x = x >> 3, light_y = y >> 3, radius_cells = radius >> 3, side = radius * 2 >> 3;   // the light's square
         for (int row = 0; row <= side; ++row)
