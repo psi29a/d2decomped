@@ -8,6 +8,8 @@
 // casts, items or own moves to the host yet (tier C).
 #pragma once
 
+#include "party.hpp"
+
 #include <d2s_items.hpp>
 #include <join.hpp>
 #include <net_log.hpp>
@@ -43,7 +45,6 @@ struct NetGame {
         int area = 0;                 // a party member's level id (0x7f +8)
         int relation = 0;             // the party button's state toward it (0x8b: 0 invite, 2 accept, 3 leave, 4 asked; roster +0x30)
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
-        int sort_key = 0;             // its Party roster sort key (0x65's signed word; roster +0x18)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
@@ -125,6 +126,11 @@ struct NetGame {
     int act = 0, area = 0;            // 0x03
     int difficulty = 0;               // 0x01
     std::uint32_t game_flags = 0;     // 0x01 +2 (0x712efc): bit 1 sorts the Party roster by 0x65
+    // The Party roster's list (0x7bb5c0, from its head): the players' records, ours too, apart
+    // from `units` (a 0x0a leaves them). 0x5b puts a new one first (FUN_0047a6f0), 0x5c takes it
+    // out (0x47a8b0), and each of those, 0x65, 0x75, 0x7f, 0x8d, the party button and LEAVE
+    // regroup it (FUN_00479ab0: regroup_roster).
+    d2d::client::PartyRoster roster;
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     // The client's pet list (0x7a, FUN_0045e860 / FUN_00478b10): the portraits'.
@@ -188,6 +194,7 @@ struct NetGame {
     auto party_button(std::uint32_t player) -> void;
     auto relation(std::uint32_t player, int flag) -> void;
     auto leave_party() -> void;                   // LEAVE (FUN_00479f60: 0x5e 9)
+    auto regroup_roster() -> void;                // FUN_00479ab0 on `roster` (PartyRoster::regroup)
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)

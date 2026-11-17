@@ -1,0 +1,160 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""The Party roster's regroup (FUN_00479ab0, Roster.cpp) as the oracle, run
+natively on generated rosters:
+
+    uv run python party_regroup.py gen 20000 1 > cases.tsv
+    uv run python party_regroup.py game cases.tsv > game.tsv
+    ../../build/tests/test_party_order cases.tsv > d2d.tsv        # tests/test_party_order.cpp
+    diff game.tsv d2d.tsv
+    uv run python party_regroup.py inc 2000 7 > ../../tests/party_regroup_cases.inc
+
+A case is `id local bykey n {id party key name}`: the local player's id (-1:
+no local unit), bit 1 of the game flags (0x712efc: sort by the key), then
+the roster list (0x7bb5c0, linked at +0x80) from its head, each record's id
+(+0x10), party word (+0x22), sort key (+0x18, signed) and name (+0, as hex
+bytes). `game` prints `id ids...`: the list after the regroup, from its head.
+d2d's test prints the same lines from PartyPanel::regroup.
+
+Runs natively: FUN_00479ab0, FUN_004792e0 (the local record), FUN_00479940
+and FUN_00479800 (the groups), FUN_004799c0, FUN_0047a980 (the flag),
+FUN_004795f0 (by name) and FUN_004796d0 (by key), FUN_00479860 (the groups
+by word), FUN_004798c0 (the local group and record first), FUN_00479a00
+(the lists joined), FUN_004797c0 and FUN_00479a60 (no party: the local
+record first).
+Hooked (not the claim): FUN_00463dd0 (the local unit: one whose +0xc is the
+case's id, or none), FUN_0040b380 / FUN_0040b3c0 (the pool's alloc / free).
+
+Tags: V (the oracle's own run). U: a record's alias list (+0x38, which
+FUN_004792e0 also searches) is empty in every case.
+"""
+import random
+import sys
+
+REGROUP = 0x479AB0
+ROSTER, GROUPS, FLAGS = 0x7BB5C0, 0x7BB5C8, 0x712EFC
+MAX_RECORDS = 8
+WORDS = (0, 1, 2, 5, 0x7FFF, 0x8000, 0xFFFF)
+LETTERS = (b"A", b"B", b"a", b"b", b"_", b"\xe9", b"Ab")       # 0xe9 above 'z': strcmp's unsigned bytes
+
+
+class Oracle:
+    def __init__(self):
+        import emu
+        self.e = e = emu.Emu()
+        self.records = [e.alloc(0x84) for _ in range(MAX_RECORDS)]
+        self.unit = e.alloc(0x100)
+        self.local = None
+        self.allocs = []
+        e.hook(0x463DD0, lambda e: self.unit if self.local is not None else 0, 0)
+        e.hook(0x40B380, self.alloc, 2)
+        e.hook(0x40B3C0, lambda e: 0, 2)
+
+    def alloc(self, e):
+        from unicorn.x86_const import UC_X86_REG_ECX
+        block = e.alloc(max(e.mu.reg_read(UC_X86_REG_ECX), 0x10))
+        self.allocs.append(block)
+        return block
+
+    def run(self, case):
+        e = self.e
+        _cid, local, by_key, records = case
+        self.local = None if local < 0 else local
+        e.w32(self.unit + 0xC, local)
+        head = 0
+        for index in reversed(range(len(records))):
+            rid, party, key, name = records[index]
+            at = self.records[index]
+            e.mu.mem_write(at, b"\0" * 0x84)
+            e.mu.mem_write(at, name + b"\0")
+            e.w32(at + 0x10, rid)
+            e.w32(at + 0x18, key)
+            e.mu.mem_write(at + 0x22, party.to_bytes(2, "little"))
+            e.w32(at + 0x80, head)
+            head = at
+        e.w32(ROSTER, head)
+        e.w32(GROUPS, 0)
+        flags = e.r32(FLAGS)
+        e.w32(FLAGS, (flags & ~2) | (2 if by_key else 0))
+        e.call(REGROUP)
+        out, at, seen = [], e.r32(ROSTER), 0
+        while at and seen <= len(records):
+            out.append(e.s32(at + 0x10))
+            at, seen = e.r32(at + 0x80), seen + 1
+        if seen > len(records) or e.r32(GROUPS) != 0:
+            raise AssertionError(f"case {case[0]}: the list doesn't end, or groups are left")
+        return out
+
+
+def make_case(cid, rng):
+    count = rng.randint(0, MAX_RECORDS)
+    ids = rng.sample(range(1, 40), count)
+    records = []
+    for rid in ids:
+        name = b"".join(rng.choice(LETTERS) for _ in range(rng.randint(0, 3)))
+        records.append((rid, rng.choice(WORDS), rng.choice((-2, -1, 0, 0, 1, 1, 2, 300)), name))
+    roll = rng.random()
+    local = rng.choice(ids) if ids and roll < 0.6 else (-1 if roll < 0.8 else 77)
+    return cid, local, int(rng.random() < 0.5), records
+
+
+def show(case):
+    cid, local, by_key, records = case
+    parts = [cid, local, by_key, len(records)]
+    for rid, party, key, name in records:
+        parts += [rid, party, key, name.hex() or "-"]
+    return " ".join(str(p) for p in parts)
+
+
+def parse(line):
+    fields = line.split()
+    cid, local, by_key, count = (int(v) for v in fields[:4])
+    records = []
+    for k in range(count):
+        rid, party, key, name = fields[4 + 4 * k: 8 + 4 * k]
+        records.append((int(rid), int(party), int(key), b"" if name == "-" else bytes.fromhex(name)))
+    return cid, local, by_key, records
+
+
+def gen(count, seed):
+    rng = random.Random(seed)
+    return [make_case(cid, rng) for cid in range(count)]
+
+
+def inc(count, seed):
+    oracle = Oracle()
+    print(f"// Stock game.exe 1.14d, FUN_00479ab0; generated by tools/emu/party_regroup.py inc {count} {seed}.")
+    print("// local id, by key, records {id, party, key, name} in list order, then the ids after the regroup")
+    for case in gen(count, seed):
+        _cid, local, by_key, records = case
+        after = oracle.run(case)
+
+        def quoted(name):
+            return '"' + "".join(f"\\x{b:02x}" for b in name) + '"'
+        rec_text = ", ".join(f"{{ {rid}, 0x{party:x}, {key}, {quoted(name)} }}" for rid, party, key, name in records)
+        rec_text = f"{{ {{ {rec_text} }} }}" if records else "{}"
+        after_text = f"{{ {{ {', '.join(str(v) for v in after)} }} }}" if after else "{}"
+        print(f"    {{ {local}, {by_key}, {len(records)}, {rec_text}, {after_text} }},")
+
+
+def main(argv):
+    mode = argv[1] if len(argv) > 1 else ""
+    if mode == "gen":
+        for case in gen(int(argv[2]), int(argv[3])):
+            print(show(case))
+    elif mode == "game":
+        oracle = Oracle()
+        with open(argv[2], encoding="utf-8") as cases:
+            for line in cases:
+                if line.strip():
+                    case = parse(line)
+                    print(" ".join(str(v) for v in [case[0], *oracle.run(case)]))
+    elif mode == "inc":
+        inc(int(argv[2]), int(argv[3]))
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
