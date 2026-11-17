@@ -6,7 +6,6 @@
 // leaves it clear (FUN_005761c0 calls FUN_0055f900 only on flag 0x100).
 // No game data: an axe typed in.
 
-#include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
