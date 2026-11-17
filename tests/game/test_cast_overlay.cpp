@@ -119,6 +119,23 @@ int main() try {
     world->fight.monster_sounds(monster, now + 100 * kTickMs);
     assert(monster.flash_overlay == raise && monster.flash_at == now + 100 * kTickMs && monster.skill_sound == -1);
     std::printf("OK: a monster's Resurrect start plays %s\n", resurrect->cast_overlay.c_str());
+
+    // The merc's and a pet's starts (merc_turn, pet_think_turn) take the same helper on their own
+    // one-shot: an Act 3 merc's Fire Ball, and none for a swing (no skill, -1).
+    const auto* fire_ball = data->skills.get(47);
+    assert(fire_ball && fire_ball->cast_overlay == "fire_cast_2");
+    const int fire_cast_2 = data->overlay_row("fire_cast_2");
+    world->actor->merc = Monster{};
+    auto& merc = *world->actor->merc;
+    world->fight.start_cast_overlay(*fire_ball, false, merc.flash_overlay, merc.flash_at, now + 200 * kTickMs);
+    assert(merc.flash_overlay == fire_cast_2 && merc.flash_at == now + 200 * kTickMs);
+    assert(actor->flash_overlay == fire_cast);                          // the player's own is untouched
+    const auto* attack = data->skills.get(0);
+    assert(attack && attack->cast_overlay.empty());
+    Monster pet;
+    world->fight.start_cast_overlay(*attack, false, pet.flash_overlay, pet.flash_at, now + 200 * kTickMs);
+    assert(pet.flash_overlay == -1);
+    std::printf("OK: the merc's Fire Ball start plays fire_cast_2 on the merc\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_cast_overlay: %s\n", error.what());

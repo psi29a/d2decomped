@@ -429,6 +429,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 actor->merc_skill_level = 0;
                 for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) if (actor->merc_ids[k] == actor->merc_skill) actor->merc_skill_level = actor->merc_levels[k];
                 if (skill1 && actor->merc_skill == skill1->id && actor->merc_skill_level == 0) actor->merc_skill_level = type_info->sk_lvl[0];
+                if (const auto* started = game_data->skills.get(actor->merc_skill))   // its castoverlay (FUN_004c6140)
+                    start_cast_overlay(*started, false, actor->merc->flash_overlay, actor->merc->flash_at, now_ms);
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
                 unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
                 actor->merc_seq = nullptr;

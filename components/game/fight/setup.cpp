@@ -40,22 +40,17 @@
 
 namespace d2d::game {
 
-namespace {
-
-// A skill start's cast overlay on its caster's one-shot (`shown` from `shown_at`; FUN_004c6140,
-// rules::cast_overlay_starts).
 // ponytail: a unit keeps one one-shot here, so a cast overlay and a Cry Help flash replace each
-// other (game.exe keeps a list, +0x2c), and a merc's or pet's skill start plays none.
-void start_cast_overlay(const GameData& game_data, const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) {
-    const int row = d2d::rules::cast_overlay_row(game_data.overlay_row(skill.cast_overlay), game_data.overlay_row(skill.item_cast_overlay), from_item);
-    if (row < 0 || std::size_t(row) >= game_data.overlay_rows.size() || !game_data.overlay_rows[std::size_t(row)]) return;
-    const auto* playing = shown >= 0 && std::size_t(shown) < game_data.overlay_rows.size() ? game_data.overlay_rows[std::size_t(shown)] : nullptr;
-    if (!d2d::rules::cast_overlay_starts(row, shown, now_ms - shown_at, playing ? playing->rate : 0, playing ? playing->frames : 0)) return;
-    shown = row;
-    shown_at = now_ms;
-}
-
-}  // namespace
+// other (game.exe keeps a list, +0x2c).
+auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const -> void {
+        const auto& rows = game_data->overlay_rows;
+        const int row = d2d::rules::cast_overlay_row(game_data->overlay_row(skill.cast_overlay), game_data->overlay_row(skill.item_cast_overlay), from_item);
+        if (row < 0 || std::size_t(row) >= rows.size() || !rows[std::size_t(row)]) return;
+        const auto* playing = shown >= 0 && std::size_t(shown) < rows.size() ? rows[std::size_t(shown)] : nullptr;
+        if (!d2d::rules::cast_overlay_starts(row, shown, now_ms - shown_at, playing ? playing->rate : 0, playing ? playing->frames : 0)) return;
+        shown = row;
+        shown_at = now_ms;
+    }
 
 auto Fight::monster_index(int id) const -> int {
         if (id < 0) return -1;
@@ -344,7 +339,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                                                               .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
                 for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
                     if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
-                start_cast_overlay(*game_data, *skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
             }
         if (monster.mode != monster.last_mode) {
             monster.last_mode = monster.mode;
@@ -549,7 +544,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const int cls = actor->character.character_class;
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
-            start_cast_overlay(*game_data, *skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
+            start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
         }
     }
 
