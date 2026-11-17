@@ -5,6 +5,8 @@
     uv run python mana_burn.py game cases.tsv > game.tsv
     ../../build/tests/test_mana_burn --mana-burn cases.tsv | grep -E '^[0-9]+ ' > d2d.tsv
     uv run python mana_burn.py compare game.tsv d2d.tsv
+    ../../build/tests/test_mana_burn --mana-burn-roll cases.tsv | grep -E '^[0-9]+ ' > roll.tsv
+    uv run python mana_burn.py compare game.tsv roll.tsv exact   # rules::mana_burn_fine alone, byte for byte
 
 A case is `lo hi seed`: lo / hi the whole points d2d keeps (Monster::mana_lo / mana_hi; FUN_005a1f90 stores `x << 8` in
 stats 62 / 63), seed the attacker's unit seed (low word, high 666). `game` runs the melee chain on a monster attacker

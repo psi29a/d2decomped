@@ -439,6 +439,15 @@ inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
     value = difficulty_index == 0 ? value - value / 4 : difficulty_index == 1 ? value - value / 3 : value / 8;
     return { value * 60 / 100, value };
 }
+// What a Mana Burn monster's landed hit takes off a player's mana, in 256ths: the damage build (FUN_0057b7d0, a plain
+// monster) rolls FUN_0057a8e0 over stats 62 / 63, which FUN_005a1f90 stores as `x << 8` and the roll shifts by 8 again,
+// so `(least << 16)` up to (not including) `(most << 16)` on the unit's seed (`least` and `most` the whole points of
+// Monster::mana_lo / mana_hi): 256 times the points the stat looks like. FUN_0057c6c0 then takes it off the player's
+// mana (FUN_0057aa60). tools/emu/mana_burn.py checks it against game.exe.
+inline int mana_burn_fine(int least, int most, Rng& rng) {
+    const int low = least << 16, high = most << 16;
+    return high > low ? low + rng(high - low) : low;
+}
 // Spectral hit (FUN_005a3040 / FUN_005a21d0): each attack, one of five
 // elements (0x6e21b8: fire, lightning, magic, cold, poison; as Skill::etype
 // 0, 1, 4, 2, 3), MonLvl damage x MonUMod constants row 28 (min) and 31
