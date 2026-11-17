@@ -86,6 +86,18 @@ int main() try {
     assert(actor->attack_mon == 0 && actor->player.walking && actor->pmode < 0);
     click(1.f, true);                                              // in reach, shift: at the monster
     assert(actor->attack_mon == 0 && actor->pmode == kModeA1);
+    // Bash with shift out of reach while a walk goes on: the walk stops (FUN_00461700(0) is a skill at
+    // the spot); Bash itself at a spot isn't swung in d2d yet.
+    const int bash = data->skills.by_name.at("Bash");
+    actor->pmode = -1;
+    actor->attack_mon = -1;
+    actor->target_x = actor->player.x - 5.f; actor->target_y = actor->player.y;
+    actor->player.walking = true;
+    fight.monsters[0].unit.x = actor->player.x + 3.f;
+    fight.monsters[0].unit.y = actor->player.y;
+    const Order bash_order{ actor->id, cmd::UseSkill{ bash, fight.monsters[0].unit.x, fight.monsters[0].unit.y, fight.monsters[0].id, true, -1, true } };
+    world->tick({ &bash_order, 1 }, now, now - kTickMs);
+    assert(!actor->player.walking && actor->attack_mon == -1);
 
     std::printf("test_stand_attack: ok\n");
     return 0;
