@@ -40,7 +40,13 @@ std::vector<std::string> run(const std::string& line) {
         return make_ok != 0;
     };
     const bool ok = d2d::rules::larzuk_marker(record_made, 0, 184, 104, free_spot, make_at);
-    trace.push_back(ok ? "end 1 0x3000000" : "end none");
+    // The made byte comes from the record the port wrote, not from the callback's return: it is
+    // the oracle's 0x3000000 only when the record ends made and the call said it made him, and
+    // a record that changed without the call saying so (or the reverse) matches no oracle line.
+    const bool was_made = made != 0;
+    if (ok && record_made) trace.push_back("end 1 0x3000000");
+    else if (!ok && record_made == was_made) trace.push_back("end none");
+    else trace.push_back(std::string("end mismatch ok ") + (ok ? "1" : "0") + " record_made " + (record_made ? "1" : "0"));
     return trace;
 }
 
