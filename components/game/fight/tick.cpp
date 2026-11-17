@@ -753,8 +753,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->marks[k] = { skill->id, side[k].marked.level, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, side[k].marked.level), 5)) * 40 };
             }
         if (foe.mana_burn > 0) {                             // Mana Burn
-            actor->character.stats.values[d2d::d2s::kMana] = std::max<std::int64_t>(actor->character.stats.values[d2d::d2s::kMana] - (std::int64_t(foe.mana_burn) << 8), 0);
-            d2d::log::info("mana burn: -{} mana", foe.mana_burn);
+            actor->character.stats.values[d2d::d2s::kMana] = std::max<std::int64_t>(actor->character.stats.values[d2d::d2s::kMana] - std::int64_t(foe.mana_burn), 0);
+            d2d::log::info("mana burn: -{} mana", foe.mana_burn / 256);
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);

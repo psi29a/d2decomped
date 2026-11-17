@@ -2546,7 +2546,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (taken.hit) monprop_hit(monster, foe, false);
                 if (taken.hit && smite && (struck_with->result_flags & 8)) foe.knocked_from = std::pair{ unit.x, unit.y };
                 if (taken.hit && smite) foe.stun_ticks = std::max(foe.stun_ticks, d2d::rules::eval_calc(game_data.skills, struck_with->calc[1], {}, monster.skill, skill_level(game_data, monster, monster.skill)));
-                if (taken.hit && monster.mana_hi > 0) foe.mana_burn += rng.range(monster.mana_lo, monster.mana_hi);   // Mana Burn
+                if (taken.hit && monster.mana_hi > 0) foe.mana_burn += d2d::rules::mana_burn_fine(monster.mana_lo, monster.mana_hi, rng);   // Mana Burn: 256ths, 256 times the points
                 if (taken.hit) cursed_hit(game_data, monster, foes, foe);
                 foe.melee_by.push_back(monster.id);
                 if (taken.damage > 0) foe.damaged_by.push_back(monster.id);
