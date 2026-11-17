@@ -64,6 +64,11 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // ponytail: d2d keeps one curse and one other state; game.exe's other
 // states don't take each other's place.
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms) {
+    // A curse put on a unit with state 0x39 (Attract, a curse itself: d2d's curse slot) is refused,
+    // a re-cast of Attract included (FUN_0056e970 0x56ea40..0x56ea4a).
+    // ponytail: the curse states d2d keeps in its other slot (Taunt, Battle Cry, Cloak's) aren't refused yet.
+    if (&slot == &monster.curse && slot.skill >= 0 && now_ms < slot.until)
+        if (const auto* held = game_data.skills.get(slot.skill); held && held->auratarget == "attract") return false;
     if (slot.skill >= 0 && now_ms < slot.until && slot.skill == next.skill) {
         if (slot.level == next.level) { slot.until = next.until; return true; }
         if (slot.level > next.level) return false;
