@@ -510,8 +510,41 @@ struct ObjectRooms {
         }
         return false;
     }
+    // The seed (room1 +0x6c) of room `other` of this level, which FUN_005b2a00
+    // steps: this room's own; an up room's; one not up yet, stepped early
+    // (as its own populating starts from it); none (null) for a room that
+    // isn't coming up.
+    d2d::rules::Rng* seed_of(std::size_t other) {
+        if (other == index || !level_state) return &seed;
+        if (other < level_state->up.size() && level_state->up[other]) return &level_state->room_seeds[other];
+        if (std::ranges::find(level_state->order, other) == level_state->order.end()) return nullptr;
+        auto& early = level_state->early_seeds[other];
+        if (!early) early = d2d::rules::Rng{ other < level.room1_seeds.size() ? level.room1_seeds[other] : level.rooms[other].seed };
+        return &*early;
+    }
+    // FUN_00463740 on the near list of room `from`: the room holding subtile
+    // (x, y) of this level, none when it isn't one of them.
+    // ponytail: only this level's rooms (a neighbour level's near rooms aren't looked in).
+    [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
+        if (from >= level.rooms.size()) return std::nullopt;
+        const auto& source = level.rooms[from];
+        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5);
+        for (std::size_t i = 0; i < level.rooms.size(); ++i) {
+            const auto& held = level.rooms[i];
+            if (x < held.x * 5 || y < held.y * 5 || x >= (held.x + held.width) * 5 || y >= (held.y + held.height) * 5) continue;
+            const std::array<int, 4> rect{ held.x * 5, held.y * 5, held.width * 5, held.height * 5 };
+            if (i == from || std::ranges::contains(rects, rect)) return i;
+        }
+        return std::nullopt;
+    }
+    // The room FUN_005b2f20 is handed (FUN_00545340's room_out) while a marker
+    // makes its NPC; none: the room being populated.
+    std::optional<std::size_t> hand_room;
+    bool larzuk_made = false;                            // quest record 0x1f's +0x15 (FUN_00587840): once, for this level
     // FUN_005b2a00 round (x, y) out to radius (-1: the spot only), in the
-    // area being populated when `bound` (its rect and its id), else the room.
+    // area being populated when `bound` (its rect and its id), else the room
+    // it is handed (hand_room: a marker's, from FUN_00545340) or the one
+    // being populated.
     // A water search round a point (a leader's party or pack, radius > 0)
     // runs in the room holding that point (a water spot can be a room's
     // shared edge row, the next room's), on that room's seed: stepped early
@@ -521,17 +554,17 @@ struct ObjectRooms {
             std::size_t other = index;
             for (std::size_t i = 0; radius > 0 && i < level.rooms.size(); ++i)
                 if (const auto& holder = level.rooms[i]; x >= holder.x * 5 && x < (holder.x + holder.width) * 5 && y >= holder.y * 5 && y < (holder.y + holder.height) * 5) other = i;
-            if (other == index || !level_state) return water_spot(index, seed, out_x, out_y);
-            if (other < level_state->up.size() && level_state->up[other]) return water_spot(other, level_state->room_seeds[other], out_x, out_y);
-            if (std::ranges::find(level_state->order, other) == level_state->order.end()) return false;
-            auto& early = level_state->early_seeds[other];
-            if (!early) early = d2d::rules::Rng{ other < level.room1_seeds.size() ? level.room1_seeds[other] : level.rooms[other].seed };
-            return water_spot(other, *early, out_x, out_y);
+            auto* other_seed = seed_of(other);
+            return other_seed && water_spot(other_seed == &seed ? index : other, *other_seed, out_x, out_y);
         }
-        const bool in_area = bound && area.w > 0;
-        auto spawn_room = bounds(in_area);
+        const std::size_t handed = hand_room.value_or(index);
+        auto* room_seed = seed_of(handed);
+        if (!room_seed) return false;
+        const bool in_area = bound && area.w > 0 && handed == index;
+        const auto& held = level.rooms[handed];
+        auto spawn_room = handed == index ? bounds(in_area) : d2d::rules::SpawnRoom{ held.x * 5, held.y * 5, held.width * 5, held.height * 5, *room_seed };
         const bool ok = d2d::rules::monster_detail::place(spawn_room, x, y, radius, [&](int test_x, int test_y) { return (!in_area || area_id(test_x, test_y) == area.id) && fits(type, test_x, test_y); }, out_x, out_y);
-        seed = spawn_room.seed;
+        *room_seed = spawn_room.seed;
         return ok;
     }
     // FUN_0054dc40: 20 random spots of the area (else the room) where
@@ -857,6 +890,29 @@ struct ObjectRooms {
         stamp_shape(body.x, body.y, shape, 0x100, true);
         stamp_shape(body.x, body.y, shape - 1, 0x1000, true);
     }
+    // FUN_00545340 for a marker's NPC (size 2, mask 0x100, 100 rings) from the
+    // spot (x, y), the marker room `held` nearby: the spot moved and `held` the room
+    // holding it (FUN_00463740); false when none is found or no room near holds it.
+    bool marker_spot(std::size_t& held, int& x, int& y) const {
+        const auto spot = level.free_area(x, y, 2, 0x100, 100);
+        const auto holder = spot ? near_holder(held, spot->first, spot->second) : std::nullopt;
+        if (!holder) return false;
+        std::tie(x, y) = *spot;
+        held = *holder;
+        return true;
+    }
+    // FUN_005b2f20 for a marker's NPC (MonStats `row`) at (x, y) out to `radius`, in the
+    // room `held` it is handed: that room's bounds and seed (hand_room), then its party.
+    bool marker_make(int row, std::size_t held, int x, int y, int radius) {
+        hand_room = held;
+        int spot_x, spot_y;
+        const bool placed = put(row, x, y, radius, false, spot_x, spot_y);
+        hand_room.reset();
+        if (!placed) return false;
+        auto own = made(row, spot_x, spot_y);
+        party(row, own, spot_x, spot_y);
+        return true;
+    }
     // MonStats `hc_idx` made at the unit's spot (else within `retry`); an
     // NPC (Flavie, the towns') stands where it was made and walks the unit's
     // DS1 path (`walks`: a marker's unit (FUN_005b2f20) takes none).
@@ -927,45 +983,36 @@ struct ObjectRooms {
                 // His walk: ai/act3.cpp's DarkWanderer.
                 if (init == 43 && !wanderer_seen) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
                 // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
-                // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot
-                // round it (size 2, mask 0x100, 100 rings; none: no Larzuk); InitFn 68
+                // object 543, record 0x1f) Larzuk (0x1ff), rules::larzuk_marker: FUN_00545340's
+                // spot round it (size 2, mask 0x100, 100 rings; none: no Larzuk), then once,
+                // radius 5, in the room that search hands out (FUN_005b2f20); InitFn 68
                 // (LAB_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202):
                 // rules::marker_npc's spot (the marker's, else a step or more on) till he's
-                // gone (record +0x88).
-                // ponytail: made in this room's bounds and on its seed, not the near room's
-                // FUN_005b2f20 is handed; nor the records' "made" bytes. InitFns 66 / 67 / 69
-                // are Act 5's quests' (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
-                if (init == 71)
-                    if (const auto spot = level.free_area(unit.x, unit.y, 2, 0x100, 100)) {
-                        auto marker = unit; marker.x = spot->first; marker.y = spot->second;
-                        monster_or_npc(0x1ff, marker, 5, false);
-                    }
+                // gone (record +0x88), in the room each try is handed. Both are made in that
+                // room's bounds and on its seed (hand_room), not the marker room's.
+                // ponytail: the records' "made" bytes outlive no level here (larzuk_made is the
+                // level's, not the game's quest record 0x1f +0x15; Nihlathak's +0x88 / +0x92
+                // aren't kept), nor Larzuk's record +0x10 (his unit id) and +0x17 (FUN_00666120
+                // run once for him). InitFns 66 / 67 / 69 are Act 5's quests'
+                // (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
+                if (init == 71) {
+                    const auto row = game_data.mon_bin[0x1ff];
+                    if (spawns) leader = int(spawns->size());
+                    const auto free_spot = [&](std::size_t& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
+                    const auto make_at = [&](std::size_t held, int at_x, int at_y, int radius) { return marker_make(int(row), held, at_x, at_y, radius); };
+                    last_made.reset();
+                    if (d2d::rules::larzuk_marker(larzuk_made, room_at, unit.x, unit.y, free_spot, make_at)) npc_from(row, unit, false);
+                }
                 if (init == 68) {
                     const auto& marker_room = level.rooms[room_at];
                     const std::array<int, 4> rect{ marker_room.x * 5, marker_room.y * 5, marker_room.width * 5, marker_room.height * 5 };
                     const auto row = game_data.mon_bin[0x202];
                     if (spawns) leader = int(spawns->size());
-                    using RoomSpot = std::pair<int, int>;                                       // a room, as a subtile it holds
-                    const auto free_spot = [&](RoomSpot&, int& at_x, int& at_y) {
-                        const auto spot = level.free_area(at_x, at_y, 2, 0x100, 100);
-                        if (spot) std::tie(at_x, at_y) = *spot;
-                        return spot.has_value();
-                    };
-                    const auto near_room = [&](const RoomSpot& from, int at_x, int at_y) -> std::optional<RoomSpot> {
-                        const auto rects = missile_rooms(game_data, level, float(from.first) / 5, float(from.second) / 5);
-                        if (std::ranges::any_of(rects, [&](const auto& box) { return at_x >= box[0] && at_y >= box[1] && at_x < box[0] + box[2] && at_y < box[1] + box[3]; }))
-                            return RoomSpot{ at_x, at_y };
-                        return std::nullopt;
-                    };
-                    const auto make_at = [&](const RoomSpot&, int at_x, int at_y, int retry) {
-                        int spot_x, spot_y;
-                        if (!put(int(row), at_x, at_y, retry, false, spot_x, spot_y)) return false;
-                        auto own = made(int(row), spot_x, spot_y);
-                        party(int(row), own, spot_x, spot_y);
-                        return true;
-                    };
+                    const auto free_spot = [&](std::size_t& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
+                    const auto near_room = [&](std::size_t from, int at_x, int at_y) { return near_holder(from, at_x, at_y); };
+                    const auto make_at = [&](std::size_t held, int at_x, int at_y, int retry) { return marker_make(int(row), held, at_x, at_y, retry); };
                     last_made.reset();
-                    if (d2d::rules::marker_npc(RoomSpot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
+                    if (d2d::rules::marker_npc(room_at, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made

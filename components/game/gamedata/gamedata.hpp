@@ -439,7 +439,8 @@ struct GameData {
     // A mode's timing, all the World needs of an animation: its COF name
     // ("AITW1HS"), animdata.d2's rate (256 = a frame per tick), frames per
     // direction and event frame (the hit), the COF's own rate and frames
-    // for modes animdata lacks, and its directions (0: no such mode).
+    // for modes animdata lacks (game.exe's default record instead:
+    // deviations.md approximation 19), and its directions (0: no such mode).
     struct AnimTiming {
         std::string   name;
         std::uint32_t speed = 0, frames = 0;
@@ -503,11 +504,14 @@ struct GameData {
         int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         bool curse = false;                // States.txt curse (bit set 11, game +0xf8): its stat list is flagged 0x20, one such at a time (FUN_0056e970)
         bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
+        int row = -1;                      // its States.txt row, the state id
+        bool aura = false;                 // States.txt aura (bit 1, list +0xd0, FUN_0063a210): overlay1 / 2 rotate as kind 8 (FUN_004d9920)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
         int gfx_type = 0, gfx_class = 0;   // gfxtype / gfxclass (+0x2d / +0x2e): 2 looks and moves as that player class (FUN_00645270)
         int on_sound = 0, off_sound = 0;   // onsound / offsound (+0x26 / +0x28): on the unit as it comes on (FUN_004d9b20) / goes (FUN_004d9c30)
+        int set_func = 0, rem_func = 0;    // setfunc / remfunc: the client's as it comes on (table 0x72a690) / goes (0x72a710)
         // The char panel's colours (rules::PanelColour bits): armblue, rfblue,
         // rcblue, rlblue, rpblue, attblue, damblue and their reds.
         std::uint8_t panel_blue = 0, panel_red = 0;
