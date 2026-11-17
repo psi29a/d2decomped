@@ -127,6 +127,37 @@ int main(int argc, char** argv) try {
         assert((regroup() == std::vector<std::uint32_t>{ 3, 1, 2 }));
         assert((regroup() == std::vector<std::uint32_t>{ 2, 1, 3 }));
     }
+    // NetGame's PartyRoster: the records are the roster's own, apart from the world's units, so a
+    // player whose unit the host removes (0x0a, FUN_0045cc10) keeps its row, party and place
+    // until 0x5c. join puts a new record first (FUN_0047a6f0); a known one stays where it is.
+    {
+        d2d::client::PartyRoster roster;
+        const auto order = [&roster] {
+            std::vector<std::uint32_t> out;
+            for (const auto& record : roster.records) out.push_back(record.id);
+            return out;
+        };
+        for (const std::uint32_t id : { 1u, 2u, 3u }) {
+            auto& record = roster.join(id);
+            record.name = std::string(1, char('a' + id));
+            record.party = id == 2 ? 0xffff : 4;
+            roster.regroup(99, false);
+        }
+        assert((order() == std::vector<std::uint32_t>{ 1, 3, 2 }));    // party 4 ("b", "d"), then no party
+        roster.join(3).level = 9;                                         // a known record: kept, not moved
+        assert((order() == std::vector<std::uint32_t>{ 1, 3, 2 }) && roster.find(3)->level == 9);
+        roster.find(2)->party = 4;                                        // 0x8d, then the regroup
+        roster.regroup(99, false);
+        assert((order() == std::vector<std::uint32_t>{ 1, 2, 3 }));
+        roster.regroup(99, false);                                        // nothing comes from the units: the same rows
+        assert((order() == std::vector<std::uint32_t>{ 1, 2, 3 }) && roster.find(2)->name == "c" && roster.find(2)->party == 4);
+        roster.join(99).party = 0xffff;                                   // ours: no party, so our record first
+        roster.regroup(99, false);
+        assert((order() == std::vector<std::uint32_t>{ 99, 1, 2, 3 }));
+        roster.leave(2);                                                  // 0x5c
+        roster.regroup(99, false);
+        assert((order() == std::vector<std::uint32_t>{ 99, 1, 3 }) && roster.find(2) == nullptr);
+    }
     std::puts("party order ok");
     return 0;
 } catch (const std::exception& error) {

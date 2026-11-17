@@ -93,4 +93,42 @@ struct PartyPanel {
     void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<Row>& rows, const Own& own, int mouse_x, int mouse_y) const;
 };
 
+// The Party roster's list (0x7bb5c0, from its head; party.md "The roster"): its records are its
+// own, apart from the world's units. S->C 0x5b makes one (FUN_0047a6f0) and 0x5c frees it
+// (0x47a8b0). A unit's 0x0a (FUN_0045cc10) only unlinks and frees the unit (FUN_00465e80,
+// FUN_00465870), so a player out of sight keeps its record.
+struct PartyRoster {
+    // A record (0x84 bytes, zeroed when made): +0x10 id, +0x66 name, +0x1c class, +0x20 level,
+    // +0x22 party (0xffff none), +0x24 area, +0x30 the party button's state, our relation flags
+    // toward it (its +0x34 nodes), +0x18 sort key.
+    struct Record { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = 0xffff, area = 0, relation = 0, flags = 0, sort_key = 0; };
+    std::vector<Record> records;
+    [[nodiscard]] Record* find(std::uint32_t id) {
+        const auto found = std::ranges::find(records, id, &Record::id);
+        return found == records.end() ? nullptr : &*found;
+    }
+    [[nodiscard]] const Record* find(std::uint32_t id) const {
+        const auto found = std::ranges::find(records, id, &Record::id);
+        return found == records.end() ? nullptr : &*found;
+    }
+    // 0x5b (FUN_0047a6f0): a new record, zeroed, at the list's head; one already there is kept.
+    Record& join(std::uint32_t id) {
+        if (auto* known = find(id)) return *known;
+        return *records.insert(records.begin(), Record{ .id = id });
+    }
+    void leave(std::uint32_t id) { std::erase_if(records, [id](const Record& record) { return record.id == id; }); }
+    // FUN_00479ab0 on the records: our own party from our own record (FUN_004792e0), else 0xffff.
+    void regroup(std::uint32_t own_id, bool by_sort_key) {
+        const auto* own = find(own_id);
+        std::vector<PartyPanel::Row> rows;
+        rows.reserve(records.size());
+        for (const auto& record : records) rows.push_back({ .id = record.id, .name = record.name, .party = record.party, .sort_key = record.sort_key });
+        PartyPanel::regroup(rows, own_id, own ? own->party : 0xffff, by_sort_key);
+        std::vector<Record> sorted;
+        sorted.reserve(records.size());
+        for (const auto& row : rows) sorted.push_back(std::move(*std::ranges::find(records, row.id, &Record::id)));
+        records = std::move(sorted);
+    }
+};
+
 }  // namespace d2d::client

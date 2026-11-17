@@ -181,8 +181,9 @@ auto Town::clear_screen() -> void {
 // The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
 // it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
 // The Party screen's roster (FUN_0049a640): the other players of the
-// joined game, in the roster list's order, which NetGame regroups as game.exe
-// does (NetGame::roster, PartyPanel::regroup).
+// joined game, from the roster's own records in the list's order, which NetGame
+// regroups as game.exe does (NetGame::roster, PartyRoster::regroup). A player
+// whose unit the host removed (0x0a) keeps its row until 0x5c.
 auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
@@ -200,13 +201,10 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
             return rows;
         }
         if (!net_game) return party_preview;
-        for (const auto id : net_game->roster) {
-            const auto found = net_game->units.find(std::uint64_t(id));
-            if (found == net_game->units.end()) continue;
-            const auto& unit = found->second;
-            if (unit.type != 0 || unit.id == net_game->self_id || unit.name.empty()) continue;
-            PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0, unit.sort_key };
-            row.area = area_name(unit.area);
+        for (const auto& record : net_game->roster.records) {
+            if (record.id == net_game->self_id || record.name.empty()) continue;
+            PartyPanel::Row row{ record.id, record.name, record.cls, record.level, record.party, record.relation, record.flags, {}, (record.flags & 8) != 0, record.sort_key };
+            row.area = area_name(record.area);
             rows.push_back(std::move(row));
         }
         return rows;

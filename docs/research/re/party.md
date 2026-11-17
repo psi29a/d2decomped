@@ -499,16 +499,20 @@ uv run python party_regroup.py inc 2000 7 | diff - ../../tests/party_regroup_cas
 
 - Inside a group the rows come by name (`FUN_004795f0`); with bit 1 of the
   game flags set game.exe sorts by record `+0x18`, most first.
-  `PartyPanel::order(by_sort_key)` does: NetGame keeps 0x65's word on the
-  player it names (a player it doesn't know drops it, as `FUN_004792e0`
+  `PartyPanel::regroup(by_sort_key)` does: NetGame keeps 0x65's word on the
+  record it names (a player with no record drops it, as `FUN_004792e0`
   finding no record does) and 0x01's flags (`0x45c8b0` passes the u32 at
-  +2 in ECX to `FUN_0047a9a0`), and `Town::party_rows` sorts by the word
-  when bit 1 is set (`d2gs::s2c::roster_key` / `roster_by_sort_key`). The
-  rows come in the roster list's order: NetGame keeps the list
-  (`NetGame::roster`: 0x5b puts a new player first, 0x5c takes one out) and
+  +2 in ECX to `FUN_0047a9a0`), and sorts by the word when bit 1 is set
+  (`d2gs::s2c::roster_key` / `roster_by_sort_key`). The rows come in the
+  roster list's order: NetGame keeps the list (`NetGame::roster`, a
+  `PartyRoster`: 0x5b puts a new record first, 0x5c takes one out) and
   regroups it at each event of the table above (`regroup_roster`,
-  `PartyPanel::regroup`), so ties trade places as in game.exe. Not kept: a
-  record's `+0x38` id list (0x75's skip and `FUN_004792e0`'s second match).
+  `PartyRoster::regroup`), so ties trade places as in game.exe. Its records
+  are its own, apart from the world's units, as game.exe's are: S->C 0x0a
+  (`FUN_0045cc10`, row `0x711548`) only unlinks and frees the unit
+  (`FUN_00465e80`, `FUN_00465870`), so a player out of sight keeps its row
+  until 0x5c. Not kept: a record's `+0x38` id list (0x75's skip and
+  `FUN_004792e0`'s second match), its life (`+0x14`), 0x75's `+0x30`.
 - Area names come from 0x7f's level id.
 - A party member's life bar (`FUN_0049a460`) isn't drawn.
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore
