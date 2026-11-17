@@ -161,8 +161,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 if (!monster.fx_at) monster.fx_at = now_ms + 4 * 40;
                 else if (now_ms >= monster.fx_at) {
                     monster.fx_done = true;
-                    // Poisondead (FUN_005a3800 / FUN_005a2c20): corpsepoisoncloud (155) on its spot at its level.
-                    // ponytail: poisons each foe within 0.4 cells once; srvdofunc 3's own area and ticks untraced.
+                    // Poisondead (FUN_005a3800 / FUN_005a2c20): corpsepoisoncloud (155) on its spot at its level,
+                    // a standing cloud (srvdofunc 3, CollideKill 0): its Size 1 footprint, one foe a frame, never
+                    // the one it struck last (missiles_update's last_unit_rule; tools/emu/standing_rehit.py).
                     if (mummy) {
                         d2d::log::info("{} leaves a poison cloud", monster.npc.name);
                         boss_missile(monster, "corpsepoisoncloud", 0, 0, std::make_shared<std::vector<int>>(), now_ms, mlvl);

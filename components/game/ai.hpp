@@ -1107,18 +1107,29 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             }
             return false;
         }
+        // A LastCollide cloud (rules' last_unit_rule) strikes one foe a frame, never the one it struck
+        // last (FUN_005a8730, FUN_0064a400): two in it take turns. Spent only with CollideKill: each hit
+        // function returns 3 (end) for it, else 2 (FUN_005adf10).
+        const bool last_unit = missile.info && missile.info->last_unit_rule();
+        if (last_unit && missile.last_hit_ms == now_ms) return false;
         for (auto& foe : foes) {
             if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : !standing_struck(missile, foe.x, foe.y, foe.size))) continue;
-            const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
-            if (std::ranges::contains(*missile.struck, key)) continue;
-            missile.struck->push_back(key);
+            if (last_unit) {
+                if (missile.last_hit == foe.id) continue;
+                missile.last_hit = foe.id;
+                missile.last_hit_ms = now_ms;
+            } else {
+                const int key = -100 - int(&foe - foes.data());     // a ring's missiles strike each foe once
+                if (std::ranges::contains(*missile.struck, key)) continue;
+                missile.struck->push_back(key);
+            }
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
             foe.take(taken);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
             if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);
             if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
             if (missile.info && missile.info->return_fire && missile.owner >= 0) foe.fired_by.push_back(missile.owner);
-            return true;
+            return !missile.info || missile.info->collide_kill;
         }
         return false;
     };
