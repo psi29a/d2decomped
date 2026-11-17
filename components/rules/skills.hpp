@@ -554,6 +554,16 @@ inline constexpr bool client_start_succeeds(int clt_st_func, const ClientStartCo
     return true;
 }
 
+// Charge's FUN_005cf6b0 reads stat 0x43 after RN's FUN_00620e80 has added
+// RunVelocity * 100 / WalkVelocity - 100 and chill has added -50. It floors
+// that whole stat at 50, adds Param1, then uses FUN_00483360 MulDiv on the
+// class's 8.8 RunVelocity. The result is the path velocity in 8.8 units.
+inline int charge_velocity(int walk_velocity, int run_velocity, int velocity_percent, bool chilled, int param1) {
+    const int run_bonus = walk_velocity > 0 ? run_velocity * 100 / walk_velocity - 100 : 0;
+    const int velocity = std::max(100 + velocity_percent + run_bonus + (chilled ? -50 : 0), 50);
+    return mul_div(run_velocity << 8, velocity + param1, 100);
+}
+
 struct SkillTables {
     std::vector<Skill> rows;               // by Id
     std::unordered_map<std::string, int> by_name;

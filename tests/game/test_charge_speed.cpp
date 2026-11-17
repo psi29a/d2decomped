@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // Charge's run (FUN_005cf6b0, 0x5cf833..0x5cf864): RunVelocity x
-// (max(stat 0x43, 50) + Param1) / 100, the player's stat 0x43 100 + its
-// velocitypercent bonuses.
+// (max(stat 0x43, 50) + Param1) / 100, including FUN_00620e80's integer
+// run bonus and chill's -50.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -48,16 +48,20 @@ int main() try {
 
     const auto* charge = data->skills.get(data->skills.by_name.at("Charge"));
     assert(charge);
-    const auto speed_at = [&](int bonus) {
+    const auto speed_at = [&](int bonus, bool chilled) {
         hero.player_combat.velocity_pct = bonus;
+        hero.chilled = chilled ? 3000 * kTickMs : 0;
         world.fight.start_move(*charge, 2000 * kTickMs);
         return hero.smove.speed;
     };
-    const float plain = speed_at(0), quick = speed_at(40), slowed = speed_at(-80);
-    const float par1 = float(charge->par[0]);
-    assert(plain > 0 && std::abs(quick / plain - (140 + par1) / (100 + par1)) < 1e-4f);
-    assert(std::abs(slowed / plain - (50 + par1) / (100 + par1)) < 1e-4f);   // at least 50
-    std::printf("OK: Charge runs at its velocitypercent, at least 50\n");
+    const auto expected = [&](int bonus, bool chilled) {
+        const int velocity = d2d::rules::charge_velocity(data->walk_velocity[kPaladin], data->run_velocity[kPaladin], bonus, chilled, charge->par[0]);
+        return cells_per_sec(float(velocity) / 256.f);
+    };
+    for (const int bonus : { -200, -80, 0, 40 })
+        for (const bool chilled : { false, true })
+            assert(std::abs(speed_at(bonus, chilled) - expected(bonus, chilled)) < 1e-6f);
+    std::printf("OK: Charge includes its integer run bonus and chill, at least 50\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

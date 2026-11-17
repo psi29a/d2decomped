@@ -370,10 +370,11 @@ auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             actor->pmode_until = ~0u;
             actor->whirl_next = now_ms;
         } else if (skill.srvdofunc == ServerDoFunction::kCharge) {
-            // FUN_005cf6b0 (0x5cf833..0x5cf864): MulDiv(RunVelocity << 8, max(stat 0x43, 50) + Param1, 100);
-            // a player's stat 0x43 is 100 + its velocitypercent bonuses.
-            const int velocity = std::max(100 + actor->player_combat.velocity_pct, 50);
-            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(game_data->run_velocity[cls])) * float(velocity + skill.par[0]) / 100.f, true, false };
+            // FUN_005cf6b0 (0x5cf833..0x5cf864): the 8.8 MulDiv after
+            // FUN_00620e80's run bonus and the chill state's -50.
+            const int velocity = d2d::rules::charge_velocity(game_data->walk_velocity[cls], game_data->run_velocity[cls], actor->player_combat.velocity_pct,
+                                                             now_ms < actor->chilled, skill.par[0]);
+            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(velocity) / 256.f), true, false };
             actor->seq_loop = true;                                 // the run starts over until it reaches (FUN_005cf900)
             actor->pmode_until = ~0u;
         }
