@@ -1118,6 +1118,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // The right button's: only a press the field took goes on while held (FUN_0044c180 sets
         // 0x7a0654 from the click map's answer; FUN_0044c2c0 sends held frames only while it's set).
         right_hold = hand_hold::right_latch(right_hold, mouse.rpress_this_frame, mouse.rdown, over_ui || press_on_ui);
+        if (have_world) {
+            const int hovered = hovered_monster();
+            const int hovered_live = hovered >= 0 && view.monsters[std::size_t(hovered)].alive() ? view.monsters[std::size_t(hovered)].id : -1;
+            click_target = hand_hold::click_target(click_target, (mouse.press_this_frame && !press_on_ui) || (mouse.rpress_this_frame && right_hold), hovered_live);
+        }
         if (touch_enabled && last_device == touch::LastDevice::Touch
             && (touch_item_drag || (pad_field() && !touch_pointer.active))) {
             mouse.down = false;

@@ -86,13 +86,9 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {
-            const int attacked = view.monster(view.attack);
-            switch (hand_hold::held(left, attacked >= 0 && view.monsters[std::size_t(attacked)].alive(), function_held(keys::kStandStill))) {
-                case hand_hold::Held::kLatched: {
-                    const int hand_skill = left ? skillbar.left : skillbar.right, hand_item = left ? skillbar.left_item : skillbar.right_item;
-                    out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, left, view.attack_skill == hand_skill ? hand_item : -1 });
-                    return true;
-                }
+            const int target = view.monster(click_target);
+            switch (hand_hold::held(left, target >= 0 && view.monsters[std::size_t(target)].alive(), function_held(keys::kStandStill))) {
+                case hand_hold::Held::kLatched: use_hand(left, click_target); return true;
                 case hand_hold::Held::kSkill: use_hand(left, -1); return true;
                 case hand_hold::Held::kWalk:  return false;
             }

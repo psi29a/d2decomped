@@ -15,7 +15,7 @@
 using namespace d2d::client::hand_hold;
 
 int main() try {
-    // A latched attack goes on for either hand, Stand Still or not.
+    // A live click target: either hand's own skill goes at it, Stand Still or not.
     for (const bool left : { true, false })
         for (const bool stand_still : { true, false }) {
             const Held latched = held(left, true, stand_still);
@@ -41,6 +41,14 @@ int main() try {
     assert(right_latch(false, true, false, false));       // a tap inside one frame: the press still counts this frame
     // A modal (Help, Configure Controls) clears the button: the latch goes with it.
     assert(!right_latch(true, false, false, false));
+
+    // 0x7a6a94, one target for both buttons: a field press takes the live monster under the
+    // cursor or none; held frames and refused presses leave it.
+    constexpr int kOld = 7, kHovered = 12, kNone = -1;
+    assert(click_target(kOld, true, kHovered) == kHovered);
+    assert(click_target(kOld, true, kNone) == kNone);      // a press on the ground clears it (FUN_00466fe0)
+    assert(click_target(kOld, false, kHovered) == kOld);   // a held frame over another monster keeps it
+    assert(click_target(kOld, false, kNone) == kOld);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_hand_hold: %s\n", error.what());

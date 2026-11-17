@@ -289,7 +289,11 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   0x9fd where the press has 0x9dd), the same byte +0x14 / flag 0x80 rule and
   `FUN_004625b0`. It has no walk branch: a held frame `FUN_00462930` lets
   through hands the right skill to `FUN_004625b0`, at the cursor or the
-  latched unit. d2d:
+  click's target. A held frame reads its hand's skill afresh
+  (`FUN_00620190` left, `FUN_006201d0` right), never the press's; the target
+  is one for both buttons, `0x7a6a94`: a left or right press sets it
+  (`FUN_00467a70`) or, with nothing under the cursor, clears it
+  (`FUN_00466fe0`), and `FUN_00467a10` checks it each frame. d2d:
   `apps/d2d/hand_hold.hpp`, used by `Town::input` for both hands.
 
 Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
