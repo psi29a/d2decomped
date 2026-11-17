@@ -216,6 +216,8 @@ struct Town {
     bool inv_close_down = false, char_close_down = false, tree_close_down = false;   // the inventory's / character panel's close button held
     bool stash_close_down = false;                           // the stash's close button held (0x7bce38)
     bool cube_close_down = false;                            // the Cube's close button held (0x7bce40)
+    bool right_hold = false;                                 // the right press reached the field: its hold casts (0x7a0654, FUN_0044c180 / FUN_0044c2c0)
+    int click_target = -1;                                   // the monster a field press of either button took, for held frames (0x7a6a94; hand_hold.hpp)
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     std::uint32_t warp_click_until = 0;                      // a warp's click is refused till then (0x7a04c8, FUN_00461dc0)
     std::uint32_t held_walk_tick = 0;                        // the tick the last ground move went (0x7a5268, FUN_004623c0)
