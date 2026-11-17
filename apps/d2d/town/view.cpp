@@ -401,6 +401,24 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     auto lamp = [&](std::uint64_t key, float x, float y, int radius, bool shadowed, int first = -1) {
         stamp8(x, y, eased(key, radius, first < 0 ? radius : first), shadowed);
     };
+    // Type 2 (objects', FUN_004bc580): the shade is kept from the light's first
+    // stamp (FUN_004750f0, +0x2c) and made again only for a new radius
+    // (FUN_004755a0, LAB_004755ff), read off the level's collision (0x22,
+    // FUN_0064cb30), so a door or a gate that changes later doesn't re-shade it.
+    // `made`: the unit's making (a portal slot holds a new one), 0 for one that's always there.
+    struct Shade { const Level* level = nullptr; int radius8 = 0; std::uint32_t made = 0, seen = 0; std::vector<int> square; };
+    static std::unordered_map<std::uint64_t, Shade> shades;      // by light, as eases
+    auto lamp_static = [&](std::uint64_t key, float x, float y, int radius8, std::uint32_t made = 0) {
+        if (radius8 <= 0) return;
+        const int light_x = int(x * 40), light_y = int(y * 40);
+        auto& shade = shades[key];
+        if (shade.level != view.level || shade.radius8 != radius8 || shade.made != made)
+            shade = { view.level, radius8, made, now, d2d::rules::LightGrid::shade_square(light_x, light_y, radius8, [&](int subtile_x, int subtile_y) {
+                          return view.level->blocked((float(subtile_x) + 0.5f) / 5, (float(subtile_y) + 0.5f) / 5, 0x22); }) };
+        shade.seen = now;
+        lighting.stamps.push_back({ light_x, light_y, radius8, true });
+        lighting.grid.stamp_shaded(light_x, light_y, radius8, 255, shade.square);
+    };
     // A unit's light sits at its position + 4 eighths (FUN_00474160: (x >> 13) + 4);
     // objects' cells already hold that half subtile.
     constexpr float kHalf = 0.1f;                                   // 4 eighths of a subtile, in cells
@@ -415,13 +433,21 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
         const auto& npc = view.level->npcs[i];
         const auto* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
         if (state && state->hidden) continue;
-        lamp(2ull << 32 | i, state ? state->x : npc.x, state ? state->y : npc.y, lit(npc, state ? state->mode : std::string_view{}), true);
+        const std::uint64_t key = 2ull << 32 | i;
+        const int lit_now = lit(npc, state ? state->mode : std::string_view{});
+        lamp_static(key, state ? state->x : npc.x, state ? state->y : npc.y, eased(key, lit_now, lit_now));
     }
     for (const auto& neighbour : view.level->nearby)                  // the torches over the level's edge
-        for (const auto& npc : neighbour.level->npcs) stamp(npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), lit(npc, {}), true);
+        for (std::size_t i = 0; i < neighbour.level->npcs.size(); ++i) {
+            const auto& npc = neighbour.level->npcs[i];
+            lamp_static(7ull << 56 | std::uint64_t(neighbour.level->id) << 32 | i, npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), std::min(lit(npc, {}), 18) * 8);
+        }
     for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, false);
-    for (const auto& portal : view.portals)                        // its mode's Lit (Lit1 while it opens, then Lit2 ...)
-        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(portal_look(scene, portal.which).lit[std::size_t(d2d::game::mode_index(portal_mode(scene, portal, now).first))]) >> 1, true);
+    for (const auto& portal : view.portals) {                      // its mode's Lit (Lit1 while it opens, then Lit2 ...)
+        const auto key = 5ull << 32 | std::uint32_t(portal.which);
+        const int lit_now = int(portal_look(scene, portal.which).lit[std::size_t(d2d::game::mode_index(portal_mode(scene, portal, now).first))]) >> 1;
+        lamp_static(key, portal.x, portal.y, eased(key, lit_now, lit_now), portal.born);
+    }
     for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     // States' overlays light their unit (Overlay.txt: InitRadius growing to
@@ -438,6 +464,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     for (const auto& each_unit : units) overs(each_unit, each_unit.x, each_unit.y);
     if (player_look) overs(*player_look, player_x, player_y);
     std::erase_if(eases, [&](const auto& entry) { return now - entry.second.seen > 2000; });
+    std::erase_if(shades, [&](const auto& entry) { return now - entry.second.seen > 2000; });
     return lighting;
 }
 
