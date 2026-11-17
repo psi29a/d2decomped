@@ -10,6 +10,7 @@
 #include "ctrl_click.hpp"
 #include "cursor.hpp"
 #include "gamepad_map.hpp"
+#include "hand_hold.hpp"
 #include "ingame.hpp"
 #include "item_use.hpp"
 #include "keyconfig.hpp"
@@ -1114,6 +1115,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
+        // The right button's: only a press the field took goes on while held (FUN_0044c180 sets
+        // 0x7a0654 from the click map's answer; FUN_0044c2c0 sends held frames only while it's set).
+        right_hold = hand_hold::right_latch(right_hold, mouse.rpress_this_frame, mouse.rdown, over_ui);
         if (touch_enabled && last_device == touch::LastDevice::Touch
             && (touch_item_drag || (pad_field() && !touch_pointer.active))) {
             mouse.down = false;

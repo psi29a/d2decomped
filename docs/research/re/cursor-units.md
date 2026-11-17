@@ -277,8 +277,25 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   (`LAB_00462671`) and the same `FUN_004621d0` re-pick. There is no
   separate rule for a converted monster on the right button.
 
+- Each button has a press, a held and a release handler, and each calls
+  `FUN_00462d00`: left `FUN_0044bf40` (state 4) / `FUN_0044c000` (8) /
+  `FUN_0044c060` (0x10), right `FUN_0044c180` / `FUN_0044c2c0` /
+  `FUN_0044c370`. The right press stores the click map's answer in
+  `0x7a0654` (not set for a press on the left or right panel, the
+  `FUN_0045ae90` checks), and the right held handler calls the click map
+  each frame only while `0x7a0654` is set. The click map's kind 4 is
+  `FUN_00462c20`, the held twin of the right press's `FUN_00462ba0`: the
+  same `FUN_00462930` gate, the right skill (`FUN_006201d0`, `Player.cpp`
+  0x9fd where the press has 0x9dd), the same byte +0x14 / flag 0x80 rule and
+  `FUN_004625b0`. It has no walk branch: a held frame `FUN_00462930` lets
+  through hands the right skill to `FUN_004625b0`, at the cursor or the
+  latched unit. d2d:
+  `apps/d2d/hand_hold.hpp`, used by `Town::input` for both hands.
+
 Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
-`FUN_00462a20` and `FUN_00462d00` itself (read from the code only).
+`FUN_00462a20` and `FUN_00462d00` itself (read from the code only; that
+kind 4 is the held frame is read from `FUN_00462c20` matching the press, as
+the callers pass the kind through registers the decompiler loses).
 
 ## The label helpers of `FUN_00454f30`
 

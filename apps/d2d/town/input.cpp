@@ -10,6 +10,7 @@
 #include "cursor.hpp"
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
+#include "hand_hold.hpp"
 #include "hold_confirm.hpp"
 #include "identify_prompt.hpp"
 #include "ingame.hpp"
@@ -71,26 +72,43 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             return out;
         }
         if (over_ui) return out;
-        if (touch_enabled && last_device == touch::LastDevice::Touch) {
-            // Touch stick and ground taps own locomotion; a leftover mouse packet must not click-to-walk.
-            if (!(pad_field() && !touch_pointer.active)) return out;
-            const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
-            const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
-            const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
-            const int hovered_monster_index = hovered_monster();
-            const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
-            if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {
-                if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
-            } else if (mouse.rpress_this_frame) {
-                out.push_back(cmd::UseSkill{ skillbar.right, world_x, world_y, live ? view.monsters[std::size_t(hovered_monster_index)].id : -1, false, skillbar.right_item });
-            }
-            return out;
-        }
         // Screen -> world: invert the iso projection around the player,
         // who sits at (kW/2, kViewY).
         const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
         const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
         const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
+        const int hovered_monster_index = hovered_monster();
+        const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
+        // A hand's skill at the cursor, at `unit` or the ground (-1): the press's FUN_004629a0 (left) /
+        // FUN_00462ba0 (right), and a held frame's FUN_00462a20 / FUN_00462c20, all into FUN_004625b0.
+        const auto use_hand = [&](bool left, int unit) {
+            out.push_back(cmd::UseSkill{ left ? skillbar.left : skillbar.right, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item });
+        };
+        // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
+        const auto hold_hand = [&](bool left) {
+            const int attacked = view.monster(view.attack);
+            switch (hand_hold::held(left, attacked >= 0 && view.monsters[std::size_t(attacked)].alive(), function_held(keys::kStandStill))) {
+                case hand_hold::Held::kLatched: {
+                    const int hand_skill = left ? skillbar.left : skillbar.right, hand_item = left ? skillbar.left_item : skillbar.right_item;
+                    out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, left, view.attack_skill == hand_skill ? hand_item : -1 });
+                    return true;
+                }
+                case hand_hold::Held::kSkill: use_hand(left, -1); return true;
+                case hand_hold::Held::kWalk:  return false;
+            }
+            return false;
+        };
+        // The right press: Resurrect (co-op) takes the body nearest the click; any other skill goes at the cursor.
+        const auto right_press = [&] {
+            if (skillbar.right != kResurrectSkill) use_hand(false, live ? view.monsters[std::size_t(hovered_monster_index)].id : -1);
+            else if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
+        };
+        if (touch_enabled && last_device == touch::LastDevice::Touch) {
+            // Touch stick and ground taps own locomotion; a leftover mouse packet must not click-to-walk.
+            if (!(pad_field() && !touch_pointer.active)) return out;
+            if (mouse.rpress_this_frame) right_press();
+            return out;
+        }
         // A walk on the ground (FUN_004623c0): in whole subtiles from the unit's,
         // the spot goes out to a least distance (3 a press, 4 held, 5 running;
         // rules::click_spot), and none goes on the unit's own subtile. The run
@@ -110,29 +128,20 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             if (mouse.press_this_frame || mouse.down) ground_move(mouse.press_this_frame, out);
             return out;
         }
-        const int hovered_monster_index = hovered_monster();
-        const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
         if (mouse.press_this_frame) {
-            if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true, skillbar.left_item });
+            if (live) use_hand(true, view.monsters[std::size_t(hovered_monster_index)].id);
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
             else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2000 - int(d2d::game::World::kGamePortals)) || (hovered_npc <= -3000 && hovered_npc > -3016)
                      || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
-            else if (function_held(keys::kStandStill)) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });   // 0x7a0664: no step, the skill there
+            else if (function_held(keys::kStandStill)) use_hand(true, -1);   // 0x7a0664: no step, the skill there
             else ground_move(true, out);
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
-            if (const int attacked = view.monster(view.attack); attacked >= 0 && view.monsters[std::size_t(attacked)].alive())
-                out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, true, view.attack_skill == skillbar.left ? skillbar.left_item : -1 });
-            else if (function_held(keys::kStandStill))
-                out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });
-            else if (!hold_interact)                         // with an interact queued the hold does nothing (FUN_00462a20, LAB_00462b1d)
+            if (!hold_hand(true) && !hold_interact)          // with an interact queued the hold does nothing (FUN_00462a20, LAB_00462b1d)
                 ground_move(false, out);
         }
-        if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {   // co-op: the body nearest the click
-            if (const auto* body = body_near(world_x, world_y, 1.5f)) out.push_back(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
-        } else if (mouse.rpress_this_frame) {
-            out.push_back(cmd::UseSkill{ skillbar.right, world_x, world_y, live ? view.monsters[std::size_t(hovered_monster_index)].id : -1, false, skillbar.right_item });
-        }
+        if (mouse.rpress_this_frame) right_press();
+        else if (mouse.rdown && right_hold && skillbar.right != kResurrectSkill) hold_hand(false);
         return out;
     }
 

@@ -997,7 +997,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_LMASK)) { mouse.down = false; mouse.release_this_frame = true; }
                     if (live && down && !(event.type == SDL_EVENT_KEY_DOWN && event.key.repeat)) {
                         if (click == keys::kClickAttack) { mouse.down = true; mouse.press_this_frame = true; }
-                        else mouse.rpress_this_frame = true;
+                        else mouse.rpress_this_frame = mouse.rdown = true;
                     }
                     if (live || !down) continue;
                 }
@@ -1008,6 +1008,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                               backspace_this_frame, keys_this_frame, quit);
             if (keep_down) { mouse.down = true; mouse.release_this_frame = false; }   // an Attack / Use key still holds it
         }
+        // The right button is held while a source holds it: the physical button or a Right-hand Skill key.
+        if (mouse.rdown && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK) && !(town.click_keys_on && std::ranges::any_of(town.click_keys[keys::kClickSkill], key_held)))
+            mouse.rdown = false;
         // A partner's roster name and the keyboard's Enter (Steam's keyboard
         // on a Deck): their character is made, and the Enter is theirs, not
         // player 1's (character select's Enter plays, the game's opens chat).
