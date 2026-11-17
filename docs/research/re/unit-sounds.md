@@ -211,8 +211,47 @@ weaponsnd.
   only after the authoritative server path or in-reach swing succeeded, so
   their live monster has the skill/path prerequisites and is not the local
   player special case.
-- Not ported: prgsound (charge-ups, Hurricane), a monster's Charge start
-  sound (FUN_004f4f40).
+- **prgsound** (+0x10e, a word; empty loads 0): the readers of `[skill
+  +0x10e]` in .text are six client functions, each playing through
+  `FUN_004b9a00` (ECX the sound, EDX the unit, 0 none: unplaced), and only
+  for a sound above 0:
+  - cltprgfunc 12 (`FUN_004f30a0`, Tiger Strike) and 13 (`FUN_004f31a0`,
+    Cobra Strike), table 0x727ba8 [12] / [13]: `FUN_004c6ac0` writes the
+    charge count into the aurastate's (+0x80) list as its stat (+0x54,
+    aurastat1) and runs cltprgfunc[count - 1]. Each plays prgsound +
+    min(count, 3) - 1 on the caster (assassin_chargeup_tiger_1..3, Sounds.txt
+    2297..2299; cobra 2282..2284), the count read only for a progressive skill
+    (+4 & 4, `gadwBitMasks[2]` at 0x6ce270: the six progressive rows) whose
+    state and stat are in range and whose list is on the unit, else the first
+    row. 12 plays nothing without a target (`FUN_004648f0`); both put the
+    prgoverlay (+0x10c, the same offset) on, 12 on the target, 13 on the
+    caster (`FUN_00470390`, not ported). V (`tools/emu/charge_up_sound.py`,
+    300 cases; `tests/test_charge_up_sound.cpp`). d2d:
+    `rules::sound_ids::charge_up`, cued by `Fight::charge` (the player's and a
+    Shadow's).
+  - cltstfunc 15 (`FUN_004e3060`, Inferno and Arctic Blast, table 0x727a90
+    [15]): while the unit's client list for state inferno (0xc) is off, the
+    prgoverlay on the unit and the prgsound unplaced (EDX 0); then it makes
+    that list (`FUN_006251f0(0, 2, 0x15, ...)`, its removal callback
+    0x4e3050 clearing the state). Only Arctic Blast has a prgsound
+    (druid_windcast, not a loop). d2d: `Fight::set_pmode` at the start,
+    gated on the server's inferno (`Hero::burning`) and placed at the caster.
+    Cited.
+  - cltstfunc 46 (`FUN_004f0160`, Baal Taunt): quests-act5.md.
+  - cltdofunc 78 (`FUN_004f0cd0`, 'mon death sentry'): after its cltmissile
+    (+0xea, corpseexplosion) is made at the skill's target spot
+    (`FUN_004cdb40`, the spot from cltstfunc 50 `FUN_004f0c20`: the corpse),
+    the prgsound on that missile (necromancer_corpseexp_1). d2d: at the
+    corpse, in the Death Sentry's blast (`Fight::pet_cast`). Cited.
+  - state setfunc 7 (`FUN_004d9090`, table 0x72a690 [7]) and remfunc 4
+    (`FUN_004d90f0`, 0x72a710 [4]): the state's skill (its list's stat
+    0x15e) has its prgsound played on the unit as the state comes on, and
+    stopped as it goes when `FUN_004ca900` finds it still on the unit
+    (`FUN_004ba790`). Only state hurricane has them: druid_hurricane, a loop.
+    d2d: `Town::state_loops`, the player's own (draw.cpp). Cited.
+  Nothing else reads +0x10e as a skill's: `FUN_00466870` and `FUN_005a3d20`
+  read other records.
+- Not ported: a monster's Charge start sound (FUN_004f4f40).
 
 ## Missiles
 
@@ -641,8 +680,7 @@ already dead as it comes waits), Neutral and footsteps. A monster the host
 removes is dropped, so one that comes back plays its Init again.
 The host's hit class isn't read, so a joined game's monsters play no impact
 on GH / KB / DT.
-Left: the player's quest lines,
-prgsound, ProgSound, state 0x92, the town's floor material (its DS1 tiles
+Left: the player's quest lines, state 0x92, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
 point-drop and convert) are cued at their successful actions; only the
 convert-ready cue remains.

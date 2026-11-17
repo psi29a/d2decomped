@@ -461,7 +461,12 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
-- Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
+- Leech: × MonStats Drain.
+- Open Wounds (stat 135) is the item event function 15, `FUN_005bfe60` (entry 15 of the table at `0x7325b0`; Crushing Blow's
+  `FUN_005bffc0` is entry 16): chance `rand % 100`, then `FUN_005bfda0(level, 9, 18, 27, 36, 45)` plus 40 (`rules::open_wounds_fine`),
+  halved when the struck monster's data word `+0x16 & 12` (champion, unique, superunique; `Target::special`), handed to `FUN_0056e970`
+  as stat 0x4a, state 0x3e, 200 frames (`kOpenWoundsFrames`), 256ths a frame. A player struck would take a quarter (an eighth from a
+  missile): not modelled, no monster of d2d wounds a player. Oracle: `tools/emu/open_wounds.py`.
 - Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's
   socketed in them (gems.txt by weapon / shield / other), inventory charms,
   and a set piece's bonus lists that are on (list i with i + 2 pieces of
@@ -719,6 +724,20 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     × 500, and only from the purse; the rest of the purse falls where the
     player dies (`FUN_00535510`, split into piles by `FUN_0055a090`); the
     purse goes to 0 and goldlost (stat 175) holds the loss.
+- **The slain message** (`FUN_0054d8a0`, from `FUN_00580ec0` only when it has
+  a killer, 0x580ff2): a player's death puts it in mode 0 through
+  `FUN_0057cee0` (`FUN_00580a70(0, 0, attacker type, attacker id)`), the
+  attacker that dealt the record, so the death mode's unit is the killer; a
+  monster owned by a player (`FUN_0058f0d0`) is put on that player. The
+  builder fills S->C 0x5a at 0x54d91f: event 6, colour 4, +3 the killer's
+  class (unit +4, -1 none), +7 its unit type (6 none), the dead player's
+  name, and the killer's name (a player) or SuperUnique row (+0x18, a
+  monster with `FUN_005a0180`); `FUN_0054aa40` sends it. With no killer
+  there's no message. The client's line is net-packets.md's 0x5a event 6.
+  d2d: `Foe::striker_id` (each blow's `Monster::id`, `Foe::take`), `Hero::struck_by`
+  (a trap object's or barrel's blast too), `Fight::die` keeps it as
+  `Hero::killer`, `World::killer_name` names it (test_slain_message). Cited,
+  no oracle run.
 - **A player's kill leaves an ear** (`FUN_0055a200`, `FUN_00580ec0`'s death
   mode; cited, decompile only, no disassembly or oracle run). `FUN_00580ec0`
   calls it, after the died bit and the experience and gold losses, when the

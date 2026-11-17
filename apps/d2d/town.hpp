@@ -44,6 +44,7 @@
 #include <skills.hpp>
 #include <weather.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -75,18 +76,34 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // the one with the highest colorpri, each one's overlays while it lasts,
 // its cast overlay once from when the client first saw it (StateClock).
 // Overlay lights are stamped by frame_light. These overlay kinds don't
-// use LoopWaitTime (FUN_00470c30: only kind 6 waits).
-// ponytail: kind 8 (states in flag list +0xd0) shows one state's overlays
-// at a time, rotating every 50 ticks (FUN_0046df40, states.md "Rotating
-// overlays"); d2d draws the active states together.
+// use LoopWaitTime (FUN_00470c30: only kind 6 waits). With a clock, an
+// aura state's overlay1 / 2 show one state's at a time (kind 8,
+// rules::aura_overlays_tick, states.md "Rotating overlays").
 struct StateClock {
     struct Seen { std::uint32_t start = 0, last = 0; float x = 0, y = 0; bool off = false; };
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
     std::uint32_t now = 0;
     struct Sound { int sound; float x, y; };
     std::vector<Sound> sounds;             // its states' onsound as they come (Town::frame plays them, and the offsounds)
+    struct Auras { std::vector<d2d::rules::AuraOverlay> list; std::uint32_t ticked = 0; };
+    std::map<int, Auras> auras;            // a unit's kind-8 overlays (row: overlay1 0, overlay2 1), by unit key
 };
 inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::string_view> names, StateClock* clk) {
+    StateClock::Auras* auras = nullptr;
+    if (clk) {
+        auto [found, fresh] = clk->auras.try_emplace(key, StateClock::Auras{ {}, clk->now });
+        auras = &found->second;
+        std::vector<const GameData::StateInfo*> active;
+        for (const auto name : names)
+            if (const auto state = scene.states.find(std::string(name)); !name.empty() && state != scene.states.end() && state->second.aura) active.push_back(&state->second);
+        // The ticks since the last call run on the overlays already there; a state come on since joins now.
+        for (; clk->now - auras->ticked >= 40; auras->ticked += 40)
+            d2d::rules::aura_overlays_tick(auras->list, [&](int row) { return std::ranges::contains(active, row, &GameData::StateInfo::row); });
+        for (const auto* state : active)
+            for (int row = 0; row < 2; ++row)   // FUN_004d9920: overlay1, then overlay2, each at the head
+                if (state->over[std::size_t(row)] && std::ranges::none_of(auras->list, [&](const auto& made) { return made.state == state->row && made.row == row; }))
+                    d2d::rules::aura_overlay_made(auras->list, { .state = state->row, .row = row });
+    }
     int pri = -1;
     for (const auto name : names) {
         const auto found = scene.states.find(std::string(name));
@@ -107,7 +124,11 @@ inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::
             seen->second.x = unit.x; seen->second.y = unit.y; seen->second.off = false;
             start = seen->second.start;
         }
-        for (const auto* overlay : state.over) if (overlay) unit.overs.push_back({ overlay, start, false });
+        for (std::size_t row = 0; row < state.over.size(); ++row) {
+            const bool kind8 = auras && state.aura && row < 2;   // shown only while its state's turn
+            if (state.over[row] && (!kind8 || std::ranges::any_of(auras->list, [&](const auto& made) { return made.state == state.row && made.row == int(row) && made.shown; })))
+                unit.overs.push_back({ state.over[row], start, false });
+        }
         if (state.cast) unit.overs.push_back({ state.cast, start, true });
     }
 }
@@ -650,6 +671,8 @@ struct Town {
     std::vector<char> object_called;          // an object's call has played (unit +0x80: rules::object_call), by level->npcs index
     const Level* object_level = nullptr;
     std::vector<int> object_loops;          // the objects' loops wanted now (their owners, -1 - index)
+    std::vector<int> state_loops;           // the player's states' prgsound loops on now (their owners, kStateLoop - skill)
+    static constexpr int kStateLoop = -(1 << 20);   // below every object's owner (-1 - index)
     void object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y);
     std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
@@ -712,6 +735,7 @@ struct Town {
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
+    [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
     [[nodiscard]] int hovered_ground() const;
     // The New Stats / New Skills buttons as the panels stand.
     [[nodiscard]] LevelButtons level_buttons_now() const;

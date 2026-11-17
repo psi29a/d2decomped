@@ -62,6 +62,7 @@ struct MonType {
     bool can_knock_back = false;                // MonStats2 mKB (bit 13): with mGH, a knockback (LAB_005a77d0)
     int height = 0;                             // MonStats2 Height (+0xb): 0 for critters and most NPCs (a warping shrine passes them, FUN_00582750)
     bool al_sel = false, no_sel = false;        // MonStats2 alSel / noSel (flags +4 bits 4 / 5, FUN_004638a0): the cursor outside town
+    bool shift_sel = false;                     // MonStats2 shiftSel (bit 6): a shift-click's SearchEnemyXY takes it (FUN_00467660)
     bool corpse_sel = false;                    // MonStats2 corpseSel (flag 7): Nihlathak's Corpse Explosion can target it (FUN_00645680)
     bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)

@@ -468,6 +468,7 @@ struct Skill {
     // dosound a / b (+0x102 / +0x104) and cltdofunc (+0xf4: the client's do, table 0x727ba8).
     // Only cltdofunc 16 (Jab's, FUN_004f4590) and cltstfunc 25 (FUN_004c9b40) read a / b.
     int do_sound_a = 0, do_sound_b = 0, clt_do_func = 0;
+    std::array<int, 3> clt_prg_func{};     // cltprgfunc1..3 (+0xf6: the client's charge 1..3, table 0x727ba8)
     bool st_success_only = false, st_sound_delay = false, weapon_sound = false;
     bool interrupt = false;                // Skills.txt `interrupt` (the row's flags byte +7 against the mask at 0x6ce284): 0, a hit never puts the user in a get-hit (FUN_0057eec0)
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
@@ -482,6 +483,8 @@ struct Skill {
     bool target_ally = false;             // TargetAlly (flag bit 0x1a, record +7 & 4): FUN_00554d20
     bool target_corpse = false;            // TargetCorpse: raised from a corpse
     bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
+    bool targetable_only = false;          // TargetableOnly (flag bit 0x14, record +6 & 0x10)
+    bool search_enemy_xy = false;          // SearchEnemyXY (flag bit 0x15, record +6 & 0x20): a shift-click's pick, FUN_00467660
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
     std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels
     int result_flags = 0;                  // ResultFlags (8: knockback)

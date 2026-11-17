@@ -430,6 +430,17 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
   (+0xf8); fana not made: event 7 at 25 frames.
 - 69 (`FUN_0058a6c0`, 462 "Nihlathak Start Outside Town"): with +0x88 1
   and not made (+0x92), superunique 60 at its spot (`FUN_0054e600`).
+- 71 (`FUN_00587840`, 543 "Larzuk Start", quest record 0x1f): with the
+  record's byte +0x15 clear, `FUN_00545340(2, 0x100, 100)` from the marker's
+  spot in the marker's room (none: no Larzuk); then `FUN_005b2f20` ONCE, in the
+  room that search handed out (not the marker's), class 0x1ff, mode 1, radius 5,
+  flags 0: radius 5 walks rings 3..15, so the spot itself is not tried first
+  (`FUN_005459a0`'s Nihlathak does try -1 first). Made: +0x15 = 1, +0x10 = his
+  unit id, unit flags |= 0x3000000, and once (+0x17) `FUN_00666120` for the
+  record's list (+0 non-null, its +4 non-null). d2d: `rules::larzuk_marker`,
+  `ObjectRooms::marker_make` (the handed room's bounds and seed, `hand_room`);
+  `tools/emu/larzuk_init.py`, `test_larzuk_marker`. Not kept: the record's bytes
+  past one level, +0x10, and the +0x17 list call.
 - 70 (`LAB_00587830`, 542 "Larzuk Greeting"): an empty function
   (stubs.md).
 

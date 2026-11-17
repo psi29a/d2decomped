@@ -371,6 +371,10 @@ struct Fight {
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
         int   shown_class = 0;                // the hit class the client last had, any landed hit's (GH or S->C 0x0c): its block sound
         std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
+        // Who last hurt the player (FUN_0057cee0's attacker; kind 1 a monster, id its Monster::id;
+        // 2 an object, id its Objects.txt row; -1 none), and so who killed them (FUN_00580ec0's
+        // killer, the slain message FUN_0054d8a0 names).
+        struct Striker { int kind = -1, id = -1; } struck_by, killer;
         int merc_hurt = 0;                     // life the merc lost besides the hits (thorns on its swings, its poison), taken with the monsters' hits
         // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
         // class): its frames, each seq_frame_ms long, and the hits (event 1)
@@ -836,9 +840,10 @@ struct Fight {
     // FUN_005c3b90; ai.cpp's FUN_005dd610).
     void monster_states(std::uint32_t now_ms);
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
-    // ticks more (FUN_005d3320).
+    // ticks more (FUN_005d3320), and its prgsound row for the count on the
+    // unit (`unit`, at x, y; rules::sound_ids::charge_up).
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
-    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
+    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms, std::uint64_t unit, float x, float y);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
     // at the higher of the stored level and today's), and progressive_tohit's
     // par4 a charge as the swing's to-hit %.

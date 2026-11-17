@@ -92,6 +92,29 @@ int object_op_ticks(const Npc& npc) {
     return client < 0 ? server : std::min(server, client);
 }
 
+// Who killed a player, as the slain message names it (FUN_0049eb10's by +7): "" for none.
+auto World::killer_name(const Fight::Hero::Striker& killer) const -> std::string {
+    if (killer.kind == 1) {
+        const auto found = std::ranges::find(fight.monsters, killer.id, &Monster::id);
+        if (found == fight.monsters.end()) return {};
+        if (found->super >= 0 && std::size_t(found->super) < game_data->superuniques.size()) return game_data->superuniques[std::size_t(found->super)].name;
+        if (found->type < 0 || std::size_t(found->type) >= game_data->monsters.types.size()) return {};
+        const auto& key = game_data->monsters.types[std::size_t(found->type)].name_key;
+        const auto text = lookup_string(*game_data, key);
+        return text ? u16_to_latin1(*text) : key;
+    }
+    if (killer.kind == 2 && game_data->builder) {
+        if (killer.id == d2d::rules::object_ids::kExplodingBarrel) return string_id(*game_data, 0xc98);
+        const auto& builder = *game_data->builder;
+        if (const auto row = builder.obj_row.find(std::to_string(killer.id)); row != builder.obj_row.end()) {
+            const std::string key(builder.objects.get(row->second, "Name"));
+            const auto text = lookup_string(*game_data, key);
+            return text ? u16_to_latin1(*text) : key;
+        }
+    }
+    return {};
+}
+
 auto World::greet_sound(const Npc& npc, int kind) -> int {
         const auto* greeting = d2d::rules::sound_ids::greeting_of(npc.hc_idx);
         if (!greeting) return 0;
@@ -536,7 +559,16 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     death_penalty(now_ms);
                     actor->interact_npc = -1;
                     actor->character.header.status |= 0x08;   // the save's died bit (FUN_00580ec0: FUN_00538650 with 8 at 00580f7c)
-                    if (split_levels) { announce({ ev::Message::slain, actor->character.name, {} }); d2d::log::info("{} died", actor->character.name); }   // ponytail: the killer's name (game.exe's "was slain by")
+                    // The slain message (FUN_00580ec0 -> FUN_0054d8a0) goes out only with a killer, named as
+                    // the client's FUN_0049eb10 shows it: a monster's MonStats NameStr or its SuperUnique's
+                    // name, an object's Objects.txt Name ("an Exploding Barrel", 0xc98, for object 0xb).
+                    // ponytail: the killer is the last blow's this frame (Foe::striker_id), not the record that took
+                    // the life under one point; a pet's or merc's kill isn't put on its owner (FUN_0058f0d0:
+                    // no player hurts another here).
+                    if (const auto killer = killer_name(actor->killer); split_levels && !killer.empty()) {
+                        announce({ ev::Message::slain, actor->character.name, killer });
+                        d2d::log::info("{} was slain by {}", actor->character.name, killer);
+                    }
                 }
                 if (actor->pmode == kModeDD) { if (shared_screen()) become_ghost(player); else make_corpse(now_ms); }   // co-op (one screen): a ghost, the gear kept; a screen of one's own: a corpse, as game.exe
                 actor->last_pmode = actor->pmode;

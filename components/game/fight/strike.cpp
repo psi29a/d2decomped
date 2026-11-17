@@ -535,8 +535,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             if (!special || rng(100) >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
         }
         if (blow.bleed) {
-            target.bleed_rate = d2d::rules::open_wounds_per_sec(int(actor->character.stats.get(kLevel))) / 1000.0;
-            target.bleed_until = now_ms + 8000;
+            target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
+            target.bleed_until = now_ms + std::uint32_t(d2d::rules::kOpenWoundsFrames) * 40;
         }
         // Life Tap (damagedinmelee / damagedbymissile, func 5): calc1 % of the
         // damage heals whoever dealt it.

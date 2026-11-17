@@ -1716,7 +1716,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, (run_skill->result_flags & 1) != 0);
-            foe.take(taken);
+            foe.take(taken, monster.id);
             if (taken.hit) foe.struck_by(type_info.hit_class);
         };
         if (monster.diab_run == 1) {
@@ -1777,7 +1777,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             monster.whirl_last = next->id;
             auto& struck = const_cast<Foe&>(*next);
             const auto taken = d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, rng);
-            struck.take(taken);
+            struck.take(taken, monster.id);
             if (taken.hit) struck.struck_by(type_info.hit_class);
             if (taken.hit) monprop_hit(monster, struck, false);         // a melee blow: MonProp knock / crush, as the strike's
             struck.melee_by.push_back(monster.id);
@@ -1942,7 +1942,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (!monster.leaping) {
                     if (foe.alive && dist <= kMeleeReach + 0.3f) {
                         const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, rng);
-                        foe.take(taken);
+                        foe.take(taken, monster.id);
                         if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.struck_by(type_info.hit_class); monprop_hit(monster, foe, false); }
                         d2d::log::info("{} lands its leap attack ({})", monster.npc.name, taken.hit ? "hit" : "missed");
                         foe.melee_by.push_back(monster.id);
@@ -2220,7 +2220,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         for (auto& near_foe : foes)
                             if (near_foe.alive && std::hypot(near_foe.x - corpse.unit.x, near_foe.y - corpse.unit.y) * 5 <= float(radius)) {
                                 const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0 (not FUN_0057b420's roll)
-                                near_foe.take(taken);
+                                near_foe.take(taken, monster.id);
                             }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
                     }
@@ -2260,7 +2260,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const auto added = d2d::rules::row_damage(cast->etype, cast->emin, cast->emax, cast->emin_lev, cast->emax_lev, cast->hitshift, cast->elen, cast->elen_lev, lvl);
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
                     const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, true, true);   // the record is min == max, not FUN_0057b420's roll
-                    foe.take(taken);
+                    foe.take(taken, monster.id);
                     if (taken.hit) foe.struck_by(type_info.hit_class);
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
                            || cast->srvdofunc == ServerDoFunction::kGuidedMissile) {
@@ -2277,6 +2277,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // (1, 1) first, the other three only once it stood; each on its spot
                     // exactly (FUN_005b3130 / FUN_005b31b0 at radius -1), none where it won't fit.
                     const int foe_room = room_of(level, foe.x, foe.y);
+                    std::size_t prison_head = 0;
                     if (born && !d2d::rules::level_ids::is_town(level.id))
                         for (std::size_t k = 0; k < kPrison.size(); ++k) {
                             int at_x = 0, at_y = 0;
@@ -2286,6 +2287,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             }
                             auto bone = make_monster(game_data, 0x154 + int(k), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                             bone.seed = d2d::rules::Rng{ rng.next() };
+                            if (k > 0) bone.owner_born = int(prison_head);   // FUN_005b31b0: a minion of the first
+                            else prison_head = born->size();
                             born->push_back(std::move(bone));
                         }
                 } else if (cast->srvdofunc == ServerDoFunction::kDiabWall) {
@@ -2541,12 +2544,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     monster.frenzy.level = std::min(monster.frenzy.level + 1, lvl);
                     monster.frenzy.until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, struck_with->auralen, {}, monster.skill, lvl), 1)) * 40;
                 }
-                foe.take(taken);
+                foe.take(taken, monster.id);
                 if (taken.hit) foe.struck_by(type_info.hit_class);
                 if (taken.hit) monprop_hit(monster, foe, false);
                 if (taken.hit && smite && (struck_with->result_flags & 8)) foe.knocked_from = std::pair{ unit.x, unit.y };
                 if (taken.hit && smite) foe.stun_ticks = std::max(foe.stun_ticks, d2d::rules::eval_calc(game_data.skills, struck_with->calc[1], {}, monster.skill, skill_level(game_data, monster, monster.skill)));
-                if (taken.hit && monster.mana_hi > 0) foe.mana_burn += rng.range(monster.mana_lo, monster.mana_hi);   // Mana Burn
+                if (taken.hit && monster.mana_hi > 0) foe.mana_burn += d2d::rules::mana_burn_fine(monster.mana_lo, monster.mana_hi, rng);   // Mana Burn: 256ths, 256 times the points
                 if (taken.hit) cursed_hit(game_data, monster, foes, foe);
                 foe.melee_by.push_back(monster.id);
                 if (taken.damage > 0) foe.damaged_by.push_back(monster.id);

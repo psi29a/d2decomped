@@ -75,7 +75,8 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
 // once each.
 // A row's min / max are its property's own: a damage range (Vidala's Rig
 // dmg-cold 15-20), gethit-skill's chance and level (Cow King's 25, 5).
-inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
+// `only`: that Sets.txt row's alone (the hover text's, FUN_004e6680).
+inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items, int only = -1) {
     std::vector<d2d::d2s::ItemProp> out;
     const auto& rules = game_data.rules;
     std::vector<std::vector<int>> worn(rules.set_bonuses.size());
@@ -87,7 +88,7 @@ inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, cons
     d2d::rules::Rng rng;
     for (std::size_t set = 0; set < worn.size(); ++set) {
         const int count = int(worn[set].size());
-        if (count < 2) continue;
+        if (count < 2 || (only >= 0 && int(set) != only)) continue;
         const auto& bonus = rules.set_bonuses[set];
         const int partial = std::min(count, bonus.pieces - 1) * 2 - 2;
         for (int index = 0; index < partial && std::size_t(index) < bonus.partial.size(); ++index)

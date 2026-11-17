@@ -59,7 +59,12 @@ REA dossier: `ev_9c7994bddc33d76bd8f3b6013765032d1dc9160ba35344f3e90da8a6fe8263c
 A state's overlay maker (`FUN_004d9920`) makes
 its overlay1 / overlay2 as kind 3, or as kind 8 tagged with the state
 (+0x38) when the state is in the flag list at data tables +0xd0 (bit 1,
-`FUN_0063a210`; the column's name is not traced). A unit shows one
+`FUN_0063a210`): States.txt `aura`, the loader's (`FUN_00618100`) bit 1
+column, its name at 0x6e6cf8 (bit 2 `hide` 0x6e7c48, bit 4 `pgsv`
+0x6e7c34). 32 rows have it: the Paladin's auras, the resistance auras,
+Conviction, the warcries Shout, Battle Orders and Battle Command, the
+Druid's spirits, Quickness. New overlays go at the list's head
+(`FUN_00470390`, +0x2c). A unit shows one
 state's kind-8 overlays at a time (+0x3c visible, +8 a frame count):
 
 - A new one (`FUN_0046def0`) takes the visibility and count of another
@@ -70,8 +75,14 @@ state's kind-8 overlays at a time (+0x3c visible, +8 a frame count):
   state's and shows the next higher state id's (the lowest when none is
   higher). Removing a kind-8 overlay (`FUN_0046e040`) rotates too.
 - The draw (`FUN_0046e1b0` / `FUN_0046e300`) skips a kind 8 without +0x3c.
+- `FUN_0046e040` passes the removed node itself (EAX = ESI, 0x46e0d3), so
+  it rotates from the removed one's state even when that was hidden.
 
-d2d draws every active state's overlays together (town.hpp `StateClock`).
+The rules are `tools/emu/engine_overlay_frames.py`'s model, checked there
+against game.exe. d2d: `rules::aura_overlay_made` / `aura_overlays_rotate` /
+`aura_overlays_tick` (overlays.hpp, test_overlays), run by `dress` for a unit
+with a `StateClock` (the player); other units draw every state's overlays
+together. Ported from the model, not diffed against game.exe.
 
 ## Worn items
 

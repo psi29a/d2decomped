@@ -19,8 +19,8 @@ of slots empty. Those slots are "the 3D look".
 
 d2d copies the software drivers, onto an RGBA framebuffer:
 
-- Floors, walls and roofs lit from the light grid (per pixel, a little
-  smoother than game.exe's 32-pixel blocks: deviations.md approximation 2),
+- Floors, walls and roofs lit from the light grid in game.exe's 32-pixel
+  blocks (lighting.md),
   floors drawn in bands on up to four threads (`draw_in_bands`).
 - Tile shadows at a quarter, unit shadows, the COF draw modes (all but mode
   6), state colour shifts and item colours. Blends are done in RGB, not
