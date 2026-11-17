@@ -796,15 +796,16 @@ struct World {
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
-    // shot goes straight from the chest at the player: missile level 1 / 4
+    // shot goes straight from the chest at the target its monster search
+    // picks: missile level 1 / 4
     // / 8 by difficulty; a row with a Skill (chainlightning) carries that
     // skill's damage, the others their own columns. 5 / 7 leave two fires
     // (no damage traced); 8 raises the level's undead.
     // trapfirebolt bursts into its fireexplode as any missile does (its
     // ExplosionMissile, missiles_update).
-    // The AI's range check (aip1 25 / 20 subtiles) always passes for the
-    // opener: operating needs reach 2 of the chest (FUN_00623660), the trap
-    // within 3 of it (FUN_00582420). Untraced: its pick among several players.
+    // Its first think is two frames after FUN_00582420 makes it; only a
+    // searched target within aip1 (Trap-Missile 25 / 30 / 32 by
+    // difficulty; Trap-Poison / Trap-Nova 20) gets the act.
     // ponytail: chainlightning doesn't hop (act 2 on: act 1 swaps it for firebolt).
     // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
@@ -813,10 +814,11 @@ struct World {
     // it 35 frames on (FUN_005817a0: rules::trap_on_level, then the table).
     // One whose level the player has left by then is dropped: its trap
     // monster would find no one in range.
-    struct Trap { const Level* level; int trap; float x, y; int alvl; std::uint32_t due; };
+    struct Trap { const Level* level; int trap; float x, y; int alvl; std::uint32_t due; bool think = false; };
     std::vector<Trap> traps;
     void arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
     void spring_traps(std::uint32_t now_ms);
+    void trap_think(int trap, float x, float y, int alvl, std::uint32_t now_ms);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.

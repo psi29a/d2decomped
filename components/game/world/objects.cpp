@@ -758,15 +758,20 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
 
 auto World::arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
         if (trap == 8 && d2d::rules::trap_undead(level->region[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))], 0) < 0) return;   // FUN_00582250
-        traps.push_back({ level, trap, x, y, alvl, now_ms + 35 * kTickMs });
+        traps.push_back({ level, trap, x, y, alvl, now_ms + 35 * kTickMs, false });
     }
 
 auto World::spring_traps(std::uint32_t now_ms) -> void {
+        std::vector<Trap> due_traps;
         for (auto armed = traps.begin(); armed != traps.end();) {
             if (now_ms < armed->due) { ++armed; continue; }
-            const Trap due = *armed;
+            due_traps.push_back(*armed);
             armed = traps.erase(armed);
-            if (due.level == level) spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, now_ms);
+        }
+        for (const Trap& due : due_traps) {
+            if (due.level != level) continue;
+            if (due.think) trap_think(due.trap, due.x, due.y, due.alvl, due.due);
+            else spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, due.due);
         }
     }
 
@@ -812,11 +817,42 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
-        // Traps 1..4 / 6: the trap monster's one act (objects.md "Trap monsters"):
-        // Trap-Missile (FUN_005fb5b0) its A1 missile, Trap-Poison / Trap-Nova
-        // (FUN_005fb900 / FUN_005fb9b0) its Skill1, then it dies (aip2 is 1).
-        // ponytail: shot at once, at the player wherever it stands; there only a target its search
-        // finds within aip1 (25 / 20) gets it, a think after it's made.
+        // FUN_00582420 makes the trap monster now. FUN_00573780 files its
+        // first think two frames on; its Trap-* AI acts once and then dies.
+        if (trap > 0 && trap < 7) {
+            traps.push_back({ level, trap, x, y, alvl, now_ms + 2 * kTickMs, true });
+            return;
+        }
+    }
+
+// Trap-Missile (FUN_005fb5b0) uses A1's missile; Trap-Poison and Trap-Nova
+// (FUN_005fb900 / FUN_005fb9b0) use Skill1. Their driver first runs
+// FUN_005dd7f0; the AI acts only on its picked target within aip1, then its
+// aip2 of one makes the following think kill it.
+auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
+        struct TargetPoint { float x = 0, y = 0; };
+        const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
+        std::vector<d2d::rules::SearchFoe> searched;
+        std::vector<TargetPoint> targets;
+        const int trap_x = int(std::floor(x * 5)), trap_y = int(std::floor(y * 5));
+        const auto add_target = [&](float target_x, float target_y, bool pet, bool dead) {
+            searched.push_back({ d2d::rules::ai_distance(int(std::floor(target_x * 5)) - trap_x, int(std::floor(target_y * 5)) - trap_y), pet, false, dead });
+            targets.push_back({ target_x, target_y });
+        };
+        each_player([&](Player& player) {
+            add_target(player.player.x, player.player.y, false, player.ghost || player.character.stats.values[d2d::d2s::kLife] <= 0);
+            if (player.merc) add_target(player.merc->unit.x, player.merc->unit.y, true, !player.merc->alive());
+            for (const auto& pet : player.pets)
+                if (pet.where == level) add_target(pet.monster.unit.x, pet.monster.unit.y, true, !pet.monster.alive());
+        });
+        static constexpr std::array<int, 3> kMissileReach{ 25, 30, 32 };
+        const int reach = trap == 1 || trap == 2 || trap == 6 ? kMissileReach[std::size_t(diff)] : 20;
+        const int target_index = d2d::rules::trap_target(searched, reach);
+        if (target_index < 0) {
+            d2d::log::info("trap {}: no target within {} subtiles", trap, reach);
+            return;
+        }
+        const TargetPoint target = targets[std::size_t(target_index)];
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
         const auto found = game_data->missiles.find(name);
         if (!*name || found == game_data->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }
@@ -853,8 +889,8 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 shoot(float(aim_x), float(aim_y), float(missile_info.vel), ring);
             }
         } else {
-            shoot(actor->player.x - x, actor->player.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
-            fight.missiles.back().to = { actor->player.x, actor->player.y };
+            shoot(target.x - x, target.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
+            fight.missiles.back().to = { target.x, target.y };
         }
         d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
     }
