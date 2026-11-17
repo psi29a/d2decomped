@@ -247,10 +247,18 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   keeps re-walking to the spot (with shift, the attack in place). That is
   d2d's "a held attack drops it".
 - `FUN_004621d0` re-picks the target through `FUN_00467880` for skills
-  whose Skills.txt +6 bits are 0x40 (`FUN_00467490`), 0x20 with no target
-  (`FUN_00467660`) or 0x80 (`FUN_004677b0`). `FUN_00467490` and
-  `FUN_00467660` filter candidates with `FUN_00466870(0,0)` (the same
-  rule), and the converted monster stays out of them.
+  whose Skills.txt +6 bits are 0x40 SearchEnemyNear (`FUN_00467490`), 0x20
+  SearchEnemyXY with no target (`FUN_00467660`) or 0x80 SearchOpenXY
+  (`FUN_004677b0`). The Skills.txt field table built in `FUN_00613f80`
+  gives TargetableOnly bit 0x14, SearchEnemyXY 0x15, SearchEnemyNear 0x16,
+  SearchOpenXY 0x17 (0x616a21..0x616a9f; TargetableOnly's is EDX, 0x14
+  since 0x6141a7), tested as byte +6 against the
+  masks at 0x6ce268 (0x6ce278 = 0x10, 0x6ce27c = 0x20, 0x6ce280 = 0x40,
+  0x6ce284 = 0x80). `FUN_00467490` filters candidates with
+  `FUN_00466870(0,0)` (the same rule), so the converted monster stays out
+  of it; `FUN_00467660` has no `FUN_00466870` call and asks
+  `FUN_00465c60` only for a TargetableOnly skill whose monster isn't
+  MonStats2 shiftSel.
 - `FUN_004677b0` (0x80) is not a pick and has no `FUN_00466870` call (the
   asm at 004677b0..00467876 calls only the position getters 006488c0 /
   00648900, `FUN_004646a0` (the local player's room), `FUN_0064cb30` and

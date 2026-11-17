@@ -666,7 +666,9 @@ or Bash out of mana swings a plain attack, with no voice. Oracle:
 Every click path that sends a skill reaches it (traced 2026-11-08). A click
 goes to `FUN_004625b0`, which first picks the target through `FUN_004621d0`
 -> `FUN_00467880`. That one only asks whether the status is 0, to let the
-skill's own search (Skills.txt +6 bits 0x40 / 0x20 / 0x80) pick a target;
+skill's own search (Skills.txt +6 bits 0x40 SearchEnemyNear / 0x20
+SearchEnemyXY / 0x80 SearchOpenXY; cursor-units.md "The click's own path")
+pick a target;
 it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
 held, a spot skill, or a cast at the point: three calls), or a unit in
 reach asks through `FUN_00461c70`. A unit out of reach is walked to, and
