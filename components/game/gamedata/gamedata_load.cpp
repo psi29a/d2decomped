@@ -1330,6 +1330,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto& item_names = game_data.item_names;
     item_names.unique   = keys("UniqueItems", "index", false);
     item_names.set      = keys("SetItems", "index", false);
+    item_names.set_group = keys("Sets", "name", false);
     item_names.prefix   = keys("MagicPrefix", "Name", true);
     {
         auto pairs = [&](const char* file_name, const char* mul, const char* add, bool all) {

@@ -590,6 +590,7 @@ struct GameData {
     // raw row, rare names by raw row, runewords by RunewordN rank.
     struct ItemNames {
         std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
+        std::vector<std::string> set_group;   // Sets.txt name by row (record +2), as SetItems rows' `set` count them
     } item_names;
     // What the hover text (item_lines, FUN_0048dd90) reads off the items
     // record by code: wclass (+0xc0), mindam/maxdam (+0xfe/+0xff),
