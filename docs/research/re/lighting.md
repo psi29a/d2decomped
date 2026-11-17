@@ -387,7 +387,10 @@ from the code, no oracle.
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
   after every floor; players', NPCs'
   and monsters' composites cast shadows after the floor pass
-  (`shadow_composite`), each pixel once however many layers cover it.
+  (`shadow_composite`), each shadow layer on its own as `FUN_00471620`
+  draws them (`FUN_004db090`: the COF layer record's shadow byte; per layer
+  `FUN_004f6540` -> `FUN_00608d60`, `*dst = T0[*dst][0]`), so two layers
+  over one pixel darken it twice.
 
 - Walls shadow the player's and objects' lights (`stamp_shadowed`, as
   `FUN_00474d70`: the rings, the blend toward the light, 16 behind a
