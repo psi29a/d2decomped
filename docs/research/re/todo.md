@@ -46,8 +46,7 @@ to 70% and the menu's fade-out.
 
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
-| 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues, Andariel's quake, Diablo's arrival taunt and Diablo's death schwing / hit are wired. The monster cast / skeleton cast / Izual taunt_2 rows are never played (unit-sounds.md). |
-| 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
+| 18 | Seven rows with no trigger traced either way: `event_desert_night_1..5` (no SoundEnviron row names them; the night may pick its event group by arithmetic, not traced), `scene_tavern_interior` (row 66, cathedral.wav), `monster_diablo_taunt_2` | 7 | trace | maybe | unit-sounds.md "In d2d"; every other code-played sound is wired or traced as never played (`tools/sound_coverage.py`: 3,416 of 3,520, the 97 others never played by stock) |
 
 ## Animation and drawing
 
