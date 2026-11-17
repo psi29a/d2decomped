@@ -409,6 +409,33 @@ inline std::vector<int> family_mods(int base_id) {
     }
 }
 
+// What MonUMod 14 (spcdamage) sets on a trap monster (FUN_005a3b50, hook 0):
+// its level (stat 12) = the area's monster level (FUN_0061dca0 through
+// FUN_0061a1b0), at least 1, or 2 with no room; to-hit (stat 0x13) = level +
+// 50, at most 90; then, by BaseId, the (stat, value) pairs it puts on the
+// unit's stat list 1 (d2d_stat_list_set), in game.exe's order. d2d takes the
+// level for trap-melee (0x162); the pairs are for the trap classes d2d
+// makes no monster of (chest traps are objects, objects.md).
+struct SpcDamage {
+    int level = 2;
+    int to_hit = 52;
+    std::vector<std::pair<int, int>> list;
+};
+inline SpcDamage spcdamage(int base_id, std::optional<int> area_level) {
+    SpcDamage out;
+    out.level = area_level ? (*area_level < 2 ? 1 : *area_level) : 2;
+    out.to_hit = std::min(out.level + 50, 90);
+    const int half = out.level >> 1, level = out.level;
+    switch (base_id) {
+        case 0x146: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x30, half }, { 0x31, level * 3 >> 1 } }; break;
+        case 0x147: case 0x148: out.list = { { 0x15, std::min(half + 1, level) }, { 0x16, level } }; break;
+        case 0x149: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x39, level }, { 0x3a, level * 2 }, { 0x3b, level * 2 } }; break;
+        case 0x14a: case 0x171: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x32, half }, { 0x33, level * 3 >> 1 } }; break;
+        default: break;
+    }
+    return out;
+}
+
 // MonUMod 22's death hook (0x5a3250: event 1 into mode 0, by MonStats
 // row). Five rows give MonUMod 21 (killself) to the monsters about them
 // (FUN_005dfbf0(radius, first, end, undead only), the boss's seed): Andariel

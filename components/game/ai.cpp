@@ -2719,6 +2719,7 @@ int players_in(std::span<const Foe> foes) {
     return int(std::ranges::count_if(foes, [](const Foe& foe) { return !foe.pet && !foe.of; }));
 }
 
+// A plain monster as FUN_005b2a00 makes it; a trap-melee's level is MonUMod 14's (FUN_005a3b50).
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats, int players, int level_id) {
     const auto& type_info = game_data.monsters.types[std::size_t(type)];
     Monster monster;
@@ -2737,7 +2738,15 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.dir = rng(16);
     monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
-    if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
+    if (stats) {
+        const int area = area_monster_level(game_data, level_id, difficulty);
+        // MonUMod 14 (spcdamage, every BaseId 0x162 by FUN_005b21b0; hook 0 FUN_005a3b50): its level is the
+        // area's monster level on every difficulty, 1 at least; the life it rolled stays at the MonStats level.
+        int level_add = 0;
+        if (area >= 0 && std::ranges::contains(d2d::rules::family_mods(type_info.base), d2d::rules::umod::spcdamage))
+            level_add = d2d::rules::spcdamage(type_info.base, area).level - d2d::rules::start_level(type_info, std::clamp(difficulty, 0, 2), area);
+        monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, level_add, players, area);
+    }
     // FUN_00573cb0 keeps a zero roll (the town folk, critters, traps, Baal on
     // the stairs). game.exe's dead test is the mode (FUN_005541b0: DT / DD),
     // so it lives and thinks; d2d's is life, so it holds one point, `lifeless`:
