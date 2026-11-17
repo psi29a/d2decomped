@@ -55,10 +55,10 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | # | What | game.exe | d2d now | Visible | Where |
 |---|---|---|---|---|---|
 | 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain, multiplied button labels) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain`, font.hpp `draw_tinted_baseline` |
-| 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | Each pixel bilinear between the subtile corners round the ground under it | hardly | tile_blit.hpp `blit_dt1_tile_lit` |
+| 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | matched since e072e664 (the 8 x 8 table and block callback `FUN_004f8b80`, lighting.md) | — | tile_blit.cpp `blit_dt1_tile_lit` |
 | 3 | Unit shadows | Each layer drawn through the alpha table (untraced whether overlaps darken twice) | A composite darkens each pixel once | hardly | world_view.hpp `shadow_composite` |
 | 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
-| 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | Read from the map each frame (`stamp_shadowed`): only the cache differs | hardly | lighting.md |
+| 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | matched since this commit (`LightGrid::shade_square` kept per light, `stamp_shaded`) | — | lighting.md, view.cpp `frame_light` |
 | 6 | Ambience at dusk and dawn | Cross-fades over 250 sound ticks (`FUN_004e42e0`) | matched since this commit (`Audio::crossfade_ambience`) | — | audio.hpp |
 | 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
 | 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | matched since this commit (`World::portal_spot`) | — | world/travel.cpp `portal_spot` |
@@ -72,6 +72,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 16 | Battle.net | BATTLE.NET (title) and OPEN BATTLE.NET (Other Multiplayer) connect to a realm or an open Battle.net game through the gateway | Both buttons show, as does GATEWAY: LOCAL; a click on either does nothing: d2d has no Battle.net client | yes | frontend.cpp `title_ui`, `other_multiplayer_ui` |
 | 17 | Cinematic timing | binkw32's `_BinkWait` paces the frames, synced to its DirectSound stream (`FUN_0050fdf0`) | Each frame at its pts by the wall clock; the audio queued as it decodes, no drift correction | hardly (24 fps, interleaved files) | video.hpp `Player::advance`, video.md |
 | 18 | Rolls on a unit's own seed | Some server rolls step the rolling unit's seed (unit +0x20): the player's, a new summon's or a missile's (do 143's route) | The fight's one rng (`Fight::rng`), with the same bounds: d2d keeps no seed on the player or a summon, and the server's rolls aren't sent to clients, only their results | no (same odds; only a replay of game.exe's exact rolls differs) | the comments in components/game/fight that cite approximation 18 |
+| 19 | A COF with no AnimData.d2 record | Its default record (`FUN_0066a9b0`: none found by `FUN_0066a8f0`, table +0x404, made by `FUN_0066a770`): 0x800 frames, speed 0x100, no event frames | The COF's own frames and speed byte (`GameData::AnimTiming`) | no: of the 3,270 COFs the data shows (LoD's too), only objects 2qonhth and 2qophth lack one (`tools/anim_coverage.py <mpq dir> --animdata`) | gamedata.cpp `timing_of` |
 
 425 smaller shortcuts are marked `ponytail:` in components/ and apps/
 (2026-10-31; `git grep -n ponytail: -- components apps | wc -l`); this table holds

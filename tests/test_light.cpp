@@ -84,6 +84,17 @@ int main() try {
     assert(walled.at(102, 100) == open.at(102, 100) && walled.at(104, 100) == open.at(104, 100));   // up to and on the wall
     assert(walled.at(107, 100) == 0 && open.at(107, 100) > 0);                                 // behind it
     assert(walled.at(100, 108) == open.at(100, 108));                                          // off to the side
+    // A static light's shade (FUN_004750f0) kept from when the wall stood:
+    // the wall gone, the kept square still shades behind it, a new one not.
+    const auto wall = [](int subtile_x, int subtile_y) { return subtile_x == 104 && subtile_y >= 97 && subtile_y <= 103; };
+    const auto kept = LightGrid::shade_square(100 * 8 + 4, 100 * 8 + 4, 13 * 8, wall);
+    assert(kept.size() == std::size_t((13 * 2 + 1) * (13 * 2 + 1)));
+    LightGrid cached, fresh;
+    cached.reset(100, 100, 0); fresh.reset(100, 100, 0);
+    cached.stamp_shaded(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255, kept);
+    fresh.stamp_shaded(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255, LightGrid::shade_square(100 * 8 + 4, 100 * 8 + 4, 13 * 8, [](int, int) { return false; }));
+    assert(cached.at(107, 100) == walled.at(107, 100) && fresh.at(107, 100) == open.at(107, 100));
+    assert(LightGrid::shade_square(0, 0, 247, wall).size() == std::size_t(62 * 62) && LightGrid::shade_square(0, 0, 248, wall).empty());
     // A bigger grid: a light 40 subtiles off still lands; game.exe's size loses it.
     LightGrid big, game;
     big.reset(100, 100, 0, 120); game.reset(100, 100, 0);

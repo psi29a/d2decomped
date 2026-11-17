@@ -234,6 +234,19 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             for (const int row : net_game->self_states) if (std::size_t(row) < scene->state_names.size()) look_states.emplace_back(scene->state_names[std::size_t(row)]);
         player_look.x = view.player.x; player_look.y = view.player.y;
         dress(*scene, player_look, -1, look_states, &state_clock);
+        // Setfunc 7 (FUN_004d9090: Hurricane's) plays the prgsound of the state's skill (its stat 0x15e)
+        // on the unit as it comes on; remfunc 4 (FUN_004d90f0) stops it as it goes (stop_owners).
+        // Remfunc 4 alone stops it, so a state without one plays it unowned.
+        const auto last_frame = std::exchange(state_loops, {});
+        for (const int buff : view.buffs)
+            if (const auto* skill = scene->skills.get(buff); skill && skill->prg_sound > 0)
+                if (const auto state = scene->states.find(skill->aurastate); state != scene->states.end() && state->second.set_func == 7) {
+                    const int owner = kStateLoop - buff;
+                    state_loops.push_back(owner);
+                    if (!std::ranges::contains(last_frame, owner))
+                        cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnPlayer, hero.id), skill->prg_sound, frame_ms, view.player.x, view.player.y,
+                                    state->second.rem_func == 4 ? owner : 0);
+                }
         flash(*scene, player_look, view.flash_overlay, view.flash_at);
         if (net_game)   // our own overhead text: the host sends it on our unit like another player's
             if (const auto own = net_said.find(net_game->self_id); own != net_said.end()) { player_look.says = own->second.string; player_look.said = own->second.text; }

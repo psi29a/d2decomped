@@ -847,10 +847,14 @@ void Town::touch_refresh_skill_aim() {
     touch_player.move.aim_x = dx;
     touch_player.move.aim_y = dy;
     const int skill = touch_input.preview.skill;
-    const auto* info = scene ? scene->skills.get(skill) : nullptr;
+    if (!scene) {   // resolve_skill gives no target without one
+        touch_input.preview = resolve_skill(touch_player, skill, dx, dy, false);
+        return;
+    }
+    const auto* info = scene->skills.get(skill);
     const bool directional = info && (info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport
                                       || info->srvdofunc == d2d::rules::ServerDoFunction::kWarCry);
-    const auto picked = scene ? pad_pick(touch_player, view.player, false, pad_aim(skill, true)) : PadPick{};
+    const auto picked = pad_pick(touch_player, view.player, false, pad_aim(skill, true));
     const bool manual = touch::swipe_aims(touch_input.dragged, directional, picked.kind == PadPick::kMonster);
     touch_input.preview = resolve_skill(touch_player, skill, dx, dy, manual);
 }

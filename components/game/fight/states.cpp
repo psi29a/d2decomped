@@ -15,6 +15,7 @@
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -400,16 +401,25 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
         }
     }
 
-auto Fight::charge(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void { charge(actor->charges, skill, skill_level ? skill_level(skill.id) : 1, now_ms); }
+auto Fight::charge(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
+        charge(actor->charges, skill, skill_level ? skill_level(skill.id) : 1, now_ms, unit_key(kSoundOnPlayer, actor->id), actor->player.x, actor->player.y);
+    }
 
 // A charge on `held` (the player's, or a Shadow's), at most 3, auralen on.
-auto Fight::charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) -> void {
+auto Fight::charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms, std::uint64_t unit, float x, float y) -> void {
         auto found = std::ranges::find(held, skill.id, &Charge::skill);
         if (found == held.end()) found = held.insert(held.end(), Charge{ skill.id });
         found->level = std::max(found->level, lvl);
         found->count = std::min(found->count + 1, 3);
         const auto env = calc_env();
         found->until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill.auralen, env, skill.id, lvl), 1)) * 40;
+        // The client's cltprgfunc for the count (FUN_004c6ac0): 12 / 13 play the prgsound's row, the hit's target always there.
+        if (skill.clt_prg_func[std::size_t(found->count - 1)] != 12 && skill.clt_prg_func[std::size_t(found->count - 1)] != 13) return;
+        const auto& names = game_data->state_names;
+        const auto sound = d2d::rules::sound_ids::charge_up({ .prg_sound = skill.prg_sound, .progressive = skill.progressive,
+                                                               .state = int(std::ranges::find(names, skill.aurastate) - names.begin()), .states = int(names.size()),
+                                                               .stat = skill.aurastat[0], .stats = int(game_data->rules.stat_cost.size()), .listed = true, .count = found->count });
+        cues.cue_on(unit, sound.value_or(0), now_ms, x, y);
     }
 
 auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels) -> void {
