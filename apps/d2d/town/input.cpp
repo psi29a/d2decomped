@@ -83,11 +83,12 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         // A hand's skill at the cursor, at `unit` or the ground (-1): the press's FUN_004629a0 (left) /
         // FUN_00462ba0 (right), and a held frame's FUN_00462a20 / FUN_00462c20, all into FUN_004625b0.
         // With no unit there and shift (stand still) held, the skill's own search may name one
-        // first (FUN_004621d0 -> FUN_00467880: shift_pick).
+        // first (FUN_004621d0 -> FUN_00467880: shift_pick); the command says shift was held.
         const auto use_hand = [&](bool left, int unit) {
             const int skill = left ? skillbar.left : skillbar.right;
-            if (unit < 0 && function_held(keys::kStandStill)) unit = shift_pick(skill);
-            out.push_back(cmd::UseSkill{ skill, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item });
+            const bool stand = function_held(keys::kStandStill);
+            if (unit < 0 && stand) unit = shift_pick(skill);
+            out.push_back(cmd::UseSkill{ skill, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {

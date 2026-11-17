@@ -667,12 +667,16 @@ Every click path that sends a skill reaches it (traced 2026-11-08). A click
 goes to `FUN_004625b0`, which first picks the target through `FUN_004621d0`
 -> `FUN_00467880`. That one only asks whether the status is 0, to let the
 skill's own search (Skills.txt +6 bits 0x40 SearchEnemyNear / 0x20
-SearchEnemyXY / 0x80 SearchOpenXY; cursor-units.md "The click's own path")
-pick a target;
-it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
+SearchEnemyXY / 0x80 SearchOpenXY; cursor-units.md "The skill's own
+target search") pick a target; it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
 held, a spot skill, or a cast at the point: three calls), or a unit in
-reach asks through `FUN_00461c70`. A unit out of reach is walked to, and
-the walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
+reach asks through `FUN_00461c70`. A unit out of reach is walked to
+(`FUN_00481030`), unless shift (flag 0x20) is held with a melee skill
+(`FUN_00645460` 1 or 4: the row's +0x14 range kind, 3 resolved by the
+weapon to 1 or 2; what 4 is wasn't traced): then `FUN_00461700(0)`
+swings at the spot and nothing walks (d2d: `UseSkill::stand`,
+World::apply; `tests/game/test_stand_attack.cpp`). The
+walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
 `FUN_00461180` -> `FUN_004610c0`, Attack's entry kept in the slot when it
 fell back. d2d: `Fight::skill_status` / `Fight::ask`, asked at the click
 for a spot or self cast (world/commands.cpp) and in `start_swing` for a

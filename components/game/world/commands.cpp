@@ -833,6 +833,13 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (fight.cast_summon(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
         } else if (skill && !live && use_skill.skill == 0 && use_skill.unit < 0) {
             attack_spot();
+        } else if (live && use_skill.stand && skill && !fight.missile_skill(*skill) && !fight.spot_skill(*skill) && !moving_skill(*skill)
+                   && std::hypot(target->unit.x - actor->player.x, target->unit.y - actor->player.y) > kMeleeReach) {
+            // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
+            // both) swings where the player stands, at the click (FUN_00461c70: flag 0x20 -> FUN_00461700(0)),
+            // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot.
+            actor->attack_mon = -1;
+            if (use_skill.skill == 0) attack_spot();
         } else if (live) {                                                   // walk up to it, then attack
             actor->target_x = use_skill.x; actor->target_y = use_skill.y;
             actor->player.walking = true;

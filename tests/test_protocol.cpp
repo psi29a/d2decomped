@@ -15,7 +15,7 @@ using namespace d2d::game;
 
 int main() try {
     const std::vector<Command> all{
-        cmd::Move{ 12.5f, 3.25f, true }, cmd::UseSkill{ 36, 1.f, 2.f, 77, true }, cmd::UseSkill{ 0, 4.f, 5.f, -1, false },
+        cmd::Move{ 12.5f, 3.25f, true }, cmd::UseSkill{ 36, 1.f, 2.f, 77, true }, cmd::UseSkill{ 0, 4.f, 5.f, -1, false }, cmd::UseSkill{ 0, 4.f, 5.f, 9, true, -1, true },
         cmd::Interact{ 9 }, cmd::Pickup{ 41 }, cmd::Resurrect{}, cmd::Transmute{}, cmd::StatPoint{ 3, 5 }, cmd::SkillPoint{ 12 },
         cmd::SelectSkill{ 98, false }, cmd::UseBelt{ 2 }, cmd::UseItem{ 23 }, cmd::ToCursor{ 17 }, cmd::Drop{ 17 }, cmd::ToGrid{ 5, -1, 3 }, cmd::ToBody{ 4 },
         cmd::ToBelt{ 7 }, cmd::OpenTrade{ 3, true }, cmd::OpenTrade{ 3, false }, cmd::OpenHire{ 8 }, cmd::Buy{ 2 }, cmd::Buy{ 5, 3 },
@@ -32,7 +32,10 @@ int main() try {
     {
         const auto back = decode(encode(cmd::UseSkill{ 54, 3.f, 4.f, -1, false, 812 }));
         const auto* use = back ? std::get_if<cmd::UseSkill>(&*back) : nullptr;
-        assert(use && use->skill == 54 && use->item == 812 && !use->left);
+        assert(use && use->skill == 54 && use->item == 812 && !use->left && !use->stand);
+        const auto held = decode(encode(cmd::UseSkill{ 0, 3.f, 4.f, 17, true, -1, true }));   // shift held (stand still)
+        const auto* shift = held ? std::get_if<cmd::UseSkill>(&*held) : nullptr;
+        assert(shift && shift->unit == 17 && shift->left && shift->stand);
     }
     // Through the transport, in order.
     LocalTransport transport;
