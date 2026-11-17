@@ -255,6 +255,7 @@ struct Fight {
         bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)
         std::optional<d2d::d2s::Item> held;   // the item in the player's hand (the cursor; inventory +0x20, FUN_0063c1e0)
+        int kept_weapon = 0;               // a unit id, 0 none: the weapon wielded when an item last went on (player data +0x90, FUN_006233a0)
         UnitState player;                  // DS1 cells (x.5 = a cell centre)
         std::optional<Monster> merc;       // the save's mercenary, a monster on the player's side (merc_turn)
         const Npc* merc_npc = nullptr;
@@ -1007,8 +1008,13 @@ struct Fight {
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
     // the inventory's first of its code (not broken) takes its slot if it
-    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does.
+    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does; then,
+    // none taking it, ReEquip (reequip).
     void out_of_ammo(std::size_t index);
+    // FUN_0057ff70 (ReEquip): the kept weapon (Hero::kept_weapon) back on,
+    // when the pack holds it and it finds a slot (rules::reequip_slot); the
+    // kept id cleared either way. Whether it went on.
+    bool reequip();
     // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
     // weapon when the player hits, one worn armour when the player is hit —
     // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
