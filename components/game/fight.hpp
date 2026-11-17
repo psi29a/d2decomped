@@ -117,38 +117,60 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
     const auto& item = character.items[std::size_t(index)];
     return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
 }
-// FUN_00643d90: one hand's item type ("" none) against one of a skill's sets. No item: the set is empty, or `bare`:
-// whichever set it is, set a's itype1 (+0x18) is weap / mele / h2h (ItemTypes 0x2d / 0x2e / 0x43), set b's itype1
-// (+0x1e) is empty and the other hand holds no weapon (FUN_00629bb0(.., 0x2d); 0x643dc2..0x643df9).
-// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them.
-// ponytail: the ammo tests (a bow / crossbow needs its quiver in the other hand, stat 70 above 0, unless stat 0x9d) and
-// the flags 0x4000 / 0x100 items (skill 0 only) aren't kept: those pass.
-inline bool hand_fits(const GameData& game_data, const std::string& type, const std::array<std::string, 3>& itypes,
-                      const std::array<std::string, 2>& etypes, bool bare) {
+// FUN_00643d90: one hand's item ("" type: none) against one of a skill's sets, `other` the other hand's. No item: the
+// set is empty, or `bare`: whichever set it is, set a's itype1 (+0x18) is weap / mele / h2h (ItemTypes 0x2d / 0x2e /
+// 0x43), set b's itype1 (+0x1e) is empty and the other hand holds no weapon (FUN_00629bb0(.., 0x2d); 0x643dc2..0x643df9).
+// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them,
+// and one that is: flagged 0x4000 (requirements unmet) or 0x100 (broken) only Attack (skill 0); one that shoots
+// (its type's Shoots, FUN_0062e6f0), unless the skill is noammo (flags bit 16, byte +6 bit 0): Attack with its
+// stat 0x9d goes, else the other hand must hold that ammunition, Attack with its stat 0x9d goes, and a stack
+// (FUN_006295b0) needs its quantity (stat 0x46) above 0.
+inline bool hand_fits(const GameData& game_data, const d2d::d2s::Item* item, const d2d::d2s::Item* other, const d2d::rules::Skill& skill,
+                      const std::array<std::string, 3>& itypes, const std::array<std::string, 2>& etypes, bool bare) {
+    const auto type_of = [&](const d2d::d2s::Item* held) {
+        const auto info = held ? game_data.rules.item_info.find(held->code) : game_data.rules.item_info.end();
+        return info == game_data.rules.item_info.end() ? std::string{} : info->second.type;
+    };
+    const std::string type = type_of(item);
     const auto of_type = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
     if (type.empty()) return (itypes[0].empty() && etypes[0].empty()) || bare;
     if (std::ranges::any_of(etypes, of_type)) return false;
-    return itypes[0].empty() || std::ranges::any_of(itypes, of_type);
+    if (itypes[0].empty()) return true;
+    if (std::ranges::none_of(itypes, of_type)) return false;
+    if (item->flags & 0x4100u) return skill.id == 0;
+    const auto own_type = game_data.rules.types.find(type);
+    const std::string shoots = own_type == game_data.rules.types.end() ? std::string{} : own_type->second.shoots;
+    if (shoots.empty() || skill.noammo) return true;
+    const auto no_consume = [&skill](const d2d::d2s::Item& held) {
+        return skill.id == 0 && std::ranges::any_of(held.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 0x9d && prop.value != 0; });
+    };
+    if (no_consume(*item)) return true;
+    if (!other || !d2d::rules::type_is(game_data.rules, type_of(other), shoots)) return false;
+    if (no_consume(*other)) return true;
+    return d2d::rules::stack_most(game_data.rules, *other) == 0 || other->quantity > 0;
 }
 // FUN_00643f80, the skills' weapon-type gate (FUN_00647960's status 2): no itypea1 and no etypea1 passes; else one
 // hand (right, left: FUN_0063bde0(inv, 4 / 5)) fits set a and the other set b, either way round. For Left Hand
 // Throw / Swing (ids 4 / 5) the wielded weapon's hand (FUN_0063bef0) counts as empty.
 inline bool weapon_gate(const GameData& game_data, const Character& character, const d2d::rules::Skill& skill) {
     if (skill.itype_a[0].empty() && skill.etype_a[0].empty()) return true;
-    std::array<std::string, 2> hands{};   // right, left: the item types
+    std::array<const d2d::d2s::Item*, 2> hands{};   // right, left
     for (const auto& item : character.items)
-        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
-            if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end())
-                hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = info->second.type;
+        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
+            && game_data.rules.item_info.contains(item.code))
+            hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = &item;
     if (skill.id == 4 || skill.id == 5)
         if (const auto* wielded = d2d::rules::wielded_weapon(game_data.rules, character.items))
-            hands[wielded->slot == d2d::d2s::body_location::kRightArm ? 0 : 1].clear();
-    const bool neither_weapon = std::ranges::none_of(hands, [&](const std::string& type) { return !type.empty() && d2d::rules::type_is(game_data.rules, type, "weap"); });
+            hands[wielded->slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = nullptr;
+    const auto is_weapon = [&](const d2d::d2s::Item* held) {
+        return held && d2d::rules::type_is(game_data.rules, game_data.rules.item_info.at(held->code).type, "weap");
+    };
+    const bool neither_weapon = std::ranges::none_of(hands, is_weapon);
     const auto& first = skill.itype_a[0];
     const bool bare = (first == "weap" || first == "mele" || first == "h2h") && skill.itype_b[0].empty() && neither_weapon;
-    const auto fits_a = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_a, skill.etype_a, bare); };
-    const auto fits_b = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_b, skill.etype_b, bare); };
-    return (fits_a(hands[0]) && fits_b(hands[1])) || (fits_b(hands[0]) && fits_a(hands[1]));
+    const auto fits_a = [&](const d2d::d2s::Item* held, const d2d::d2s::Item* other) { return hand_fits(game_data, held, other, skill, skill.itype_a, skill.etype_a, bare); };
+    const auto fits_b = [&](const d2d::d2s::Item* held, const d2d::d2s::Item* other) { return hand_fits(game_data, held, other, skill, skill.itype_b, skill.etype_b, bare); };
+    return (fits_a(hands[0], hands[1]) && fits_b(hands[1], hands[0])) || (fits_b(hands[0], hands[1]) && fits_a(hands[1], hands[0]));
 }
 // A known skill the character can't use now (FUN_00647960 says 2): the
 // picker and the button draw it in text colour 1 (FUN_004aa3a0 /
@@ -233,6 +255,7 @@ struct Fight {
         bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)
         std::optional<d2d::d2s::Item> held;   // the item in the player's hand (the cursor; inventory +0x20, FUN_0063c1e0)
+        int kept_weapon = 0;               // a unit id, 0 none: the weapon wielded when an item last went on (player data +0x90, FUN_006233a0)
         UnitState player;                  // DS1 cells (x.5 = a cell centre)
         std::optional<Monster> merc;       // the save's mercenary, a monster on the player's side (merc_turn)
         const Npc* merc_npc = nullptr;
@@ -567,6 +590,9 @@ struct Fight {
     // A monster's new mode sounds off (MonSounds.txt): an attack's cry (at
     // its chance) and weapon, get-hit, death, each after its delay in ticks.
     void monster_sounds(Monster& monster, std::uint32_t now_ms);
+    // A skill start's cast overlay (FUN_004c6140, rules::cast_overlay_starts) on its caster's
+    // one-shot, `shown` from `shown_at`: the player's, a monster's, the merc's or a pet's.
+    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const;
     // What the character wears (the save's appearance, else the class's starting gear).
     [[nodiscard]] const GameData::Appearance& gfx() const;
     [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const;
@@ -985,8 +1011,13 @@ struct Fight {
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
     // the inventory's first of its code (not broken) takes its slot if it
-    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does.
+    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does; then,
+    // none taking it, ReEquip (reequip).
     void out_of_ammo(std::size_t index);
+    // FUN_0057ff70 (ReEquip): the kept weapon (Hero::kept_weapon) back on,
+    // when the pack holds it and it finds a slot (rules::reequip_slot); the
+    // kept id cleared either way. Whether it went on.
+    bool reequip();
     // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
     // weapon when the player hits, one worn armour when the player is hit —
     // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
@@ -1205,6 +1236,9 @@ struct Fight {
     // counts a fifth (FUN_005c3540, apply_target_stats); Holy Freeze's
     // slow is the monster's (monster_states).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
+    // The same under the merc's blow: a MonStats boss (+0xc & 0x40) takes the game's
+    // HireableBossDamagePercent (FUN_0057c060).
+    [[nodiscard]] d2d::rules::Target merc_target(std::size_t monster_index);
     void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
@@ -1286,7 +1320,7 @@ struct Fight {
     // A Shadow's (MonUMod 42 lightningdeath, FUN_005a2910), from golem_blast.
     void shadow_nova(Pet& pet, std::uint32_t now_ms);
     // FUN_005ddc30's foe (an index into monsters, -1 none) for a pet of `size` at x, y (cells); `gap` its distance.
-    [[nodiscard]] int pet_second_foe(float x, float y, int size, int& gap) const;
+    [[nodiscard]] int pet_second_foe(const Monster& searcher, int size, const Crowd& crowd, int& gap) const;
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void shadow_give(Pet& pet, int skill, int lvl) const;
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
@@ -1312,9 +1346,16 @@ struct Fight {
     // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
     // 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
     // and the skill's delay above 0.
-    // ponytail: blood mana (state 0x72) and an item's charges in its stat (2) aren't asked:
-    // d2d puts no Blood Mana on the player, and a spent entry goes.
+    // In state 0x72 (Blood Mana's curse, curses[0]) the cost is asked of life (FUN_00647540: stat 6, not 8).
+    // FUN_00647840's status 2 (an entry's item at 0 charges) never comes: the stat hook takes the entry
+    // away at 0 (SKILLS_AddOrRemoveItemSkill, skills.md "Item charges"), as charged_skills does.
     [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
+    // The player in state 0x72: a succubus witch's Blood Mana (srvdofunc 30) as its curse, while it lasts.
+    [[nodiscard]] bool blood_mana() const;
+    // FUN_005d2b60, a cost paid in state 0x72 (FUN_0056bfe0, FUN_0056c110): `cost` 256ths off life. Short of
+    // it the state goes and life is set to 1 (0x100), false; paid, the state goes once life is under the
+    // curse's Param5 (+0x158) points.
+    bool blood_pay(std::int64_t cost);
     // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
     // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
     // the skill that goes. Else -1 and the status's line (0x711ddc): 1 needmana, 2..4

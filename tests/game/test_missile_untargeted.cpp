@@ -2,7 +2,8 @@
 // test-links: game
 // A missile with no target point is aimed with FUN_0064fc60 (missile_aim)
 // at the start plus (1, 1) (FUN_0059fa30). The room follows (path flag 1,
-// FUN_006492f0) only when that point lies outside the first room.
+// FUN_006492f0) only when that point lies outside the first room. A re-aim in
+// flight aims from the fine position at the new point's centre.
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
@@ -44,8 +45,6 @@ int main() try {
     Missile untargeted = shot_at(4.1f, 4.1f);   // subtile (20, 20); no target point
     assert(missile_fly(level, untargeted, whole));
     assert(untargeted.flight.aim_x == aim_x && untargeted.flight.aim_y == aim_y);
-    const auto [along_x, along_y] = d2d::rules::missile_aim_along(untargeted.velocity_x, untargeted.velocity_y);
-    assert(untargeted.flight.aim_x != along_x || untargeted.flight.aim_y != along_y);
     assert(!untargeted.follow);                 // (21, 21) is inside the 40x40 room
 
     Missile on_edge = shot_at(4.1f, 4.1f);
@@ -66,6 +65,17 @@ int main() try {
     assert(outside.follow);
 
     std::puts("OK: no target point aims with FUN_0064fc60, and the room follows only outside");
+
+    // A re-aim in flight (FUN_00649970 -> FUN_006492f0): from the fine position kept, at the point's centre.
+    Missile guided = shot_at(4.1f, 4.1f);
+    guided.to = { 6.1f, 4.1f };
+    assert(missile_fly(level, guided, whole));
+    const auto flown_x = guided.flight.x, flown_y = guided.flight.y;
+    guided.retarget = std::pair{ 4.1f, 6.1f };   // subtile (20, 30)
+    assert(missile_fly(level, guided, whole));
+    const auto [turned_x, turned_y] = d2d::rules::missile_aim(flown_x, flown_y, centre_of(20), centre_of(30));
+    assert(guided.flight.aim_x == turned_x && guided.flight.aim_y == turned_y && !guided.retarget);
+    std::puts("OK: a re-aim turns at the point from where it flies");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_missile_untargeted: %s\n", error.what());

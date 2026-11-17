@@ -1376,10 +1376,20 @@ inline void wield_leaves(const Tables& tables, std::vector<d2d::d2s::Item>& item
 // (FUN_005335e0 -> FUN_00531210, a worn one through FUN_005606b0 with the
 // requirements skipped, which calls FUN_0063d1d0 for slots 4 / 5); a new
 // character's starting gear the same way, in CharStats order (FUN_00534d60
-// -> FUN_00534bb0 -> FUN_005606b0).
-inline void wield_settle(const Tables& tables, std::vector<d2d::d2s::Item>& items) {
+// -> FUN_00534bb0 -> FUN_005606b0). Before each worn item but the switch's
+// (0xb / 0xc) goes in, FUN_005606b0 keeps the weapon wielded then
+// (FUN_0063bef0 -> FUN_006233a0, the player's +0x90): the last one kept is
+// answered, an index into `items`, -1 none (FUN_0057ff70 reads it).
+inline int wield_settle(const Tables& tables, std::vector<d2d::d2s::Item>& items) {
     for (auto& item : items) item.wielded = false;
-    for (auto& item : items) wield_enters(tables, items, item);
+    int kept = -1;
+    for (auto& item : items) {
+        if (item.location == d2d::d2s::item_location::kEquipped && item.slot != d2d::d2s::body_location::kRightArmSwitch
+            && item.slot != d2d::d2s::body_location::kLeftArmSwitch)
+            if (const auto* before = wielded_weapon(tables, items)) kept = int(before - items.data());
+        wield_enters(tables, items, item);
+    }
+    return kept;
 }
 // FUN_0055db00: worn `item` (one of `items`) meets its requirements:
 // FUN_0062eaf0's (identified, class, strength, dexterity, level), and a
@@ -1477,8 +1487,12 @@ inline int throw_hand(const Tables& tables, const std::vector<d2d::d2s::Item>& i
 //   (code 7, C->S 0x1e, FUN_00561220: FUN_0063cb00's room test, then
 //   FUN_0063b950, a player's best fit) and this hand's to the cursor. No
 //   room in the `cols` x `rows` inventory: code 0, refused.
+// `kept_weapon`: an empty slot (code 1, FUN_005606b0), code 2 and a swap
+// (code 5, FUN_00560f00) first keep the weapon wielded then, its unit id
+// (FUN_0063bef0 -> FUN_006233a0, the player's +0x90; none wielded leaves it
+// as it was). Code 7 (FUN_00561220) and a stack joined don't.
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                  int slot, const Wearer& wearer, int required_level = -1, int cols = 0, int rows = 0) {
+                  int slot, const Wearer& wearer, int required_level = -1, int cols = 0, int rows = 0, int* kept_weapon = nullptr) {
     if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;   // FUN_0063de60 asks first
     if (const int stack = hand_stack(tables, items, *held, slot); stack >= 0) {
         stack_onto(tables, items[std::size_t(stack)], held);
@@ -1505,11 +1519,14 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
         moved.location = d2d::d2s::item_location::kStored; moved.panel = d2d::d2s::item_panel::kInventory;
         moved.column = column; moved.row = row; moved.slot = 0;
         wield_leaves(tables, items, items[std::size_t(off)]);   // then this hand's, the other hand empty
-    } else if (off < 0) {
-        off = other_off;                               // code 2: the other hand's to the cursor
-        if (off >= 0) wield_leaves(tables, items, items[std::size_t(off)]);   // FUN_00563d20
     } else {
-        wield_leaves(tables, items, items[std::size_t(off)]);   // code 5, a swap (FUN_00560f00)
+        if (const auto* before = wielded_weapon(tables, items); before && kept_weapon) *kept_weapon = before->id;   // -> FUN_006233a0
+        if (off < 0) {
+            off = other_off;                           // code 2: the other hand's to the cursor
+            if (off >= 0) wield_leaves(tables, items, items[std::size_t(off)]);   // FUN_00563d20
+        } else {
+            wield_leaves(tables, items, items[std::size_t(off)]);   // code 5, a swap (FUN_00560f00)
+        }
     }
     auto put = std::move(*held);
     held.reset();
@@ -1542,8 +1559,9 @@ inline int bag_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item
     return slot;
 }
 
+// `kept_weapon` as equip's: the ToBody it stands for (deviations.md 18) is code 1 or 5.
 inline bool equip_from_bag(const Tables& tables, std::vector<d2d::d2s::Item>& items, const std::optional<d2d::d2s::Item>& held,
-                           int id, const Wearer& wearer, int required_level, int cols, int rows) {
+                           int id, const Wearer& wearer, int required_level, int cols, int rows, int* kept_weapon = nullptr) {
     const int slot = bag_equip_slot(tables, items, held, id, wearer, required_level);
     if (slot < 0) return false;
     const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
@@ -1562,6 +1580,7 @@ inline bool equip_from_bag(const Tables& tables, std::vector<d2d::d2s::Item>& it
         column = spot.first;
         row = spot.second;
     }
+    if (const auto* before = wielded_weapon(tables, items); before && kept_weapon) *kept_weapon = before->id;   // FUN_006233a0
     if (worn >= 0) {
         auto& old_item = items[std::size_t(worn)];
         old_item.location = d2d::d2s::item_location::kStored;
@@ -2425,10 +2444,14 @@ inline bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     return found->second.nameable && !item.personalized && !item.simple;
 }
 
-// Gheed's price for gambling on `code` (FUN_00629370): rings and amulets
+// Gheed's price for gambling on `item_code` (FUN_00629370): rings and amulets
 // cost their "gamble cost"; the rest mix the base, exceptional and elite
 // costs by upgrade odds and scale with character level.
-inline int gamble_price(const Tables& tables, const std::string& code, int clvl, int reduced = 0) {
+inline int gamble_price(const Tables& tables, const std::string& item_code, int clvl, int reduced = 0) {
+    // An upgraded base (exceptional or elite) is priced as its normal one: FUN_006287d0's normcode.
+    const auto item = tables.item_base.find(item_code);
+    if (item == tables.item_base.end()) return 0;
+    const std::string& code = item->second.normcode.empty() ? item_code : item->second.normcode;
     const auto found = tables.item_base.find(code);
     if (found == tables.item_base.end()) return 0;
     const auto& base = found->second;

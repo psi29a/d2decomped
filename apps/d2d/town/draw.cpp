@@ -259,6 +259,19 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             if (const auto& walk_anim = scene->composite(cls, mode, view.gfx); walk_anim.speed || walk_anim.cof_speed)
                 rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, view.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
+        // A get-hit as game.exe's client draws it (FUN_00463390, combat.md "Drawn frame"): its frame steps at the
+        // get-hit rate (rules::get_hit_frame), once through and held, and the client's mode ends a tick before the
+        // server's event. A knockback slide (drawn GH) keeps its stretch.
+        if (pmode == kModeGH && !view.knocked && !view.ghost) {
+            const auto& hit_anim = scene->composite(cls, kModeGH, view.gfx);
+            const int frames = int(hit_anim.frames ? hit_anim.frames : hit_anim.cof_frames);
+            const int hit_rate = d2d::rules::get_hit_rate(int(hit_anim.speed ? hit_anim.speed : hit_anim.cof_speed), view.fhr);
+            const int frame = d2d::rules::player_get_hit_frame(frames, hit_rate, int((frame_ms - unit.mode_ms) / kTickMs), int((view.pmode_until - unit.mode_ms) / kTickMs));
+            const std::uint32_t per_frame = std::max<std::uint32_t>(hit_anim.ms_per_frame(), 1);
+            if (frame < 0) { mode = town ? kModeTN : kModeNU; mode_ms = view.pmode_until - kTickMs; }
+            else mode_ms = frame_ms - std::uint32_t(frame) * per_frame - per_frame / 2;
+            rate = 1.f;
+        }
         const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, event_ambient(), extra, &player_look, frame_ms, &hero_at);
         // A pad in the field shows no cursor. The highlight is the same PadPick the
         // press uses, by id. A screen point would let a sprite in front take it.

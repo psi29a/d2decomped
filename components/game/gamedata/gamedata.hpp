@@ -486,6 +486,14 @@ struct GameData {
     };
     std::unordered_map<std::string, OverlayInfo> overlays;
     std::vector<const OverlayInfo*> overlay_rows;      // by Overlay.txt row (the id a one-shot overlay names); null: no file
+    // The Overlay.txt row of `name`, -1 for none or no file.
+    [[nodiscard]] int overlay_row(std::string_view name) const {
+        if (name.empty()) return -1;
+        const auto found = overlays.find(std::string(name));
+        if (found == overlays.end()) return -1;
+        const auto row = std::ranges::find(overlay_rows, &found->second);
+        return row == overlay_rows.end() ? -1 : int(row - overlay_rows.begin());
+    }
     // States.txt's look: the colour shift that wins by colorpri (PL2's
     // colour shift tables, +0x53500, colorshift - 1), overlays while it lasts
     // (overlay1..4) and once as it starts (castoverlay); the colour worn
@@ -571,6 +579,7 @@ struct GameData {
     std::array<int, 3> life_steal_divisor{ 1, 1, 1 };   // DifficultyLevels LifeStealDivisor (+0x28): a player's life steal / it (FUN_0057c420)
     std::array<int, 3> mana_steal_divisor{ 1, 1, 1 };   // DifficultyLevels ManaStealDivisor (+0x2c)
     std::array<int, 3> freeze_divisor{};         // DifficultyLevels MonsterFreezeDivisor (+0x14): a monster's freeze length / it
+    std::array<int, 3> hireling_boss_pct{ 100, 100, 100 };   // DifficultyLevels HireableBossDamagePercent (+0x38): a hireling's damage % on a MonStats boss (FUN_0057c060)
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
@@ -1061,6 +1070,9 @@ struct Spawning {
         // A room's room1 seed stepped before it populated: a water monster's
         // party searching the room its leader stands in (FUN_005b2700).
         std::vector<std::optional<d2d::rules::Rng>> early_seeds;
+        // Gold piles its gold placeholders made (InitFn 28, FUN_00559300), not yet
+        // on the floor: level subtile x, y and the coins. World::drop_new_gold takes them.
+        std::vector<std::array<int, 3>> gold;
     };
     int difficulty = 0;
     d2d::rules::Rng game;

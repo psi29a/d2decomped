@@ -139,23 +139,47 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         }
         // FUN_00560cd0 refuses with an item on the cursor (FUN_0063c1e0 at 0x560d23): the spent stack
         // stays in its slot, so no reload takes it (0x5801a3); the next refused shot tries again.
-        if (actor->held) return;
-        const std::string code = item.code;
-        const auto slot = item.slot;
-        d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
-        actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
-        // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
-        const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
-            return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
-        // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
-        // ponytail: spent.reequip (0x5801bb): when no reload took the slot, FUN_0057ff70 puts back the weapon
-        // wielded before the last one was put on (the player's +0x90, FUN_006233a0), if the pack still holds it.
-        if (next != actor->character.items.end()
-            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
-            next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
-            d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
+        const bool taken_off = !actor->held;
+        bool took = false;
+        if (taken_off) {
+            const std::string code = item.code;
+            const auto slot = item.slot;
+            d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
+            actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
+            // The reload (0x580120, the type's Reload): rules::reload_pick, the pack's first of its code that isn't broken.
+            const auto next = !spent.reload ? actor->character.items.end() : std::ranges::find_if(actor->character.items, [&](const Item& other) {
+                return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
+            // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+            if (next != actor->character.items.end()
+                && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
+                next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
+                d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
+                took = true;
+            }
         }
-        settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
+        // 0x5801bb: no reload took the slot (the cursor's refusal too) and the type has ReEquip.
+        const bool reequipped = !took && spent.reequip && reequip();
+        if (taken_off || reequipped) settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
+    }
+
+auto Fight::reequip() -> bool {
+        using namespace d2d::d2s;
+        auto& items = actor->character.items;
+        const auto& tables = game_data->rules;
+        d2d::rules::KeptWeapon weapon{ .id = std::exchange(actor->kept_weapon, 0) };   // FUN_00623410; cleared at 0x58001d (FUN_006233a0)
+        const auto found = weapon.id != 0 ? std::ranges::find(items, weapon.id, &Item::id) : items.end();
+        if (found != items.end()) {
+            weapon.of_game = weapon.ours = true;   // FUN_00552f60 / FUN_0063ad50: the player's items are the game's and theirs
+            weapon.page = found->location == item_location::kStored && found->panel == item_panel::kInventory ? 0 : 0xff;   // FUN_00628250
+            if (weapon.page == 0)
+                weapon.found_slot = d2d::rules::auto_equip_slot(tables, items, *found, wearer(*game_data, actor->character.header.cls, items, actor->character.stats),
+                                                              required_level(*game_data, *found, actor->character.header.cls));   // FUN_0055d710 mode 0
+        }
+        const int slot = d2d::rules::reequip_slot(weapon);
+        if (slot < 0) return false;
+        found->location = item_location::kEquipped; found->slot = slot; found->panel = found->column = found->row = 0;
+        d2d::rules::wield_enters(tables, items, *found);   // FUN_00562a30 -> FUN_0063d1d0
+        return true;
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -557,6 +581,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     const auto& target = monsters[std::size_t(missile.target)];
                     const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = target.unit.x - missile.x, dy = target.unit.y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                     missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
+                    missile.retarget = std::pair{ target.unit.x, target.unit.y };
                 }
             }
             const auto sub = missile_info.sub.empty() ? game_data->missiles.end() : game_data->missiles.find(missile_info.sub);
@@ -625,6 +650,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 std::swap(missile.target_x, missile.origin_x); std::swap(missile.target_y, missile.origin_y);
                 const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = missile.target_x - missile.x, dy = missile.target_y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
+                missile.retarget = std::pair{ missile.target_x, missile.target_y };
                 missile.last_hit = -1;
             }
             // 31 (Wake of Fire's maker): its fire where it goes.
@@ -833,7 +859,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
-        const auto target = target_of(monster_index);
+        const auto target = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         // A merc's skill missile (Fire Arrow): its weapon, attack rating and
         // level; its skill's calcs see no synergies (mercs have none).
         const int clvl = missile.by_merc ? actor->merc_st.level : int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -1063,10 +1089,13 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
             }
         }
         // Something healed: FUN_0056c110(caster, cost) takes the cost off its
-        // mana (there's enough: checked above).
+        // mana (there's enough: checked above), off its life in state 0x72 (FUN_005d2b60).
         // With the cost, state 0x55 (nomanaregen) goes on with it
         // (FUN_00639db0(caster, 0x55, 1), 0x5cf244), else off (0x5cf265).
-        if (cost > 0 && changed > 0) values[kMana] -= cost;
+        if (cost > 0 && changed > 0) {
+            if (blood_mana()) (void)blood_pay(cost);
+            else values[kMana] -= cost;
+        }
         if (cost > 0) actor->no_mana_regen = changed > 0;
     }
 
@@ -1169,6 +1198,13 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
                 apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).
         for (const auto& aura : enemy_auras(monsters[monster_index])) apply_target_stats(*aura.skill, aura.level, target, base, &aura.env);
+        return target;
+    }
+
+auto Fight::merc_target(std::size_t monster_index) -> d2d::rules::Target {
+        auto target = target_of(monster_index);
+        if (const int type = monsters[monster_index].type; type >= 0 && game_data->monsters.types[std::size_t(type)].boss_column)
+            target.pair_pct = game_data->hireling_boss_pct[std::size_t(std::clamp(game_difficulty, 0, 2))];
         return target;
     }
 

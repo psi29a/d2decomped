@@ -10,6 +10,7 @@
 #include "ai.hpp"
 #include "gamedata.hpp"
 #include <drlg.hpp>
+#include <drops.hpp>
 #include <level_ids.hpp>
 #include <mon_equip.hpp>
 #include <monsters.hpp>
@@ -245,7 +246,8 @@ struct ObjectRooms {
     // is an item: two game-seed steps (FUN_00552df0, FUN_00552e90) and
     // 0x200 at the free subtile nearest (x + 2, y + 3) (FUN_0064dea0) with
     // no 0x801 on the walk back to the spot (FUN_0066a670: expfield.d2's
-    // steps, FUN_0066a5d0).
+    // steps, FUN_0066a5d0). Its coins (gold_amount) off the first step, at
+    // ilvl the area level, less 1 above 1 (FUN_00559300).
     void piles(d2d::rules::Rng gold, int x, int y) {
         auto inside_room = [&](int at_x, int at_y) { return at_x >= room.x && at_y >= room.y && at_x < room.x + room.w && at_y < room.y + room.h; };
         int last_x = x, last_y = y;
@@ -256,7 +258,11 @@ struct ObjectRooms {
             if (hit(last_x, last_y, 1, 1, 0x3f11)) continue;
             const auto [at_x, at_y] = drop_spot(game_data.field, last_x, last_y, [&](int probe_x, int probe_y) { return at(probe_x, probe_y); });
             stamp(at_x, at_y, 1, 1, 0x200);
-            game.next(); game.next();
+            d2d::rules::Rng unit_seed{ game.next() };
+            game.next();
+            const int area_level = area_monster_level(game_data, level.id, pop.difficulty);
+            const int coins = d2d::rules::gold_amount(area_level > 1 ? area_level - 1 : area_level, 0, unit_seed);
+            if (level_state) level_state->gold.push_back({ at_x, at_y, coins });
         }
     }
 

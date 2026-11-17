@@ -540,11 +540,14 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
 // FUN_005ddc30's foe for a pet: FUN_005dd0b0 mode 6 (FUN_005dcbd0, as a
 // monster's second target and the merc's: rules::search_sight): the near
 // rooms' monsters, each room's newest first, its enemies, alive, out of
-// town, the line from them (mask 4) tested under 0x31; a pet is a monster,
-// so FUN_005dd510 finds a path to the primary always. No skill-set target
-// (FUN_005dd610): d2d's pets have none.
-auto Fight::pet_second_foe(float x, float y, int size, int& gap) const -> int {
+// town, the line from them (mask 4) tested under 0x31; FUN_005dd510 then
+// asks a pet (a monster, not a player) for a path to the primary
+// (rules::path_found). No skill-set target (FUN_005dd610): d2d's pets have none.
+auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd, int& gap) const -> int {
         auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+        const auto& unit = searcher.unit;
+        const float x = unit.x, y = unit.y;
         const int pet_x = sub(x), pet_y = sub(y);
         const bool town = d2d::rules::level_ids::is_town(level->id);
         const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
@@ -564,7 +567,13 @@ auto Fight::pet_second_foe(float x, float y, int size, int& gap) const -> int {
             }
         }
         gap = 0x7fffffff;
-        const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), [](int) { return true; }, gap);
+        const auto path_to_primary = [&](int pick) {
+            const auto& foe = monsters[std::size_t(sight_index[std::size_t(pick)])];
+            return d2d::rules::path_found(pet_x, pet_y, sub(foe.unit.x), sub(foe.unit.y), searcher.path_steps, [&](int at_x, int at_y) {
+                return level->unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
+            });
+        };
+        const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), path_to_primary, gap);
         return chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
     }
 
@@ -614,7 +623,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // the others' PetUnit::foe2 is the driver's target, the mode 5 foe.
         const bool own_search = type_info.ai_name == "Vines" || type_info.ai_name == "AssassinSentry" || type_info.ai_name == "DeathSentry";
         int second_gap = 0x7fffffff;
-        const int second = own_search ? pet_second_foe(unit.x, unit.y, size, second_gap) : found;
+        const int second = own_search ? pet_second_foe(monster, size, crowd, second_gap) : found;
         // The corpse: near the owner for Fenris (10) and the cycle vines
         // (their skill's calc), near itself for the Death Sentry.
         const auto* summoning = game_data->skills.get(pet.skill);
@@ -954,6 +963,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             const std::string_view mode = act.kind == Kind::skill && act.mode < 16 && game_data->npc_timing(monster.npc, kMonsterModes[std::size_t(act.mode)]).directions
                                               ? kMonsterModes[std::size_t(act.mode)] : "A1";
             monster.next_act = now_ms + std::uint32_t(std::max(act.frames, 0)) * 40;
+            if (const auto* started = game_data->skills.get(pet.cast))         // its castoverlay (FUN_004c6140)
+                start_cast_overlay(*started, false, monster.flash_overlay, monster.flash_at, now_ms);
             if (!game_data->npc_timing(monster.npc, mode).directions) {   // no frames for it (a trap): at once
                 if (pet.cast >= 0) pet_cast(pet, now_ms, crowd);
                 pet.cast = -1;

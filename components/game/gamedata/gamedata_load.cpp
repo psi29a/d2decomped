@@ -188,7 +188,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
-        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1"; type_info.zoo = text("zoo") == "1";
+        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.no_multishot = text("nomultishot") == "1"; type_info.open_doors = text("opendoors") == "1"; type_info.zoo = text("zoo") == "1";
         type_info.align = num(text("Align"));
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2"); type_info.miss_s1 = text("MissS1"); type_info.miss_c = text("MissC");
         for (std::size_t skill = 0; skill < type_info.skill.size(); ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
@@ -556,7 +556,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
-        skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
+        skill_row.decquant = number("decquant") != 0; skill_row.noammo = number("noammo") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
         skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
@@ -584,7 +584,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 skill_row.aurastat[std::size_t(i)] = found->second;
         }
         skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc"); skill_row.aura_filter = std::uint32_t(number("aurafilter"));
-        skill_row.srvoverlay = text("srvoverlay");
+        skill_row.srvoverlay = text("srvoverlay"); skill_row.cast_overlay = text("castoverlay"); skill_row.item_cast_overlay = text("ItemCastOverlay");
         skill_row.aurastate = text("aurastate"); skill_row.auratarget = text("auratargetstate"); skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum"); skill_row.seqtrans = text("seqtrans");
         for (int i = 0; i < 3; ++i) {
             skill_row.prgfunc[std::size_t(i)] = d2d::rules::ServerDoFunction(number("srvprgfunc" + std::to_string(i + 1)));
@@ -926,6 +926,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.freeze_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterFreezeDivisor")).c_str());
             game_data.life_steal_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "LifeStealDivisor")).c_str());
             game_data.mana_steal_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "ManaStealDivisor")).c_str());
+            game_data.hireling_boss_pct[row] = std::atoi(std::string(difficulty_table.get(row, "HireableBossDamagePercent")).c_str());
         }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.

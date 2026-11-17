@@ -522,8 +522,8 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // Param2 + 1 (FUN_004efc20); 143 writes them only for missile row 0x238.
         // Their path callbacks (FUN_005d40f0 for 37, FUN_005d4680 for 143) cap
         // the range at 77 (0x4d) and give the path type 10, a route of points.
-        // ponytail: FUN_005d4680 wobbles 143's route (turns from DAT_00741b10,
-        // flipped every DAT_00741b0c points); d2d flies 143 straight too.
+        // FUN_005d4680 lays 143's a wobbling route (rules::wobble_route) on the
+        // missile's seed: the fight's rng here (deviations.md approximation 18).
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
@@ -543,6 +543,13 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             d2d::rules::visit_release_ring(step, [&](std::pair<int, int> offset) {
                 auto& missile = launch(*missile_info, skill, lvl, target_x, target_y, float(offset.first) / 5, float(offset.second) / 5, range, now_ms);
                 if (!second || missile_info->id == d2d::rules::kReleaseHopMissile) missile.hops = hops;
+                if (second) {
+                    // FUN_005d4870's flags 3: its path's target is the start plus the offset, the type 4 aim its
+                    // first frame follows before the route's points (missile_fly).
+                    missile.to = std::pair{ target_x + float(offset.first) / 5, target_y + float(offset.second) / 5 };
+                    const int from_x = level->world_x * 5 + int(std::floor(target_x * 5)), from_y = level->world_y * 5 + int(std::floor(target_y * 5));
+                    missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, rng);
+                }
             });
             return;
         }

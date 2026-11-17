@@ -154,17 +154,6 @@ struct Facing {
     }
 };
 
-// The same along a direction in floats (a missile turned in flight).
-inline std::pair<int, int> missile_aim_along(float dx, float dy) {
-    const float across = std::abs(dx), down = std::abs(dy);
-    const bool steep = across <= down;
-    const float major = steep ? down : across, minor = steep ? across : down;
-    const int row = major == 0 ? 0 : std::clamp(int(minor * 127 / major + 1e-4f), 0, 127);
-    const auto& [small, big] = kMissileAim[std::size_t(row)];
-    const int aim_x = steep ? small : big, aim_y = steep ? big : small;
-    return { dx < 0 ? -aim_x : aim_x, dy < 0 ? -aim_y : aim_y };
-}
-
 // Royal Strike's third release (FUN_005d5080): one missile's aim, in
 // subtiles, off the target. Each axis is a step of `seed` modulo 0x28,
 // then less 0x14, so -20..19. A (0, 0) pair is stored as x = 0x14.
@@ -205,6 +194,33 @@ inline std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, in
         x = (x + step[0] * 2) & 0xffff; y = (y + step[1] * 2) & 0xffff;
     }
     points.emplace_back(x, y);
+    return points;
+}
+
+// Do 143's missiles' route (FUN_005d4870's path callback FUN_005d4680, path
+// type 10): `count` points (the range, 77 at most) from subtile (x, y), each
+// two subtiles on (0x6e32ac x, 0x6e328c y) along the 8-way (0x745600:
+// (dir + 4) / 8) of a heading that starts at direction64 toward (to_x, to_y)
+// and turns by turn x sign at every point: sign +1 when the first draw on
+// `seed` is odd, else -1; turn the next draw % 3 + 2 (DAT_00741b10). After
+// points 0, 15, 30 ... (DAT_00741b0c) the sign flips and turn is drawn again.
+inline std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, int count, Rng& seed) {
+    static constexpr std::array<int, 8> kStepX{ 2, 2, 0, -2, -2, -2, 0, 2 }, kStepY{ 0, 2, 2, 2, 0, -2, -2, -2 };
+    constexpr int kFlipEvery = 15, kTurnLeast = 2;
+    int heading = direction64(x, y, to_x, to_y) & 0xff;
+    int sign = (seed.next() & 1) != 0 ? 1 : -1;
+    int turn = int(seed.next() % 3) + kTurnLeast;
+    std::vector<std::pair<int, int>> points;
+    for (int point = 0; point < count; ++point) {
+        heading += turn * sign;
+        const auto way = std::size_t(((heading & 0x3f) + 4) / 8 & 7);
+        x += kStepX[way]; y += kStepY[way];
+        points.emplace_back(x, y);
+        if (point % kFlipEvery == 0) {
+            sign = -sign;
+            turn = int(seed.next() % 3) + kTurnLeast;
+        }
+    }
     return points;
 }
 

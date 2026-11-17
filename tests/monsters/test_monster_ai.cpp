@@ -76,6 +76,14 @@ int main() try {
                 const auto pick = search_pick(entry.foes, entry.best, entry.sight);
                 assert(pick.target == entry.target && (entry.target >= 0 ? pick.best : pick.nearest) == entry.distance);
             }
+            // List 9's nearest goes back with a best found (FUN_005dd510's input): the row above with one.
+            const auto with_nine = search_pick(cases[8].foes, cases[8].best, cases[8].sight);
+            assert(with_nine.target == 1 && with_nine.nine == 7 && with_nine.nine_best == 13);
+            // FUN_005dd510's path test: a type 2 (toward) path with a point off its own subtile; none to its own
+            // subtile or over 100 off; a wall all round leaves none.
+            const auto open = [](int, int) { return false; };
+            assert(d2d::rules::path_found(0, 0, 4, 0, 5, open) && !d2d::rules::path_found(0, 0, 0, 0, 5, open) && !d2d::rules::path_found(0, 0, 101, 0, 5, open));
+            assert(!d2d::rules::path_found(0, 0, 4, 0, 5, [](int at_x, int at_y) { return std::abs(at_x) + std::abs(at_y) == 1 || (std::abs(at_x) == 1 && std::abs(at_y) == 1); }));
         }
         // A move's path (FUN_00679c80) and its chase check (FUN_006503f0 ->
         // FUN_00650350; tools/emu/moves.py --dump): to, steps, near, points,

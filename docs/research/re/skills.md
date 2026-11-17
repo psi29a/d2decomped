@@ -39,15 +39,19 @@ What a skill is, column by column (the ones that matter first):
   (+0x1e) is empty and the other hand isn't a weapon (`FUN_00629bb0(..,
   0x2d)`, 0x643dc2..0x643df9; so Double Swing, mele / mele, refuses bare
   hands); an item of an etype: false; no itype: true;
-  an item of none of the itypes: false; of one: true, except the ammo
-  tests (a bow / crossbow needs its quiver in the other hand with stat 70
-  above 0, unless stat 0x9d; flags 0x4000 / 0x100 items only for skill 0).
+  an item of none of the itypes: false; of one: flagged 0x4000 / 0x100
+  only for skill 0; one whose type shoots (Shoots, `FUN_0062e6f0`) and a
+  skill not noammo (flags bit 16, byte +6 bit 0; the Skills.txt field
+  table built at 0x616969): skill 0 with its stat 0x9d passes, else the
+  other hand must be of that ammunition, skill 0 with its stat 0x9d
+  passes, and a stack (`FUN_006295b0` above 0) needs its quantity (stat
+  0x46) above 0; else true.
   So Holy Shield and Smite (itypea1 shld, no set b) need a shield in
   either hand: the other hand passes set b's empty test.
   d2d: `weapon_gate` / `hand_fits` (fight.hpp, through `skill_refused`;
   `test_weapon_gate` against game.exe's own answers, `tools/emu/weapon_gate.py`:
-  2288 cases, Left Hand Throw / Swing's dropped hand too); not
-  kept: the ammo tests, the 0x4000 / 0x100 items; Throw keeps its own gate.
+  3984 cases, Left Hand Throw / Swing's dropped hand too, bows and quivers
+  full, empty, broken and with stat 0x9d); Throw keeps its own gate.
 - **Damage**: `ToHit` + `LevToHit`, or `ToHitCalc`; `SrcDam` (128 = all of
   the weapon damage); physical `MinDam` / `MaxDam` with `MinLevDam1..5`,
   elemental `EType`, `EMin` / `EMax` with `EMinLev1..5` / `EMaxLev1..5`,
@@ -622,6 +626,12 @@ loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
 5. mana (`FUN_00647540`): 1. An item's entry (+0x34 not -1) asks only for
    its charges (+0x38 above 0); blood_mana (state 0x72) asks life (stat 6)
    instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
+   The payment in state 0x72 (`FUN_0056bfe0`, `FUN_0056c110` ->
+   `FUN_005d2b60`): short of the cost in life, the state goes and life is
+   set to 0x100; else it comes off life, and the state goes once life is
+   under the state's skill's Param5 (+0x158; Blood Mana's 40) points.
+   1.14d puts it on with the succubus witches' Blood Mana (srvdofunc 30,
+   a curse). d2d: `Fight::blood_mana`, `blood_pay` (test_blood_mana).
 6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
    States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
    one of State1..3 (+0x22a), 1 and others pass: 4. In 1.14d's rows 2 is
@@ -870,20 +880,34 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   both. Step 3's `FUN_00560cd0` refuses with something on the cursor
   (`FUN_0063c1e0` at 0x560d23, answer 0 before the slot is asked) and
   `FUN_00580030` ignores its answer: the spent stack stays in its slot,
-  which the reload then finds full (0x5801a3). V
-  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` returns while
-  `Hero::held` is set. Not ported: step 4 (a `ponytail:` in
-  `Fight::out_of_ammo`).
-- **ReEquip** (`FUN_0057ff70`, cited, not run): the player keeps one item
-  id (player data `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads
-  it): the wielded weapon (`FUN_0063bef0`) at the time an item is put on a
-  body slot (`FUN_005606b0`, not the switch slots 11 / 12; `FUN_00560f00`,
-  a swap, before its requirements check; `FUN_00563d20`, after it). With
-  an id kept, the item it names is put on when it is of the game
-  (`FUN_00552f60`), on page 0 (`FUN_00628250`), in the player's inventory
-  (`FUN_0063ad50`) and `FUN_0055d710` (mode 0, the auto-equip) finds it a
-  slot: `FUN_00562a30`; a slot found that isn't empty is fatal (line
-  0x4ea). The id is then cleared, found or not. d2d: not ported.
+  which the reload then finds full (0x5801a3), so step 4 still runs. V
+  (`tools/emu/takeoff_cursor.py`). d2d: `Fight::out_of_ammo` keeps the
+  stack while `Hero::held` is set, then ReEquip.
+- **ReEquip** (`FUN_0057ff70`: the player in EDI, the game and the spent
+  slot on the stack, `ret 8`): the player keeps one item id (player data
+  `+0x90`; `FUN_006233a0` writes it, `FUN_00623410` reads it; nothing else
+  calls either). The writers keep the wielded weapon (`FUN_0063bef0`, only
+  when there is one: none leaves the id as it was) as an item is put on a
+  body slot: `FUN_005606b0` (an empty slot, not the switch slots 11 / 12),
+  `FUN_00560f00` (a swap, code 5), `FUN_00563d20` (code 2), each once
+  `FUN_0063de60` (with the requirements, `FUN_0062eaf0`) said yes. Code 7
+  (`FUN_00561220`), the reload (`FUN_00562a30`) and the pickup's auto-equip
+  (`FUN_00562e00`) don't. `FUN_005606b0` also runs for a save's worn items
+  (`FUN_00531040` case 1, the requirements skipped) and a new character's
+  gear (`FUN_00534bb0`), so the load keeps one too; its other callers
+  (`FUN_0056d5f0`, `FUN_005c5250`: an item made into an empty hand;
+  `FUN_0054ad90`, `FUN_0054ced0`) are not traced here. With an id kept,
+  the item it names goes on when it is of the game (`FUN_00552f60`, unit
+  type 4), on page 0, the inventory (`FUN_00628250`), in the player's
+  inventory (`FUN_0063ad50`) and `FUN_0055d710` (mode 0, the auto-equip)
+  finds it a slot: `FUN_00562a30`. The spent slot only seeds that slot. A
+  slot found that isn't empty is fatal (line 0x4ea). The id is then
+  cleared (0x58001d), put on or not. V (`tools/emu/reequip.py`: 20,000
+  cases, the four accessors run, every instruction reached but the fatal).
+  d2d: `rules::reequip_slot` matches all (`tests/test_reequip.cpp`);
+  `Hero::kept_weapon` (written by `rules::equip`, `equip_from_bag` and
+  `wield_settle` through `World::take_character`), read by
+  `Fight::reequip`; test_game_missiles checks it end to end.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
@@ -1665,8 +1689,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   FUN_00648cf0, then a straight route by FUN_00649970) and FUN_005d4680
   for 143 (the same cap and type, then a wobble it writes point by point).
   The 10 is the path type (collision.md "Path types"), not a velocity.
+  FUN_005d4680's wobble: the heading starts at the direction (64 ways,
+  FUN_00621dc0 -> FUN_0064fdc0) toward the path's target; a draw on the
+  missile's seed (+0x20) picks the sign (odd +1, even -1), the next the turn
+  (% 3 + DAT_00741b10, 2); each of the range's points turns the heading by
+  turn x sign, steps two subtiles along its 8-way (0x745600, the steps
+  0x6e32ac / 0x6e328c) and is written; after points 0, 15, 30 ...
+  (DAT_00741b0c, 15) the sign flips and the turn is drawn again.
   d2d: `Fight::prg` caps the range at 77 and aims the row's own velocity
-  straight at the offset, 143 too (no wobble).
+  straight at the offset; 143's fly `rules::wobble_route` (`Missile::route`,
+  the fight's rng for the missile's seed: deviations.md approximation 18),
+  checked by `tools/emu/wobble_route.py` (40 routes, test_release_ring).
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)
   roll is stored as x = 0x14. d2d: `rules::release_spread_offset`

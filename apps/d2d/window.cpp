@@ -101,6 +101,7 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
             mouse.press_this_frame = true;
         } else if (event.button.button == SDL_BUTTON_RIGHT) {
             mouse.rpress_this_frame = true;
+            mouse.rdown = true;   // let go: main's loop, once no source holds it
         } else if (current_screen == Screen::InGame && (event.button.button == SDL_BUTTON_MIDDLE || event.button.button == SDL_BUTTON_X1 || event.button.button == SDL_BUTTON_X2)) {
             // The key config's Mouse 3..5 (SDL's right button, 3, sits between middle and X1).
             keys.push_back(kMouseKey + SDL_Keycode(event.button.button == SDL_BUTTON_MIDDLE ? 0 : event.button.button == SDL_BUTTON_X1 ? 1 : 2));

@@ -10,6 +10,7 @@
 #include "ctrl_click.hpp"
 #include "cursor.hpp"
 #include "gamepad_map.hpp"
+#include "hand_hold.hpp"
 #include "ingame.hpp"
 #include "item_use.hpp"
 #include "keyconfig.hpp"
@@ -182,7 +183,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
         if (help.open && !controls.open && !game_menu.open) {
             if (help.input(mouse)) { help.open = true; toggle_help(); }
-            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = mouse.rdown = false;
         }
         // Configure Controls (UI 0xb) takes every key and click while it's up.
         if (controls.open) {
@@ -192,7 +193,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (result == ControlsUI::kAccept) accept_controls();
             if (result == ControlsUI::kCancel) open_game_menu();          // FUN_0047e090(0, 1): back to the menu
             keys_this_frame.clear();
-            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = mouse.rdown = false;
             mouse.wheel = 0;
         }
         // ESC handled globally in handle_sdl_events (returns to Title).
@@ -1114,6 +1115,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
+        // The right button's: only a press the field took goes on while held (FUN_0044c180 sets
+        // 0x7a0654 from the click map's answer; FUN_0044c2c0 sends held frames only while it's set).
+        right_hold = hand_hold::right_latch(right_hold, mouse.rpress_this_frame, mouse.rdown, over_ui || press_on_ui);
+        if (have_world) {
+            const int hovered = hovered_monster();
+            const int hovered_live = hovered >= 0 && view.monsters[std::size_t(hovered)].alive() ? view.monsters[std::size_t(hovered)].id : -1;
+            click_target = hand_hold::click_target(click_target, (mouse.press_this_frame && !press_on_ui) || (mouse.rpress_this_frame && right_hold), hovered_live);
+        }
         if (touch_enabled && last_device == touch::LastDevice::Touch
             && (touch_item_drag || (pad_field() && !touch_pointer.active))) {
             mouse.down = false;

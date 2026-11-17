@@ -361,7 +361,12 @@ endif()
 if(VITA)
     include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
     # std::thread and std::mutex: VitaSDK's specs link libpthread, whole, on -pthread.
-    target_link_options(d2d PRIVATE -pthread)
+    # __sce_headroom: VitaSDK's link script puts the data segment at the next 64 KiB
+    # after the code, and vita-elf-create needs room there for the SCE module data
+    # ("Cannot allocate N bytes for SCE data at end of segment 0; segment 1 overlaps"
+    # when the code ends a few KiB short of the boundary). The headroom the script
+    # adds before its ALIGN(0x10000) always leaves a further 64 KiB block.
+    target_link_options(d2d PRIVATE -pthread "LINKER:--defsym=__sce_headroom=0x4000")
     set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
     vita_create_self(eboot.bin d2d UNSAFE)
     vita_create_vpk(d2d.vpk DDEC00001 eboot.bin VERSION 01.00 NAME "d2d")

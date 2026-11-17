@@ -227,27 +227,52 @@ auto World::life_update_frame(std::uint32_t tick_ms) -> void {
 // due this frame gives its item a point of durability or quantity. A point
 // that mends a broken item (FUN_0055f900) puts its stats back on
 // (FUN_0055d970 -> FUN_0063d1d0, then FUN_0055dbc0).
-// ponytail: the merc's items have no timer here (game.exe's runs on any
-// item unit).
+// The merc's items run too (game.exe's timer is on any item unit), never
+// mended: an item's owner id (item data +0xc) is its inventory's owner only
+// when that's a player (FUN_0063afd0), else -1.
 auto World::replenish_frame() -> void {
         const auto& tables = game_data->rules;
         bool mended = false;
-        const auto due = [&](d2d::d2s::Item& item) { return item.replenish_in > 0 && --item.replenish_in == 0 && d2d::rules::replenish_fire(tables, item, true); };
+        const auto due = [&](d2d::d2s::Item& item, bool owned) {
+            return item.replenish_in > 0 && --item.replenish_in == 0 && d2d::rules::replenish_fire(tables, item, owned);
+        };
         for (auto& item : actor->character.items)
-            if (due(item)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
-        if (actor->held) (void)due(*actor->held);
+            if (due(item, true)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
+        if (actor->held) (void)due(*actor->held, true);
+        for (auto& item : actor->character.merc_items) (void)due(item, false);
+        for (auto& page : actor->store.tabs) for (auto& item : page) (void)due(item, false);   // the vendor's window: its stock
         if (mended) settle_requirements(*game_data, actor->character);
     }
 
-// The same for what lies on the floors, every level's.
-// ponytail: no item on the ground is mended: whether a dropped item keeps
-// its owner id (item data +0xc, FUN_00562c40's test) is not traced.
+// The same for what lies on the floors, every level's, never mended: an
+// item leaving its inventory gets owner id -1 (FUN_0063aaf0 -> FUN_00629ed0).
+// And the vendors' stock kept between trades, their gamble lists too (the
+// NPC's inventory: owner id -1, as the merc's).
 auto World::replenish_ground_frame() -> void {
-        const auto due = [&](Loot::GroundItem& lying) {
-            if (lying.item.replenish_in > 0 && --lying.item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, lying.item, false);
+        const auto due = [&](d2d::d2s::Item& item) {
+            if (item.replenish_in > 0 && --item.replenish_in == 0) (void)d2d::rules::replenish_fire(game_data->rules, item, false);
         };
-        for (auto& lying : loot.ground) due(lying);
-        for (auto& [floor, items] : loot.kept) for (auto& lying : items) due(lying);
+        for (auto& lying : loot.ground) due(lying.item);
+        for (auto& [floor, items] : loot.kept) for (auto& lying : items) due(lying.item);
+        for (auto& [vendor, stock] : stocks) for (auto& page : stock.tabs) for (auto& item : page) due(item);
+        for (auto& [vendor, stock] : kept_gambles) for (auto& page : stock.tabs) for (auto& item : page) due(item);
+    }
+
+auto World::drop_new_gold() -> void {
+        for (auto& [floor, state] : fight.spawning.levels) {
+            if (fight.remote_monsters) state.gold.clear();
+            for (const auto& [at_x, at_y, coins] : state.gold) {
+                Loot::GroundItem pile;
+                pile.item.code = "gld";
+                pile.gold = coins;
+                pile.label = std::to_string(coins) + " Gold";
+                pile.x = (float(at_x) + 0.5f) / 5;
+                pile.y = (float(at_y) + 0.5f) / 5;
+                pile.id = loot.next_id++;
+                (floor == loot.ground_level ? loot.ground : loot.kept[floor]).push_back(std::move(pile));
+            }
+            state.gold.clear();
+        }
     }
 
 auto World::stamina_frame() -> void {
@@ -388,10 +413,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         if (level != wanted_near) { want_nearby(*game_data, *level); wanted_near = level; }
         each_player([&](Player&) { item_ids(); });
         // This tick's day frames (tick): the day and the quests' timers step
-        // once a tick, in the first turn; every turn's players each frame.
-        // ponytail: split levels run the quest timers in the first turn's level
-        // only; the level tests (act2_tick's Tyrael, Andariel's portal, the
-        // Summoner's line) see that one. act1_tick's treasure tests none.
+        // once a tick, in the first turn; every turn's players each frame. A
+        // timer's level test asks each player's level (each_in_game, level_of);
+        // Tyrael's think runs in his own level's turn.
         const std::uint32_t day_end = day_at;
         for (const std::uint32_t frame_at : day_frames) {
             day_at = frame_at;
@@ -401,6 +425,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
                 credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
+            tyrael_frame();
             each_player([&](Player&) { stamina_frame(); replenish_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
         day_at = day_end;
@@ -796,6 +821,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         for (const auto& player : players) if (here(*player)) fight.rooms_up(*level, player->player.x, player->player.y, false);
         act3_bind_new_bosses();
         init_new_objects();
+        drop_new_gold();
         reopen_doors();
         const auto grown_from = npc_states.size();
         grow_states(npc_states, *level);

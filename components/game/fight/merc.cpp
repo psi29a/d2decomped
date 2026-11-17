@@ -343,12 +343,9 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         int target_gap = 0x7fffffff;
         const auto path_to_primary = [&](int pick) {
             const auto& foe = monsters[std::size_t(sight_index[std::size_t(pick)])];
-            const int foe_x = sub(foe.unit.x), foe_y = sub(foe.unit.y);
-            if ((foe_x == merc_x && foe_y == merc_y) || std::abs(foe_x - merc_x) > 100 || std::abs(foe_y - merc_y) > 100) return false;   // FUN_00649970
-            const auto points = d2d::rules::toward_path(merc_x, merc_y, foe_x, foe_y, 5, 1, [&](int at_x, int at_y) {
+            return d2d::rules::path_found(merc_x, merc_y, sub(foe.unit.x), sub(foe.unit.y), 5, [&](int at_x, int at_y) {
                 return level->unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
             });
-            return std::ranges::any_of(points, [&](const std::pair<int, int>& point) { return point != std::pair(merc_x, merc_y); });
         };
         const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), path_to_primary, target_gap);
         actor->merc_target = chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
@@ -429,6 +426,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 actor->merc_skill_level = 0;
                 for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) if (actor->merc_ids[k] == actor->merc_skill) actor->merc_skill_level = actor->merc_levels[k];
                 if (skill1 && actor->merc_skill == skill1->id && actor->merc_skill_level == 0) actor->merc_skill_level = type_info->sk_lvl[0];
+                if (const auto* started = game_data->skills.get(actor->merc_skill))   // its castoverlay (FUN_004c6140)
+                    start_cast_overlay(*started, false, actor->merc->flash_overlay, actor->merc->flash_at, now_ms);
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
                 unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
                 actor->merc_seq = nullptr;

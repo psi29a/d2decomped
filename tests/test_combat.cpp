@@ -225,7 +225,14 @@ int main(int argc, char** argv) try {
         // Two class-2 blows of 6 on 64 life: each under max / 8, no get-hit (their sum of 12 would roll).
         blows = { { 6, 2, false, 6, 0 }, { 6, 2, false, 6, 0 } };
         for (int sample = 0; sample < 64; ++sample) assert(!struck_big(blows, 64 << 8, seed));
+        // The size test takes the record's 256ths: 32 points and a 256th on 16386 life is half of it, always a get-hit
+        // (FUN_0057cb00), where the whole 32 would roll.
+        blows = { { .damage = 32, .hit_class = 2, .physical = 32, .frac = 1 } };
+        for (int sample = 0; sample < 64; ++sample) assert(struck_big(blows, (64 << 8) + 2, seed));
     }
+    // A player's get-hit drawn (FUN_00463390): the monster's stepping, ended a tick before the server's event.
+    assert(player_get_hit_frame(6, 256, 3, 10) == get_hit_frame(6, 256, 3) && player_get_hit_frame(6, 256, 8, 10) == 5);
+    assert(player_get_hit_frame(6, 256, 9, 10) == -1 && player_get_hit_frame(6, 256, 0, 1) == -1);
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
     assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);
@@ -1028,6 +1035,18 @@ int main(int argc, char** argv) try {
         Rng hit_rng{ 3 };
         const auto chilled = player_blow(cold_hand, resists, 1, hit_rng);
         assert(chilled.hit && chilled.chill_ticks == 12);   // 50 less 75 %, no cold point left
+    }
+    {   // A hireling's blow on a MonStats boss: each field x HireableBossDamagePercent before the resistance (FUN_0057c060)
+        Fighter hireling = simple_fighter(40, 40, 100000);
+        hireling.elem[0] = { 20, 20 };
+        Target boss;
+        boss.res[0] = 50; boss.res[2] = 50;
+        boss.pair_pct = 25;                              // Hell's
+        Rng merc_rng{ 3 };
+        const auto struck = player_blow(hireling, boss, 1, merc_rng);
+        assert(struck.hit && struck.phys == 10 && struck.damage == 5 + 2);   // 40 x 25 % = 10, half resisted; fire 20 -> 5 -> 2
+        const auto shot = missile_blow(MissileDamage{ .phys_lo = 40 << 8, .phys_hi = 40 << 8, .etype = 0, .elo = 20 << 8, .ehi = 20 << 8 }, boss, {}, merc_rng);
+        assert(shot.damage == 5 + 2);
     }
     std::puts("ok");
 } catch (const std::exception& error) {

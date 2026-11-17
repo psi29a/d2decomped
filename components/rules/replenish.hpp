@@ -95,7 +95,6 @@ inline void replenish_arm(const Tables& tables, d2d::d2s::Item& item, int stat) 
 // Both, the durability one first: a made or loaded item (FUN_00558d90,
 // FUN_00558cb0), a socket filled (FUN_00562660), one back off a corpse
 // (FUN_00562f30).
-// ponytail: a vendor's stock is queued but its timer doesn't run until it's bought.
 inline void replenish_arm(const Tables& tables, d2d::d2s::Item& item) {
     replenish_arm(tables, item, kReplenishDurability);
     replenish_arm(tables, item, kReplenishQuantity);
