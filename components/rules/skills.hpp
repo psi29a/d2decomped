@@ -468,7 +468,7 @@ struct Skill {
     // dosound a / b (+0x102 / +0x104) and cltdofunc (+0xf4: the client's do, table 0x727ba8).
     // Only cltdofunc 16 (Jab's, FUN_004f4590) and cltstfunc 25 (FUN_004c9b40) read a / b.
     int do_sound_a = 0, do_sound_b = 0, clt_do_func = 0;
-    bool st_sound_delay = false, weapon_sound = false;
+    bool st_success_only = false, st_sound_delay = false, weapon_sound = false;
     bool interrupt = false;                // Skills.txt `interrupt` (the row's flags byte +7 against the mask at 0x6ce284): 0, a hit never puts the user in a get-hit (FUN_0057eec0)
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
@@ -529,6 +529,30 @@ struct Skill {
     struct DescLine { int func = 0; std::string text_a, text_b; Calc calc_a, calc_b; };
     std::array<DescLine, 17> desc_lines{};
 };
+
+// The two stsuccessonly client starts used by stock Skills.txt. Hydra's
+// FUN_004e39a0 needs both the caster's room and a room at the selected point;
+// unless InTown is set, that point must not be in town. Charge's
+// FUN_004c9b40 needs the unit's selected skill record and dynamic path, and
+// rejects the local player's already-selected flagged record. Its later
+// target, sound, path and stat-list work cannot change the successful status.
+struct ClientStartContext {
+    bool caster_has_room = true;
+    bool target_has_room = true;
+    bool target_in_town = false;
+    bool skill_in_town = false;
+    bool has_skill_record = true;
+    bool has_dynamic_path = true;
+    bool same_local_flagged_skill = false;
+};
+
+inline constexpr bool client_start_succeeds(int clt_st_func, const ClientStartContext& context) {
+    if (clt_st_func == 17)
+        return context.has_skill_record && context.caster_has_room && context.target_has_room && (context.skill_in_town || !context.target_in_town);
+    if (clt_st_func == 25)
+        return context.has_skill_record && context.has_dynamic_path && !context.same_local_flagged_skill;
+    return true;
+}
 
 struct SkillTables {
     std::vector<Skill> rows;               // by Id
