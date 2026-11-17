@@ -1071,4 +1071,22 @@ bool marker_npc(Room marker_room, const std::array<int, 4>& rect, int marker_x, 
     return make_at(marker_room, marker_x, marker_y, 15);
 }
 
+// InitFn 71 (FUN_00587840, object 543, quest record 0x1f): Larzuk's marker.
+// `made` is the record's byte +0x15 (set when he's made, and no second is).
+// `free_spot(room, x, y)` FUN_00545340 (size 2, mask 0x100, 100 rings) from the
+// marker's spot: moves it and hands the room holding it (false: none, and he
+// isn't made); `make_at(room, x, y, radius)` FUN_005b2f20 (class 0x1ff, mode 1,
+// flags 0) in that room, once, at radius 5 (rings 3..15: the spot itself isn't
+// tried, as FUN_005459a0's -1 try is). True when made.
+template <class Room, class Free, class Make>
+bool larzuk_marker(bool& made, Room marker_room, int marker_x, int marker_y, Free&& free_spot, Make&& make_at) {
+    if (made) return false;
+    Room room = marker_room;
+    int x = marker_x, y = marker_y;
+    if (!free_spot(room, x, y)) return false;
+    if (!make_at(room, x, y, 5)) return false;
+    made = true;                                                                   // 0x5878b6
+    return true;
+}
+
 }  // namespace d2d::rules
