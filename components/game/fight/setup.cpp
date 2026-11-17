@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
@@ -38,6 +39,18 @@
 #include <vector>
 
 namespace d2d::game {
+
+// ponytail: a unit keeps one one-shot here, so a cast overlay and a Cry Help flash replace each
+// other (game.exe keeps a list, +0x2c).
+auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const -> void {
+        const auto& rows = game_data->overlay_rows;
+        const int row = d2d::rules::cast_overlay_row(game_data->overlay_row(skill.cast_overlay), game_data->overlay_row(skill.item_cast_overlay), from_item);
+        if (row < 0 || std::size_t(row) >= rows.size() || !rows[std::size_t(row)]) return;
+        const auto* playing = shown >= 0 && std::size_t(shown) < rows.size() ? rows[std::size_t(shown)] : nullptr;
+        if (!d2d::rules::cast_overlay_starts(row, shown, now_ms - shown_at, playing ? playing->rate : 0, playing ? playing->frames : 0)) return;
+        shown = row;
+        shown_at = now_ms;
+    }
 
 auto Fight::monster_index(int id) const -> int {
         if (id < 0) return -1;
@@ -314,7 +327,8 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
             }
         }
         // A skill it starts (S→C 0x4c / 0x4d, unit command 0x15 / 0x16 -> FUN_004c6140):
-        // the start sounds as a player's, on a monster (unit type 1, never a class sound).
+        // the start sounds as a player's, on a monster (unit type 1, never a class sound),
+        // and its castoverlay.
         // ponytail: a stsuccessonly start's cltstfunc (Hydra's FUN_004e39a0, Charge's
         // FUN_004c9b40) isn't run here, so it always sounds.
         if (const int started = std::exchange(monster.skill_sound, -1); started >= 0 && monster.alive())
@@ -325,6 +339,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                                                               .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
                 for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
                     if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
+                start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
             }
         if (monster.mode != monster.last_mode) {
             monster.last_mode = monster.mode;
@@ -512,7 +527,8 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             cues.cue(d2d::rules::sound_ids::kKick, now_ms + (actor->character.character_class == d2d::d2s::kAssassin ? d2d::rules::sound_ids::kKickDelayMs : 0u), actor->player.x, actor->player.y);
         // A skill starting (FUN_004c6140): its stsound (its ItemCastSound from an item), the
         // weapon's swing for weaponsnd, and the class's own stsoundclass; stsounddelay holds
-        // them back the swing's frames less 3 ticks (FUN_004ca500).
+        // them back the swing's frames less 3 ticks (FUN_004ca500). Then its castoverlay
+        // (ItemCastOverlay from an item), with no delay.
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (attack_mode(mode) || mode == kModeSC)) {
             static constexpr std::array<std::string_view, 7> kClassCode = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
             const auto swing = d2d::rules::sound_ids::kSwing[std::size_t(actor->player_combat.hit_class & 0xf)];
@@ -526,6 +542,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const int cls = actor->character.character_class;
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
+            start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
         }
     }
 

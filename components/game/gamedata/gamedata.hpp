@@ -486,6 +486,14 @@ struct GameData {
     };
     std::unordered_map<std::string, OverlayInfo> overlays;
     std::vector<const OverlayInfo*> overlay_rows;      // by Overlay.txt row (the id a one-shot overlay names); null: no file
+    // The Overlay.txt row of `name`, -1 for none or no file.
+    [[nodiscard]] int overlay_row(std::string_view name) const {
+        if (name.empty()) return -1;
+        const auto found = overlays.find(std::string(name));
+        if (found == overlays.end()) return -1;
+        const auto row = std::ranges::find(overlay_rows, &found->second);
+        return row == overlay_rows.end() ? -1 : int(row - overlay_rows.begin());
+    }
     // States.txt's look: the colour shift that wins by colorpri (PL2's
     // colour shift tables, +0x53500, colorshift - 1), overlays while it lasts
     // (overlay1..4) and once as it starts (castoverlay); the colour worn

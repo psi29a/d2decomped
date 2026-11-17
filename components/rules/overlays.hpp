@@ -23,6 +23,18 @@ constexpr int overlay_frame(std::uint32_t elapsed_ms, int rate, int frames, bool
     return int(frame % std::uint32_t(frames));
 }
 
+// A skill start's cast overlay (FUN_004c6140): its castoverlay, or its ItemCastOverlay when cast
+// from an item and that is set (row > 0); played (FUN_00470390 kind 2, once) when the row is in
+// the table (0 < row) and the caster has no overlay of that row yet (FUN_0046e100). `shown` is
+// the caster's one-shot, `shown_ms` since it began, `rate` / `frames` that row's.
+constexpr int cast_overlay_row(int cast_row, int item_row, bool from_item) {
+    const int row = from_item && item_row > 0 ? item_row : cast_row;
+    return row > 0 ? row : -1;
+}
+constexpr bool cast_overlay_starts(int row, int shown, std::uint32_t shown_ms, int rate, int frames) {
+    return row > 0 && !(row == shown && overlay_frame(shown_ms, rate, frames, true) >= 0);
+}
+
 // A quest balloon begins when its alert appears, independent of the NPC's
 // current animation and the other NPCs' balloons.
 struct OverlayClock {

@@ -503,6 +503,9 @@ struct Skill {
     std::uint32_t aura_filter = 0;         // aurafilter (+0x50): the units an aura takes (aura_filter.hpp)
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
     std::string srvoverlay;                // srvoverlay (+0x4e): an Overlay.txt name, played once on its unit (FUN_00621e40)
+    // castoverlay (+0x106) and ItemCastOverlay (+0x124, cast from an item): Overlay.txt names the
+    // client's skill start (FUN_004c6140) plays once on its caster (rules::cast_overlay_starts).
+    std::string cast_overlay, item_cast_overlay;
     int prgdam = 0;
     std::string seqtrans;                  // +0x12: the mode a sequence counts as (SC: FUN_006216e0 times it as a cast)
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit

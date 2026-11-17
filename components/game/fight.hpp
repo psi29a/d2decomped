@@ -590,6 +590,9 @@ struct Fight {
     // A monster's new mode sounds off (MonSounds.txt): an attack's cry (at
     // its chance) and weapon, get-hit, death, each after its delay in ticks.
     void monster_sounds(Monster& monster, std::uint32_t now_ms);
+    // A skill start's cast overlay (FUN_004c6140, rules::cast_overlay_starts) on its caster's
+    // one-shot, `shown` from `shown_at`: the player's, a monster's, the merc's or a pet's.
+    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const;
     // What the character wears (the save's appearance, else the class's starting gear).
     [[nodiscard]] const GameData::Appearance& gfx() const;
     [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const;
