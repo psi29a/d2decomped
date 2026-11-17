@@ -21,8 +21,8 @@ std::vector<std::string_view> game_menu_images();
 // 0 main, 1 options, 2 sound, 3 video, 4 automap. Opening one selects its
 // last item (FUN_0047e090).
 // The automap options drive Town::automap_frame; Gamma and Contrast the
-// DirectDraw ramp. Resolution and Light Quality are kept, not applied
-// (deviations.md #15, Approximations #4). 3D sound, EAX, 3D bias and
+// DirectDraw ramp; Light Quality Town::light_quality. Resolution is kept, not applied
+// (deviations.md #15). 3D sound, EAX, 3D bias and
 // perspective are off as on a machine without a 3D provider or Glide.
 // Blended Shadows is kept, not applied, as in game.exe: FUN_004f5200 stores
 // it at 0x72da5c and no live code reads it (stubs.md).

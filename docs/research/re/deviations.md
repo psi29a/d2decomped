@@ -57,7 +57,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 1 | Palette blends (additive and multiply missiles, blended shadows, half see-through rain, multiplied button labels) | PL2 tables: the nearest palette colour of the blend | The blend in RGB | slightly: colours off the palette | world_view.hpp `blit_dcc_frame`, tile_blit.hpp `blit_dt1_shadow`, ingame.hpp `draw_rain`, font.hpp `draw_tinted_baseline` |
 | 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | matched since e072e664 (the 8 x 8 table and block callback `FUN_004f8b80`, lighting.md) | — | tile_blit.cpp `blit_dt1_tile_lit` |
 | 3 | Unit shadows | Each layer drawn through the alpha table (untraced whether overlaps darken twice) | A composite darkens each pixel once | hardly | world_view.hpp `shadow_composite` |
-| 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
+| 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | matched since this commit (`rules::LightQuality`, `rules::light_radius8`; the frames d2d draws) | — | town.hpp `frame_light`, lighting.md |
 | 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | matched since this commit (`LightGrid::shade_square` kept per light, `stamp_shaded`) | — | lighting.md, view.cpp `frame_light` |
 | 6 | Ambience at dusk and dawn | Cross-fades over 250 sound ticks (`FUN_004e42e0`) | matched since this commit (`Audio::crossfade_ambience`) | — | audio.hpp |
 | 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
