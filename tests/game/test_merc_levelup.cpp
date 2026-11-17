@@ -11,6 +11,10 @@
 // experience `mexp` at level `mlvl`, the merc's blow or not (`blow`), through
 // Fight::merc_share: base is its level-up life (256ths) before, then its
 // experience, level and life (256ths) after. Needs the game data.
+// Without it, the rule on a typed-in Hireling.txt row: a kill that raises
+// the merc's level sets its life to its new level-up life (FUN_00572840:
+// stat 6 := stat 7), its items' max life left out, lower too; one that
+// doesn't leaves its life alone.
 
 #include <ai.hpp>
 #include <cues.hpp>
@@ -22,6 +26,7 @@
 #include <rules.hpp>
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -118,6 +123,41 @@ int merc_levelup_cases(const GameData& game_data) {
     return 0;
 }
 
+// The rule on a typed-in row: Id 1, level 1, 100 life and 10 a level,
+// ExpPerLvl 100 (level 2 at 1,200), an ExpRatio of 1 (1024 >> 10).
+int levelup_checks() {
+    GameData game_data;
+    d2d::rules::Hireling row;
+    row.version = 100; row.id = 1; row.level = 1; row.exp_per_level = 100; row.hit_points = 100; row.hp_per_level = 10;
+    game_data.rules.hirelings.push_back(row);
+    game_data.exp_ratio.assign(100, 1024);
+    Rig rig(game_data);
+    auto& hero = rig.hero;
+    Monster monster;
+    monster.stats.exp = 1000;
+    monster.stats.level = 1;
+    rig.make(1, 1190, 500, 0, 10);                                      // 10 short of level 2, +500 max life worn
+    assert(hero.merc_st.level == 1 && hero.merc_st.life == 100);
+    hero.merc->set_life_fine(400 * 256 + 7);
+    rig.fight.merc_blow = true;
+    rig.fight.merc_share(monster);                                      // the cap: (1,200 - 200) >> 6 = 15, twice that added
+    assert(hero.character.header.merc_exp == 1220 && hero.merc_st.level == 2);
+    assert(hero.merc->life_fine() == 110 * 256);                        // its new level-up life, not 610 with its gear, nor the 400 it had
+    rig.make(1, 200, 500, 0, 10);
+    hero.merc->set_life_fine(300 * 256 + 7);
+    rig.fight.merc_share(monster);
+    assert(hero.character.header.merc_exp == 230 && hero.merc_st.level == 1);
+    assert(hero.merc->life_fine() == 300 * 256 + 7);                    // no level-up: its life stays
+    rig.fight.merc_blow = false;                                        // its owner's blow: 15 x 86 / 256 = 5, twice that
+    rig.make(1, 1199, 0, 0, 10);
+    hero.merc->set_life_fine(20 * 256);
+    rig.fight.merc_share(monster);
+    assert(hero.character.header.merc_exp == 1209 && hero.merc_st.level == 2);
+    assert(hero.merc->life_fine() == 110 * 256);                        // the same on its owner's kill
+    std::puts("OK: a merc's level-up sets its life to its new level-up life, its gear's left out");
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -129,8 +169,7 @@ int main(int argc, char** argv) try {
         if (!data || !data->patched) { std::fprintf(stderr, "--merc-levelup needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return 1; }
         return merc_levelup_cases(*data);
     }
-    std::puts("SKIP: run with --merc-levelup < cases (tools/emu/merc_levelup.py)");
-    return D2D_TEST_SKIPPED;
+    return levelup_checks();
 } catch (const std::exception& error) {
     std::printf("test_merc_levelup: %s\n", error.what());
     return 1;
