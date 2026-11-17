@@ -41,9 +41,9 @@ int main() try {
     Character character;
     character.character_class = kSorceress;
     character.name = "Split";
-    character.header = made.header;
-    character.stats = made.stats;
-    character.items = made.items;
+    character.header = std::move(made.header);
+    character.stats = std::move(made.stats);
+    character.items = std::move(made.items);
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 
     World world(&*data, -1, -1);

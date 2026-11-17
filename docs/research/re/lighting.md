@@ -398,9 +398,11 @@ from the code, no oracle.
 - Type 2 is shaded at any quality (`FUN_004755a0`): `FUN_004750f0` fills its table once
   (+0x2c, LAB_0047540b), `FUN_00475420` stamps from it, and a new radius frees it
   (LAB_004755ff). Type 0 is shaded only above quality 1 (LAB_00475661); otherwise it's a plain
-  `FUN_004748d0`. d2d shades objects' lights by reading the map each frame (`stamp_shadowed`),
-  so at quality 2 only the cache differs: a blocked subtile that changes after the first stamp.
-  How many lights have a door or the like in reach wasn't measured. Read from the code, no oracle.
+  `FUN_004748d0`. d2d keeps each object's and portal's shade (`LightGrid::shade_square`, read
+  off the level's collision) from its first stamp and makes it again only for a new radius or
+  level (`frame_light`'s `shades`, `stamp_shaded`), so a door that opens later doesn't re-shade
+  it (test_light). game.exe frees the cache with the light (its unit gone from the client);
+  d2d drops one unseen for 2 s, as its radius eases. Read from the code.
 - Checked live (Lut Gholein, game.exe under Wine, light grid at
   0x7b0e68 vs `debug light` with `--toggle light_grid=off`, the same
   spot and time of day): all 48 × 48 entries and the blocked subtiles
@@ -411,7 +413,6 @@ from the code, no oracle.
 
 - The Den of Evil's light once cleared: quests.md "The Den lights up".
 
-ponytail, not yet: type 2's cached shadows (deviations.md approximation 5).
 
 ## The unit under the cursor
 
@@ -479,5 +480,6 @@ uv run python static_light_cache.py --exe /path/to/Game.exe --mutation-check
 ```
 
 The oracle requires the 1.14d executable hash and catches four planted model
-mutations. It needs no MPQs. The existing per-frame d2d approximation and
-its gameplay impact are not reverified by these stock-only checks.
+mutations. It needs no MPQs. d2d's cache (`frame_light`'s `shades`) follows the build-once,
+rebuild-on-radius rule above; it starts from a zeroed square, so the stale-scratch
+case isn't reproduced, and no d2d-vs-oracle diff runs.

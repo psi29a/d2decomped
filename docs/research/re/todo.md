@@ -31,14 +31,14 @@ Ranked by Seen, then by how much play it touches.
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
 | 15 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game. Every server unit but a player, missiles too, takes a game seed step as it's made (FUN_00555230 -> FUN_00552df0: +0x28 the low, its seed {low, 666} by FUN_00650e40): d2d's missiles take none, so the game seed's later rolls (drops) drift after any missile |
-| 37 | A hand's item out of ammunition: ReEquip isn't ported (`FUN_0057ff70`: the weapon wielded before goes back on) | build | slightly | skills.md "Shots and ammo" |
 
 ## Sounds
 
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
 sounds play, 104 don't (2026-10-29). 97 of the 104 are traced as never
-played by stock 1.14d (rows 16, 18 and 19), so d2d plays 3,416 of the 3,423
-the original does (unit-sounds.md "In d2d").
+played by stock 1.14d (the class quest phrases, the rogue confirms, 13 NPC
+lines and 6 monster rows), so d2d plays 3,416 of the 3,423 the original does
+(unit-sounds.md "In d2d").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
@@ -47,8 +47,6 @@ to 70% and the menu's fade-out.
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
 | 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues, Andariel's quake, Diablo's arrival taunt and Diablo's death schwing / hit are wired. The monster cast / skeleton cast / Izual taunt_2 rows are never played (unit-sounds.md). |
-| 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | 21 | build | yes | Cain's act 1 help is wired (the Gibbet's call). As traced, stock 1.14d plays none of the rest: not in the speech table, no client code plays them, and the rogue confirm's C→S 0x46 is never sent (unit-sounds.md). |
-| 20 | Skills' prgsound | — | build | yes | unit-sounds.md; monsters' own stsound is in (FUN_004c6140); dosound a / b are in (only Jab's is ever played); the player's block and kick sounds are in |
 | 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
 
 ## Animation and drawing
@@ -67,11 +65,8 @@ Known differences in the ones it draws, and what's left to check:
 
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
-| 25 | Timings from the COF, where AnimData.d2 is game.exe's | exact | maybe | world_view.hpp:140, fight.hpp:498, fight.hpp:729 |
-| 27 | Kind 8's visible state overlays aren't rotated after 50 ticks; active states draw together | exact | maybe | states.md, town.hpp `StateClock`; Radius is stamped and LoopWaitTime applies only to kind 6 |
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 31 | Static lights' shadows (type 2) are read each frame; game.exe caches them (FUN_004750f0), so a later change to the map doesn't re-shade them | exact | hardly | lighting.md, deviations.md approximation 5 |
-| 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
+| 32 | Light Quality always high; unit shadows darken once | exact | hardly | deviations.md approximations 3–4 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 
