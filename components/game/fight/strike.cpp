@@ -679,7 +679,8 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         // Converted while the swing was on: no foe of the player's side (FUN_00554200, as land),
         // so no blow, and no charge, Frenzy or wear off it.
         if (!target_monster.targetable() || target_monster.align == 2
-            || std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach) return;
+            || (reach < 0.f ? !melee_reach_to(target_monster, true)
+                            : std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach)) return;
         auto current_swing = swing();
         auto fighter = current_swing.kick ? actor->pf_kick : actor->player_combat;
         const auto* skill = game_data->skills.get(actor->swing_skill);
@@ -1160,7 +1161,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
                 }
                 return;
             }
-            hit(now_ms);
+            hit(now_ms, kMeleeReach + 0.5f);   // Charge and Leap Attack: their own landing is not traced (FUN_0057ec10 applies to them too)
             return;
         }
         // Leap Attack: the first event takes off, the second lands, the third strikes.
@@ -1176,7 +1177,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             if (actor->smove.active) { actor->player.x = actor->smove.target_x; actor->player.y = actor->smove.target_y; }
             actor->smove = {};
         } else if (actor->seq_struck >= 3) {
-            hit(now_ms);
+            hit(now_ms, kMeleeReach + 0.5f);   // Charge and Leap Attack: their own landing is not traced (FUN_0057ec10 applies to them too)
         }
     }
 
