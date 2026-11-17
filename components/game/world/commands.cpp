@@ -787,9 +787,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // (srvstfunc 1, FUN_0056ca40) asks for no target, only a bow's ammo, so the player swings where
         // it stands, turned to the spot; the do (FUN_0056f070) has no unit to hit. A bow's or a thrown
         // weapon's goes as its missile (cast_missile). Only with no unit named: the client's null target
-        // (the ground, shift); a held click on a converted monster walks (cursor-units.md).
-        // ponytail: the click's own pick of an enemy by the spot (Skills.txt SearchEnemyXY, FUN_00467880)
-        // isn't made, and another melee skill at a spot (Bash with shift) isn't swung: their starts aren't traced.
+        // (the ground, shift); a held click on a converted monster walks (cursor-units.md). A shift-click's
+        // monster beside the player (Skills.txt SearchEnemyXY, FUN_00467660) comes named: the client picks it.
+        // ponytail: another melee skill at a spot (Bash with shift) isn't swung: its start isn't traced.
         const auto attack_spot = [&] {
             const auto* attack = game_data->skills.get(0);
             actor->interact_npc = actor->pick_item = -1;
@@ -833,6 +833,19 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (fight.cast_summon(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
         } else if (skill && !live && use_skill.skill == 0 && use_skill.unit < 0) {
             attack_spot();
+        } else if (live && use_skill.stand && skill && !fight.missile_skill(*skill) && !fight.spot_skill(*skill) && !moving_skill(*skill)
+                   && std::hypot(target->unit.x - actor->player.x, target->unit.y - actor->player.y) > kMeleeReach) {
+            // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
+            // both) swings where the player stands, at the click (FUN_00461c70: flag 0x20 -> FUN_00461700(0)),
+            // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot;
+            // another skill's isn't swung (the ponytail above), but an earlier walk stops all the same,
+            // and a queued pickup or interaction goes with it, as attack_spot's does (the skill takes their place).
+            actor->attack_mon = -1;
+            if (use_skill.skill == 0) attack_spot();
+            else {
+                actor->interact_npc = actor->pick_item = -1;
+                actor->player.walking = false;
+            }
         } else if (live) {                                                   // walk up to it, then attack
             actor->target_x = use_skill.x; actor->target_y = use_skill.y;
             actor->player.walking = true;

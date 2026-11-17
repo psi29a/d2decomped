@@ -70,7 +70,34 @@ int main() try {
         return over;
     };
     assert(flies_to_wall(true) == 1 && flies_to_wall(false) == 0);
-    std::puts("OK: a standing monster missile strikes by its size, not within 0.4 cells; a flight over at a wall goes off");
+    // A LastCollide cloud (srvdofunc 3, CollideKill 0: the Mummy's corpsepoisoncloud, monbliz)
+    // strikes one foe a frame, never the one it struck last, and stands on: two foes in it take
+    // turns (tools/emu/standing_rehit.py: game.exe's FUN_005ae480 -> FUN_005ae1f0, B A B A ...).
+    GameData::MissileInfo cloud;
+    cloud.size = 2; cloud.srv_do = 3; cloud.last_collide = true; cloud.collide_kill = false;
+    Missile standing;
+    standing.info = &cloud;
+    standing.x = standing.y = 4.1f;
+    standing.born = 0; standing.dies = 100000;
+    standing.src.no_hit_roll = true;                // ToHit 0: no roll (FUN_005adf10)
+    std::vector<Missile> clouds;
+    clouds.push_back(std::move(standing));
+    std::array<Foe, 2> pair{};
+    pair[0].x = 4.1f; pair[1].x = 4.3f;              // its subtile and the one east, both in a Size 2 plus
+    for (auto& foe : pair) { foe.y = 4.1f; foe.size = 1; }
+    pair[0].id = -2; pair[1].id = -3;               // a player and their merc
+    d2d::rules::Rng rng(7);
+    std::vector<int> order;
+    for (std::uint32_t now = 40; now <= 40 * 6; now += 40) {
+        for (auto& foe : pair) foe.hits = 0, foe.blows.clear();
+        missiles_update(open, clouds, pair, rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },
+                        [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
+        assert(clouds.size() == 1);                 // CollideKill 0: it stands on
+        assert(pair[0].blows.size() + pair[1].blows.size() == 1);   // one foe a frame
+        order.push_back(pair[0].blows.empty() ? 1 : 0);
+    }
+    for (std::size_t frame = 1; frame < order.size(); ++frame) assert(order[frame] != order[frame - 1]);
+    std::puts("OK: a standing monster missile strikes by its size, not within 0.4 cells; a flight over at a wall goes off; a cloud takes turns");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_standing_missile: %s\n", error.what());
