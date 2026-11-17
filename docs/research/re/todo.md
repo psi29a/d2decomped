@@ -36,8 +36,9 @@ Ranked by Seen, then by how much play it touches.
 
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
 sounds play, 104 don't (2026-10-29). 97 of the 104 are traced as never
-played by stock 1.14d (rows 16, 18 and 19), so d2d plays 3,416 of the 3,423
-the original does (unit-sounds.md "In d2d").
+played by stock 1.14d (the class quest phrases, the rogue confirms, 13 NPC
+lines and 6 monster rows), so d2d plays 3,416 of the 3,423 the original does
+(unit-sounds.md "In d2d").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
@@ -46,7 +47,6 @@ to 70% and the menu's fade-out.
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
 | 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues, Andariel's quake, Diablo's arrival taunt and Diablo's death schwing / hit are wired. The monster cast / skeleton cast / Izual taunt_2 rows are never played (unit-sounds.md). |
-| 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | 21 | build | yes | Cain's act 1 help is wired (the Gibbet's call). As traced, stock 1.14d plays none of the rest: not in the speech table, no client code plays them, and the rogue confirm's C→S 0x46 is never sent (unit-sounds.md). |
 | 20 | Skills' prgsound | — | build | yes | unit-sounds.md; monsters' own stsound is in (FUN_004c6140); dosound a / b are in (only Jab's is ever played); the player's block and kick sounds are in |
 | 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
 
