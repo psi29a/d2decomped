@@ -504,6 +504,8 @@ struct GameData {
         int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         bool curse = false;                // States.txt curse (bit set 11, game +0xf8): its stat list is flagged 0x20, one such at a time (FUN_0056e970)
         bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
+        int row = -1;                      // its States.txt row, the state id
+        bool aura = false;                 // States.txt aura (bit 1, list +0xd0, FUN_0063a210): overlay1 / 2 rotate as kind 8 (FUN_004d9920)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
