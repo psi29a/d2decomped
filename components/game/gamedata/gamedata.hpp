@@ -20,6 +20,7 @@
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
