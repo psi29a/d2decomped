@@ -132,6 +132,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 const int damage = blast(object, actor->player.x, actor->player.y, 2, life, int(actor->character.stats.get(kLevel)),
                                          int(actor->character.stats.get(kDex) + actor->psum[kDex]), fighter.defense);
                 take_blast(life, kind ? d2d::rules::blast_taken(damage, fighter.mdr, fighter.res[0]) : d2d::rules::blast_taken(damage, fighter.dr_flat, fighter.dr_pct));
+                actor->struck_by = { 2, object.object_id };
             }
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
@@ -350,9 +351,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // The compelling orb (OperateFn 53, FUN_005bb980): hit with Khalim's
         // Will in hand; the second hit breaks it: the Will goes, the orb
         // (0x16e) leaves, the object to mode 1. Else "I can't".
-        // ponytail: the break's FUN_005dfee0 isn't run: orbmist (368, flags 0x420) from the orb at the
-        // room's object 386 (Dummy stairsr), or with no missile made that object to mode 1, event 1 a
-        // FrameCnt on (its OperateFn 50 untraced).
+        // ponytail: the break's FUN_005dfee0 (the orb monster's orbmist, row 368, at object 386, else
+        // 386 to mode 1 and event 1) isn't run: object 386 ("Dummy" stairsr) has no Token, so
+        // add_object makes no Npc for it, and the missile's end (hit function 35, FUN_005abee0) is
+        // fight/missiles.cpp's, not ported. Its OperateFn 50 (LAB_00582180: in mode 2 FUN_00581f60)
+        // has nothing to run on. Traced in ai-control.md.
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
             // FUN_0063bef0: the weapon in hand (either arm, item type 0x2d;
@@ -717,10 +720,12 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
         each_player([&](Player& player) {
             const auto& fighter = player.player_combat;
-            if (nearby(player.player.x, player.player.y, 3) && player.character.stats.values[kLife] > 0)
+            if (nearby(player.player.x, player.player.y, 3) && player.character.stats.values[kLife] > 0) {
                 take_blast(player.character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, player.player.x, player.player.y, 2, player.character.stats.values[kLife], int(player.character.stats.get(kLevel)),
                                                                                         int(player.character.stats.get(kDex) + player.psum[kDex]), fighter.defense),
                                                                                   fighter.dr_flat, fighter.dr_pct));
+                player.struck_by = { 2, barrel.object_id };
+            }
             if (player.merc && nearby(player.merc->unit.x, player.merc->unit.y, 3) && player.merc->hit_points > 0) {
                 const auto merc_fighter = fight.merc_fighter();
                 const int dexterity = player.merc_st.dex + int(fight.merc_gear().sum[std::size_t(kDex)]);

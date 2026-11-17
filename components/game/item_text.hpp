@@ -357,9 +357,17 @@ inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const
 // No time-of-day stats (268-303, Properties "*/time"): no 1.14d UniqueItems,
 // SetItems, Sets, Runes, CubeMain, Automagic, Gems or QualityItems row has one,
 // and MagicSuffix "of Dawn" / "of Sunlight" aren't spawnable.
-// ponytail: no set bonus lists.
+// An identified set item (FUN_0048d1d0) adds, under those: its own set
+// bonuses that are on (green, FUN_004e6560 for the owner), a blank line,
+// while it's worn its set's bonuses the owner has (gold, FUN_004e6680) and a
+// blank line, the set's name (gold, Sets.txt record +2) and its members from
+// the last row to the first (record +0x110 in SetItems order, each its +0x24
+// name through "%0", 0x2769), green when the owner has an identified piece
+// of that row worn or in the inventory, cube or stash (FUN_00486770), else
+// red. `owner_items`: the hovering unit's items (the player's, the merc's);
+// none, every member is red and no bonus shows.
 inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
-                                        const d2d::rules::Wearer* wearer = nullptr) {
+                                        const d2d::rules::Wearer* wearer = nullptr, const std::vector<d2d::d2s::Item>* owner_items = nullptr) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
         const auto found = lookup_string(game_data, key);
@@ -616,6 +624,30 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
         std::string text = item.ethereal ? string_id(game_data, 22745) : std::string{};          // "Ethereal (Cannot be Repaired)"
         if (item.socketed) text += (item.ethereal ? ", " : "") + string_id(game_data, 3453) + " (" + std::to_string(item.sockets) + ")";
         out.push_back({ std::move(text), kTxtBlue });
+    }
+    const auto& specials = game_data.rules.sets;
+    if (item.quality == 5 && !unid && item.set_id >= 0 && std::size_t(item.set_id) < specials.size() && specials[std::size_t(item.set_id)].set >= 0) {
+        const int set = specials[std::size_t(item.set_id)].set;
+        static const std::vector<d2d::d2s::Item> kNone;
+        const auto& owned = owner_items ? *owner_items : kNone;
+        for (auto& bonus_line : prop_lines(game_data, set_bonus_props(game_data, owned, item), clvl)) out.push_back({ std::move(bonus_line), kTxtGreen });
+        out.push_back({ {}, kTxtWhite });
+        if (item.location == d2d::d2s::item_location::kEquipped)
+            if (auto bonus_lines = prop_lines(game_data, set_props(game_data, owned, set), clvl); !bonus_lines.empty()) {
+                for (auto& bonus_line : bonus_lines) out.push_back({ std::move(bonus_line), kTxtGold });
+                out.push_back({ {}, kTxtWhite });
+            }
+        out.push_back({ str(name_at(names.set_group, set)), kTxtGold });
+        const auto owns = [&](int row) {
+            return std::ranges::any_of(owned, [&](const d2d::d2s::Item& piece) {
+                const bool kept = piece.location == d2d::d2s::item_location::kEquipped
+                               || (piece.location == d2d::d2s::item_location::kStored
+                                   && (piece.panel == d2d::d2s::item_panel::kInventory || piece.panel == d2d::d2s::item_panel::kCube || piece.panel == d2d::d2s::item_panel::kStash));
+                return kept && piece.quality == 5 && piece.identified && piece.set_id == row;
+            });
+        };
+        for (std::size_t row = specials.size(); row-- > 0;)
+            if (specials[row].set == set) out.push_back({ str(name_at(names.set, int(row))), owns(int(row)) ? kTxtGreen : kTxtRed });
     }
     return out;
 }

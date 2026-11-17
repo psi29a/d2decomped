@@ -70,8 +70,28 @@ below it, so the call order is bottom to top. Top line first (d2d
 | properties | `FUN_004e6410` | | blue |
 | Ethereal (Cannot be Repaired), Socketed (N) | `FUN_00484b10` | 22745, 3453 | blue |
 
-Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
-line (`FUN_00486670`), charged skill details. Time-of-day stats (268-303,
+Not yet: charged skill details.
+
+**A set item** (`FUN_0048d1d0`, UI\inv.cpp; `FUN_0048dd90` hands it an
+identified quality-5 item, 0x48d1c4): its own lines as above, then, appended
+in this order to the bottom-up string (so shown in the reverse, last on top):
+the members, each `FUN_0048be80` of 0x2769 "%0" with its SetItems name
+(+0x24) and a newline, coloured green (2) when `FUN_00486770` finds the
+owner's piece of that row, else red (1), in the set's member order (Sets.txt
+record +0x110, count +0xc: SetItems row order; read from game.exe's loaded
+tables); the set's name (record +2) in gold (4) and a newline; when the item
+is worn (unit +0x10 == 1, 0x48d870) and `FUN_004e6680` finds the owner's
+stat list of that set (one of the six list ids at 0x6dbd70 whose stat 0x47
+is the set's), a newline and that list in gold; a newline; the item's own
+set lists that are on (`FUN_004e6560`, the SetItems add func +0x87: 1 per
+member worn, 2 by the count) in green; the properties (`FUN_004e6410` flags
+0x400) in blue. `FUN_004e60a0`'s lists end in a newline (`FUN_004e6410` trims
+its own last one). `FUN_00486770` walks the owner's item list for an
+identified set item of that SetItems row on page 0 (inventory), 3 (cube), 4
+(stash) or none (worn), grid kind (`FUN_0063e020`) 1, 3 or 4. The owner is the
+hovered unit (`FUN_0048dd90`'s param); a merc's own items for its sheet.
+d2d: `item_lines`' `owner_items` (test_set_tooltip). Cited from the asm
+(0x48d889..0x48d9fe), no oracle run. Time-of-day stats (268-303,
 Properties `*/time`) are on no 1.14d item: no UniqueItems, SetItems, Sets,
 Runes, CubeMain, Automagic, Gems or QualityItems row names one, and the
 MagicSuffix rows that do (of Dawn, of Sunlight) have spawnable 0.

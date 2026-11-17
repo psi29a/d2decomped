@@ -229,6 +229,19 @@ and sound event 1 is scheduled for it at game frame plus missile 0x182 row
 room, marker, coordinate, missile and action helpers are scripted. The missing
 marker assertion is not exercised.
 
+Its one caller is the compelling orb's break (OperateFn 53, `FUN_005bb980`, call at
+0x5bba9d): the unit handed is the orb monster (class 0x16e, found by
+`FUN_00552f60` on the quest record's +0x2c), after `FUN_005ddfc0(0, 0, 0)` kills
+it. The marker, object 386 (Objects.txt "Dummy", InitFn 53, OperateFn 50, mode 0
+at the start, FrameCnt1 9), is the "stairsr" the Durance stairs hang on. On
+success the missile's end is hit function 35 (`FUN_005abee0`, missiles.md): the
+object by the id stored in the missile's data +0x28, mode 0 to 1, event 1
+`FrameCnt1 >> 8` frames on; the failure branch above does the same at once.
+OperateFn 50 (`LAB_00582180`, table entry 0x732de0) returns 0 unless the object is
+in mode 2, then runs `FUN_00581f60` (OperateFn 47, the stairs). d2d: not ported,
+objects.cpp's ponytail: row 386 has an empty Token, so `add_object` makes no
+Npc for it, and hit function 35 would be in fight/missiles.cpp.
+
 `FUN_005ea7a0` gets an owner using `FUN_0058f0d0` and a signed
 difficulty-indexed radius from MonStats +0x56. Owner mode 3 halves the radius
 with truncation toward zero. If control +0x14 is at or after the game frame,

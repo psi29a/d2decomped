@@ -4,6 +4,7 @@
 
 #include "ai.hpp"
 #include "character.hpp"
+#include "cues.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "log.hpp"
@@ -1124,7 +1125,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
         pet_strike(pet, std::size_t(target), blow, now_ms);
         stand(std::size_t(target), frozen, now_ms);
-        if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms);
+        if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms, unit_key(kSoundOnMonster, pet.monster.id), pet.monster.unit.x, pet.monster.unit.y);
         if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false);
     }
 
@@ -1156,6 +1157,10 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
                 for (std::size_t k = 0; k < 5; ++k)
                     if (const auto* bone_skill = skill_named(pet_skill->sumskill[k]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion && !monsters[std::size_t(target)].corpse_used) {
                         corpse_blast(*bone_skill, pet.shot_level, std::size_t(target), now_ms);
+                        // Its client do, cltdofunc 78 (FUN_004f0cd0): the prgsound on the cltmissile it makes
+                        // (FUN_004cdb40: corpseexplosion, which d2d doesn't draw), at the corpse.
+                        if (bone_skill->clt_do_func == 78)
+                            cues.cue_on(0, bone_skill->prg_sound, now_ms, monsters[std::size_t(target)].unit.x, monsters[std::size_t(target)].unit.y);
                         break;
                     }
             return;

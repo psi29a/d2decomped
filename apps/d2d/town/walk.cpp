@@ -500,7 +500,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             case ev::Message::chat: add_chat(message->name + text(0xfd0) + message->text, 0, message->name.size()); break;   // "name: text", the name gold
             case ev::Message::joined: if (message->name != character.name) add_chat(named(0xe39), 4); break;             // "%s joined our world..."
             case ev::Message::left: add_chat(named(0xe3a), 4); break;                                                      // "%s left our world..."
-            case ev::Message::slain: add_chat(message->name + text(0xe41), 4); break;                                      // " was slain"
+            case ev::Message::slain: add_chat(message->name + (message->text.empty() ? text(0xe41) : text(0xe3f) + message->text), 4); break;   // " was slain." / " was slain by " + the killer
             }
             return;
         }

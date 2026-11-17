@@ -543,6 +543,11 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
             start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
+            // Cltstfunc 15 (FUN_004e3060: Inferno, Arctic Blast) with state inferno (0xc) off: the prgsound on no unit
+            // (FUN_004b9a00, EDX 0: unplaced, the listener's), then the client's own inferno on.
+            // ponytail: that client list (FUN_006251f0 flags 2, +0x18 = 0x15) isn't traced past its making; d2d asks
+            // the server's state (Hero::burning) instead.
+            if (skill->clt_st_func == 15 && now_ms >= actor->burning) cues.cue_on(0, skill->prg_sound, now_ms, actor->player.x, actor->player.y);
         }
     }
 
@@ -560,6 +565,7 @@ auto Fight::dead() const -> bool { return actor->pmode == kModeDT || actor->pmod
 
 auto Fight::die(std::uint32_t now_ms) -> void {
     actor->character.stats.values[d2d::d2s::kLife] = 0;
+    actor->killer = std::exchange(actor->struck_by, {});
     set_pmode(kModeDT, now_ms);
     actor->attack_mon = -1;
     actor->smove = {};           // a Whirlwind / Charge / Leap cut short isn't resumed by the next attack mode
