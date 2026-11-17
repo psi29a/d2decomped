@@ -508,6 +508,7 @@ struct GameData {
         const OverlayInfo* cast = nullptr;
         int gfx_type = 0, gfx_class = 0;   // gfxtype / gfxclass (+0x2d / +0x2e): 2 looks and moves as that player class (FUN_00645270)
         int on_sound = 0, off_sound = 0;   // onsound / offsound (+0x26 / +0x28): on the unit as it comes on (FUN_004d9b20) / goes (FUN_004d9c30)
+        int set_func = 0, rem_func = 0;    // setfunc / remfunc: the client's as it comes on (table 0x72a690) / goes (0x72a710)
         // The char panel's colours (rules::PanelColour bits): armblue, rfblue,
         // rcblue, rlblue, rpblue, attblue, damblue and their reds.
         std::uint8_t panel_blue = 0, panel_red = 0;

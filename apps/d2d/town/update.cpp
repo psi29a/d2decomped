@@ -1151,10 +1151,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         audio.quake(*scene, shake.step(frame_ms, shake_rng));
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         object_sounds(audio, frame_ms, view.player.x, view.player.y);
-        audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner); });
+        audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner) || std::ranges::contains(state_loops, owner); });
         audio.track(view.player.x, view.player.y, [&](int owner) -> std::optional<std::pair<float, float>> {
             if (const auto shot = std::ranges::find(view.missiles, owner, &d2d::game::View::Shot::sound); owner > 0 && shot != view.missiles.end()) return std::pair{ shot->x, shot->y };
             if (const auto object = std::size_t(-1 - owner); owner < 0 && object < view.npc_states.size()) return std::pair{ view.npc_states[object].x, view.npc_states[object].y };
+            if (std::ranges::contains(state_loops, owner)) return std::pair{ view.player.x, view.player.y };   // a state's loop is on the player
             return std::nullopt;
         });
         audio.pause_world(false);                  // a cinematic's hold ends

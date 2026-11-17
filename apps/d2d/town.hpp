@@ -650,6 +650,8 @@ struct Town {
     std::vector<char> object_called;          // an object's call has played (unit +0x80: rules::object_call), by level->npcs index
     const Level* object_level = nullptr;
     std::vector<int> object_loops;          // the objects' loops wanted now (their owners, -1 - index)
+    std::vector<int> state_loops;           // the player's states' prgsound loops on now (their owners, kStateLoop - skill)
+    static constexpr int kStateLoop = -(1 << 20);   // below every object's owner (-1 - index)
     void object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y);
     std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
