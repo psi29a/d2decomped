@@ -107,6 +107,13 @@ def compare(cases, gfile, dfile):
     bad, by_kind = 0, {}
     for case_line, g_line, d_line in zip(case_lines, game_lines, d2d_lines, strict=True):
         case, g, d = parse(case_line), g_line.split(), d_line.split()
+        try:
+            g_nums = [int(x) for x in g]
+            if case[2] != 0:                               # a player row's d2d side is `id -`
+                for x in d:
+                    int(x)
+        except ValueError:
+            raise SystemExit(f"compare: non-numeric field near id {case[0]}") from None
         if len(g) != 6 or len(d) not in (2, 3) or g[0] != d[0] or g[0] != str(case[0]):
             raise SystemExit(f"compare: malformed or out-of-step line near id {case[0]}")
         if case[2] == 0:                                   # a player struck: d2d has no monster with Open Wounds (printed `id -`)
@@ -114,7 +121,8 @@ def compare(cases, gfile, dfile):
             continue
         applied, value, duration = int(g[1]), -int(g[2]), int(g[3])
         expect = [str(applied), str(value * duration if applied else 0)]
-        differ = d[1:] != expect
+        # the record must be the one FUN_0056e970 gets: stat 0x4a (74), state 0x3e (62)
+        differ = d[1:] != expect or (applied == 1 and (g_nums[4], g_nums[5]) != (74, 62))
         name = "special" if case[4] & 12 else "plain"
         row = by_kind.setdefault(name, [0, 0])
         row[0] += 1
