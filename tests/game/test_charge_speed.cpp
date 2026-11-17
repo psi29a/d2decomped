@@ -10,6 +10,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <world.hpp>
 
 #include <cassert>
