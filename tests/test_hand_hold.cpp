@@ -39,6 +39,8 @@ int main() try {
     assert(!right_latch(true, false, false, false));
     assert(!right_latch(false, false, true, false));      // held without a field press: nothing
     assert(right_latch(false, true, false, false));       // a tap inside one frame: the press still counts this frame
+    // A modal (Help, Configure Controls) clears the button: the latch goes with it.
+    assert(!right_latch(true, false, false, false));
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_hand_hold: %s\n", error.what());
