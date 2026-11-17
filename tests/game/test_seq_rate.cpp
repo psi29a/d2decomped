@@ -136,8 +136,12 @@ int main(int argc, char** argv) try {
     // Missing data, or no 1.14d patch (the loader fails on CD-era tables) is a skip; a data set that is there and does not load is a failure.
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     if (!has_file("d2data.mpq")) return skip("no d2data.mpq");
-    if (!(patch && fs::exists(patch)) && !has_file("patch_d2.mpq") && !has_file("lodpatch_114d.exe")) return skip("no 1.14d patch data");
-    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    if (patch && *patch && !fs::exists(patch)) {   // a configured patch that is not there is a broken fixture
+        std::fprintf(stderr, "test_seq_rate: D2_PATCH_INSTALLER %s does not exist\n", patch);
+        return 1;
+    }
+    if (!(patch && *patch) && !has_file("patch_d2.mpq") && !has_file("lodpatch_114d.exe")) return skip("no 1.14d patch data");
+    auto data = load_game_data(data_dir, patch && *patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->patched);
 
     // none, sword (1hs), dagger (1ht), great sword (2hs), spear (2ht), staff (stf), bow, crossbow (xbw), claws (ht1)
