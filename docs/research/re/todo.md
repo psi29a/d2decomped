@@ -66,7 +66,7 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
+| 32 | Light Quality always high; unit shadows darken once | exact | hardly | deviations.md approximations 3–4 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 
