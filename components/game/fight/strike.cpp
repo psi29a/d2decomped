@@ -498,8 +498,9 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             auto& life = actor->character.stats.values[kLife];
             auto& mana = actor->character.stats.values[kMana];
             const auto life_before = life, mana_before = mana;
-            life = std::min(actor->character.stats.values[kMaxLife], life + (std::int64_t(blow.life) << 8));
-            mana = std::min(actor->character.stats.values[kMaxMana], mana + (std::int64_t(blow.mana) << 8));
+            // FUN_0057a980 and FUN_0057aa00 write nothing for points < 1 (a wrapped mul_div can be negative)
+            if (blow.life > 0) life = std::min(actor->character.stats.values[kMaxLife], life + std::int64_t(blow.life));
+            if (blow.mana > 0) mana = std::min(actor->character.stats.values[kMaxMana], mana + std::int64_t(blow.mana));
             if (life > life_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_life", now_ms, actor->player.x, actor->player.y);
             if (mana > mana_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_mana", now_ms, actor->player.x, actor->player.y);
         }
@@ -678,7 +679,8 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         // Converted while the swing was on: no foe of the player's side (FUN_00554200, as land),
         // so no blow, and no charge, Frenzy or wear off it.
         if (!target_monster.targetable() || target_monster.align == 2
-            || std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach) return;
+            || (reach < 0.f ? !melee_reach_to(target_monster, true)
+                            : std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach)) return;
         auto current_swing = swing();
         auto fighter = current_swing.kick ? actor->pf_kick : actor->player_combat;
         const auto* skill = game_data->skills.get(actor->swing_skill);
@@ -1159,7 +1161,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
                 }
                 return;
             }
-            hit(now_ms);
+            hit(now_ms, kMeleeReach + 0.5f);   // Charge and Leap Attack: their own landing is not traced (FUN_0057ec10 applies to them too)
             return;
         }
         // Leap Attack: the first event takes off, the second lands, the third strikes.
@@ -1175,7 +1177,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             if (actor->smove.active) { actor->player.x = actor->smove.target_x; actor->player.y = actor->smove.target_y; }
             actor->smove = {};
         } else if (actor->seq_struck >= 3) {
-            hit(now_ms);
+            hit(now_ms, kMeleeReach + 0.5f);   // Charge and Leap Attack: their own landing is not traced (FUN_0057ec10 applies to them too)
         }
     }
 

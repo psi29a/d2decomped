@@ -138,7 +138,11 @@ them), from the skill's reqlevel on, Level + (LvlPerLvl × (level − Level)
 >> 5), 1..32 (`rules::merc_skill_levels`). The same function sets its
 stats: Str / Dex + (per level × d >> 3) (10 at least), life (HP + HP/Lvl ×
 d, 40 at least), defence, AR, damage (+ Dmg/Lvl × d >> 3) and all four
-resistances Resist + (Resist/Lvl × d >> 2).
+resistances Resist + (Resist/Lvl × d >> 2). It sets the base max life
+(stat 7, 0x5729d1) and then the life (stat 6, 0x5729dc) to the same value:
+a merc whose level a kill raises (`FUN_0057e860`) has its new level-up
+life, its items' max life left out, and one above that loses the rest
+(d2d `Fight::merc_share`; `tools/emu/merc_levelup.py`).
 
 ## Its gear
 

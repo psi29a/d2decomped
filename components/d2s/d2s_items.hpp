@@ -243,6 +243,8 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kAllSkills = 127, kAttackerTakesLightningDamage = 128, kThornsPercent = 131,
               kBoneArmor = 132,
               kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,
+              kAbsorbFirePercent = 142, kAbsorbFire = 143, kAbsorbLightningPercent = 144, kAbsorbLightning = 145,
+              kAbsorbMagicPercent = 146, kAbsorbMagic = 147, kAbsorbColdPercent = 148, kAbsorbCold = 149,
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
               kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
               kThrowMinDamage = 159, kThrowMaxDamage = 160, kSkillPierce = 166,

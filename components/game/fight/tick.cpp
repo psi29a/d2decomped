@@ -14,11 +14,13 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
+#include <melee_reach.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
+#include <unit_size.hpp>
 
 #include <algorithm>
 #include <array>
@@ -245,12 +247,30 @@ auto Fight::engage(std::uint32_t now_ms) -> std::optional<std::pair<float, float
             start_swing(now_ms);
             return std::nullopt;
         }
-        if (std::hypot(target.unit.x - actor->player.x, target.unit.y - actor->player.y) <= kMeleeReach) {
+        if (melee_reach_to(target, false)) {
             actor->player.dir = direction16(target.unit.x - actor->player.x, target.unit.y - actor->player.y);
             start_swing(now_ms);
             return std::nullopt;
         }
         return std::pair{ target.unit.x, target.unit.y };
+    }
+
+auto Fight::melee_reach_to(const Monster& target, bool blow) const -> bool {
+        // FUN_00622c40(player, monster, extra): within the weapon's range + extra + 1 by FUN_00641530
+        // (always at 0 or less; a tentacle or its head within the range + 8) and no wall of mask 0x804
+        // on the line (FUN_00622aa0). The client ends its walk, and the server starts the swing, with
+        // `extra` 1 while the monster moves (FUN_00622dc0: FUN_00480c80 at 0x480d0f, FUN_00549ba0 at
+        // 0x549cc8); the blow asks again with `extra` 1 for a player (FUN_0057ec10 at 0x57eca6).
+        const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        const int from_x = sub(actor->player.x), from_y = sub(actor->player.y), to_x = sub(target.unit.x), to_y = sub(target.unit.y);
+        const int size = game_data->monsters.types[std::size_t(target.type)].size;
+        const bool tentacle = target.type == int(game_data->mon_bin[0x102]) || target.type == int(game_data->mon_bin[0x105]);
+        const bool vulture = target.type == int(game_data->mon_bin[0x6e]);
+        const int mode = target.unit.walking ? 2 : vulture && target.mode == "S1" ? 8 : vulture && target.mode == "S2" ? 9 : 1;
+        const int extra = blow || d2d::rules::unit_moving(d2d::rules::UnitType::kMonster, mode, vulture ? 0x6e : -1) ? 1 : 0;
+        const auto wall = [this](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
+        return d2d::rules::melee_reach(d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, size), weapon_range(), tentacle, extra,
+                                       [&] { return d2d::rules::sight_blocked(from_x, from_y, 2, to_x, to_y, size, wall); });
     }
 
 auto Fight::crowd(Crowd& crowd_out) -> void {
@@ -773,6 +793,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // first, before this frame's blows name another striker.
         if (!dead() && actor->struck_by.kind == 2 && actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
         if (foe.striker_id >= 0) actor->struck_by = { 1, foe.striker_id };
+        // What the gear's absorb took off the blows is given back as life first, a blow at a time (FUN_0057c6c0 -> FUN_0057a980, 0x57c844),
+        // capped at the max life; the blows' totals then come off below.
+        if (!foe.blows.empty() && !dead()) {
+            auto& life = actor->character.stats.values[kLife];
+            life += d2d::rules::absorb_heal(foe.blows, life, actor->character.stats.values[kMaxLife]);
+        }
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
             life -= (std::int64_t(foe.damage) << 8) + fine;

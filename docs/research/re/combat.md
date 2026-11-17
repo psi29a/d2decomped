@@ -36,6 +36,29 @@ at max life, and dead is life 0. Physical, poison, burning, thorns, pets and
 mercs still deal whole points (ponytail: not traced one by one).
 Oracle: `tools/emu/life_apply.py` against `test_game --life-apply`.
 
+Gear absorb (FUN_0057bf10, the last step of FUN_0057bf80 on a fire, lightning, cold or
+magic field, skipped when the record ignores resistances): the percent stat (142 fire,
+144 lightning, 146 magic, 148 cold) is capped at 40 and takes `MulDiv(field, percent, 100)`;
+then the flat stat (143, 145, 147, 149; points << 8) takes at most what is left. It runs after
+the flat magic reduction and the resistance, also on a field those left under 0 (a negative
+field is moved toward 0 by the percent and cleared by the flat). What it takes is added to the
+record's absorbed total (+0x48; nothing else in 0x579000..0x57e000 writes it), signed.
+FUN_0057c6c0 hands that total to FUN_0057a980 (0x57c844) BEFORE it takes the record total
+(+0x4c) off the life (0x57c852): FUN_0057a980 does nothing for a total of 0 or less, a dead unit
+or state 0x5c, else sets life = min(life + total, max life). So an absorb lowers the hit AND
+heals what it took, capped at max life, one record at a time: a 100-point cold blow on a player
+at 90 of 100 life with 20 percent cold absorb leaves 20 (heal to 100, then 80), and a blow that
+would kill can be survived because the heal comes first. `rules::absorbed_fine`,
+`rules::elemental_took`, `rules::absorb_heal`, `Fighter::absorb_pct` / `absorb_flat`,
+`StruckBlow::Part::took`; used by `monster_blow`, the armors' recompute (`elemental_fine`) and
+`Fight::hurt_side`. Oracle: `tools/emu/gear_absorb.py` (the player's life after one to three blows,
+FUN_0057c6c0 run for real) against `test_gear_absorb --life`. game.exe's functions test no unit
+type, so a mercenary's absorb gear would act the same; d2d's merc takes none (merc.cpp: the absorb
+without its heal-back on the merc's life would be half the rule). Not modelled: the ignore-resistances record (flags 0x100 / 0x200 / 0x400 by
+attacker kind, 0x57c309..0x57c371), state 0x5c (death_delay) on the heal, a magic field's magic
+resistance (stat 37, decomp37 T3), absorb on the burn and blast paths (ai.hpp `burn`, objects.cpp)
+and on a missile's own element roll.
+
 Life after the hit below 0x100 (under 1 point) is set to 0: the unit is
 dead, and result flag 2 is set. FUN_0057aa60 / FUN_0057aaa0 do the same
 for mana (stat 8) and stamina (stat 10).
@@ -219,6 +242,20 @@ d2d matches both, and the one-poison-at-a-time rule.
 
 ## To hit — FUN_0057ec10 → FUN_0057d9b0
 
+- Reach first (0x57ec7e..0x57eca6): FUN_00622c40(attacker, target, extra)
+  must hold, else no hit and no roll: the unit distance FUN_00641530 within
+  the attacker's range + extra + 1 (always at 0 or less) and no wall of
+  collision mask 0x804 on the line (FUN_00622aa0), the line's ends stepped
+  in by the units' sizes. extra is 1 for a player and 3 for a monster when
+  the caller's third argument is 0, as from every caller but one; a
+  non-zero one takes itself and the range off (0x57ec94..0x57ec9e):
+  FUN_0056e6f0 passes 1 for Blade Shield's area hits (FUN_005d7c40). A swing starts on a monster
+  under the same test with extra 1 only while the monster moves (FUN_00622dc0):
+  the client's walk ends there (FUN_00480c80, 0x480d0f) and the server asks
+  again (FUN_00549ba0, 0x549cc8). Attack's do (FUN_0056f070) tests no other
+  distance: it hits the target FUN_00553540 returns. d2d:
+  `Fight::melee_reach_to` (engage and the default `hit`), checked by
+  `tools/emu/player_reach.py`.
 - Defense: FUN_006223f0 + stat 33 (vs melee) or 32 (vs missiles).
 - Player attack rating (FUN_00622560): stat 19 + (dex − 7) × 5 + CharStats
   ToHitFactor; then × (100 + mastery to-hit + stat 119 + the skill's

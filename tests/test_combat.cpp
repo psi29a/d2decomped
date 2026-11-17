@@ -423,7 +423,15 @@ int main(int argc, char** argv) try {
     blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     assert(blow.hit && blow.damage == 50 + 11);                       // 350 / 16 = 21, less 50 %
-    assert(blow.life == 50 * 10 * 50 / 10000);
+    assert(blow.life == 640);                                         // 50 phys (12,800) x (10 << 6) / 100 x Drain 50 / 100 / 64, in 256ths (FUN_0057c420)
+    // The difficulty's divisor and the cut to the target's life (FUN_0057c420, FUN_0057c6c0 0x57c7f8): game.exe's values,
+    // tools/emu/leech.py game on these cases (12,800 = 50 points of physical, a 10 % steal, Drain 50 unless 100).
+    assert(leech_fine(12'800, target, 10, 2) == 320 && leech_fine(12'800, target, 10, 3) == 213);   // Nightmare, Hell
+    Target nearly_dead = target;
+    nearly_dead.life_fine = 20 * 256;
+    assert(leech_fine(12'800, nearly_dead, 10, 1) == 256);                                         // only the 20 points it had
+    Target full_drain{ .hit_points = 400, .max_hp = 400, .drain = 100 };
+    assert(leech_fine(128, full_drain, 10, 1) == 12 && leech_fine(128, full_drain, 0, 1) == 0);      // half a point: 12 / 256ths, not 0
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);
     crit.critical = 100;
@@ -655,6 +663,10 @@ int main(int argc, char** argv) try {
         assert(make_fighter(types_tables, &weapon_both, nullptr, gear, weapon_gear, owner, {}, 0, {}).blunt);
         built = make_fighter(types_tables, nullptr, nullptr, gear, weapon_gear, owner, {}, 0, {});
         assert(!built.blunt && built.undead_pct == 25);                                   // barehanded: stat 122 still counts
+        for (int stat = d2d::d2s::kAbsorbFirePercent; stat <= d2d::d2s::kAbsorbCold; ++stat) gear[std::size_t(stat)] = stat - 100;   // 42 .. 49
+        built = make_fighter(types_tables, nullptr, nullptr, gear, weapon_gear, owner, {}, 0, {});
+        assert(built.absorb_pct[0] == 42 && built.absorb_flat[0] == 43 && built.absorb_pct[1] == 44 && built.absorb_flat[1] == 45);   // fire, lightning
+        assert(built.absorb_pct[4] == 46 && built.absorb_flat[4] == 47 && built.absorb_pct[2] == 48 && built.absorb_flat[2] == 49);   // magic, cold
     }
     // Monster blows: block, damage reduced flat then % (FUN_0057bf80), elemental less resistance.
     MonStats mon;
@@ -675,6 +687,31 @@ int main(int argc, char** argv) try {
         auto enchanted_blow = monster_blow(bare, 1, Motion::standing, enchanted, true, rng);   // A2: the A1 fire isn't rolled, the enchants are
         for (int tries = 0; tries < 20 && !enchanted_blow.hit; ++tries) enchanted_blow = monster_blow(bare, 1, Motion::standing, enchanted, true, rng);
         assert(enchanted_blow.hit && enchanted_blow.element_dealt[0] == 0 && enchanted_blow.element_dealt[1] == 12 && enchanted_blow.element_dealt[2] == 6 && enchanted_blow.chill_ticks > 0);
+    }
+    {                                                                  // the gear's absorb (FUN_0057bf10, after the resistance): game.exe's fields, tools/emu/gear_absorb.py game
+        const auto absorbed = [](int type, int field, int res, int pct, int flat, int mdr) {
+            Fighter worn;
+            worn.mdr = mdr;
+            if (type < 4) worn.res[std::size_t(type)] = res;
+            worn.absorb_pct[std::size_t(type)] = pct;
+            worn.absorb_flat[std::size_t(type)] = flat;
+            MonStats cast;
+            cast.elements[0] = { type, 100, field, field, 0, "A1" };
+            Rng once{ 1 };
+            return monster_blow(worn, 1, Motion::standing, cast, false, once, false, true, true).element_fine[std::size_t(type)];
+        };
+        assert(absorbed(0, 100, 25, 0, 0, 0) == 19200);                // the resistance alone: 25600 x 75 / 100
+        assert(absorbed(0, 100, 25, 20, 0, 0) == 15360);               // then 20 % of what is left (the percent comes after the resistance)
+        assert(absorbed(0, 100, 50, 0, 20, 0) == 7680);                // the flat comes off after the resistance (12,800 - 5,120), not before (10,240)
+        assert(absorbed(2, 50, 0, 60, 10, 0) == 5120);                 // the percent stops at 40 (12,800 - 5,120), then the flat 10 points (2,560)
+        assert(absorbed(1, 10, 50, 0, 100, 0) == 0);                   // the flat takes at most what is left
+        assert(absorbed(4, 2, 0, 36, 0, 3) == -164);                   // a field under 0 (the magic reduction took 3 of 2): the percent moves it toward 0
+        assert(absorbed(4, 2, 0, 0, 5, 3) == 0);                       // the flat clears it
+        // What the absorb took off a field (the record's +0x48 share, FUN_0057bf10), signed: game.exe's heal-back reads the sum (gear_absorb.py game).
+        assert(d2d::rules::elemental_took(100 * 256, 0, 25, true, 20, 0) == 3840);   // 19,200 - 15,360
+        assert(d2d::rules::elemental_took(100 * 256, 0, 50, true, 0, 20) == 5120);   // the flat 20 points
+        assert(d2d::rules::elemental_took(2 * 256, 3 * 256, 0, false, 36, 0) == -92);   // a negative field: the percent gives back (-256 - -164)
+        assert(d2d::rules::elemental_took(0, 0, 0, true, 40, 10) == 0);              // a field at or under 0 is stored 0 first
     }
     {                                                                  // the physical roll (FUN_0057b420): min << 8 + rand((max - min) << 8), the top never rolled
         MonStats fallen;

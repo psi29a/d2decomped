@@ -526,7 +526,8 @@ struct Monster {
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
         d2d::rules::Target built{ hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
-                                  crush_divisor(game_data), type_info.undead, type_info.demon };
+                                  crush_divisor(game_data), type_info.undead, type_info.demon, life_fine(),
+                                  game_data.life_steal_divisor[std::size_t(difficulty)], game_data.mana_steal_divisor[std::size_t(difficulty)] };
         built.special = boss != d2d::rules::Boss::none && boss != d2d::rules::Boss::minion;
         return built;
     }
@@ -640,7 +641,8 @@ struct Foe {
         if (taken.hit) {
             Blow blow{ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat };
             for (std::size_t type = 0; type < blow.parts.size(); ++type)
-                if (type != 3) blow.parts[type] = { taken.element_raw[type], taken.element_dealt[type], type < fighter.res.size() ? fighter.res[type] : 0, taken.element_raw[type] > 0 ? taken.element_fine[type] : d2d::rules::StruckBlow::kNoFine };
+                if (type != 3) blow.parts[type] = { taken.element_raw[type], taken.element_dealt[type], type < fighter.res.size() ? fighter.res[type] : 0, taken.element_raw[type] > 0 ? taken.element_fine[type] : d2d::rules::StruckBlow::kNoFine,
+                                       fighter.absorb_pct[type], fighter.absorb_flat[type], taken.element_took[type] };
             blow.mdr = fighter.mdr;
             blow.sum = taken.sum;
             blows.push_back(blow);
