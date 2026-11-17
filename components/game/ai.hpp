@@ -267,6 +267,10 @@ struct Monster {
     int max_life_frac = 0;                    // the same deficit from stats.hit_points for a boss's max life
     int life_frac = 0;                        // 256ths of a point already taken off hit_points (life = hit_points x 256 - life_frac)
     int leader = -1;                          // index of its group's leader
+    // The Monster::id it's attached to as a minion (AI control +0x28's owner, FUN_0058f0d0): a Bone
+    // Prison's later bones the first's (FUN_005b31b0); -1 none. `owner_born`: that owner's index in the
+    // frame's born list, made the same frame (World ids come as they're added).
+    int party_owner = -1, owner_born = -1;
     int difficulty = 0;
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
     std::string_view mode = "NU";             // animation mode token

@@ -2277,6 +2277,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // (1, 1) first, the other three only once it stood; each on its spot
                     // exactly (FUN_005b3130 / FUN_005b31b0 at radius -1), none where it won't fit.
                     const int foe_room = room_of(level, foe.x, foe.y);
+                    std::size_t prison_head = 0;
                     if (born && !d2d::rules::level_ids::is_town(level.id))
                         for (std::size_t k = 0; k < kPrison.size(); ++k) {
                             int at_x = 0, at_y = 0;
@@ -2286,6 +2287,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             }
                             auto bone = make_monster(game_data, 0x154 + int(k), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id);
                             bone.seed = d2d::rules::Rng{ rng.next() };
+                            if (k > 0) bone.owner_born = int(prison_head);   // FUN_005b31b0: a minion of the first
+                            else prison_head = born->size();
                             born->push_back(std::move(bone));
                         }
                 } else if (cast->srvdofunc == ServerDoFunction::kDiabWall) {

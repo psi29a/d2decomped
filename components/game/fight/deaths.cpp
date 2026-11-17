@@ -98,6 +98,18 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
             // 0), whatever the kill: no corpse to raise or blow up.
             if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
+            // Partydead (MonUMod 15, boneprison1..4 by FUN_005b21b0): hook 1 FUN_005a2d10 as it dies,
+            // with an owner (FUN_0058f0d0): each of the owner's minions leaves the group and dies
+            // (FUN_0058f380 -> FUN_005a2cc0: FUN_005a7e60 mode 0, no credit), then the owner; the
+            // first bone has none, so it falls alone.
+            if (std::ranges::contains(family, d2d::rules::umod::partydead) && monster.mode != monster.fx_mode && monster.mode == "DT" && monster.party_owner >= 0) {
+                const int owner = std::exchange(monster.party_owner, -1);
+                for (auto& other : monsters)
+                    if ((other.party_owner == owner || other.id == owner) && &other != &monster) {
+                        if (other.party_owner == owner) other.party_owner = -1;
+                        if (other.alive()) { other.hit_points = 0; set_mode(*game_data, other, "DT", now_ms); }
+                    }
+            }
             // A shattered death (the client's unit command 8, FUN_004aff60 from LAB_004b053e):
             // freeze (1) and shatter (107) carry States.txt hide and shatter, so the corpse is
             // hidden and can't be picked (FUN_0063a320: corpse_used), its hit class's element

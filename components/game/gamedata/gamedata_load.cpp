@@ -487,7 +487,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 game_data.mon_equip_first[std::size_t(equip_row.monster)] = int(game_data.mon_equip.size());
             game_data.mon_equip.push_back(std::move(equip_row));
         }
-    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 34 (none random; 24, 40 and 41 are never applied)");
+    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 34 (none random; 24, 40 and 41 are never applied)");
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
