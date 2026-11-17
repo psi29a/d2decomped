@@ -769,6 +769,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
         bool died = false;
+        // A blast (a trap object, an exploding barrel: take_blast) took the life itself: that death
+        // first, before this frame's blows name another striker.
+        if (!dead() && actor->struck_by.kind == 2 && actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
         if (foe.striker_id >= 0) actor->struck_by = { 1, foe.striker_id };
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
@@ -776,8 +779,6 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             if (life < 0x100) life = 0;                     // under one whole point is dead (FUN_0057c6c0, 0057c865)
             if (life <= 0) { die(now_ms); died = true; }
         }
-        // A blast (a trap object, an exploding barrel: take_blast) takes the life itself.
-        if (!dead() && actor->struck_by.kind == 2 && actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
         for (const int divisor : foe.crushed) {             // Crushing Blows, after the hits (crushing_blow, FUN_005bffc0)
             if (died || dead()) break;
             auto& life = actor->character.stats.values[kLife];
