@@ -15,6 +15,7 @@
 #include <ai.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <test_data.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -56,14 +57,14 @@ int curse_put_cases(const GameData& game_data) {
 
 // Attract (86), Amplify Damage (66), Taunt (30) and Inner Sight (8) typed in; 25 frames a put.
 int attract_checks() {
-    GameData game_data;
-    game_data.skills.rows.resize(100);
-    game_data.skills.rows[86].id = 86; game_data.skills.rows[86].auratarget = "attract";
-    game_data.skills.rows[66].id = 66; game_data.skills.rows[66].auratarget = "amplifydamage";
-    game_data.skills.rows[8].id = 8; game_data.skills.rows[8].auratarget = "innersight";
-    game_data.skills.rows[30].id = 30; game_data.skills.rows[30].auratarget = "taunt";
-    for (const char* curse : { "attract", "amplifydamage", "taunt" }) game_data.states[curse].curse = true;
-    game_data.states["innersight"].curse = false;
+    d2d::test::TestData test;
+    test.skill(86, "Attract").auratarget = "attract";
+    test.skill(66, "Amplify Damage").auratarget = "amplifydamage";
+    test.skill(30, "Taunt").auratarget = "taunt";
+    test.skill(8, "Inner Sight").auratarget = "innersight";
+    for (const char* curse : { "attract", "amplifydamage", "taunt" }) test.state(curse, true);
+    test.state("innersight");
+    const GameData& game_data = test.data;
     Monster monster;
     const auto put = [&](int skill, int level, std::uint32_t now) { return put_state(game_data, monster, monster.curse, { skill, level, now + 1000 }, now); };
     assert(put(86, 1, 0) && monster.curse.skill == 86);
