@@ -18,6 +18,7 @@
 #include <missiles.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
@@ -196,6 +197,23 @@ int main() try {
         fight.pending.clear();
         pets.clear();
         std::puts("OK: a Shadow's death nova aims round its ring");
+    }
+
+    // Traps: Trap Nova (do 22, FUN_0056d400) and PrimePoisonNova (do 99, FUN_005ccd10: 0x6e31e8 / 0x6e31a8).
+    // The trap monster's think (FUN_005fb9b0 / FUN_005fb900) acts on a target within 20 subtiles: the player beside it.
+    {
+        const float trap_x = world.actor->player.x + 0.5f, trap_y = world.actor->player.y + 0.3f;
+        fight.missiles.clear();
+        world.trap_think(4, trap_x, trap_y, 10, 4000);
+        assert(fight.missiles.size() == 64 && fight.missiles.front().info->name == "trapnova");
+        assert(nova_ring(fight.missiles, trap_x, trap_y));
+        fight.missiles.clear();
+        world.trap_think(3, trap_x, trap_y, 10, 4000);
+        assert(fight.missiles.size() == d2d::rules::kPoisonNova.size());
+        for (std::size_t k = 0; k < fight.missiles.size(); ++k)
+            assert(on_subtile(fight.missiles[k], trap_x, trap_y) && aims_at(fight.missiles[k], d2d::rules::kPoisonNova[k].first, d2d::rules::kPoisonNova[k].second));
+        fight.missiles.clear();
+        std::puts("OK: the nova traps aim round their rings");
     }
 
     return 0;
