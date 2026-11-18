@@ -517,7 +517,8 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 for (int k = 0; k < 64; ++k) {
                     const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                     const float length = std::hypot(float(aim_x), float(aim_y));
-                    missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)].struck = shared;
+                    auto& shot = missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)];
+                    shot.struck = shared; shot.to = offset_target(target_x, target_y, aim_x, aim_y);   // FUN_0056d400 round the target
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {

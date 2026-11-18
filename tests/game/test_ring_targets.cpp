@@ -8,7 +8,10 @@
 // Needs the game data.
 
 #include <ai.hpp>
+#include <character.hpp>
+#include <character_store.hpp>
 #include <ds1.hpp>
+#include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
@@ -16,6 +19,7 @@
 #include <montypes.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <world.hpp>
 
 #include <algorithm>
 #include <array>
@@ -115,6 +119,37 @@ int main() try {
         assert(shots.size() == 64);
         assert(nova_ring(shots, pack[0].unit.x, pack[0].unit.y));
         std::puts("OK: Arcane Tower's nova aims round its ring");
+    }
+
+    d2d::rules::Rng made_rng{ 7 };
+    auto made_character = new_character(*data, 1, "Ringed", false, true, made_rng);
+    Character character;
+    character.character_class = 1;
+    character.name = "Ringed";
+    character.header = made_character.header;
+    character.stats = made_character.stats;
+    character.items = made_character.items;
+    character.panel = panel_stats(*data, character.header, character.items, character.stats);
+    World world(&*data, -1, -1);
+    world.enter(character);
+    world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(world.level && !world.level->rooms.empty());
+    auto& fight = world.fight;
+
+    // A charge release's nova (prg 36, FUN_005d4db0 -> FUN_0056d400): round the target.
+    {
+        const d2d::rules::Skill* released = nullptr;
+        int count = 0;
+        for (const auto& row : data->skills.rows)
+            for (int k = 0; k < 3 && !released; ++k)
+                if (row.prgfunc[std::size_t(k)] == d2d::rules::ServerDoFunction::kReleaseNova) { released = &row; count = k + 1; }
+        assert(released);
+        fight.missiles.clear();
+        fight.prg(*released, d2d::rules::ServerDoFunction::kReleaseNova, count, 1, 100.3f, 100.7f, 1000);
+        assert(fight.missiles.size() == 64);
+        assert(nova_ring(fight.missiles, 100.3f, 100.7f));
+        fight.missiles.clear();
+        std::printf("OK: %s's release nova aims round its ring\n", released->name.c_str());
     }
 
     return 0;
