@@ -19,6 +19,10 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+0044dae0	client_fps	Returns DAT_007a04a8, the frames drawn over the last 3 s / 3. Only caller FUN_00475780 picks the light quality from it (≤ 9, ≤ 12, ≤ 15) (game-frontier.md)
+0044dc80	set_expansion_flag	Fastcall CL → DAT_007a04f4, the dword FUN_0044dcc0 (is_expansion) reads. Only caller the S->C 0x01 handler 0x45c8b0, with packet byte +6 (disassembly: MOV CL,[ESI+0x6]) (game-frontier.md)
+00451330	lng_dll_load	Loads the language DLL: the registry's Diablo II\LNG File path (re-saved when set), else the one FUN_00414e50 reads back, else D2.LNG; none fails the start (returns 0). Then LoadAcceleratorsA(dll, 100) into ... (game-frontier.md)
+00451620	message_record_save	Writes Record.dr1: dword 0x14, then 20 bytes {1, block count, message count (last block's count + 500 per earlier block), client frame FUN_0044da90, FUN_0061aac0(DAT_007a0634)}, then each block's count × 16 bytes. ... (game-frontier.md)
 00451880	message_record_dispatch	ECX record (+0 frame stamp, must equal FUN_0044da90 else line 0x12a; +4 msg, +8 wParam, +0xc lParam): FUN_00420b00 looks up the SMSG/SMSH/SMSI/SMSJ handlers; only caller FUN_004519c0's queue walk (net-join.md "Who calls the shutdown")
 00451f10	handler_level_push	no args: FUN_00420360(window) -> FUN_00426370 pushes a new level (0x10-byte record, SEVT.CPP line 0x11c) on the SMSH / SMSI / SMSJ / SMSG nodes; only caller FUN_0044f360 (net-join.md "Who calls the shutdown")
 00451f20	handler_level_pop	no args: FUN_00420320(window) -> FUN_004269c0 drops the top level of the four tag nodes (the level below becomes node[3]; none: FUN_00426810); pair of FUN_00451f10, called at 0x44d569 (net-join.md "Who calls the shutdown")
@@ -59,6 +63,7 @@ address	name	evidence
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4b0	skill_row	ECX skill id: id*0x23c + [0x744304]+0xb98, 0 when id < 0 or >= [0x744304]+0xba0; no assert (cited, decompile only; skills.md "Iron Maiden's event function")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
+0045f9f0	unit_server_cmd_free	When the unit has a server-command block (d2d_unit_get_server_cmd), frees it and its data (FUN_0040b3c0, lines 0x1516, 0x1517) and clears it. Only caller the client unit free FUN_00465870 (game-frontier.md)
 004609f0	player_stat_change_hook	EDX unit, stack source, stat<<16|layer, unused, value; RET 0x10: stats 0x59 / 0x5a forward, 0x61 / 0x6b add or remove the layer's skill, 0xcc the charged skill (unit-player-trace.md)
 00460bf0	client_player_unit_init	ECX unit, EDX room, stack x, y; RET 8: path, inventory, stat hook FUN_004609f0, stats 0x43..0x45 = 100, light, player data (unit-player-trace.md)
 00460d50	client_player_unit_free	ECX unit: frees gfx, path, inventory, light and player data, tail jump FUN_004608c0; no null check (unit-player-trace.md)
@@ -197,8 +202,16 @@ address	name	evidence
 00472da0	splash_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a89fc (0x200 x 0x18; -1 ends it before any roll), diamond spot, kind (low & 1) + 2 (weather.md)
 00472ec0	bubble_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a8a00 (0x80 x 0x18; -1 ends it before any roll), diamond spot y - 30, kind 2 (weather.md)
 004750f0	static_light_build_shadow_cache	ESI light: samples 64x64 room collision, propagates shadow rings, copies to cache and sets +0x2c; tools/emu/static_light_cache.py
+00476140	view_scroll_reset	Fastcall view (asserts non-null, line 0x1dd). When the view's +0xc or +0x10 is set, re-centres the automap (FUN_004ddb70) unless the automap scroll mode is 3, then clears the view's bit 0. Only caller FUN_0044c990, ... (game-frontier.md)
+004776c0	set_gamma	Fastcall: d2d_renderer_set_gamma(ECX). Callers the Gamma option FUN_0047d230 (after saving Diablo II\Gamma) and FUN_0044d760 (game-frontier.md)
 00477730	driver_option	returns DAT_00712ccc: below 4 the software light table, 4 or more the 3D vertex fill (FUN_004de410)
+00477750	driver_is_3d	DAT_00712ccc > 3: the light path's driver copy is 3dfx, OpenGL, D3D or Rave (bugs.md 106). Only caller the unit draw FUN_00470ec0: a unit in a state of the set at data tables +0x154 (FUN_0063a790) loses its item ... (game-frontier.md)
+00478150	load_bar_width	Returns DAT_007bb3b4, the loading bar's fill 0..256 (FUN_00478130: done × 256 / total). The loading screen FUN_004565e0 draws it 16 px high from the screen's centre − 0x80, in modes 6..9 (game-frontier.md)
 00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
+00478ee0	pets_count_of_type	Fastcall (owner unit, PetType row): the pet-list nodes with that row and owner. Callers the portraits' icon-type-2 count FUN_00493eb0 and FUN_004b3610 (game-frontier.md)
+00478f70	owner_has_pet	Fastcall (owner unit): 1 when any pet-list node has that owner. Only caller FUN_00493340, whether UI 0x13 (the portraits) stays up (game-frontier.md)
+00478fa0	pets_recolour_type4	For each pet-list node of PetType row 4 whose unit the client knows, FUN_00478e70 (whether the pet should take the viewer's colouring) then d2d_unit_gfx_set_34 / _38. Only caller S->C 0x75's roster change FUN_0047a850 (game-frontier.md)
+00479180	pet_type_of	Fastcall (unit id): the PetType row of the pet-list node with that id, 0 for none. Callers the monster colour FUN_00466360 (row 7 with a colour record: FUN_004b1090) and FUN_004c5fa0 (PetType +4 bit 8) (game-frontier.md)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 004792e0	roster_find	EDX unit id: the roster record whose +0x10 or +0x38 id list holds it; -1 and absent give 0 (verified roster_small.py)
 00479320	roster_self	the local player's record (id at FUN_00463dd0 +0xc); fatal line 0x75 without one; verified roster_small.py
@@ -619,6 +632,8 @@ address	name	evidence
 00539360	client_stamp_ring_add	ECX game, EDX unit (type 0): game +0xa8 into the first free of five dwords at +0x3c0 of FUN_005531c0(unit)'s record; fatal lines 0xd1b, 0xd1e (net-join.md "A ring of five stamps on the player record")
 005393f0	client_stamp_ring_full	ECX game, EDX unit (type 0): 1 when the five slots hold a stamp within 0x8ca of game +0xa8; fatal lines 0xd2d, 0xd30 (net-join.md)
 00539be0	client_fill_record_25	ECX client, EDX 0x25-byte buffer: bytes from the player's look codes, class, level, flags, +0x45e, +0x480.., +0x460; first byte 0 when invalid; only caller FUN_00539da0 (net-join.md)
+0053a620	act_rooms_send_units	Fastcall (game, client's unit, room): when the act's room list is in use, for each room near room (d2d_act5_rooms_near, asserts the unit, line 0x57) FUN_0053a5d0 sends its units to the client: player FUN_00580860, ... (game-frontier.md)
+0053b0e0	bits_write_varint	Fastcall (bit writer, value): below 0x100 a 0 bit and 8 bits; below 0x10000 bits 1, 0 and 16 bits; else bits 1, 1 and 32 bits. Only caller S->C 0x3e (item stat) FUN_0053d130 (game-frontier.md)
 0053b400	scmd_id_u32	S->C 5 bytes: id (DL), u32 a0 at +1 (net-packets.md, SCmd builders)
 0053c1d0	scmd_id_u8_u32_u32	S->C 10 bytes: id, u32 a0, u8 a1 at +5 (fatal at word 0xff or more, line 0x4b8), u32 a2 at +6
 0053cab0	scmd_0x77	S->C 2 bytes: 0x77, u8 DL (net-packets.md, SCmd builders)
@@ -650,6 +665,13 @@ address	name	evidence
 0053e0e0	scmd_0x9b	S->C 7 bytes: 0x9b, u16 DX at +1, u32 a0 at +3 (net-packets.md)
 0053e110	scmd_0x97	S->C 1 byte: 0x97 (net-packets.md)
 0053ec00	scmd_wrap_eae0	calls FUN_0053eae0(0, a0, 0) with ECX and EDX as they came in; not a sender here (net-packets.md)
+0053f500	game_arena_free	Frees the game's arena block +0x1d28 (line 0x40) and clears it. Only caller the game free FUN_0052c7f0 (game-frontier.md)
+0053f530	player_arena_alloc	Allocates 8 zeroed bytes (line 0x47) as the player data's +0x34 (asserts the player data, line 0x4a). Only caller the player init FUN_005348c0 (game-frontier.md)
+00540bb0	event_block_alloc	A 0x7088-byte node block (line 0xa9), zeroed: 600 nodes of 0x30 chained by +0x1c, the free head +0x7080. Callers FUN_00541470 (the first) and FUN_00540c30 (a new one when no block has a free node) (game-frontier.md)
+00540f60	events_run_class0	EAX list, EBX event block, ECX game, arg timed. Untimed: runs each node (flag 1 while running) and drops one flagged 8; timed: runs only nodes whose frame is the game's and drops each (FUN_00540cd0). A null callback ... (game-frontier.md)
+00541160	events_run_class3	As events_run_class0 with the default FUN_00586ad0: the object event table 0x6e19b0 (asserts IsBadCodePtr, line 0x240) (game-frontier.md)
+00541400	events_free	Frees each node block (line 0x314) and the 0xa20 block (line 0x317), clears game +0xb8. Callers the game free FUN_0052c7f0 and FUN_00541470 (game-frontier.md)
+005415e0	event_add_untimed	EBX event id (< 15), EAX unit, EDI game: a node (FUN_00540df0) flagged 4, frame -1, callback and both arguments, pushed on the unit class's untimed list. Callers FUN_00541650, FUN_00541680 and FUN_005416b0 with frame -1 (game-frontier.md)
 00543db0	quest_event_item_dropped	FUN_005439a0(0): event 5 (+0xb4) over the item's own quest list (act1-end.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
@@ -939,6 +961,7 @@ address	name	evidence
 005ae400	missile_do_calc_then_strike	when the row's skill (+0x18) is set: Missiles.txt calc FUN_0064b7c0 into FUN_005a9720, then FUN_005ae1f0; no caller or data ref recorded (missiles.md "Standing missiles")
 005ae480	missile_do_stamp_then_strike	path velocity 0: ORs 0x40 into its subtile's room word (FUN_0064cb90), then FUN_005ae1f0; called by FUN_005b04a0 (missiles.md "Standing missiles")
 005ae520	missile_do_burn_footprint	missile do 5 (data ref 0x73c77c): stamps 0x40 on its footprint (FUN_0064ea00), steps its animation frame by range left, then FUN_005ae1f0 (missiles.md "Standing missiles")
+005b1a20	targets_free	Fastcall (game, unit): for a player or monster whose +0xd0 isn't 0xb, frees the target list at game +0x10f8 + (its +0xd0) * 4 (line 0xe8), setting each listed unit's +0xd0 to 0xb. Callers the unit removal ... (game-frontier.md)
 005b30e0	quest_callback_pack	pack registers and seven stack arguments into callback record for FUN_005b2a00
 005b3750	act4_opening_alert	NPC 0x16f and word 0x18 bit 0 gate the low-byte result
 005b43f0	izual_search_gate	quest 0x16 data gate and player iteration
