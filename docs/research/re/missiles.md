@@ -214,6 +214,12 @@ and coldunique aim their 64 at
 circle of 30 rounded to whole subtiles, so the angles step 3.9, 5.9, 6.1 ...
 degrees, not 5.625. Frozen Orb's burst (FUN_005abb00: 0x6e2738 / 0x6e2638)
 and spin (0x6e2b78 / 0x6e2a78) hold the same rows. d2d: `rules::kNovaRing`.
+Each call is FUN_0059fa30 with flag 2 (target = start subtile + [7] / [8]),
+so every missile has its own target point; d2d gives it one with
+`offset_target` (`test_ring_targets`). Without one, `missile_fly` aims at
+the start plus (1, 1) and the whole ring flies off down-screen together.
+The player's own Nova, Frost Nova and war cries (`Fight::fire`) still do:
+their fix is #583.
 PrimePoisonNova (do 99, FUN_005ccd10) has its own 16 (0x6e31e8 / 0x6e31a8,
 `rules::kPoisonNova`): the even 8 at Param1 << 6, then every calc2th from
 the second at Param2 << 6. Re-check: `cd tools/emu && uv run python -c

@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
+// A ring's missiles each get a target point (Missile::to) at the start's
+// subtile plus the ring's offset: FUN_0059fa30's flag 2, as FUN_0056d400
+// (the novas), FUN_005ccd10 (PrimePoisonNova), FUN_005af030 (Frozen Orb's
+// spin) and FUN_005abb00 (hit 29) pass it. With no point, missile_fly aims
+// every one at the start plus (1, 1), so the ring flies off as one clump.
+// Needs the game data.
+
+#include <ai.hpp>
+#include <ds1.hpp>
+#include <gamedata.hpp>
+#include <gamedata_load.hpp>
+#include <level_ids.hpp>
+#include <missiles.hpp>
+#include <rules.hpp>
+#include <skills.hpp>
+
+#include <array>
+#include <cassert>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+#include <span>
+#include <vector>
+
+using namespace d2d::game;
+
+namespace {
+
+// The missile aims at its start's subtile plus (offset_x, offset_y).
+bool aims_at(const Missile& missile, int offset_x, int offset_y) {
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return missile.to && subtile(missile.to->first) == subtile(missile.x) + offset_x && subtile(missile.to->second) == subtile(missile.y) + offset_y;
+}
+
+// The missile starts on the subtile of (x, y).
+bool on_subtile(const Missile& missile, float x, float y) {
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return subtile(missile.x) == subtile(x) && subtile(missile.y) == subtile(y);
+}
+
+// The last 64 of `made` start on the subtile of (origin_x, origin_y) and aim
+// round the nova's ring (0x6e1288 / 0x6e1388) from it.
+bool nova_ring(std::span<const Missile> made, float origin_x, float origin_y) {
+    if (made.size() < 64) return false;
+    const auto ring = made.last(64);
+    for (std::size_t k = 0; k < 64; ++k)
+        if (!on_subtile(ring[k], origin_x, origin_y) || !aims_at(ring[k], d2d::rules::kNovaRing[k][0], d2d::rules::kNovaRing[k][1])) return false;
+    return true;
+}
+
+}  // namespace
+
+int main() try {
+    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
+    const char* home = std::getenv("HOME");
+    const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
+    if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
+    const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    assert(data);
+    if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
+
+    // A monster's nova (do 22, FUN_005c9b50 -> FUN_0056d400): the Summoner's Frost Nova.
+    {
+        const int summoner_row = data->monsters.row("summoner");
+        assert(summoner_row >= 0);
+        Level here;
+        here.id = d2d::rules::level_ids::kArcaneSanctuary;
+        here.ds1 = d2d::ds1::Map(16, 16, 1, 1);
+        here.walk.assign(80 * 80, 0);
+        const Crowd crowd;
+        std::vector<Missile> shots;
+        std::array<Foe, 1> player{};
+        player[0].x = 10.1f; player[0].y = 8.1f;
+        d2d::rules::Rng rng{ 7 };
+        std::vector<Monster> pack{ make_monster(*data, summoner_row, 8.3f, 8.7f, rng, 0) };
+        pack[0].aware = true;
+        pack[0].skill = data->skills.by_name.at("Frost Nova");
+        set_mode(*data, pack[0], "SC", 0);
+        for (std::uint32_t frame = 1; frame <= 100 && shots.size() < 64; ++frame)
+            monster_update(*data, here, pack[0], player, rng, frame * 40, 0.04f, crowd, shots, pack);
+        assert(shots.size() == 64 && shots.front().info->name == "frostnova");
+        assert(nova_ring(shots, pack[0].unit.x, pack[0].unit.y));
+        std::puts("OK: a monster's Frost Nova aims round its ring");
+    }
+
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_ring_targets: %s\n", error.what());
+    return 1;
+}
