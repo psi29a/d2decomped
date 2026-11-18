@@ -2,6 +2,8 @@
 // Definitions for frontend.hpp: title, character select, cinematics screens.
 #include "frontend.hpp"
 
+#include "connecting_rules.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
 #include "title_rules.hpp"
@@ -854,6 +856,19 @@ void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& sce
     const auto& ok = tcpip.popup_ok;
     blit_button_chrome(framebuffer, scene.pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
     draw_button_label(framebuffer, scene, scene.pal, ok, tcpip.ok_label, ok.hovered && ok.pressed);
+}
+
+void render_connecting(std::vector<std::uint8_t>& framebuffer, const Scene& scene) {
+    // FUN_0042f6e0's DAT_007795f0 == 0 branch: records 0xde, 0xdf and
+    // 0xe0.  Record 0xdf is hidden, so only PopUpOK and its text remain.
+    constexpr auto layout = connecting_screen(false);
+    blit_dc6_grid(framebuffer, scene.popup_ok, scene.pal, layout.box_x,
+                  rec_top(layout.box_bottom, layout.box_height), 2);
+    const auto found = lookup_string(scene, layout.string_id);
+    const std::string text = found ? u16_to_latin1(*found) : "PLEASE WAIT";
+    draw_text_box(framebuffer, scene, scene.font24, text, layout.text_x,
+                  layout.text_bottom, layout.text_width, layout.text_height,
+                  255, 10, 8);
 }
 
 TitleUI title_ui(const Scene& scene, bool coop) {
