@@ -1205,24 +1205,25 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     return d2d::rules::Rng{ game.next() };
 }
 
-// FUN_0064dea0's search (50 rings, `step` subtiles apart: FUN_0064e7b0 /
-// FUN_0064e810 pass 1, FUN_0064e7e0 4): (x, y) itself if `clear`, else
-// rings 1..49 out at radius r = 1 + step (ring - 1), each ring's columns
+// FUN_0064dea0's search (`step` subtiles apart: FUN_0064e7b0 / FUN_0064e810
+// pass 1, FUN_0064e7e0 its caller's 4 or 5): (x, y) itself if `clear`, else
+// rings out at radius r = 1, 1 + step, 1 + 2 step, ... while r < `limit`
+// (param_8: 0x32 from all three wrappers, so 49 rings at step 1, 13 at
+// step 4, 10 at step 5), each ring's columns
 // x - r and x + r from y - r every `step` (left then right a row), then its
 // rows y - r and y + r from x - r + 1 every `step` (top then bottom a
 // column); the first clear spot nearest (Manhattan) in the first ring with
 // one wins. None: nullopt (the callers' "keep the room" flag then keeps
-// (x, y) or fails).
+// (x, y) or fails). The limit by step: tools/emu/corpse_spot.py limit.
 template <class Clear>
-std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1) {
+std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1, int limit = 50) {
     if (clear(x, y)) return std::pair{ x, y };
     int best = -1, best_x = x, best_y = y;
-    for (int ring = 1; ring < 50 && best < 0; ++ring) {
+    for (int radius = 1; radius < limit && best < 0; radius += step) {
         auto test = [&](int test_x, int test_y) {
             const int distance = std::abs(test_x - x) + std::abs(test_y - y);
             if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
         };
-        const int radius = 1 + step * (ring - 1);
         for (int ty = y - radius; ty <= y + radius; ty += step) { test(x - radius, ty); test(x + radius, ty); }
         for (int tx = x - radius + 1; tx <= x + radius - 1; tx += step) { test(tx, y - radius); test(tx, y + radius); }
     }
@@ -1257,6 +1258,22 @@ std::pair<int, int> twin_spot(int x, int y, Flags flags) {
         return true;
     };
     return nearest_spot(x, y, clear, 5).value_or(std::pair{ x, y });
+}
+
+// Where a SearchOpenXY skill goes (Skills.txt +6 & 0x80: Fire Wall, Meteor,
+// Blizzard, Eruption, Volcano): FUN_004677b0, from FUN_00467880 on the
+// client before the skill is sent. From subtile (x, y), the target's or,
+// with none, the click's: when its word has bit 1 (FUN_0064cb30; 0x27 off
+// the rooms), the nearest subtile without it within 7 (FUN_0064e780(room,
+// &xy, 1, 1, 0, 7) -> FUN_0064dea0: size 1, rings of radius 1 to 6). That
+// spot: the skill goes there, at the ground (the target dropped). None:
+// nullopt, the target and the click as they were. Checked against
+// tools/emu/click_free_spot.py (test_search_open_xy).
+template <class Flags>
+std::optional<std::pair<int, int>> search_open_xy(int x, int y, Flags flags) {
+    const auto wall = [&](int at_x, int at_y) { return (flags(at_x, at_y) & 1) != 0; };
+    if (!wall(x, y)) return std::nullopt;
+    return nearest_spot(x, y, [&](int at_x, int at_y) { return !wall(at_x, at_y); }, 1, 7);
 }
 
 // FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free

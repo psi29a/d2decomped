@@ -35,6 +35,7 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <gamedata.hpp>
 #include <inventory.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
@@ -60,6 +61,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -88,7 +90,12 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
             if (unit < 0 && stand) unit = shift_pick(skill);
-            out.push_back(cmd::UseSkill{ skill, world_x, world_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
+            float at_x = world_x, at_y = world_y;
+            if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
+                std::tie(at_x, at_y) = *spot;
+                unit = -1;
+            }
+            out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {
@@ -155,8 +162,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 // ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0: mana, the weapon), a
 // walking player faces its path's target there (FUN_006238c0), the units go in the near rooms'
 // list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
-// press flag 2 that also asks for the search, SearchEnemyNear (FUN_00467490) and SearchOpenXY
-// (FUN_004677b0) aren't made.
+// press flag 2 that also asks for the search and SearchEnemyNear (FUN_00467490) aren't made.
 auto Town::shift_pick(int skill) const -> int {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_xy) return -1;
@@ -189,6 +195,29 @@ auto Town::shift_pick(int skill) const -> int {
         }
         const int pick = d2d::rules::search_enemy_xy(facing, subtile(self.x), subtile(self.y), info->targetable_only, units, unit_bits);
         return pick < 0 ? -1 : view.monsters[std::size_t(pick)].id;
+    }
+
+// A SearchOpenXY skill (Fire Wall, Meteor, Blizzard, Eruption, Volcano) cast at a wall: game.exe's
+// client moves it to the nearest subtile without bit 1 within 7 and drops the target for the
+// ground (FUN_00467880 -> FUN_004677b0, game::search_open_xy; cursor-units.md "The skill's own
+// target search"). From the target monster's subtile, else the click's. The spot's centre, or none.
+// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0) and not on a held frame
+// of a walking player (flags 8 and 1 without shift, FUN_00622d00); a dead target becomes the
+// ground first unless the skill is TargetCorpse (FUN_00466de0); the monster skills with
+// SearchEnemyNear too (Resurrect, SkeletonRaise) would take FUN_00467490 instead.
+auto Town::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {
+        const auto* info = scene ? scene->skills.get(skill) : nullptr;
+        if (!info || !info->search_open_xy || !level) return std::nullopt;
+        int spot_x = int(std::floor(click_x * 5)), spot_y = int(std::floor(click_y * 5));
+        if (const int target = view.monster(unit); target >= 0) {
+            const auto& monster = view.monsters[std::size_t(target)].unit;
+            spot_x = int(monster.x.raw >> 16);
+            spot_y = int(monster.y.raw >> 16);
+        }
+        const auto flags = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 1) ? 1 : 0; };
+        const auto spot = d2d::game::search_open_xy(spot_x, spot_y, flags);
+        if (!spot) return std::nullopt;
+        return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
     }
 
 // Whether the mouse's move goes out, as game.exe's client lets it
