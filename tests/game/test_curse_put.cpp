@@ -8,8 +8,9 @@
 // calls it), `length` frames from `frame`; then whether it was taken and the
 // curse the monster holds: its skill, level and frames left (-1 -1 -1: none).
 // Needs the game data. Without it, the rule on two typed-in skills: a
-// monster holding Attract refuses every curse, a re-cast of Attract
-// included, until it ends; a state that isn't a curse still goes on.
+// monster holding Attract refuses every curse state (States.txt curse), a
+// re-cast of Attract included and Taunt in its other slot, until it ends; a
+// state that isn't a curse still goes on.
 
 #include <ai.hpp>
 #include <gamedata.hpp>
@@ -53,18 +54,22 @@ int curse_put_cases(const GameData& game_data) {
     return 0;
 }
 
-// Attract (86), Amplify Damage (66) and Inner Sight (8) typed in; 25 frames a put.
+// Attract (86), Amplify Damage (66), Taunt (30) and Inner Sight (8) typed in; 25 frames a put.
 int attract_checks() {
     GameData game_data;
     game_data.skills.rows.resize(100);
     game_data.skills.rows[86].id = 86; game_data.skills.rows[86].auratarget = "attract";
     game_data.skills.rows[66].id = 66; game_data.skills.rows[66].auratarget = "amplifydamage";
     game_data.skills.rows[8].id = 8; game_data.skills.rows[8].auratarget = "innersight";
+    game_data.skills.rows[30].id = 30; game_data.skills.rows[30].auratarget = "taunt";
+    for (const char* curse : { "attract", "amplifydamage", "taunt" }) game_data.states[curse].curse = true;
+    game_data.states["innersight"].curse = false;
     Monster monster;
     const auto put = [&](int skill, int level, std::uint32_t now) { return put_state(game_data, monster, monster.curse, { skill, level, now + 1000 }, now); };
     assert(put(86, 1, 0) && monster.curse.skill == 86);
     assert(!put(66, 5, 40) && monster.curse.skill == 86);              // a curse on an attracted monster: refused
     assert(!put(86, 2, 80) && monster.curse.level == 1 && monster.curse.until == 1000);   // Attract again too
+    assert(!put_state(game_data, monster, monster.cry, { 30, 1, 1040 }, 40));  // Taunt, a curse state in the other slot: refused
     assert(put_state(game_data, monster, monster.cry, { 8, 1, 1040 }, 40));    // Inner Sight, not a curse: it goes on
     assert(put(66, 5, 1000) && monster.curse.skill == 66);             // Attract over: the curse goes on
     assert(!put(66, 4, 1040) && put(86, 1, 1080) && monster.curse.skill == 86);   // no Attract: d2d's rule as before
