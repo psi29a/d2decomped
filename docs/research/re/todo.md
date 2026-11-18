@@ -29,7 +29,7 @@ Ranked by Seen, then by how much play it touches.
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
 | 9 | Unique monster mods traced, two not ported: 14 spcdamage (the trap monsters' level and damage from the area level) and 34 ai_after_death (the Reanimated Horde rising again, Act 5); 15 partydead is in (Diablo's Bone Prison) | build | maybe | monsters.md's hook table |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
-| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
+| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | `git grep -n ponytail: -- components apps | grep -i seed`, act1-gaps.md. Matters once machines share a game |
 
 ## Sounds
 
@@ -90,14 +90,10 @@ docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
 
 ## The long tail
 
-437 `ponytail:` notes in components/ and apps/ (2026-10-30), most in
-ai.cpp (58), fight.cpp (45), world.cpp (41) and fight.hpp (40)
-(fight.cpp and world.cpp were split into `components/game/fight/` and
-`components/game/world/` since). Each names
-the game.exe function to trace when it matters. act1-gaps.md sorted them
-on 2026-10-10 (most don't change single-player play); `git grep -n
-ponytail:` lists them. Items here that a player could notice belong in a
-table above.
+`git grep -n ponytail: -- components apps` lists the `ponytail:` notes;
+each names the game.exe function to trace when it matters.
+act1-gaps.md sorted them on 2026-10-10 (most don't change single-player
+play). Items here that a player could notice belong in a table above.
 
 ## Keeping it current
 
