@@ -91,6 +91,26 @@ int attract_checks() {
     return 0;
 }
 
+// The same typed-in skills; 25 frames a put.
+int shared_slot_checks() {
+    d2d::test::TestData test;
+    test.skill(66, "Amplify Damage").auratarget = "amplifydamage";
+    test.skill(30, "Taunt").auratarget = "taunt";
+    test.skill(8, "Inner Sight").auratarget = "innersight";
+    for (const char* curse : { "amplifydamage", "taunt" }) test.state(curse, true);
+    test.state("innersight");
+    const GameData& game_data = test.data;
+    Monster monster;
+    const auto put = [&](Monster::SkillState& slot, int skill, int level, std::uint32_t now) { return put_state(game_data, monster, slot, { skill, level, now + 1000 }, now); };
+    assert(put(monster.curse, 66, 3, 0) && put(monster.cry, 8, 1, 0));              // a curse and Inner Sight side by side
+    assert(put(monster.cry, 30, 1, 40) && monster.curse.skill == 30 && monster.cry.skill == 8);   // Taunt, named the other slot: it takes the curse's place
+    assert(!put(monster.curse, 30, 0, 80) && put(monster.curse, 66, 1, 120) && monster.curse.skill == 66);   // one curse slot: the same rule
+    assert(put(monster.cry, 30, 2, 160) && !put(monster.cry, 30, 1, 200));   // a lower Taunt named the other slot meets the higher one
+    assert(monster.curse.skill == 30 && monster.curse.level == 2 && monster.cry.skill == 8);
+    std::puts("OK: Taunt shares the curse slot, Inner Sight keeps the other");
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -102,7 +122,7 @@ int main(int argc, char** argv) try {
         if (!data || !data->patched) { std::fprintf(stderr, "--curse-put needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return 1; }
         return curse_put_cases(*data);
     }
-    return attract_checks();
+    return attract_checks() | shared_slot_checks();
 } catch (const std::exception& error) {
     std::printf("test_curse_put: %s\n", error.what());
     return 1;

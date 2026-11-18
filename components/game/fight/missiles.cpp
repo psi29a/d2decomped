@@ -780,7 +780,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // gone.
         if (missile_info.hit_func == 18) return false;
         if (missile_info.hit_func == 21) {
-            if (monsters[monster_index].cry.skill != skill->id || now_ms >= monsters[monster_index].cry.until)
+            if (monsters[monster_index].curse.skill != skill->id || now_ms >= monsters[monster_index].curse.until)   // a curse state: put_state's curse slot
                 put_state(*game_data, monsters[monster_index], monsters[monster_index].cry,
                           { skill->id, missile.level, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, missile.level), 1)) * 40 }, now_ms);
             return false;
