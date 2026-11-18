@@ -1075,6 +1075,17 @@ inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool ne
     return pick;
 }
 
+// A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think
+// (FUN_005fb5b0 / FUN_005fb900 / FUN_005fb9b0): FUN_005dd7f0 first picks
+// the nearest player-list unit under the AI's default distance 35, then the
+// think acts only when that picked unit is within aip1. A player entry starts
+// each list and its pets follow it; search_pick carries the dead-player and
+// list-skip rules.
+inline int trap_target(std::span<const SearchFoe> foes, int reach) {
+    const auto picked = search_pick(foes, 35, false);
+    return picked.target >= 0 && picked.best <= reach ? picked.target : -1;
+}
+
 // FUN_00650d70: friends by alignment (stat 0xac: 0 evil, 1 neutral, 2 good).
 // Evil befriends evil, good good, neutral nobody. FUN_00554200's enemies
 // are the rest, owners first (a pet is its player's: good).
