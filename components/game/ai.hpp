@@ -209,6 +209,7 @@ struct Monster {
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
+    int spc_to_hit = 0;                       // MonUMod 14 (spcdamage)'s stat 0x13 (rules::spcdamage), 0 not one
     std::uint32_t rise_at = 0;                // MonUMod 34 (ai_after_death)'s event 7 (FUN_005a3910), 0 none
     bool rising = false;                      // its S1 rise (skill 0x125): unit flags 0xe off, not targetable
     bool fx_done = false;
@@ -240,6 +241,8 @@ struct Monster {
                     if (swung_element.type == 2 && swung_element.dur == 0) swung_element.dur = 25;
                 }
             }
+        // MonUMod 14's hook 0 (FUN_005a3b50) runs after the swing's stats and puts stat 0x13 at level + 50 (at most 90).
+        if (spc_to_hit > 0) swung.to_hit = swung.to_hit2 = swung.to_hit_s1 = spc_to_hit;
         return swung;
     }
     // Its stats as a swing sets them in a classic game (FUN_005a4f50, game

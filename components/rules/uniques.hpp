@@ -414,7 +414,7 @@ inline std::vector<int> family_mods(int base_id) {
 // FUN_0061a1b0), at least 1, or 2 with no room; to-hit (stat 0x13) = level +
 // 50, at most 90; then, by BaseId, the (stat, value) pairs it puts on the
 // unit's stat list 1 (d2d_stat_list_set), in game.exe's order. d2d takes the
-// level for trap-melee (0x162); the pairs are for the trap classes d2d
+// level and to-hit for trap-melee (0x162, make_monster); the pairs are for the trap classes d2d
 // makes no monster of (chest traps are objects, objects.md).
 struct SpcDamage {
     int level = 2;

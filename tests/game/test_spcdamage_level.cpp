@@ -10,6 +10,7 @@
 #include <montypes.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <exception>
@@ -32,8 +33,14 @@ int main() try {
         const int area = data.area_level[12][std::size_t(difficulty)];
         const auto spc = make_monster(data, 0, 10.f, 10.f, rng, difficulty, true, 1, 12);
         assert(spc.stats.level == area);                    // Normal too: its MonStats level is 4
+        const int to_hit = std::min(area + 50, 90);         // stat 0x13 after each swing's stats (hook 0), the classic cut too
+        assert(spc.spc_to_hit == to_hit && spc.swing_stats().to_hit == to_hit && spc.swing_stats().to_hit_s1 == to_hit);
+        auto classic = spc;                                 // a classic game's cut (x 10 / 15) comes first, hook 0 after it
+        classic.classic = true; classic.row_align = 0;
+        assert(classic.swing_stats().to_hit == to_hit);
         const auto other = make_monster(data, 1, 10.f, 10.f, rng, difficulty, true, 1, 12);
         assert(other.stats.level == (difficulty == 0 ? 4 : area));   // a plain row: start_level's
+        assert(other.spc_to_hit == 0 && other.swing_stats().to_hit == other.stats.to_hit);
     }
     d2d::rules::Rng rng{ 5 };
     assert(make_monster(data, 0, 10.f, 10.f, rng, 0).stats.level == 4);   // no area known: the MonStats level, as before
