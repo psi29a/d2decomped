@@ -131,6 +131,9 @@ auto Town::enter() -> void {
         entry_level = 0;                          // its first level shows no "entering" art
         entry_until = 0;
         mini = {};
+        light_quality.fps = 25;                   // a game's start sets 0x7a04a8 to 25 (lighting.md); the level carries over
+        light_quality.frames = 0;
+        light_quality.counting = false;
         if (!cfg_file.empty()) {                  // FUN_004567f0: open unless the registry's "Mini Panel" reads nonzero
             d2d::userdir::Config cfg;
             d2d::userdir::load_cfg(cfg_file, cfg);
