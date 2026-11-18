@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
-#include <utility>
 #include <vector>
 
 using namespace d2d::game;
