@@ -1030,6 +1030,16 @@ Run for real on three synthetic rows (the first with VelLev 0), 43 cases, nothin
 hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 
 ### Auras (phase 5, part 1)
+- Enemy damage pulses in d2d compare squared integer-subtile distance
+  against the squared radius, including its boundary (FUN_0056b7e0,
+  LAB_0056b954; distance FUN_006492a0). The original coordinate getters
+  FUN_0045adf0 / FUN_0045ae20 read the integer part of the unit's path.
+  A nonpositive radius visits no units. Re-check with
+  `tools/emu/walk_room_reach.py --exe /path/to/1.14d/game.exe` and
+  `test_aura_overlay` / `test_merc_aura`.
+  This check covers player and mercenary damage pulses against monsters.
+  Persistent aura states and player, partner or pet recipients use separate
+  paths; melee and missile range checks use their own rules.
 - An aura skill's do runs on its pulse: **65** (FUN_005cf010, friendly:
   Might, Prayer, the resists, Thorns, Defiance, Blessed Aim, Cleansing,
   Concentration, Vigor, Meditation, Fanaticism, Salvation) puts aurastate

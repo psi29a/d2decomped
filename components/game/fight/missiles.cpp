@@ -1159,14 +1159,21 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
                                                    .elo = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, false, 0, true),
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, skill, env, lvl) };
-        const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        const auto radius = std::int64_t(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        if (radius <= 0) return;
+        // FUN_0056b7e0 compares squared integer-subtile distance (FUN_006492a0).
+        const auto subtile = [](float cells) { return std::int64_t(std::floor(cells * 5)); };
+        const auto origin_x = subtile(x), origin_y = subtile(y);
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
-        for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach && aura_takes(skill, monsters[i], x, y)) {
+        for (std::size_t i = 0; i < monsters.size(); ++i) {
+            const auto& unit = monsters[i].unit;
+            const auto offset_x = subtile(unit.x) - origin_x, offset_y = subtile(unit.y) - origin_y;
+            if (offset_x * offset_x + offset_y * offset_y <= radius * radius && aura_takes(skill, monsters[i], x, y)) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
+        }
     }
 
 auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const -> bool {
