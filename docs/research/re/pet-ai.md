@@ -469,6 +469,33 @@ pgsv, the six progressive_* states, so the Shadow holds charges. A
 monster's states for the AIs are its curse / cry (their auratargetstate).
 Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
+## A summon's stats (FUN_005c4470)
+
+Every summoning skill runs FUN_005c4470(game, owner; pet, skill, level, gear
+level) on its new pet, its calcs through the owner's (FUN_00646ca0), in this
+order: each passivestat (Skills +0x98) at its passivecalc (+0xa4) added to the
+pet's own stats (FUN_006272b0); each non-zero aurastat (+0x54, its calc +0x68)
+on one state node of the pet (FUN_006251f0, FUN_00627150), its aurastate on;
+the max life (FUN_00625d10, the passives in, 256ths) plus calc1 (+0x138) % of
+it, set as stats 7 and 6 (0x5c4752..0x5c4821, MulDiv FUN_00483360 inlined;
+its 32-bit wrap is bugs.md 122);
+each sumskill (+0xc4) at its calc (+0xd0) above 0 given to the pet
+(FUN_0056deb0), the right skill when its row has flag 0x6ce27c (FUN_005701b0);
+last, its MonEquip gear (FUN_005d6b60, the Valkyrie's), at the gear level
+passed or min(max(3 x level, 1), the owner's level). So Skeleton Mastery's
+maxhp gets the skeleton's calc1 % too, and the % leaves a fraction of a
+point.
+Its callers: every summoning skill's do but the Shadows' (the golems'
+through FUN_005c50c0, the traps' through FUN_005d5e10, Bone Wall's and
+Bone Prison's through FUN_005c58b0 / FUN_005c5bc0), and FUN_005aeda0. The
+Decoy's do (FUN_005dc000) sets its life first: the owner's max life x calc3
+/ 100 (FUN_00483360), so calc1 % goes on that; Revive's (FUN_005c56c0) brings
+the life down with the level first (not in d2d: a ponytail in summons.cpp).
+`tools/emu/summon_stats.py` runs it on those summons against
+`rules::summon_stats`, `summon_life` and `summon_skill_levels`
+(`test_summon_stats --summon-stats`). d2d: `Fight::summon_one`, which adds
+the MonEquip gear's stats before the life (a ponytail there).
+
 ## The owner's pet lists (PlayerPets.cpp)
 
 Traced from the decompile only (cited, no oracle): the decompiler drops

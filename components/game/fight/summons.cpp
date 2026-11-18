@@ -233,7 +233,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // hers; a two-handed weapon's damage replaces her A1 (FUN_0057b420).
         // ponytail: her unit seed (the walk) and the game seed (the items)
         // are the fight's rng; a Shadow's gear (the owner's items) isn't made,
-        // it fights with the owner's (pet.mirror).
+        // it fights with the owner's (pet.mirror). Its stats go in before the
+        // life below, so a gear maxhp would get calc1 % (game.exe makes it after).
         if (const int first = std::size_t(type) < game_data->mon_equip_first.size() ? game_data->mon_equip_first[std::size_t(type)] : -1;
             first >= 0 && skill.srvdofunc != ServerDoFunction::kMirrorImage) {
             std::uint32_t worn = 0;
@@ -260,7 +261,20 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         }
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
         using namespace d2d::d2s;
-        monster.hit_points = monster.stats.hit_points = d2d::rules::summon_life(monster.stats.hit_points, stat(kMaxLife), calc(skill, skill.calc[0], lvl));
+        // The Decoy's do (FUN_005dc000 0x5dc0ec..0x5dc12f) sets its life first: the owner's max life x calc3 / 100
+        // (FUN_00483360), 256ths; calc1 % then goes on that.
+        // ponytail: Revive's do (FUN_005c56c0) also brings the life down with the level (MulDiv by clvl / its level)
+        // before FUN_005c4470; d2d brings only the level down.
+        const int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
+                                  ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
+                                  : monster.stats.hit_points << 8;
+        // ponytail: a life that wraps to 0 or below (bugs.md 122) is held at one point; what game.exe's pet does then isn't traced.
+        int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
+        if (life_fine <= 0) life_fine = 256;
+        monster.stats.hit_points = int((std::int64_t(life_fine) + 255) >> 8);
+        monster.max_life_frac = monster.stats.hit_points * 256 - life_fine;
+        monster.hit_points = monster.stats.hit_points;
+        monster.life_frac = monster.max_life_frac;
         for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) *damage += stat(kNormalDamage);                          // item_normaldamage
         pet.a1_unscaled = { monster.stats.a1_min, monster.stats.a1_max };
         pet.damage_pct = stat(kDamagePercent);
@@ -289,8 +303,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 pet.until = now_ms + std::uint32_t(std::max(skill.par[0], 1)) * 40;
                 if (const auto* hydra = skill_named("HydraMissile")) { pet.ranged = hydra->id; pet.ranged_level = lvl; }
                 break;
-            case ServerDoFunction::kDecoy:                                  // Decoy (FUN_005dc000): owner's life x calc3 %, calc2 frames, it stands
-                monster.hit_points = monster.stats.hit_points = std::max(int(actor->character.stats.fixed(d2d::d2s::kMaxLife) * calc(skill, skill.calc[2], lvl) / 100), 1);
+            case ServerDoFunction::kDecoy:                                  // Decoy (FUN_005dc000): its life above, calc2 frames, it stands
                 pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40;
                 pet.idle = true;
                 break;
