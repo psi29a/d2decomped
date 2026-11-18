@@ -41,8 +41,13 @@ def make_save(name, status, cls, level):
 real = os.environ.get("D2_SAVES_DIR")
 if real:
     for f in os.listdir(real):
-        if f.endswith(".d2s"):
-            shutil.copy2(os.path.join(real, f), saves)   # its file time: the list's order
+        if not f.endswith(".d2s"):
+            continue
+        with open(os.path.join(real, f), "rb") as save:
+            status = save.read(0x25)[0x24:0x25]
+        if status and status[0] & 0x0C == 0x0C:   # a dead hardcore one (status 0x24: 4 hardcore, 8 died) can't go in
+            continue
+        shutil.copy2(os.path.join(real, f), saves)   # its file time: the list's order, so slot 0 is the newest playable
 else:
     make_save("Alpha", 0x24, 0, 10)   # hardcore expansion Amazon
     make_save("Beta",  0x20, 3, 20)   # expansion Paladin
