@@ -341,11 +341,13 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   `kTrapLevel`, `kPoisonNova`, `trap_undead`). The trap monster isn't
   made: its one shot leaves the chest at once. A ring's missiles strike
   each foe once.
-- Simplified: no aip1 range check (whoever opens the chest is close);
-  chainlightning doesn't hop; trapfirebolt's fireexplode isn't spawned;
-  the fires last until a new game; trap 8's monsters stand up aware,
+- Simplified: the fires last until a new game; trap 8's monsters stand up aware,
   without mode 8, one step apart; the variant comes from the level's
   region rows (Levels' mon list and `FUN_006510c0` not read).
+- Traced: trap 1's chainlightning doesn't hop in game.exe either. Its hop
+  count (missile data +0x28) is set only through `FUN_0064a710`, which the
+  mode's missile path (`FUN_005a6d50`, `FUN_0056ecb0`, `FUN_0059fa30`)
+  never calls, so hit function 12 (`FUN_005aa730`, hops over 1) has none.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.

@@ -87,6 +87,8 @@ void DebugVerbs::add_fight() {
         if ((spare_at != args.end() && spare_at + 1 == args.end()) || (within_at != args.end() && within_at + 1 == args.end())) return std::string("err spare <MonStats id> / within <cells>\n");
         const std::string spare = spare_at != args.end() ? *(spare_at + 1) : "";
         const float within = within_at != args.end() ? float(std::atof((within_at + 1)->c_str())) : 1e9f;
+        // In town the fight still holds the last level's monsters (Fight::enter keeps them): not this level's.
+        if (town.world.fight.mon_level != town.level) return std::string("ok\n");
         auto& monsters = town.world.fight.monsters;
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].alive() && (spare.empty() || scene->monsters.types[std::size_t(monsters[i].type)].id != spare)

@@ -46,6 +46,7 @@ struct NetGame {
         int relation = 0;             // the party button's state toward it (0x8b: 0 invite, 2 accept, 3 leave, 4 asked; roster +0x30)
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
         int life = 128;               // of 128
+        int hit_class = 0;            // the last hit's (0x0c +7 -> unit +0xb0): a monster's impact sound on GH / KB / DT
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)

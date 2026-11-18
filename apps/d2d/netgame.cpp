@@ -519,7 +519,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0c:   // hit: +1 type, +2 id, +7 hit class, +8 life / 128
         if (size >= 9) {
             const int life = packet[8];
-            unit_at(packet[1], read_u32(packet, 2)).life = life > 128 ? life & 0x7f : life;
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            unit.life = life > 128 ? life & 0x7f : life;
+            unit.hit_class = packet[7];
         }
         break;
     case 0x69: case 0x6b:   // a monster's unit command at x, y (+5; net-packets.md "The unit command")

@@ -704,8 +704,9 @@ MonSounds (game.exe's client makes them from the unit's mode), so
 too: its mode from the host's unit command, its Init (not a corpse's: one
 already dead as it comes waits), Neutral and footsteps. A monster the host
 removes is dropped, so one that comes back plays its Init again.
-The host's hit class isn't read, so a joined game's monsters play no impact
-on GH / KB / DT.
+A host monster's hit class is the last S->C 0x0c's (+7, the handler at
+`0x45cc70` keeps it at unit +0xb0), so its impact plays on GH / KB / DT as
+game.exe's client plays it (`NetGame::Unit::hit_class`).
 Left: the player's quest lines, state 0x92, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
 point-drop and convert) are cued at their successful actions; only the

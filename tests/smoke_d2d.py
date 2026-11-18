@@ -30,14 +30,25 @@ def make_save(name, status, cls, level):
     struct.pack_into("<III", b, 0, 0xAA55AA55, 96, len(b))
     b[0x14:0x14 + len(name)] = name.encode()
     b[0x24], b[0x28], b[0x2B] = status, cls, level
-    with open(os.path.join(saves, name + ".d2s"), "wb") as f:
+    path = os.path.join(saves, name + ".d2s")
+    with open(path, "wb") as f:
         f.write(b)
+    # Char select lists saves newest file time first (FUN_00438ad0): each
+    # one made is a minute older than the last, so they list as written.
+    made = len(os.listdir(saves))
+    os.utime(path, (2_000_000_000 - made * 60, 2_000_000_000 - made * 60))
 
 real = os.environ.get("D2_SAVES_DIR")
 if real:
     for f in os.listdir(real):
-        if f.endswith(".d2s"):
-            shutil.copy(os.path.join(real, f), saves)
+        if not f.endswith(".d2s"):
+            continue
+        with open(os.path.join(real, f), "rb") as save:
+            status = save.read(0x25)[0x24:0x25]
+        if status and status[0] & 0x0C == 0x0C:   # a dead hardcore one (status 0x24: 4 hardcore, 8 died) can't go in
+            continue
+        shutil.copy2(os.path.join(real, f), saves)   # its file time: the list's order, so slot 0 is the newest playable
+    assert os.listdir(saves), f"{real}: no playable save (dead hardcore ones are skipped)"
 else:
     make_save("Alpha", 0x24, 0, 10)   # hardcore expansion Amazon
     make_save("Beta",  0x20, 3, 20)   # expansion Paladin
