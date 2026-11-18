@@ -280,6 +280,14 @@ auto Fight::crowd(Crowd& crowd_out) -> void {
             if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
     }
 
+auto Fight::crowd_around(Crowd& crowd_out, float x, float y) -> void {
+        for (auto& monster : monsters)
+            if (monster.targetable() && std::abs(monster.unit.x - x) < 12 && std::abs(monster.unit.y - y) < 12) crowd_out.units.push_back(&monster.unit);
+        for (auto* hero : heroes)
+            for (auto& pet : hero->pets)
+                if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
+    }
+
 auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         Foe foe{ actor->player.x, actor->player.y, int(actor->character.stats.get(d2d::d2s::kLevel)), !dead(), actor->player.walking, actor->player_combat };
         foe.running = actor->owner_mode == 3;                   // RN (World: walking with run on and stamina)

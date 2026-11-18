@@ -235,12 +235,21 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
     return out;
 }
 
+// FUN_005a68e0's mode change; into death of a Reanimated Horde, MonUMod 34's hook 1 (FUN_005a3840) queues its
+// event 7 (`rise_at`) here, so a death between two Fight::boss_events passes still queues it.
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
+    const bool into_death = mode == "DT" && monster.mode != "DT";
     // FUN_005a68e0: a last command 0x13 or over loses 0x10 and the new one is dropped: a hit's 0x13
     // is 3 (GH), so it reads as got hit through one more mode.
     if (monster.left_mode == "hit") monster.left_mode = "GH";
     else if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
+    if (into_death && monster.type >= 0 && std::ranges::contains(d2d::rules::family_mods(game_data.monsters.types[std::size_t(monster.type)].base), d2d::rules::umod::ai_after_death)) {
+        const auto& per_difficulty = game_data.monsters.types[std::size_t(monster.type)].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))];
+        const auto queued = d2d::rules::ai_after_death_queue(0, monster.align, per_difficulty.aip[7], per_difficulty.aip[0], monster.seed);
+        if (queued.cleared) monster.rise_at = 0;
+        if (queued.frames) monster.rise_at = now_ms + std::uint32_t(*queued.frames) * 40;
+    }
     if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") {
         monster.swing_mode = mode;
         // FUN_005a4f50 at 0x5a5223: each element of the mode with a chance
@@ -1601,7 +1610,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     };
     const auto mode_ends = [&] {
         set_mode(game_data, monster, "NU", now_ms);
-        if (monster.think_pending() && monster.next_act > now_ms) return;
+        // A rise's think (MonUMod 34, 0x33 frames on) stands even when S1 ends on its own frame.
+        if (monster.think_pending() && (monster.next_act > now_ms || monster.rising)) return;
         const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
         monster.next_act = now_ms + std::uint32_t(now_ms < monster.stunned_until ? 0x2d : aidel > 0 ? aidel : 15) * 40;
     };

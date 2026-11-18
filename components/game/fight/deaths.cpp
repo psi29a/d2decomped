@@ -44,14 +44,15 @@ namespace {
 // Up, right, down, left: where a boss's ring of bolts leaves.
 constexpr std::pair<float, float> kCompass[] = { { 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } };
 
-// FUN_0064d870 with pattern 1 and mask 0x3c01 at the unit's subtile (FUN_005a3910's spot test): the subtile and
-// its four neighbours clear of the level's walls and of every other unit (the crowd's, a player's).
+// FUN_0064d870 with pattern 1 and mask 0x3c01 at the unit's subtile (FUN_005a3910's spot test, FUN_0064d100):
+// the subtile and its four neighbours clear of the level's walls (the five terrain probes) and of every other
+// unit's stamp (one plus-shaped crowd test at the corpse's subtile, as the grid holds every unit's stamp).
 bool rise_spot_blocked(const Level* level, const Crowd& crowd, std::span<const Foe> foes, const UnitState& self) {
     const int sub_x = int(std::floor(self.x * 5)), sub_y = int(std::floor(self.y * 5));
-    for (const auto& [off_x, off_y] : { std::pair{ 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }) {
-        const float at_x = (float(sub_x + off_x) + 0.5f) / 5, at_y = (float(sub_y + off_y) + 0.5f) / 5;
-        if ((level && level->blocked(at_x, at_y, 0x0c01)) || crowd.at(at_x, at_y, &self)) return true;
-    }
+    for (const auto& [off_x, off_y] : { std::pair{ 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } })
+        if (level && level->blocked((float(sub_x + off_x) + 0.5f) / 5, (float(sub_y + off_y) + 0.5f) / 5, 0x0c01)) return true;
+    constexpr UnitShape kPlus{ 1, 2, 0x3c01 };
+    if (crowd.at((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, kPlus, &self)) return true;
     return std::ranges::any_of(foes, [&](const Foe& foe) {
         return foe.alive && !foe.of && std::abs(int(std::floor(foe.x * 5)) - sub_x) + std::abs(int(std::floor(foe.y * 5)) - sub_y) <= 1;
     });
@@ -112,25 +113,20 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
             // 0), whatever the kill: no corpse to raise or blow up.
             if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
-            // Ai_after_death (MonUMod 34, every reanimatedhorde1 by FUN_005b21b0). Hook 1 (FUN_005a3840, after
-            // the mode change): into death, evil, it drops its event 7 and rolls rand(100) on its seed under
-            // aip8 for one aip1 x 10 + 1 frames on. Hook 2 (FUN_005a3910, that event): a corpse in DD, no unique,
-            // not good, its spot free, fewer than 2 rises (AI scratch +0x14), takes skill 0x125 in S1: life full,
-            // flags 0x4020000 off, scratch + 1; a blocked spot tries again as long. ponytail: the S1 end's own
-            // restore of the unit flags 0xe, and its think 0x33 frames on, are `rising` and `wait_until`.
+            // Ai_after_death (MonUMod 34, every reanimatedhorde1 by FUN_005b21b0). Hook 1 (FUN_005a3840) is in
+            // set_mode, as it dies. Hook 2 (FUN_005a3910, event 7, `rise_at`): a corpse in DD, no unique, not
+            // good, its spot free around the corpse (every hero's side), fewer than 2 rises (AI scratch +0x14),
+            // takes skill 0x125 in S1: life full, flags 0x4020000 off, scratch + 1, its think 0x33 frames on
+            // (`next_act`); a blocked spot tries again aip1 x 10 + 1 frames on. ponytail: the S1 end's own
+            // restore of the unit flags 0xe is `rising` off when the mode leaves S1.
             if (std::ranges::contains(family, d2d::rules::umod::ai_after_death) && monster.type >= 0) {
                 const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                 const auto& per_difficulty = type_info.diff[std::size_t(std::clamp(monster.difficulty, 0, 2))];
-                if (monster.mode != monster.fx_mode && monster.mode == "DT") {
-                    const auto queued = d2d::rules::ai_after_death_queue(0, monster.align, per_difficulty.aip[7], per_difficulty.aip[0], monster.seed);
-                    if (queued.cleared) monster.rise_at = 0;
-                    if (queued.frames) monster.rise_at = now_ms + std::uint32_t(*queued.frames) * 40;
-                }
                 if (monster.rising && monster.mode != "S1") monster.rising = false;
                 if (monster.rise_at && now_ms >= monster.rise_at) {
                     monster.rise_at = 0;
                     Crowd crowd_now;
-                    if (actor) crowd(crowd_now);
+                    crowd_around(crowd_now, monster.unit.x, monster.unit.y);
                     const bool corpse = monster.mode == "DD" && !monster.corpse_used && !monster.shatter;
                     const auto rise = d2d::rules::ai_after_death_rise({
                         .dead = monster.mode == "DT" || monster.mode == "DD", .hidden = monster.corpse_used || monster.shatter,
@@ -147,7 +143,8 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                         ++monster.ai_state;
                         monster.rising = true;
                         set_mode(*game_data, monster, "S1", now_ms);
-                        monster.unit.wait_until = now_ms + std::uint32_t(rise.frames) * 40;
+                        monster.thought_ms = now_ms;                       // its think (event 2): the rise's 0x33 frames on
+                        monster.next_act = now_ms + std::uint32_t(rise.frames) * 40;
                     }
                 }
             }
