@@ -175,6 +175,29 @@ int main() try {
         std::puts("OK: Cold Enchanted's death nova aims round its ring");
     }
 
+    // A Shadow's death nova (MonUMod 42, FUN_005a2910 -> FUN_0056d400).
+    {
+        const int shadow_row = data->monsters.row("shadowwarrior");
+        const auto* shadow_skill = data->skills.get(268);
+        assert(shadow_row >= 0 && shadow_skill);
+        d2d::rules::Rng rng{ 3 };
+        auto& pets = world.actor->pets;
+        pets.clear();
+        auto& pet = pets.emplace_back();
+        pet.monster = make_monster(*data, shadow_row, 100.3f, 100.7f, rng, 0);
+        pet.monster.mods = { shadow_skill->sumumod };
+        pet.where = world.level;
+        pet.monster.hit_points = 0;
+        set_mode(*data, pet.monster, "DT", 3000);
+        fight.pending.clear();
+        assert(fight.golem_blast(pet, 3000 + 4 * 40));
+        assert(fight.pending.size() == 64);
+        assert(nova_ring(fight.pending, 100.3f, 100.7f));
+        fight.pending.clear();
+        pets.clear();
+        std::puts("OK: a Shadow's death nova aims round its ring");
+    }
+
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_ring_targets: %s\n", error.what());
