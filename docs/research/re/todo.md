@@ -60,7 +60,6 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 55 | The hover bar's immunity lines: game.exe adds "Immune to …" under a monster's name for each of six resists over 99 (`FUN_004526c0`, table `0x6d6418`); d2d draws the name and label only | build | yes | [ui-module-frontier.md](ui-module-frontier.md) "A monster's immunities" |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 

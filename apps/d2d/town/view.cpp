@@ -87,8 +87,24 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
             label = next;
         }
     else label.clear();
-    if (!label.empty())
-        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(label) / 2, top + height + 2, label);
+    int line_top = top + height + 2;
+    if (!label.empty()) {
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(label) / 2, line_top, label);
+        line_top += scene.font.line_height();
+    }
+    // Then a line per immunity (FUN_004526c0, rules::immunity_lines), each in
+    // its font colour.
+    // ponytail: the resists are MonStats' and the boss mods' (Monster::target);
+    // a curse that lowers one (game.exe reads the stat with its states) still
+    // shows the line.
+    static constexpr std::array<std::array<std::uint8_t, 3>, 10> kFontRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
+                                                                             { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
+    for (const auto& immunity : d2d::rules::immunity_lines(type_info.id, monster.target(scene).res)) {
+        const auto text = string_id(scene, immunity.string);
+        const auto& rgb = kFontRgb[std::size_t(immunity.colour)];
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(text) / 2, line_top, text, rgb[0], rgb[1], rgb[2]);
+        line_top += scene.font.line_height();
+    }
 }
 
 namespace {

@@ -30,21 +30,27 @@ poisonresist (45) 0x2764 colour 2. Then `DAT_007a2c78` = 4. The row
 bytes were read from game.exe (`tools/emu`: `emu.Emu().read(0x6d6418,
 60)`).
 
-d2d doesn't do this yet: its bar (apps/d2d/town/view.cpp:72) draws the
-name and the type and mods label, and no immunity lines (todo.md 55).
+d2d matches: its bar (apps/d2d/town/view.cpp, `draw_monster_bar`) draws
+a line per immunity under the label (`rules::immunity_lines`), in the row's
+colour. The rows are checked against game.exe: `cd tools/emu && uv run
+python immunity_table.py` (frozen as tests/immunity_table_cases.inc,
+test_immunity_lines); the strings read from game.exe's tables are "Immune
+to Physical / Magic / Fire / Lightning / Cold / Poison". The resists come
+from MonStats and the boss mods: a curse that lowers one isn't counted
+(a `ponytail:` note there).
 
 ## Rows in address order
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
-| `FUN_004526c0` | `hover_immunities` | See "A monster's immunities" | not ported (todo.md 55) |
+| `FUN_004526c0` | `hover_immunities` | See "A monster's immunities" | matches (see above; tools/emu/immunity_table.py) |
 | `FUN_004545c0` | `npc_dialog_window_flag` | Fastcall flag: while `DAT_007a27e8`, window control 5 through `FUN_00451db0` (flag set) or `FUN_00451e10` (clear). Callers the dialog open `FUN_004b7cd0`, `FUN_004b7c00`, `FUN_004b7eb0`, `FUN_004b8020` | no counterpart: d2d has no Win32 window controls |
 | `FUN_00454790` | `set_loading_act` | Fastcall: `DAT_007a288c` = ECX, read by `FUN_004547b0`'s `FUN_00600c00`. Only caller `FUN_0044e100`, before the loading screen | no counterpart: d2d draws no loading screen |
 | `FUN_004547b0` | `loading_screen_end` | When the loading DC6 `DAT_007a2888` is set: frees it, then `FUN_004fb480`, `FUN_00600c00(DAT_007a288c)` and the colour setups (`FUN_0045a620`, `FUN_00499e30`, `FUN_004972b0` and seven more); clears `0x7a2884`, `0x7a2888`, `0x7a2868`. Callers `FUN_0044c990`, `FUN_0044e380`, `FUN_00456300` | no counterpart (as `set_loading_act`) |
 | `FUN_00454880` | `text_area_span` | Fastcall `int[4]`: x from 0 to the screen width, narrowed to the right half when a left panel is open (`0x7a2834`, `0x7a2818`, `0x7a27c8`, `0x7a27fc`, `0x7a2850`, `0x7a2854`, `0x7a2810`) and to the left half for a right panel (`0x7a27c4`, `0x7a27d0`); false with any of `0x7a281c`, `0x7a2824`, `0x7a2828`, `0x7a27f0`, `0x7a2830`, `0x7a282c`, or when the span is empty. Callers `FUN_00454970`, `FUN_004549f0` | not compared |
 | `FUN_00454980` | `window_controls_set` | `FUN_00451db0` on window controls 0xd and 1. Callers `FUN_00455720`, `FUN_004a5a40`, `FUN_004a5d70` | no counterpart (as `npc_dialog_window_flag`) |
 | `FUN_004549c0` | `ui_flag_7a27a0` | `DAT_007a27a0 != 0`. Only caller `FUN_004b8730`, gating a click in its box | not compared |
-| `FUN_00454a70` | `hover_lines_draw` | When the hovered unit (`FUN_00467a10`) is a monster: line `DAT_007a2f30` in colour 6 at the text height + 0x27, then line `DAT_007a2c78` below it (one row lower when either `0x7a2d30` or `0x7a2f38` holds text). Only caller the panel draw `d2d_panel_draw_order` | not ported: the second line is where the immunities go (todo.md 55) |
+| `FUN_00454a70` | `hover_lines_draw` | When the hovered unit (`FUN_00467a10`) is a monster: line `DAT_007a2f30` in colour 6 at the text height + 0x27, then line `DAT_007a2c78` below it (one row lower when either `0x7a2d30` or `0x7a2f38` holds text). Only caller the panel draw `d2d_panel_draw_order` | not compared: d2d lays out the label and the immunity lines itself (apps/d2d/town/view.cpp) |
 | `FUN_004554b0` | `hover_monster_label` | For a hovered monster with a label: colour 3 for one type test, else 4 for another, else 0, at the text height + 0x27 (`FUN_004549f0(6, y, colour)`). Only caller `d2d_panel_draw_order` | not compared |
 | `FUN_00456550` | `loading_screen_begin` | `loading_screen_end`, `FUN_00454740`, then loads `DATA\GLOBAL\UI\Loading\Loadingscreen` (or `DATA\LOCAL\UI\LoadingScreen` when `FUN_00525150`) into `DAT_007a2888`, frame 0, `0x7a2868` = 1, the bar reset (`FUN_00478130`), `0x7a27b8` = `DAT_007a0624`. Callers `FUN_0044e200`, `FUN_004565e0` | no counterpart (as `set_loading_act`) |
 | `FUN_0045a620` | `automap_colours_init` | Eleven automap colours `0x7a51b0..0x7a51ba` from the palette: (0,0,255), (255,0,0), (255,0,255), (0,255,0), (0x44,0x70,0x74), (0x48,0xa0,0x34), (0xf4,0xf4,0xf4), (0x80,0x80,0x80), (0xf4,0xf4,0), (0,0,255), (0,255,0). Callers `FUN_0044e100`, `FUN_00454740` | matches: the pet teal (0x44, 0x70, 0x74) at `0x7a51b4` (automap.md) |
