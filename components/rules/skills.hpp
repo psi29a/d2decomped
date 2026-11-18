@@ -485,6 +485,7 @@ struct Skill {
     bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
     bool targetable_only = false;          // TargetableOnly (flag bit 0x14, record +6 & 0x10)
     bool search_enemy_xy = false;          // SearchEnemyXY (flag bit 0x15, record +6 & 0x20): a shift-click's pick, FUN_00467660
+    bool search_enemy_near = false;        // SearchEnemyNear (flag bit 0x16, record +6 & 0x40): the unit nearest the click, FUN_00467490
     bool search_open_xy = false;           // SearchOpenXY (flag bit 0x17, record +6 & 0x80): off a wall to a free spot, FUN_004677b0
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
     std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels

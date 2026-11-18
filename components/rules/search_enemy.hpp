@@ -2,7 +2,8 @@
 // A shift-click's own pick of a monster beside the player (Skills.txt
 // SearchEnemyXY, FUN_00467660, game.exe 1.14d): cursor-units.md "The skill's
 // own target search". The client runs it before it sends the skill, when
-// the click has no unit under the cursor.
+// the click has no unit under the cursor. And a click's pick of the unit
+// nearest it (SearchEnemyNear, FUN_00467490), on every click of such a skill.
 #pragma once
 
 #include <array>
@@ -70,6 +71,79 @@ template <class UnitBits>
         return int(found);
     }
     return -1;
+}
+
+// A unit FUN_00467490 (SearchEnemyNear) may take: its unit type and mode, its
+// subtile (a player's or monster's path, an item's static path +0xc / +0x10),
+// unit +0xc4 bit 0x10000, whether the cursor's hit test FUN_00466870(unit, 0,
+// 0, 0) passes, and, for an item, Items bitfield1 bit 1 (FUN_00629cc0, which
+// Iron Golem's search asks for).
+struct NearUnit {
+    int type = 1, x = 0, y = 0, mode = 1;
+    bool dead_flag = false, hit = true, metal = false;
+};
+
+// FUN_00464820: a player in mode 0 / 0x11, a monster in 0 / 0xc, or any unit
+// with +0xc4 bit 0x10000.
+[[nodiscard]] constexpr bool near_dead(const NearUnit& unit) noexcept {
+    if (unit.dead_flag) return true;
+    if (unit.type == 0) return unit.mode == 0 || unit.mode == 0x11;
+    return unit.type == 1 && (unit.mode == 0 || unit.mode == 0xc);
+}
+
+// FUN_006417f0, the AI distance (monsters.hpp's point_apart, less 0):
+// (max x 2 + min) / 2 of the axis gaps.
+[[nodiscard]] constexpr int near_apart(int dx, int dy) noexcept {
+    dx = dx < 0 ? -dx : dx;
+    dy = dy < 0 ? -dy : dy;
+    return (dx <= dy ? dx + dy * 2 : dy + dx * 2) / 2;
+}
+
+// What the unit finder (FUN_0065a950 / FUN_0065ac70) gives FUN_00467490.
+// Iron Golem (skill 0x5a): its filter LAB_00467470, an item Items bitfield1
+// & 2, so any distance and a town too. Else FUN_0065aa40 with mask 0x2003
+// (players, monsters, rooms not a town's), or 0x3002 for a TargetCorpse skill
+// (monsters, only the dead, mode 0xc): within 9 of the spot (dx² + dy² <= 81),
+// a player not in mode 0 / 0x11 and not the local player, a monster not in 0
+// / 0xc. The town is FUN_0061ab00 (levels 1, 40, 75, 103, 109).
+[[nodiscard]] constexpr bool near_found(const NearUnit& unit, bool self, bool target_corpse, bool iron_golem, bool town, int spot_x, int spot_y) noexcept {
+    if (iron_golem) return unit.type == 4 && unit.metal;
+    if (town) return false;
+    const int dx = unit.x - spot_x, dy = unit.y - spot_y;
+    if (dx * dx + dy * dy > 81) return false;
+    if (unit.type == 0) return !target_corpse && unit.mode != 0 && unit.mode != 0x11 && !self;
+    if (unit.type != 1) return false;
+    return target_corpse ? unit.mode == 0xc : unit.mode != 0 && unit.mode != 0xc;
+}
+
+// FUN_00467490 (SearchEnemyNear: Raise Skeleton, Corpse Explosion, Iron Golem,
+// Psychic Hammer, Fist of the Heavens, Taunt...): the click's target (-1 none)
+// and spot in, the target it leaves out. A dead target of a TargetCorpse skill
+// stays, spot and all. Else a target moves the spot to its subtile; Iron
+// Golem keeps a target metal item. Then the unit the finder gives (`units` in
+// its walk order, `self` the local player) nearest the spot by FUN_006417f0
+// under 10 that the hit test passes, the first of equals; none leaves the
+// target as it was.
+[[nodiscard]] constexpr int search_enemy_near(bool target_corpse, bool iron_golem, bool town, int self, int target, int& spot_x, int& spot_y,
+                                              std::span<const NearUnit> units) noexcept {
+    if (target >= 0) {
+        const auto& aimed = units[std::size_t(target)];
+        if (target_corpse && near_dead(aimed)) return target;
+        spot_x = aimed.x;
+        spot_y = aimed.y;
+        if (iron_golem && aimed.type == 4 && aimed.metal) return target;
+    }
+    int best = target, best_apart = 10;
+    for (std::size_t index = 0; index < units.size(); ++index) {
+        const auto& unit = units[index];
+        if (!near_found(unit, int(index) == self, target_corpse, iron_golem, town, spot_x, spot_y)) continue;
+        const int apart = near_apart(spot_x - unit.x, spot_y - unit.y);
+        if (unit.hit && apart < best_apart) {
+            best = int(index);
+            best_apart = apart;
+        }
+    }
+    return best;
 }
 
 }  // namespace d2d::rules
