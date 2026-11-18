@@ -78,6 +78,21 @@ int summon_stats_cases(const GameData& game_data) {
     return 0;
 }
 
+// tools/emu/summon_resist.py's cases (`value absorb_fire absorb_light
+// absorb_cold`), each with `| stat=value ..`: the resists a raised skeleton
+// or a golem gets from its owner's Summon Resist. d2d gives none.
+int summon_resist_cases() {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty()) continue;
+        std::istringstream fields(line);
+        int value = 0, fire = 0, light = 0, cold = 0;
+        if (!(fields >> value >> fire >> light >> cold)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        std::printf("%s | \n", line.c_str());
+    }
+    return 0;
+}
+
 int life_checks() {
     using d2d::rules::summon_life;
     assert(summon_life(21 * 256, 0) == 21 * 256);
@@ -160,6 +175,7 @@ int decoy_check(const GameData& data) {
 }  // namespace
 
 int main(int argc, char** argv) try {
+    if (argc > 1 && std::string_view(argv[1]) == "--summon-resist") return summon_resist_cases();
     if (argc > 1 && std::string_view(argv[1]) == "--summon-stats") {
         const char* mpq_dir = std::getenv("D2_MPQ_DIR");
         if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::fprintf(stderr, "--summon-stats needs D2_MPQ_DIR\n"); return 1; }
