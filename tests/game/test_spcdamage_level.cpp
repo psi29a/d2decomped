@@ -43,6 +43,9 @@ int main() try {
         assert(other.spc_to_hit == 0 && other.swing_stats().to_hit == other.stats.to_hit);
     }
     d2d::rules::Rng rng{ 5 };
+    data.area_level[13] = { -3, -3, -3, -3 };               // a present negative Levels.txt level still floors at 1 (spcdamage's `< 2`)
+    const auto negative = make_monster(data, 0, 10.f, 10.f, rng, 0, true, 1, 13);
+    assert(negative.stats.level == 1 && negative.spc_to_hit == 51);
     assert(make_monster(data, 0, 10.f, 10.f, rng, 0).stats.level == 4);   // no area known: the MonStats level, as before
     std::puts("test_spcdamage_level: ok");
     return 0;

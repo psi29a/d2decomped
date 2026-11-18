@@ -2754,7 +2754,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
         // area's monster level on every difficulty, 1 at least; the life it rolled stays at the MonStats level.
         // Its to-hit (stat 0x13) = level + 50, at most 90, set after each swing's own stats (swing_stats).
         int level_add = 0;
-        if (area >= 0 && std::ranges::contains(d2d::rules::family_mods(type_info.base), d2d::rules::umod::spcdamage)) {
+        if (level_id >= 0 && std::ranges::contains(d2d::rules::family_mods(type_info.base), d2d::rules::umod::spcdamage)) {   // a known area, whatever its level
             const auto spc = d2d::rules::spcdamage(type_info.base, area);
             level_add = spc.level - d2d::rules::start_level(type_info, std::clamp(difficulty, 0, 2), area);
             monster.spc_to_hit = spc.to_hit;
