@@ -409,6 +409,77 @@ inline std::vector<int> family_mods(int base_id) {
     }
 }
 
+// What MonUMod 14 (spcdamage) sets on a trap monster (FUN_005a3b50, hook 0):
+// its level (stat 12) = the area's monster level (FUN_0061dca0 through
+// FUN_0061a1b0), at least 1, or 2 with no room; to-hit (stat 0x13) = level +
+// 50, at most 90; then, by BaseId, the (stat, value) pairs it puts on the
+// unit's stat list 1 (d2d_stat_list_set), in game.exe's order. d2d takes the
+// level and to-hit for trap-melee (0x162, make_monster); the pairs are for the trap classes d2d
+// makes no monster of (chest traps are objects, objects.md).
+struct SpcDamage {
+    int level = 2;
+    int to_hit = 52;
+    std::vector<std::pair<int, int>> list;
+};
+inline SpcDamage spcdamage(int base_id, std::optional<int> area_level) {
+    SpcDamage out;
+    out.level = area_level ? (*area_level < 2 ? 1 : *area_level) : 2;
+    out.to_hit = std::min(out.level, 40) + 50;   // capped first: a custom row can hold INT_MAX
+    const int half = out.level >> 1, level = out.level;
+    switch (base_id) {
+        case 0x146: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x30, half }, { 0x31, level * 3 >> 1 } }; break;
+        case 0x147: case 0x148: out.list = { { 0x15, std::min(half + 1, level) }, { 0x16, level } }; break;
+        case 0x149: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x39, level }, { 0x3a, level * 2 }, { 0x3b, level * 2 } }; break;
+        case 0x14a: case 0x171: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x32, half }, { 0x33, level * 3 >> 1 } }; break;
+        default: break;
+    }
+    return out;
+}
+
+// MonUMod 34 (ai_after_death, every reanimatedhorde1, BaseId 0x1b4) hook 1,
+// FUN_005a3840 (after a mode change): into mode 0 (death) of an evil unit
+// (alignment 0, FUN_006259b0), it drops the unit's queued event 7
+// (FUN_00540e60) and rolls rand(100) on its seed under MonStats aip8
+// (+0x80, by difficulty): then event 7 comes aip1 (+0x56) x 10 + 1 frames on.
+struct AfterDeathQueue {
+    bool cleared = false;                // event 7 dropped (the hook ran)
+    std::optional<int> frames;           // event 7 due this many frames on
+};
+inline AfterDeathQueue ai_after_death_queue(int mode, int alignment, int chance, int aip1, Rng& rng) {
+    AfterDeathQueue out;
+    if (mode != 0 || alignment != 0) return out;
+    out.cleared = true;
+    if (rng(100) < chance) out.frames = aip1 * 10 + 1;
+    return out;
+}
+
+// Hook 2, FUN_005a3910 (event 7 comes due): what the unit does. It first
+// drops the unit's event 2 (its think). Then, in this order: not dead
+// (FUN_005541b0: mode 0 or 0xc), a hidden corpse (FUN_0063a770) or a unique
+// (monster data +0x16 & 8) or a good unit (alignment 2) does nothing; its
+// spot taken (FUN_0064d870, pattern 1, mask 0x3c01) tries again aip1 x 10 + 1
+// frames on; with the AI scratch (+0x14) at 2 or more, or not a corpse to
+// raise (FUN_00645510: mode 0xc, not hidden, MonStats2 corpseSel, MonStats
+// Velocity) or not evil, nothing; else skill 0x125 in mode 8 (FUN_005dead0),
+// unit flags &= ~0x4020000, the scratch + 1, its think 0x33 frames on.
+struct RiseIn {
+    bool dead = false, hidden = false, unique = false, blocked = false, can_raise = false;
+    int alignment = 0, scratch = 0, aip1 = 0;
+};
+enum class RiseKind { nothing, again, rise };
+struct Rise {
+    RiseKind kind = RiseKind::nothing;
+    int frames = 0;                      // again: event 7, rise: its think, this many frames on
+};
+inline constexpr std::uint32_t kRiseFlagsKept = 0xfbfdffffu;   // unit flags (+0xc4) AND-ed after the skill starts
+inline constexpr int kRiseSkill = 0x125, kRiseMode = 8, kRiseThink = 0x33, kRiseLimit = 2;
+inline Rise ai_after_death_rise(const RiseIn& input) {
+    if (!input.dead || input.hidden || input.unique || input.alignment == 2) return {};
+    if (input.blocked) return { RiseKind::again, input.aip1 * 10 + 1 };
+    if (input.scratch >= kRiseLimit || !input.can_raise || input.alignment != 0) return {};
+    return { RiseKind::rise, kRiseThink };
+}
+
 // MonUMod 22's death hook (0x5a3250: event 1 into mode 0, by MonStats
 // row). Five rows give MonUMod 21 (killself) to the monsters about them
 // (FUN_005dfbf0(radius, first, end, undead only), the boss's seed): Andariel

@@ -58,6 +58,10 @@ We promise:
 - **Write only what you read.** An address, offset or row goes in only if
   you read it in game.exe, a table or a save; anything else is "not
   traced". A name or claim from another project is a lead until then.
+- **A note in the repo is a lead too.** A `ponytail:` note, a `todo.md`
+  row or a doc line can be out of date: re-check it in game.exe and the
+  code before you act on it. One that turns out false is fixed or deleted
+  in its own commit, which says why.
 - **Never bend a check.** Don't change a test, an oracle or d2d's code just
   to make a diff go away. A test changes only in the same commit as the
   behaviour it checks, and the commit says why.
@@ -144,9 +148,14 @@ We promise:
      them what you tried.
 5. **Send it,** with their go-ahead. Play and report: open the issue from
    step 4; no branch or pull request. Trace or fix: run
-   `python3 tools/pr_guard.py`, then open the pull request (section 6) with
+   `python3 tools/pr_guard.py` and the whole `ctest` with the game data
+   (CI has no game files, so its game tests skip), then open the pull
+   request (section 6) with
    `gh pr create --body-file <the filled-in template>`, then the review loop
-   in section 6.
+   in section 6. The body gives the run's counts: passed, failed, skipped.
+   A test that fails on main too is named there, and fixed in its own
+   commit or reported in an issue. Without the game files, write "not
+   run"; the maintainer runs it before merging.
 
 ## 5. Evidence
 
@@ -204,6 +213,13 @@ The same bar for everyone, people and agents alike.
   then flags a number two rows now share, and you renumber yours.
   Rebasing a pushed branch needs a force push: ask first, and use
   `git push --force-with-lease`.
+- **Labels say what it touches**, one or more, with `gh pr create --label`
+  (ask first, as for any outward action): `trace` (a claim checked
+  against game.exe, `docs/research/re/`), `oracle` (a `tools/emu`
+  oracle), `port` (d2d's code changed to match game.exe, with its test),
+  `test` (a test fixed or added on its own), `netplay` (joining or
+  hosting a game), `documentation`, `platform`. `security-reviewed` is
+  the maintainer's alone.
 - The pull request body follows
   [.github/pull_request_template.md](.github/pull_request_template.md)
   (`gh pr create` skips it, so fill it in with `--body-file`): what changes,
@@ -236,6 +252,8 @@ The same bar for everyone, people and agents alike.
 - Code: C++ in `components/<name>` (engine and rules) and `apps/` (d2d, the
   launcher), with tests in `tests/`. No one- or two-letter names (clang-tidy
   checks). A known gap gets a `// ponytail:` note saying what's missing.
+- **No counts by hand** in docs (notes left, rows open): name the command
+  that prints them. A count from a tool's run keeps that run's date.
 - Research notes go in `docs/research/re/<subsystem>.md`: addresses,
   offsets, tables, and the algorithm in prose. Raw decompiled C never goes in
   git.

@@ -278,6 +278,10 @@ struct Fight {
         // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
         // the last skill's do plus its delay.
         std::uint32_t burning = 0, skill_delay = 0;
+        // The client's own state-inferno list (LAB_004e3060: FUN_006251f0 flags 2, +0x18 timeout 0x15 frames, on the
+        // unit), counted down a frame at a time (FUN_00627460 from FUN_00480810) and set to 7 by each later start;
+        // the frame it runs out (0 none). It clears the state as it goes (LAB_004e3050).
+        std::uint32_t inferno_list = 0;
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
         // It stops nothing; a hit while it runs is a get-hit (FUN_0057cee0), unless one is already running (FUN_0057edd0).
         std::uint32_t stunned = 0;
@@ -688,10 +692,9 @@ struct Fight {
     // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
     // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
-    // Burst of Speed, Holy Freeze's slow, ...); Leap Attack (FUN_005da540)
-    // waits for its takeoff event.
-    // ponytail: a chill's slow and the run bonus (FUN_00620e80) aren't in
-    // Charge's velocitypercent; Whirlwind's path is a straight line
+    // FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
+    // slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
+    // ponytail: Whirlwind's path is a straight line
     // (FUN_0064ea90's pathing isn't traced).
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the
@@ -1412,6 +1415,9 @@ struct Fight {
     [[nodiscard]] bool melee_reach_to(const Monster& target, bool blow) const;
     // The monsters around the player, in the crowd that blocks walkers.
     void crowd(Crowd& crowd_out);
+    // The same about (x, y): the monsters within 12 of it and every hero's pets on the level (FUN_0064d870's
+    // grid holds every unit's stamp, wherever the acting player stands).
+    void crowd_around(Crowd& crowd_out, float x, float y);
     // One frame of the fight outside town (`in_moor`: in the level whose
     // monsters these are), and the merc's turn (following, in town).
     void world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd);

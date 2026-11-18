@@ -68,7 +68,7 @@ struct PartyPanel {
         };
         const auto by_name = [](const Row& lhs, const Row& rhs) {
             return std::lexicographical_compare(lhs.name.begin(), lhs.name.end(), rhs.name.begin(), rhs.name.end(),
-                                                [](char left, char right) { return std::uint8_t(left) < std::uint8_t(right); });
+                                                [](char lhs_char, char rhs_char) { return std::uint8_t(lhs_char) < std::uint8_t(rhs_char); });
         };
         for (auto& group : chain) {
             if (by_sort_key) insertion(group.rows, [](const Row& lhs, const Row& rhs) { return lhs.sort_key > rhs.sort_key; });

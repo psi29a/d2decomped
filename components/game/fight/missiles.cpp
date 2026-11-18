@@ -476,9 +476,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
-            // ponytail: do 44 (FUN_005d6020) moves a trap monster between
-            // the caster and the point; here its missile row does, hitting
-            // as it passes (NextHit).
+            // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
+            // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
+            // the missile row does, hitting as it passes (NextHit). Needs the pet's think dispatched
+            // (summons.cpp, pets.cpp), not this file alone.
             auto& missile = send(dx, dy, std::max(range, skill.par[0]));
             missile.origin_x = caster.x; missile.origin_y = caster.y;
             const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
@@ -539,6 +540,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         if (frame == missile_frame) return;
         missile_frame = frame;
         burned.clear();
+        // ponytail: seeded at the frame's first missile tick, not as each is made, so a drop in the
+        // frame it was made comes before its step. A visual-only one takes none: some are the
+        // server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
+        for (auto& missile : missiles)
+            if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
         for (std::size_t k = 0; k < missiles.size(); ++k) {
             auto& missile = missiles[k];
             if (!missile.friendly || missile.skill < 0 || !missile.info) continue;   // the player's side's (a monster's carries its skill too)
@@ -726,8 +732,9 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // x 256 (FUN_00646ca0, FUN_0045c3e0), capped at max life. At 0 or
         // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
         // not on the missile, so that roll is 0. Returns 1: it ends and does
-        // not strike. ponytail: the draw is the fight rng. The missile seed
-        // (+0x20) and ProgOverlay (+0x36) are not kept.
+        // not strike. The draw is on the missile's seed (+0x20, 0x5aa0a6).
+        // Healed, whatever the amount, it gets the row's ProgOverlay (+0x36,
+        // over 0) as a one-shot (FUN_00621e40): Holy Bolt's healing.
         if (missile_info.hit_func == 7) {
             const bool players_bolt = missile.friendly && !missile.by_merc;
             const int struck_id = monsters[monster_index].id;
@@ -738,19 +745,19 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const int low_points = calc(*skill, skill->calc[0], missile.level);
                 const int high_points = calc(*skill, skill->calc[1], missile.level);
                 const int span = (high_points << 8) - (low_points << 8);
-                const int amount = (span > 0 ? int(rng(span)) : 0) + (low_points << 8);
-                const auto mend = [](Monster& monster, int added) {
+                const int amount = (missile.seed ? (*missile.seed)(span) : 0) + (low_points << 8);
+                const int overlay = game_data->overlay_row(missile_info.prog_overlay);
+                const auto mend = [&](Monster& monster, int added) {
+                    if (overlay > 0) { monster.flash_overlay = overlay; monster.flash_at = now_ms; }
                     if (added <= 0) return;
                     int life = monster.life_fine() + added;
                     const int cap = monster.max_life_fine();
                     if (life > cap) life = cap;
                     monster.set_life_fine(life);
                 };
-                if (amount > 0) {
-                    mend(monsters[monster_index], amount);
-                    for (auto& pet : actor->pets)
-                        if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
-                }
+                mend(monsters[monster_index], amount);
+                for (auto& pet : actor->pets)
+                    if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
                 return true;
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monsters[monster_index].type)];

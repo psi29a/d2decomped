@@ -209,6 +209,9 @@ struct Monster {
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
+    int spc_to_hit = 0;                       // MonUMod 14 (spcdamage)'s stat 0x13 (rules::spcdamage), 0 not one
+    std::uint32_t rise_at = 0;                // MonUMod 34 (ai_after_death)'s event 7 (FUN_005a3910), 0 none
+    bool rising = false;                      // its S1 rise (skill 0x125): unit flags 0xe off, not targetable
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
@@ -238,6 +241,8 @@ struct Monster {
                     if (swung_element.type == 2 && swung_element.dur == 0) swung_element.dur = 25;
                 }
             }
+        // MonUMod 14's hook 0 (FUN_005a3b50) runs after the swing's stats and puts stat 0x13 at level + 50 (at most 90).
+        if (spc_to_hit > 0) swung.to_hit = swung.to_hit2 = swung.to_hit_s1 = spc_to_hit;
         return swung;
     }
     // Its stats as a swing sets them in a classic game (FUN_005a4f50, game
@@ -508,7 +513,7 @@ struct Monster {
     // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used
     // stands for revive / corpseexp / redeemed), not shattered (state 107).
     [[nodiscard]] bool usable_corpse() const { return !alive() && mode == "DD" && !corpse_used && !shatter; }
-    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
+    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding && !rising; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
     // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
     // the player's alignment (2: a converted monster, FUN_00650d70) refuses.
@@ -730,6 +735,10 @@ struct Missile {
     bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
     int striker = -1;                         // a summon's (a Shadow's): its Monster::id, whom its hits are struck by
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
+    // Its unit seed (+0x20): {a game seed step, 666}, as FUN_0059fa30 makes it
+    // (FUN_00555230 type 3 -> FUN_00552df0 -> FUN_00650e40). Fight::missile_tick
+    // gives it to all but a visual-only one.
+    std::optional<d2d::rules::Rng> seed;
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).

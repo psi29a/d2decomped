@@ -985,8 +985,6 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         blow.stun_ticks = std::min(stun, 250);
         return blow;
     }
-    blow.life = leech_fine(fine, target, fighter.life_steal, target.life_steal_divisor);
-    blow.mana = leech_fine(fine, target, fighter.mana_steal, target.mana_steal_divisor);
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     const auto share = [&](int pct) { return int(target.paired(rolled * pct / 100)); };
     int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(target.paired(conv) >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
@@ -1015,20 +1013,27 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     }
     if (conv > 0 && swing.conv_type == 2)
         blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
-    // Crushing Blow (FUN_005bffc0): the life left after the hit / the
-    // divisor, less the raw damage resist's share (100 at most, none at 0
-    // or less: not resisted's).
-    int crushing_blow = 0;
+    // Crushing Blow (FUN_005bffc0, run by the strike event 5 or 6 of FUN_0057c6c0, before LAB_0057c852 takes the hit's damage):
+    // the life the target has BEFORE the hit, in 256ths, / the divisor, less the raw damage resist's share (100 at most, none
+    // at 0 or less: not resisted's).
+    int crushing_fine = 0;
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
         blow.crushing = true;
-        crushing_blow = std::max(target.hit_points - phys - elem, 0) / (target.crush_divisor * (swing.missile ? 2 : 1));
-        if (target.res[0] > 0) crushing_blow -= crushing_blow * std::min(target.res[0], 100) / 100;
+        crushing_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) / (target.crush_divisor * (swing.missile ? 2 : 1));
+        if (target.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(target.res[0], 100), 100);
     }
+    // The leech cuts the physical to the life the crush left: FUN_0057c6c0 reads stat 6 at 0x57c7f8, after the strike events.
+    Target after_crush = target;
+    after_crush.life_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) - crushing_fine;
+    blow.life = leech_fine(fine, after_crush, fighter.life_steal, target.life_steal_divisor);
+    blow.mana = leech_fine(fine, after_crush, fighter.mana_steal, target.mana_steal_divisor);
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
     if (blow.bleed) blow.bleed_fine = open_wounds_fine(clvl, target.special);
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(stun, 250);
-    blow.damage = phys + elem + crushing_blow;
+    const int fraction = blow.frac + crushing_fine;                // the physical's part under a point and the crush, in 256ths
+    blow.damage = phys + elem + (fraction >> 8);
+    blow.frac = fraction & 255;
     blow.elemental = marking > 0 || blow.poison > 0;
     return blow;
 }

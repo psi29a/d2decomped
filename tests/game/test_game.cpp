@@ -1785,9 +1785,9 @@ int main(int argc, char** argv) try {
         std::printf("OK: Molten Boulder's fire lasts its radius, Armageddon's control lays one fire\n");
     }
 
-    // A chest's trap fires at its event 4, 35 frames after it opened
-    // (FUN_00582510 -> FUN_005817a0); in act 1 a lightning trap (1) is a
-    // firebolt (2).
+    // A chest's trap springs at its event 4, 35 frames after it opened
+    // (FUN_00582510 -> FUN_005817a0); its trap monster's first think, two
+    // frames on, fires; in act 1 a lightning trap (1) is a firebolt (2).
     const auto missiles_named = [&](std::string_view name) {
         return std::ranges::count_if(world.fight.missiles, [&](const auto& missile) { return missile.info && missile.info->name == name; });
     };
@@ -1796,8 +1796,10 @@ int main(int argc, char** argv) try {
     world.tick({}, (4600 + 34) * kTickMs, (4600 + 33) * kTickMs);
     assert(world.fight.missiles.empty() && world.traps.size() == 1);
     world.tick({}, (4600 + 35) * kTickMs, (4600 + 34) * kTickMs);
+    assert(world.fight.missiles.empty() && world.traps.size() == 1);    // the think, pending
+    world.tick({}, (4600 + 37) * kTickMs, (4600 + 36) * kTickMs);
     assert(world.traps.empty() && missiles_named("trapfirebolt") == 1 && missiles_named("chainlightning") == 0);
-    std::printf("OK: a chest's trap springs 35 frames on, lightning a firebolt in act 1\n");
+    std::printf("OK: a chest's trap springs 35 frames on and fires 2 later, lightning a firebolt in act 1\n");
 
     // The Moldy Tome (FUN_00594e70): its message 127 for the player
     // (S->C 0x27); heard back (cmd::QuestMessage), the Forgotten Tower starts.

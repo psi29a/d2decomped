@@ -540,7 +540,7 @@ struct ObjectRooms {
     // The room FUN_005b2f20 is handed (FUN_00545340's room_out) while a marker
     // makes its NPC; none: the room being populated.
     std::optional<std::size_t> hand_room;
-    bool larzuk_made = false;                            // quest record 0x1f's +0x15 (FUN_00587840): once, for this level
+    bool larzuk_made = false;                            // quest record 0x1f's +0x15 (FUN_00587840), copied from Spawning
     // FUN_005b2a00 round (x, y) out to radius (-1: the spot only), in the
     // area being populated when `bound` (its rect and its id), else the room
     // it is handed (hand_room: a marker's, from FUN_00545340) or the one
@@ -990,10 +990,11 @@ struct ObjectRooms {
                 // rules::marker_npc's spot (the marker's, else a step or more on) till he's
                 // gone (record +0x88), in the room each try is handed. Both are made in that
                 // room's bounds and on its seed (hand_room), not the marker room's.
-                // ponytail: the records' "made" bytes outlive no level here (larzuk_made is the
-                // level's, not the game's quest record 0x1f +0x15; Nihlathak's +0x88 / +0x92
-                // aren't kept), nor Larzuk's record +0x10 (his unit id) and +0x17 (FUN_00666120
-                // run once for him). InitFns 66 / 67 / 69 are Act 5's quests'
+                // Larzuk's record +0x15 is Spawning::marker_records, so it outlives
+                // this level as the game's quest record does. ponytail: his record
+                // +0x10 (unit id) and +0x17 (FUN_00666120 run once for him) aren't
+                // kept. Nihlathak's +0x88 / +0x92 are PrisonQuest::town_left and
+                // World::nihlathak_made. InitFns 66 / 67 / 69 are Act 5's quests'
                 // (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
                 if (init == 71) {
                     const auto row = game_data.mon_bin[0x1ff];
@@ -1244,6 +1245,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     game_quests = spawning.game_quests;
     orb_smashed = spawning.orb_smashed;
     wanderer_seen = spawning.wanderer_seen;
+    larzuk_made = spawning.marker_records.larzuk_made;
     region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
     auto& state = spawning.levels[&level];
     rooms_up(spawning);
@@ -1279,6 +1281,7 @@ void ObjectRooms::save(Spawning& spawning) const {
     spawning.superuniques = superuniques;
     spawning.rescue_cages = rescue_cages;
     spawning.tomb_symbols = tomb_symbols;
+    spawning.marker_records.larzuk_made = larzuk_made;
     if (std::size_t(level.id) < spawning.regions.size()) spawning.regions[std::size_t(level.id)] = region;
 }
 

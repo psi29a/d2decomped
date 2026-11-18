@@ -343,7 +343,7 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // The frame's light (FUN_00475800, town.hpp), with the environment's
 // intensity the raised roofs take.
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects , int ambient ,
-                     std::span<const Unit> units , const Unit* player_look , std::uint32_t now, const std::pair<float, float>* player_at) {
+                     std::span<const Unit> units , const Unit* player_look , std::uint32_t now, const std::pair<float, float>* player_at, int quality) {
     Lighting lighting;
     if (!view.level || scene.act_lit[31].entries().empty()) return lighting;
     lighting.pal = &scene.act_lit;
@@ -397,9 +397,14 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
         if (shadowed) lighting.grid.stamp_shadowed(int(x * 40), int(y * 40), radius8, 255);
         else lighting.grid.stamp(int(x * 40), int(y * 40), radius8, 255);
     };
-    auto stamp = [&](float x, float y, int radius, bool shadowed) { stamp8(x, y, std::min(radius, 18) * 8, shadowed); };
-    auto lamp = [&](std::uint64_t key, float x, float y, int radius, bool shadowed, int first = -1) {
-        stamp8(x, y, eased(key, radius, first < 0 ? radius : first), shadowed);
+    // A light of type 0 (`own`: the player's) or 1 at `quality` (rules::light_radius8);
+    // type 0 is shaded above quality 1 (FUN_004755a0, LAB_00475661).
+    auto typed8 = [&](float x, float y, int radius8, int type, bool own = false) {
+        stamp8(x, y, d2d::rules::light_radius8(quality, type, own, radius8), type == 0 && quality > 1);
+    };
+    auto stamp = [&](float x, float y, int radius) { typed8(x, y, std::min(radius, 18) * 8, 1); };
+    auto lamp = [&](std::uint64_t key, float x, float y, int radius, int type, bool own = false, int first = -1) {
+        typed8(x, y, eased(key, radius, first < 0 ? radius : first), type, own);
     };
     // Type 2 (objects', FUN_004bc580): the shade is kept from the light's first
     // stamp (FUN_004750f0, +0x2c) and made again only for a new radius
@@ -422,8 +427,8 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     // A unit's light sits at its position + 4 eighths (FUN_00474160: (x >> 13) + 4);
     // objects' cells already hold that half subtile.
     constexpr float kHalf = 0.1f;                                   // 4 eighths of a subtile, in cells
-    lamp(1, player_x + kHalf, player_y + kHalf, std::max(0, 13 + view.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
-    for (const auto& other : view.others) lamp(0x100000000ull + other.id, other.unit.x + kHalf, other.unit.y + kHalf, 13, true);   // every player's own (their bonus isn't sent)
+    lamp(1, player_x + kHalf, player_y + kHalf, std::max(0, 13 + view.light_bonus), 0, true);   // FUN_00460930: 13 + the bonus, capped at 18
+    for (const auto& other : view.others) lamp(0x100000000ull + other.id, other.unit.x + kHalf, other.unit.y + kHalf, 13, 0);   // every player's own (their bonus isn't sent)
     static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
     auto lit = [&](const Npc& npc, std::string_view mode) {
         const auto found = std::ranges::find(kModes, mode.empty() ? std::string_view(npc.mode) : mode);
@@ -442,14 +447,14 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
             const auto& npc = neighbour.level->npcs[i];
             lamp_static(7ull << 56 | std::uint64_t(neighbour.level->id) << 32 | i, npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), std::min(lit(npc, {}), 18) * 8);
         }
-    for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, false);
+    for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, 1);
     for (const auto& portal : view.portals) {                      // its mode's Lit (Lit1 while it opens, then Lit2 ...)
         const auto key = 5ull << 32 | std::uint32_t(portal.which);
         const int lit_now = int(portal_look(scene, portal.which).lit[std::size_t(d2d::game::mode_index(portal_mode(scene, portal, now).first))]) >> 1;
         lamp_static(key, portal.x, portal.y, eased(key, lit_now, lit_now), portal.born);
     }
-    for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
-    for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
+    for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light);
+    for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light);
     // States' overlays light their unit (Overlay.txt: InitRadius growing to
     // Radius, FUN_00474160 / FUN_00474290); a plain light, its colour
     // dropped like every light's here.
@@ -458,7 +463,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
             const auto& overlay = unit.overs[k];
             if (overlay.overlay->radius > 0 && d2d::rules::overlay_frame(now - overlay.start, overlay.overlay->rate, overlay.overlay->frames, overlay.once) >= 0)
                 lamp(6ull << 56 ^ std::uint64_t(reinterpret_cast<std::uintptr_t>(overlay.overlay)) ^ std::uint64_t(std::uint32_t(unit.npc)) << 40 ^ overlay.start,
-                     x, y, overlay.overlay->radius, false, overlay.overlay->init_radius);
+                     x, y, overlay.overlay->radius, 1, false, overlay.overlay->init_radius);   // type 1 (0x470555)
         }
     };
     for (const auto& each_unit : units) overs(each_unit, each_unit.x, each_unit.y);

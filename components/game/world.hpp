@@ -262,6 +262,7 @@ struct World {
         int voice_checked = 0;                 // the last level looked up (0x7c8a04 / 0x7c88cc)
         std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
         std::uint32_t voice_at = 0;            // when the class last spoke
+        std::uint32_t swung_at = 0;            // when the player's last swing sound began (unit +0x7c, FUN_004cb6a0), 0 none
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
@@ -796,16 +797,19 @@ struct World {
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
-    // shot goes straight from the chest at the player: missile level 1 / 4
+    // shot goes straight from the chest at the target its monster search
+    // picks: missile level 1 / 4
     // / 8 by difficulty; a row with a Skill (chainlightning) carries that
     // skill's damage, the others their own columns. 5 / 7 leave two fires
     // (no damage traced); 8 raises the level's undead.
     // trapfirebolt bursts into its fireexplode as any missile does (its
     // ExplosionMissile, missiles_update).
-    // The AI's range check (aip1 25 / 20 subtiles) always passes for the
-    // opener: operating needs reach 2 of the chest (FUN_00623660), the trap
-    // within 3 of it (FUN_00582420). Untraced: its pick among several players.
-    // ponytail: chainlightning doesn't hop (act 2 on: act 1 swaps it for firebolt).
+    // Its first think is two frames after FUN_00582420 makes it; only a
+    // searched target within aip1 (Trap-Missile 25 / 30 / 32 by
+    // difficulty; Trap-Poison / Trap-Nova 20) gets the act.
+    // Trap 1's chainlightning doesn't hop: its hops (missile data +0x28) are set only through
+    // FUN_0064a710, which the mode's missile path (FUN_005a6d50, FUN_0056ecb0, FUN_0059fa30) never
+    // calls, so hit function 12 (FUN_005aa730: hops over 1) finds none.
     // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
     // A container's trap as it opens (FUN_00582510): trap 8 with no undead
@@ -813,10 +817,11 @@ struct World {
     // it 35 frames on (FUN_005817a0: rules::trap_on_level, then the table).
     // One whose level the player has left by then is dropped: its trap
     // monster would find no one in range.
-    struct Trap { const Level* level; int trap; float x, y; int alvl; std::uint32_t due; };
+    struct Trap { const Level* level; int trap; float x, y; int alvl; std::uint32_t due; bool think = false; };
     std::vector<Trap> traps;
     void arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
     void spring_traps(std::uint32_t now_ms);
+    void trap_think(int trap, float x, float y, int alvl, std::uint32_t now_ms);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.

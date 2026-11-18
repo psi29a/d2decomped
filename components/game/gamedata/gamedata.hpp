@@ -20,6 +20,7 @@
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -800,6 +801,7 @@ struct GameData {
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound
                          int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
+                         std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
@@ -1105,6 +1107,8 @@ struct Spawning {
     // a3q7's +0xd4 (LAB_005bd2c0): the game's first player has seen the Dark
     // Wanderer (word 0x20 bit 0), its data +1 cleared: InitFn 43 makes none.
     bool wanderer_seen = false;
+    // Quest-record marker fields that outlive the levels containing them.
+    d2d::rules::MarkerRecords marker_records;
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
 };
@@ -1290,12 +1294,23 @@ std::optional<std::pair<int, int>> field_spot(const std::vector<std::uint8_t>& f
 
 // Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
 // if that's in a room, else (x, y), field_spot's free subtile (size 1, mask
-// 0x3e01, walk 0x801). None: the start.
+// 0x3e01, walk 0x801). None found: the start, as FUN_0064dea0 keeps it for
+// FUN_00555da0's flag (FUN_0055a550 passes 1), when it is in a room; else
+// FUN_00555da0 returns 0 and FUN_0055a550 makes no item: nullopt. (Which
+// room FUN_00463740 is asked, drops.md "Where a drop lands": `flags` stands
+// for it.)
 template <class Flags>
-std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+std::optional<std::pair<int, int>> drop_place(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
     int at_x = x + 2, at_y = y + 3;
     if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
-    return field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags).value_or(std::pair{ at_x, at_y });
+    if (const auto spot = field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags)) return spot;
+    if (flags(at_x, at_y) == 0x27) return std::nullopt;   // the start has no room (FUN_00463740)
+    return std::pair{ at_x, at_y };
+}
+// drop_place's spot, the dropper's own subtile (x, y) when none was made.
+template <class Flags>
+std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+    return drop_place(field, x, y, flags).value_or(std::pair{ x, y });
 }
 
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
