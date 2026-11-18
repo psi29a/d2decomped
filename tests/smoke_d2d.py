@@ -48,6 +48,7 @@ if real:
         if status and status[0] & 0x0C == 0x0C:   # a dead hardcore one (status 0x24: 4 hardcore, 8 died) can't go in
             continue
         shutil.copy2(os.path.join(real, f), saves)   # its file time: the list's order, so slot 0 is the newest playable
+    assert os.listdir(saves), f"{real}: no playable save (dead hardcore ones are skipped)"
 else:
     make_save("Alpha", 0x24, 0, 10)   # hardcore expansion Amazon
     make_save("Beta",  0x20, 3, 20)   # expansion Paladin
