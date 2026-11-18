@@ -19,6 +19,7 @@
 #include <montypes.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <uniques.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -34,6 +35,7 @@
 #include <iterator>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -150,6 +152,27 @@ int main() try {
         assert(nova_ring(fight.missiles, 100.3f, 100.7f));
         fight.missiles.clear();
         std::printf("OK: %s's release nova aims round its ring\n", released->name.c_str());
+    }
+
+    // Cold Enchanted's death (MonUMod 18, FUN_005a2bd0 -> FUN_0056d400): coldunique round it.
+    {
+        const int fallen_row = data->monsters.row("fallen1");
+        assert(fallen_row >= 0);
+        d2d::rules::Rng rng{ 3 };
+        Monster dying = make_monster(*data, fallen_row, 100.3f, 100.7f, rng, 0);
+        dying.boss = d2d::rules::Boss::unique;
+        dying.mods = { d2d::rules::umod::cold };
+        dying.hit_points = 0;
+        set_mode(*data, dying, "DT", 2000);
+        fight.monsters = { std::move(dying) };
+        fight.pending.clear();
+        fight.boss_events({}, 2000);
+        fight.boss_events({}, 2000 + 4 * 40);
+        assert(fight.pending.size() == 64 && fight.pending.front().info->name == "coldunique");
+        assert(nova_ring(fight.pending, 100.3f, 100.7f));
+        fight.pending.clear();
+        fight.monsters.clear();
+        std::puts("OK: Cold Enchanted's death nova aims round its ring");
     }
 
     return 0;
