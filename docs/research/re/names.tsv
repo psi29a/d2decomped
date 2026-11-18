@@ -428,6 +428,7 @@ address	name	evidence
 004c7630	unit_command_on_target	fastcall (unit, target): builds the unit command {0, -1, target type, target id, 1, 0, 0} (type 6 / id -1 for none) and runs FUN_00480c10 with 1; returns 1; caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7be0	unit_add_attackrate_list_b	twin of FUN_0056e520 (same body), Skills.cpp line 0x9e5; callers FUN_004c7cf0, 0x4f26f3, 0x4f2706; skills.md "Stat-list helpers and skill starts"
+004c7c40	state_event_add	(stat 0x15e, stat 0x15f, index, type, unit): for an index under 2 with a callback in the table 0x727db4 (index 0 null, index 1 FUN_004e3d70), d2d_unit_event_add with those values and returns its result; else 0. Only ... (skills-frontier.md)
 004c9460	skill_par1	fastcall (skill id) -> Skills record +0x148 Param1, 0 for an id outside [0, [0x744304]+0xba0) or a null record; skillcalc operand 8; skills.md "Skill record and skill-list accessors"
 004ca8a0	unit_sound_list_add	ECX unit (null fatal line 0xc2c), EDX item: tail jump to FUN_00516950 with ECX = unit + 0x78; verified by unit_client.py
 004ca8d0	unit_sound_list_call	ECX unit (null fatal line 0xc2c), EDX item: tail jump to FUN_00516980 with ECX = unit + 0x78; verified by unit_client.py
