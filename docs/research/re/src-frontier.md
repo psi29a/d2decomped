@@ -143,3 +143,35 @@ music").
 | `FUN_00516f85` | `file_read_error_name` | After a short read (`FUN_00406900` below the size asked): the path as `file_open_error_name`. Callers `FUN_00476d40`, `FUN_00516e84`, `FUN_00517079` | no counterpart (StormLib) |
 | `FUN_0052b780` | `c2s_send_af` | Fastcall: the two-byte C->S `[AF xx]` (`FUN_0052b330`). Only caller `FUN_0052a750` | not compared |
 | `FUN_0052b810` | `net_stub_52b810` | Returns. Only caller `FUN_0052a750` | no counterpart (empty) |
+
+## The sprite cache, tile getters and the DC6 row writers
+
+The row writers below decode one cel's DC6 rows (a byte with bit 7 set
+skips `& 0x7f` pixels, 0x80 ends the row, else that many literal bytes)
+upward from the destination, as the cel draw `FUN_00608540` picks them
+by draw mode (cels.md). Most come as a full and a clipped variant (the
+clipped one takes the left and right edges). "Blend" is
+`table[dst × 256 + src]`, the PL2-table path (palette.md).
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_005ff4a0` | `spritecache_take_slot` | Fastcall (cache, slot, prefer): with slots left, a free one off the LRU list (`+0x14`, not locked, bit 2 of `+0xc`), or the older of the two ends (`FUN_005ff0f0`); its size off the total (`+8`, under the lock `+0x30`), its data released (`+0x2c` callback) and freed (line 0x9e8), moved to the used list (`+0x24`/`+0x28`), count `+0xc` − 1. Callers `FUN_005ff760`, `FUN_005fffa0` | no counterpart: d2d keeps decoded sprites in memory |
+| `FUN_005ff5b0` | `spritecache_touch` | Fastcall (cache, slot): hit count `+0x4c` + 1; under the lock the slot (unlocked) goes to the LRU tail with the tick count at `+0x10`. Only caller `FUN_006001f0` | no counterpart (as `spritecache_take_slot`) |
+| `FUN_005ffa20` | `spritecache_read_dir` | `EAX` file, `ESI` slot, (direction, header, frames): the direction's frame offsets (header `+0x1c`, at most 0x20 frames, each relative to the first) into the slot, its direction count and frame count; unless the file is in memory (`header & 2`), an async read of that span (`d2d_async_data_create`, flag 4 on the slot); the span's size, -1 on a bad offset or failed read. Only caller `FUN_005fffa0` | no counterpart (as `spritecache_take_slot`) |
+| `FUN_00604c20` | `tile_get_20` | A tile record's `+0x20` (null asserts). `FUN_0066d440` walks frames by it; `FUN_0066d820` sums it as pick weights | not compared: d2d reads the DT1's rarity (components/drlg/room_tiles.hpp:656) |
+| `FUN_00604cb0` | `tile_get_8` | A tile record's `+8`. Only caller the automap `FUN_004dd7c0` | not compared |
+| `FUN_00604ce0` | `tile_get_28_ptr` | The tile record + 0x28. Only caller `FUN_0064c4c0` | not compared |
+| `FUN_00606d10` | `dc6_skip_rows` | Fastcall (rows data, n): skips n rows | matches: d2d decodes the same tokens (components/dc6/dc6.hpp:123) |
+| `FUN_00606d40` | `dc6_rows_copy` | Opaque copy of `param_3` rows, pitch `param_4` | matches (as `dc6_skip_rows`) |
+| `FUN_00606da0` | `dc6_rows_copy_clip` | As `dc6_rows_copy`, only columns between the two edges | matches (as `dc6_skip_rows`) |
+| `FUN_00606e40` | `dc6_rows_blend_map` | Blend after a colour map: `blend[dst × 256 + map[src]]` | differs: d2d blends in RGB, not through the tables (todo.md 30) |
+| `FUN_00607060` | `dc6_rows_blend_map_clip` | Clipped `dc6_rows_blend_map` | differs (todo.md 30) |
+| `FUN_006072f0` | `dc6_rows_map2` | Two colour maps: `map_a[map_b[src]]` | not compared |
+| `FUN_00607480` | `dc6_rows_map2_clip` | Clipped `dc6_rows_map2` | not compared |
+| `FUN_00607680` | `dc6_rows_map` | One colour map: `map[src]` | not compared |
+| `FUN_006077c0` | `dc6_rows_map_clip` | Clipped `dc6_rows_map` | not compared |
+| `FUN_00607970` | `dc6_rows_blend_map_b` | The same per-pixel formula as `dc6_rows_blend_map`; what tells the two apart wasn't followed | differs (todo.md 30) |
+| `FUN_00607b90` | `dc6_rows_blend_map_b_clip` | Clipped `dc6_rows_blend_map_b` | differs (todo.md 30) |
+| `FUN_00607e20` | `dc6_rows_map_b` | The same per-pixel formula as `dc6_rows_map` | not compared |
+| `FUN_00607f60` | `dc6_rows_map_b_clip` | Clipped `dc6_rows_map_b` | not compared |
+| `FUN_006082e0` | `dc6_rows_blend_clip` | Clipped blend with no map: `blend[dst × 256 + src]` | differs (todo.md 30) |
