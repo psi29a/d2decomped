@@ -229,7 +229,7 @@ weaponsnd.
     300 cases; `tests/test_charge_up_sound.cpp`). d2d:
     `rules::sound_ids::charge_up`, cued by `Fight::charge` (the player's and a
     Shadow's).
-  - cltstfunc 15 (`FUN_004e3060`, Inferno and Arctic Blast, table 0x727a90
+  - cltstfunc 15 (`LAB_004e3060`, Inferno and Arctic Blast, table 0x727a90
     [15]; fastcall unit, skill id, level): with the skill id in range and
     state inferno (0xc) not on the unit (`FUN_00639df0`), the prgoverlay
     (+0x10c) on the unit (`FUN_00470390`, mode 2) and the prgsound (+0x10e)
@@ -239,7 +239,7 @@ weaponsnd.
     (+0x48) 0x500 and the list's timeout 7 (`FUN_006260b0`: flag 2, +0x18) and
     returns 1; not found, it makes the client's own (`FUN_006251f0(0, 2, 0x15,
     unit type, id)`: flags 2, timeout +0x18 = 0x15), attaches it (`FUN_00626e10`),
-    sets its removal callback `FUN_004e3050` (clears state 0xc on the owner,
+    sets its removal callback `LAB_004e3050` (clears state 0xc on the owner,
     `FUN_00639db0`), its state 0xc (`FUN_006252d0`) and the unit's bit on.
     The timeout is counted down a frame at a time for the local player (any other
     unit the client steps does too: `FUN_00480810` -> `FUN_00627460(unit, 0)`: minus 1, and at 0 or

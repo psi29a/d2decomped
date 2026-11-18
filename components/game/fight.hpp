@@ -278,9 +278,9 @@ struct Fight {
         // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
         // the last skill's do plus its delay.
         std::uint32_t burning = 0, skill_delay = 0;
-        // The client's own state-inferno list (FUN_004e3060: FUN_006251f0 flags 2, +0x18 timeout 0x15 frames, on the
+        // The client's own state-inferno list (LAB_004e3060: FUN_006251f0 flags 2, +0x18 timeout 0x15 frames, on the
         // unit), counted down a frame at a time (FUN_00627460 from FUN_00480810) and set to 7 by each later start;
-        // the frame it runs out (0 none). It clears the state as it goes (FUN_004e3050).
+        // the frame it runs out (0 none). It clears the state as it goes (LAB_004e3050).
         std::uint32_t inferno_list = 0;
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
         // It stops nothing; a hit while it runs is a get-hit (FUN_0057cee0), unless one is already running (FUN_0057edd0).

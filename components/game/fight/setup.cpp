@@ -470,6 +470,7 @@ auto Fight::action_at() const -> std::uint32_t {
         return attack_mode(actor->pmode) ? actor->action_ms : std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate);
     }
 
+// Sets the actor's player mode and runs the start-of-mode cues, incl. the inferno list of cltstfunc 15 (LAB_004e3060).
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
@@ -554,7 +555,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
             start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
-            // Cltstfunc 15 (FUN_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the unit
+            // Cltstfunc 15 (LAB_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the unit
             // (the server's list, from its own state packet, or the client's below), the prgsound on no unit
             // (FUN_004b9a00, EDX 0: unplaced, the listener's). Then the state's list: found (the server's or the
             // client's) its timeout is set to 7 frames, else the client's own is made with 0x15 (FUN_006251f0 flags 2).

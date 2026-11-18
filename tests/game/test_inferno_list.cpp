@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// The client's state-inferno list (cltstfunc 15, FUN_004e3060: Inferno, Arctic Blast). While state 0xc is off on the unit the
+// The client's state-inferno list (cltstfunc 15, LAB_004e3060: Inferno, Arctic Blast). While state 0xc is off on the unit the
 // prgsound plays on no unit; the start then makes the client's list (FUN_006251f0 flags 2, timeout 0x15 frames) or, with a list
 // on, sets its timeout to 7 (FUN_006260b0); FUN_00480810 -> FUN_00627460 counts it down a frame at a time. So a second start
 // while the list is on is silent, and one after it ran out plays again.
@@ -23,6 +23,7 @@
 
 using namespace d2d::game;
 
+// Checks the client's state-inferno list: the prgsound plays once, a start while it is on holds 7 frames (LAB_004e3060).
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir) { std::printf("SKIP: D2_MPQ_DIR\n"); return D2D_TEST_SKIPPED; }

@@ -12,6 +12,7 @@
 
 using namespace d2d::rules;
 
+// Checks which quest records the World sends by event, so the View-change stand-in skips them (FUN_00544190).
 int main() {
     // The records whose `news` the World turns into an event (world/quests/act3.cpp, act4.cpp, act5.cpp).
     for (const int quest : { GuardianQuest::kQuest, IzualQuest::kQuest, HellforgeQuest::kQuest, TerrorQuest::kQuest, SiegeQuest::kQuest, RescueQuest::kQuest,

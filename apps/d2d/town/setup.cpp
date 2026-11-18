@@ -62,6 +62,7 @@ auto Town::publish() -> void {
         if (!take_view(net.to_client, &out)) view_enc.reset();   // lost track: the next one is whole
     }
 
+// Applies a replicated View; a change in its quest-log state stands in for the log sends not made at their own sites (FUN_00544190).
 auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> bool {
         if (!apply_view(*scene, bytes, view)) {
             d2d::log::warn("a View didn't apply ({} bytes)", bytes.size());
