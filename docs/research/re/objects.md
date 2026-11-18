@@ -191,16 +191,23 @@ the object's flag byte:
 first spot clear of collision mask 0x3f11 (`FUN_0064e840`), then
 `FUN_005b2f20` (radius 3, mode 8). Their AIs (the server AI table at
 0x73ca20, 16-byte rows; MonStats +0x1e is the AI, +0x56 / +0x5c / +0x62 are
-aip1..3 by difficulty) all run the same way:
+aip1..3 by difficulty) first run two frames after placement: mode 1 makes
+`FUN_00573780` queue event 2 at game frame + 2. The driver runs
+`FUN_005dd7f0` before the AI; for an evil trap this walks each player list
+(player, then that player's pets), choosing the nearest live entry under
+the default Aidist 35. The AIs then run the same way:
 
 - While there's a target within aip1 subtiles and it has acted fewer than
   aip2 times: on one think it acts (count + 1), on the next it idles
-  aip3 frames.
-- Otherwise it flags the target (0x20000 at +0xc4) and goes to mode 0,
-  death. aip2 is 1 for all four, so each trap acts **once** and is gone. A
-  player out of range when it's made gets nothing.
+  aip3 frames. The latter branch is reachable only while the count remains
+  below aip2.
+- Otherwise it flags itself (0x20000 at +0xc4: no drop) and goes to mode 0,
+  death. aip2 is 1 for these chest rows, so each trap acts **once**, then its next
+  think takes this death branch without an idle. A target outside aip1 when
+  that first think runs gets nothing.
 - Trap-Missile (77, `FUN_005fb5b0`; trap-firebolt, trap-lightning): mode 4
-  (A1) at the target, aip1 25, aip3 15. With no skill set, A1 fires the
+  (A1) at the target, aip1 25 / 30 / 32 by difficulty, aip3 15. With no
+  skill set, A1 fires the
   mode's missile (`FUN_005a7670` → `FUN_005a6d50`: `FUN_0063e6b0`, MonStats
   +0x3a MissA1) through `FUN_0056ecb0` with skill 0 at level
   **MonsterSkillBonus + 1**, or the monster's level when +0xc4 has 0x200
@@ -211,6 +218,9 @@ aip1..3 by difficulty) all run the same way:
   (`FUN_005dead0`); aip1 20, aip3 15. Monster skills are given at Sk*lvl
   (+0x198) + MonsterSkillBonus (`FUN_00573cb0` with `FUN_00573930`): level
   1 / 4 / 8 again.
+- d2d: `rules::trap_target`, `World::spring_trap` and `World::trap_think`.
+  The object event makes the implicit trap at frame 35 and the pending think
+  runs two frames later, using the player-and-pet search order above.
 - Trap-Melee (87, `FUN_005fba60`; trap-melee, an Act 3 MonPreset row, no
   chest makes it): search type 1; out of melee stand 40, in melee a step of
   its seed % 100 under aip1 an A1 at the target, else stand aip2. d2d:
