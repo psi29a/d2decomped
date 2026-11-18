@@ -424,7 +424,7 @@ struct SpcDamage {
 inline SpcDamage spcdamage(int base_id, std::optional<int> area_level) {
     SpcDamage out;
     out.level = area_level ? (*area_level < 2 ? 1 : *area_level) : 2;
-    out.to_hit = std::min(out.level + 50, 90);
+    out.to_hit = std::min(out.level, 40) + 50;   // capped first: a custom row can hold INT_MAX
     const int half = out.level >> 1, level = out.level;
     switch (base_id) {
         case 0x146: out.list = { { 0x15, 0 }, { 0x16, 0 }, { 0x30, half }, { 0x31, level * 3 >> 1 } }; break;
