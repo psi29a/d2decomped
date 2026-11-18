@@ -20,7 +20,9 @@ control for every entry.
 
 ### Port assessment and remaining gaps
 
-There is no one-to-one d2d counterpart for these stock UI record managers.
+The scroll `FUN_0049ff10` / `FUN_0049ff90` open and draw is ported in
+`apps/d2d/scroll.cpp` (quests-act1.md "The client (UI 0x10)"). There is no
+one-to-one d2d counterpart for the other stock UI record managers.
 d2d draws owned strings, panels, NPC menus, and item descriptions from typed
 state rather than the client DLL's linked records and globals. The relevant
 ported caller is the frame draw in `apps/d2d/ingame.cpp`; its comment cites the
