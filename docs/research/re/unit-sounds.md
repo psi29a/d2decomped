@@ -197,13 +197,29 @@ weaponsnd.
     `rules::sound_ids::charge_up`, cued by `Fight::charge` (the player's and a
     Shadow's).
   - cltstfunc 15 (`FUN_004e3060`, Inferno and Arctic Blast, table 0x727a90
-    [15]): while the unit's client list for state inferno (0xc) is off, the
-    prgoverlay on the unit and the prgsound unplaced (EDX 0); then it makes
-    that list (`FUN_006251f0(0, 2, 0x15, ...)`, its removal callback
-    0x4e3050 clearing the state). Only Arctic Blast has a prgsound
-    (druid_windcast, not a loop). d2d: `Fight::set_pmode` at the start,
-    gated on the server's inferno (`Hero::burning`) and placed at the caster.
-    Cited.
+    [15]; fastcall unit, skill id, level): with the skill id in range and
+    state inferno (0xc) not on the unit (`FUN_00639df0`), the prgoverlay
+    (+0x10c) on the unit (`FUN_00470390`, mode 2) and the prgsound (+0x10e)
+    unplaced (`FUN_004b9a00`, EDX 0). Then it looks for the state's stat list
+    on the unit (`FUN_006256b0`): found (the server's, made by its own state
+    packet, counts), it sets the unit's sequence frame 8, its frame count
+    (+0x48) 0x500 and the list's timeout 7 (`FUN_006260b0`: flag 2, +0x18) and
+    returns 1; not found, it makes the client's own (`FUN_006251f0(0, 2, 0x15,
+    unit type, id)`: flags 2, timeout +0x18 = 0x15), attaches it (`FUN_00626e10`),
+    sets its removal callback `FUN_004e3050` (clears state 0xc on the owner,
+    `FUN_00639db0`), its state 0xc (`FUN_006252d0`) and the unit's bit on.
+    The timeout is counted down a frame at a time for the local player (any other
+    unit the client steps does too: `FUN_00480810` -> `FUN_00627460(unit, 0)`: minus 1, and at 0 or
+    less the list is removed, `FUN_00626c00` -> `FUN_006269f0` calls the
+    callback). So a start while the list is on is silent and holds it 7 more
+    frames; one 0x15 frames after the first (or 7 after the last) plays the
+    prgsound again. Only Arctic Blast has a prgsound (druid_windcast, not a
+    loop). d2d: `Fight::set_pmode` at the start, `Hero::inferno_list` the
+    client's list's end (the server's `Hero::burning` the other list),
+    placed at the caster; `tests/game/test_inferno_list.cpp`. Not ported: the
+    overlay, the sequence frame and frame count, and the server's list as
+    a list (a start with only it on sets d2d's list 7 frames, game.exe's
+    timeout on the server's). Read in game.exe, not run: no oracle.
   - cltstfunc 46 (`FUN_004f0160`, Baal Taunt): quests-act5.md.
   - cltdofunc 78 (`FUN_004f0cd0`, 'mon death sentry'): after its cltmissile
     (+0xea, corpseexplosion) is made at the skill's target spot
