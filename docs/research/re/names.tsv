@@ -583,6 +583,13 @@ address	name	evidence
 00520440	bnqueue_clear	frees every node; FUN_0051c470 (close)
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
+00532c70	oldsave_waypoints	Copies 0x50 bytes; tag 0x5357 (WS) else 3; three 0x18-byte difficulty records (version 0x101, 0x102 or 0) into player data +0x1c.. (FUN_00661030); 0x50 bytes used. A record whose version word is another value returns 3 (player-frontier.md)
+00532d00	oldsave_npc_flags	Copies 0x34 bytes; tag 0x7701 else 0xb; for each of three difficulties two 8-byte flag sets into the player data (FUN_00572540, FUN_00572550); 0x34 bytes used (player-frontier.md)
+00532da0	oldsave_stats	Tag 0x6667 (gf) else 4; a bit mask at +2, then one dword at +5 per set bit; each of the first N stats is set (FUN_00627260), an unset bit as 0. When FUN_0053fce0, life (6) and mana (8) are set to their max. Stamina ... (player-frontier.md)
+00532e90	oldsave_skills	Tag 0x6669 (if) else 5; one byte per class skill (FUN_00646140 count, FUN_006460f0 the id): a nonzero byte is that many points (FUN_0056deb0). Then FUN_0053c5d0 and d2d_passives_then_pet_limits; count + 2 bytes used (player-frontier.md)
+00533350	oldsave_items	Tag 0x4d4a (JM) and a word count; each item JM record (FUN_00532f30 parses, FUN_00531040 / FUN_00531390 adds, by its last argument) with its socketed items after it; a record equal (id fields) to one already read ... (player-frontier.md)
+00534800	player_npc_flags_alloc	Player data +0x60, +0x64, +0x68 each from FUN_00572560 (one per difficulty); +0x6c = 0. Only caller the player init FUN_005348c0 (player-frontier.md)
+00534f80	player_items_send	For a unit with an inventory (asserts it, line 0x187), each of its items: node kind 3 FUN_0053d090; the client's own player's kind 1 FUN_0053ed50, kind 2 FUN_0053ee70. Only caller FUN_00571f90 (player-frontier.md)
 00535060	player_busy	fastcall (unit): 0 for null / non-player; 1 when the interact flag (+0x6c, FUN_00554100) or a cursor item (FUN_0063c1e0 on +0x60) is set, else player data +0x4c; FUN_00548b00 case 1 talks only on 0 (collision.md "The pending interact's fields")
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
@@ -775,6 +782,13 @@ address	name	evidence
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 00545cd0	quest_level_warning	level record quest byte and predicate select warning when global enabled
 00545d40	quest_record_ctor	ESI record: memset 0xf8, +0/+4/+8/+9=1/+0x9c=0; verified quest_small.py
+005484b0	unit_mode_send	By the unit's mode (+0x10, 0 for none): the function in the 12-byte rows at 0x7319e8 (IsBadCodePtr asserts, line 0x148), called (client, mode). Callers FUN_00571f90, FUN_00580860 (player-frontier.md)
+005489f0	unit_stats_send	For a unit other than the client's player: each stat in the -1-ended list at 0x731ad8 (FUN_006253b0) sent through FUN_00548520. Only caller FUN_00571f90 (player-frontier.md)
+00548a80	units_other_act	EAX unit, stack unit: 2 when their rooms' levels are in different acts, else 0. Callers FUN_00549150, FUN_0054b930, the talk end FUN_0054b9f0 (player-frontier.md)
+005490e0	c2s_check_cursor_item	Asserts the player (line 0x463); 0 (accepted) when the id is an item in mode 4 that is the player's cursor item, else 1. Callers C->S 0x17 (drop, FUN_0054ab40) and others (player-frontier.md)
+005491b0	c2s_check_own_item	Asserts (line 0x491); accepted when the id is a stored or worn item (mode 0 or 1) in the player's inventory (FUN_0063ad50). Only caller C->S 0x28 (socket) FUN_0054b650 (player-frontier.md)
+00549220	c2s_check_inv_item	Asserts (line 0x4a8); accepted when the id is an item in the player's inventory that isn't the cursor item. Callers C->S 0x27 (identify with, FUN_0054b280), FUN_00549150, FUN_0054b380 (player-frontier.md)
+00549350	c2s_check_book	Asserts (line 0x503); by the item's mode: 0, 1, 2, 4 as c2s_check_inv_item; 3 (on the ground) refused in another act (units_other_act), else the reach check FUN_00548ef0. Callers C->S 0x29 (scroll to tome, ... (player-frontier.md)
 005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
 005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
 00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
@@ -889,7 +903,20 @@ address	name	evidence
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
 00563c00	cursor_item_drop_at_feet	ItemMode.cpp 0x833/0x834/0x837/0x85b/0x85e: cursor item (type 4, mode 4) to FUN_00555da0's spot via FUN_00558aa0, cursor cleared
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
+00566b30	trade_backup_make	EBX player: when player data +0x5c is free, a 0x18-byte record (line 0x806) and a 0x2000-byte buffer (line 0x807) with the player's items written in (FUN_00531bb0, line 0x809 if none), +0x10 the gold. Only caller ... (player-frontier.md)
+00566bf0	trade_backup_free	Frees player data +0x5c, its chain at +8 and the buffer (lines 0x822, 0x827, 0x82b) (player-frontier.md)
+00566d90	s2c_event_name_send	S->C 0x5a with a name (up to 15 characters, FUN_004135d0) to the client (FUN_005531c0, line 0x8ce; FUN_0053c850). Callers the party command FUN_005a5e50, FUN_00566e60, FUN_00567620 (player-frontier.md)
+00566e20	inv_has_cube_item	EAX player: 1 when any inventory item is on page 3 (the Horadric Cube, FUN_00628250). Only caller FUN_00567620 (player-frontier.md)
+00567330	player_interact_end	FUN_00554190(unit), then d2d_item_rebuild_scroll_skill_counts. Callers FUN_005350f0, FUN_005351c0 (player-frontier.md)
 005678a0	unit_interacts_with_player	EDX unit: interact flag +0x6c set, type +0x68 = 0 and FUN_00552f60 finds +0x64; FUN_00548b00 case 0 asks it of the player and of a corpse before FUN_0057fb70 (collision.md "The pending interact's fields")
+005678f0	trade_restore	When the player has a trade backup: S->C (line 0x84f, FUN_0053b3d0), FUN_005538d0, each cursor-mode (4) item (and the cursor item) back onto the changed list and flagged, the player stripped and its items re-read ... (player-frontier.md)
+00568760	trade_cancel_both	A thunk to FUN_00568640: when the player and its trade partner name each other, both get state 9 and event 0xd next frame, both restored and their backups freed, and S->C 0x77 (line 0xc2f). Only caller FUN_005350f0 (player-frontier.md)
+00568d80	strnlen_or_minus1	Fastcall (text, size): the length before a NUL within size, else -1. Only caller FUN_00568f20 (player-frontier.md)
+00568db0	oldsave_stub0	return 0. Only caller FUN_00534020 (player-frontier.md)
+005697b0	items_write_at	Writes the items (FUN_00531bb0) from *cursor up to end; a negative count returns 3, else advances the cursor and returns 0. Callers FUN_005697f0, FUN_00569ad0 (player-frontier.md)
+00569ec0	hotkey_decode	A save's hotkey word pair: 0xffff → skill -1, left 0, item -1; else skill = low 12 bits, left = bit 15, item = the second word (0 → -1). Only caller the header check FUN_0056a090 (player-frontier.md)
+00569f20	player_join_init	FUN_005378e0, FUN_00553180, the client's name onto the player, FUN_00552df0, FUN_00624690(unit, 1), player data +0x50, +0x54, +0x58, +0x5c = 0. Callers FUN_00569f80, FUN_0056a090 (player-frontier.md)
+0056af20	inv_nth_item_id	Fastcall (_, unit, n): the unit id of the n-th (from 1) item in its inventory list, -1 if none. Only caller FUN_0056af80 (player-frontier.md)
 0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
 0056de40	passives_then_pet_limits	fastcall (unit): FUN_00646f20, then a player (type dword +0 is 0) tail-jumps to FUN_00575900 with unit +0x80 in ECX; skills.md
 0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
@@ -900,8 +927,18 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+005749b0	pet_record_set	(owner, PetType row, pet id, 3 dwords): copies the dwords into that pet's node (+8, +0xc, +0x10) in the owner's list for the row (player data +0x44, 12 bytes a row). Callers FUN_00533c70, FUN_0056aa50 (player-frontier.md)
+00574c60	pet_list_free	Frees each node of a row's list (FUN_00574450, line 0x4a5) and zeroes its head and count. Only caller FUN_005754b0 (player-frontier.md)
+00574d90	pet_list_each_live	Each node without bit 0 whose unit exists: FUN_00574cc0. Only caller FUN_005754b0 (player-frontier.md)
+00575380	pets_release_far	Each live node whose unit is farther than the third argument (FUN_006492a0) from the given unit: released (FUN_005750e0(id, 1)). Only caller FUN_005754b0 (player-frontier.md)
+00575bc0	pet_lists_refit	For each PetType row from 1: FUN_00574570(player, list, row == 7, row == 7), then FUN_00575900. Callers FUN_0053acc0, FUN_0057fca0 (player-frontier.md)
 0057a980	unit_life_back	(points on the stack, unit in a register): 0 when points < 1, unit dead (FUN_005541b0) or in state 0x5c; else stat 6 + points capped at stat 7, returns max - cur when capped (combat.md "Life back")
 0057aa00	unit_mana_back	(points on the stack, unit in EDI): stat 8 + points capped at stat 9 (FUN_00625d60), returns max - cur when capped; no dead test (combat.md "Mana back")
+0057f070	player_event_ret1	return 1. In the player event table (0x6e1810 → FUN_005811d0) and FUN_006c9900 (player-frontier.md)
+0057f4f0	cursor_item_to_corpse	ESI player, EBX item: S->C 0x42 (line 0x27d) clears the cursor, the cursor item unset, the item flagged and on the changed list, FUN_00621000(player, 1). Only caller the death FUN_0057f700, pass -1 (player-frontier.md)
+0057f540	death_drop_no_corpse	See "Too many corpses" (player-frontier.md)
+005801e0	player_skill_pair	EBX unit, ESI 4 dwords: right skill's node id, left's node id (lines 0x57a, 0x56e), right skill id, left skill id (FUN_00643ad0); none: 0 and -1. Only caller FUN_00580310 (player-frontier.md)
+005805d0	life_fraction_128	Fastcall unit: (life >> 8) × 128 / (max life >> 8); 128 for null, a max under 1, or life at the max. Callers the potion rate FUN_005be3f0 and FUN_005beac0 (player-frontier.md)
 00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
 0057edd0	player_mode_may_start	EAX unit, ECX game, EBX new mode: 0 with a cursor item (unless mode 0 / 0x11), else by the unit's mode +0x10 (byte table 0x57eea8; 7, 8, 10, 0xb need FUN_0057ed70 or new mode 4 / 9) (collision.md "The pending interact's fields")
 0057eec0	player_may_act	fastcall (game, unit, mode, flag, skill): 0 for state 0x36, a null unit, mode 0 / 0x11; the dispatcher FUN_0054d750 calls it (1, 0, 0) so that is all it tests there; FUN_00580a70 adds the skill record test (collision.md "The pending interact's fields")
@@ -951,6 +988,8 @@ address	name	evidence
 005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
 005a23d0	boss_curse_apply	Cursed mod's per-enemy callback: Amplify Damage record 0x42 calcs, d2d_states_put_state, five stat slots set; monster-ai.md "Boss mods in the hit"
 005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
+005a5d20	party_each_client	FUN_00554630, then FUN_00540510(FUN_005a5c70, unit) and FUN_005407a0. Callers the party command FUN_005a5e50, FUN_006c9900 (player-frontier.md)
+005a5dc0	party_hostile_check	EAX player: in a party (FUN_00554630 ≠ -1), level (stat 0xc) above 8 walks the clients (FUN_005a5d50); else both units' state reset (FUN_005a60e0) and S->C (line 0x19c, FUN_005a5690(id, 3)). Only caller FUN_005a5e50 (player-frontier.md)
 005a6600	kill_drop_roll	stdcall (game, dropper, noNoDrop, record; record +8 the killer): level id, ilvl (FUN_00558200), class by superunique / champion (flag 4) / unique (flag 8) / normal, TreasureClass4 while the killer's quest lacks bits 15, 1, TCQuestCP, then FUN_0055afa0 (drops.md "The kill's drop roll")
 005a8910	missile_stat_roll	two stat reads on the missile, 0 if either < 1, lower end + optional bonus-stat term + seed draw (missiles.md "The roll helper")
 005a8c70	missile_fill_damage_record	ECX game, EDX missile, stack unit and 0x70-byte record: per element class (FUN_0064b0c0) rolls the missile's stats into the record, physical scaled by stat 0x19 / 0x79 / 0x7a and doubled by 0x8d (missiles.md "The record fill")
