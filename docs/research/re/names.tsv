@@ -699,7 +699,6 @@ address	name	evidence
 004f52a0	set_7c8cc4	Fastcall: DAT_007c8cc4 = ECX. Only caller FUN_0045aea0 (unnamed-frontier.md)
 004f59a0	window_handle_get	no args: returns the dword at 0x7c8cbc, the HWND (FUN_004f90a0 passes it to GetWindowRect); FUN_004fa550 and FUN_004f8fe0 pass it as ECX of the handler-table calls (net-join.md "D2Win shutdown")
 004f5a30	renderer_ready	A renderer (DAT_007c8cc0) and not DAT_007c8cb4. Callers FUN_00468770 and two more (unnamed-frontier.md)
-004f68e0	renderer_tile_draw	stdcall 9 args (ret 0x24): arg 1 to ECX, arg 2 to EDX, args 3..9 pushed, then calls [DAT_007c8cc0 + 0x7c] (gdi-driver.md)
 004f6f60	tile_rle_blit_a	(From its data:) a DT1 block blitter on the frame buffer (DAT_007d544c). Callers FUN_004f8050 and one more (unnamed-frontier.md)
 004f7580	tile_blit_iso	(From its data:) a tile blit with clipping against the view (0x7c97a0, 0x7ca318, 0x7d2334, 0x7d233c). Callers FUN_004f8050, FUN_004f88b0 (unnamed-frontier.md)
 004f7850	tile_blit_iso_lit	(From its data:) as tile_blit_iso with the light tables (0x7ca320, 0x7d2348). Callers FUN_004f8120, FUN_004f89f0 (unnamed-frontier.md)
