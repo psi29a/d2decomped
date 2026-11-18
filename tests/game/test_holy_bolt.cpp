@@ -81,8 +81,8 @@ int main() try {
     const int low_points = d2d::rules::eval_calc(data->skills, holy_skill->calc[0], world.fight.calc_env(), holy_skill->id, 1);
     const int high_points = d2d::rules::eval_calc(data->skills, holy_skill->calc[1], world.fight.calc_env(), holy_skill->id, 1);
     assert(low_points == 1 && high_points == 6);
-    world.rng = d2d::rules::Rng{ 99 };
-    d2d::rules::Rng expect = world.rng;
+    missile.seed = d2d::rules::Rng{ 99 };                  // the draw is on the missile's seed (+0x20, 0x5aa0a6)
+    d2d::rules::Rng expect = *missile.seed;
     const int span = (high_points << 8) - (low_points << 8);
     const int amount = int(expect(span)) + (low_points << 8);
     const int before = world.fight.monsters.back().life_fine();
