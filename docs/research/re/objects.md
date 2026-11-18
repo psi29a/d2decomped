@@ -341,9 +341,7 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   `kTrapLevel`, `kPoisonNova`, `trap_undead`). The trap monster isn't
   made: its one shot leaves the chest at once. A ring's missiles strike
   each foe once.
-- Simplified: no aip1 range check (whoever opens the chest is close);
-  trapfirebolt's fireexplode isn't spawned;
-  the fires last until a new game; trap 8's monsters stand up aware,
+- Simplified: the fires last until a new game; trap 8's monsters stand up aware,
   without mode 8, one step apart; the variant comes from the level's
   region rows (Levels' mon list and `FUN_006510c0` not read).
 - Traced: trap 1's chainlightning doesn't hop in game.exe either. Its hop

@@ -84,7 +84,8 @@ Out of single player's way, listed so they aren't lost: 0x74 corpses,
 0x11 leech, 0x90 party spots and 0x99 skill effects are read but not
 drawn; tooltip stats leave out auras, states and weapon masteries; live
 checks still owed (shrine overheads, leaving a cave, the gold box's
-Backspace, other units' states, a Battle Orders cast vs d2d's maxima).
+Backspace, other units' states, a Battle Orders cast vs d2d's maxima, a
+host monster's impact sounds on GH / KB / DT from S->C 0x0c).
 docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
 
 ## The long tail
