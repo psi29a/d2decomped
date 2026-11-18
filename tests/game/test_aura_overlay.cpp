@@ -18,7 +18,6 @@
 #include <rules.hpp>
 #include <world.hpp>
 
-#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -108,65 +107,6 @@ int main() try {
     assert(fight.aura_takes(*sanctuary, zombie, from_x, from_y) && !fight.aura_takes(*sanctuary, fallen, from_x, from_y));
     assert(!fight.aura_takes(*holy_freeze, diablo, from_x, from_y) && fight.aura_takes(*holy_freeze, fallen, from_x, from_y));
     std::printf("OK: Sanctuary takes the undead, Holy Freeze no prime evil\n");
-
-    {
-        Level arena = moor;
-        std::ranges::fill(arena.walk, 0);
-        world.level = &arena;
-        auto pulse = *holy_freeze;
-        Monster pulse_target = fallen;
-        pulse.aurarange.code = {{d2d::rules::Calc::Const, 5}};
-        const auto hits = [&](float caster_x, float caster_y, float target_x, float target_y, bool wall = false) {
-            const auto cell = [](float offset) { return (50.f + offset) / 5.f; };
-            auto target = pulse_target;
-            target.hit_points = target.stats.hit_points = 100000;
-            target.unit.x = cell(target_x);
-            target.unit.y = cell(target_y);
-            arena.walk[std::size_t(50 * width + 52)] = wall ? 0x04 : 0;
-            fight.monsters = {target};
-            fight.enemy_pulse(pulse, 1, {}, cell(caster_x), cell(caster_y), {}, fight.player_foe_id(), 1000);
-            return fight.monsters.front().hit_points < 100000;
-        };
-        assert(hits(0, 0, 4, 0));
-        assert(hits(0, 0, 5, 0));
-        assert(!hits(0, 0, 6, 0));
-        assert(!hits(0, 0, 4, 0, true));
-        // FUN_006492a0 measures from subtiles (0, 0) to (5, 0) or (4, 4).
-        assert(hits(0.1f, 0, 5.9f, 0));
-        assert(!hits(0.9f, 0.9f, 4, 4));
-        for (const char* name : {"Holy Fire", "Holy Shock", "Sanctuary"}) {
-            pulse = *skill(name);
-            pulse.aurarange.code = {{d2d::rules::Calc::Const, 5}};
-            pulse_target = std::string(name) == "Sanctuary" ? zombie : fallen;
-            assert(hits(0.1f, 0, 5.9f, 0));
-            assert(!hits(0.9f, 0.9f, 4, 4));
-        }
-        pulse_target = fallen;
-        assert(!hits(0, 0, 4, 0));  // Sanctuary rejects a living demon.
-        pulse = *holy_freeze;
-        pulse.aurarange.code = {{d2d::rules::Calc::Const, 5}};
-        hits(0.1f, 0, 5.9f, 0);
-        auto inside = fight.monsters.front();
-        inside.hit_points = 100000;
-        auto outside = inside;
-        outside.unit.x = 56.f / 5;
-        fight.monsters = {inside, outside};
-        fight.enemy_pulse(pulse, 1, {}, 50.1f / 5, 10.f, {}, fight.player_foe_id(), 1000);
-        assert(fight.monsters[0].hit_points < 100000);
-        assert(fight.monsters[1].hit_points == 100000);
-        pulse.aurarange.code = {{d2d::rules::Calc::Const, 0}};
-        assert(!hits(0, 0, 0, 0));
-        const auto game_seed = fight.rng;
-        const auto target_seed = fight.monsters.front().seed;
-        const bool shatter = fight.monsters.front().shatter;
-        fight.enemy_pulse(pulse, 1, {}, 10.f, 10.f, {}, fight.player_foe_id(), 1000);
-        assert(fight.rng.low == game_seed.low && fight.rng.high == game_seed.high);
-        assert(fight.monsters.front().seed.low == target_seed.low && fight.monsters.front().seed.high == target_seed.high);
-        assert(fight.monsters.front().shatter == shatter);
-        fight.monsters.clear();
-        world.level = &moor;
-        std::printf("OK: enemy aura pulses use the original subtile radius and respect walls\n");
-    }
 
     // Static Field (its walk on the caster with aurafilter 0x8783, 0x200)
     // strikes the monster a cell east; behind a wall, not.

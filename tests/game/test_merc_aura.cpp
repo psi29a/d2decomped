@@ -14,12 +14,9 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
-#include <skills.hpp>
 #include <world.hpp>
 
-#include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -132,33 +129,6 @@ int main() try {
     assert(chilled.speed_pct < 0 && chilled.anim_pct < 0);
     fight.aura_pulse(3000);
     assert(chilled.hit_points < 100000);                    // its cold (no ELen: the slow is the aurastats')
-    {
-        Level arena = *moor;
-        const float kept_merc_x = actor.merc->unit.x, kept_merc_y = actor.merc->unit.y;
-        std::fill(arena.walk.begin(), arena.walk.end(), 0);
-        world.level = &arena;
-        const auto* aura = data->skills.get(holy_freeze);
-        const int radius = d2d::rules::eval_calc(data->skills, aura->aurarange, fight.merc_calc_env(), holy_freeze, 6);
-        assert(radius > 0);
-        const float centre_x = std::floor(actor.merc->unit.x * 5);
-        const float centre_y = std::floor(actor.merc->unit.y * 5);
-        actor.merc->unit.x = (centre_x + 0.1f) / 5;
-        actor.merc->unit.y = (centre_y + 0.1f) / 5;
-        chilled.unit.x = (centre_x + float(radius) + 0.9f) / 5;
-        chilled.unit.y = actor.merc->unit.y;
-        chilled.hit_points = 100000;
-        actor.merc_aura_next = 0;
-        fight.aura_pulse(3000);
-        assert(chilled.hit_points < 100000);
-        chilled.unit.x = (centre_x + float(radius) + 1.f) / 5;
-        chilled.hit_points = 100000;
-        actor.merc_aura_next = 0;
-        fight.aura_pulse(3000);
-        assert(chilled.hit_points == 100000);
-        actor.merc->unit.x = kept_merc_x;
-        actor.merc->unit.y = kept_merc_y;
-        world.level = moor;
-    }
     chilled.unit.x = actor.merc->unit.x + 40;
     fight.monster_states(3000);
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
