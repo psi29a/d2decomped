@@ -1066,7 +1066,7 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (sub)
                     for (int k = 0; k < 64; k += std::max(missile_info.hit_par1, 1)) {
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
-                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y));
+                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y)).to = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_005abb00: flag 2
                     }
                 break;
             case 48: if (sub) sub_at(missile.x, missile.y, missile.target_x - missile.x, missile.target_y - missile.y); break;

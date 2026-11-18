@@ -216,7 +216,8 @@ int main() try {
         std::puts("OK: the nova traps aim round their rings");
     }
 
-    // Frozen Orb's spin (do 15, FUN_005af030: 0x6e2b78 / 0x6e2a78 at its turn), from the orb's subtile.
+    // Frozen Orb: its spin (do 15, FUN_005af030: 0x6e2b78 / 0x6e2a78 at its turn) and its burst (hit 29,
+    // FUN_005abb00: 0x6e2738 / 0x6e2638 every sHitPar1th), each from the orb's subtile.
     {
         const int orb_id = data->skills.by_name.at("Frozen Orb");
         fight.pending.clear();
@@ -245,6 +246,14 @@ int main() try {
         assert(spun > 2 && !on_subtile(fight.pending.back(), first_x, orb.y));
         std::printf("OK: Frozen Orb's %d spun shards aim at its turn\n", spun);
 
+        fight.pending.clear();
+        const int step = std::max(orb.info->hit_par1, 1);
+        orb.x = 103.1f; orb.y = 98.5f;   // a subtile it hasn't spun from
+        fight.burst(orb, 7000);
+        assert(int(fight.pending.size()) == (64 + step - 1) / step);
+        for (std::size_t k = 0; k < fight.pending.size(); ++k)
+            assert(on_subtile(fight.pending[k], orb.x, orb.y) && aims_at(fight.pending[k], d2d::rules::kNovaRing[k * std::size_t(step)][0], d2d::rules::kNovaRing[k * std::size_t(step)][1]));
+        std::printf("OK: Frozen Orb's burst of %zu aims round its ring\n", fight.pending.size());
         fight.pending.clear();
         fight.missiles.clear();
     }
