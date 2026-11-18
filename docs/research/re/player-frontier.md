@@ -19,8 +19,10 @@ the item comes off the player and a copy (`FUN_0055a2a0(item, 1)`) goes
 on the ground at a free spot near the player (`FUN_00555da0`,
 `FUN_00558aa0`). Then it reads the gold (stat 0xe), sets it to 0, and
 calls the gold drop `FUN_00535510` with the old amount (`0057f632`..
-`0057f65f`). That drop refuses an amount over the stat, now 0, so the
-purse is lost rather than dropped (bugs.md 121).
+`0057f65f`). That drop refuses an amount over the stat, now 0, so gold
+left then is lost rather than dropped (bugs.md 121). There is gold left
+only after a PvP death: the death's penalty (`FUN_005357d0`) empties the
+purse onto the ground unless the killer was a player or a player's pet.
 
 d2d differs: `World::make_corpse` (components/game/world/travel.cpp:340)
 always makes the corpse and, at 16, removes the oldest one, items and
