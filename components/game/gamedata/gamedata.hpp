@@ -1290,12 +1290,23 @@ std::optional<std::pair<int, int>> field_spot(const std::vector<std::uint8_t>& f
 
 // Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
 // if that's in a room, else (x, y), field_spot's free subtile (size 1, mask
-// 0x3e01, walk 0x801). None: the start.
+// 0x3e01, walk 0x801). None found: the start, as FUN_0064dea0 keeps it for
+// FUN_00555da0's flag (FUN_0055a550 passes 1), when it is in a room; else
+// FUN_00555da0 returns 0 and FUN_0055a550 makes no item: nullopt. (Which
+// room FUN_00463740 is asked, drops.md "Where a drop lands": `flags` stands
+// for it.)
 template <class Flags>
-std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+std::optional<std::pair<int, int>> drop_place(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
     int at_x = x + 2, at_y = y + 3;
     if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
-    return field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags).value_or(std::pair{ at_x, at_y });
+    if (const auto spot = field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags)) return spot;
+    if (flags(at_x, at_y) == 0x27) return std::nullopt;   // the start has no room (FUN_00463740)
+    return std::pair{ at_x, at_y };
+}
+// drop_place's spot, the dropper's own subtile (x, y) when none was made.
+template <class Flags>
+std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+    return drop_place(field, x, y, flags).value_or(std::pair{ x, y });
 }
 
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,

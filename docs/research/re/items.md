@@ -364,9 +364,25 @@ inventory have no player owner. The only other writer, `FUN_0057f390`,
 gives an owner id to the gold piles `FUN_0055a090` makes (from
 `FUN_0057f700`); gold has no replenish stat. A vendor's stock (the open
 window, the kept stock and gamble lists) runs too, unowned as the merc's.
-Not ported (`ponytail:` in components/rules/replenish.hpp):
-`FUN_0055f900`'s item flag 0x200 and
-hand-skill pass (`FUN_0055c5c0`), as for a smith's repair.
+`FUN_0055f900(game, owner, item)` (ECX, EDX, stack; `tools/emu/mend_flags.py`
+runs it): item flag 0x200 on and 0x100 off (`FUN_006280d0`, item data +0x18);
+for an owner with an inventory (unit +0x60) the item's stats go back on
+(`FUN_0055d970`, `FUN_0055dbc0`), its id is appended to the inventory's
+list at +0x2c (`FUN_0063cc70`) and the owner flagged for an update
+(`FUN_00621000`); a max durability above 0 (`FUN_00625e00`) is written as
+stat 0x48 and sent to the owner's client; `FUN_00663cc0(owner, item, 0, 0)`;
+and, for an owner, the hand-skill pass `FUN_0055c5c0`. Flag 0x200 is only
+read by a client notice (`.\INVENTORY\InvMode.cpp`, line 0xc5 / 0xcf) and
+kept by the item's save writer (`FUN_006312b0` clears only 0x80000), so it
+reaches the save. Ported: the flag (`kItemRepaired`, in `rules::mend` for a
+broken item and `rules::replenish_fire`; `tests/test_item_repaired.cpp`,
+oracle `tools/emu/mend_flags.py`), the stats and the durability as before.
+Not ported (`ponytail:` in components/rules/replenish.hpp): the hand-skill
+pass (`FUN_0055c5c0`: it drops a player's hand skill whose weapon is gone or
+refused, `weapon-switch.md` "Dropping hand skills"), as for a smith's repair:
+it needs the character's skills, not `rules/`. `FUN_00663cc0` and the
+inventory list / owner flag are client and unit bookkeeping d2d has no
+counterpart for.
 
 ### The item maker (`FUN_00558cb0`)
 

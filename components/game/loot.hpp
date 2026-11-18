@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -117,13 +118,17 @@ struct Loot {
         if (now_ms < blessed_until) magic_find += blessed_find;   // the wisps' dance (Fight::wisp_blessing)
         constexpr int kMost = 6;
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby, std::max(monster.players, 1));
         // FUN_0055a6d0 counts the drop before FUN_005589a0 (0x55af4c): the
         // one that fills the count leaves without gold find. A Hell Bovine's
         // drops are flagged 1 (FUN_0055a550): the Cow King set (29) drops.
-        for (std::size_t i = 0; i < drops.size(); ++i)
-            put(drops[i], monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == d2d::rules::monster_ids::kHellBovine,
-                int(i) + 1 < kMost ? gold_find : 0);
+        // Each is put as it is rolled (FUN_0055a550 places it, FUN_00555da0, as
+        // the roll makes it): a drop that finds no floor is not made, not
+        // counted, and takes nothing off the game seed.
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby, std::max(monster.players, 1),
+                               [&](const d2d::rules::Drop& dropped, int made) {
+                                   return put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms,
+                                              monster.type == d2d::rules::monster_ids::kHellBovine, made + 1 < kMost ? gold_find : 0);
+                               });
     }
     // One drop round (x, y). A made item (FUN_00555230) takes two steps of
     // the game seed (+0xd0): its unit seed {low, 666} (FUN_00552df0), then
@@ -131,11 +136,15 @@ struct Loot {
     // It lands where drop_spot finds room from the dropper's subtile; gold
     // times (100 + gold_find) / 100 (FUN_005589a0). `onto`: a level the
     // player isn't on (the forge's gems), its floor kept.
-    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false,
+    // False, nothing made and no seed step taken, when the spot search finds
+    // no room (FUN_00555da0 returns 0, FUN_0055a550 makes no item).
+    bool put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false,
              int gold_find = 0, const Level* onto = nullptr) {
         {
             GroundItem ground_item;
-            const auto spot = landing(x, y, onto);
+            const auto found = find_landing(x, y, onto);
+            if (!found) return false;
+            const auto& spot = *found;
             ground_item.x = spot.x;
             ground_item.y = spot.y;
             const Level* lands_on = spot.level == (onto ? onto : level) ? onto : spot.level;   // a neighbour's room: its floor
@@ -158,6 +167,7 @@ struct Loot {
             }
             land(std::move(ground_item), now_ms, lands_on);
         }
+        return true;
     }
     // FUN_00555da0 on the walk grids of the rooms FUN_0064ca50 finds
     // (FUN_00463740): the dropper's room and its near list (automap_rooms:
@@ -170,8 +180,13 @@ struct Loot {
     // spot (`onto`'s, this one's, or a neighbour's), (x, y) in its cells.
     struct Landing { const Level* level; float x, y; };
     [[nodiscard]] Landing landing(float x, float y, const Level* onto = nullptr) const {
+        return find_landing(x, y, onto).value_or(Landing{ onto ? onto : level, x, y });
+    }
+    // landing, or none where FUN_00555da0 finds no room (drop_place): FUN_0055a550
+    // then makes no item.
+    [[nodiscard]] std::optional<Landing> find_landing(float x, float y, const Level* onto = nullptr) const {
         const Level* where = onto ? onto : level;
-        if (where->walk.empty()) return { where, x, y };
+        if (where->walk.empty()) return Landing{ where, x, y };
         const auto rooms = automap_rooms(*game_data, *where, x, y);
         // The room holding subtile (at_x, at_y) of `where`, in act subtiles.
         const auto room_at = [&](int at_x, int at_y) -> const AutomapRoom* {
@@ -190,10 +205,12 @@ struct Loot {
             const int flags = (holder.walk[std::size_t(local_y) * std::size_t(width) + std::size_t(local_x)] & 0x01) | items_at(&holder, local_x, local_y);
             return &holder == level ? flags | units_at(local_x, local_y) : flags;
         };
-        const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), cell_flags);
+        const auto placed = drop_place(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), cell_flags);
+        if (!placed) return std::nullopt;
+        const auto [spot_x, spot_y] = *placed;
         const auto* room = room_at(spot_x, spot_y);
         const Level* holder = room ? room->level : where;
-        return { holder, (float(spot_x) + 0.5f) / 5 + float(where->world_x - holder->world_x), (float(spot_y) + 0.5f) / 5 + float(where->world_y - holder->world_y) };
+        return Landing{ holder, (float(spot_x) + 0.5f) / 5 + float(where->world_x - holder->world_x), (float(spot_y) + 0.5f) / 5 + float(where->world_y - holder->world_y) };
     }
     // landing's spot in `onto`'s cells (this level's), past its edge when a
     // neighbour's room took it.
