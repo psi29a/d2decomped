@@ -20,6 +20,7 @@
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -1106,6 +1107,8 @@ struct Spawning {
     // a3q7's +0xd4 (LAB_005bd2c0): the game's first player has seen the Dark
     // Wanderer (word 0x20 bit 0), its data +1 cleared: InitFn 43 makes none.
     bool wanderer_seen = false;
+    // Quest-record marker fields that outlive the levels containing them.
+    d2d::rules::MarkerRecords marker_records;
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
 };

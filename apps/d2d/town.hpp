@@ -786,6 +786,8 @@ struct Town {
     int den_flash = -1;
     bool den_seen = false, den_lit = false;
     std::vector<View::Shot> den_beams;
+    std::optional<View::Shot> cairn_flash;              // LAB_0046aee0: client missile 0x120 at StoneAlpha
+    void cairn_opened(std::uint32_t frame_ms);
     [[nodiscard]] int den_ambient() const;
     // The client's own fill, ahead of the level's light (FUN_0046bdd0): the
     // Den's, Diablo's release (rules::release_light), the dip; -1 none.
