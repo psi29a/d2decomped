@@ -30,23 +30,17 @@ Ranked by Seen, then by how much play it touches.
 | 9 | Unique monster mods: 14 spcdamage is in for the trap-melee (the chest trap monsters 0x146..0x14a are objects in d2d, their level and damage pairs unused), 34 ai_after_death is in (the Reanimated Horde rising again, Act 5), 15 partydead is in (Diablo's Bone Prison); left: where unit flags 0xe come back after the rise's S1; the trap-melee's first swing may run before hook 0's stat 0x13 (not traced) | build | maybe | monsters.md's hook table |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
-| 15 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game. Every server unit but a player, missiles too, takes a game seed step as it's made (FUN_00555230 -> FUN_00552df0: +0x28 the low, its seed {low, 666} by FUN_00650e40): d2d's missiles take none, so the game seed's later rolls (drops) drift after any missile |
 
 ## Sounds
 
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
-sounds play, 104 don't (2026-10-29). 97 of the 104 are traced as never
-played by stock 1.14d (the class quest phrases, the rogue confirms, 13 NPC
-lines and 6 monster rows), so d2d plays 3,416 of the 3,423 the original does
-(unit-sounds.md "In d2d").
+sounds play, 104 don't (2026-10-29). All 104 are traced as never played
+by stock 1.14d (unit-sounds.md "In d2d"), so in a game d2d hosts it
+plays every sound the original does (a joined game's gap: "Joined games").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
-to 70% and the menu's fade-out.
-
-| # | What | Count | Kind | Seen | Notes |
-|---|---|---|---|---|---|
-| 18 | Seven rows with no trigger traced either way: `event_desert_night_1..5` (no SoundEnviron row names them; the night may pick its event group by arithmetic, not traced), `scene_tavern_interior` (row 66, cathedral.wav), `monster_diablo_taunt_2` | 7 | trace | maybe | unit-sounds.md "In d2d"; every other code-played sound is wired or traced as never played (`tools/sound_coverage.py`: 3,416 of 3,520, the 97 others never played by stock) |
+to 70% and the menu's fade-out. Nothing open.
 
 ## Animation and drawing
 
@@ -65,7 +59,6 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 32 | Light Quality always high; unit shadows darken once | exact | hardly | deviations.md approximations 3–4 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 
@@ -88,7 +81,9 @@ a whole, the DS1 layer order, and the .d2s header and item bitstream.
 
 Out of single player's way, listed so they aren't lost: 0x74 corpses,
 0x11 leech, 0x90 party spots and 0x99 skill effects are read but not
-drawn; tooltip stats leave out auras, states and weapon masteries; live
+drawn; tooltip stats leave out auras, states and weapon masteries;
+monsters play no impact sound on GH / KB / DT (the host's hit class
+isn't read, unit-sounds.md "In d2d"); live
 checks still owed (shrine overheads, leaving a cave, the gold box's
 Backspace, other units' states, a Battle Orders cast vs d2d's maxima).
 docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".

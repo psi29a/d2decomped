@@ -25,7 +25,11 @@ its EDX, run after the path is set.
 - No target unit and target = start: target + (1, 1). Over 99 subtiles
   off on an axis: no missile.
 - The unit (FUN_00555230, type 3) stands at the start subtile; mode =
-  CollideType. Range + LevRange × lvl frames (+0x10 of the missile data,
+  CollideType. Its seed (+0x20) is {a game seed step, 666} (FUN_00552df0 ->
+  FUN_00650e40, after the range checks above): every server missile steps
+  the game seed once, so later drops roll on. Hit function 7's heal draw
+  (FUN_005a9fb0, 0x5aa0a6) is on that seed. d2d: `Missile::seed`, given at
+  the frame's first `Fight::missile_tick` (the Cairn Stones' where made). Range + LevRange × lvl frames (+0x10 of the missile data,
   a short) and Range − Activate (+8).
 - Path: type 4 with flag 0x40000 (FUN_00649760 → FUN_006492f0): one point,
   the target; position (16.16) the start subtile's centre; unit vector

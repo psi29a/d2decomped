@@ -735,6 +735,10 @@ struct Missile {
     bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
     int striker = -1;                         // a summon's (a Shadow's): its Monster::id, whom its hits are struck by
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
+    // Its unit seed (+0x20): {a game seed step, 666}, as FUN_0059fa30 makes it
+    // (FUN_00555230 type 3 -> FUN_00552df0 -> FUN_00650e40). Fight::missile_tick
+    // gives it to all but a visual-only one.
+    std::optional<d2d::rules::Rng> seed;
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).

@@ -65,8 +65,12 @@ monster-ai.md.
     MonStats2 `large` one, 0x80 (always) a `small` one (byte +5 & 8 / & 4,
     masks [0x6ce274] / [0x6ce270]; the column list at 0x6580a5 puts large
     at flags bit 11, small at 10). Crushing blow (136, func 16,
-    `FUN_005bffc0`) is a seed draw % 100 under the value: current life
-    (stat 6) / a divisor, after the hit. The divisor: 10 for a player or a
+    `FUN_005bffc0`) is a seed draw % 100 under the value: the life the
+    target has BEFORE the hit (stat 6 in 256ths: the handler runs at the
+    strike event 5 or 6, which `FUN_0057c6c0` raises before
+    `LAB_0057c852` takes the record's damage; `tools/emu/crush.py order`)
+    / a divisor; the leech of the same blow is cut to the life it leaves
+    (`0x57c7f8`, `crush.py pair`). The divisor: 10 for a player or a
     hireling (`FUN_0063ee90`: classes 0x10f, 0x152, 0x167, 0x230, 0x231);
     for another monster (a pet, or one made a foe by Confuse or Attract) 4,
     8 for a MonStats boss (+0xc & 0x40, `FUN_0063e9f0`) or a unique (data
@@ -78,7 +82,9 @@ monster-ai.md.
     50 % cap. Life is set to the rest (0 at most: result flag 2), state
     0x93 on when it took any. d2d: `Foe::knock_under` / `crush_divisor`
     (`game::monster_foe_props`), `game::crushing_blow`; a monster foe
-    takes its crushes and knockback (`Fight::knock_back`) after the hits.
+    takes its crushes and knockback (`Fight::knock_back`) after the hits, so
+    its crush still reads the life the hits left (a player's crush,
+    `rules::player_blow`, reads the life before).
     Stupidity (`FUN_005bfaa0`) acts on monster targets only; fade is
     drawn by the client; fire mastery reaches only missiles the monster
     owns, and the Council's and baalhighpriest's fire comes from their

@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -192,6 +193,22 @@ int main() try {
     const BorderRoom across{ 9, 0, 1, 1, 80 };
     border_grid.paint_border_rooms(10, 0, std::array{ across });
     assert(border_grid.at(-2, 0) == 80 && border_grid.at(-1, 4) == 80 && border_grid.at(0, 0) == 40);
+
+    // Light Quality (FUN_00475780): Low is 0; Medium and High 2 at 25 fps. Drawing
+    // 11 frames a second for 3 s gives 1, held 2000 ms after the last change.
+    LightQuality low;
+    assert(low.frame(0, 100) == 0);
+    LightQuality quality;
+    std::uint32_t now_ms = 5000;
+    assert(quality.frame(1, now_ms) == 2 && quality.frame(2, now_ms + 40) == 2);
+    for (int frame = 0; frame < 33; ++frame) quality.frame(2, now_ms += 91);
+    assert(quality.frame(2, now_ms += 91) == 1 && quality.fps == 11);
+    assert(quality.frame(0, now_ms += 91) == 1);                  // Low inside 2000 ms: held
+    assert(quality.frame(0, now_ms += 2001) == 0);
+    // At quality 0 (FUN_004748d0): another player's type 0 over 15 eighths is 16, a type 1 light 8.
+    assert(light_radius8(0, 0, false, 104) == 16 && light_radius8(0, 0, true, 104) == 104);
+    assert(light_radius8(0, 1, false, 40) == 8 && light_radius8(0, 1, false, 0) == 0 && light_radius8(0, 3, false, 40) == 0);
+    assert(light_radius8(1, 1, false, 40) == 40);
     std::puts("test_light: ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_light: %s\n", error.what());
