@@ -15,11 +15,12 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <utility>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     d2d::test::TestData fixture;
     fixture.monster(0, "living");
     fixture.monster(1, "undead").undead = true;
@@ -106,4 +107,8 @@ int main() {
         assert((fight.monsters.front().hit_points < 100000) == expected);
     }
     std::puts("OK: synthetic aura pulse radius, filters, seeds and mercenary dispatch");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }
