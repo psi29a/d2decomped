@@ -22,6 +22,7 @@
 #include <d2s_write.hpp>
 #include <uniques.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -129,6 +130,9 @@ inline void monster_look(Out& out, const Monster& monster) {
     for (const int mod : monster.mods) out.u8(mod);
     npc(out, monster.npc);
     out.i32(monster.anim_pct).i32(monster.aura_rate).i32(monster.props.ias).i32(monster.props.fcr);
+    // Its resists' sources (Monster::target): the hover bar's immunity lines (rules::immunity_lines).
+    out.u8(monster.difficulty);
+    for (const int resist : monster.boss_res) out.i32(resist);
 }
 inline void monster_look(In& input, Monster& monster) {
     monster.type = input.get<std::int32_t>(); monster.stats.hit_points = input.get<std::int32_t>(); monster.stats.level = input.get<std::int32_t>();
@@ -140,6 +144,8 @@ inline void monster_look(In& input, Monster& monster) {
     monster.aura_rate = input.get<std::int32_t>();
     monster.props.ias = input.get<std::int32_t>();
     monster.props.fcr = input.get<std::int32_t>();
+    monster.difficulty = std::clamp(int(input.get<std::uint8_t>()), 0, 2);
+    for (auto& resist : monster.boss_res) resist = input.get<std::int32_t>();
 }
 inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);

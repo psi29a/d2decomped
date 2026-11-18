@@ -221,6 +221,23 @@ inline int bar_name_colour(Boss kind, std::string_view monstats_id) {
     return kind == Boss::champion ? kNameBlue : kind == Boss::unique || kind == Boss::superunique ? kNameGold : kNameWhite;
 }
 
+// The hover bar's immunity lines (client FUN_004526c0, the last call of
+// FUN_00454ad0): over the six rows at 0x6d6418 (`kImmunities`, in
+// ResDm..ResPo order), each resist over 99 adds its string as a line, in
+// its font colour. None for MonStats rows 0x2c0..0x2c5, the six Ubers
+// (unit +4, by MonStats Id here). tools/emu/immunity_table.py.
+struct Immunity { int stat; std::uint16_t string; int colour; };
+inline constexpr std::array<Immunity, 6> kImmunities{ { { 36, 0x2765, 4 }, { 37, 0x2766, 8 }, { 39, 0x2761, 1 },
+                                                        { 41, 0x2763, 9 }, { 43, 0x2762, 3 }, { 45, 0x2764, 2 } } };
+inline std::vector<Immunity> immunity_lines(std::string_view monstats_id, const std::array<int, 6>& resists) {
+    static constexpr std::array<std::string_view, 6> kUbers{ "uberduriel", "uberandariel", "uberizual", "uberdiablo", "uberbaal", "ubermephisto" };
+    std::vector<Immunity> lines;
+    if (std::ranges::contains(kUbers, monstats_id)) return lines;
+    for (std::size_t index = 0; index < kImmunities.size(); ++index)
+        if (resists[index] > 99) lines.push_back(kImmunities[index]);
+    return lines;
+}
+
 // The MonSounds row a monster plays (client FUN_004ca410, UnitSnd.cpp): a
 // superunique's own SuperUniques MonSound (record +0x18) when set (the
 // Countess's, the Smith's); else, for flag 8 or 0x10 (champions, uniques,

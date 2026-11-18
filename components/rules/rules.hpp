@@ -916,6 +916,11 @@ inline int repair_all_cost(const Tables& tables, const Store& store, const std::
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return std::int32_t(std::uint32_t(cost));
 }
+// Whether a death makes a corpse (FUN_0057f700): the live corpse count
+// (FUN_0063d5f0) against 0xf, unsigned (jbe at 0x57f730). Over 15,
+// FUN_0057f540 drops the gear instead and there is no corpse.
+// tools/emu/corpse_cap.py.
+constexpr bool death_makes_corpse(int corpses) { return unsigned(corpses) <= 15; }
 // Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
 // them oldest first, one with items scores 1 + each non-gold item's repair
 // cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at
