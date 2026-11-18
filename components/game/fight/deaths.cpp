@@ -444,7 +444,12 @@ auto Fight::merc_share(const Monster& monster) -> void {
         header.merc_exp = d2d::rules::merc_kill_exp(header.merc_exp, award, merc_blow, merc_level,
                                                     int(actor->character.stats.get(d2d::d2s::kLevel)));
         merc_level_stats();
-        if (actor->merc_st.level > merc_level) d2d::log::info("{}'s mercenary reaches level {}", actor->character.name, actor->merc_st.level);
+        if (actor->merc_st.level > merc_level) {
+            // FUN_0057e860 -> FUN_00572840: the level-up sets its base max life (stat 7, 0x5729d1)
+            // and its life (stat 6, 0x5729dc) to the same value, its items' max life left out.
+            actor->merc->set_life_fine(actor->merc_st.life * 256);
+            d2d::log::info("{}'s mercenary reaches level {}", actor->character.name, actor->merc_st.level);
+        }
     }
 
 auto Fight::drop_counts() -> std::pair<int, int> {

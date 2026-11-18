@@ -103,6 +103,10 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         for (std::size_t k = 0; k < 4; ++k)
             res[k] = int(std::clamp<std::int64_t>(actor->merc_st.resist + sum[std::size_t(kResStat[k])] + penalty, -100, std::min<std::int64_t>(75 + sum[std::size_t(kResStat[k] + 1)], 95)));
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, stats, gains, int(defense), res);
+        // Not modelled for the merc yet: game.exe's absorb (FUN_0057bf10) and its heal-back (FUN_0057a980) read the struck unit's
+        // stats whatever its type, so a hireling's absorb gear would lower the hit and heal it too. The absorb without the heal on
+        // the merc's life would be half the rule, so the merc takes none, as before.
+        fighter.absorb_pct = {}; fighter.absorb_flat = {};
         fighter.block = 0;
         if (const auto found = shield && actor->merc_npc && actor->merc_npc->hc_idx != 0x167 ? game_data->rules.item_base.find(shield->code) : game_data->rules.item_base.end();
             found != game_data->rules.item_base.end())

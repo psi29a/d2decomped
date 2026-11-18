@@ -756,8 +756,12 @@ ids).
 - **0x5b player joins** (var; `0x45e4e0`, builder `FUN_0053c940`): +1
   u16 length, +3 u32 id, +7 u8 class, +8 char[16] name, +0x18 u16 level,
   +0x1a u16 party (0xffff none), +0x1c, +0x1e u16 0, +0x20 u16 **(?)**,
-  +0x22 two NUL strings (account / realm **(?)**).
-- **0x5c player leaves** (5): +1 u32 id.
+  +0x22 two NUL strings (account / realm **(?)**). `FUN_0047a6f0`
+  (`0x45e525`): the roster record, a new one at the list's head, then the
+  regroup (party.md "The party groups").
+- **0x5c player leaves** (5): +1 u32 id. `0x45e530` -> `0x47a8b0` (not in
+  Ghidra's function list; only jumps reach it): the roster record out, then
+  the regroup.
 - **0x65** (7): +1 u32 id, +5 i16 (kills, roster +0x18). `0x45e6b0` ->
   `0x479b10`: the record by id (none: dropped), the word sign-extended into
   +0x18, then the regroup. d2d keeps it (`NetGame::Unit::sort_key`); the
@@ -793,7 +797,8 @@ ids).
   unreachable (`FUN_006221a0` already faults on that). Not traced:
   `FUN_0055b4c0`'s own callers, `param_1`, or what the id/word pair mean
   (friend, ignore, hostile).
-- **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22).
+- **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22;
+  `0x45ea90` -> `0x47a330` (likewise): a known record regroups).
 - **Party portraits** (`FUN_00494020`): the other players in our party
   (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets by PetType.txt
   row (icontype 1 `FUN_00493e10`, 2 `FUN_00493eb0` with the count in Font6
