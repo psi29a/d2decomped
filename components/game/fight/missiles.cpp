@@ -733,7 +733,8 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
         // not on the missile, so that roll is 0. Returns 1: it ends and does
         // not strike. The draw is on the missile's seed (+0x20, 0x5aa0a6).
-        // ponytail: ProgOverlay (+0x36) is not kept.
+        // Healed, whatever the amount, it gets the row's ProgOverlay (+0x36,
+        // over 0) as a one-shot (FUN_00621e40): Holy Bolt's healing.
         if (missile_info.hit_func == 7) {
             const bool players_bolt = missile.friendly && !missile.by_merc;
             const int struck_id = monsters[monster_index].id;
@@ -745,18 +746,18 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const int high_points = calc(*skill, skill->calc[1], missile.level);
                 const int span = (high_points << 8) - (low_points << 8);
                 const int amount = (missile.seed ? (*missile.seed)(span) : 0) + (low_points << 8);
-                const auto mend = [](Monster& monster, int added) {
+                const int overlay = game_data->overlay_row(missile_info.prog_overlay);
+                const auto mend = [&](Monster& monster, int added) {
+                    if (overlay > 0) { monster.flash_overlay = overlay; monster.flash_at = now_ms; }
                     if (added <= 0) return;
                     int life = monster.life_fine() + added;
                     const int cap = monster.max_life_fine();
                     if (life > cap) life = cap;
                     monster.set_life_fine(life);
                 };
-                if (amount > 0) {
-                    mend(monsters[monster_index], amount);
-                    for (auto& pet : actor->pets)
-                        if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
-                }
+                mend(monsters[monster_index], amount);
+                for (auto& pet : actor->pets)
+                    if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
                 return true;
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monsters[monster_index].type)];

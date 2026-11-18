@@ -800,6 +800,7 @@ struct GameData {
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound
                          int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
+                         std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /

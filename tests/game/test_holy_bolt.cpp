@@ -89,6 +89,9 @@ int main() try {
     assert(world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == std::min(before + amount, world.fight.monsters.back().max_life_fine()));
     assert(world.actor->pets.back().monster.life_fine() == world.fight.monsters.back().life_fine());
+    const int healing = data->overlay_row(bolt->second.prog_overlay);   // ProgOverlay (+0x36) on the healed unit, a one-shot
+    assert(bolt->second.prog_overlay == "healing" && healing > 0);
+    assert(world.fight.monsters.back().flash_overlay == healing && world.fight.monsters.back().flash_at == 1000);
 
     world.actor->pets.clear();
     world.fight.monsters.back().hit_points = 10;
@@ -101,7 +104,7 @@ int main() try {
     missile.skill = fist->second;
     assert(!world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == untouched);
-    std::printf("OK: Holy Bolt heals the caster's pet by calc1..calc2\n");
+    std::printf("OK: Holy Bolt heals the caster's pet by calc1..calc2, its ProgOverlay on it\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "holy bolt: %s\n", error.what());
