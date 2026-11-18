@@ -350,9 +350,10 @@ struct Monster {
     std::uint32_t flash_at = 0;
     std::uint32_t aura_next = 0;
     int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
-    // Skills' states on it (their auratargetstate): one curse at a time
-    // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
-    // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
+    // Skills' states on it (their auratargetstate): one curse state at a time
+    // (Amplify Damage .. Lower Resist, Confuse, Attract, Battle Cry, Taunt,
+    // Cloak of Shadows' blindness, Bloodlust), one other (Inner Sight, Slow
+    // Missiles, Conversion, a monster's war cry).
     // `swaps`: its end toggles the AI back (FUN_005c3370: Dim Vision's,
     // Terror's, Cloak of Shadows').
     struct SkillState { int skill = -1, level = 0; std::uint32_t until = 0; bool swaps = false; };
@@ -1302,7 +1303,8 @@ inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables
 }
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).
+// A timed state on a monster in its slot, a curse state in the curse slot
+// whichever is named (FUN_0056e970), and a state's end (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 

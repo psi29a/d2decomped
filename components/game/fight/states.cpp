@@ -63,14 +63,17 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // (the put fails); else the one there comes off (end_state).
 // ponytail: d2d keeps one curse and one other state; game.exe's other
 // states don't take each other's place.
-bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms) {
-    // A curse state (States.txt curse, FUN_0063a420) put on a unit with state 0x39 (Attract, in d2d's
-    // curse slot) is refused, in either slot (Taunt, Battle Cry and Cloak's go in the other), a re-cast
-    // of Attract included (FUN_0056e970 0x56ea40..0x56ea4a).
+bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot_named, Monster::SkillState next, std::uint32_t now_ms) {
+    // A curse state (States.txt curse, FUN_0063a420) goes in the unit's one curse node (FUN_00625760, kind
+    // 0x20) whoever puts it: Taunt's, Battle Cry's, Cloak's and the Overseer's Bloodlust (put in the other
+    // slot by their callers) share it with the curses (FUN_0056e970 0x56ea0a..0x56ead3).
+    // On a unit with state 0x39 (Attract) it's refused, a re-cast of Attract included (0x56ea40..0x56ea4a).
     const auto* incoming = game_data.skills.get(next.skill);
     const auto incoming_state = incoming ? game_data.states.find(incoming->auratarget) : game_data.states.end();
-    if (incoming_state != game_data.states.end() && incoming_state->second.curse && monster.curse.skill >= 0 && now_ms < monster.curse.until)
+    const bool curse = incoming_state != game_data.states.end() && incoming_state->second.curse;
+    if (curse && monster.curse.skill >= 0 && now_ms < monster.curse.until)
         if (const auto* held = game_data.skills.get(monster.curse.skill); held && held->auratarget == "attract") return false;
+    auto& slot = curse ? monster.curse : slot_named;
     if (slot.skill >= 0 && now_ms < slot.until && slot.skill == next.skill) {
         if (slot.level == next.level) { slot.until = next.until; return true; }
         if (slot.level > next.level) return false;

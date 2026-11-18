@@ -40,8 +40,8 @@ struct Act5Ai : ThinkCtx {
     void minion_search(int hurt_reach, int free_reach) {
         const int minion = int(game_data.mon_bin[0x1c5]);
         const auto lusted = [&](const Monster& other) {
-            const auto* lust = game_data.skills.get(other.cry.skill);
-            return lust && lust->srvdofunc == d2d::rules::ServerDoFunction::kOverseerWhip && now_ms < other.cry.until;
+            const auto* lust = game_data.skills.get(other.curse.skill);             // a curse state: put_state's curse slot
+            return lust && lust->srvdofunc == d2d::rules::ServerDoFunction::kOverseerWhip && now_ms < other.curse.until;
         };
         for (const int found : near_order([&](const Monster& other) {
                  return &other != &monster && game_data.monsters.types[std::size_t(other.type)].base == minion && other.alive() && d2d::rules::friends(monster.align, other.align) && !lusted(other);
