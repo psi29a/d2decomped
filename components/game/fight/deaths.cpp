@@ -123,6 +123,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                 const auto& per_difficulty = type_info.diff[std::size_t(std::clamp(monster.difficulty, 0, 2))];
                 if (monster.rising && monster.mode != "S1") monster.rising = false;
+                // A death animation that ran out while no hero was near (monster_update, which ends it, is not
+                // called out of range) is over before event 7 is delivered: the corpse is in DD, as FUN_005a3910 finds it.
+                if (monster.mode == "DT" && !monster.alive() && now_ms >= monster.mode_until) set_mode(*game_data, monster, "DD", now_ms);
                 if (monster.rise_at && now_ms >= monster.rise_at) {
                     monster.rise_at = 0;
                     Crowd crowd_now;

@@ -123,11 +123,23 @@ int main() try {
     // A death between two boss_events passes (a missile's kill, then a portal trip past the death's end) still
     // queues the rise: hook 1 runs as the mode changes, and the corpse in DD is raised when event 7 is delivered.
     make();
+    fight.monsters[0].hit_points = 0;                             // dead, as a kill leaves it
     set_mode(data, fight.monsters[0], "DT", 1000);
     assert(fight.monsters[0].rise_at == 1000 + 21 * 40);
     set_mode(data, fight.monsters[0], "DD", 1500);
     fight.boss_events({}, 5000);
     assert(fight.monsters[0].mode == "S1" && fight.monsters[0].ai_state == 1);
+    // Out of every hero's update range monster_update never ends the death animation: boss_events does, then
+    // the due rise finds the corpse in DD (an event inside the animation still waits, as above).
+    make();
+    fight.monsters[0].hit_points = 0;
+    set_mode(data, fight.monsters[0], "DT", 1000);
+    assert(fight.monsters[0].mode_until > 1000 + 21 * 40);
+    fight.boss_events({}, 1000 + 21 * 40);
+    assert(fight.monsters[0].mode == "DT" && !fight.monsters[0].alive());
+    fight.monsters[0].rise_at = fight.monsters[0].mode_until;
+    fight.boss_events({}, fight.monsters[0].mode_until);
+    assert(fight.monsters[0].mode == "S1" && fight.monsters[0].alive());
     std::puts("test_ai_after_death_rise: ok");
     return 0;
 } catch (const std::exception& error) {
