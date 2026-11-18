@@ -1,0 +1,39 @@
+# SOURCE frontier — game.exe 1.14d
+
+The 26 `SOURCE` rows (Storm, statically linked) of
+`build/gaps/functions.tsv` with `frontier = true` on 2026-11-18. The
+module's cited functions are in [source-module.md](source-module.md).
+Read from the decompile; no oracle was run for these rows. Re-check with
+`tools/ghidra/fn.py <address>`. The **d2d** column is as in
+[game-frontier.md](game-frontier.md). d2d reads MPQs through StormLib and
+uses the standard library for the rest, so most rows have no counterpart.
+`FUN_0041c340` is Storm's set-last-error (0x57 invalid parameter).
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_004164a0` | `storm_set_77904c` | `DAT_0077904c` = the argument. Only caller `FUN_0040a390` | no counterpart |
+| `FUN_00416570` | `storm_set_power2_option` | A power of two (or 0) into `DAT_00708348`; anything else sets error 0x57. Only caller `FUN_0040a390` | no counterpart |
+| `FUN_00418140` | `sfile_handle_info` | Under the SFile lock, finds the open file whose `+8` is the handle; kind (`+0x18`) 4 sets error 0x85100072; kinds 0 and 1 return 1 with nothing more; others also give `+0x2c` (after `FUN_00415760`). Out: that value and `+0x24`. An unknown handle sets 0x85100072. Callers the sound mix `FUN_00515890`, `FUN_00516250` | no counterpart: d2d's sounds come from StormLib reads |
+| `FUN_00419a80` | `sfile_close` | Under the lock: drops the record's archive reference (freed at 0) or closes its handle (`FUN_004198d0`); unlinks it from its list (default `0x708358`); its count `+0x148` (`+0x52` dwords) drops and it is freed ("delete") at 0. Callers `FUN_0041b680`, `FUN_00435230`, `FUN_005173ac`, `FUN_0051e6d0`, `d2d_patch_apply`, `FUN_0051fab0` | no counterpart (StormLib) |
+| `FUN_0041ba60` | `sfile_open_plain` | Opens a plain file as an archive record: name required (0x57), made absolute unless it starts with `\` or a drive spec, `CreateFileA` read; a 0x25c-byte `AUARCHIVEREC` (`SFile.Storm`) with the path, handle, flags from the third argument (bit 0 needs `FUN_00415960`, bits 1, 2), a 0x20-byte block (line 0x1052), the file size; `FUN_0041b6b0` finishes. Error 0xf when bit 0 is set and the check fails. Callers as `sfile_close` and `FUN_00517079` | no counterpart (StormLib) |
+| `FUN_0041c1f0` | `rtti_name_short` | A name of the form `.?AU<name>@...` (at least 6 characters): `<name>` up to `?` or `@`, trailing `_` trimmed, between two fixed strings (`0x6cf328`, `0x6cf324`), into `ESI` (`EBX` characters); 1, else 0. Only caller `FUN_0041caf0` | no counterpart |
+| `FUN_0041d200` | `mem_compare` | `memcmp` (dword steps, then bytes): -1, 0 or 1. Callers `FUN_0040d290`, `FUN_0041d300`, `d2d_warden_verify_signature`, `d2d_warden_module_load` | no counterpart (the standard library) |
+| `FUN_0041fd40` | `slog_open` | `CreateFileA` for writing (shared read and write, create always); a new log id (`DAT_00779230` + 1) out; a log record (`FUN_0041fa80`) takes the handle; 1. An empty name or null out sets 0x57. Callers the gateway and Battle.net logs `FUN_00518300`, `d2d_bnclient_api`, `FUN_00518c70`, `FUN_00518d40` | no counterpart: d2d logs through `d2d::log` |
+| `FUN_00420190` | `slog_printf` | Formats into the log record's buffer (`vsprintf`), also to `OutputDebugStringA` while `DAT_007790ac`; flushed (`FUN_0041fa40`) past 0xbfff bytes. Callers `FUN_00518300`, `FUN_00518d40` | no counterpart (as `slog_open`) |
+| `FUN_00420310` | `storm_get_7792f4` | Returns `DAT_007792f4`. Only caller `FUN_0041caf0` | no counterpart |
+| `FUN_004210a0` | `sbig_grow_step` | Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at `+0xc`. Callers `FUN_00420c50`, `d2d_sbig_import_le`, `FUN_00423b30` | no counterpart: d2d has no SRP or Warden big numbers |
+| `FUN_004216e0` | `sbig_resize` | The dword buffer `+8` to n entries (`FUN_004133d0`, else a new block with the old entries copied and the old freed); `+0` = n | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421e10` | `sbig_temps_ctor` | Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at `+0x14`, zeroes `+0x154..+0x164`. Only caller `FUN_00423950` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421fe0` | `sbig_reserve` | Makes room for `+0x10` + n entries: grows (by `+0xc`, else `sbig_grow_step`, rounded up to its multiple) and zero-fills the new part (`FUN_0041d300`), `+4` = that size | no counterpart (as `sbig_grow_step`) |
+| `FUN_004235f0` | `sbig_zero` | `EAX` number: count `+4` = 0, then `FUN_00421cb0` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00424e40` | `sbig_delete` | Non-null: `FUN_00421d80`, then freed ("delete"). Callers `FUN_0041d300`, `FUN_00425330`, `d2d_warden_verify_signature`, `FUN_0052a120` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00425150` | `sbig_pow_mod` | base^exp mod m with 2-bit windows: temporaries from the `EAX` pool (`+0x140` its top), the base and its square and cube, then two squarings and a multiply-reduce (`FUN_00424b00`, `FUN_00423dc0`) per two exponent bits. Only caller `FUN_00425330` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00425d90` | `sha1_init` | Count 0, state 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 (SHA-1). Callers `FUN_0041d300`, `d2d_warden_digest`, `FUN_0051dbf0` | no counterpart: d2d has no Battle.net or Warden client |
+| `FUN_00425dd0` | `sha1_update` | Adds n × 8 to the 64-bit bit count, buffers to 64 bytes at `+0x1c` and runs the block function (`FUN_00425850`) per full block | no counterpart (as `sha1_init`) |
+| `FUN_00425f00` | `sha1_final` | Pads (`0x708890`) to 56 mod 64, appends the count, writes the five state words big-endian (20 bytes) | no counterpart (as `sha1_init`) |
+| `FUN_006c50d0` | `tga_header_ok` | `EAX` header: image type 1, 2, 9 or 10, no interleave bits (`+0x11` & 0xc0); a true-colour image (map type 0) 24-bit with no alpha bits or 32-bit with 8; a mapped one (map type 1) 8-bit with at most 256 entries of 24 or 32 bits. Callers `FUN_006c3b50`, `FUN_006c5730` | no counterpart: d2d loads no TGA |
+| `FUN_006c5150` | `tga_palette_read` | The colour map (first index `+3`, count `+5`, entry bits `+7`) into 256 four-byte entries, B G R swapped to the palette's order, the rest zeroed; 0 when the size doesn't match | no counterpart (as `tga_header_ok`) |
+| `FUN_006c5210` | `tga_pixels_read` | Pixels into the buffer, flipped by the origin bits (`+0x11` bits 4, 5); types 1 and 2 raw, 9 and 10 run-length (a byte with bit 7: a run of (b & 0x7f) + 1 copies, else b + 1 literal pixels); 0 on a short buffer or another type | no counterpart (as `tga_header_ok`) |
+| `FUN_006c59c0` | `rows_copy_flipped` | Copies `EAX` rows of the given width bottom-up (source from its last row); any zero argument sets 0x57. Callers `FUN_006c5830`, `FUN_006c60f0` | no counterpart |
+| `FUN_006c5cf0` | `pcx_rle_decode` | PCX run-length: a byte at 0xc0 or above is a run of (b & 0x3f) copies of the next byte, else one literal; planes interleaved (`param_6` bytes a pixel, plane by plane), lines `param_5` bytes with `param_4` kept. Callers `FUN_006c60f0`, `FUN_006c6990` | no counterpart: d2d loads no PCX |
+| `FUN_006c5f40` | `image_kind` | By the first word (`AX`): 0x50a (PCX) 2, `BM` 1, else 3 (TGA). Only caller `FUN_006c6a80` | no counterpart |
