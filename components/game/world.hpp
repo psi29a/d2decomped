@@ -100,11 +100,14 @@ struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
 // An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
 // 7 refused}, FUN_00579d60): the client shuts its item panel.
 struct ServiceResult { int npc = -1; bool done = false; };
+// The Cairn Stones' order, each stone 0..4 (StoneAlpha..StoneLambda), for
+// the deciphered scroll (S->C 0x50 subtype 4, FUN_00593cb0).
+struct StoneOrder { std::array<int, 5> order{}; };
 // A line for everyone in the game, wherever they are (a LAN game's chat
 // and news): typed chat, who joined or left, who was slain.
 struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP

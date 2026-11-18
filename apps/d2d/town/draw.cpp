@@ -478,6 +478,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
+        if (scroll.open) scroll_sound = scroll.draw(framebuffer, *scene, now_ms) || scroll_sound;
         if (help.open) help.draw(framebuffer, *scene, key_table);
         if (controls.open) controls.draw(framebuffer, *scene, now_ms);
         // A joining pad's pick: down the left, clear of the action in the middle and of the portraits' column.

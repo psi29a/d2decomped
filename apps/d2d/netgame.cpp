@@ -459,6 +459,13 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0e:   // object state: +1 type (2), +2 id, +8 u32 the new mode
         if (size >= 12 && packet[1] == 2) object_modes.push_back({ read_u32(packet, 2), int(read_u32(packet, 8)) });
         break;
+    case 0x50:   // quest special: subtype 4 the Cairn Stones' order (FUN_004b9210 -> 0x7bf098, five u16 at +3)
+        if (size >= 13 && read_u16(packet, 1) == 4) {
+            std::array<int, 5> order{};
+            for (std::size_t stone = 0; stone < order.size(); ++stone) order[stone] = read_u16(packet, 3 + 2 * stone);
+            stone_order = order;
+        }
+        break;
     case 0x89:   // quest flag: 12 starts diablo appears (FUN_0046b650 table 0x7129d8); 1 the Cairn Stones' dip
         // 12 also starts the red fill, 13 ends it (rules::release_light).
         if (size >= 2 && packet[1] == 12) { quest_quakes.push_back(d2d::rules::QuestQuake::diablo); diablo_red = true; }

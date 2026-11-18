@@ -218,6 +218,11 @@ auto Town::send(const Command& command) -> void {
             if (host_npc && item) net_game->send_items({ d2d::net::d2gs::c2s::npc_action(0, host_npc->id, item) });
             else net_game->log.note("an NPC service with no host NPC or cursor item: not sent");
             return;                                         // the host's item comes back to us
+        } else if (const auto* read = std::get_if<cmd::ReadScroll>(&command)) {
+            // C->S 0x3e {u32 the item} (FUN_0049ff90); the host's order comes as S->C 0x50 subtype 4.
+            const auto found = std::ranges::find(hero.character.items, read->item, &d2d::d2s::Item::id);
+            if (const std::uint32_t id = found != hero.character.items.end() ? net_game->host_item(*found) : 0) net_game->send_items({ d2d::net::d2gs::c2s::item_id_packet(0x3e, id) });
+            return;
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
                    || std::holds_alternative<cmd::AutoBelt>(command)

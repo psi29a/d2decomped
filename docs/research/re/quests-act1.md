@@ -345,7 +345,8 @@ while n < 5:
 
 - data[i] is the stone object id (17..21, StoneAlpha..StoneLambda) that must be touched at step i. The function logs "stone %d is class %d".
 - It runs lazily when +0x4a == 0: from the stone operate and from FUN_00593cb0.
-- FUN_00593cb0 runs when a player reads bkd (dispatched from FUN_00544840; item 'trs ' goes to 59d6a0 instead). It sends packet 0x879 with data[i] - 0x11 (0..4) via FUN_0053d7e0. This is the order shown on the deciphered scroll.
+- FUN_00593cb0 runs when a player reads bkd (C->S 0x3e {u32 the item}, `FUN_0054bf60` -> FUN_00544840; item 'trs ' goes to 59d6a0 instead). It sends S->C 0x50 subtype 4 (`{0x50, u16 4, u16 data[i] - 0x11 ...}`, 15 bytes, FUN_0053d7e0; the 0x879 pushed at 0x593ce6 goes to FUN_005531c0 with EDX 0x6e1c48 (what it is: not traced), not into the packet, whose id byte is the 0x50 at 0x593cf2). This is the order shown on the deciphered scroll.
+- The client (UI 0x10): a right-click on bks or bkd in the inventory (`FUN_00487740`) sends no use (C->S 0x20) but opens the scroll (`FUN_0049ff90`); bkd also sends C->S 0x3e and marks the order not yet come (0x7bf254 = 1). S->C 0x50 subtype 4 stores it at 0x7bf098 and clears 0x7bf254 (`FUN_004b9210`). `FUN_0049ff10` draws the scroll (`FUN_0049fa10`: a black rect 0x7a2858 .. W/2 by H + 0x7a285c - 0xe0 .. H - 0x30, mode 5; scroin's four pieces, their offsets kept, top pieces 115 up; buysellbtn frame 10 at + 0x115, H + 0x7a285c - 0x3d), then for bkd with the order `FUN_0049fba0(1)`: a step each draw more than 50 ms after the last (0x7bf243 / 0x7bf247, never reset); place i shows once steps pass 0x722f08[i] (0, 12, 24, 36, 48): scroin2 frame i (the numeral i + 1) at stone data[i]'s spot (0x722eb8, + the panel spot) in draw mode 0 / 1 / 2 / 5 at age < 5 / < 10 / < 15 / after, and scroin3 frame age (0 past 20) at 0x722ee0's spot, mode 3; age 1 plays Sounds.txt 0xa6f (shrine_portal, `FUN_004b9a00`). A press on the left half above the control panel closes it (`FUN_0049fea0`). d2d: `apps/d2d/scroll.cpp`, `rules::stone_symbol`; oracle `tools/emu/stone_scroll.py`.
 
 ### Stone operate: OperateFn 9, FUN_00593710
 
@@ -1030,6 +1031,7 @@ For Cain, G bit 13 is the game flag that `FUN_00544720(4, 13)` sets, both on the
 |---|---|
 | 1 | the u16 counts at +3/+5/+7 → `DAT_007bf2a4/a8/ac`; the Den's "Monsters remaining" reads `DAT_007bf2a4` |
 | 2 | remove the hire offer whose id is the u16 at +3 from the client's list at 0x7c0c85 (16-byte entries), then `FUN_004939b0` (see Kashya below) |
+| 4 | the Cairn Stones' order, five u16 at +3 (each 0..4), into 0x7bf098; 0x7bf254 = 0 (the deciphered scroll draws it) |
 
 ## Deckard Cain in town
 
