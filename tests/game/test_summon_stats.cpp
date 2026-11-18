@@ -7,6 +7,7 @@
 // the passive stats and the aurastats rules::summon_stats gives (`stat=value`,
 // by stat id, the non-zero ones) and the skills rules::summon_skill_levels
 // gives (`skill=level`), each through the owner's calcs at the case's levels.
+// `--summon-resist` does the same for tools/emu/summon_resist.py.
 // Without arguments: summon_life on a few typed-in numbers, then, with the
 // game data, a Necromancer's Raise Skeleton through the real
 // Fight::summon_one (the corpse left out), its pet's max life to the 256th,
@@ -80,7 +81,7 @@ int summon_stats_cases(const GameData& game_data) {
 
 // tools/emu/summon_resist.py's cases (`value absorb_fire absorb_light
 // absorb_cold`), each with `| stat=value ..`: the resists a raised skeleton
-// or a golem gets from its owner's Summon Resist. d2d gives none.
+// or a golem gets from its owner's Summon Resist (rules::summon_resist).
 int summon_resist_cases() {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -88,7 +89,9 @@ int summon_resist_cases() {
         std::istringstream fields(line);
         int value = 0, fire = 0, light = 0, cold = 0;
         if (!(fields >> value >> fire >> light >> cold)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
-        std::printf("%s | \n", line.c_str());
+        std::string out;
+        for (const auto& [stat, added] : d2d::rules::summon_resist(value, fire, light, cold)) out += (out.empty() ? "" : " ") + std::to_string(stat) + "=" + std::to_string(added);
+        std::printf("%s | %s\n", line.c_str(), out.c_str());
     }
     return 0;
 }
@@ -106,7 +109,8 @@ int life_checks() {
 
 // Raise Skeleton at 10 with Skeleton Mastery at 20 on a level-40
 // Necromancer: a Normal skeleton's 21 life + 160 (maxhp 40960), + 350 %
-// (calc1 par2 x 7) = 814.5 points, the half kept on the pet.
+// (calc1 par2 x 7) = 814.5 points, the half kept on the pet; Summon Resist
+// at 10 adds its passive_summon_resist to the skeleton's resists.
 int raise_check(const GameData& data) {
     d2d::rules::Rng rng{ 7 };
     Character character;
@@ -124,7 +128,8 @@ int raise_check(const GameData& data) {
     world->level = &open;
     world->fight.enter(&open);
     const int raise = data.skills.by_name.at("Raise Skeleton"), mastery = data.skills.by_name.at("Skeleton Mastery");
-    world->fight.skill_level = [&](int skill) { return skill == raise ? 10 : skill == mastery ? 20 : 0; };
+    const int resist = data.skills.by_name.at("Summon Resist");
+    world->fight.skill_level = [&](int skill) { return skill == raise ? 10 : skill == mastery ? 20 : skill == resist ? 10 : 0; };
     world->fight.skill_base = world->fight.skill_level;
     auto* actor = world->actor;
     const auto& row = *data.skills.get(raise);
@@ -132,7 +137,29 @@ int raise_check(const GameData& data) {
     assert(actor->pets.size() == 1);
     const auto& pet = actor->pets.front().monster;
     assert(pet.max_life_fine() == 208512 && pet.life_fine() == 208512 && pet.stats.hit_points == 815);
-    std::printf("OK: a raised skeleton's life %d/256\n", pet.max_life_fine());
+    // Summon Resist at 10: its passive_summon_resist as the skeleton's resists (FUN_005c40d0).
+    int summon_resist = 0;
+    for (const auto& passive : d2d::rules::passive_stats(data.skills, world->fight.calc_env()))
+        if (passive.stat == d2d::rules::kPassiveSummonResist) summon_resist += passive.value;
+    const auto& base_res = data.monsters.types[std::size_t(pet.type)].diff[0].res;
+    const auto& pet_res = actor->pets.front().res;
+    assert(summon_resist > 0 && pet_res[0] == base_res[2] + summon_resist && pet_res[3] == base_res[5] + summon_resist);
+    // A Clay Golem gets it too (FUN_005c50c0); a Revive doesn't (FUN_005c56c0 has no FUN_005c40d0).
+    const auto& golem_row = *data.skills.get(data.skills.by_name.at("Clay Golem"));
+    world->fight.summon_one(golem_row, data.monsters.row(golem_row.summon), 10, world->fight.calc_env(), actor->player.x - 3, actor->player.y, 100000);
+    const auto& golem = actor->pets.back();
+    const auto& golem_base = data.monsters.types[std::size_t(golem.monster.type)].diff[0].res;
+    assert(actor->pets.size() == 2 && golem.res[3] == golem_base[5] + summon_resist);
+    // A Fire Golem absorbs fire (its aurastat item_absorbfire_percent): its fire resist gets none of it.
+    const auto& fire_row = *data.skills.get(data.skills.by_name.at("FireGolem"));
+    world->fight.summon_one(fire_row, data.monsters.row(fire_row.summon), 10, world->fight.calc_env(), actor->player.x, actor->player.y + 3, 100000);
+    const auto& fire = actor->pets.back();
+    const auto& fire_base = data.monsters.types[std::size_t(fire.monster.type)].diff[0].res;
+    const auto fire_stats = d2d::rules::summon_stats(data.skills, fire_row, world->fight.calc_env(), 10);
+    const auto own = [&](int stat) { int sum = 0; for (const auto* part : { &fire_stats.passive, &fire_stats.aura }) if (part->contains(stat)) sum += part->at(stat); return sum; };
+    assert(own(d2d::d2s::kAbsorbFirePercent) > 0);
+    assert(fire.res[0] == fire_base[2] + own(d2d::d2s::kFireResist) && fire.res[1] == fire_base[3] + summon_resist && fire.res[3] == fire_base[5] + summon_resist);
+    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left\n", pet.max_life_fine(), summon_resist);
     return 0;
 }
 

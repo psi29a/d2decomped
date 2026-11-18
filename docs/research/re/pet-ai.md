@@ -496,6 +496,15 @@ the life down with the level first (not in d2d: a ponytail in summons.cpp).
 (`test_summon_stats --summon-stats`). d2d: `Fight::summon_one`, which adds
 the MonEquip gear's stats before the life (a ponytail there).
 
+Summon Resist then goes on a raised skeleton or mage (Raise's do
+FUN_005c4b00 at 0x5c4c97) and a golem (FUN_005c50c0), not on a Revive or the
+other classes' summons: FUN_005c40d0(owner, pet) reads the owner's stat 0x15d
+(passive_summon_resist, Summon Resist's passivestat) and, when it isn't 0,
+puts one state node on the pet with that value as fire resist (0x27) unless the
+pet's fire absorb percent (0x8e) is above 0, lightning (0x29) unless 0x90 is,
+cold (0x2b) unless 0x94 is, and poison (0x2d). `tools/emu/summon_resist.py`
+runs it against `rules::summon_resist` (`test_summon_stats --summon-resist`).
+
 ## The owner's pet lists (PlayerPets.cpp)
 
 Traced from the decompile only (cited, no oracle): the decompiler drops

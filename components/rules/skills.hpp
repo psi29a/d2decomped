@@ -954,6 +954,23 @@ inline std::vector<std::pair<int, int>> summon_skill_levels(const SkillTables& s
     return out;
 }
 
+// Summon Resist on a raised skeleton or mage or a golem (FUN_005c40d0, after
+// its stats; Raise's do 0x5c4c97, the golems' FUN_005c50c0, not Revive's): the
+// owner's passive_summon_resist (stat 0x15d) on a state node of the pet as
+// fire, lightning and cold resist, each unless the pet's absorb percent of
+// that element (stats 0x8e, 0x90, 0x94) is above 0, and as poison resist;
+// nothing when it's 0. As (stat id, value), in the order game.exe adds them.
+inline constexpr int kPassiveSummonResist = 0x15d;
+inline std::vector<std::pair<int, int>> summon_resist(int value, int absorb_fire, int absorb_light, int absorb_cold) {
+    std::vector<std::pair<int, int>> out;
+    if (value == 0) return out;
+    if (absorb_fire <= 0) out.emplace_back(d2d::d2s::kFireResist, value);
+    if (absorb_light <= 0) out.emplace_back(d2d::d2s::kLightningResist, value);
+    if (absorb_cold <= 0) out.emplace_back(d2d::d2s::kColdResist, value);
+    out.emplace_back(d2d::d2s::kPoisonResist, value);
+    return out;
+}
+
 // Runs a calc for `skill` at `lvl` (the stack machine; divide by zero
 // gives 0, as FUN_006c0bc0's op 0x13).
 inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& env, int skill, int lvl, int depth) {

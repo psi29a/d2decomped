@@ -261,6 +261,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         }
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
         using namespace d2d::d2s;
+        // Summon Resist (FUN_005c40d0): a raised skeleton or mage and a golem, after its stats.
+        // ponytail: Iron Golem's item (FUN_005606b0, before it) isn't made (fight.hpp), so its absorbs don't hold any back.
+        if (skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem || skill.srvdofunc == ServerDoFunction::kIronGolem) {
+            int owner_value = 0;
+            for (const auto& passive : d2d::rules::passive_stats(game_data->skills, env))
+                if (passive.stat == d2d::rules::kPassiveSummonResist) owner_value += passive.value;
+            for (const auto& [stat_id, value] : d2d::rules::summon_resist(owner_value, stat(kAbsorbFirePercent), stat(kAbsorbLightningPercent), stat(kAbsorbColdPercent)))
+                pet_stats[stat_id] += value;
+        }
         // The Decoy's do (FUN_005dc000 0x5dc0ec..0x5dc12f) sets its life first: the owner's max life x calc3 / 100
         // (FUN_00483360), 256ths; calc1 % then goes on that.
         // ponytail: Revive's do (FUN_005c56c0) also brings the life down with the level (MulDiv by clvl / its level)
