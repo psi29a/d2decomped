@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <iterator>
 #include <optional>
 #include <utility>
 
