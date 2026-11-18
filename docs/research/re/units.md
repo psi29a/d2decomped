@@ -266,6 +266,58 @@ Not covered: the callees themselves (`FUN_004ac7e0`, `FUN_004add90`,
 `00464d90` (inventory walk), `FUN_00466820` / `004667f0` (preset units).
 No original bug found in these.
 
+## Client unit initialization (`FUN_00465fd0`)
+
+`FUN_00465fd0` (464 bytes, `RET 0x18`) receives the allocated unit in EAX,
+the x subtile in EBX, and stack words id, class, y, type, an item-state word
+and an object-state word. It first reads the expansion-game flag through
+`FUN_0044dcc0` and mirrors it as unit flag `+0xc8` bit `0x2000000`. It then
+stores type `+0`, class `+4`, id `+0xc`, clears `+8` and `+0xd4`, and, when
+either coordinate is nonzero, finds the room with `FUN_00465420`. The room's
+level id (`FUN_0061a1b0`) is converted to the act byte (`FUN_006427f0`) at
+unit `+0x18`; global current act `0x7a0634` goes to `+0x1c`.
+
+The unit seed at `+0x20` is first initialized to `{1, 666}` by
+`FUN_00650e30`. When a room was found, the initializer advances the room1
+64-bit state at `+0x6c/+0x70` as unsigned
+`low * 0x6ac690c5 + high`, stores both result words back, copies the new low
+word to unit `+0x28`, then `FUN_00650e40` replaces the unit seed with
+`{new low, 666}`. `tools/emu/object_client_seed.py` runs this path twice on
+one synthetic room and checks both room steps and both independent unit
+seeds; its three mutations are caught.
+
+The remaining dispatch is by unit type:
+
+- player (0): `FUN_00460bf0` builds its path, inventory/stats/skills and
+  collision, seeds path direction for a non-control unit, then the common
+  light allocation (`FUN_004dc510`) and animation-rate setup
+  (`FUN_00623f50`);
+- monster (1): fatal line `0x202`; this constructor path does not accept it;
+- object (2): `FUN_00623520`, then `FUN_004bc720` allocates/clears the
+  0x38-byte object client data, reads Objects.txt mode fields, positions and
+  links the unit, stamps collision, calls `FUN_00624390` for the mode's
+  counter/rate, applies flags/light, then the common light setup;
+- missile (3): `FUN_004cd0a0` reads its Missiles.txt row, sets mode/path and
+  collision flags, then the common light setup;
+- item (4): allocates and initializes the 0x74-byte item data
+  (`FUN_00627c90`, `FUN_00627dc0`), creates its client item state through
+  `FUN_004c1910`, then the common light setup;
+- tile (5): marks flags `0x22`, positions and stamps it
+  (`FUN_00620ae0`, `FUN_00620a70`), and links it with `FUN_0064c350`; it
+  skips the common light and rate calls.
+
+Finally `FUN_00465f20` inserts the unit into the appropriate client hash
+table, replacing/freeing an existing same-key unit on collision. A surviving
+object gets `FUN_004bc8d0`, which starts the special object sound for the
+listed classes and modes. The calls that allocate player inventory, client
+lights, object client data, and item client data were read only to the effects
+needed above; their full internals are not traced here. d2d has no single
+client-unit constructor counterpart. The object-animation part is
+`Npc::client_seed` plus `object_frame_delta`: it now keeps and advances a
+separate seed per mode transition. ponytail: d2d has no retained client room1
+stream, so its first low word is derived from the object's spot instead of the
+room step.
+
 ## Unit allocation (`FUN_00620290`)
 
 The two stack arguments are the memory-pool pointer and unit type (`ret 8`).

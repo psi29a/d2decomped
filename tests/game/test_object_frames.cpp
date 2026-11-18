@@ -20,5 +20,19 @@ int main() {
         assert(rate >= 240 && rate < 272);
     }
     for (std::uint32_t low = 0; low < 64; ++low) assert(object_frame_delta(0x7fff, false, d2d::rules::Rng{ low }) <= 0x7fff);
+
+    Npc object;
+    object.root = "objects";
+    object.x = 12.5f;
+    object.y = 7.5f;
+    object.frame_delta[0] = object.frame_delta[1] = 256;
+    d2d::rules::Rng client_seed{ std::uint32_t(object.x * 5) << 16 | std::uint32_t(object.y * 5) };
+    const int first = 240 + client_seed(32);
+    const int second = 240 + client_seed(32);
+    assert(object_frame_delta(object, 0) == first);
+    assert(object_frame_delta(object, 0) == first);       // drawing the same mode does not step again
+    assert(object_frame_delta(object, 1) == second);      // a mode set consumes the next client-seed draw
+    assert(object_frame_delta(object, 1) == second);
+    assert(object_frame_delta(object, 0) == 240 + client_seed(32));
     return 0;
 }

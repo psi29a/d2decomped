@@ -144,6 +144,13 @@ struct Npc {
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.
     mutable d2d::rules::Rng seed;
+    // The client unit's independent animation seed. FUN_00465fd0 draws its
+    // initial low word from room1 +0x6c/+0x70; d2d does not retain that
+    // client-room stream, so the first mode falls back to the object's spot.
+    mutable d2d::rules::Rng client_seed;
+    mutable int client_mode = -1;
+    mutable std::uint16_t client_frame_delta = 0;
+    mutable bool client_seeded = false;
     int room = -1;
     bool preoperated = false;            // a PreOperate object that starts opened (ON)
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
@@ -1206,17 +1213,23 @@ int monster_mode(std::string_view token, int unknown = 14);
 // An object's frame rate in a mode (FUN_00624390, 0x624558): FrameDelta as
 // written with Sync, else less its 1/16 plus a roll under its 1/8 on the
 // unit's seed, kept within 0..0x7fff.
-// ponytail: one roll on a seed from the object's spot, the same each time the
-// mode comes (what's drawn and object_op_ticks agree); game.exe rolls at each mode
-// set on the client unit's seed ({its room's client seed step, 666},
-// FUN_00465fd0), whose room seed isn't kept.
 inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {
     if (sync) return delta;
     return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
 }
 inline int object_frame_delta(const Npc& npc, std::size_t mode) {
-    const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
-    return object_frame_delta(npc.frame_delta[mode], npc.sync, d2d::rules::Rng{ spot });
+    if (npc.sync) return npc.frame_delta[mode];
+    if (!npc.client_seeded) {
+        const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
+        npc.client_seed = d2d::rules::Rng{ spot };
+        npc.client_seeded = true;
+    }
+    if (npc.client_mode != int(mode)) {
+        npc.client_mode = int(mode);
+        const int delta = npc.frame_delta[mode];
+        npc.client_frame_delta = std::uint16_t(std::clamp(npc.client_seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff));
+    }
+    return npc.client_frame_delta;
 }
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
