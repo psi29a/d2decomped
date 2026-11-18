@@ -18,6 +18,7 @@
 #include <ai.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <skills.hpp>
 #include <test_data.hpp>
 
 #include <cassert>
