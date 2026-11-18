@@ -9,8 +9,9 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using namespace d2d::rules;
     StoneScrollClock clock;
     clock.draw(1000);                                   // the first draw only starts it
@@ -35,4 +36,7 @@ int main() {
     assert(!stone_symbol({ 5, 0, 0, 0, 0 }, 0, 1));
     std::printf("OK: the deciphered scroll's symbols\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }

@@ -181,6 +181,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
+        // UI 0x10 shares the left side: another panel opened since shuts it.
+        if (scroll.open && (char_open || waypoint.open || quest_log.open || party.open || hireling.open)) scroll.open = false;
         if (scroll.open && !help.open && !controls.open && !game_menu.open && scroll.input(mouse)) mouse.press_this_frame = mouse.release_this_frame = false;   // FUN_0049fea0
         if (std::exchange(scroll_sound, false)) audio.play_sfx(*scene, d2d::rules::kStoneSound, 1.f, 0);
         // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
@@ -651,7 +653,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 waypoint = {};
                 scroll.open = true;
                 scroll.deciphered = used->code == "bkd";
-                if (scroll.deciphered) { scroll.order.reset(); net.send(cmd::ReadScroll{ used->id }); }
+                if (scroll.deciphered) { scroll.order.reset(); send(cmd::ReadScroll{ used->id }); }   // to a joined host too
             }
             else if (used != character.items.end() &&
                      (((pad_playing && pad_config.skill_buttons) || touch_enabled) ? item_use(*used).kind == ItemUseKind::Identify : (used->code == "isc" || used->code == "ibk"))) {
