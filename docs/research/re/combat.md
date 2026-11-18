@@ -492,8 +492,6 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
 
 ## Approximations still in the port (marked `ponytail:` in code)
 
-- Crushing blow: a quarter of current life less physical resistance, with
-  no boss or difficulty divisors.
 - FBR acts as an animation-rate bonus on the plain frame count, not the
   block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
