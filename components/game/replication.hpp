@@ -146,7 +146,7 @@ inline void monster_state(Out& out, const Monster& monster) {
     unit(out, monster.unit);
     // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
     out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
-    out.u8(monster.align);   // a converted one: no hover, no pick (Monster::ally_not_interact)
+    out.u8(monster.align).u8(monster.rising);   // a converted one: no hover, no pick (Monster::ally_not_interact); a Horde in its rise's S1: not targetable
 }
 inline void monster_state(In& input, Monster& monster) {
     monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
@@ -160,6 +160,7 @@ inline void monster_state(In& input, Monster& monster) {
     monster.riding = input.get<std::uint8_t>() != 0;
     monster.seq_mode = intern(input.str()); monster.seq_frame = input.get<std::int32_t>();
     monster.align = input.get<std::uint8_t>();
+    monster.rising = input.get<std::uint8_t>() != 0;
 }
 }  // namespace wire
 
