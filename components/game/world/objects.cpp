@@ -875,6 +875,9 @@ auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_m
             const float speed = missile_speed(int(vel * 256) * 75 / 100), distance = std::max(std::hypot(dx, dy), 0.01f);   // FUN_0059fa30's x 75 / 100
             Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
             missile.struck = struck;
+            // FUN_0059fa30 flag 2 (FUN_005ccd10, FUN_0056d400): a ring's offset in subtiles from
+            // the trap's; the missile at the player puts its own point below.
+            missile.to = offset_target(x, y, int(std::lround(dx)), int(std::lround(dy)));
             fight.missiles.push_back(std::move(missile));
         };
         const auto ring = std::make_shared<std::vector<int>>();

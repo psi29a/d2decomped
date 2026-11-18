@@ -1916,7 +1916,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, tower->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, tower);
-                        if (missiles.size() > had) missiles.back().to.reset();
+                        if (missiles.size() > had) missiles.back().to = offset_target(unit.x, unit.y, aim_x, aim_y);
                     }
                 monster.seq_once = true;
             } else if (skill("GargoyleTrap")) {                               // srvdofunc 93 (FUN_005cc050): srvmissilea shafire3 square on at its target
@@ -2189,7 +2189,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, cast->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, cast);
-                        if (missiles.size() > had) { missiles.back().dies = now_ms + std::uint32_t(std::max(reach, 1)) * 40; missiles.back().to.reset(); }
+                        if (missiles.size() > had) { missiles.back().dies = now_ms + std::uint32_t(std::max(reach, 1)) * 40; missiles.back().to = offset_target(unit.x, unit.y, aim_x, aim_y); }
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileWall) {
                     countess_firewall(game_data, monster, now_ms, missiles, cast->srvmissilea);

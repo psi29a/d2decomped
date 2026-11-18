@@ -239,7 +239,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                         const auto ring = std::make_shared<std::vector<int>>();
                         for (int k = 0; k < 64; ++k) {
                             const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                            const std::size_t had = pending.size();
                             boss_missile(monster, "coldunique", float(aim_x), float(aim_y), ring, now_ms);
+                            if (pending.size() > had) pending.back().to = offset_target(monster.unit.x, monster.unit.y, aim_x, aim_y);   // FUN_0056d400
                         }
                     }
                 }

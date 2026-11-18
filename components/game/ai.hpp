@@ -817,6 +817,13 @@ inline constexpr std::array<int, 16> kRingWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -
 inline float missile_speed(const GameData::MissileInfo& info, int level) {
     return missile_speed(d2d::rules::missile_velocity(info.vel, info.vel_lev, level));
 }
+// FUN_0059fa30's flag 2: the target point [7] / [8] subtiles from the
+// start's subtile (a nova's ring, FUN_0056d400; PrimePoisonNova's;
+// Frozen Orb's spin and burst), in cells: that subtile's centre, for
+// Missile::to.
+inline std::pair<float, float> offset_target(float x, float y, int offset_x, int offset_y) {
+    return { (std::floor(x * 5) + float(offset_x) + 0.5f) / 5, (std::floor(y * 5) + float(offset_y) + 0.5f) / 5 };
+}
 
 // One frame of a moving missile's flight (FUN_005ae1f0's move): launched
 // on its first, re-aimed at `retarget` when set (FUN_00649970 -> FUN_006492f0:

@@ -231,6 +231,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
             Missile x{ &missile_info, shadow.unit.x, shadow.unit.y, float(aim_x) / distance * speed, float(aim_y) / distance * speed,
                        missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
+            x.to = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
             pending.push_back(std::move(x));
         }
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
