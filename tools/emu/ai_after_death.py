@@ -26,6 +26,7 @@ import argparse
 import hashlib
 import random
 import sys
+import tempfile
 from pathlib import Path
 
 import emu
@@ -119,14 +120,16 @@ class Game:
         self.machine.w32(self.unit + 0x20, seed[0])
         self.machine.w32(self.unit + 0x24, seed[1])
         self.machine.call(HOOK1, 34, 1, ecx=self.game, edx=self.unit, limit=5000)
-        cleared = any(entry[0] == "drop" for entry in self.log)
+        # The ordered drop and queue calls: nothing, the drop alone (a missed roll), or the drop then one queue.
+        events = [entry for entry in self.log if entry[0] in ("drop", "queue")]
+        assert [entry[0] for entry in events] in ([], ["drop"], ["drop", "queue"]), events
+        cleared = bool(events)
         frames = -1
-        for entry in self.log:
-            if entry[0] == "queue":
-                assert entry[1] == 7
-                frames = entry[2] - FRAME
         if cleared:
-            assert self.log[0] == ("drop", 7, 0)
+            assert events[0] == ("drop", 7, 0)
+        if len(events) == 2:
+            assert events[1][1] == 7
+            frames = events[1][2] - FRAME
         return cleared, frames, self.machine.r32(self.unit + 0x20), self.machine.r32(self.unit + 0x24)
 
     def rise(self, dead, hidden, unique, blocked, can_raise, alignment, scratch, aip1, difficulty=1):
@@ -213,6 +216,18 @@ def run(mutation):
     return bad, cases, queues, rises
 
 
+def write_fixture(out, text):
+    """Write `text` to `out` through its own staging file in the same directory, removed on failure."""
+    handle = tempfile.NamedTemporaryFile("w", dir=Path(out).parent, prefix=Path(out).name + ".", suffix=".tmp", delete=False)
+    try:
+        with handle:
+            handle.write(text)
+        Path(handle.name).replace(out)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
+
+
 def main():
     """Run the oracle; `inc` prints the C++ fixtures; --mutation-check proves the mutants are caught."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -237,9 +252,7 @@ def main():
         for case, (kind, frames, drops, put, _skill, flags) in rises:
             lines.append(f"RISE({', '.join(map(str, case))}, {kind}, {frames}, {drops}, {-1 if put is None else put}, {flags}u)")
         if args.out:
-            temporary = Path(args.out).with_name(Path(args.out).name + ".tmp")
-            temporary.write_text("\n".join(lines) + "\n")
-            temporary.replace(args.out)
+            write_fixture(args.out, "\n".join(lines) + "\n")
         else:
             print("\n".join(lines))
         return

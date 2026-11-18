@@ -24,6 +24,7 @@ No MPQs are read.
 import argparse
 import hashlib
 import sys
+import tempfile
 from pathlib import Path
 
 import emu
@@ -135,6 +136,18 @@ def run(mutation):
     return bad, cases, rows
 
 
+def write_fixture(out, text):
+    """Write `text` to `out` through its own staging file in the same directory, removed on failure."""
+    handle = tempfile.NamedTemporaryFile("w", dir=Path(out).parent, prefix=Path(out).name + ".", suffix=".tmp", delete=False)
+    try:
+        with handle:
+            handle.write(text)
+        Path(handle.name).replace(out)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
+
+
 def main():
     """Run the oracle; `inc` prints the C++ fixture; --mutation-check proves the mutants are caught."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -158,9 +171,7 @@ def main():
             text = ", ".join(f"{{ {stat}, {value} }}" for stat, value in padded)
             lines.append(f"    {{ {base}, {area}, {level}, {to_hit}, {len(pairs)}, {{ {text} }} }},")
         if args.out:
-            temporary = Path(args.out).with_name(Path(args.out).name + ".tmp")
-            temporary.write_text("\n".join(lines) + "\n")
-            temporary.replace(args.out)
+            write_fixture(args.out, "\n".join(lines) + "\n")
         else:
             print("\n".join(lines))
         return
