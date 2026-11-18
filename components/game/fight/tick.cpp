@@ -679,6 +679,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             // FUN_0057ac50 files a monster's event 3 (its regeneration) for the next frame, the merc's too.
             if (actor->merc && actor->merc->hit_points > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
         }
+        // What the merc's gear absorb took off the blows is given back as life first, a blow at a time, capped at its max life
+        // (FUN_0057c6c0 -> FUN_0057a980, 0x57c844, as for the player below); the blows' totals come off after.
+        if (actor->merc && actor->merc->hit_points > 0 && actor->merc->mode != "DT" && !side[1].blows.empty()) {
+            const std::int64_t life = actor->merc->life_fine();
+            actor->merc->set_life_fine(int(life + d2d::rules::absorb_heal(side[1].blows, life, std::int64_t(merc_max_life()) << 8)));
+        }
         if (actor->merc && actor->merc->mode != "DT")           // Crushing Blows, after the hits (monprop_hit)
             for (const int divisor : side[1].crushed) {
                 side[1].damage += int(crushing_blow(std::max(actor->merc->hit_points - side[1].damage, 0), divisor, side[1].pick.damage_resist));

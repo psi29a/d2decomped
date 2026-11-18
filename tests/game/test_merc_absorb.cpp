@@ -34,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 using namespace d2d::game;
 using gear_absorb::Case;
@@ -43,15 +44,16 @@ namespace fs = std::filesystem;
 namespace {
 
 // The merc's life in 256ths after the case's blows: one frame, one hurt_side, the merc wearing a torso piece that carries the
-// case's resistances, magic damage reduction and absorbs (and no maximum life of its own: the merc's level-up life is `max`).
-std::int64_t life_after(World& world, const Case& one, std::uint32_t now) {
+// case's resistances, magic damage reduction and absorbs. `gear_life` points of the case's `max` come from the piece's maximum
+// life (stat 7) instead of the merc's level-up life: game.exe's heal caps at stat 7 whatever adds to it (FUN_00625d10).
+std::int64_t life_after(World& world, const Case& one, std::uint32_t now, int gear_life = 0) {
     namespace s = d2d::d2s;
     auto& hero = *world.actor;
     hero.merc = Monster{};
     hero.merc->mode = "NU";
     hero.merc_st = {};
     hero.merc_st.level = 20;
-    hero.merc_st.life = int(one.max_life);
+    hero.merc_st.life = int(one.max_life) - gear_life;
     hero.merc_st.resist = 0;
     hero.character.merc_items.clear();
     s::Item armor;
@@ -60,6 +62,7 @@ std::int64_t life_after(World& world, const Case& one, std::uint32_t now) {
     constexpr std::array<int, 3> kResistStats{ 39, 41, 43 };   // fire, lightning, cold (the stat after each: its maximum)
     for (std::size_t k = 0; k < 3; ++k) armor.props.push_back({ .stat = kResistStats[k], .value = int(one.res[k]) });
     armor.props.push_back({ .stat = s::kMagicDamageReduction, .value = int(one.mdr) });
+    if (gear_life > 0) armor.props.push_back({ .stat = s::kMaxLife, .value = gear_life });
     constexpr std::array<int, 4> kPercent{ s::kAbsorbFirePercent, s::kAbsorbLightningPercent, s::kAbsorbColdPercent, s::kAbsorbMagicPercent };
     constexpr std::array<int, 4> kFlat{ s::kAbsorbFire, s::kAbsorbLightning, s::kAbsorbCold, s::kAbsorbMagic };
     for (std::size_t k = 0; k < 4; ++k) {                       // the case's columns are fire, lightning, cold, magic
@@ -80,6 +83,29 @@ std::int64_t life_after(World& world, const Case& one, std::uint32_t now) {
     world.fight.hurt_side(side, now);
     return hero.merc->hit_points > 0 ? hero.merc->life_fine() : 0;
 }
+
+// game.exe's lives for these case lines (merc_absorb.py game, FUN_0057c6c0 on a type-1 unit of the hireling's class; V run), 256ths.
+// Columns: id life max mdr res x 3, absorb percent x 4, flat x 4 (fire, lightning, cold, magic), class, blows.
+// 0: 90 of 100 life, 20 % cold absorb, a 100-point cold blow: 90 + 20 -> 100, minus 80 = 20 points (a Desert Guard); 1: a fire absorb of
+// 40 % and a flat 10 on 40 points (a Rogue Scout); 2: the order resistance (50), percent (30), flat (20) and the heal; 3: a heal that
+// does not save the merc (dead: 0); 4: two blows in a frame, the cap taken per blow (30, not 20); 5: the magic reduction 3 and a
+// 36 % magic absorb on a 2-point blow (a negative field heals nothing); 6: a life with a fraction (90.5), the cap taken; 7: a life above
+// the max (120 of 100) brought down to it by a heal (100 minus 40 = 60); 8: three fields at once, the percent stopping at 40 (an
+// Iron Wolf's class); 9: a 60 % absorb stopping at 40, max life 50, dead; 10: a one-point life, a flat absorb heals a blow it takes whole; 11: a life with a fraction (90.5) that the heal does not cap keeps it (90.5 + 2 - 8 = 84.5).
+const std::vector<std::pair<std::string, std::int64_t>> kPins = {
+    { "0 23040 100 0 0 0 0 0 0 20 0 0 0 0 0 338 1 1 2 100", 5120 },
+    { "1 15360 100 0 0 0 0 40 0 0 0 10 0 0 0 271 1 1 0 40", 18432 },
+    { "2 15360 100 0 50 0 0 30 0 0 0 20 0 0 0 359 1 1 0 100", 20480 },
+    { "3 12800 100 0 0 0 0 0 0 20 0 0 0 0 0 338 1 1 2 100", 0 },
+    { "4 25600 100 0 0 0 0 0 0 20 0 0 0 0 0 561 2 1 2 50 1 2 50", 7680 },
+    { "5 10240 100 3 0 0 0 0 0 0 36 0 0 0 0 560 1 1 4 2", 10240 },
+    { "6 23168 100 0 0 0 0 0 0 20 0 0 0 0 0 338 1 1 2 100", 5120 },
+    { "7 30720 100 0 0 0 0 0 0 20 0 0 0 0 0 359 1 1 2 50", 15360 },
+    { "8 17920 100 0 0 0 0 40 40 40 40 5 5 5 5 271 1 3 0 30 1 30 2 30", 15616 },
+    { "9 7680 50 0 0 0 0 0 0 60 0 0 0 0 0 561 1 1 2 100", 0 },
+    { "10 256 100 0 0 0 0 0 0 0 0 0 0 20 0 560 1 1 2 10", 2816 },
+    { "11 23168 100 0 0 0 0 0 0 20 0 0 0 0 0 338 1 1 2 10", 21632 },
+};
 
 }   // namespace
 
@@ -122,6 +148,19 @@ int main(int argc, char** argv) try {
             std::printf("%ld %lld\n", one.id, static_cast<long long>(life_after(world, one, now)));
         }
         return 0;
+    }
+    for (const auto& [line, life] : kPins) {
+        Case one;
+        const bool ok = parse(line, one);
+        assert(ok);
+        assert(life_after(world, one, now) == life);            // through Fight::hurt_side
+    }
+    // The cap is the merc's whole max life: 20 of pin 0's 100 points and 50 of pin 7's from its armor, the same lives.
+    for (const auto& [at, gear_life] : { std::pair<std::size_t, int>{ 0, 20 }, std::pair<std::size_t, int>{ 7, 50 } }) {
+        Case one;
+        const bool ok = parse(kPins[at].first, one);
+        assert(ok);
+        assert(life_after(world, one, now, gear_life) == kPins[at].second);
     }
     std::printf("ok\n");
     return 0;
