@@ -24,9 +24,12 @@ left then is lost rather than dropped (bugs.md 121). There is gold left
 only after a PvP death: the death's penalty (`FUN_005357d0`) empties the
 purse onto the ground unless the killer was a player or a player's pet.
 
-d2d differs: `World::make_corpse` (components/game/world/travel.cpp:340)
-always makes the corpse and, at 16, removes the oldest one, items and
-all.
+d2d matches: `World::make_corpse` (components/game/world/travel.cpp)
+makes no corpse past 15 (`rules::death_makes_corpse`) and drops the item
+in hand, then the worn items in slot order, at the nearest free spot. The
+branch is checked against game.exe: `cd tools/emu && uv run python
+corpse_cap.py` (counts 0..20, frozen as tests/corpse_cap_cases.inc;
+test_corpse_cap, test_corpse_cap_drop).
 
 ## The old save loader (`FUN_00534020`)
 
@@ -75,7 +78,7 @@ client offers an older save to upload isn't traced.
 | `FUN_00575bc0` | `pet_lists_refit` | For each PetType row from 1: `FUN_00574570(player, list, row == 7, row == 7)`, then `FUN_00575900`. Callers `FUN_0053acc0`, `FUN_0057fca0` | not compared |
 | `FUN_0057f070` | `player_event_ret1` | `return 1`. In the player event table (`0x6e1810` → `FUN_005811d0`) and `FUN_006c9900` | matches: a player's type-0 event does nothing (components/rules/combat.hpp:535) |
 | `FUN_0057f4f0` | `cursor_item_to_corpse` | `ESI` player, `EBX` item: S->C 0x42 (line 0x27d) clears the cursor, the cursor item unset, the item flagged and on the changed list, `FUN_00621000(player, 1)`. Only caller the death `FUN_0057f700`, pass -1 | matches: the held item goes to the corpse first (components/game/world/travel.cpp:329) |
-| `FUN_0057f540` | `death_drop_no_corpse` | See "Too many corpses" | differs (see above) |
+| `FUN_0057f540` | `death_drop_no_corpse` | See "Too many corpses" | matches (see above; tools/emu/corpse_cap.py) |
 | `FUN_005801e0` | `player_skill_pair` | `EBX` unit, `ESI` 4 dwords: right skill's node id, left's node id (lines 0x57a, 0x56e), right skill id, left skill id (`FUN_00643ad0`); none: 0 and -1. Only caller `FUN_00580310` | not compared |
 | `FUN_005805d0` | `life_fraction_128` | Fastcall unit: (life >> 8) × 128 / (max life >> 8); 128 for null, a max under 1, or life at the max. Callers the potion rate `FUN_005be3f0` and `FUN_005beac0` | not compared |
 | `FUN_005a5d20` | `party_each_client` | `FUN_00554630`, then `FUN_00540510(FUN_005a5c70, unit)` and `FUN_005407a0`. Callers the party command `FUN_005a5e50`, `FUN_006c9900` | no counterpart: hostility isn't modelled (components/game/world/commands.cpp:359) |

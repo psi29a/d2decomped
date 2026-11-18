@@ -249,7 +249,8 @@ struct World {
         int   pick_item = -1;                  // the ground item being walked to (its unit id)
         int take_portal = -1;                  // the portal (0..3) the player is walking to
         // The player's corpses (FUN_0057f700): where they fell, what they wore
-        // and had in hand, 75% of the experience the death took; at most 16.
+        // and had in hand, 75% of the experience the death took; at most 16
+        // (a death past that makes none: World::make_corpse).
         struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;
                         std::int64_t exp = 0; GameData::Appearance gfx{}; };
         std::vector<Corpse> corpses;
