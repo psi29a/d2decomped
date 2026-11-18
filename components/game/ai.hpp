@@ -711,12 +711,12 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
-// ponytail: no seed of its own (unit +0x20): the draws game.exe takes from it
-// (pSrvDmgFunc 3's soft hit, FUN_005ad220) take the fight's rng.
-struct Missile;
-// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when a step of
-// the missile's seed has its low 7 bits under dParam1 (+0x78).
-inline bool soft_hit(const GameData::MissileInfo& info, d2d::rules::Rng& rng) { return info.dmg_func == 3 && int(rng.next() & 0x7f) < info.dmg_par1; }
+// A missile's seed (unit +0x20, {low, high}): the draws game.exe takes from
+// it (pSrvDmgFunc 3's soft hit, FUN_005ad220) step it, not the fight's rng.
+// ponytail: its first value. game.exe makes it {a game seed step, 666}
+// (FUN_00555230 -> FUN_00552df0, game +0xd0); d2d keeps no game seed for
+// the units a fight makes, so the first draw takes one step of the fight's
+// rng for it (Missile::seeded).
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -772,7 +772,18 @@ struct Missile {
     int prog_sound_phase = -1;                // last animation phase that played Missiles.txt ProgSound
     bool launched = false, follow = true;
     std::vector<std::array<int, 4>> rooms;
+    d2d::rules::Rng seed;                     // its unit seed (+0x20): what pSrvDmgFunc 3 steps (soft_hit)
+    bool seeded = false;                      // `seed` has its first value (soft_hit gives it one on first use)
 };
+// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when one step
+// of the missile's own seed (+0x20: low * 0x6ac690c5 + high) has its low 7
+// bits under dParam1 (+0x78). The step is kept, the roll passed or not. `rng`
+// only gives a missile its first seed value (see Missile::seed).
+inline bool soft_hit(Missile& missile, d2d::rules::Rng& rng) {
+    if (!missile.info || missile.info->dmg_func != 3) return false;
+    if (!missile.seeded) { missile.seed = d2d::rules::Rng(rng.next()); missile.seeded = true; }   // {a step, 666}: FUN_00552df0
+    return int(missile.seed.next() & 0x7f) < missile.info->dmg_par1;
+}
 
 // A missile's speed, cells/s, for its velocity: FUN_0059fa30's path
 // velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
@@ -1115,7 +1126,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
                 // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
                 foe.hit_class = missile.info->hit_class;
-                if (soft_hit(*missile.info, rng)) ++foe.soft_hits;
+                if (soft_hit(missile, rng)) ++foe.soft_hits;
             }
             return false;
         }
