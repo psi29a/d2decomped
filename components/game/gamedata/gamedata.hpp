@@ -1205,24 +1205,25 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     return d2d::rules::Rng{ game.next() };
 }
 
-// FUN_0064dea0's search (50 rings, `step` subtiles apart: FUN_0064e7b0 /
-// FUN_0064e810 pass 1, FUN_0064e7e0 4): (x, y) itself if `clear`, else
-// rings 1..49 out at radius r = 1 + step (ring - 1), each ring's columns
+// FUN_0064dea0's search (`step` subtiles apart: FUN_0064e7b0 / FUN_0064e810
+// pass 1, FUN_0064e7e0 its caller's 4 or 5): (x, y) itself if `clear`, else
+// rings out at radius r = 1, 1 + step, 1 + 2 step, ... while r < `limit`
+// (param_8: 0x32 from all three wrappers, so 49 rings at step 1, 13 at
+// step 4, 10 at step 5), each ring's columns
 // x - r and x + r from y - r every `step` (left then right a row), then its
 // rows y - r and y + r from x - r + 1 every `step` (top then bottom a
 // column); the first clear spot nearest (Manhattan) in the first ring with
 // one wins. None: nullopt (the callers' "keep the room" flag then keeps
-// (x, y) or fails).
+// (x, y) or fails). The limit by step: tools/emu/corpse_spot.py limit.
 template <class Clear>
-std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1) {
+std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1, int limit = 50) {
     if (clear(x, y)) return std::pair{ x, y };
     int best = -1, best_x = x, best_y = y;
-    for (int ring = 1; ring < 50 && best < 0; ++ring) {
+    for (int radius = 1; radius < limit && best < 0; radius += step) {
         auto test = [&](int test_x, int test_y) {
             const int distance = std::abs(test_x - x) + std::abs(test_y - y);
             if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
         };
-        const int radius = 1 + step * (ring - 1);
         for (int ty = y - radius; ty <= y + radius; ty += step) { test(x - radius, ty); test(x + radius, ty); }
         for (int tx = x - radius + 1; tx <= x + radius - 1; tx += step) { test(tx, y - radius); test(tx, y + radius); }
     }

@@ -82,6 +82,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
 | COF name builder and its wrappers (FUN_0064f5b0, FUN_0064f380, FUN_0064fa00; callees hooked and logged) | `uv run python composit_cof.py` (`--mutation-check` for the model defects) | `ok: FUN_0064f5b0 1772 cases, FUN_0064f380 392, FUN_0064fa00 208; e.g. 1h1js` |
 | Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
+| Where FUN_0064dea0's rings stop (param_8 0x32 from FUN_0064e7e0: radius under 50 at steps 1, 4 and 5; corpse_spot / twin_spot's search) | `uv run python corpse_spot.py limit`; then `test_corpse_spot` | found (1) at radius 49 / 49 / 46, not (0) at 50 / 53 / 51 |
 | Inventory panel decisions (FUN_00483c50, FUN_004844a0, FUN_00486d10, FUN_00486da0, FUN_00486e60, FUN_00486ef0, FUN_00487000) | `uv run python d2common_inventory_ui.py` | `ok: 6814 inventory-ui cases` |
 | Inventory mode, grid-cell and panel hit-test helpers (FUN_00483e10, FUN_00486bd0, FUN_00486e10) | `uv run python d2common_item_ui.py` | `ok: 37 stock D2COMMON item UI helper cases` |
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |

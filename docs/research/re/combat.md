@@ -852,7 +852,8 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     `FUN_0064e7e0(room, &xy, 2, mask 0x9c19, 4)` -> `FUN_0064dea0` with
     test 2 (`FUN_0064d9b0` case 2: the plus, `FUN_0064d100`) against
     0x9c19, which holds the player's own 0x1000 footprint, and a step of
-    4 (rings of radius 1, 5, 9, ..., spots 4 apart along each edge;
+    4 (rings of radius 1, 5, 9, ..., 49, the last under FUN_0064dea0's
+    limit of 50: `corpse_spot.py limit`; spots 4 apart along each edge;
     `FUN_0064e7b0` steps 1); with the player on the start the corpse lands
     at (x - 1, y - 1) (tools/emu/corpse_spot.py). Mode 0x11.
 - **The look:** a death COF has only a TR layer and only LIT pieces (no

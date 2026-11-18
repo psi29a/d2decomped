@@ -26,7 +26,8 @@ What the run shows (a Python model matched 20000 of 20000, seed 1):
 FUN_0064e7e0 passes FUN_0064dea0 a step of 4 (its last argument; FUN_0064e7b0
 passes 1), and pattern 2 goes to FUN_0064d9b0, which tests the plus (the
 subtile and its four neighbours) against 0x9c19. The start itself if clear;
-else ring k = 1..49 at radius r = 1 + 4 (k - 1): its columns x - r and x + r
+else rings at radius r = 1, 5, 9, ... while r < 50 (FUN_0064dea0's param_8,
+0x32 from FUN_0064e7e0: 13 rings, not 49; `limit` below): its columns x - r and x + r
 for y - r, y - r + 4, ... <= y + r (left then right a row), then its rows
 y - r and y + r for x - r + 1, x - r + 5, ... <= x + r - 1 (top then bottom
 a column); in the first ring with a clear spot the least |dx| + |dy| wins,
@@ -36,9 +37,18 @@ unless something blocks it.
 `twin`: a portal's twin (the Cairn Stones' to Tristram, a town portal's):
 FUN_0056cf40 at 0x56d017 calls FUN_0064e7e0(room, &xy, 3, 0xbe11, 5): pattern
 3 is the 3 x 3 square (x - 1 .. x + 1, y - 1 .. y + 1, black-boxed for every
-bit of 0xbe11), step 5, the same rings (radius 1 + 5 (k - 1)). No unit is
+bit of 0xbe11), step 5, the same rings (radius 1 + 5 (k - 1), under 50). No unit is
 stamped (none stands there). found 0: FUN_0056cf40 takes the spawn tile's
 spot again (0x56d033).
+
+    uv run python corpse_spot.py limit
+
+`limit`: where the rings stop. Walls (bit 1) fill every subtile within 50 of
+(100, 100) but one hole; FUN_0064e7e0(room, &xy, 1, 1, step) runs for each
+step and hole and prints `step hole_x hole_y found x y`. A hole at radius
+49 (steps 1 and 4: 49 = 1 + 4 * 12) or 46 (step 5) is found; one at radius 50 (step 1),
+53 (step 4) or 51 (step 5) is not: the search ends once the next ring's
+radius reaches 50.
 """
 import random
 import sys
@@ -80,8 +90,25 @@ def game(path, twin=False):
         print(cid, int(found != 0), e.s32(xy), e.s32(xy + 4))
 
 
+def limit():
+    oracle = tele.Oracle()
+    e = oracle.e
+    xy = e.alloc(8)
+    room = oracle.rooms[(2, 2)]
+    for step, hole in ((1, (149, 100)), (1, (150, 100)), (4, (149, 99)), (4, (153, 99)), (5, (146, 99)), (5, (151, 99))):
+        words = {(100 + dx, 100 + dy): 1 for dx in range(-50, 51) for dy in range(-50, 51)}
+        words.pop(hole, None)
+        oracle.load(words)
+        e.w32(xy, 100)
+        e.w32(xy + 4, 100)
+        found = e.call(0x64E7E0, room, xy, 1, 1, step) & 0xFFFFFFFF
+        print(step, *hole, int(found != 0), e.s32(xy), e.s32(xy + 4))
+
+
 if __name__ == "__main__":
-    if len(sys.argv) == 4 and sys.argv[1] == "gen":
+    if len(sys.argv) == 2 and sys.argv[1] == "limit":
+        limit()
+    elif len(sys.argv) == 4 and sys.argv[1] == "gen":
         gen(int(sys.argv[2]), int(sys.argv[3]))
     elif len(sys.argv) in (3, 4) and sys.argv[1] == "game" and sys.argv[3:] in ([], ["twin"]):
         game(sys.argv[2], sys.argv[3:] == ["twin"])
