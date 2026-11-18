@@ -692,10 +692,9 @@ struct Fight {
     // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
     // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
-    // Burst of Speed, Holy Freeze's slow, ...); Leap Attack (FUN_005da540)
-    // waits for its takeoff event.
-    // ponytail: a chill's slow and the run bonus (FUN_00620e80) aren't in
-    // Charge's velocitypercent; Whirlwind's path is a straight line
+    // FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
+    // slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
+    // ponytail: Whirlwind's path is a straight line
     // (FUN_0064ea90's pathing isn't traced).
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the

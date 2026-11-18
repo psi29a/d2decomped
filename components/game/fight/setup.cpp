@@ -328,18 +328,29 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         }
         // A skill it starts (S→C 0x4c / 0x4d, unit command 0x15 / 0x16 -> FUN_004c6140):
         // the start sounds as a player's, on a monster (unit type 1, never a class sound),
-        // and its castoverlay.
-        // ponytail: a stsuccessonly start's cltstfunc (Hydra's FUN_004e39a0, Charge's
-        // FUN_004c9b40) isn't run here, so it always sounds.
+        // and its castoverlay. A stsuccessonly start stops before both when its
+        // cltstfunc fails (FUN_004c6140 at 0x4c649e).
         if (const int started = std::exchange(monster.skill_sound, -1); started >= 0 && monster.alive())
             if (const auto* skill = game_data->skills.get(started)) {
-                const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
-                const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
-                const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
-                                                              .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
-                for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
-                    if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
-                start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                d2d::rules::ClientStartContext context;
+                if (skill->clt_st_func == 17) {                       // Hydra's FUN_004e39a0
+                    context.caster_has_room = room_of(*level, monster.unit.x, monster.unit.y) >= 0;
+                    context.target_has_room = room_of(*level, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5) >= 0;
+                    context.target_in_town = d2d::rules::level_ids::is_town(level->id);
+                    context.skill_in_town = skill->in_town;
+                }
+                // Charge's FUN_004c9b40 succeeds here: d2d records this start only
+                // after its server path or in-reach swing has started, and every
+                // live Monster owns the client routine's skill record and path.
+                if (!skill->st_success_only || d2d::rules::client_start_succeeds(skill->clt_st_func, context)) {
+                    const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
+                    const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
+                    const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
+                                                                  .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
+                    for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
+                        if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
+                    start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                }
             }
         if (monster.mode != monster.last_mode) {
             monster.last_mode = monster.mode;

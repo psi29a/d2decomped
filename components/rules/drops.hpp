@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -23,6 +24,13 @@ namespace d2d::rules {
 // ("gld": `gold` coins, or while 0 its amount is rolled as it's made:
 // gold_amount, times `mul` / 256 when the entry was "gld,mul=N").
 struct Drop { std::string code; int quality = 2; int gold = 0; int mul = 0; };
+
+// Does the floor take a drop? FUN_0055a550 asks FUN_00555da0 for a spot
+// before it makes the item (after the quality roll, so after its draws) and
+// makes none when that finds none. (drop, items made so far) -> placed. A
+// drop placed here is the caller's to put on the floor now: a later one's
+// spot takes it into account. An empty one places every drop.
+using Placement = std::function<bool(const Drop&, int made)>;
 
 // The item's quality at item level ilvl (FUN_00558640, all draws off the
 // dropper's seed): a type flagged Normal stays normal; a base that only
@@ -168,8 +176,11 @@ inline std::string tc_upgrade(const Tables& tables, std::string name, int lvl) {
 namespace detail {
 // One class's picks (a frame of FUN_0055a6d0's stack), NoDrop for `shares`
 // players; false once `max` items dropped (the whole roll stops).
+// A drop `place` refuses is not made: not in `out`, not counted, and the
+// pick is spent (FUN_0055a6d0 0x55a550 returning 0: no count, no
+// FUN_005589a0, the next pick).
 inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std::array<int, 4> mod, int ilvl, Rng& rng, std::vector<Drop>& out,
-                       int& count, int max, int shares, int magic_find, int depth, int forced = 0) {
+                       int& count, int max, int shares, int magic_find, int depth, int forced = 0, const Placement& place = {}) {
     for (int i = 0; i < 4; ++i) mod[std::size_t(i)] = std::max(mod[std::size_t(i)], treasure.mod[std::size_t(i)]);
     int total = 0;
     for (const auto& [name, chance] : treasure.items) total += chance;
@@ -198,11 +209,14 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
             if (roll >= chance) { roll -= chance; continue; }
             const int flags = entry < treasure.entry_flags.size() ? treasure.entry_flags[entry] : 0;
             if (const auto sub = tables.treasure.find(name); sub != tables.treasure.end()) {
-                if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, shares, magic_find, depth + 1, forced)) return false;
+                if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, shares, magic_find, depth + 1, forced, place)) return false;
             } else if (name.starts_with("gld")) {
                 const auto multiplier_at = name.find("mul=");
-                out.push_back({ "gld", forced ? forced : 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) });
-                if (++count >= max) return false;
+                const Drop pile{ "gld", forced ? forced : 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) };
+                if (!place || place(pile, count)) {
+                    out.push_back(pile);
+                    if (++count >= max) return false;
+                }
             } else if (tables.item_info.contains(name)) {
                 // FUN_0055a6d0 step 4: forced quality, else 7 / 5 for a unique /
                 // set entry (flags 1 / 2), else the quality roll. A zero flag
@@ -215,8 +229,11 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
                     else if ((flags & 2) != 0) quality = 5;
                     else quality = roll_quality(tables, name, ilvl, mod, rng, magic_find);
                 }
-                out.push_back({ name, quality });
-                if (++count >= max) return false;
+                const Drop made{ name, quality };
+                if (!place || place(made, count)) {
+                    out.push_back(made);
+                    if (++count >= max) return false;
+                }
             }
             break;
         }
@@ -235,23 +252,24 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // A nonzero `forced` quality (a chest round's) replaces the quality roll, gold's too.
 // A unique / set entry (flags 1 / 2) is quality 7 / 5 and skips the quality roll.
 // Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
-// ponytail: every item counts (game.exe doesn't count one
-// FUN_00555da0 finds no floor for, but Loot::drop_at always places one);
-// the unique / set index (entry +0xa) is stored and not applied when the
-// item is made (struct +0x40).
+// `place` (FUN_00555da0 through FUN_0055a550): a drop it refuses is not made
+// and not counted (Loot's monster drops pass one).
+// ponytail: chest_round and the other callers pass none, so there every drop
+// counts; the unique / set index (entry +0xa) is stored and not applied
+// when the item is made (struct +0x40).
 // With `players` in the game and `nearby` of the killer's party on its
 // level (FUN_005408e0; a lone killer 1), NoDrop rolls for n = nearby +
 // (players - nearby) / 2 (drops.md "Rolling"); a monster dropper (unit type
 // 1, FUN_0044be50) caps n at its monster_playercount (stat 100, at least 1):
 // `dropper_players`, 0 for none.
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int ilvl, Rng& rng, std::vector<Drop>& out,
-                       int players = 1, int magic_find = 0, int max = 6, int forced = 0, int nearby = 1, int dropper_players = 0) {
+                       int players = 1, int magic_find = 0, int max = 6, int forced = 0, int nearby = 1, int dropper_players = 0, const Placement& place = {}) {
     const auto found = tables.treasure.find(treasure_class);
     if (found == tables.treasure.end()) return;
     int count = 0;
     int rolls_for = nearby + (players - nearby) / 2;
     if (dropper_players > 0) rolls_for = std::min(rolls_for, dropper_players);
-    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, rolls_for, magic_find, 0, forced);
+    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, rolls_for, magic_find, 0, forced, place);
 }
 
 // One chest round (FUN_00585b90): its class `tc` (chest_tc) off the

@@ -48,7 +48,7 @@ int main() try {
     assert(!untargeted.follow);                 // (21, 21) is inside the 40x40 room
 
     Missile on_edge = shot_at(4.1f, 4.1f);
-    missile_fly(level, on_edge, start_only);
+    static_cast<void>(missile_fly(level, on_edge, start_only));   // only the launch's aim and follow flag are checked
     assert(on_edge.flight.aim_x == aim_x && on_edge.flight.aim_y == aim_y);
     assert(on_edge.follow);                     // (21, 21) lies outside the start subtile
 
@@ -61,7 +61,7 @@ int main() try {
 
     Missile outside = shot_at(4.1f, 4.1f);
     outside.to = { 10.f, 4.1f };                // subtile (50, 20), past the room
-    missile_fly(level, outside, whole);
+    static_cast<void>(missile_fly(level, outside, whole));   // only the launch's follow flag is checked
     assert(outside.follow);
 
     std::puts("OK: no target point aims with FUN_0064fc60, and the room follows only outside");

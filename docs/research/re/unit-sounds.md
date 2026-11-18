@@ -168,16 +168,49 @@ weaponsnd.
   the weaponsnd swing and stsounddelay timed by its MonStats2 HitClass
   (+0x14, `FUN_00623c20`) and its rate (+0x4c), and no class sound. A
   cltstfunc that gives 0 silences a stsuccessonly skill (flag bit 12,
-  0x4c649e). Oracle `tools/emu/skill_start_sound.py` (unit types 0, 1, 2;
-  item casts; the three flags; a cltstfunc giving 1, 0 or none).
+  0x4c649e). The zero path first clears the selected skill
+  (`FUN_00620210`) and, for a player or monster, runs `FUN_00480e70`;
+  stsuccessonly then returns before every start sound and the cast-overlay
+  block. Without stsuccessonly, the sounds and overlay still run even though
+  the function eventually returns 0. Oracle `tools/emu/skill_start_sound.py`
+  covers the caller's sound gate (unit types 0, 1, 2; item casts; the three
+  flags; a cltstfunc giving 1, 0 or none).
+
+  The two stsuccessonly cltstfuncs are checked by
+  `tools/emu/skill_start_success.py` against `rules::client_start_succeeds`:
+
+  - Hydra's **FUN_004e39a0** gets the caster's room from `FUN_00620bb0`,
+    resolves the selected unit or path point through `FUN_004c52e0`, and
+    searches the caster room and its neighbours for that point through
+    `FUN_00463740`. A missing caster room, unresolved target room, invalid
+    Skills.txt id or null row returns 0. With a row, its `InTown` bit
+    (record `+5 & 1`) permits the point; otherwise `FUN_0061ab00` returning
+    town refuses it. It writes no unit or global state.
+  - Charge's **FUN_004c9b40** first needs the selected skill node
+    (`FUN_00620250`), a valid Skills.txt row and the unit's dynamic path at
+    `+0x2c`. It refuses the local player's already-selected node when that
+    node has flag 1. A player whose current target is already in melee
+    (`FUN_00622c40`) queues the target command (`FUN_004c7630`) and returns
+    1. Otherwise it may play dosound-a for a player or the matching
+    MonSounds Skill1..4 for a monster (`FUN_004f4f40`), stores either the
+    target type/id or 6/0 when no target or state 0x36 is present, sets field
+    `+0x24` to 7 (15 for Duriel), and builds the client path at
+    `max(velocitypercent, 100) + Param1` percent. It then marks node flags
+    `0x1001`, clears `+0x20`, attaches FUN_004c7950's kind-6 target stat list
+    with callback FUN_004c7890, and returns 1. Those sound, selected-skill,
+    path, node and target-list changes are client-side effects; none can turn
+    the accepted path back into a failure.
+
   d2d: `rules::sound_ids::skill_start`; `Monster::skill_sound` set where
   the AI starts a skill (`ThinkCtx::use`, teleport, Charge's start,
   DiabRun), played in `Fight::monster_sounds`. Mephisto's, Diablo's, the
   Council's and the Summoner's casts, Zakarum priests, Fallen Shaman's
   resurrect and the sand maggots' burrow / emerge are the classic ones.
-  ponytail: a stsuccessonly monster start (Hydra's cltstfunc 17
-  `FUN_004e39a0`, Charge's 25 `FUN_004c9b40`) always sounds; d2d doesn't
-  run the client's cltstfunc.
+  `Fight::monster_sounds` evaluates the status before both effects. Hydra
+  uses the recorded cast point and level rooms; Charge starts are recorded
+  only after the authoritative server path or in-reach swing succeeded, so
+  their live monster has the skill/path prerequisites and is not the local
+  player special case.
 - **prgsound** (+0x10e, a word; empty loads 0): the readers of `[skill
   +0x10e]` in .text are six client functions, each playing through
   `FUN_004b9a00` (ECX the sound, EDX the unit, 0 none: unplaced), and only
@@ -628,18 +661,19 @@ The remaining 104 rows have these causes:
 | Rows | Why they are still silent |
 |---|---|
 | 70 class quest phrases | 14 per classic class (with their Group Size rows): act 2's begin_tainted, complete_tightspot, find_radament, find_summoner, find_tomb_decoy and find_tomb_true, unit sound events 0x31, 0x35 and 0x39..0x3c (the class row's +0x24 + event - 0x21, FUN_004cb9c0). The find table (0x72a2c4) has no row for them and the server xref audit found no quest sending those events, so stock 1.14d never plays them; assigning them to nearby quest milestones would invent behavior. |
-| 5 `event_desert_night_1..5` | No SoundEnviron row selects these names. The desert environments use their daytime event group at night too. |
+| 5 `event_desert_night_1..5` | The ambient event (`FUN_004e42e0`) plays the SoundEnviron row's Day / Night Event (+0xc / +0x10) as it is: `ecx` is that id at the play (0x4e4579, `FUN_004b9a00`), no offset by the time of day. Desert (13) and Valley of Kings (14) name event 100 for both (1.14d's patched table too), whose Group Size 5 is rows 100..104; no row names 105. No code passes 0x69..0x6d as the id (the one `push 0x6a` before a play, 0x4cc52c, is an argument; the id there is 0x2ea). So stock 1.14d never plays them. |
 | 8 `rogue_confirm_*` | Unit sound event 0xf on a Rogue (class 0x10f, FUN_004cb9c0). The server sends it only from C→S 0x46's handler (FUN_0054c4b0 → FUN_0054c430: the player's merc sent to a unit), and the stock client never builds 0x46, so stock 1.14d never plays them. |
 | 13 NPC speech rows | Alkor, Asheara, Cain's act 4 greeting, Guard, Hratli, Iron Wolf, Ormus, Tyrael and Warriv rows. None is in the speech table (0x72b0e0), the only way a dialogue string plays a voice, and no client code plays their numbers (where game.exe has them, they're string ids or line numbers: 0xe8d in FUN_004a1950 is a string), so as traced stock 1.14d never plays them. |
-| 1 `monster_diablo_taunt_2` | No stock trigger identified. The arrival uses `monster_diablo_taunt_1` (now wired); the realm event 0x12 uses the separate expansion row `monster_diablo_taunt_ex`, outside this base-install count. |
+| 1 `monster_diablo_taunt_2` | The arrival plays `monster_diablo_taunt_1` as an immediate (`mov ecx, 0x121e` at 0x4d6576 before `FUN_004b9a00`), Group Size 0; the realm event 0x12 the expansion row `monster_diablo_taunt_ex`. 0x121f appears nowhere in game.exe's code and no excel table (MonSounds, MonStats2, Skills, Missiles, Overlay, States, Objects, Levels) names the row, so stock 1.14d never plays it. |
 | 6 monster / skeleton rows | `monster_cast_lightning` (421), `monster_meteor_impact` (437), `skeleton_cast_cold` / `_lightning` / `_poison` (1799..1801) and `monster_izual_taunt_2` (4644). No table column names them (Skills stsound names their siblings `monster_cast_cold` / `_fire`, MonSounds Weapon1 / 2 `skeleton_cast_fire` for every skeleton mage, all four rows being `firemage.wav`) and game.exe has no `mov ecx, <id>` / `push <id>` before a play for them (the 0x1a5 / 0x1b5 / 0x706 / 0x708 immediates are FUN_00477170's monster classes, screen-coordinate compares in FUN_0049a*/0049b*, assert line numbers for FUN_00408090, and a (string, number) record at 0x640d6e). The swing, FUN_004cb6a0, plays Weapon1 / 2 (+0x10 / +0x28) as they are, with no element offset; the taunt, FUN_004cbde0 event 0x10, plays +0x74 Taunt alone (`monster_izual_taunt_1`, Group Size 0). So as traced stock 1.14d never plays them. |
-| 1 `scene_tavern_interior` | Sounds.txt row 66, whose file is `ambient\scene\cathedral.wav`, the same file as `scene_cathedral` (row 53). No SoundEnviron.txt row names it. Not traced: any game.exe code that starts row 66 (the earlier "front-end tavern scene only" had no address). |
+| 1 `scene_tavern_interior` | Sounds.txt row 66, whose file is `ambient\scene\cathedral.wav`, the same file as `scene_cathedral` (row 53). No SoundEnviron row names it (Day / Night Ambience) and no other table does; of the four 0x42 immediates loaded as a call's argument (0x431445, 0x43dca2, 0x494558 and `mov al` at 0x42b159) none reaches a sound play (`FUN_0042f430` loads a front-end image, `FUN_005052b0` and `FUN_004f6480` aren't sound calls). So stock 1.14d never plays it. |
 
-Of the 104, 97 are traced as never played by stock 1.14d: the 70 class
-quest phrases, the 8 rogue confirms, the 13 NPC rows and the 6 monster /
-skeleton rows. So d2d plays 3,416 of the 3,423 rows the original does. The
-five desert-night rows aren't counted with them: no SoundEnviron row names
-them, but no code path playing them has been ruled out.
+All 104 are traced as never played by stock 1.14d: the 70 class quest
+phrases, the 8 rogue confirms, the 13 NPC rows, the 6 monster / skeleton
+rows, the 5 desert-night events, the tavern scene and Diablo's second taunt
+(the code audit: `tools/emu/disasm.py --all`, each id as `mov ecx` / `mov
+edx` / `push` within ten instructions before a start, `FUN_004b9a00`, or a
+placed start, `FUN_004b99a0`). So d2d plays every row the original does.
 
 These are trigger or feature gaps, not missing audio files. The two shrine
 sounds are covered by shrine activation cues; the audit counts code cues even

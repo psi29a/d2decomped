@@ -5,6 +5,7 @@
 // tools/emu/skill_start_sound.py: 300 cases. No game data needed at
 // runtime. With a cases file argument (skill_start_sound.py's `gen`
 // output) it prints its `game` lines instead, to diff.
+#include <skills.hpp>
 #include <sound_ids.hpp>
 
 #include <cassert>
@@ -54,6 +55,22 @@ int main(int argc, char** argv) try {
     const d2d::rules::sound_ids::SkillStart smite{ .st_sound = 280, .delay = true };
     const auto duriel = d2d::rules::sound_ids::skill_start(smite, 1, 211, 3, 256, false, false);
     assert(duriel[0].sound == 280 && duriel[0].ticks == 3 && duriel[1].sound == 0 && duriel[2].sound == 0);
+    // stsuccessonly gates both this sound list and the cast overlay. Hydra's
+    // FUN_004e39a0 refuses a missing caster/target room and a non-InTown cast
+    // aimed into town. Charge's FUN_004c9b40 refuses its missing client-side
+    // skill/path prerequisites (tools/emu/skill_start_success.py).
+    using d2d::rules::ClientStartContext;
+    using d2d::rules::client_start_succeeds;
+    assert(client_start_succeeds(17, ClientStartContext{}));
+    assert(!client_start_succeeds(17, ClientStartContext{ .caster_has_room = false }));
+    assert(!client_start_succeeds(17, ClientStartContext{ .target_has_room = false }));
+    assert(!client_start_succeeds(17, ClientStartContext{ .target_in_town = true }));
+    assert(client_start_succeeds(17, ClientStartContext{ .target_in_town = true, .skill_in_town = true }));
+    assert(!client_start_succeeds(17, ClientStartContext{ .has_skill_record = false }));
+    assert(!client_start_succeeds(25, ClientStartContext{ .has_skill_record = false }));
+    assert(!client_start_succeeds(25, ClientStartContext{ .has_dynamic_path = false }));
+    assert(!client_start_succeeds(25, ClientStartContext{ .same_local_flagged_skill = true }));
+    assert(client_start_succeeds(25, ClientStartContext{}));
     std::printf("OK: %zu skill starts as game.exe's\n", sizeof(cases) / sizeof(cases[0]));
     return 0;
 } catch (const std::exception& error) {

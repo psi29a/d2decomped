@@ -32,6 +32,7 @@
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <level_ids.hpp>
+#include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
 #include <panel_view.hpp>
@@ -285,7 +286,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             else mode_ms = frame_ms - std::uint32_t(frame) * per_frame - per_frame / 2;
             rate = 1.f;
         }
-        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, event_ambient(), extra, &player_look, frame_ms, &hero_at);
+        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, event_ambient(), extra, &player_look, frame_ms, &hero_at,
+                                       light_quality.frame(game_menu.value[3][2], frame_ms));   // LightQuality, the video menu's third row
         // A pad in the field shows no cursor. The highlight is the same PadPick the
         // press uses, by id. A screen point would let a sprite in front take it.
         int hover_x = held ? -1 : mouse.x, hover_y = held ? -1 : mouse.y;

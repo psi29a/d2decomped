@@ -384,21 +384,17 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Units' shadows, on the ground under the walls and units (the floor
     // pass FUN_004df510 → FUN_004dc7b0).
     {
-        static std::vector<std::uint16_t> mask;
-        if (mask.size() != std::size_t(screen_w) * kScreenHeight) mask.assign(std::size_t(screen_w) * kScreenHeight, 0);
-        static std::uint16_t id = 0;
         for (const auto& unit : units) {
             if (!unit.anim || !unit.shadow) continue;
             const float back = unit.object ? 0.1f : 0.f;      // game.exe's position, as the unit's draw
             const auto [anchor_x, anchor_y] = iso_point(unit.x - back, unit.y - back);
             if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
-            if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
             auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
             if (unit.hold && !unit.frames) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
             elapsed = object_elapsed(unit, elapsed);
             elapsed = get_hit_elapsed(unit, elapsed);
             if (past_cof(unit, elapsed)) continue;
-            shadow_composite(framebuffer, *unit.anim, unit.dir, elapsed, anchor_x, anchor_y, mask, id);
+            shadow_composite(framebuffer, *unit.anim, unit.dir, elapsed, anchor_x, anchor_y);
         }
     }
     set_phase(MainPhase::IngameWalls);
@@ -620,7 +616,7 @@ bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
 }
 
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
-                      int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id) {
+                      int anchor_x, int anchor_y) {
     composite_frames(anim, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& frame, const d2d::cof::Layer* layer) {
         const int screen_w = fb_width(framebuffer);
         if (layer && !layer->shadow) return;                               // the COF says this layer casts none
@@ -633,9 +629,6 @@ void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::Playe
             for (std::int32_t x = 0; x < frame.width; ++x) {
                 const int pixel_x = left + x - pixel_row / 2;
                 if (row[x] == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
-                auto& mask_cell = mask[std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)];
-                if (mask_cell == id) continue;
-                mask_cell = id;
                 auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
                 pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
             }

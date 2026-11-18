@@ -17,6 +17,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -95,7 +96,7 @@ void typed_items() {
     Item jewel;
     jewel.code = "jew";
     jewel.props = { { .stat = kReplenishDurability, .param = 0, .value = 2500 } };
-    plain.socketed_items.push_back(jewel);
+    plain.socketed_items.push_back(std::move(jewel));
     replenish_arm(tables, plain);
     assert(plain.replenish_in == 2);
     // A rate that puts the frame at or before the game's: the next frame (FUN_005416b0).
