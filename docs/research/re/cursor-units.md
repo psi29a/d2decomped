@@ -264,17 +264,26 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   asm at 004677b0..00467876 calls only the position getters 006488c0 /
   00648900, `FUN_004646a0` (the local player's room), `FUN_0064cb30` and
   `FUN_0064e780`). It takes the current target's subtile x, y (the click's
-  own x, y when the target is null), asks `FUN_0064cb30(room, x, y, 1)`
-  (the collision flags at that spot, mask 1) and `FUN_0064e780(room, &xy,
-  1, 1, 0, 7)` (a thin wrapper over `FUN_0064dea0`'s 50-ring free-spot search,
-  already run for real by `sk_tele_spot.py` / `corpse_spot.py`) and, if both
-  pass, writes the spot back to the click's x, y and returns null: the unit
-  target is dropped for the ground. Else it returns the target as it was. So
+  own x, y when the target is null; an object's, item's or tile's from its
+  static path +0xc / +0x10), asks `FUN_0064cb30(room, x, y, 1)` (the
+  collision word at that spot & 1, a wall; 0x27 off the rooms) and, when it
+  is set, `FUN_0064e780(room, &xy, 1, 1, 0, 7)` (a thin wrapper over
+  `FUN_0064dea0`: size 1, mask 1, no keep flag, limit 7, so rings of radius
+  1 to 6), and, when that finds a spot, writes it back to the click's x, y
+  and returns null: the unit target is dropped for the ground. Else (open
+  ground, or no free subtile within 6) it returns the target as it was. So
   it can only turn a target into a spot; it never adds a unit, and a
   converted monster (null from `FUN_00467a10`) enters it as the click's own
   spot. The whole function (both branches: open ground unchanged, a blocked
   null target or unit target moved or left alone) runs natively on
-  `sk_tele_spot`'s rooms: `tools/emu/click_free_spot.py`.
+  `sk_tele_spot`'s rooms: `tools/emu/click_free_spot.py`. Its `gen` / `game`
+  modes give d2d's `game::search_open_xy` (gamedata.hpp) the same cases:
+  `tests/test_search_open_xy.cpp`, fixture `search_open_xy_cases.inc`
+  (2000). In 1.14d's Skills.txt SearchOpenXY is on Fire Wall, Meteor,
+  Blizzard, Eruption and Volcano, and the monster rows SkeletonRaise,
+  VampireRaise, Resurrect, RegurgitatorEat and Resurrect2 (all but
+  RegurgitatorEat have SearchEnemyNear too, which goes first). d2d: `Town::open_spot`
+  (apps/d2d/town/input.cpp) on each cast from the mouse.
 - The right click (kind 3 of `FUN_00462d00`) with a converted monster is
   the same null target as the left: `FUN_00466fe0` (not `FUN_00467a70`),
   then `FUN_00462ba0`: `FUN_00462930` (a press arms 0x7a526c to 1 for a

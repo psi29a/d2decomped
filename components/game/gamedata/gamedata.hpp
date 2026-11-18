@@ -1260,6 +1260,22 @@ std::pair<int, int> twin_spot(int x, int y, Flags flags) {
     return nearest_spot(x, y, clear, 5).value_or(std::pair{ x, y });
 }
 
+// Where a SearchOpenXY skill goes (Skills.txt +6 & 0x80: Fire Wall, Meteor,
+// Blizzard, Eruption, Volcano): FUN_004677b0, from FUN_00467880 on the
+// client before the skill is sent. From subtile (x, y), the target's or,
+// with none, the click's: when its word has bit 1 (FUN_0064cb30; 0x27 off
+// the rooms), the nearest subtile without it within 7 (FUN_0064e780(room,
+// &xy, 1, 1, 0, 7) -> FUN_0064dea0: size 1, rings of radius 1 to 6). That
+// spot: the skill goes there, at the ground (the target dropped). None:
+// nullopt, the target and the click as they were. Checked against
+// tools/emu/click_free_spot.py (test_search_open_xy).
+template <class Flags>
+std::optional<std::pair<int, int>> search_open_xy(int x, int y, Flags flags) {
+    const auto wall = [&](int at_x, int at_y) { return (flags(at_x, at_y) & 1) != 0; };
+    if (!wall(x, y)) return std::nullopt;
+    return nearest_spot(x, y, [&](int at_x, int at_y) { return !wall(at_x, at_y); }, 1, 7);
+}
+
 // FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free
 // subtile nearest (x, y) where something `size` across (FUN_0064d9b0: 0 / 1
 // the subtile, 2 the plus, 3 the 3 x 3 box) meets no bit of `mask` in
