@@ -86,3 +86,60 @@ digit in a string is a colour change.
 | `FUN_00505260` | `composite_set_frame` | Frame `+8` = the value (negative as 0) when under frames × 256. Only caller `FUN_00438ad0` | not compared |
 | `FUN_005052f0` | `composite_set_18` | `+0x18` = the value (asserts the composite). Only caller `FUN_004380f0` | not compared |
 | `FUN_00505360` | `composite_set_0` | `+0` = the value (asserts). Only caller `FUN_004380f0` | not compared |
+
+## D2Win scroll bars, the video error log, the sound layer
+
+Kind 5 below is the scroll bar (`+0x48` its range, `+0x4c` its
+position). The sound layer is DirectSound behind `Src\D2SoundSmp.cpp`
+and `Src\D2SoundFast.cpp`: a sample record's `+0` is its buffer
+interface, `+0xc` its 3D buffer, `+0x48` an open stream, under the lock
+`0x88174c`; the music thread is `FUN_00516250` (sound.md "Frontend
+music").
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00507ef0` | `scrollbar_range` | Fastcall kind 5: `+0x48`. Only caller `FUN_004fc9b0` | not compared |
+| `FUN_00507f20` | `scrollbar_set_range` | Kind 5: `+0x48` = the value (negative as 0); 1 | not compared |
+| `FUN_00507f60` | `scrollbar_set_pos` | Kind 5: `+0x4c` = the value, at most the range; 1 | not compared |
+| `FUN_00507fa0` | `scrollbar_pos` | Kind 5: `+0x4c` | not compared |
+| `FUN_00507fd0` | `scrollbar_set_54` | Kind 5: `+0x54` = the value; 1. Callers `FUN_004fc6a0`, `FUN_004fc7a0` | not compared |
+| `FUN_005080c0` | `scrollbar_set_step` | Kind 5: `+0x50` = the value (the page step). Only caller `FUN_004fc7a0` | not compared |
+| `FUN_00508120` | `scrollbar_mouse` | A left press (0x201) on a visible, enabled bar with a range: in its column, on the thumb (10..0x14 px below its spot, height − 0x1e of travel) starts a drag; within 0xb px of the top an up arrow, within 10 of the bottom a down arrow; a drag sets the position from the mouse; else a page step (`+0x50`, else travel / 10) toward the mouse. Clamped to 0..range; then `FUN_004fba30` when linked, the bar's callbacks `+0x5c` and `+0x34`. Callers `FUN_00508370`, `FUN_005084f0` | not compared |
+| `FUN_005103b0` | `ddraw_error_log` | Logs `***** DirectDraw error: %s - %s (0x%x)` with the name of a DirectDraw result (DD_OK and about 90 DDERR codes), except DDERR_SURFACEBUSY and DDERR_SURFACELOST. Only caller `FUN_005122e0` | no counterpart: d2d has no DirectDraw driver |
+| `FUN_00512700` | `ddraw_get_14` | `*(DAT_007c9148 + 0x14)`. Only caller `FUN_005122e0` | no counterpart (as `ddraw_error_log`) |
+| `FUN_00513ae0` | `launch_expansion` | Returns `DAT_00881790`, the launch config's expansion flag (sound.md). Callers `FUN_00514860`, `FUN_00514990` | not compared |
+| `FUN_00513b60` | `sound_get_88176c` | Returns `DAT_0088176c`. Callers `FUN_004dfc20`, `FUN_004e0050` | not compared |
+| `FUN_00513b70` | `sound_get_881770` | Returns `DAT_00881770`. Callers `FUN_004df630`, `FUN_004dfc20`, `FUN_004e0050` | not compared |
+| `FUN_00513b90` | `sound_3d_mode` | Returns `DAT_00881774` (1 and 2 pick the 3D paths in `sample_set_pan` / `sample_set_far`). Callers `FUN_005157b0`, the mix `FUN_00515890` | not compared |
+| `FUN_00514710` | `frontend_track_path` | `ESI` track: with the two list lengths equal, the LoD list's path (`0x72f8b8`) when the expansion flag is set, else the classic list's (`0x72f878`). Only caller `FUN_00514990` | matches for LoD: d2d plays the `0x72f8b8` list (apps/d2d/main.cpp:1327) |
+| `FUN_00514840` | `music_playing` | With music on (`DAT_00881794`): 1 when the music sample has an open stream (`sample_streaming`). Callers `FUN_0044efa0`, `FUN_00516250` | not compared |
+| `FUN_00514920` | `playlist_mode` | Returns `DAT_00881798` (sound.md). Only caller `FUN_00516250` | not compared |
+| `FUN_00514c90` | `sound_get_8817ac` | Returns `DAT_008817ac`. Five sound callers | not compared |
+| `FUN_00514ca0` | `sound_mixer_save` | Fastcall: saves the value as `Diablo II\Sound Mixer` (`FUN_004150e0`) and returns it. Callers `FUN_004dfc20`, `FUN_004e0050` | not compared |
+| `FUN_00514cf0` | `music_volume` | Returns `DAT_008817b4`, the music volume (menu.md). Callers `FUN_004ba020`, `FUN_004dcaa0`, `FUN_004dfc20` | matches: d2d scales by music / 100 (apps/d2d/audio.hpp:112) |
+| `FUN_00514d20` | `sound_get_8817b8` | Returns `DAT_008817b8`. Only caller `FUN_004dfc20` | not compared |
+| `FUN_00514db0` | `ui_sounds_init` | Once sound is up (`FUN_00513b50`) and `DAT_008817fc` unset: its lock, `FUN_00515ce0`, eight samples (`FUN_00515530`) into `0x8817dc`. Only caller `d2d_frontend_screen_run` | not compared |
+| `FUN_00514e10` | `ui_sound_load` | Reads a file (`FUN_00517079`, line 0x77); a WAV (`wav_header_parse`) with format 0x5622 (22050 Hz) becomes a 0x85-byte record on the list `DAT_00881800`: data, size, stereo flag, its name. Only caller `d2d_frontend_screen_run` | not compared |
+| `FUN_00514ec0` | `ui_sound_play` | Fastcall name: the list's record with that name (case-sensitive), then the first of the eight samples with the same channel count that isn't busy (`FUN_00515710`): reset, loaded, mixed, played. Callers `FUN_00433bf0`, the button click `FUN_00501090` | not compared |
+| `FUN_00515180` | `sample_stream_fill` | Fastcall (sample, source offset, buffer offset, bytes): locks the buffer (`+0x2c`) and copies from the sample data, wrapping to the loop start (`+0x44`) when looping (`+0x40`), the rest zeroed; unlocks (`+0x4c`); a finished one-shot sets `+0x2c`. Only caller `FUN_00516250` | no counterpart: d2d streams through OpenAL |
+| `FUN_00515300` | `buffer_zero` | Locks the whole buffer, zeroes it, unlocks; 1, or 0 when the lock fails. Only caller `FUN_00516250` | no counterpart (as `sample_stream_fill`) |
+| `FUN_005155d0` | `sample_load_wav` | Fastcall (sample, WAV bytes, size): parses it (`wav_header_parse`); data longer than the loop start becomes the sample's (`+0x14`, `+0x18`) and the first buffer fill; `+0x30` the end for a one-shot shorter than the buffer, else -1; 1. Callers `FUN_004e01b0`, `ui_sound_play` | no counterpart (as `sample_stream_fill`) |
+| `FUN_005156a0` | `sample_play` | Fastcall: `Play(0, 0, looping)` (`+0x30`), `+0x1c` = 1; 1, or 0 on failure | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515950` | `sample_set_position` | With a 3D buffer (`+0x34` bit 2), its position (`+0x4c`) = x, y, z. Only caller `FUN_004dfc20` | no counterpart (as `sample_stream_fill`) |
+| `FUN_005159b0` | `stream_samples_left` | Under the lock: the open stream's info (`sfile_handle_info`) shifted right 2, else 0. Only caller `FUN_004df800` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515a30` | `sample_set_loop` | `+0x40` = the value. Only caller `FUN_004e01b0` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515a60` | `sample_set_loop_start` | `+0x44` = the value. Only caller `FUN_004e01b0` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515a90` | `sample_set_far` | `+0x3c` = the value; in 3D mode 2 with a 3D buffer (and its bit 2, or the value 0): 1 − value through `FUN_005165f0`, then the buffer's property 7 (`0x6de470`). Only caller `FUN_004dfc20` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515b40` | `sample_set_pan` | With 3D on (`FUN_00513ba0`) and a 3D buffer: mode 1 sets property 1 (`0x6de490`) to -1 for a nonzero value, 0 else; otherwise properties 5 and 4 (`0x6de470`) from `FUN_005165f0`. Only caller `FUN_004e01b0` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515c30` | `sample_streaming` | Fastcall: `+0x48 != 0`. Only caller `FUN_00514990` | not compared |
+| `FUN_00515d60` | `sound_flag_72f9b0` | `DAT_0072f9b0` when sound is up (`FUN_00513b50`), else 0. Only caller `FUN_00514990` | not compared |
+| `FUN_00515d70` | `sample_open_stream` | When `FUN_004068e0`: opens the file as a stream (`FUN_0041b280`, flag 0x40000 when asked, from offset × 4); `+0x48`, `+0x1c` = 1, `+0x30` = -1; 1, else 0. Callers `FUN_004e01b0`, `FUN_00514990` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515e40` | `sample_close_stream` | Under the lock: an open stream closed (`FUN_0041a990`), the buffer stopped (`+0x48`), `FUN_004068f0`, `+0x48` and `+0x1c` = 0. Callers `FUN_00515ce0`, `FUN_00516250` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515ee0` | `sample_stop` | Under the lock: closes the stream when open, stops the buffer, `+0x1c` = 0. Only caller `FUN_004df800` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00515fd0` | `sample_restore` | Under the lock: when the buffer's status (`+0x24`) says lost (bit 2), `Restore` (`+0x50`) retried every 10 ms while DSERR_BUFFERLOST, then `sample_stop`; 1, or 0 when the status call fails. Only caller `FUN_00516250` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00516140` | `sample_reset` | With no open stream and sound up (`FUN_00513bb0` 0): frees its data (`FUN_00516070`, `FUN_005153c0`), clears the sample's fields, rewinds (`+0x34`), the 3D buffer's distances 100.0 and 2.0, volume 0 unless 3D, position 0, far 0, the mix (`FUN_005157b0`). Callers `FUN_004e01b0`, `FUN_00514990` | no counterpart (as `sample_stream_fill`) |
+| `FUN_00516760` | `wav_header_parse` | A buffer of 0x20 bytes or more starting `RIFF`…`WAVE`: the `fmt ` chunk (16 bytes or more, `FUN_005166d0`) copied into a WAVEFORMATEX (cbSize 0), then the `data` chunk: its pointer, its size out; 0 otherwise. Only caller `FUN_004df630` (and `ui_sound_load`, `sample_load_wav`) | not compared: d2d decodes WAVs itself (apps/d2d/audio.hpp) |
+| `FUN_00516eab` | `file_open_error_name` | A failed open's path for the message: the archive's (`FUN_00416230`, 0x104 characters) unless `FUN_00406930`. Callers `FUN_00516e84`, `FUN_00517079` | no counterpart (StormLib) |
+| `FUN_00516f85` | `file_read_error_name` | After a short read (`FUN_00406900` below the size asked): the path as `file_open_error_name`. Callers `FUN_00476d40`, `FUN_00516e84`, `FUN_00517079` | no counterpart (StormLib) |
+| `FUN_0052b780` | `c2s_send_af` | Fastcall: the two-byte C->S `[AF xx]` (`FUN_0052b330`). Only caller `FUN_0052a750` | not compared |
+| `FUN_0052b810` | `net_stub_52b810` | Returns. Only caller `FUN_0052a750` | no counterpart (empty) |
