@@ -1447,8 +1447,6 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         // FUN_00434790: the address is kept (registry LastTcpIp), then one
                         // test connect (FUN_0052a750, port 4000): failing, "Cannot Connect
                         // to Server" (0x145b); else char-select joins it (game type 9).
-                        // ponytail: its "connecting" screen (FUN_0042f6e0) isn't drawn: the
-                        // box stays up over the wait (5 s at most).
                         g_last_tcp_ip = tcpip.address;
                         if (!d2d::userdir::save_cfg(g_user_dir / "d2d.cfg", { { "last_tcp_ip", g_last_tcp_ip } }))
                             d2d::log::warn("d2d.cfg: last_tcp_ip not saved");
@@ -1456,6 +1454,16 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         g_lan_host_port = 0;
                         g_lan_connect.clear();
                         g_join_host.clear();
+                        // FUN_0042f6e0 replaces the edit box with its PLEASE WAIT popup.
+                        // Present it now: both connects below are synchronous, so the main
+                        // loop cannot reach its usual presentation until they return.
+                        render_tcpip(framebuffer, *scene, tcpip, now_ms);
+                        render_connecting(framebuffer, *scene);
+                        SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), fb_width(framebuffer) * 4);
+                        SDL_RenderClear(win.renderer);
+                        SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
+                        SDL_RenderPresent(win.renderer);
+                        crash_frame.update(framebuffer);
                         if (auto lan_test = d2d::net::TcpConnection::connect(tcpip.address, d2d::net::lan::kDefaultPort, 1500)) {   // a d2d host (lan-host.md)
                             g_lan_connect = tcpip.address;
                             screen = Screen::CharSelect;
