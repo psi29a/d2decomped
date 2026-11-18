@@ -396,8 +396,15 @@ firewall, immolationfire, meteorfire, the vampires' two), dParam1 19.
 
 d2d: the burner on a foe (`missiles_update`: `Foe::soft_hits`, the blow's
 `landed` off) and on a monster (`Fight::burn`'s `soft`: `Monster::got_hit`,
-`soft_hit`); `test_burn_fraction`. Rolled on d2d's rng: its missiles keep no
-seed.
+`soft_hit`); `test_burn_fraction`. The draw is on the missile's own seed
+(`Missile::seed`, `test_missile_seed`): the step above, kept pass or fail,
+the fight's rng no part of it. The caller is the missile (second operand),
+not a monster. Its first value is `{step, 666}` of the game seed
+(FUN_00555230 -> FUN_00552df0, a missile too: its type is not 0):
+`Fight::missile_tick` gives it from `spawning.game`; a missile it has not
+seeded (a bare or client-made one) takes one step of the fight's rng for it
+(`soft_hit`). Oracle:
+`tools/emu/missmode.py` case `5ad220`.
 
 ## Server damage function 10 — FUN_005ad2b0
 

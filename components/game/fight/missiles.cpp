@@ -611,7 +611,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
-                        burn(i, damage, now_ms, soft_hit(missile_info, rng));
+                        burn(i, damage, now_ms, soft_hit(missile, rng));
                     }
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece

@@ -443,6 +443,7 @@ struct Monster {
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
     std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    float leap_pace = 0;                      // the takeoff's path pace in cells a frame (FUN_005d9f70: MonStats Run << 8, FUN_00648690), 0: the sequence's time
     // Whirlwind as a monster casts it (srvstfunc 38 / do 76): its A1 sequence
     // looping along its path since whirl_ms, the rows passed, the last unit hit.
     bool whirl = false;
@@ -666,6 +667,21 @@ inline constexpr float kKnockCellsPerFrame = 0.2f;
 inline float knock_moved(std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * kKnockCellsPerFrame / 40.f, length); }
 inline std::uint32_t knock_ms(float length) { return std::uint32_t(std::ceil(length / kKnockCellsPerFrame - 1e-4f)) * 40; }
 
+// A takeoff's flight (FUN_005d9f70: the path's velocity is MonStats Run (row
+// +0x34) << 8, FUN_00648690; a frame moves it velocity / 4096 subtiles,
+// FUN_006502d0): Run / 16 subtiles = Run / 80 cells a frame. 0 for no Run.
+inline float leap_cells_per_frame(int run) { return float(std::max(run, 0)) / 80.f; }
+// The cells a takeoff has flown `elapsed_ms` in, at `pace` cells a frame, up to its `length`.
+inline float leap_moved(float pace, std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * pace / 40.f, length); }
+
+// How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the
+// takeoff's pace (FUN_005d9f70) when it has one, else along `span_ms`, the sequence's time.
+inline float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms) {
+    const float length = std::hypot(monster.leap_to_x - monster.leap_from_x, monster.leap_to_y - monster.leap_from_y);
+    if (monster.leap_pace > 0 && length > 0) return leap_moved(monster.leap_pace, elapsed_ms, length) / length;
+    return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
+}
+
 // A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
 // pet or the merc): at the knockback's pace to its leap_to, then it stands
 // till the mode ends (LAB_005a8630 steps the path each frame and leaves
@@ -716,12 +732,11 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
-// ponytail: no seed of its own (unit +0x20): the draws game.exe takes from it
-// (pSrvDmgFunc 3's soft hit, FUN_005ad220) take the fight's rng.
-struct Missile;
-// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when a step of
-// the missile's seed has its low 7 bits under dParam1 (+0x78).
-inline bool soft_hit(const GameData::MissileInfo& info, d2d::rules::Rng& rng) { return info.dmg_func == 3 && int(rng.next() & 0x7f) < info.dmg_par1; }
+// A missile's seed (Missile::seed, unit +0x20, {low, high}): the draws
+// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220) step it,
+// not the fight's rng.
+// ponytail: a missile Fight::missile_tick has not seeded (a client-made or
+// bare one) takes one step of the fight's rng for its first value (soft_hit).
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -782,6 +797,15 @@ struct Missile {
     bool launched = false, follow = true;
     std::vector<std::array<int, 4>> rooms;
 };
+// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when one step
+// of the missile's own seed (+0x20: low * 0x6ac690c5 + high) has its low 7
+// bits under dParam1 (+0x78). The step is kept, the roll passed or not. `rng`
+// only gives a missile with no seed yet its first value (see Missile::seed).
+inline bool soft_hit(Missile& missile, d2d::rules::Rng& rng) {
+    if (!missile.info || missile.info->dmg_func != 3) return false;
+    if (!missile.seed) missile.seed = d2d::rules::Rng(rng.next());   // {a step, 666}: FUN_00552df0
+    return int(missile.seed->next() & 0x7f) < missile.info->dmg_par1;
+}
 
 // A missile's speed, cells/s, for its velocity: FUN_0059fa30's path
 // velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
@@ -1124,7 +1148,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
                 // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
                 foe.hit_class = missile.info->hit_class;
-                if (soft_hit(*missile.info, rng)) ++foe.soft_hits;
+                if (soft_hit(missile, rng)) ++foe.soft_hits;
             }
             return false;
         }
