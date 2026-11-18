@@ -539,6 +539,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         if (frame == missile_frame) return;
         missile_frame = frame;
         burned.clear();
+        // ponytail: seeded at the frame's first missile tick, not as each is made, so a drop in the
+        // frame it was made comes before its step. A visual-only one takes none: some are the
+        // server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
+        for (auto& missile : missiles)
+            if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
         for (std::size_t k = 0; k < missiles.size(); ++k) {
             auto& missile = missiles[k];
             if (!missile.friendly || missile.skill < 0 || !missile.info) continue;   // the player's side's (a monster's carries its skill too)
@@ -726,8 +731,8 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // x 256 (FUN_00646ca0, FUN_0045c3e0), capped at max life. At 0 or
         // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
         // not on the missile, so that roll is 0. Returns 1: it ends and does
-        // not strike. ponytail: the draw is the fight rng. The missile seed
-        // (+0x20) and ProgOverlay (+0x36) are not kept.
+        // not strike. The draw is on the missile's seed (+0x20, 0x5aa0a6).
+        // ponytail: ProgOverlay (+0x36) is not kept.
         if (missile_info.hit_func == 7) {
             const bool players_bolt = missile.friendly && !missile.by_merc;
             const int struck_id = monsters[monster_index].id;
@@ -738,7 +743,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const int low_points = calc(*skill, skill->calc[0], missile.level);
                 const int high_points = calc(*skill, skill->calc[1], missile.level);
                 const int span = (high_points << 8) - (low_points << 8);
-                const int amount = (span > 0 ? int(rng(span)) : 0) + (low_points << 8);
+                const int amount = (missile.seed ? (*missile.seed)(span) : 0) + (low_points << 8);
                 const auto mend = [](Monster& monster, int added) {
                     if (added <= 0) return;
                     int life = monster.life_fine() + added;

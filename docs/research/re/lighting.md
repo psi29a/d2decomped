@@ -126,8 +126,13 @@ The environment lookup was hooked; no d2d parity claim is made.
   0 (LAB_004757a7). Then the frame rate, 0x7a04a8, the frames of the last 3 s over 3
   (`FUN_0044cce0`): 9 or less 0, 10 to 12 gives 1, 13 to 15 keeps a level of 1 or more
   (LAB_004757ba) or gives 1, more keeps the option's. A change waits 2000 ms from the
-  last (LAB_004757da). Read from the code, no oracle. d2d has the row (`gamemenu.cpp`), which
-  changes nothing here, and no drop by frame rate.
+  last (LAB_004757da). The count is the game loop's (`FUN_0044efa0`: a frame drawn adds one
+  to 0x7a04ac; a game's start sets 0x7a04a8 to 25). Medium and High differ only in 0x72a348,
+  which this reads only under Low. Read from the code, no oracle. d2d: `rules::LightQuality`,
+  fed by Town::draw with the row and the frames it draws (test_light).
+- **At quality 0** (`FUN_004748d0`'s head, after a radius outside 1..255 returns): another
+  player's type 0 light (owner +4 not the player's unit) of 16 eighths or more is 16, every
+  type 1 light 8, type 3 not stamped (`rules::light_radius8`).
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
@@ -382,16 +387,20 @@ from the code, no oracle.
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
   after every floor; players', NPCs'
   and monsters' composites cast shadows after the floor pass
-  (`shadow_composite`), each pixel once however many layers cover it.
+  (`shadow_composite`), each shadow layer on its own as `FUN_00471620`
+  draws them (`FUN_004db090`: the COF layer record's shadow byte; per layer
+  `FUN_004f6540` -> `FUN_00608d60`, `*dst = T0[*dst][0]`), so two layers
+  over one pixel darken it twice.
 
 - Walls shadow the player's and objects' lights (`stamp_shadowed`, as
   `FUN_00474d70`: the rings, the blend toward the light, 16 behind a
   blocked subtile); monsters' and missiles' lights (type 1) aren't.
-  Light Quality is taken as high.
+  At quality 1 or 0 the player's light is a plain stamp too (Light Quality above).
 - Light types from their callers of `FUN_00474160`: the player
   (0x460cf0) and a monster's light-radius stat (0x4ae2ee,
-  `FUN_004ae210`: a hireling with a light-radius item) type 0; missiles
-  (0x470555) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
+  `FUN_004ae210`: a hireling with a light-radius item) type 0; overlays
+  (0x470555 in `FUN_00470390`: Overlay.txt InitRadius +0x70, Radius +0x74,
+  Red / Green / Blue +0x7d..+0x7f), a client missile (0x4f3630) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
   (0x4bc5bc, `FUN_004bc580`) and 0x4d6f85 type 2 (cached shadows,
   `FUN_004750f0`). `FUN_004d6d40`'s 0x4d6f85 wasn't followed; 0x4accef, 0x4acd2c (type 0) and
   0x4f3630 (type 1) are three more callers, not followed.

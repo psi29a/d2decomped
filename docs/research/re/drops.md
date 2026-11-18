@@ -459,6 +459,34 @@ A landed item marks 0x200, so the next lands elsewhere. Object footprints
 non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 0x400.
 
+When no spot is free (the 49 rings find none), FUN_0064dea0 keeps the start
+(`param_7` != 0: FUN_00555da0 hands it its own last argument, 1 from
+FUN_0055a550's call: its two `push 1` at 0x55a594 / 0x55a596 stay on
+the stack under FUN_00620bb0's `ret 4`, and FUN_00555da0 reads them at
+0x555dd7) and answers the room at it (FUN_00463740); with param_7 = 0 it
+answers 0. So FUN_00555da0 returns 0 only when the start (x + 2, y + 3, or
+(x, y) when that is off the rooms) is itself in no room and the search found
+none; FUN_0055a550 then returns 0 before the record is zeroed or any item
+unit made (no draw off the game seed), and FUN_0055a6d0 (the call at 0x55aee7, `je 0x55af5e`)
+skips the gold mul, the pointer store (0x55af46), the count (0x55af4c), the `max` stop and
+FUN_005589a0 (0x55af59): the pick is spent, the quality roll's draws already taken. The
+count is of items made (re-check: `python3 tools/ghidra/fn.py 0055a6d0
+0055a550 00555da0 0064dea0`; `python3 tools/emu/disasm.py 55a550`).
+The room FUN_00463740 is asked at 0x64e23f is the one in FUN_0064dea0's
+first argument slot (`[ebp+8]`), which each probe that finds a room
+overwrites (0x64e13c): the room of the last such probe, not always the
+dropper's. d2d asks the dropper's room and its near list (`automap_rooms`),
+so a start that only the last-probed room's list lacks (or has) is not
+matched; not traced past that.
+d2d: `drop_place` (gamedata.hpp) is `drop_spot` with that answer (nullopt);
+`rules::roll_drops` takes a `Placement` asked per drop after its quality roll;
+`Loot::drop` puts each drop as it is rolled and a refused one is not made,
+counted or given gold find. Not wired: chests (`chest_round`) and the other
+rollers, which count every drop, and the item's own put of the quest rings
+(`Loot::put` returns false there, unchecked). No oracle: the placement
+is read from the decompile and asm, the rule is tested on typed-in
+rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
+
 ## Checks
 
 - `cd tools/emu && uv run python drops.py 1-100000` runs FUN_0055a6d0 per

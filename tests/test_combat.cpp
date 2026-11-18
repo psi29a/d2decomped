@@ -410,7 +410,7 @@ int main(int argc, char** argv) try {
     }
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
-    // quarter of what the hit leaves (FUN_005bffc0), resistances cut, leech per Drain.
+    // quarter of the life the target has before the hit (FUN_005bffc0), resistances cut, leech per Drain.
     Fighter hit = simple_fighter(100, 100, 1000000);
     hit.crushing = 100; hit.life_steal = 10;
     hit.elem[0] = { 10, 10 };
@@ -418,11 +418,11 @@ int main(int argc, char** argv) try {
     Rng rng{ 5 };
     auto blow = player_blow(hit, target, 99, rng);
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng);   // 95 % to hit
-    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 44);  // 100 phys at 50%, fire immune, CB (400 - 50)/4 = 87, less 50 %
+    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400 / 4 = 100 before the hit, less 50 %
     target.crush_divisor = 8;                                        // a boss or unique; a missile doubles it
     blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
-    assert(blow.hit && blow.damage == 50 + 11);                       // 350 / 16 = 21, less 50 %
+    assert(blow.hit && blow.damage == 50 + 12 && blow.frac == 128);   // 400 / 16 = 25, less 50 % = 12.5
     assert(blow.life == 640);                                         // 50 phys (12,800) x (10 << 6) / 100 x Drain 50 / 100 / 64, in 256ths (FUN_0057c420)
     // The difficulty's divisor and the cut to the target's life (FUN_0057c420, FUN_0057c6c0 0x57c7f8): game.exe's values,
     // tools/emu/leech.py game on these cases (12,800 = 50 points of physical, a 10 % steal, Drain 50 unless 100).
@@ -432,6 +432,41 @@ int main(int argc, char** argv) try {
     assert(leech_fine(12'800, nearly_dead, 10, 1) == 256);                                         // only the 20 points it had
     Target full_drain{ .hit_points = 400, .max_hp = 400, .drain = 100 };
     assert(leech_fine(128, full_drain, 10, 1) == 12 && leech_fine(128, full_drain, 0, 1) == 0);      // half a point: 12 / 256ths, not 0
+    // With a crush the leech takes only the life the crush left (FUN_0057c6c0 0x57c7f8 after event 5): 100 points, a crush of
+    // 25, a blow of 90 at 10 % leeches 75 x 0.1 = 7.5 points (1,920 / 256ths); game.exe's value, tools/emu/crush.py pair.
+    Fighter crusher = simple_fighter(90, 90, 1000000);
+    crusher.crushing = 100; crusher.life_steal = 10;
+    Target hundred{ .hit_points = 100, .max_hp = 100, .armor_class = 1, .level = 1, .drain = 100 };
+    Rng crush_rng{ 7 };                                              // its own stream: the asserts below keep theirs
+    blow = player_blow(crusher, hundred, 99, crush_rng);
+    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(crusher, hundred, 99, crush_rng);
+    assert(blow.hit && blow.crushing && blow.damage == 90 + 25 && blow.life == 1920);
+    // game.exe's crush (tools/emu/crush.py game, cases `id life phys res div` in 256ths, 30 points of physical, divisor 4):
+    // a life with a fraction, a resist above 100 (capped: nothing), a negative one (no share), a life whose crush is past
+    // MulDiv's 0x100000 branch ((2,560,064 / 100) x 33), a life under the divisor. The crush is the blow's 256ths less its physical.
+    const auto crush_of = [](int life_fine, int res, int divisor = 4) {
+        Fighter swinger = simple_fighter(30, 30, 1000000);
+        swinger.crushing = 100;
+        Target struck{ .hit_points = (life_fine + 255) >> 8, .max_hp = (life_fine + 255) >> 8, .armor_class = 1, .level = 1, .drain = 100 };
+        struck.res[0] = res; struck.life_fine = life_fine; struck.crush_divisor = divisor;
+        Rng own{ 11 };
+        Blow struck_blow = player_blow(swinger, struck, 99, own);
+        for (int i = 0; i < 20 && !struck_blow.hit; ++i) struck_blow = player_blow(swinger, struck, 99, own);
+        assert(struck_blow.hit && struck_blow.crushing);
+        return struck_blow.damage * 256 + struck_blow.frac - struck_blow.phys_fine;
+    };
+    assert(crush_of(25'728, 0) == 6'432 && crush_of(102'400, 120) == 0 && crush_of(102'400, -20) == 25'600);
+    assert(crush_of(10'240'256, 33) == 1'715'264 && crush_of(3, 0) == 0);
+    // The mana leech is cut to the life the crush left too (crush.py pair: Nightmare, divisors 2, a 20 % mana steal, 100 points
+    // of physical on 100.5 points of life, divisor 8): crush 3,216, mana 2,251 in 256ths.
+    Fighter mana_leech = simple_fighter(100, 100, 1000000);
+    mana_leech.crushing = 100; mana_leech.mana_steal = 20;
+    Target nightmare{ .hit_points = 101, .max_hp = 101, .armor_class = 1, .level = 1, .drain = 100, .crush_divisor = 8, .life_fine = 25'728,
+                      .life_steal_divisor = 2, .mana_steal_divisor = 2 };
+    Rng mana_rng{ 7 };
+    blow = player_blow(mana_leech, nightmare, 99, mana_rng);
+    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(mana_leech, nightmare, 99, mana_rng);
+    assert(blow.hit && blow.crushing && blow.damage * 256 + blow.frac - blow.phys_fine == 3'216 && blow.mana == 2'251 && blow.life == 0);
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);
     crit.critical = 100;

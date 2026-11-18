@@ -545,12 +545,33 @@ lines (missile names aren't passed in). What it does:
   ED calc1 (ln34 + Leap's level × par8), the element; a stun on the target
   ends). Sequence 14: S1 frames (events at takeoff and landing), then A1
   (the strike).
-- **Charge**, start 31 (FUN_005cf6b0): velocity = **run velocity**
-  (CharStats +0x41 << 8) × (max(velocitypercent (67), 50) + **par1** (150))
-  / 100 (0x5cf833..0x5cf864: stat 0x43 read, floored at 0x32, plus
-  FUN_004c9460's Param1, then FUN_00483360's MulDiv; d2d: 100 +
-  `Fighter::velocity_pct`, `Fight::start_move`); players at a distance only (in reach it's a plain attack,
-  FUN_0056e230). Do 67 (FUN_005cf900) on each event (every run frame of
+- **Charge**, start 31 (FUN_005cf6b0): first validates the Skills.txt id,
+  selected skill (`FUN_00620250`) and dynamic path. Its target is
+  `FUN_00553540`'s path target. In reach (`FUN_00622c40`), a player takes
+  `FUN_0056e230`'s plain attack path; a monster immediately enters A1 (A2
+  for class 0x49 and Duriel) and resolves the swing through FUN_005a7c20.
+  Otherwise the selected skill stores the target type/id, or 6/0 when there
+  is none or it has state 0x36, and field `+0x24` becomes 7 (15 for Duriel).
+  A player's base is CharStats **run velocity** (`+0x41 << 8`), a monster's
+  MonStats `Run +0x34 << 8` (default 0x100 without a row); the monster path
+  is cleared and capped to 0x14 steps. The final velocity is
+  `MulDiv(base, max(velocitypercent (67), 50) + Param1, 100)`
+  (0x5cf833..0x5cf864: FUN_00625480, FUN_004c9460, FUN_00483360), handed to
+  FUN_00648690 before FUN_00649970 calculates the path. It marks the skill
+  node `0x1001`, sets state 0x12 and returns 1. These are its significant
+  selected-skill, path and state effects.
+
+  For a player entering RN, **FUN_00620e80** has already made a kind-4,
+  state-0 stat list (`FUN_006251f0`) owned by that unit. With a nonzero
+  CharStats WalkVelocity it writes stat 0x43 as
+  `RunVelocity * 100 / WalkVelocity - 100` (integer division) through
+  FUN_006270b0 and attaches the list through FUN_00626e10. Chill's state
+  contributes -50 to the same aggregate stat. Thus Charge floors only after
+  adding the run bonus, chill and other velocitypercent sources, then adds
+  Param1; its MulDiv truncation happens before d2d converts 8.8 velocity to
+  movement. `rules::charge_velocity` and `Fight::start_move` port that exact
+  order; `tools/emu/charge_velocity.py` checks 240 cells and seven mutations.
+  Do 67 (FUN_005cf900) on each event (every run frame of
   sequence 4 is one): the target in reach jumps the sequence to its attack
   frames (FUN_00553dc0); the attack's event hits (toht, **knockback**,
   ED calc1, the element, hit class 0x70); run frames out, the run starts
