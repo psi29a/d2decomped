@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
@@ -907,6 +908,49 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
         for (std::size_t k = 0; k < 5 && skill.passive_stat[k] >= 0; ++k)
             out.push_back({ skill.passive_stat[k], eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl, 0), skill.passive_itype });
     }
+    return out;
+}
+
+// ---- a summon's stats (FUN_005c4470: every summoning skill runs it on its pet)
+
+// Its passive stats (Skills +0x98, added to the pet's own: FUN_006272b0) and
+// aurastats (+0x54, on its state node: FUN_00627150), each at the skill's
+// level through the owner's calcs (Skeleton Mastery, Golem Mastery and the
+// golems' synergies come in that way), summed by stat id.
+struct SummonStats { std::map<int, int> passive, aura; };
+inline SummonStats summon_stats(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    SummonStats out;
+    for (std::size_t k = 0; k < 5; ++k)
+        if (skill.passive_stat[k] >= 0) out.passive[skill.passive_stat[k]] += eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl);
+    for (std::size_t k = 0; k < 6; ++k)
+        if (skill.aurastat[k] >= 0) out.aura[skill.aurastat[k]] += eval_calc(skill_tables, skill.aura_calc[k], env, skill.id, lvl);
+    return out;
+}
+
+// Its max life: the rolled whole points with the maxhp stat's (256ths), then
+// calc1 % (`pct`) of that, whole points, at least 1.
+inline int summon_life(int life, int maxhp_fine, int pct) {
+    life += maxhp_fine >> 8;
+    life += int(std::int64_t(life) * pct / 100);
+    return std::max(life, 1);
+}
+
+// Its skills (FUN_0056deb0): sumskill k at sumsk calc k, the ones at level 1
+// or more, in order, as (skill id, level). A name is looked up as written,
+// then ignoring case.
+inline std::vector<std::pair<int, int>> summon_skill_levels(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    std::vector<std::pair<int, int>> out;
+    const auto named = [&](const std::string& name) -> const Skill* {
+        if (name.empty()) return nullptr;
+        if (const auto found = skill_tables.by_name.find(name); found != skill_tables.by_name.end()) return skill_tables.get(found->second);
+        for (const auto& [skill_name, id] : skill_tables.by_name)
+            if (std::ranges::equal(skill_name, name, [](char left, char right) { return std::tolower(std::uint8_t(left)) == std::tolower(std::uint8_t(right)); }))
+                return skill_tables.get(id);
+        return nullptr;
+    };
+    for (std::size_t k = 0; k < 5; ++k)
+        if (const auto* given = named(skill.sumskill[k]))
+            if (const int given_level = eval_calc(skill_tables, skill.sumsk_calc[k], env, skill.id, lvl); given_level >= 1) out.emplace_back(given->id, given_level);
     return out;
 }
 
