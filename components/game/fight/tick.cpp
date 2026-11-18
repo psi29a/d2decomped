@@ -15,6 +15,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <melee_reach.hpp>
+#include <merc.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -675,6 +676,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->merc_poison_rate = rate;
                 actor->merc_poison_until = now_ms + std::uint32_t(side[1].poison_ticks) * 40;
             }
+            // FUN_0057ac50 files a monster's event 3 (its regeneration) for the next frame, the merc's too.
+            if (actor->merc && actor->merc->hit_points > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
         }
         if (actor->merc && actor->merc->mode != "DT")           // Crushing Blows, after the hits (monprop_hit)
             for (const int divisor : side[1].crushed) {
@@ -698,6 +701,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             actor->merc->hit_points -= side[1].damage;
             if (actor->merc->hit_points == 1 && actor->merc->life_frac > 0) actor->merc->hit_points = 0;   // under one whole point is dead (hurt, 0057c86c)
             if (actor->merc->hit_points <= 0) actor->merc->life_frac = 0;
+            // Still alive, a hurt unit with a regeneration (total stat 0x4a) files its event 3 for the
+            // next frame (FUN_0057c6c0, 0x57c8fd..0x57c92f): the merc's runs from its first hurt (apply_regen).
+            else if (const int regen = d2d::rules::merc_life_regen(actor->merc_st.life); regen + merc_gear().sum[d2d::d2s::kHitPointRegeneration] != 0)
+                actor->merc->stats.regen = regen;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
                             : actor->merc->mode != "KB" && d2d::rules::struck_big(side[1].blows, std::int64_t(merc_max_life()) << 8, actor->merc->seed) ? std::string_view("GH")
