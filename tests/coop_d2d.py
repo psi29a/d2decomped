@@ -34,6 +34,8 @@ for index, name in enumerate(["Alpha", "Beta", "Gamma"]):   # expansion softcore
     struct.pack_into("<I", b, 0x30, 1_000_000 - index)   # last played
     with open(os.path.join(saves, name + ".d2s"), "wb") as f:
         f.write(b)
+    stamp = 2_000_000_000 - index * 60     # char select lists newest file time first (FUN_00438ad0)
+    os.utime(os.path.join(saves, name + ".d2s"), (stamp, stamp))
 patch = os.environ.get("D2_PATCH_INSTALLER")
 if patch and os.path.exists(patch):
     with open(os.path.join(user, "d2d.cfg"), "w") as f:
