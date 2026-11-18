@@ -180,6 +180,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::unit(chunk, view.player);
         chunk.u8(view.running).u8(view.dead).u8(view.poisoned).u8(view.chilled).u8(view.stamina_blue).u8(view.stamina_shrine).i32(view.life_preview).i32(view.mana_preview).i32(view.curse).u8(view.stunned).i32(view.pmode).f32(view.prate).i32(view.walk_percent).u32(view.seq_frame_ms).u8(view.seq_loop);
         chunk.i32(view.flash_overlay).u32(view.flash_at);   // its one-shot overlay (a cast's: FUN_004c6140)
+        chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (town/draw.cpp, FUN_00463390)
         chunk.u16(int(view.seq.size()));
         for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
         for (const auto look_byte : view.gfx) chunk.u8(look_byte);
@@ -404,6 +405,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         view.player = wire::unit(input);
         view.running = byte(); view.dead = byte(); view.poisoned = byte(); view.chilled = byte(); view.stamina_blue = byte(); view.stamina_shrine = byte(); view.life_preview = i32(); view.mana_preview = i32(); view.curse = i32(); view.stunned = byte(); view.pmode = i32(); view.prate = f32(); view.walk_percent = i32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
         view.flash_overlay = i32(); view.flash_at = u32();
+        view.pmode_until = u32(); view.knocked = byte() != 0; view.fhr = i32();
         view.seq.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {
             const auto mode = std::uint8_t(byte()), frame = std::uint8_t(byte()), event = std::uint8_t(byte());
