@@ -43,7 +43,8 @@ int main() try {
     fire.x = fire.y = 4.f;
     fire.born = 0; fire.dies = 100000;
     fire.row = d2d::rules::MissileDamage{ .etype = 0, .elo = 0x100, .ehi = 0x100 };
-    fire.seed.low = 0x1234; fire.seed.high = 666; fire.seeded = true;
+    fire.seed = d2d::rules::Rng{ 0x1234 };
+    fire.seed->high = 666;
     d2d::rules::Rng rng(7);
     for (int frame = 0; frame < 6; ++frame) {
         std::vector<Missile> missiles;
@@ -54,15 +55,15 @@ int main() try {
                         [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
         const bool want = step();
         assert(foes[0].soft_hits == (want ? 1 : 0));
-        assert(missiles[0].seed.low == low && missiles[0].seed.high == high);   // the missile's own seed stepped, pass or fail
+        assert(missiles[0].seed && missiles[0].seed->low == low && missiles[0].seed->high == high);   // the missile's own seed stepped, pass or fail
         fire.seed = missiles[0].seed;
     }
 
     // A soft hit on a missile of another function never touches its seed.
     burner.dmg_func = 2;
     Missile other = fire;
-    const auto kept = other.seed;
-    assert(!soft_hit(other, rng) && other.seed.low == kept.low && other.seed.high == kept.high);
+    const auto kept = *other.seed;
+    assert(!soft_hit(other, rng) && other.seed->low == kept.low && other.seed->high == kept.high);
     std::puts("OK: pSrvDmgFunc 3 steps the missile's own seed (FUN_005ad220), pass or fail");
     return 0;
 } catch (const std::exception& error) {
