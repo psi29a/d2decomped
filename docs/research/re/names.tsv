@@ -3,7 +3,12 @@ address	name	evidence
 004059d0	app_mode_run	mode 1..5 (DAT_0074c704): obj = make() from 0x706554 + 8 * mode, calls its first virtual method, then done() at 0x706558 + 8 * mode; null entries raise lines 0x133 / 0x134; only caller FUN_00405c30 (runtime-support.md "The mode run")
 00406d30	user_dir_path	(buf in ESI, size in EDI): FUN_004067d0 SHGetKnownFolderPath(id 0x6cca6c) + "Diablo II", else SHGetFolderPathA CSIDL 5 + "Diablo II\\Save"; null buf line 0x44 (runtime-support.md "The per-user folder path")
 00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
+00409ab0	pool_free_block	Fastcall (_, *ptr, file, line): the pool block holding the pointer (FUN_004099d0); a slot inside its range has its in-use bit cleared (masks 0x6ce268 / 0x6ce2e8) and the count dropped under the block's lock ... (src-frontier.md)
+00409b80	pool_release_empty	For the global pool (0x74f104, a null argument): each sub-pool's blocks with no slots in use are unlinked, removed from the sorted list (d2d_pool_block_remove), VirtualFreed and freed. Only caller the app start ... (src-frontier.md)
+00409ff0	pool_set_first	The global pool's first dword = the second argument, under its lock, when it has sub-pools. Callers FUN_0044b8a0, FUN_0044f360 (src-frontier.md)
+0040a4c0	async_data_finish	Fastcall record not yet done (+0x48 bit 0): its request event reset and released, FUN_004068f0 on its handle, done flag set; a buffer at +0x30 freed (line 0xd7), its pointer and size kept at +0x3c/+0x40, +0x1c..+0x34 ... (src-frontier.md)
 0040a620	async_data_create	AsyncData.cpp: 0x54-byte record (alloc line 0x128) tagged 0x41737960 at +0x48; buffer +0x3c, size +0x40; reads inline or queued (DAT_0075af94)
+0040a7f0	async_data_done	Fastcall record: 0 for null; a record whose +0x48 isn't 0x4173796? (Asy) and not done is finished when its event is signalled (WaitForSingleObject(…, 0)); returns the done bit. Callers the COF and sprite loaders ... (src-frontier.md)
 0040a9e0	async_data_result	record in ECX: +0x3c, after FUN_0040a960 when bit 0 of +0x48 is clear; null / bad tag / still unfinished end the run with errors 0x25f / 0x260 / 0x266
 0040aa40	async_data_size	record in ECX: +0x40; null / bad tag end the run with errors 0x271 / 0x272; waits for nothing
 00408b20	error_box	fastcall (class, with_location, file_line, format, va_list): logs, formats, MessageBoxA(title "Diablo II Error", 0x30); a null format is "Unrecoverable internal error %08x" line 0x8de (runtime-support.md "The error box")
@@ -13,6 +18,8 @@ address	name	evidence
 00409370	pool_block_add	(block; pool in ESI) sorted insert of {block, key = *block} at pool +0x7a8, grows by 0x20 entries (realloc fail: "(1) Pool Blocks overflowed at %d", line 0x261), total +0x17a8 += size (runtime-support.md "The pool's sorted block list")
 00409490	pool_block_remove	(block; pool in ESI) removes the entry whose key equals *block, total -= size, shrinks by 0x20 when count + 0x40 < capacity (line 0x2b4); not found line 0x2bf (runtime-support.md "The pool's sorted block list")
 0040b430	alloc_checked	(file, line, flag): FUN_0040a080(file, line) and, when it returns 0, FUN_00408900(2, file, line, "") before returning it; the allocator the docs cite as FUN_0040b430
+0040dcc0	socket_send_locked	Fastcall (connection, buffer, length): unless closed (+0x2c), send (ws2 ordinal 19) under the connection's lock; a short send or SOCKET_ERROR keeps WSAGetLastError (ordinal 111) at +0x34, state 4 unless it was ... (src-frontier.md)
+0040f000	gamelogs_path	SHGetFolderPathA(CSIDL_PERSONAL) + Diablo II\GameLogs\ into the buffer (empty on failure). Callers FUN_0040c720, FUN_0040d290, FUN_0040eb10, FUN_0040f8a0 (src-frontier.md)
 00410b10	bits_set	ORs byte arg1[n >> 3] with the mask table 0x6ce268[n & 7]
 00410b50	bits_clear	ANDs byte arg1[n >> 3] with the mask table 0x6ce2e8[n & 7]
 00410e40	bitreader_init	(reader, buffer, bytes): +0 buffer, +4 bit length (bytes * 8), +8 / +0xc / +0x10 zeroed; a null reader exits with assert id 0x13c
@@ -39,6 +46,19 @@ address	name	evidence
 00425d90	sha1_init	Count 0, state 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 (SHA-1). Callers FUN_0041d300, d2d_warden_digest, FUN_0051dbf0 (source-frontier.md)
 00425dd0	sha1_update	Adds n × 8 to the 64-bit bit count, buffers to 64 bytes at +0x1c and runs the block function (FUN_00425850) per full block (source-frontier.md)
 00425f00	sha1_final	Pads (0x708890) to 56 mod 64, appends the count, writes the five state words big-endian (20 bytes) (source-frontier.md)
+00430b40	realm_count	Returns DAT_0077998c, the realm list's length. Callers FUN_004369f0, FUN_0043a0d0, the character screen FUN_0043b080 (src-frontier.md)
+00430b50	realm_name	Fastcall index: the first string of realm entry 0x779988[index] (an entry must exist) (src-frontier.md)
+00431870	cinematic_play	FUN_0042f480, FUN_0042f3f0, FUN_004317d0; with video on (FUN_004f9050) and FUN_0040eb10 0, FUN_0042fd10, the cutscene setup (d2d_renderer_cutscene_setup) and FUN_004f9060(1); then FUN_004317d0 and ... (src-frontier.md)
+00431e70	char_create_class_flags	AL class: the record DAT_007795d4's +0x1ee = class, and one of seven bytes +0x85..+0x8b set for it (0 +0x85, 1 +0x87, 2 +0x88, 3 +0x86, 4 +0x89, 5 +0x8a, 6 +0x8b), the rest cleared. Callers FUN_00433bf0, FUN_00434a00 (src-frontier.md)
+00433450	frontend_back	FUN_00433380(1). Callers the character screens (FUN_00439840, FUN_0043b080, FUN_0043b6b0 and five more) (src-frontier.md)
+00434060	realm_list_load	From the Battle.net interface (DAT_0077abf0 +0x40): the realm count at +4 (more than 0x1ff are refused) and name/description pairs, each copied (lines 0x1192..0x11a4), then sorted (qsort, FUN_00430b00). Callers ... (src-frontier.md)
+00434960	frontend_net_check	Unless FUN_00449b30: game types 1, 2 (FUN_00432480) get FUN_00449ad0 and 0; else FUN_0042f6e0, FUN_0044a7a0, the next screen (FUN_004fa590), 1. Only caller FUN_0043b6b0 (src-frontier.md)
+00435e00	frontend_ret1_00435580	FUN_00435580, then 1. Only caller FUN_00439840 (src-frontier.md)
+00437a20	realm_known	EDI name: 1 when it matches (case-insensitive, FUN_00413590) one of the realm names, else 0. Callers FUN_0043a0d0, FUN_0043b080 (src-frontier.md)
+00437d20	char_select_strings_init	Once (DAT_00779da8): seven strings converted, then the 0x80-word slots from 0x779df0 to 0x77abf0 filled (FUN_005264f0), 1 at the first failure. Only caller FUN_00438ad0 (src-frontier.md)
+00437f60	char_class_name	EAX class 0..6: that class's string (other values a default) copied out. Callers FUN_004380f0, FUN_00438560, FUN_00439210 (src-frontier.md)
+0043a2b0	realm_pick	For a Battle.net game (DAT_007795ec 1): loads the realms; none shows an error (FUN_0043b9a0); else the registry's Diablo II\Preferred Realm when it's in the list, else the gateway's realm (BNGatewayAccess::Realm), ... (src-frontier.md)
+0043b7a0	bnclient_attach	Fastcall screen: when +0x225 is unset, the Battle.net interface (FUN_00518c00) into DAT_0077abf0 and +0x225, its first virtual call, 1. Only caller d2d_frontend_screen_run (src-frontier.md)
 0044dae0	client_fps	Returns DAT_007a04a8, the frames drawn over the last 3 s / 3. Only caller FUN_00475780 picks the light quality from it (≤ 9, ≤ 12, ≤ 15) (game-frontier.md)
 0044dc80	set_expansion_flag	Fastcall CL → DAT_007a04f4, the dword FUN_0044dcc0 (is_expansion) reads. Only caller the S->C 0x01 handler 0x45c8b0, with packet byte +6 (disassembly: MOV CL,[ESI+0x6]) (game-frontier.md)
 00451330	lng_dll_load	Loads the language DLL: the registry's Diablo II\LNG File path (re-saved when set), else the one FUN_00414e50 reads back, else D2.LNG; none fails the start (returns 0). Then LoadAcceleratorsA(dll, 100) into ... (game-frontier.md)
