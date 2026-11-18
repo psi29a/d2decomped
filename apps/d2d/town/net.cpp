@@ -524,7 +524,9 @@ auto Town::net_overlay() -> void {
             // The host sends no MonSounds: game.exe's client plays them itself, from the unit's
             // mode (FUN_004cc410, FUN_004cb890), its first showing (FUN_004cc380), Neutral
             // (FUN_004cb460) and footsteps (FUN_004caf60). The same path as single player's,
-            // which moves last_mode on.
+            // which moves last_mode on; the impact on GH / KB / DT from the last 0x0c's hit
+            // class (unit +0xb0, FUN_004cc410).
+            monster.hit_class = unit.hit_class;
             world.fight.monster_sounds(monster, world_ms);
             view.monsters.push_back(monster);
         }

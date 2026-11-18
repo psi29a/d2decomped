@@ -36,7 +36,8 @@ Ranked by Seen, then by how much play it touches.
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
 sounds play, 104 don't (2026-10-29). All 104 are traced as never played
 by stock 1.14d (unit-sounds.md "In d2d"), so in a game d2d hosts it
-plays every sound the original does (a joined game's gap: "Joined games").
+plays every sound the original does; a joined game takes each monster's
+impact from the host's hit class (S->C 0x0c, unit-sounds.md "In d2d").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
@@ -81,9 +82,7 @@ a whole, the DS1 layer order, and the .d2s header and item bitstream.
 
 Out of single player's way, listed so they aren't lost: 0x74 corpses,
 0x11 leech, 0x90 party spots and 0x99 skill effects are read but not
-drawn; tooltip stats leave out auras, states and weapon masteries;
-monsters play no impact sound on GH / KB / DT (the host's hit class
-isn't read, unit-sounds.md "In d2d"); live
+drawn; tooltip stats leave out auras, states and weapon masteries; live
 checks still owed (shrine overheads, leaving a cave, the gold box's
 Backspace, other units' states, a Battle Orders cast vs d2d's maxima).
 docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
