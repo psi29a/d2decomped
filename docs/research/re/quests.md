@@ -724,6 +724,38 @@ server sends it from `FUN_00544190` (each log change sent per player) and
 `FUN_00545920` (log 12, "another player"). Flags 2 are sounds: event 4
 (Akara's ring, `FUN_005458e0(player, 4)`) plays item_ring (241).
 
+**What one send does (`FUN_00544190`, fastcall game, unit, quest id; `ret 4`).**
+It walks the game's quest records (`game[+0x10f4]`, list head, next at +0xf4)
+for the one whose +0 is the quest id; none, nothing. It sends only if the
+unit's level (`FUN_00620bb0` -> `FUN_0061a1b0`) has the record's act
+(`FUN_006427f0` of the level against the record's byte +8). The packet is
+0x5d, the quest id, the record's byte +0x14, then the log state: the
+record's callback +0xe8 with (record, unit, game's player bits, `&state`) when
+it has one, else `FUN_00543f90` on the unit's bits for the game's difficulty
+(`game[+0x6d]`); it goes out through `FUN_0053d710` -> `FUN_0053b280` (6
+bytes). After it: quest 1 runs `FUN_005901e0`, quest 0x24 `FUN_00588c50`
+(their results are dropped), then `FUN_0053d710`'s send. It's the callee of
+the "quest update" notifiers above and of the per-player callbacks
+`FUN_00544300` (record, log, callback, game, flag) runs for each player when
+its flag is 1: the log is stored in the record (+0xb) either way, and with flag
+0 nobody is sent it. In the decompile 85 `FUN_00544300(...)` calls pass
+flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
+`FUN_00591ac0`, `FUN_00592250`, `FUN_00595c60`, `FUN_00596010`,
+`FUN_00596de0`, `FUN_0059af50`, `FUN_0059d1c0`, `FUN_005b39a0`,
+`FUN_005b6100`, `FUN_005b7740`, `FUN_005b7a60`, `FUN_005b9240`,
+`FUN_005bb210`, `FUN_005bc3c0`, `FUN_005bc5a0`) and two compute it
+(`FUN_00599420`, `FUN_005bcf60`). The result of a record's own +0xe8
+callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
+
+d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
+flag-1 sites are ported (`news`: a3q6, a4q2 .. a4q4, act 5's six); the client
+doesn't also read a change in their View's log for a send
+(`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). Acts 1
+and 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+for a repeat or a flag-0 move that changes it, none at a game's first View).
+Not traced against d2d's records: those quests' flag-1 sites, and the act
+test above (the events and the change both skip it).
+
 `FUN_004a2a80` draws it like New Stats (levelsocket, level, the label
 3928 "Quest Log" centred over it). Its row (0x7241c0, 20 bytes x0, x1,
 y0, y1, label bottom, filled for 640 × 480 at 0x6cac30, drawn + H − 480;
