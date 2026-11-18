@@ -13,9 +13,11 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
+#include <montypes.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -25,7 +27,9 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <iterator>
 #include <span>
+#include <string_view>
 #include <vector>
 
 using namespace d2d::game;
@@ -88,6 +92,29 @@ int main() try {
         assert(shots.size() == 64 && shots.front().info->name == "frostnova");
         assert(nova_ring(shots, pack[0].unit.x, pack[0].unit.y));
         std::puts("OK: a monster's Frost Nova aims round its ring");
+    }
+
+    // Arcane Tower (do 106, FUN_005cd870 -> FUN_0056d400): with a target, the nova of its srvmissilea.
+    {
+        const auto& types = data->monsters.types;
+        const auto tower = std::ranges::find(types, std::string_view("ArcaneTower"), &d2d::rules::MonType::ai_name);
+        assert(tower != types.end());
+        Level here;
+        here.id = d2d::rules::level_ids::kArcaneSanctuary;
+        here.ds1 = d2d::ds1::Map(16, 16, 1, 1);
+        here.walk.assign(80 * 80, 0);
+        const Crowd crowd;
+        std::vector<Missile> shots;
+        std::array<Foe, 1> player{};
+        player[0].x = 10.1f; player[0].y = 8.1f;
+        d2d::rules::Rng rng{ 7 };
+        std::vector<Monster> pack{ make_monster(*data, int(std::distance(types.begin(), tower)), 8.3f, 8.7f, rng, 0) };
+        pack[0].aware = true;
+        for (std::uint32_t frame = 1; frame <= 200 && shots.size() < 64; ++frame)
+            monster_update(*data, here, pack[0], player, rng, frame * 40, 0.04f, crowd, shots, pack);
+        assert(shots.size() == 64);
+        assert(nova_ring(shots, pack[0].unit.x, pack[0].unit.y));
+        std::puts("OK: Arcane Tower's nova aims round its ring");
     }
 
     return 0;
