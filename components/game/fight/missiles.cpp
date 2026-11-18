@@ -635,7 +635,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // Param2 on.
             if (missile_info.srv_do == 15 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(missile.turn & 63)];
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms);
+                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms).to
+                    = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_0059fa30 flag 2, from the orb
                 missile.turn += missile_info.param2;
             }
             // 14 (Grim Ward's totem): every Param1 frames the monsters within

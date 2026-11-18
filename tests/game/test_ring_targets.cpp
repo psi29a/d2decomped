@@ -216,6 +216,38 @@ int main() try {
         std::puts("OK: the nova traps aim round their rings");
     }
 
+    // Frozen Orb's spin (do 15, FUN_005af030: 0x6e2b78 / 0x6e2a78 at its turn), from the orb's subtile.
+    {
+        const int orb_id = data->skills.by_name.at("Frozen Orb");
+        fight.pending.clear();
+        fight.missiles.clear();
+        fight.fire(*data->skills.get(orb_id), 5000, fight.player_caster(orb_id));
+        assert(fight.pending.size() == 1);
+        fight.missiles = std::move(fight.pending);
+        fight.pending.clear();
+        auto& orb = fight.missiles.front();
+        orb.x = 100.3f; orb.y = 100.7f;
+        const int turn_step = orb.info->param2;   // Param2: the turn after each shard
+        assert(turn_step > 0);
+        int turn = orb.turn, spun = 0;
+        float first_x = 0;
+        for (std::uint32_t frame = 5000 / 40 + 1; frame < 5000 / 40 + 20; ++frame) {   // its Range is 30 frames: no burst yet
+            orb.x += 0.4f;   // missile_tick doesn't fly it: two subtiles on each frame
+            const std::size_t had = fight.pending.size();
+            fight.missile_tick(frame * 40);
+            if (fight.pending.size() == had) continue;
+            assert(fight.pending.size() == had + 1);
+            assert(on_subtile(fight.pending.back(), orb.x, orb.y));   // from where the orb is now
+            assert(aims_at(fight.pending.back(), d2d::rules::kNovaRing[std::size_t(turn & 63)][0], d2d::rules::kNovaRing[std::size_t(turn & 63)][1]));
+            if (spun++ == 0) first_x = fight.pending.back().x;
+            turn += turn_step;
+        }
+        assert(spun > 2 && !on_subtile(fight.pending.back(), first_x, orb.y));
+        std::printf("OK: Frozen Orb's %d spun shards aim at its turn\n", spun);
+
+        fight.pending.clear();
+        fight.missiles.clear();
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_ring_targets: %s\n", error.what());
