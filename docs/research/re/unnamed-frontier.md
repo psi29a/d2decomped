@@ -185,3 +185,222 @@ A caller list gives the count and the callers d2d ports.
 | `FUN_00500480` | `anim_control_draw` | (From its data:) draws a kind-2 control (asserts). Only caller `FUN_005005b0` | not compared |
 | `FUN_00500a70` | `control6_set_rect` | Kind 6: `+0xc..+0x18` = x, y, width, height. Only caller `FUN_0043b080` | not compared |
 | `FUN_00500c20` | `button_hit` | `EAX` button, `ESI` x, `EDI` y: inside x `+0xc..+0xc+0x14`, y `+0x10 − +0x18..+0x10` (bottom-anchored). Only caller the button draw `FUN_00500db0` | not compared |
+
+## 0x520000..0x5fffff: Battle.net client, strings, server game
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_005204a0` | `bnet_set_first_once` | Under `0x882004`: `DAT_0088201c` = the value when unset. 8 Battle.net callers | no counterpart: d2d has no Battle.net client |
+| `FUN_005206b0` | `bnet_parse_786` | (From its size and caller only: 786 bytes, no calls.) Only caller `FUN_005209d0` (battlenet.md) | no counterpart (as `bnet_set_first_once`) |
+| `FUN_00520ad0` | `bnet_flag_set` | `DAT_00882528` = 1. Callers `FUN_0051c470`, `FUN_0051c5c0`, `FUN_0051c7e0` | no counterpart (as `bnet_set_first_once`) |
+| `FUN_00520bf0` | `bnet_table_882128` | Fastcall byte: the dword `0x882128[n]`. 6 callers, among them `d2d_bnet_host_ad_result`, `d2d_bnet_read_user_data` | no counterpart (as `bnet_set_first_once`) |
+| `FUN_00520c20` | `bnet_table_8822a8` | The dword `0x8822a8[n]`. Callers `d2d_bnet_host_ad_result`, `FUN_0051ca90` | no counterpart (as `bnet_set_first_once`) |
+| `FUN_00524930` | `tbl_string_by_index` | Fastcall (.tbl, string table, index): an index at or past the count becomes 500; the hash slot (`+0x15 + index × 2`) to an entry (0x11 bytes) that must be in range and used (`+0` = 1) with a string; else null. Callers the string lookup `FUN_00524a30`, `FUN_00525770` | not compared: d2d reads the .tbl files itself (tbl-strings.md) |
+| `FUN_005249e0` | `tbl_key_hash` | The .tbl key hash: h = h × 16 + c, the top nibble folded in (`^ (h >> 24)`), 28 bits; mod the table size. Only caller `FUN_00524c60` | not compared (as `tbl_string_by_index`) |
+| `FUN_005262a0` | `utf8_char_count` | Fastcall (text, bytes): characters in the first `bytes` bytes (`FUN_00526200` the length of each, -1 a single byte). Callers `FUN_0049a580`, `FUN_004a7d00` | not compared |
+| `FUN_00526540` | `wcs_ncmp` | Wide compare of at most n characters: 0 equal, -1 or 1. 4 callers, ported: `FUN_00501a80`, `FUN_00501df0` | no counterpart (the standard library) |
+| `FUN_005266c0` | `wcs_find_char_next` | The first `c` in a wide string, returned only when something follows it. Only caller `FUN_0048be80` | no counterpart (the standard library) |
+| `FUN_00526740` | `wcs_ncat` | Appends at most n wide characters and a NUL. Callers `FUN_005269d0` and one more | no counterpart (the standard library) |
+| `FUN_00526940` | `wcs_str` | `wcsstr`; null for a null side. 5 callers, ported: `FUN_0048be00`, `FUN_005269d0` | no counterpart (the standard library) |
+| `FUN_00527720` | `tbl_buffers_free` | Frees `0x882b28`, `0x882b24`, `0x882b2c` (`delete[]`). Only caller `FUN_00524e40` | no counterpart |
+| `FUN_00529f50` | `sha1_init_b` | The SHA-1 initial state and a zero count (the copy beside the SRP code). 7 callers | no counterpart: d2d has no SRP login |
+| `FUN_0052a040` | `sha1_final_b` | (From its calls:) the SHA-1 padding and digest through `FUN_00529f80`. 7 callers | no counterpart (as `sha1_init_b`) |
+| `FUN_0052be20` | `stub_52be20` | Returns. 6 callers, among them `FUN_0052d440` | no counterpart (empty) |
+| `FUN_0052c060` | `client_slot_get` | Fastcall id: under `0x882d18`, the client slot `0x882d34[id]` unless 0 or -1. Callers `FUN_0053eff0` and one more | not compared |
+| `FUN_0052c110` | `client_slot_set` | Slot `id` = the value unless it is -1 (reserved). Callers `FUN_00530930` and one more | not compared |
+| `FUN_0052c170` | `client_slot_alloc` | (From its calls and data:) under the lock, a free slot of `0x882d34` up to `DAT_00731000`. Callers `FUN_00530930` and one more | not compared |
+| `FUN_00535b10` | `player_party_lookup` | Fastcall (game, player): for a player unit, a 2-dword query (`FUN_005538d0`); its first dword. Only caller `FUN_00584870` | not compared |
+| `FUN_00537930` | `s2c_send_unit_ref` | `EAX` unit: `FUN_0053b3d0(type, id)`, (6, -1) for none. Only caller `FUN_00539760` | not compared |
+| `FUN_00537970` | `client_flag_1` | Fastcall client (asserts): `+0x3d4` bit 0. Callers `FUN_00532590`, `FUN_00569f80` | not compared |
+| `FUN_0053f5d0` | `game_arena_type` | The game's arena block's first dword (asserts the block). Only caller `FUN_0053ac70` | no counterpart: d2d has no arena (game-frontier.md) |
+| `FUN_0053fa90` | `player_arena_clear` | A player's arena record (player data `+0x34`) `+4` = 0 (asserts, lines 0xc5, 0xc9). Only caller `FUN_00553220` | no counterpart (as `game_arena_type`) |
+| `FUN_0053fca0` | `game_arena_flag4` | The arena block's flags `+8` bit 2. Only caller `FUN_0052d440` | no counterpart (as `game_arena_type`) |
+| `FUN_00541800` | `event_add_timed_wrap` | `FUN_005416b0(arg2, arg5, arg6, arg7)`. Only caller `FUN_00554ea0` | not compared |
+| `FUN_00547300` | `objgroup_list_a_full` | Fastcall (game, level): the level's spawn record (game `+0x10f0` → `+0x48 + level × 4`): list A (`+0x18`, at most 4) full, or its count at or above the record's `+8` / 8. Only caller `FUN_005516c0` | not compared |
+| `FUN_00547360` | `objgroup_list_b_full` | As `objgroup_list_a_full` for list B (`+0x14`, at most 10). Only caller `FUN_00552b50` | not compared |
+| `FUN_00547390` | `objgroup_count_inc` | The level record's `+0x10` + 1. Only caller `FUN_00552b50` | not compared |
+| `FUN_00547400` | `objgroup_list_a_add` | Appends (x, y) to list A (`+0x20`, 8 bytes each) while under 4. Only caller `FUN_005516c0` | not compared |
+| `FUN_00547490` | `objgroup_list_b_add` | Appends (x, y) to list B (`+0x40`) while under 10. Only caller `FUN_00552b50` | not compared |
+| `FUN_00547e90` | `level_monster_count_dec` | Unless `FUN_00573540`, the level's record (`FUN_00573520`) `+0x2d0` − 1 for a unit that isn't a pet (`FUN_006259b0` 0). Only caller `FUN_005cc960` | not compared |
+| `FUN_0054e190` | `spawn_at_free_spot` | A free spot (`FUN_0054ddc0`); found, `FUN_005b3270(x, y, 0, EDI, 1, ESI, 0)`. Only caller `FUN_0054ec90` | not compared |
+| `FUN_00552a00` | `unit_free_text_and_events` | Fastcall (game, unit): its overhead text (`+0xa4`) freed (`FUN_006611a0`), `d2d_unit_7c`, `FUN_0054f580`, `FUN_00540ee0`. Only caller the unit removal `FUN_00555600` | not compared |
+| `FUN_00552aa0` | `game_value_180x2` | Fastcall game: `+0x180` × 2. Callers `FUN_005858a0` and two more | not compared |
+| `FUN_00552ab0` | `return_2` | `return 2`. Callers `FUN_005858a0` and two more | not compared |
+| `FUN_00552ee0` | `unit_serial_next` | Fastcall (game, type above 5): the counter `+0x90 + type × 4` + 1, skipping -1 (to 1). Only caller `FUN_00555230` | not compared |
+| `FUN_00553060` | `unit_list_insert_point` | (unit, game): the hash list for its type (`0x6e10e0` offsets, id & 0x7f; type 5 `+0x1b20`), walked by id (next `+0xe4`) to the last node with a lower or equal id. Only caller `FUN_00554850` | not compared |
+| `FUN_005564a0` | `unique_found_test` | `EAX` game, id up to 0x1000: the found-uniques bit (`+0x1b24`). Only caller `FUN_005566b0` | matches: `found_uniques` (components/rules/rules.hpp:2022) |
+| `FUN_00557250` | `item_affixes_clear` | `EDI` item: its prefix and suffix slots 0..2 (`FUN_00627ef0`, `FUN_00627fb0`), the rare names (`FUN_00628010`, `FUN_00628070`), the set or unique id -1 (`FUN_00629df0`). 4 callers, ported: `FUN_005572a0`, `FUN_00557320`, `FUN_00557380` | not compared |
+| `FUN_00557ee0` | `item_free_inventory` | Fastcall (game, item): an item with an inventory (`d2d_item_has_inventory`) has it freed (`FUN_00555ae0`, `d2d_inv_free`), then `FUN_00540ee0`. Only caller `FUN_00555600` | not compared |
+| `FUN_00557ff0` | `inv_contains_item` | Fastcall (unit, item, inventory or the unit's): the cursor item, or any node of the list. 6 callers, ported: `FUN_00577830`, `FUN_00578050`, `FUN_00579510` | not compared |
+| `FUN_00564a00` | `game_slot_init` | (From its data:) fills a record from `0x88c788..0x88caa8` (asserts). Callers `FUN_00530930` and one more | not compared |
+| `FUN_00564cb0` | `stub_564cb0` | Returns. Callers `FUN_005335e0` and one more | no counterpart (empty) |
+| `FUN_00570e30` | `unit_stats_packet` | (From its calls:) packs a unit's stats into a bit stream (`d2d_bitreader_init`, `FUN_00410eb0`, `lowest_set_bit_index`, the state words `FUN_0063a100`). Callers `FUN_00571f90`, `FUN_00571580` | no counterpart: sends are the netplay code's |
+| `FUN_00571580` | `unit_stats_send_both` | `FUN_005711d0`, then `unit_stats_packet` (asserts the unit). Only caller `FUN_00598220` | no counterpart (as `unit_stats_packet`) |
+| `FUN_005715a0` | `unit_state_send_b2` | Fastcall unit: the stat sublist flagged 0x80's stat 0xb2, when a valid state, sent as S->C 0x11 (`d2d_scmd_0x11`). Only caller `FUN_00598220` | not compared |
+| `FUN_00571620` | `unit_overhead_send` | (From its calls:) the unit's overhead text (`FUN_006611e0`, `FUN_00661220`) sent to the client (`FUN_0053b3d0`, `FUN_0053c750`). 4 callers, ported: `FUN_00571f90`, `FUN_00598220` | no counterpart (as `unit_stats_packet`) |
+| `FUN_005736a0` | `monster_free` | Fastcall (game, monster): `FUN_0057c980`; unless its MonStats row's `+0xd` bit 1: its inventory freed, its overhead text, its AI control (type 1), `FUN_005a64d0`, `FUN_00572bc0`, `FUN_00540ee0`. Callers the unit removal `FUN_00555600`, `FUN_00574370` | not compared |
+| `FUN_005738d0` | `merc_events_clear` | `FUN_00540e60(2, 0)` and `(3, 0)`. Callers `FUN_00533c70`, `FUN_0053a9b0`, `FUN_0056aa50` and one more | not compared |
+| `FUN_00575fa0` | `item_unique_flag4` | Fastcall: an item of quality 7 (unique) whose UniqueItems row has `+0x2c` bit 2. Only caller `FUN_00579510` | not compared |
+| `FUN_00597c70` | `merc_send_57` | When `FUN_00573540` and a record (`FUN_005a0120`): S->C 0x57 (`d2d_scmd_0x57`) with its words and a flag test. Only caller `FUN_00598220` | not compared |
+| `FUN_0059f8e0` | `missile_free` | Fastcall (game, missile): its data freed (`d2d_missile_data_free`), `FUN_00540ee0` (asserts). Only caller `FUN_00555600` | not compared |
+| `FUN_0059fee0` | `missile_send` | (From its calls:) a missile's position and target (`FUN_0064a210`, `FUN_0064a380`, `FUN_0064a3e0`) into a packet (`d2d_scmd_copy_32`). Only caller `FUN_00571f90` | no counterpart (as `unit_stats_packet`) |
+| `FUN_005a02e0` | `monster_umod_add` | `EAX` monster, byte mod: the first free of 9 mod bytes (`+0x1c` of its record) set. Only caller `d2d_uniques_roll_boss` | not compared |
+| `FUN_005a0930` | `monster_boss_setup` | (From its data, 167 bytes.) Only caller `FUN_005a0c00` | not compared |
+| `FUN_005a4390` | `object_blast_3` | `FUN_005a4270(arg, 0, 3)`. Only caller `d2d_objects_take_blast` | not compared |
+| `FUN_005a5490` | `unit_hit_request` | The unit cast at (`FUN_00553540`): a 0x70-byte hit with `FUN_0057ec10`'s value, applied (`FUN_0057dbf0`, flags 0x80). Callers `FUN_005a7670`, `FUN_005d9c80` | not compared |
+| `FUN_005a6b10` | `monster_mode_flag` | `EAX` mode under 16, `ECX` monster: for a mode row (`0x6e23d0`, 12 bytes) with its third dword and not its second, the MonStats2 mode bit (`+0x104`). 4 callers, ported: `FUN_005a7670`, `FUN_005a7c20`, `FUN_005a7e60` | not compared |
+| `FUN_005a6b70` | `monster_step_spot` | (From its calls:) a spot near the cast target (`FUN_00553540`, `FUN_00648a00..b90`, `FUN_00650e30`). Only caller `FUN_005a6d50` | not compared |
+| `FUN_005a7b30` | `monster_skill_reset` | `ESI` monster: its skill node 0; unless `EDI` is 0 or 0xc, `FUN_005541b0` then `FUN_005a73e0(1)`. Callers `FUN_005a7c20` and two more | not compared |
+| `FUN_005aa5b0` | `ring_target_pick` | (From its calls:) a target in a ring around the unit (`d2d_rules_ring_pick`, `FUN_005aa460`, `FUN_0064a730`). Only caller `FUN_005aa650` | not compared |
+| `FUN_005b0d70` | `ai_params_set` | Fastcall: `+0x14`, `+0x18`, `+0x1c` = the three values, each skipped when -0x29a. Callers `d2d_pet_variant`, `FUN_005ca910`, `FUN_005d8570` | not compared |
+| `FUN_005bdff0` | `seed_step_table` | Fastcall unit: its seed `+0x6c` stepped (× 0x6ac690c5 + carry); returns `PTR_DAT_007415f0`. Only caller `FUN_0054ec90` | not compared |
+| `FUN_005c0d00` | `affix_pick_add` | `EAX` slot under 0x1ff: the pair at `+slot × 8` = (value, weight). Only caller `d2d_rules_pick_affix` | not compared |
+| `FUN_005c0d40` | `affix_pick_36` | (36 bytes; read shows no body.) Callers `FUN_005c2d40` and one more | not compared |
+| `FUN_005c0d70` | `item_props_apply` | (From its calls:) an affix's properties onto the item's stats (`d2d_rules_socket_props`, `d2d_stat_list_set`, `FUN_006251f0`, `FUN_006257d0`) by its seed. Only caller `FUN_005c1260` | not compared |
+| `FUN_005c21d0` | `item_rare_roll` | (From its calls:) the rare item roll: affixes (`d2d_rules_pick_affix`, `FUN_005c1260`, `FUN_005c12f0`, `FUN_005c19a0`, `FUN_005c1ab0`) into the six slots, the names (`FUN_00628010`, `FUN_00628070`). Only caller `FUN_00557450` | not compared |
+| `FUN_005c2740` | `set_pick_old` | For an item whose data `+0x30` is 0 (else `FUN_005c25c0`): durability and max durability doubled (at most 255), then from a random start the first Sets row (`+0xc0c`, 0x128 bytes; version under 100 unless the item's is 100+) holding the item's base: set id, flag 0x10, `FUN_0065fec0(4, …)`, 1; none: 0. Only caller `FUN_005c2940` | not compared: d2d's set pick follows `FUN_005c25c0` (components/rules/rules.hpp:2022) |
+| `FUN_005c2fb0` | `item_low_quality_if_v0` | An item whose data `+0x30` is 0: `FUN_005c2af0`, then `FUN_005c2d40`. Only caller `FUN_00557450` | not compared |
+| `FUN_005c2ff0` | `paladin_blast_eighth` | Fastcall (_, unit): a player of class 3 takes a hit (flags 0x1000, 4) of max life / 8 (`d2d_objects_take_blast`, `FUN_0057cee0`). Callers `FUN_005c56c0` and one more | not compared |
+| `FUN_005c31f0` | `unit_can_be_raised` | A unit not a pet, with `FUN_0056e2f0`, no `FUN_005541b0`, in a room without `FUN_0061ab00`, and `FUN_00554200`. Callers `FUN_005c3bcc` and one more | not compared |
+| `FUN_005dd330` | `monster_owner_set` | Fastcall (monster, owner or null): the AI record (`+0x14` → `+0x28`) `+0xc` = owner id, `+0x10` = owner type; none: -1 and 1. 4 callers, ported: `FUN_005a0c00`, `FUN_005c55c0`, `FUN_005d8570` | not compared |
+| `FUN_005fd7b0` | `monster_skill_from_row` | Fastcall (monster, 0): its MonStats row's skill (`+0x10c`) as its skill node; the row's `+0x10b` (under 16). Only caller `FUN_005ccb10` | not compared |
+| `FUN_005fe060` | `clear_88cb0c` | `0x88cb10`, `0x88cb0c` = 0. Only caller `FUN_00477c00` | not compared |
+
+## 0x600000..0x6cffff: tables, stats, rooms, DRLG, CRT
+
+The table loaders below read their .txt through `FUN_006122f0` (the
+column list given); d2d reads the same files with its own loaders.
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_006104a0` | `stpl_list_ctor_a` | (From its calls:) a list object (`FUN_0060f9d0`), emptied (`d2d_stpl_list_unlink_all`). Only caller `d2d_ignorelist_ctor` | no counterpart: d2d has no Battle.net ignore list |
+| `FUN_00610b30` | `stpl_list_ctor_b` | (From its calls:) `FUN_0060ecb0`, `FUN_006100b0`. Only caller `d2d_ignorelist_ctor` | no counterpart (as `stpl_list_ctor_a`) |
+| `FUN_00611760` | `code4_pad_a` | Copies a code of up to 4 characters into `EAX`, padding with spaces. Only caller `FUN_006119f0` | matches: d2d reads a calc name by its first four characters (components/rules/skills.hpp:57) |
+| `FUN_006117d0` | `table_96bcac_get` | The dword `0x96bcac[n]` below the count `0x96bcb4`, else 0. Callers `FUN_00664860`, `FUN_00664930` | not compared |
+| `FUN_0061b530` | `call_61b4f0` | `FUN_0061b4f0()`. Callers `FUN_0061b6f0` and one more | not compared |
+| `FUN_0061b640` | `room_tile_ref_inc_if_zero` | (rooms, level, …, room): the room entry (`FUN_00642bb0`, `FUN_00642c30`; a room from another level counts as none); an entry with count `+0xe` 0 gets `FUN_0061b490`. Only caller `FUN_0061a070` | not compared |
+| `FUN_0061b690` | `room_tile_ref_dec` | As `room_tile_ref_inc_if_zero`: a nonzero count drops by one, then the hook `0x744398` and `FUN_0061b5b0`. Only caller `FUN_0061a0c0` | not compared |
+| `FUN_0061b7b0` | `room_entry_or_default` | `FUN_00642c30(arg, 0, 0)`, else `FUN_0061b730()`. Only caller `FUN_0061a140` | not compared |
+| `FUN_0061b840` | `room_active_list` | Fastcall: when both lists (`+0xbc`, `+0x1a8`) are their own sentinels or empty, the second's `+0x30`. Only caller `FUN_0061a360` | not compared |
+| `FUN_0061b870` | `room_active_list_b` | As `room_active_list` for (rooms, room) when the room's `+0x44` is clear. Only caller `FUN_0061a3a0` | not compared |
+| `FUN_0061bac0` | `room_flag_400000` | Fastcall (room, on): `+0x28` bit 0x400000 set for 0, cleared otherwise. Only caller `FUN_0061aed0` | not compared |
+| `FUN_0061bae0` | `room_byte_44` | The byte `+0x44`. Only caller `FUN_0061a440` | not compared |
+| `FUN_0061bdf0` | `light_step_set` | `EAX` light record: by its kind (`+0`) and whether `+0x30`, the step from the table `0x7443f0` or `0x744480` (12 bytes a kind): `+4` the rate, `+8` = `+0x28` × the factor. Callers `FUN_0061c240`, `FUN_0061c450` | not compared |
+| `FUN_0061bec0` | `env_free` | Frees an environment block (`Env.cpp`, line 0x13f). Only caller `FUN_0061afd0` | not compared |
+| `FUN_0061c540` | `levels_txt_load` | Loads Levels.txt (5669 bytes of column list: LevelName, LevelWarp, EntryFile, MonLvl1..3(Ex), MonDen, MonUMin/Max, NumMon, objects, warps…). Only caller the table load `FUN_00619300` | not compared: d2d's own Levels.txt reader |
+| `FUN_0061dc60` | `table_c58_free` | Frees the data table at `+0xc58`, `+0xc5c` = 0. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00624bd0` | `stat_list_insert_index` | `EAX` stat list, `EDI` key: binary search of the 8-byte entries (count `+4` word): the insert point, -1 if present. Only caller `FUN_00624c80` | not compared |
+| `FUN_00624c10` | `stat_list_find_index` | The same search: the index of the key, else the first larger (or -1 past the end). Only caller `FUN_00626110` | not compared |
+| `FUN_00627220` | `stat_set_if_unit` | `FUN_00627170(…)` for a non-null unit. Callers `FUN_0056bec0`, `FUN_0065c940` and one more | not compared |
+| `FUN_006272e0` | `stat_lists_expire_flag4` | For a stat block with bit 2: each list flagged 4 has its state cleared (`d2d_unit_set_state_checked`) and, unless bit 31, is freed (`FUN_00626c00`); the bit cleared. Callers `FUN_004aff60`, `FUN_00624690` | not compared |
+| `FUN_00627410` | `stat_block_clear_100` | The stat block's bit 0x100 cleared; with bit 31, its 0x80 sublist through `FUN_00627340`. Only caller `FUN_00553220` | not compared |
+| `FUN_006276c0` | `socket_stats_merge` | (From its calls:) merges a stat list into another (`FUN_00625150`, `FUN_00626200`). Only caller `d2d_rules_takes_socket` | not compared |
+| `FUN_00627810` | `stat_add_signed` | `FUN_006270b0(a, b, c, 0)`. Only caller `d2d_town_flash` | not compared |
+| `FUN_00627af0` | `missile_row_194_ref` | Fastcall: the Missiles.txt row's `+0x194` index checked against `+0xb94`. Only caller `FUN_0062cbe0` | not compared |
+| `FUN_00627c20` | `stat_calc_eval` | Runs the calc bytes at data tables `+0x98` + offset (`d2d_skills_eval_calc`, callbacks `0x627b40`, `0x74463c`) with two arguments; 0 past the end. 5 callers, among them the potion rate `d2d_rules_potion_rate` | not compared |
+| `FUN_00639ee0` | `state_words_clear` | The unit's state words (`FUN_00625be0`) zeroed ((state count + 31) / 32 dwords). Only caller `FUN_00553220` | not compared |
+| `FUN_00639f20` | `state_words_any` | Whether any state word is set. Callers `FUN_00598220` and one more | not compared |
+| `FUN_0063a100` | `state_words_get` | `FUN_00625bb0()`. Callers `unit_stats_packet`, `FUN_005d6410` | not compared |
+| `FUN_0063a2d0` | `state_set_test_dc` | `FUN_0063a180(arg, data tables +0xdc)`. Only caller `FUN_005d5220` | not compared |
+| `FUN_0063a360` | `state_set_test_a` | `d2d_state_words_intersect` with a fixed set. Only caller `FUN_005d6410` | not compared |
+| `FUN_0063a4a0` | `state_flag_test` | (unit, state): the state's bit in data tables `+0x100`, or `+0x104` for a monster; 0 out of range. 7 callers, ported: `FUN_0056e900`, `FUN_0057ac50`, `FUN_0057af80` | not compared |
+| `FUN_0063a570` | `state_set_test_b` | `d2d_state_words_intersect` with one of the state sets (`0x63a570..0x63a670` are nine such tests). Callers the hireling and character panels `FUN_0048a990`, `FUN_004a7d00` | not compared |
+| `FUN_0063a590` | `state_set_test_c` | As `state_set_test_b` | not compared |
+| `FUN_0063a5b0` | `state_set_test_d` | As `state_set_test_b` | not compared |
+| `FUN_0063a5d0` | `state_set_test_e` | As `state_set_test_b` | not compared |
+| `FUN_0063a5f0` | `state_set_test_f` | As `state_set_test_b`; only `FUN_004a7d00` | not compared |
+| `FUN_0063a610` | `state_set_test_g` | As `state_set_test_b` | not compared |
+| `FUN_0063a630` | `state_set_test_h` | As `state_set_test_b` | not compared |
+| `FUN_0063a650` | `state_set_test_i` | As `state_set_test_b` | not compared |
+| `FUN_0063a670` | `state_set_test_j` | As `state_set_test_b` | not compared |
+| `FUN_0063a910` | `grid_fill_rect` | Fills a rectangle of a dword grid (row stride `+8` bytes × 4, data `+0xc`) with a value. Only caller `FUN_0063afd0` | not compared |
+| `FUN_0063e490` | `inv_slot_item_by_mode` | (inventory `0x1020304`, …, slot under 0xd): for an empty out and a slot entry (`FUN_0063add0(0x74479c)`): slot 4 or 5 with node kind 2 gives the hand's item. 11 callers, ported: `FUN_00560cd0`, `FUN_00560f00`, `FUN_005616a0` | not compared |
+| `FUN_0063ebd0` | `unit_gear_max_light` | A player's 16 composite pieces (`FUN_00664860`) other than `lit `, `med `, `hvy `: the largest Items.txt `+0x12f` among them. Only caller `FUN_00460930` | not compared |
+| `FUN_00640ee0` | `table_96d470_free` | Frees `0x96d470`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00640f00` | `table_96d478_free` | Frees `0x96d478`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00640f20` | `objgroup_txt_load` | Loads objgroup.txt (ID0..7, DENSITY0..7, PROB0..7, SHRINES, WELLS). Only caller `FUN_00619300` | not compared: d2d's own objgroup reader (components/game/objgroups.cpp) |
+| `FUN_006412f0` | `objgroup_row` | Row n (0x34 bytes) of `0x96d478`, null past the count. Only caller `FUN_00552610` | not compared |
+| `FUN_00641320` | `shrines_txt_load` | Loads shrines.txt (rarity, view name, niftyphrase, effectclass, LevelMin, duration, reset time). Only caller `FUN_00619300` | not compared |
+| `FUN_00641500` | `shrines_count` | Returns `DAT_0096d46c`. Callers `d2d_gamedata_object_seed`, `FUN_0054f9d0` | not compared |
+| `FUN_00641510` | `shrines_free` | Frees the shrines table. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00641890` | `units_within_range` | (From its calls:) two units' positions compared with a range. Only caller `FUN_00584240` | not compared |
+| `FUN_00643580` | `missile_param_by_level` | Fastcall (missile, level ≥ 1): `+0x160 + (level − 1) × +0x164` of its Missiles.txt row; 0 otherwise. Only caller `d2d_skills_calc_operand` | not compared |
+| `FUN_0064a0e0` | `unit_stamp` | `d2d_unit_stamp_by_type` for a non-null unit. Only caller `FUN_004aff60` | not compared |
+| `FUN_0064a1c0` | `missile_set_14` | A missile's data `+0x14` = the value. Only caller `d2d_ai_andariel_missile` | not compared |
+| `FUN_0064a1e0` | `missile_set_c` | The word `+0xc`. Callers `FUN_004cd540`, `d2d_ai_andariel_missile` | not compared |
+| `FUN_0064a240` | `missile_set_range` | The word `+0xa`, clamped to 0..0x7fff. Same callers | not compared |
+| `FUN_0064a5f0` | `missile_set_8` | The word `+8`, clamped to −0x8000..0x7fff. Callers as above | not compared |
+| `FUN_0064a690` | `missile_set_4c` | The missile unit's word `+0x4c`, clamped likewise. Callers `FUN_004cd540` and two more | not compared |
+| `FUN_0064a850` | `stat_chance_rolls` | `ESI` unit: rolls stat 0x151 (% on its seed `+0x20`), else stat 0x8d's chance, then (with a target) `FUN_00645830`'s chance, each `rand % 100 <` the value. Only caller `FUN_0064b860` | not compared |
+| `FUN_0064aba0` | `stat_scaled_value` | (From its calls:) a stat scaled by `d2d_rules_mul_div`. Only caller `FUN_0064b860` | not compared |
+| `FUN_0064c1b0` | `path_free_part` | (163 bytes, asserts.) Only caller `FUN_0064c370` | not compared |
+| `FUN_0064c450` | `unit_path_free` | A unit of a dynamic-path type: `FUN_0064fc20` on its path, `FUN_0064c370` and the path's first word cleared. Callers `FUN_004c1910`, `FUN_005431f0`, `FUN_005433f0` and one more | not compared |
+| `FUN_0064c580` | `room_tile_flags_or` | (From its calls:) ORs a tile's subtile flags (`tile_get_28_ptr`) into the collision grid. Only caller `FUN_0064c860` | not compared |
+| `FUN_0064c640` | `room_tile_flags_andnot` | As `room_tile_flags_or`, clearing. Only caller `FUN_0064c790` | not compared |
+| `FUN_0064caa0` | `coll_cell_clear` | (x in arg, `EBX` y, `AX` mask): the room's collision grid (`d2d_room_collision_grid_get`) cell's mask bits cleared; the cell. Only caller `FUN_0064dc00` | not compared |
+| `FUN_0064cff0` | `coll_cell_clear_rec` | Clears a cell and its neighbours through `FUN_0064cce0`, recursing `FUN_0064cdf0` − 1 times. 3 callers, among them `FUN_0064dc00` | not compared |
+| `FUN_0064efa0` | `unit_coll_move` | A non-null unit: `FUN_0064ec10(unit, a, b, mask, pattern)`, then `d2d_grid_set_pattern_bits` at the new spot. 3 callers, among them `FUN_0064ff90` | not compared |
+| `FUN_00650de0` | `seed_from_time` | (time + tick count + n) through three LCG steps (× 0x19660d + 0x3c6ef35f), 31 bits. 4 callers, ported: `FUN_0052c280`, `FUN_00552df0` | not compared: d2d seeds from its own clock |
+| `FUN_00650e60` | `seed_set` | The two seed dwords = the arguments. Only caller `FUN_005d5220` | not compared |
+| `FUN_00650e70` | `seed_get` | The two seed dwords out. Only caller `FUN_005d5220` | not compared |
+| `FUN_00650eb0` | `code4_pad_b` | As `code4_pad_a`. Callers `FUN_00654440` and one more | not compared |
+| `FUN_00650f00` | `montype_chain_a` | (From its calls and data:) walks MonType rows (`0x96c6a8`) through `FUN_0066a9b0`. Only caller `FUN_00651210` | not compared |
+| `FUN_00651040` | `montype_depths` | For each MonType row, its chain to the root (`+4` parent, at most 256): the depth into each row on the way (`+0x4b`) and the length (`+0x4a`). Only caller `FUN_00651210` | not compared |
+| `FUN_0065a400` | `monsters_tables_load` | Loads the monster tables in order (MonStats via `FUN_00651210`, `d2d_monlvl_load`, `d2d_monequip_load`, `d2d_monseq_load`, `d2d_monsounds_load`, `d2d_monumod_load`, `d2d_superuniques_load`, `d2d_hireling_load`, `d2d_npc_load`, `d2d_treasure_classes_load`, `d2d_monpreset_load`, …) and the unique name columns. Only caller `FUN_00619300` | not compared |
+| `FUN_0065a590` | `units_room_near` | (unit, unit): 1 when the second's room is among the rooms near the first's (`d2d_act5_rooms_near`); asserts (lines 0x18, 0x19). Callers `d2d_c2s_merc_item` and one more | not compared |
+| `FUN_0065b660` | `inventory_txt_load` | Loads inventory.txt (grid, belt, gloves, feet and the other boxes' left / right / top / bottom / width / height). Only caller `FUN_00619300` | not compared |
+| `FUN_0065c130` | `inventory_free` | Frees the inventory table. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_0065c180` | `inventory_rect` | (page, resolution, out): row page + res × 16 (0xf0 bytes)'s first rectangle; asserts (lines 0x7f, 0x8c). Only caller `FUN_004835b0` | not compared |
+| `FUN_0065c270` | `inventory_box_rect` | As `inventory_rect` for box n (five dwords at `+(n × 5 + 10) × 4`). Only caller `FUN_004835b0` | not compared |
+| `FUN_0065c730` | `stat_param_rec` | By a kind in `ESI`: 0 `FUN_0065c660`, 1 the 16-byte entry n (under 12) + 0xc, 2 and 5 `FUN_0065c6d0`, 3, 4, 6, 7 the record itself; others assert. Only caller `FUN_0065fec0` | not compared |
+| `FUN_0065c7a0` | `param_split_9_5` | A packed param: low 9 bits and the next 5. Only caller `FUN_0062cbe0` | not compared |
+| `FUN_0065c7d0` | `param_split_9_5_8_8` | 9, 5, 8 and 8 bits (from bits 0, 9, 14, 22). Only caller `FUN_0062cbe0` | not compared |
+| `FUN_0065ca30` | `stat_param_decode` | (193 bytes, no calls.) 5 callers, ported: `FUN_00485ee0`, `FUN_004e4d80`, `FUN_00626200` | not compared |
+| `FUN_0065cb10` | `param_split_9_5_7` | 9, 5 and 7 bits. Only caller `FUN_0062cbe0` | not compared |
+| `FUN_0065cb60` | `param_split_class_tab` | The low 5 bits as (/ 3, % 3), the next 5 bits. Only caller `FUN_0062cbe0` | not compared |
+| `FUN_0065cbf0` | `stat_param_check` | (176 bytes, asserts.) 14 callers, ported: `FUN_0065ea50`, `FUN_0065f6a0`, `FUN_0065f870` | not compared |
+| `FUN_00660290` | `belts_txt_load` | Loads belts.txt (numboxes, box1..16 left / right / top / bottom). Only caller `FUN_00619300` | not compared |
+| `FUN_00660c60` | `belts_free` | Frees the belts table. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00660d10` | `belt_box_rect` | (belt, resolution, out, box): row belt + res × 7 (0x108 bytes)'s box n rectangle; asserts (lines 0x79, 0x7a, 0x8f). 4 callers, among them `d2d_belt_key_labels` | not compared |
+| `FUN_00661220` | `overhead_byte_8` | The byte `+8` of an overhead record. Callers `FUN_004a0b30` and one more | not compared |
+| `FUN_00664530` | `table_96c7ec_free` | `FUN_006bd0b0(0x96c7e8)`, frees `0x96c7ec`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_006649b0` | `experience_loss_txt_load` | Loads a table with PlayerDeath, PlayerDeathPercent, PlayerKill, PlayerKillPercent, MonsterKill, MonsterDeath, Suicide and an arena column. Only caller `FUN_00619300` | not compared |
+| `FUN_00664af0` | `table_96d608_free` | Frees `0x96d608`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00664b80` | `chartemplate_txt_load` | Loads chartemplate.txt (skills 1..9 and their levels, hit points, mana regen, attack and other rates, velocity, right skill…). Only caller `FUN_00619300` | not compared |
+| `FUN_00665740` | `table_96d600_free` | Frees `0x96d600`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_00668510` | `code4_pad_c` | As `code4_pad_a`. Callers the cube recipe compilers `d2d_cube_compile_cube_input`, `d2d_cube_compile_cube_output` | not compared |
+| `FUN_006685c0` | `cube_token_number` | `ESI` cursor, `EAX` separators: the token up to a separator as a number (`atol`), the cursor past it (null at the end). Only caller `d2d_cube_compile_cube_output` | not compared |
+| `FUN_0066a1a0` | `table_96d628_free` | Frees `0x96d628`. Only caller `d2d_tables_unload_all` | no counterpart |
+| `FUN_0066a200` | `cube_recipe_count` | Returns `DAT_0096d62c`. Only caller `d2d_cube_cube_recipe` | not compared |
+| `FUN_0066a270` | `stub_66a270` | Returns. Only caller `FUN_00619300` | no counterpart (empty) |
+| `FUN_0066a280` | `stub_66a280` | Returns. Only caller `d2d_tables_unload_all` | no counterpart (empty) |
+| `FUN_0066ab70` | `level_rooms_set_8` | Fastcall (level, value): every room on its list (`+0x4c`, next `+4`) gets `+8` = value. Only caller `FUN_00619560` | not compared |
+| `FUN_0066ab90` | `room_neighbours_flag_a` | Fastcall (level, room): for the room's entry, its list at `+0x14` loses flag 8 and its list at `+0xc` gains it. Only caller `FUN_0061ac50` | not compared |
+| `FUN_0066abe0` | `room_neighbours_flag_b` | As `room_neighbours_flag_a` with the lists swapped. Only caller `FUN_0061ac90` | not compared |
+| `FUN_0067f6f0` | `outdoor_presets_a` | `FUN_0067f470` with seven preset ids (0x18b, 0x19b, 0x191, 0x192, 0x18f, 0x18e, 0x193), mode 0. Only caller `FUN_0067f980` | not compared: d2d places outdoor presets (components/drlg/outdoor.hpp:1040) |
+| `FUN_0067f740` | `outdoor_presets_b` | 0x18b, 0x19b, 0x190, 0x18e (mode 0) and 0x194..0x197 (mode 1). Same caller | not compared (as `outdoor_presets_a`) |
+| `FUN_0067f7d0` | `outdoor_presets_c` | 0x19b, 0x18f, 0x18e, 0x193 (mode 0), then 0x18b twice (mode 1). Same caller | not compared (as `outdoor_presets_a`) |
+| `FUN_0067f830` | `outdoor_presets_d` | 0x19d, 0x198, 0x199, 0x19a (mode 0). Same caller | not compared (as `outdoor_presets_a`) |
+| `FUN_0067f870` | `outdoor_presets_e` | 0x18b, 0x190, 0x18e, 0x194, 0x195 (mode 0), then 0x19b twice (mode 1). Same caller | not compared (as `outdoor_presets_a`) |
+| `FUN_00680a70` | `outdoor_grid_step` | (From its calls:) `FUN_0067c8e0` over the level's cells. Only caller `FUN_00680c80` | not compared |
+| `FUN_006815c0` | `outdoor_cell_match` | `EAX` cell at (`EDI`, `EBX`): a level preset (`FUN_0066b980`) without flag 0x200 (`FUN_0067c570`), then a list node at the same spot. Only caller `FUN_00681630` | not compared |
+| `FUN_00681d27` | `crt_exit` | The CRT's `doexit`: the atexit and terminator tables (`d2d_crt_decode_pointer`), then `ExitProcess`. Callers the exits `FUN_00681e09` and two more | no counterpart (the CRT) |
+| `FUN_00683006` | `crt_ftol` | The CRT's float-to-integer rounding helper. Callers `d2d_click_spot_click_spot` and one more | no counterpart (the CRT) |
+| `FUN_00684782` | `crt_fread` | `fread_s` with no buffer limit. 5 callers | no counterpart (the CRT) |
+| `FUN_00687ac0` | `crt_math_a` | A CRT math wrapper: the SSE2 path when the FPU and MXCSR masks allow, else the x87 one. Callers the sound mix `FUN_00516830` and two more | no counterpart (the CRT) |
+| `FUN_00687c10` | `crt_math_b` | As `crt_math_a` with two operands (`pow`-style). 5 callers, among them `FUN_00516830`, `d2d_palette_make_ramp` | no counterpart (the CRT) |
+| `FUN_00687ea0` | `crt_math_c` | As `crt_math_a`. Only caller `FUN_005165f0` | no counterpart (the CRT) |
+| `FUN_00688590` | `crt_math_d` | As `crt_math_a`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
+| `FUN_006886c0` | `crt_math_e` | As `crt_math_a`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
+| `FUN_0068abac` | `crt_fputc` | The CRT's character output to a stream. 10 callers | no counterpart (the CRT) |
+| `FUN_0068b5a3` | `crt_output` | The CRT's formatted output engine (`printf` core, locale). 8 callers | no counterpart (the CRT) |
+| `FUN_006bcac0` | `slot_pool_reset` | Fastcall pool not locked (`+0x108`): next -1, counts 0, `+0x118` = 0x8000, each slot's first word 0. 5 callers, ported: `FUN_00472590`, `FUN_004726f0`, `FUN_00472c20` | not compared |
+| `FUN_006bcc10` | `slot_pool_get` | Fastcall (pool, handle): the slot (high word index under `+0x100`) whose serial matches the low word (0 any); asserts (lines 0xdb, 0xde). Only caller `FUN_006bccd0` | not compared |
+| `FUN_006bccc0` | `slot_pool_lock_reset` | `+0x108` = 1, then `slot_pool_reset`. Only caller `FUN_00472320` | not compared |
+| `FUN_006c0b80` | `calc_stack_push` | `EAX` stack: pushes while under 0x40 (count `+0x100`). Only caller `d2d_skills_eval_calc` | not compared |
+| `FUN_006c0ba0` | `calc_stack_pop` | Pops, 0 when empty. Only caller `d2d_skills_eval_calc` | not compared |
+| `FUN_006c7130` | `bnet_chat_decode` | (421 bytes, no calls.) Only caller `d2d_bnet_chat_command` | no counterpart (as `bnet_set_first_once`) |
+| `FUN_006c7960` | `bnet_chat_call` | `FUN_006c78c0()`. Only caller `d2d_bnet_chat_command` | no counterpart (as `bnet_set_first_once`) |
+| `FUN_006c79c0` | `warden_inflate` | A zlib-style inflate (`FUN_00429a10(0x38)`, `FUN_00429bb0`, `FUN_0042b170`): -3 on a data error, else its result and the size. Only caller `d2d_warden_load_module` | no counterpart: d2d has no Warden client |
+| `FUN_006c9a38` | `str_len` | `strlen`. Callers `d2d_units_ds1_units` and one more | no counterpart (the standard library) |
+| `FUN_006ca700` | `log_lock_init` | The log lock `0x75e838` and an `atexit`. Callers `FUN_00681c95`, `FUN_006ca740` | no counterpart |
