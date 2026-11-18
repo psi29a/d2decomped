@@ -168,16 +168,49 @@ weaponsnd.
   the weaponsnd swing and stsounddelay timed by its MonStats2 HitClass
   (+0x14, `FUN_00623c20`) and its rate (+0x4c), and no class sound. A
   cltstfunc that gives 0 silences a stsuccessonly skill (flag bit 12,
-  0x4c649e). Oracle `tools/emu/skill_start_sound.py` (unit types 0, 1, 2;
-  item casts; the three flags; a cltstfunc giving 1, 0 or none).
+  0x4c649e). The zero path first clears the selected skill
+  (`FUN_00620210`) and, for a player or monster, runs `FUN_00480e70`;
+  stsuccessonly then returns before every start sound and the cast-overlay
+  block. Without stsuccessonly, the sounds and overlay still run even though
+  the function eventually returns 0. Oracle `tools/emu/skill_start_sound.py`
+  covers the caller's sound gate (unit types 0, 1, 2; item casts; the three
+  flags; a cltstfunc giving 1, 0 or none).
+
+  The two stsuccessonly cltstfuncs are checked by
+  `tools/emu/skill_start_success.py` against `rules::client_start_succeeds`:
+
+  - Hydra's **FUN_004e39a0** gets the caster's room from `FUN_00620bb0`,
+    resolves the selected unit or path point through `FUN_004c52e0`, and
+    searches the caster room and its neighbours for that point through
+    `FUN_00463740`. A missing caster room, unresolved target room, invalid
+    Skills.txt id or null row returns 0. With a row, its `InTown` bit
+    (record `+5 & 1`) permits the point; otherwise `FUN_0061ab00` returning
+    town refuses it. It writes no unit or global state.
+  - Charge's **FUN_004c9b40** first needs the selected skill node
+    (`FUN_00620250`), a valid Skills.txt row and the unit's dynamic path at
+    `+0x2c`. It refuses the local player's already-selected node when that
+    node has flag 1. A player whose current target is already in melee
+    (`FUN_00622c40`) queues the target command (`FUN_004c7630`) and returns
+    1. Otherwise it may play dosound-a for a player or the matching
+    MonSounds Skill1..4 for a monster (`FUN_004f4f40`), stores either the
+    target type/id or 6/0 when no target or state 0x36 is present, sets field
+    `+0x24` to 7 (15 for Duriel), and builds the client path at
+    `max(velocitypercent, 100) + Param1` percent. It then marks node flags
+    `0x1001`, clears `+0x20`, attaches FUN_004c7950's kind-6 target stat list
+    with callback FUN_004c7890, and returns 1. Those sound, selected-skill,
+    path, node and target-list changes are client-side effects; none can turn
+    the accepted path back into a failure.
+
   d2d: `rules::sound_ids::skill_start`; `Monster::skill_sound` set where
   the AI starts a skill (`ThinkCtx::use`, teleport, Charge's start,
   DiabRun), played in `Fight::monster_sounds`. Mephisto's, Diablo's, the
   Council's and the Summoner's casts, Zakarum priests, Fallen Shaman's
   resurrect and the sand maggots' burrow / emerge are the classic ones.
-  ponytail: a stsuccessonly monster start (Hydra's cltstfunc 17
-  `FUN_004e39a0`, Charge's 25 `FUN_004c9b40`) always sounds; d2d doesn't
-  run the client's cltstfunc.
+  `Fight::monster_sounds` evaluates the status before both effects. Hydra
+  uses the recorded cast point and level rooms; Charge starts are recorded
+  only after the authoritative server path or in-reach swing succeeded, so
+  their live monster has the skill/path prerequisites and is not the local
+  player special case.
 - **prgsound** (+0x10e, a word; empty loads 0): the readers of `[skill
   +0x10e]` in .text are six client functions, each playing through
   `FUN_004b9a00` (ECX the sound, EDX the unit, 0 none: unplaced), and only
