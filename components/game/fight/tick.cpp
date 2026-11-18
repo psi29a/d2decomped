@@ -491,7 +491,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
-            for (auto& monster : monsters) monster.in_aura = false;
+            for (auto& monster : monsters) { monster.in_aura = false; monster.res_cut = {}; }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 if (now_ms >= actor->curses[0].until) actor->curses[0] = {};   // its state's end (blood_mana asks for it gone)
@@ -501,6 +501,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 buff_tick(now_ms);
                 aura_pulse(now_ms);
                 for (auto& monster : monsters) monster.in_aura = monster.in_aura || (monster.alive() && in_aura(monster));   // its auratargetstate shows (states.md)
+                // Its resists as the client reads them (FUN_004526c0: GetUnitStat, the states' stats in): the curse
+                // and this side's auras; two sides' Convictions are one state, so the deepest cut stands.
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (auto& monster = monsters[i]; monster.alive() && (monster.in_aura || monster.curse.skill >= 0 || monster.cry.skill >= 0 || monster.self_state.skill >= 0)) {
+                        const auto base = monster.target(*game_data).res, now = target_of(i).res;
+                        for (std::size_t k = 0; k < 6; ++k) monster.res_cut[k] = std::min(monster.res_cut[k], now[k] - base[k]);
+                    }
                 for (std::size_t k = 0; k < actor->pets.size(); ++k) {
                     auto& pet = actor->pets[k];
                     const auto& foe = foes[side.pets + k];

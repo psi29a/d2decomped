@@ -260,6 +260,7 @@ struct Monster {
     int super = -1;                           // SuperUniques row
     int name_seed = 0;                        // a boss's name seed (make_boss: the 0xac packet's, unit data +0x14)
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
+    std::array<int, 6> res_cut{};             // what its curse, cry and the auras on it add to them (Fight::target_of): the hover's immunity lines
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
     UnitState unit;
@@ -774,7 +775,7 @@ struct Missile {
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
-    int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
+    int turn = 0;                             // Frozen Orb's direction index (do 15)
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     int pierce = 0;                           // the player's: pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
@@ -788,7 +789,7 @@ struct Missile {
     // `rooms`: its room, then the near list's (missile_rooms); `follow`:
     // the target point lay outside that room, so the room moves with it.
     std::optional<std::pair<float, float>> to;
-    std::vector<std::pair<int, int>> route;   // a laid route in act subtiles (do 143's, rules::wobble_route): its flight's points
+    std::vector<std::pair<int, int>> route;   // a laid route in act subtiles (do 143's, rules::wobble_route; Blessed Hammer's, rules::hammer_route): its flight's points
     std::optional<std::pair<float, float>> retarget;   // cells: a point it's re-aimed at in flight (missile_fly), its velocity turned to match
     int bolt = -1;
     bool wall_maker = false;                    // FUN_005cd110: a draw first, under 20 its path stays straight
@@ -831,8 +832,8 @@ inline std::pair<float, float> offset_target(float x, float y, int offset_x, int
 // the path's one point that unit's subtile, the fine position kept,
 // FUN_0064fe40 -> FUN_0064fc60 from it to the point's centre, the room
 // followed once the point is outside it; none over 99 subtiles off). Nothing
-// moves a flying missile by hand (Blessed Hammer's turn stands at velocity
-// 0). Its subtiles are the act's; `blocked` tests the 0x04 bit, and a
+// moves a flying missile by hand (Blessed Hammer flies its route,
+// rules::hammer_route). Its subtiles are the act's; `blocked` tests the 0x04 bit, and a
 // subtile off its rooms reads 0x27 (blocked). False: the flight is over (a
 // wall, or off its rooms).
 template <class Reach>
