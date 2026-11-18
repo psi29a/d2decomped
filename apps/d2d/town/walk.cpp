@@ -156,6 +156,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             // World::cain_operate's; FUN_004cdb40 at 0x46af25 also makes
             // client missile 0x120 at that stone for the row's Range.
             if (std::exchange(net_game->cairn_opened, false)) cairn_opened(frame_ms);
+            if (const auto order = std::exchange(net_game->stone_order, std::nullopt)) scroll.order = *order;   // S->C 0x50 subtype 4
             // State 153 on a unit (0xa8 / 0xaa): its setfunc (FUN_004d87e0) dips
             // the ambient in the level of the unit's room, one the act has.
             for (const auto& cast : std::exchange(net_game->cloak_casts, {}))
@@ -541,6 +542,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             return;
         }
         if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) { quest_quakes.push_back({ quake->kind, frame_ms }); return; }
+        if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { scroll.order = stones->order; return; }   // 0x7bf098, 0x7bf254 = 0
         if (const auto* ambient_dip = std::get_if<ev::AmbientDip>(&event)) {
             if (ambient_dip->level == d2d::rules::level_ids::kStonyField) cairn_opened(frame_ms);
             else dip.start(ambient_dip->fade_in, ambient_dip->hold, ambient_dip->back, ambient_dip->level);

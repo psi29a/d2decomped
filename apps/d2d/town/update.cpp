@@ -45,6 +45,7 @@
 #include <shake.hpp>
 #include <shop_action.hpp>
 #include <sound_ids.hpp>
+#include <stone_scroll.hpp>
 #include <userdir.hpp>
 #include <weather.hpp>
 
@@ -180,6 +181,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
+        if (scroll.open && !help.open && !controls.open && !game_menu.open && scroll.input(mouse)) mouse.press_this_frame = mouse.release_this_frame = false;   // FUN_0049fea0
+        if (std::exchange(scroll_sound, false)) audio.play_sfx(*scene, d2d::rules::kStoneSound, 1.f, 0);
         // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
         if (help.open && !controls.open && !game_menu.open) {
             if (help.input(mouse)) { help.open = true; toggle_help(); }
@@ -363,8 +366,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
                 else if (help.open) toggle_help();                    // then the Help screen
-                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open) {   // then panels
-                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open || scroll.open) {   // then panels
+                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = scroll.open = false;
                     cursor_follows = true;
                 } else open_game_menu();
             }
@@ -640,6 +643,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
             if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
+            else if (used != character.items.end() && (used->code == "bks" || used->code == "bkd")) {
+                // FUN_00487740 -> FUN_0049ff90: no use (C->S 0x20); the scroll
+                // opens (UI 0x10) and a bkd asks for the order (C->S 0x3e).
+                if (quest_log.open) toggle_quest_log();
+                char_open = party.open = hireling.open = false;
+                waypoint = {};
+                scroll.open = true;
+                scroll.deciphered = used->code == "bkd";
+                if (scroll.deciphered) { scroll.order.reset(); net.send(cmd::ReadScroll{ used->id }); }
+            }
             else if (used != character.items.end() &&
                      (((pad_playing && pad_config.skill_buttons) || touch_enabled) ? item_use(*used).kind == ItemUseKind::Identify : (used->code == "isc" || used->code == "ibk"))) {
                 identify_with = used->id;

@@ -22,6 +22,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "scroll.hpp"
 #include "skillbar.hpp"
 #include "skillpad.hpp"
 #include "store.hpp"
@@ -413,7 +414,7 @@ struct Town {
     // Waypoints UI 0x14 (left), stash 0x19 and cube 0x1a (both sides): FUN_00455f20's
     // second switch (menu.md "The view with panels open").
     [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
-    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
+    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open || scroll.open; }
     [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0 || use_item.open(); }   // UI 0xe too: state 3 (menu.md)
     // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
     // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
@@ -471,6 +472,8 @@ struct Town {
     bool life_text = false, mana_text = false;    // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): d2d.cfg's show_hp_text / show_mp_text, read at a game's start (FUN_004967f0)
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
+    ScrollPanel scroll;                           // UI 0x10: the Scroll of Inifuss read
+    bool scroll_sound = false;                    // a symbol came last draw: Sounds.txt 0xa6f, played by update
     HirelingPanel hireling;                       // UI 0x24
     PartyPanel party;                             // UI 0x16 (a joined game's)
     std::vector<PartyPanel::Row> party_preview;   // devctl `debug party on`: rows to show without a joined game
