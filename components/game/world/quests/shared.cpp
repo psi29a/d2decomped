@@ -729,6 +729,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (const auto stones = game_data->missiles.find("cairnstones"); stones != game_data->missiles.end()) {
             Missile flash{ &stones->second, spot_x, spot_y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(stones->second.range, 1)) * kTickMs, {} };
             flash.visual_only = true;
+            flash.seed = d2d::rules::Rng{ fight.spawning.game.next() };   // FUN_0056ede0 -> FUN_0059fa30: a server missile's step
             fight.missiles.push_back(std::move(flash));
         }
         // FUN_00593710 ends on S->C 0x89 event 1 (FUN_00545760); each client's
