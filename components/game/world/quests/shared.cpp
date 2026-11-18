@@ -12,6 +12,7 @@
 
 #include <ambient_dip.hpp>
 #include <cube.hpp>
+#include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
