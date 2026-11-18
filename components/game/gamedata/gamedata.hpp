@@ -1064,6 +1064,11 @@ struct Spawning {
     struct LevelState {
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+        // Which populated rooms currently have a server room1. FUN_0052d240
+        // may drop one without clearing `up`: returning rebuilds its tiles,
+        // but the stored units, rather than the preset population, come back.
+        std::vector<bool> live;
+        std::vector<std::uint8_t> idle_sweeps;              // FUN_0061a790's room1 +0xc, saturated for d2d
         std::vector<std::size_t> order;                    // Level::rooms indices as they came up
         std::vector<std::size_t> client_order;             // the same, each batch in made order (Level::drawn)
         // The level's object placement as it stands (objgroups.cpp): objrgn's
@@ -1099,6 +1104,7 @@ struct Spawning {
     // The game's quest words (World::game_bits, a d2d::rules::QuestBits), as
     // the town markers' inits read them (FUN_00544760).
     std::array<std::uint8_t, 96> game_quests{};
+    std::uint8_t room_sweep_frame = 0;                      // FUN_0052d870 calls FUN_0052d240 every 12th frame
     // a3q5's record 0x13, its data +0xc: Khalim's Will done by a player at the
     // join (word 0x12 bit 0, FUN_005bb480): the compelling orb comes up broken.
     bool orb_smashed = false;
@@ -1115,6 +1121,25 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 // level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
+struct RoomPosition { const Level* level; float cell_x, cell_y; };
+// One FUN_0061a790 age step as FUN_0052d240 uses it. `up` deliberately is
+// not cleared: room2 keeps the populated bit while room1 is absent.
+inline bool age_live_room(Spawning::LevelState& state, std::size_t room, bool held) {
+    if (room >= state.live.size() || !state.live[room]) return false;
+    if (state.idle_sweeps.size() != state.live.size()) state.idle_sweeps.resize(state.live.size());
+    if (held) { state.idle_sweeps[room] = 0; return false; }
+    if (state.idle_sweeps[room] < UINT8_MAX) ++state.idle_sweeps[room];
+    if (state.idle_sweeps[room] <= 10) return false;
+    state.live[room] = false;
+    std::erase(state.order, room);
+    std::erase(state.client_order, room);
+    return true;
+}
+// FUN_0052d240: every twelfth server frame, age live room1s not held by a
+// player's depth-1 near set and release those older than ten sweeps. Returns
+// the rooms whose tiles were dropped; their population stays stored.
+std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameData& game_data, Spawning& spawning,
+                                                                    std::span<const RoomPosition> players);
 // Where a missile in the room holding (x, y) cells can be: that room's rect,
 // then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
 // +0 / +0x24). Empty when no room holds it. With `spawning`, a near room

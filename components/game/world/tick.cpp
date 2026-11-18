@@ -323,9 +323,18 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         if (now_ms - day_at > 1000) day_at = now_ms;
         day_frames.clear();
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) day_frames.push_back(day_at);
+        auto sweep_rooms = [&] {
+            std::vector<RoomPosition> room_positions;
+            room_positions.reserve(players.size());
+            for (const auto& player : players)
+                room_positions.push_back({ player->on_level, player->player.x, player->player.y });
+            for ([[maybe_unused]] const auto frame_at : day_frames)
+                sweep_idle_rooms(*game_data, fight.spawning, room_positions);
+        };
         first_turn = true;
         if (!split_levels) {
             tick_level(orders, now_ms, last_ms);
+            sweep_rooms();
             gidbinn_due = false;                             // a3q3's one look (FUN_005b9a30): this tick's turns only
             hand_out_announced();
             if (turn_done) turn_done();
@@ -367,6 +376,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         fight.heroes = std::move(all_heroes);
         act_as(lead());
         swap_to(lead().on_level);                                  // the host's screen: where its player is now
+        sweep_rooms();
         hand_out_announced();                                // the joiners have them in their next View
     }
 
