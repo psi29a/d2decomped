@@ -763,7 +763,7 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   a killer, 0x580ff2): a player's death puts it in mode 0 through
   `FUN_0057cee0` (`FUN_00580a70(0, 0, attacker type, attacker id)`), the
   attacker that dealt the record, so the death mode's unit is the killer; a
-  monster owned by a player (`FUN_0058f0d0`) is put on that player. The
+  monster owned by a player (`FUN_0058f0d0` returns a type-0 unit; a monster owner stays as it is, 0x54d8a0..0x54d8d6) is put on that player. d2d has no pet or merc blow on a player (no PvP) and its minions' owners are monsters, so nothing reaches that swap: not ported, no test can fail on old code. The
   builder fills S->C 0x5a at 0x54d91f: event 6, colour 4, +3 the killer's
   class (unit +4, -1 none), +7 its unit type (6 none), the dead player's
   name, and the killer's name (a player) or SuperUnique row (+0x18, a

@@ -476,9 +476,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
-            // ponytail: do 44 (FUN_005d6020) moves a trap monster between
-            // the caster and the point; here its missile row does, hitting
-            // as it passes (NextHit).
+            // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
+            // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
+            // the missile row does, hitting as it passes (NextHit). Needs the pet's think dispatched
+            // (summons.cpp, pets.cpp), not this file alone.
             auto& missile = send(dx, dy, std::max(range, skill.par[0]));
             missile.origin_x = caster.x; missile.origin_y = caster.y;
             const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity

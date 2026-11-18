@@ -2751,7 +2751,7 @@ Cited from the decompile (no oracle run); re-check with
   (`missiles.cpp`, `kBladeSentinel`). Not closed: the monster's walk out
   and back and its hits are not traced (the helpers above are named, not
   read) and d2d has no moving trap monster (`summons.cpp` places them at
-  rest), so the `ponytail:` stays.
+  rest), so the `ponytail:` stays. Re-read 2026-11-18: the walk is the pet AI's (pet-ai.md "BladeCreeper", `0x5ea540`), not the do's; porting it means dispatching `blade_sentinel_think` in `pets_turn` and writing the line record FUN_0058ef40 makes (not read), which is outside missiles.cpp.
 
 ## Keyboard assignment ownership and hotkey packet follow-up
 

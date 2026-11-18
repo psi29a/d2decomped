@@ -327,8 +327,12 @@ level in the row is marked, whether it then speaks or not. It speaks
   0x723f38) has the game's bit 13 clear and the player's bits 1, 0 and 14
   clear; the Den also needs its log state (FUN_004a1950, +0x265) under 5;
 - the player's last sound (unit +0x7c, set by FUN_004cb6a0) is over 62
-  frames old and no class voice (Sounds 0xb76..0x1230) is playing
-  (FUN_004b9c20).
+  frames old (`0x3e < now - +0x7c`, so 63 on) and no class voice (Sounds
+  0xb76..0x1230) is playing (FUN_004b9c20: it walks the playing-sound list
+  at 0x7c5458 and answers 1 for a record whose state +0x30 isn't 2 and
+  whose id +4 is in that range). The only writer traced is FUN_004cb6a0, the
+  swing (above); FUN_004cb860's block stores the frame to 0x7c88bc in the
+  decompile, not +0x7c (the line above says +0x7c: not re-read).
 
 | Levels | Quest word | Event | Line |
 |---|---|---|---|
@@ -348,7 +352,12 @@ level in the row is marked, whether it then speaks or not. It speaks
 | 132 | 40 | 0x4f | act5_find_worldstone |
 
 d2d: `rules::kFindLines` (checked against game.exe in test_exe_tables),
-`World::find_voice`. It reads "the last sound" as the class's last line.
+`World::find_voice`. "The last sound" is the swing's start (`Player::swung_at`,
+latched from the player's A1 / A2, a Barbarian's S3 and an Assassin's S4
+mode start with no SQ sequence; test_find_voice_wait). "No class voice
+playing" is still the class's last line within 62 ticks (`voice_at`): the
+World has no sound lengths or playing list. Not run as an oracle (the client's
+sound globals).
 
 Nine `find` lines still have no trigger: Act 2's radament, summoner,
 tomb_decoy, tomb_true (0x39–0x3c) and Act 3's beneath, blackened, drain,
