@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -77,6 +78,9 @@ int main() try {
     assert(flash != world.fight.missiles.end() && flash->visual_only);
     assert(flash->velocity_x == 0 && flash->velocity_y == 0);
     assert(flash->x == world.portal[2].x && flash->y == world.portal[2].y);
+    // x + 6, y - 3 are subtiles: inside the ring, not 6 tiles out of it.
+    const auto lambda = std::ranges::find(stony_field->npcs, 21, &Npc::object_id);
+    assert(lambda != stony_field->npcs.end() && std::hypot(world.portal[2].x - (lambda->x + 1.2f), world.portal[2].y - (lambda->y - 0.6f)) < 1.f);
     assert(flash->dies - flash->born == 300 * kTickMs);
     const std::uint32_t stepped = game_before.next();
     assert(flash->seed && flash->seed->low == stepped && flash->seed->high == 666);
