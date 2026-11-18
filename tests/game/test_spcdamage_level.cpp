@@ -7,6 +7,7 @@
 
 #include <ai.hpp>
 #include <gamedata.hpp>
+#include <montypes.hpp>
 #include <rules.hpp>
 
 #include <cassert>

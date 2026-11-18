@@ -5,7 +5,6 @@
 // the trap classes' stat pairs. tests/spcdamage_cases.inc is game.exe's own
 // answer (tools/emu/spcdamage.py inc); rules::spcdamage must give it.
 
-#include <rules.hpp>
 #include <uniques.hpp>
 
 #include <cassert>

@@ -8,10 +8,12 @@
 #include <ai.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <montypes.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <span>
