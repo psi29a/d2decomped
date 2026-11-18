@@ -438,6 +438,7 @@ struct Monster {
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
     std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    float leap_pace = 0;                      // the takeoff's path pace in cells a frame (FUN_005d9f70: MonStats Run << 8, FUN_00648690), 0: the sequence's time
     // Whirlwind as a monster casts it (srvstfunc 38 / do 76): its A1 sequence
     // looping along its path since whirl_ms, the rows passed, the last unit hit.
     bool whirl = false;
@@ -660,6 +661,21 @@ struct Foe {
 inline constexpr float kKnockCellsPerFrame = 0.2f;
 inline float knock_moved(std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * kKnockCellsPerFrame / 40.f, length); }
 inline std::uint32_t knock_ms(float length) { return std::uint32_t(std::ceil(length / kKnockCellsPerFrame - 1e-4f)) * 40; }
+
+// A takeoff's flight (FUN_005d9f70: the path's velocity is MonStats Run (row
+// +0x34) << 8, FUN_00648690; a frame moves it velocity / 4096 subtiles,
+// FUN_006502d0): Run / 16 subtiles = Run / 80 cells a frame. 0 for no Run.
+inline float leap_cells_per_frame(int run) { return float(std::max(run, 0)) / 80.f; }
+// The cells a takeoff has flown `elapsed_ms` in, at `pace` cells a frame, up to its `length`.
+inline float leap_moved(float pace, std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * pace / 40.f, length); }
+
+// How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the
+// takeoff's pace (FUN_005d9f70) when it has one, else along `span_ms`, the sequence's time.
+inline float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms) {
+    const float length = std::hypot(monster.leap_to_x - monster.leap_from_x, monster.leap_to_y - monster.leap_from_y);
+    if (monster.leap_pace > 0 && length > 0) return leap_moved(monster.leap_pace, elapsed_ms, length) / length;
+    return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
+}
 
 // A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
 // pet or the merc): at the knockback's pace to its leap_to, then it stands

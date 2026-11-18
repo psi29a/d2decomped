@@ -1492,12 +1492,16 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // (FUN_00679f70, table 0x6eb6d8: one point, the landing) with collision
             // type and mask 0, so nothing blocks it; FUN_005d9d50's FUN_0064ea90 only
             // stamps the landing spot (pattern 0x80) till it lands (FUN_005da120).
-            // ponytail: flown along the sequence's time, not at the takeoff's pace
-            // (FUN_00648690: FUN_00451f80 row +0x34 << 8, a 16.16 walk), nor the 0x80 stamp.
+            // The takeoff's pace (FUN_005d9f70: FUN_00648690 gets MonStats Run (row +0x34)
+            // << 8, 16.16 subtiles a frame): Run / 80 cells a frame, `Monster::leap_pace`.
+            // ponytail: the landing's 0x80 stamp (FUN_005d9d50's grid pattern), and the wait at
+            // the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0), aren't
+            // ported: a flight slower than its sequence is snapped to the landing at the end.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
                 monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
+                monster.leap_pace = leap_cells_per_frame(type_info.run);
             }
             if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
                 monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
@@ -2567,8 +2571,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         if (monster.leaping) {                                          // Leap's flight (do 77, FUN_005d9f70): along the sequence to its landing
             const std::uint32_t lands = monster.leap_until ? monster.leap_until : monster.mode_until;
-            const float span = float(std::max<std::uint32_t>(lands - unit.mode_ms, 1));
-            const float done = std::clamp(float(now_ms - unit.mode_ms) / span, 0.f, 1.f);
+            const float done = leap_done(monster, now_ms - unit.mode_ms, std::max<std::uint32_t>(lands - unit.mode_ms, 1));
             unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
             unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
         }
