@@ -1411,6 +1411,9 @@ struct Fight {
     [[nodiscard]] bool melee_reach_to(const Monster& target, bool blow) const;
     // The monsters around the player, in the crowd that blocks walkers.
     void crowd(Crowd& crowd_out);
+    // The same about (x, y): the monsters within 12 of it and every hero's pets on the level (FUN_0064d870's
+    // grid holds every unit's stamp, wherever the acting player stands).
+    void crowd_around(Crowd& crowd_out, float x, float y);
     // One frame of the fight outside town (`in_moor`: in the level whose
     // monsters these are), and the merc's turn (following, in town).
     void world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
