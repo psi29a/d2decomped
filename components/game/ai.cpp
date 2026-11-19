@@ -2924,11 +2924,12 @@ int soak(Monster& monster, int physical, int damage) {
     return damage - absorbed;
 }
 
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked) {
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked, int crush) {
     if (!monster.targetable() || (damage <= 0 && fraction <= 0 && !monster.lifeless)) return false;
     // This blow's own size in 256ths, for its get-hit, before the carried
-    // part of a point joins it.
-    const std::int64_t blow_fine = (std::int64_t(std::max(damage, 0)) << 8) + std::max(fraction, 0);
+    // part of a point joins it: the record's total (+0x4c), which a Crushing
+    // Blow's life is not in (FUN_0057c1e0 sums it before the strike events).
+    const std::int64_t blow_fine = std::max<std::int64_t>((std::int64_t(std::max(damage, 0)) << 8) + std::max(fraction, 0) - std::max(crush, 0), 0);
     // Life is in 256ths in game.exe (0057c852): carry the part of a point,
     // and a life under one point after a hit is dead (0057c865).
     monster.life_frac += std::max(fraction, 0);
@@ -2947,6 +2948,12 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
                  && game_data.monsters.types[std::size_t(monster.type)].can_get_hit))
         set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
+}
+
+bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms) {
+    // Bone Armor's pool takes the record's fine physical (FUN_005c6370 on +8).
+    const int taken = soak(monster, blow.phys_fine, (blow.damage << 8) + blow.frac);
+    return hurt(game_data, monster, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.elemental || blow.deadly, blow.crush_fine);
 }
 
 void heal(Monster& monster, int points) {

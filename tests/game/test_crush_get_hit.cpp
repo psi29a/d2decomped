@@ -6,7 +6,7 @@
 //   `crush_hit.py compare` checks it against game.exe (FUN_005bffc0, FUN_0057c6c0, FUN_0057cee0 natively on the same landed
 //   blow). Needs the MPQs and 1.14d's tables
 //   (D2_MPQ_DIR, D2_PATCH_INSTALLER); it skips without.
-//   no argument: game.exe's decisions for pinned blows.
+//   no argument: game.exe's decisions for pinned blows (sixteen: melee, missile, fire).
 
 #include <ai.hpp>
 #include <combat.hpp>
@@ -84,6 +84,32 @@ Result strike(GameData& data, bool crushing, int type, long maxlife, long life, 
     return { struck.mode == "GH", struck.seed.low, struck.seed.high, long(struck.life_fine()) };
 }
 
+
+// game.exe's decisions for pinned blows (crush_hit.py game on these cases: FUN_005bffc0, FUN_0057c1e0, FUN_0057c6c0, FUN_0057cee0
+// natively; V run). Lives in 256ths. A Crushing Blow's life is not in the record's total (FUN_0057c1e0 sums it before the strike
+// events), so a blow under max / 16 (class 0) takes no get-hit however much the crush took; its seed is the unit's after the rolls
+// it took (an unrolled blow leaves it); the life lost is the crush and the total. A missile's crush is the doubled divisor's
+// (event 6) and is out of the total too; a fire part marks the blow (max / 16 for every class) and is in the total.
+struct Pin { long maxlife, life, phys; int hit_class, divisor, fire; bool missile; std::uint32_t seed_low, seed_high; bool staggered; std::uint32_t low, high; long life_after; };
+constexpr std::array<Pin, 16> kPins{ {
+    { 25600, 25600, 1280, 0, 4, 0, false, 12345, 678, false, 12345, 678, 17920 },             // 5 points of 100: under max / 16 (1600), no roll
+    { 25600, 25600, 1792, 0, 4, 0, false, 12345, 678, false, 2359725804u, 9490060, 17408 },   // 7 points: over it, rolls, no get-hit
+    { 25600, 25600, 0, 0, 4, 0, false, 12345, 678, false, 12345, 678, 19200 },                // a crush with no physical: no size, no roll
+    { 25600, 12800, 1280, 2, 4, 0, false, 777, 999, false, 777, 999, 8320 },                 // class 2 (max / 8) at half life
+    { 262144, 262144, 15360, 0, 8, 0, false, 31337, 4242, false, 31337, 4242, 214016 },       // a boss row's eighth, 60 points of 1024
+    { 262144, 131072, 16384, 0, 8, 0, false, 31337, 4242, true, 3792358185u, 758789105, 98304 },
+    { 6400, 6400, 300, 5, 4, 0, false, 99, 1, false, 1254751280u, 41, 4500 },
+    { 6400, 6400, 420, 5, 4, 0, false, 99, 1, true, 99, 1, 4380 },
+    { 25600, 12800, 1599, 0, 4, 0, false, 4173236273u, 3100213626u, false, 4173236273u, 3100213626u, 8001 },   // a crush of 12.5 points: no roll (a crush cut to whole points rolls)
+    { 25600, 25600, 1280, 0, 4, 0, true, 12345, 678, false, 12345, 678, 21120 },              // a missile: an eighth (event 6), not in the size
+    { 25600, 25600, 1792, 0, 4, 0, true, 12345, 678, false, 2359725804u, 9490060, 20608 },
+    { 262144, 262144, 15360, 0, 8, 0, true, 31337, 4242, false, 31337, 4242, 230400 },        // a boss row's missile: a sixteenth
+    { 25600, 25600, 0, 2, 4, 7, false, 777, 999, false, 346909140u, 324, 17408 },             // 7 points of fire, class 2: marked, max / 16, rolls
+    { 25600, 25600, 0, 2, 4, 5, false, 777, 999, false, 777, 999, 17920 },                    // 5 points of fire: under max / 16, no roll
+    { 25600, 25600, 256, 5, 4, 6, true, 99, 1, false, 1254751280u, 41, 20608 },               // a missile with fire, class 5 (max / 64 unmarked)
+    { 25600, 12800, 0, 0, 4, 6, false, 4173236273u, 3100213626u, false, 4173236273u, 3100213626u, 8064 },     // 6 points of fire under max / 16 with a crush of 12.5
+} };
+
 }   // namespace
 
 int main(int argc, char** argv) try {
@@ -124,6 +150,10 @@ int main(int argc, char** argv) try {
             std::printf("%ld %d %u %u %ld\n", id, int(result.staggered), result.low, result.high, result.life);
         }
         return 0;
+    }
+    for (const auto& pin : kPins) {
+        const auto result = strike(*data, true, type, pin.maxlife, pin.life, pin.phys, pin.hit_class, pin.divisor, pin.seed_low, pin.seed_high, pin.fire, pin.missile);
+        assert(result.staggered == pin.staggered && result.low == pin.low && result.high == pin.high && result.life == pin.life_after);
     }
     std::printf("ok\n");
     return 0;

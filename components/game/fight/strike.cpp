@@ -549,9 +549,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; by_player && curse && curse->auratarget == "lifetap")
             actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife]
                                          + ((std::int64_t(blow.damage) * calc(*curse, curse->calc[0], target.curse.level) / 100) << 8));
-        // Bone Armor's pool takes the record's fine physical (FUN_005c6370 on +8).
-        const int taken = soak(target, blow.phys_fine, (blow.damage << 8) + blow.frac);
-        if (hurt(*game_data, target, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.elemental || blow.deadly)) { killed(monster_index, now_ms); return true; }
+        if (blow_hurt(*game_data, target, blow, now_ms)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
         // KB (LAB_005a77d0): path type 8, 5 subtiles on from the attacker,
