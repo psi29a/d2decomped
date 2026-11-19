@@ -1526,11 +1526,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         save_in.close();
                         std::vector<std::byte> bytes(raw.size());
                         std::memcpy(bytes.data(), raw.data(), raw.size());
+                        // Written as any save is (CharacterStore::save_bytes: a .bak, a temp file, a rename), so a
+                        // failed write leaves the old save.
                         bool done = d2d::d2s::convert_to_expansion(bytes);
                         if (done) {
-                            std::ofstream out(path, std::ios::binary | std::ios::trunc);
-                            out.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
-                            done = bool(out);
+                            const auto why = characters.save_bytes(scene->saves[std::size_t(csu.selected)].name, bytes);
+                            if (!why.empty()) d2d::log::warn("CONVERT TO EXPANSION: {}", why);
+                            done = why.empty();
                         }
                         if (done) {
                             const int kept = csu.selected;
@@ -1670,11 +1672,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
                 if (csu.convert_btn.clicked && csu.selected >= 0 && csu.selected < count && !scene->saves[std::size_t(csu.selected)].expansion()) {
                     csu.confirm_convert = true;
+                    roster_navigation = false;                 // the pad's cursor shows on YES / NO
                     disarm(csu.popup_yes);
                     disarm(csu.popup_no);
                 }
                 if (csu.delete_btn.clicked && csu.selected >= 0 && csu.selected < count) {
                     csu.confirm_delete = true;
+                    roster_navigation = false;
                     disarm(csu.popup_yes);
                     disarm(csu.popup_no);
                 }
