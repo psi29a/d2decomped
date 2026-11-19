@@ -1637,10 +1637,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     **Life Tap's function (FUN_005c61e0; run, `tools/emu/life_tap.py`).**
     FUN_0057c6c0 raises damagedinmelee / damagedbymissile on the struck
     unit (0x57c7e8..0x57c7f3, through the dispatcher FUN_005c0c30 over the
-    unit's +0x90 nodes) once FUN_0057c1e0 has put the hit's final damage at
-    +8, before its life goes down. The striker, any player or monster that
-    isn't dying (0x5c620a, FUN_005541b0), heals MulDiv(+8, calc1, 100)
-    (FUN_00483360, 0x5c62d7), 256ths: its life (stat 6) and max
+    unit's +0x90 nodes) once FUN_0057c1e0 has filled the hit, before its
+    life goes down (by the total at +0x4c, 0x57c852). The striker, any
+    player or monster that isn't dying (0x5c620a, FUN_005541b0), heals
+    MulDiv(+8, calc1, 100) (FUN_00483360, 0x5c62d7), 256ths: +8 is the
+    physical after resistance (+0x4c = +8 and the element fields,
+    0x57c3a5..0x57c3c7), so fire, cold, lightning, poison and magic heal
+    nothing. Its life (stat 6) and max
     (FUN_00625d10) above 0, the sum held between 1 and the max. d2d:
     `rules::life_tap_life`, `Fight::land` (the player, the merc, a pet).
     **Iron Maiden's function, read (FUN_005c5f50; cited, decompile and

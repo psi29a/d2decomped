@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Life Tap's heal in game.exe as the oracle: its aura event function (FUN_005c61e0, slot 5 of 0x7325b0), which
 FUN_0057c6c0 raises on the cursed unit as a hit lands (damagedinmelee / damagedbymissile, 0x57c7f3), after
-FUN_0057c1e0 has put the hit's final damage at +8 and before the unit's life goes down.
+FUN_0057c1e0 has filled the hit and before the unit's life goes down; +8 is its physical after resistance (the
+total, with the elements, is +0x4c: 0x57c3a5..0x57c3c7).
 
     uv run python life_tap.py gen 100000 1 > cases.txt     # `striker life max damage pct`
     uv run python life_tap.py game < cases.txt > game.txt   # each case and `| life`
@@ -9,7 +10,7 @@ FUN_0057c1e0 has put the hit's final damage at +8 and before the unit's life goe
     uv run python life_tap.py compare game.txt d2d.txt      # `N cases, M differ`; exit 1 on a difference or a bad input
 
 A case: the striker's unit type (0 a player, 1 a monster: a merc or a pet is a monster), its life (stat 6) and max
-life (FUN_00625d10), both in 256ths, the hit's damage (+8, 256ths) and what Life Tap's calc1 gives for the curse's
+life (FUN_00625d10), both in 256ths, the hit's physical (+8, 256ths) and what Life Tap's calc1 gives for the curse's
 caster. FUN_005c61e0(ECX game; the cursed unit, the striker, the hit, skill 82, level 1) runs for real: the heal is
 FUN_00483360(ECX the damage, EDX the %, 100) (0x5c62d7, real); with the striker's life and max both above 0 its life
 becomes life + heal held between 1 and the max, set as stat 6 (FUN_00627260). No heal on a hit of 0 damage or less.
