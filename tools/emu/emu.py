@@ -232,17 +232,25 @@ class Emu:
         ret = e.r32(e.mu.reg_read(UC_X86_REG_ESP))
         raise SystemExit(f"emu: game.exe fatal error from {ret:08x}: {txt}")
 
-    def crt_init(self):
-        """The statically linked MSVC CRT's startup: heap, per-thread data, static constructors."""
+    STORM_CALLS = (0x419980, 0x4192f0, 0x416370, 0x41aad0, 0x4198d0, 0x416230, 0x4165a0)   # serve_files' hooks
+
+    def crt_init(self, language=b"ENG"):
+        """The statically linked MSVC CRT's startup: heap, per-thread data, static constructors;
+        then the string tables as game.exe loads them (FUN_005259c0, expansionstring.tbl too), so
+        a name lookup (FUN_00524d30) gets its real id. Storm's file calls are answered from the
+        MPQs for that load and left as they were after it."""
         self.hook(0x408a60, Emu.fatal, 0)
-        # ponytail: string tables not loaded; name lookups (FUN_00524d30(key, &str)) get id 0, ""
-        empty = self.alloc(4)
-        self.hook(0x524d30, lambda e: (e.w32(e.arg(1), empty) if e.arg(1) else None, 0)[1], 2)
         # __get_osplatform / __get_winmajor: NT, 6
         self.hook(0x681b00, lambda e: (e.w32(e.arg(0), 2), 0)[1], 0)
         self.hook(0x681baf, lambda e: (e.w32(e.arg(0), 6), 0)[1], 0)
         self.call(0x68c7d1, 1)      # __heap_init
         self.call(0x688fbb)         # __mtinit
+        kept = {addr: self.read(addr, 5) for addr in Emu.STORM_CALLS}
+        serve_files(self)
+        self.call(0x5259c0, 1, ecx=0, edx=self.put(language + b"\0"))
+        for addr, code in kept.items():
+            self.mu.mem_write(addr, code)
+            self.mu.ctl_remove_cache(addr, addr + 5)
         # ponytail: __cinit (0x681c95) skipped - its C initialisers need locale setup; add if a global ctor matters
 
     # ---- files --------------------------------------------------------

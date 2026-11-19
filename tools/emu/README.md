@@ -479,10 +479,12 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
     not there is a KeyError: add its row, with the line that shows it.
   - `alloc`/`put`/`r32`/`s32`/`w32`/`read`/`cstr` handle memory. The heap
     is a bump allocator that never frees.
-  - `crt_init()` runs the static CRT's heap and thread-data startup. It
-    also hooks the fatal-error handler (0x408a60, which raises
-    `SystemExit` with the message) and the string-table lookup
-    (0x524d30, which returns `""`).
+  - `crt_init()` runs the static CRT's heap and thread-data startup and
+    loads the string tables as game.exe does (FUN_005259c0, English,
+    expansionstring.tbl too), serving Storm's file calls for that load
+    only, so a name lookup (0x524d30) gets its real id. It also hooks the
+    fatal-error handler (0x408a60, which raises `SystemExit` with the
+    message).
   - `serve_files(e)` answers Storm's file calls (open, size, read, seek,
     close, name) from the MPQ stack through `mpq-cat`. Files are cached
     in `.cache/`, so the first run is slow and later runs are fast.
