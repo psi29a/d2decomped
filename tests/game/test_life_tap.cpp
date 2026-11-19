@@ -3,18 +3,37 @@
 // Life Tap's heal, as tools/emu/life_tap.py runs game.exe's FUN_005c61e0:
 // `--life-tap` reads its cases (`striker life max damage pct`, 256ths) and
 // prints each with `| life`: rules::life_tap_life on the striker's life.
-// Without arguments: life_tap_life on a few typed-in numbers.
+// Without arguments: life_tap_life on a few typed-in numbers, then, with the
+// game data, a Necromancer's skeleton striking a Life-Tapped zombie through
+// the real Fight::land: the skeleton heals.
 
+#include <character.hpp>
+#include <character_store.hpp>
 #include <combat.hpp>
+#include <d2s_items.hpp>
+#include <fight.hpp>
+#include <gamedata.hpp>
+#include <gamedata_load.hpp>
+#include <level_ids.hpp>
+#include <rules.hpp>
+#include <skills.hpp>
+#include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
+
+namespace fs = std::filesystem;
+using namespace d2d::game;
 
 namespace {
 
@@ -43,11 +62,61 @@ int heal_checks() {
     return 0;
 }
 
+// A level-30 Necromancer's skeleton at 5 points strikes a zombie under his
+// Life Tap at 1 for 100 points: it heals calc1 % of that (FUN_005c61e0 takes
+// any striker, 0x5c620a), as the player would.
+int pet_check(const GameData& data) {
+    d2d::rules::Rng rng{ 7 };
+    Character character;
+    auto made = new_character(data, 2, "Tapper", false, true, rng);
+    character.name = "Tapper";
+    character.header = made.header;
+    character.stats = made.stats;
+    character.items = made.items;
+    character.panel = panel_stats(data, character.header, character.items, character.stats);
+    character.stats.values[d2d::d2s::kLevel] = 30;
+    auto world = std::make_unique<World>(&data, -1, -1);
+    world->enter(character);
+    Level open = *data.level(d2d::rules::level_ids::kBloodMoor);
+    std::ranges::fill(open.walk, std::uint16_t(0));
+    world->level = &open;
+    world->fight.enter(&open);
+    const int raise = data.skills.by_name.at("Raise Skeleton"), life_tap = data.skills.by_name.at("Life Tap");
+    world->fight.skill_level = [&](int skill) { return skill == raise || skill == life_tap ? 1 : 0; };
+    world->fight.skill_base = world->fight.skill_level;
+    auto* actor = world->actor;
+    const auto& raise_row = *data.skills.get(raise);
+    const int pet_id = world->fight.summon_one(raise_row, data.monsters.row(raise_row.summon), 1, world->fight.calc_env(), actor->player.x + 3, actor->player.y, 100000);
+    auto& pet = actor->pets.back().monster;
+    assert(pet.id == pet_id && pet.max_life_fine() > 5 * 256);
+    pet.set_life_fine(5 * 256);
+    auto& zombie = world->fight.monsters.emplace_back();
+    zombie.type = data.monsters.row("zombie1");
+    zombie.id = 90000;
+    zombie.stats.hit_points = zombie.hit_points = 500;
+    zombie.unit.x = actor->player.x + 4; zombie.unit.y = actor->player.y;
+    zombie.curse = { life_tap, 1, 1'000'000'000u, false };
+    const int pct = d2d::rules::eval_calc(data.skills, data.skills.get(life_tap)->calc[0], world->fight.calc_env(), life_tap, 1);
+    d2d::rules::Blow blow{ .hit = true };
+    blow.damage = 100;
+    (void)world->fight.land(world->fight.monsters.size() - 1, blow, false, 100000, pet_id);
+    const auto expect = d2d::rules::life_tap_life(5 * 256, pet.max_life_fine(), 100 * 256, pct);
+    assert(pct > 0 && pet.life_fine() == expect && expect > 5 * 256);
+    std::printf("OK: a skeleton striking a Life-Tapped zombie heals to %d/256 (%d %%)\n", pet.life_fine(), pct);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--life-tap") return life_tap_cases();
-    return heal_checks();
+    if (heal_checks() != 0) return 1;
+    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
+    const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("no game data: the striker check skipped"); return 0; }
+    auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    if (!data || !data->patched) { std::puts("no 1.14d data: the striker check skipped"); return 0; }
+    return pet_check(*data);
 } catch (const std::exception& error) {
     std::printf("test_life_tap: %s\n", error.what());
     return 1;

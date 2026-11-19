@@ -570,10 +570,17 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
             target.bleed_until = now_ms + std::uint32_t(d2d::rules::kOpenWoundsFrames) * 40;
         }
-        // Life Tap: rules::life_tap_life.
-        if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; by_player && curse && curse->auratarget == "lifetap")
-            actor->character.stats.values[kLife] = d2d::rules::life_tap_life(actor->character.stats.values[kLife], actor->character.stats.values[kMaxLife],
-                                                                             (blow.damage << 8) + blow.frac, calc(*curse, curse->calc[0], target.curse.level));
+        // Life Tap: whoever dealt the hit heals (rules::life_tap_life). FUN_005c61e0 takes any player or monster
+        // striker that isn't dying (0x5c620a, FUN_005541b0), so the merc and the pets too.
+        if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; curse && curse->auratarget == "lifetap") {
+            const int damage_fine = (blow.damage << 8) + blow.frac, pct = calc(*curse, curse->calc[0], target.curse.level);
+            if (striker == player_foe_id() && !dead())
+                actor->character.stats.values[kLife] = d2d::rules::life_tap_life(actor->character.stats.values[kLife], actor->character.stats.values[kMaxLife], damage_fine, pct);
+            else if (striker == merc_foe_id() && actor->merc && actor->merc->alive())
+                actor->merc->set_life_fine(int(d2d::rules::life_tap_life(actor->merc->life_fine(), std::int64_t(merc_max_life()) << 8, damage_fine, pct)));
+            else if (const auto pet = std::ranges::find_if(actor->pets, [&](const Pet& each) { return each.monster.id == striker; }); pet != actor->pets.end() && pet->monster.alive())
+                pet->monster.set_life_fine(int(d2d::rules::life_tap_life(pet->monster.life_fine(), pet->monster.max_life_fine(), damage_fine, pct)));
+        }
         if (blow_hurt(*game_data, target, blow, now_ms)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
