@@ -876,9 +876,8 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
 
 // Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
 // restocking stack back to its max, durability to its max, charges full.
-// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off.
-// ponytail: the hand-skill pass FUN_0055f900 ends with (FUN_0055c5c0) isn't
-// ported (replenish.hpp).
+// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off; its
+// hand-skill pass (FUN_0055c5c0) is World::hand_skills, run by the repair.
 inline bool mend(const Tables& tables, d2d::d2s::Item& item) {
     if (!repairable(tables, item)) return false;
     if (restocks(tables, item)) item.quantity = stack_most(tables, item);   // FUN_006295b0

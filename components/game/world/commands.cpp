@@ -67,6 +67,54 @@ auto World::spill_belt(std::uint32_t now_ms) -> void {
         for (auto& item : dropped) loot.place(std::move(item), actor->player.x, actor->player.y, now_ms);
     }
 
+// FUN_0055c5c0, each hand in turn: the left skill by the wielded weapon, the
+// right by the other hand's (FUN_0055c470: slot 5's when the wielded is slot
+// 4's, else slot 4's; a weapon, ItemTypes weap). A hand holding a throwing
+// weapon that isn't a melee one (ItemTypes thro, not mele: a throwing potion)
+// takes Throw (skill 2, FUN_005701b0) unless its skill is already a throw
+// (FUN_0055c560: itypea1 a thro, range rng, usable), keeping the old one
+// (FUN_00622f10 / FUN_00622ea0). A hand skill then refused (FUN_00647960
+// status 2 or 7) takes the kept one back when that one isn't refused
+// (FUN_0055c4f0). d2d's hand skills are ids: the kept entry's owner item
+// (+0x7c / +0x78) is the charged entry the cast reads (Fight::ask).
+auto World::hand_skills(std::uint32_t now_ms) -> void {
+        constexpr int kThrow = 2;
+        const auto& tables = game_data->rules;
+        auto& items = actor->character.items;
+        auto& header = actor->character.header;
+        const auto* wielded = d2d::rules::wielded_weapon(tables, items);
+        const d2d::d2s::Item* other = nullptr;
+        if (wielded) {
+            const int slot = wielded->slot == d2d::d2s::body_location::kRightArm ? d2d::d2s::body_location::kLeftArm : d2d::d2s::body_location::kRightArm;
+            if (const int index = d2d::rules::hand_index(items, slot); index >= 0 && d2d::rules::weapon_item(tables, items[std::size_t(index)])) other = &items[std::size_t(index)];
+        }
+        const auto refused = [&](std::uint32_t id) { const int status = fight.skill_status(int(id), now_ms); return status == 2 || status == 7; };
+        const auto potion = [&](const d2d::d2s::Item* item) {
+            const auto* info = item ? d2d::rules::info_of(tables, *item) : nullptr;
+            return info && d2d::rules::type_is(tables, info->type, "thro") && !d2d::rules::type_is(tables, info->type, "mele");
+        };
+        const auto a_throw = [&](std::uint32_t id) {
+            const auto* skill = game_data->skills.get(int(id));
+            return skill && !skill->itypea1.empty() && d2d::rules::type_is(tables, skill->itypea1, "thro") && skill->range == "rng" && !refused(id);
+        };
+        const auto hand = [&](const d2d::d2s::Item* item, std::uint32_t& skill, std::uint32_t& kept, bool left) {
+            if (potion(item) && !a_throw(skill)) {
+                kept = skill;
+                skill = kThrow;
+                if (!left) right_skill_set(*actor, kThrow);
+            }
+            if (refused(skill) && kept != skill && game_data->skills.get(int(kept)) && !refused(kept)) {
+                skill = kept;
+                if (!left) right_skill_set(*actor, int(kept));
+            }
+        };
+        if (!wielded) return;
+        hand(wielded, header.left_skill, actor->kept_left, true);
+        hand(other, header.right_skill, actor->kept_right, false);
+        const auto* right = game_data->skills.get(int(header.right_skill));
+        actor->aura = right && right->aura ? int(header.right_skill) : 0;
+    }
+
 auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -132,7 +180,9 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->store.npc < 0) return true;
             actor->store.reduced = reduced_prices();
             if (repair->item < 0) {
+                const bool any_broken = std::ranges::any_of(actor->character.items, [&](const auto& item) { return d2d::rules::repair_all_takes(item_rules, item) && d2d::rules::broken(item); });
                 const auto mended = d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats);
+                if (mended && *mended > 0 && any_broken) hand_skills(now_ms);   // FUN_0055f900 -> FUN_0055c5c0
                 if (!mended) actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::no_gold });
                 else if (*mended > 0) cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
                 return true;
@@ -143,6 +193,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (d2d::rules::store_repair(item_rules, actor->store, *found, actor->character.stats)) {
                 cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
                 if (was_broken) d2d::rules::wield_enters(item_rules, actor->character.items, *found);   // FUN_0055f900 -> FUN_0063d1d0
+                if (was_broken) hand_skills(now_ms);                                                     // FUN_0055f900 -> FUN_0055c5c0
             }
             return true;
         }
