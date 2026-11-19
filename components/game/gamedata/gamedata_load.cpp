@@ -1574,9 +1574,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                                 num(difficulty_table.get(row, "GambleUltra")) };
         if (auto bytes = mpqs.try_read(R"(data\global\excel\books.txt)")) {
             const d2d::txt::Table table(*bytes);
-            for (std::size_t row = 0; row < table.size(); ++row)
+            for (std::size_t row = 0; row < table.size(); ++row) {
+                game_data.rules.books.emplace_back(table.get(row, "ScrollSpellCode"), table.get(row, "BookSpellCode"));
                 if (const std::string code(table.get(row, "BookSpellCode")); !code.empty())
                     game_data.rules.book_charge_cost[code] = std::atoi(std::string(table.get(row, "CostPerCharge")).c_str());
+            }
         }
         if (auto bytes = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
             const d2d::txt::Table table(*bytes);

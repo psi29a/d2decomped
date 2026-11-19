@@ -599,13 +599,32 @@ and ends with `FUN_005c1260` (the staff mods above):
 | 7 | the same `+0x28` store, then item flag 0x10000 set (`FUN_006280d0`) |
 | 0x16, 0x12 | item data word `+0x3e` (`FUN_00627fb0(item, value, 0)`) set to `FUN_005c2540(..)`: the row of the books table (`d2d_books_count_ptr`) whose dword at `+0x18` / `+0x1c` equals the item's code (Items `+0x80`), else the table's count |
 
-`FUN_005c2540` is a fastcall whose ECX the decompile does not show (the item is assumed to
-be passed through); the books-table fields were read only by offset. The `+0x28` of rows 0x28 /
-7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set row is picked).
-Evidence: `python3 tools/ghidra/fn.py 00556e80`, `python3 tools/ghidra/fn.py 00629df0`,
-`python3 tools/ghidra/fn.py 00627fb0`, `python3 tools/ghidra/fn.py 005c2540`.
-d2d: not ported as a function (the charm-affix path, row 0xd, is not ported). Cited from the
-decompile, no oracle run.
+`FUN_005c2540` is a fastcall: ECX the item, EDX 1 for a scroll (row 0x16, `0x556eee`: the
+record's `+0x18`, ScrollSpellCode) or 0 for a tome (row 0x12, `0x556f0f`: `+0x1c`,
+BookSpellCode); the row count when no row matches, -1 with no table (`FUN_006374a0`, the table
+at `0x96cc60`). The result is suffix slot 0, which `FUN_0055bff0` reads back as the book's
+skill (items-mode-early.md) and the save writes as a scroll's or tome's 5 bits. The `+0x28` of
+rows 0x28 / 7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set
+row is picked).
+
+`FUN_00556f30` (ESI the item, EAX the drop record, one stack arg, `RET 4`) is FUN_00557450's
+normal case (2): the item data's version (`FUN_0062a670`, data `+0x30`) 0 takes the classic
+`FUN_00556d80` (a switch on the item's own type, the same five rows), else `FUN_00556e80`.
+`FUN_005572a0` (a quality that doesn't take, remade normal) ends the same way.
+
+`tools/emu/books_row.py` runs FUN_00556f30, FUN_00556e80 and FUN_005c2540 on every Items row
+(659) with the data tables loaded, version 101: tbk / tsc get row 0, ibk / isc row 1, 0sc (the
+plain Scroll, no Books row) 3, the count; the three charms (cm1..cm3) take the charm path; the
+twelve body parts and the ear set `+0x28` (0 from a zeroed record), the ear flag 0x10000 too;
+every item ends in the staff mods.
+
+d2d: `rules::books_row`, set by `generate_item` on a normal scroll or tome (`Item::tome`,
+`test_books_row`: the oracle's cases with the data, hand-made tables without). Before, a made
+tome or scroll kept -1 and its 5 save bits were written as 0, Town Portal's row, an Identify
+one's too (not traced: which field `FUN_0062cbe0` reads them back into). Not ported (`ponytail:` there): the charm path (row 0xd), whose two
+rolls repeat magic's that just failed, and the body-part `+0x28` (no drop makes one); the
+classic branch with the rest of the classic rules.
+Evidence: `python3 tools/ghidra/fn.py 00556e80 00556f30 005c2540 00629df0 00627fb0`.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

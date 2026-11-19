@@ -246,6 +246,8 @@ struct Tables {
     std::vector<std::pair<int, int>> skill_levels;         // Skills.txt reqlevel, maxlvl by Id (FUN_00644710 / FUN_004aa8b0)
     // books.txt CostPerCharge by BookSpellCode (tbk, ibk): what each scroll in a tome adds to its price (FUN_0062efb0).
     std::unordered_map<std::string, int> book_charge_cost;
+    // books.txt ScrollSpellCode, BookSpellCode by row (record +0x18 / +0x1c, FUN_005c2540).
+    std::vector<std::pair<std::string, std::string>> books;
     std::vector<std::pair<int, int>> skill_costs;          // Skills.txt cost mult, cost add by Id (+0x234 / +0x238: a charge's repair, FUN_00628d30)
     // ItemStatCost Multiply, Add, Encode by ID (+0x10, +0x14, +0x30): what a magic stat adds to a price (FUN_00628e70).
     struct StatCost { int mul = 0, add = 0, encode = 0; };
@@ -2020,6 +2022,15 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
     return ok.back().first;
 }
 
+// A scroll's or tome's Books.txt row (FUN_005c2540, EDX 1 for a scroll):
+// the first whose ScrollSpellCode (`scroll`) or BookSpellCode is `code`,
+// the row count when none is (0sc, the plain Scroll, gets 3).
+inline int books_row(const Tables& tables, const std::string& code, bool scroll) {
+    for (std::size_t row = 0; row < tables.books.size(); ++row)
+        if ((scroll ? tables.books[row].first : tables.books[row].second) == code) return int(row);
+    return int(tables.books.size());
+}
+
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6
 // rare, 7 unique; set/unique fall back to rare when none fits),
 // identified, with its defence and durability rolled.
@@ -2165,12 +2176,26 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
     };
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
     // their quantity.
+    // A normal item's fix-ups (FUN_00556f30, and FUN_005572a0 when another
+    // quality doesn't take: FUN_00556e80 on an item of version 100+): a scroll's
+    // (ItemTypes row 0x16) or a tome's (0x12) Books row into suffix slot
+    // 0, the save's 5 bits (FUN_005c2540; the tome's test runs last).
+    // ponytail: a charm's affix (row 0xd, FUN_00556a60: reached only after
+    // its magic roll found no affix, its two rolls fail the same way and
+    // the game exits, string 0x372) and a body part's monster (rows 0x28 /
+    // 7, FUN_00629df0; no drop makes one) aren't set; a classic item
+    // (version 0) takes FUN_00556d80 (the same Books row, by its own type).
+    auto fix_ups = [&] {
+        if (item.quality != 2) return;
+        if (type_is(tables, type, "scro")) item.tome = books_row(tables, code, true);
+        if (type_is(tables, type, "book")) item.tome = books_row(tables, code, false);
+    };
     // Low / normal / superior (also magic's fallback, FUN_00557320).
     auto plain = [&](int plain_quality) {
         quality = plain_quality;
         item.quality = std::max(quality, 1);
         if (!unit_seed && base && base->stackable) item.quantity = rng.range(base->min_stack, base->max_stack);
-        if (!unit_seed || !base) return std::move(item);
+        if (!unit_seed || !base) { fix_ups(); return std::move(item); }
         bool made = true;                                  // low / superior that doesn't take: FUN_005572a0, normal off a fresh own seed
         if (item.quality == 1 && kind != 1 && kind != 2) {
             made = false;
@@ -2210,6 +2235,7 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
             }
         }
         if (!made) { rng = Rng(start); item.quality = 2; item.qsub = -1; }
+        fix_ups();                                         // before the staff mods, as FUN_00556e80 ends in FUN_005c1260
         if (item.quality == 2) staff_mods();
         return finish();
     };
