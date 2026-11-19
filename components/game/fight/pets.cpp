@@ -118,7 +118,7 @@ auto Fight::pets_cross(const Level* from, const Level* destination, float dx, fl
 auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(pet.aura);
         if (!skill || skill->srvdofunc != ServerDoFunction::kEnemyAura || now_ms < pet.aura_next || skill->etype < 0 || skill->etype > 4) return;
-        pet.aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+        pet.aura_next = aura_due(*skill, pet.aura_level, now_ms);
         const int radius = calc(*skill, skill->aurarange, pet.aura_level);
         const auto damage = d2d::rules::MissileDamage{ .etype = skill->etype,
                                                    .elo = d2d::rules::elem_damage(game_data->skills, *skill, calc_env(), pet.aura_level, false),

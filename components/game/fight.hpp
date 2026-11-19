@@ -1211,10 +1211,14 @@ struct Fight {
     // target state (+0x82) and target_of (and monster_states, Holy Freeze's
     // slow) applies them while the monster is in range and its aurafilter
     // takes it (enemy_auras).
-    // ponytail: perdelay taken as ticks (its reader isn't traced);
-    // Sanctuary and Redemption's own callbacks aren't built; Sanctuary's
-    // mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
+    // A pulse's next is aura_due (rules::aura_next_frame).
+    // ponytail: Sanctuary and Redemption's own callbacks aren't built;
+    // Sanctuary's mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
     void aura_pulse(std::uint32_t now_ms);
+    // When an aura pulsing now (at level `lvl`) pulses next, ms (FUN_0056cda0).
+    [[nodiscard]] std::uint32_t aura_due(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) {
+        return std::uint32_t(d2d::rules::aura_next_frame(int(now_ms / 40), calc(skill, skill.perdelay_calc, lvl))) * 40;
+    }
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
     // Cast by the player (FUN_005cf010 on a player unit), it needs its

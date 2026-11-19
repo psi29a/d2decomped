@@ -2089,6 +2089,18 @@ Cited from the decompile (no oracle run); re-check with
   `d2d_ai_castable(skill, level, 1, 0, 0)` instead. Both end in
   FUN_0056cda0(skill, level, 1). d2d: **not ported**; the 0x15e / 0x15f
   pair agrees with the passive refresh above (FUN_00646d60).
+- **An aura's pulse** (FUN_0056cda0 / FUN_0056ce70, on Skills.txt +4
+  flags 0x40 or 0x20): perdelay (+0x128, a calc) at the skill's level,
+  under 6 taken as 5, and unit event 8 (9 for FUN_0056ce70) armed at
+  `((frame - 1 + d) / d) * d + 1`, frame the game's +0xa8: the first frame
+  after now that is 1 more than a multiple of d. Event 8's handler
+  (FUN_0056fcb0, slot 8 of 0x6e2490) casts the aura (`d2d_ai_castable`)
+  and arms the next the same way, so every aura of one perdelay pulses on
+  the same frames however apart they began; the aura's start
+  (FUN_0056fc50) casts at once. FUN_0056cd50 is the same sum for the
+  states a pulse puts (FUN_005cf010 lasts it to the next pulse + 1). Every
+  1.14d aura's perdelay is 50; the Druid spirits' auras and the masteries
+  have none, so 5. d2d: `rules::aura_next_frame`, `Fight::aura_due`.
 - **FUN_005a2d80** (124 bytes, no caller in game-calls.tsv, so reached
   through a table or pointer): reads stats 0x15 and 0x16; when 0x16 > 0
   and the unit's class id (+4) is not 0x10f, sets stat 0x15 = max(0, s15

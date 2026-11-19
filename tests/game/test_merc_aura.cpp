@@ -91,10 +91,11 @@ int main() try {
     actor.merc->hit_points = 1;
     auto& life = actor.character.stats.values[d2d::d2s::kLife];
     life = 256;
-    fight.aura_pulse(2000);
+    fight.aura_pulse(2040);                               // frame 51: 1 more than a multiple of perdelay 50
     assert(actor.merc->hit_points > 1 && life > 256);
     const auto healed = life;
-    fight.aura_pulse(2040);                               // before perdelay: no second pulse
+    assert(actor.merc_aura_next == 101 * 40);             // the next such frame (FUN_0056cda0)
+    fight.aura_pulse(100 * 40);                           // before it: no second pulse
     assert(life == healed);
     std::printf("OK: the merc's Prayer heals the player and itself on its pulse\n");
 

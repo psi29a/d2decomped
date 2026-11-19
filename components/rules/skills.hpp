@@ -715,6 +715,18 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
     return skill.tohit + skill.levtohit * (lvl - 1);
 }
 
+// An aura's next pulse (FUN_0056cda0 / FUN_0056ce70 arming unit event 8 /
+// 9, FUN_0056cd50 for the states a pulse puts): perdelay's calc at the
+// skill's level, under 6 taken as 5, and the first game frame (+0xa8) after
+// `frame` that is 1 more than a multiple of it. Event 8's handler
+// (FUN_0056fcb0, table 0x6e2490) casts the aura and arms the next, so every
+// aura of one perdelay pulses on the same frames; its start (FUN_0056fc50)
+// casts at once.
+[[nodiscard]] constexpr int aura_next_frame(int frame, int perdelay) {
+    const int period = perdelay < 6 ? 5 : perdelay;
+    return (frame - 1 + period) / period * period + 1;
+}
+
 // The char panel's attack block for the left / right skill (FUN_004ed570,
 // by SkillDesc descdam / descatt). Colours are the panel's ids: 0 white,
 // 1 red, 2 green, 3 blue, 9 yellow.

@@ -1110,9 +1110,9 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         // The merc's own (an Act 2 merc's Prayer), on its own clock.
         if (const auto* merc_skill = actor->merc && actor->merc->alive() && actor->merc_aura > 0 ? game_data->skills.get(actor->merc_aura) : nullptr;
             merc_skill && merc_skill->aura && now_ms >= actor->merc_aura_next) {
-            actor->merc_aura_next = now_ms + std::uint32_t(std::max(merc_skill->perdelay, 25)) * 40;
             for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
                 if (actor->merc_ids[k] == actor->merc_aura && actor->merc_levels[k] > 0) {
+                    actor->merc_aura_next = aura_due(*merc_skill, actor->merc_levels[k], now_ms);
                     const auto merc_env = merc_calc_env();
                     if (merc_skill->srvdofunc == ServerDoFunction::kFriendlyAura) prayer_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y);
                     else enemy_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y, {}, merc_foe_id(), now_ms);   // its Holy Freeze
@@ -1123,7 +1123,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(actor->aura) : 1;
         if (lvl < 1) return;
         const auto env = calc_env();
-        actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+        actor->aura_next = aura_due(*skill, lvl, now_ms);
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
             prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y, true);
             return;

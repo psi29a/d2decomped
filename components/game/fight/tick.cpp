@@ -901,7 +901,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                 }
             }
             if (skill->etype < 0 || skill->etype > 2 || now_ms < aura_monster.aura_next) continue;
-            aura_monster.aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+            aura_monster.aura_next = aura_due(*skill, aura_monster.aura_lvl, now_ms);
             const int low = d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, false) >> 8;
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)
