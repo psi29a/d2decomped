@@ -33,6 +33,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -365,7 +366,11 @@ auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         actor->whirl_next = 0;
         const auto cls = std::size_t(std::max(actor->character.character_class, 0));
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
-            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(game_data->walk_velocity[cls])), true, false };
+            UnitState walker = actor->player;
+            walker.shape.mask = 0xc01;
+            auto route = player_walk(*level, actor->player.x, actor->player.y, actor->move_x, actor->move_y, false, Crowd{}, &walker, nullptr);
+            const auto end = route.empty() ? std::pair{ float(actor->player.x), float(actor->player.y) } : route.back();
+            actor->smove = { end.first, end.second, cells_per_sec(float(game_data->walk_velocity[cls])), true, false, std::move(route) };
             actor->seq_loop = true;
             actor->pmode_until = ~0u;
             actor->whirl_next = now_ms;
@@ -1117,12 +1122,19 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         if (skill && skill->srvdofunc == ServerDoFunction::kCharge && actor->attack_mon >= 0) {
             actor->smove.target_x = monsters[std::size_t(actor->attack_mon)].unit.x; actor->smove.target_y = monsters[std::size_t(actor->attack_mon)].unit.y;
         }
-        const float dx = actor->smove.target_x - actor->player.x, dy = actor->smove.target_y - actor->player.y, distance = std::hypot(dx, dy);
         const bool whirl = skill && skill->srvdofunc == ServerDoFunction::kWhirlwind;
+        if (whirl) {                                                    // on to its route's next point
+            auto& route = actor->smove.route;
+            while (!route.empty() && std::hypot(route.front().first - actor->player.x, route.front().second - actor->player.y) < 0.05f) route.erase(route.begin());
+            if (!route.empty()) std::tie(actor->smove.target_x, actor->smove.target_y) = route.front();
+        }
+        const float dx = actor->smove.target_x - actor->player.x, dy = actor->smove.target_y - actor->player.y, distance = std::hypot(dx, dy);
         if (distance < 0.05f || (!whirl && !actor->smove.fly && distance <= kMeleeReach)) { if (whirl) actor->pmode_until = now_ms; return; }
         actor->player.dir = direction16(dx, dy);
         const float step = std::min(actor->smove.speed * elapsed, distance), next_x = actor->player.x + dx / distance * step, next_y = actor->player.y + dy / distance * step;
-        if (!actor->smove.fly && level->unit_blocked(next_x, next_y)) { if (whirl) actor->pmode_until = now_ms; return; }
+        auto walk_shape = actor->player.shape;
+        if (whirl) walk_shape.mask = 0x401;                             // FUN_00648ce0(path, 0x401) once the path is made
+        if (!actor->smove.fly && (whirl ? level->unit_blocked(next_x, next_y, walk_shape) : level->unit_blocked(next_x, next_y))) { if (whirl) actor->pmode_until = now_ms; return; }
         actor->player.x = next_x; actor->player.y = next_y;
     }
 

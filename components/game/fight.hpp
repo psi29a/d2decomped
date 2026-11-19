@@ -391,7 +391,7 @@ struct Fight {
         // A skill that moves the player (Whirlwind, Charge, Leap Attack):
         // toward (tx, ty) at `speed` cells/s while `on`; `fly` ignores walls
         // (a leap); whirl_next is Whirlwind's next hit time (FUN_005d9320).
-        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; };
+        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; std::vector<std::pair<float, float>> route; };   // route: Whirlwind's points, cells
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
@@ -688,14 +688,14 @@ struct Fight {
     void start_sequence(std::uint32_t now_ms);
     [[nodiscard]] std::span<const d2d::rules::SeqFrame> skill_sequence() const;   // the swing skill's frames for the weapon, none for a plain mode
     // The movement a moving skill starts with (its srvstfunc):
-    // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
-    // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
+    // Whirlwind (FUN_005d8f50) at the class's walk velocity (FUN_0056e5b0:
+    // CharStats +0x40) along a type 7 path to the point found with mask
+    // 0xc01 (FUN_00648ce0: walls, no units) and walked with 0x401 to its
+    // last point, its sequence over and over; no path, no whirl (FUN_00571b70);
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
     // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
     // FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
     // slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
-    // ponytail: Whirlwind's path is a straight line
-    // (FUN_0064ea90's pathing isn't traced).
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the
     // last) and how many event-1 frames have passed since the start.
