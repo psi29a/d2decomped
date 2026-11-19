@@ -503,8 +503,8 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
   job (seed, class, level, ilvl, players, mf; FUN_0055a550 hooked to
   record what it makes, FUN_005585d0 to answer mf) and diffs
   `build/tools/drop-dump` line by line, the dropper's seed after
-  included. 100000 / 100000 match, every class but ROP (N) / ROP (H)
-  (Annihilus, a unique entry).
+  included. 100000 / 100000 match, ROP (N) / ROP (H) (Annihilus, a
+  unique entry) among them.
 - `uv run python drops.py tables`: every class's entries against ours,
   1012 / 1012.
 - `drops.py act1` prints the Act 1 jobs `tests/game/test_game_tables.cpp` hashes.

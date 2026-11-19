@@ -60,8 +60,6 @@ from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX
 import drlg
 import emu
 
-# ponytail: unique / set item entries (Annihilus: flag 1, uber Diablo only) aren't ours.
-KNOWN = {"ROP (N)", "ROP (H)"}
 AUTO = ("bow", "weap", "mele", "armo", "abow")   # ItemTypes rows with TreasureClass, in order
 
 
@@ -386,9 +384,9 @@ def main():
     if sys.argv[1] == "tables":
         game = [f"{n} {o.index[n]}:" + "".join(" " + x for x in o.entries(o.index[n])) for n in o.names if n]
         ours = run_ours(["tables"], "\n".join(n for n in o.names if n) + "\n")
-        bad = [(g, u) for g, u in zip(game, ours) if g.split(":", 1)[1] != u.split(":", 1)[1] and u.split(":", 1)[0] not in KNOWN]
+        bad = [(g, u) for g, u in zip(game, ours) if g.split(":", 1)[1] != u.split(":", 1)[1]]
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
-        print(f"{len(game) - len(bad)}/{len(game)} classes match game.exe (not checked: {', '.join(sorted(KNOWN))})")
+        print(f"{len(game) - len(bad)}/{len(game)} classes match game.exe")
         sys.exit(1 if bad or len(game) != len(ours) else 0)
     if sys.argv[1] == "act1":                        # tests/game/test_game_tables.cpp's lines and their FNV-1a
         act1 = sorted(n for n in o.names if n.startswith(("Act 1 ", "Andariel", "Countess", "Cow")))
@@ -404,9 +402,9 @@ def main():
         print("\n".join(game))
         return
     ours = run_ours([], "".join("\t".join(map(str, j)) + "\n" for j in todo))
-    bad = [(g, u) for g, u, j in zip(game, ours, todo) if g != u and j[1] not in KNOWN]
+    bad = [(g, u) for g, u, j in zip(game, ours, todo) if g != u]
     for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
-    print(f"{len(game) - len(bad)}/{len(game)} rolls match game.exe (not checked: {', '.join(sorted(KNOWN))})")
+    print(f"{len(game) - len(bad)}/{len(game)} rolls match game.exe")
     sys.exit(1 if bad or len(game) != len(ours) else 0)
 
 
