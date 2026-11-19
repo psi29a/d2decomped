@@ -518,6 +518,9 @@ auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& str
                 const auto& victim = monsters[target];
                 const int drain = game_data->monsters.types[std::size_t(victim.type)].diff[std::size_t(victim.difficulty)].drain;
                 const int owner_max = int(actor->character.stats.values[d2d::d2s::kMaxLife]);
+                // ponytail: the steal reads blow.phys_fine, which the Weaken cut above (damagepercent) leaves as it was:
+                // a weakened golem steals off its uncut physical here. game.exe's +8 is the physical as the golem's
+                // swing builds it; how that swing takes damagepercent isn't traced.
                 const auto lives = d2d::rules::blood_golem_steal(true, drain, victim.align == 0, blow.phys_fine, target_life,
                                                                  d2d::rules::calc_dm(skill->par[0], skill->par[1], pet.level), skill->par[2], true,
                                                                  { int(actor->character.stats.values[d2d::d2s::kLife]), pet.monster.life_fine() }, owner_max,
