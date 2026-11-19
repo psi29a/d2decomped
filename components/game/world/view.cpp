@@ -127,11 +127,21 @@ auto World::view() const -> View {
         view.ghost = actor->ghost;
         view.all_dead = shared_screen() && !anyone_alive();
         if (level == fight.mon_level) {
-            // What's near the player (D2 sends the units of the rooms round
-            // each player). ponytail: a radius of 28 cells, not rooms; waits for
-            // networking (what a client is sent).
+            // The client's rooms: the near list of the player's room (unit
+            // +0x1b4, d2d_act5_rooms_near). As the player changes rooms,
+            // FUN_00537b50 sends the units of each room new to it
+            // (FUN_0053a8e0: 0x07, then FUN_00571f90 per unit in its list) and
+            // hides each room that left it (FUN_0053a9b0), so a client has a
+            // monster exactly while it stands in one of those rooms. A level
+            // with no rooms (a test's) shows them all.
+            const auto client_rooms = near_rooms(*game_data, *level, actor->player.x, actor->player.y);
+            const auto in_client_rooms = [&](const Monster& monster) {
+                if (level->rooms.empty()) return true;
+                const int room = room_of(*level, monster.unit.x, monster.unit.y);
+                return room >= 0 && std::ranges::contains(client_rooms, std::pair<const Level*, int>{ level, room });
+            };
             for (const auto& monster : fight.monsters)
-                if (!monster.gone && std::abs(monster.unit.x - actor->player.x) < 28 && std::abs(monster.unit.y - actor->player.y) < 28) {
+                if (!monster.gone && in_client_rooms(monster)) {
                     view.monsters.push_back(monster);
                     view.monsters.back().npc.colour = monster_colour(monster);
                 }
