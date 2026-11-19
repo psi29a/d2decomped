@@ -70,6 +70,26 @@ int main() try {
            && !d2d::d2s::valid_character_name("O'Neil") && !d2d::d2s::valid_character_name("Bob Bitchen")
            && !d2d::d2s::valid_character_name("A1"));
 
+    // Convert to Expansion (FUN_0043caa0): status bit 0x20 and the checksum again, on 1.09+ saves only.
+    {
+        std::vector<std::byte> save(0x14f, std::byte{ 0 });
+        const std::uint32_t magic = d2d::d2s::kMagic, version = 0x60, old_version = 0x5b;
+        std::memcpy(save.data(), &magic, 4);
+        std::memcpy(save.data() + 4, &version, 4);
+        save[0x24] = std::byte{ 0x04 };                                                   // hardcore, classic
+        auto converted = save;
+        assert(d2d::d2s::convert_to_expansion(converted) && converted[0x24] == std::byte{ 0x24 });
+        std::uint32_t sum = 0;
+        std::memcpy(&sum, converted.data() + 0x0C, 4);
+        assert(sum == d2d::d2s::save_checksum(converted) && sum != 0);
+        auto old = save;
+        std::memcpy(old.data() + 4, &old_version, 4);
+        assert(!d2d::d2s::convert_to_expansion(old) && old[0x24] == std::byte{ 0x04 });   // before 0x5c: not here
+        auto short_save = save;
+        short_save.pop_back();
+        assert(!d2d::d2s::convert_to_expansion(short_save));
+    }
+
     // A game.exe host's ground item (S->C 0x9c, live 2026-10-04): gold, the
     // net layout (no JM, x / y 16 bits on the ground, the amount 1 + 12 bits
     // right after the code: FUN_0062a970 reads no socket count for it).
