@@ -300,10 +300,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // it in the inventory's free spot (FUN_00560200(.., 0, 0, 1, 1, 0),
         // called in each of FUN_00579d60's three branches), with no room on the ground at the
         // player (FUN_00555da0 / FUN_00558aa0).
+        if (const auto* given = std::get_if<cmd::ObjectItem>(&command)) { object_item(*given, now_ms); return true; }
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held || actor->held->id != imbue->item) return true;
             const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;
-            const auto answer = [&](bool done) { actor->events.push_back(ev::ServiceResult{ imbue->npc, done }); return true; };
+            const auto answer = [&](bool done) { actor->events.push_back(ev::ServiceResult{ imbue->npc, done ? 6 : 7 }); return true; };
             const auto put_back = [&] {
                 const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls % 7)];
                 std::vector<const d2d::d2s::Item*> stored;

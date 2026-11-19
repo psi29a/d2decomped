@@ -532,7 +532,11 @@ def act2():
     assert chest_room, "no orifice"
     cmd(f"debug warp {chest_room[0][2] + 1} {chest_room[0][3] + 1}")
     cmd("debug kill")
-    operate(chest_room[0][0])
+    operate(chest_room[0][0])                        # its item panel opens (S->C 0x58 kind 0)
+    cmd(f"cmd hand {item_id('hst')}")
+    time.sleep(1)
+    cmd(f"cmd place {chest_room[0][0]}")             # C->S 0x44 3
+    time.sleep(2)
     assert bits(10) & 1 and "[hst " not in cmd("items"), f"the orifice didn't take the staff: {bits(10):#x}"
     until("the way down to Duriel", lambda: any(line.startswith("6\t") for line in cmd("debug portals").splitlines()), 20)   # its timer: 18 ticks, 19 quest steps (15.2 s)
     take_portal(6, 73)

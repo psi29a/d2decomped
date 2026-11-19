@@ -123,14 +123,26 @@ int main() try {
     enter_level(*tomb);
     const auto& hole = tomb->npcs[std::size_t(orifice)];
     stand(hole.x, hole.y);
-    give(first, "hst", false);
-    world.operate(orifice, 1000);
-    assert(heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 0);
+    // Operated, its panel opens (S->C 0x58 kind 0); the staff from the cursor goes in (C->S 0x44 3).
+    const auto place_staff = [&](std::uint32_t now_ms) {
+        give(first, "hst", false);
+        world.operate(orifice, now_ms);
+        assert(std::ranges::any_of(first.events, [&](const Event& event) { const auto* opened = std::get_if<ev::ServiceResult>(&event); return opened && opened->kind == 0 && opened->npc == orifice; }));
+        world.object_item({ orifice, 77, true }, now_ms);         // not on the cursor: kind 4, nothing taken
+        assert(heard(first, "music_quest_horadric") == 0);
+        auto staff = std::ranges::find(first.character.items, std::string("hst"), &d2d::d2s::Item::code);
+        staff->id = 77;
+        first.held = *staff;
+        first.character.items.erase(staff);
+        world.object_item({ orifice, 77, true }, now_ms + 40);
+    };
+    place_staff(1000);
+    assert(!first.held && heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 0);
     second.player.x = hole.x; second.player.y = hole.y + 1;   // both by it: both hear it
     first.events.clear(); second.events.clear();
     world.operated.erase({ tomb, orifice });
-    give(first, "hst", false);
-    world.operate(orifice, 2000);
+    world.tombs.staff_placed = false;
+    place_staff(2000);
     assert(heard(first, "music_quest_horadric") == 1 && heard(second, "music_quest_horadric") == 1);
     std::puts("OK: the Horadric Staff's jingle at the orifice, by it");
 

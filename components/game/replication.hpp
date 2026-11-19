@@ -394,7 +394,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
         else if (const auto* refused = std::get_if<ev::TradeResult>(&event)) out.u8(8).u8(int(refused->result)).i32(refused->npc);
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
-        else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->done ? 1 : 0);
+        else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->kind);
         else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
         else if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { out.u8(12); for (const int stone : stones->order) out.u8(stone); }
         else {
@@ -657,7 +657,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             view.events.push_back(ev::AmbientDip{ fade_in, hold, back, i32() });
         } else if (kind_byte == 10) {
             const int npc = i32();
-            view.events.push_back(ev::ServiceResult{ npc, byte() != 0 });
+            view.events.push_back(ev::ServiceResult{ npc, byte() });
         } else if (kind_byte == 12) {
             ev::StoneOrder stones;
             for (auto& stone : stones.order) stone = byte();

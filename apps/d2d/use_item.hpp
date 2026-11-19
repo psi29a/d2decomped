@@ -4,14 +4,16 @@
 // personalize. One slot and two buttons on MENU\upgrade; the item on the
 // cursor goes in the slot, the first button sends C->S 0x38 kind 0 and a
 // wait box stays up till S->C 0x58 answers (docs/research/re/act1-end.md
-// "Imbue"). The rules are here; use_item.cpp draws it, Town drives it.
-// ponytail: kind 0, the panel S->C 0x58 kind 0 opens on MENU\horadricback
-// (the Horadric Staff's orifice, `hst` only), isn't drawn by d2d.
+// "Imbue"). Kind 0, opened by S->C 0x58 kind 0 (FUN_004c0550: the
+// Horadric Staff's orifice), is the same panel on MENU\horadricback that
+// takes only `hst` and sends C->S 0x44 instead. The rules are here;
+// use_item.cpp draws it, Town drives it.
 #pragma once
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -47,9 +49,9 @@ inline constexpr std::array<Button, 2> kButtons = { {
 // The NPCs whose menu opens it (hcIdx), and what they check (FUN_004bfc50).
 inline constexpr int kCharsi = 0x9a, kLarzuk = 0x1ff, kAnya = 0x200;
 // The first button's label as its hover draws it (FUN_004bfdd0): 0xfb1
-// "imbue", 0x58dc "add sockets", 0x58dd "personalize".
-[[nodiscard]] inline std::uint16_t service_label(int hc_idx) {
-    return hc_idx == kLarzuk ? 0x58dc : hc_idx == kAnya ? 0x58dd : 0xfb1;
+// "imbue", 0x58dc "add sockets", 0x58dd "personalize"; 0xd49 on kind 0.
+[[nodiscard]] inline std::uint16_t service_label(int hc_idx, int kind = 1) {
+    return kind == 0 ? 0xd49 : hc_idx == kLarzuk ? 0x58dc : hc_idx == kAnya ? 0x58dd : 0xfb1;
 }
 // The instructions: 0x275c upgraderestrictEx, 0x58de Addsocketsui2, 0x58db Rename Instruct.
 [[nodiscard]] inline std::uint16_t instructions(int hc_idx) {
@@ -63,7 +65,8 @@ inline constexpr int kPass = 1, kSelect = 2, kError = 3;
 
 struct Panel {
     State state = State::kClosed;
-    int npc = -1;                    // the NPC's index (0x7c0d25: its unit)
+    int kind = 1;                    // 0x7c5470: 1 an NPC's service, 0 an object's (S->C 0x58 kind 0)
+    int npc = -1;                    // the NPC's index (0x7c0d25: its unit), or kind 0's object (0x7c547c)
     int hc_idx = -1;                 // its class (FUN_004b1670)
     int item = -1;                   // the placed item's id (0x7c5480)
     std::uint32_t press_ms = 0;      // the last press taken (0x7c5488)
@@ -78,8 +81,8 @@ enum class Act : std::uint8_t {
     kNone,
     kInventory,      // the inventory's own click (state 1: FUN_004922a0)
     kPlace,          // the cursor item into the slot: play its dropsound
-    kSend,           // C->S 0x38 kind 0 {npc, item}
-    kClose,          // shut, and the NPC's talk ends (FUN_004c0090, FUN_004b3fe0)
+    kSend,           // C->S 0x38 kind 0 {npc, item}; kind 0: C->S 0x44 {object, item, 3}
+    kClose,          // shut, and the NPC's talk ends (FUN_004c0090, FUN_004b3fe0); kind 0: C->S 0x44 {object, 0, 2}
 };
 struct Outcome {
     Act act = Act::kNone;
@@ -102,6 +105,12 @@ struct Outcome {
 inline void open(Panel& panel, int npc, int hc_idx, std::uint32_t now_ms) {
     panel = { .state = State::kOpen, .npc = npc, .hc_idx = hc_idx, .press_ms = now_ms };
 }
+// S->C 0x58 kind 0 (FUN_004c0550 -> FUN_004c0380): an object's, kind 0.
+inline void open_object(Panel& panel, int object, std::uint32_t now_ms) {
+    panel = { .state = State::kOpen, .kind = 0, .npc = object, .press_ms = now_ms };
+}
+// What kind 0's press takes (FUN_004bfc50 0x4bfd93): an identified staff.
+[[nodiscard]] inline bool object_takes(std::string_view code, bool identified) { return identified && code == "hst"; }
 
 // A press (FUN_004bfc50; the right button's too, 0x204). `in_inventory`:
 // on the inventory panel; `on_close_box`: on its close box; `cursor_item`:
@@ -183,12 +192,13 @@ inline void cancel(Panel& panel, Outcome& out) {
 }
 
 // S->C 0x58's kind (FUN_004c0550): 1 shuts it; 4 takes the wait box down,
-// the item still placed; 6 (done) and 7 (refused) shut it and end the NPC's
-// talk (FUN_004b3fb0). Returns whether to shut it.
+// the item still placed; 5 the item's gone in (the cursor emptied, Sounds.txt
+// row 5 with +6 set, else 3) and shuts it; 6 (done) and 7 (refused) shut it
+// and end the NPC's talk (FUN_004b3fb0). Returns whether to shut it.
 [[nodiscard]] inline bool reply(Panel& panel, int kind) {
     if (!panel.open()) return false;
     if (kind == 4 && panel.state == State::kWaiting) panel.state = State::kPlaced;
-    return kind == 1 || kind == 6 || kind == 7;
+    return kind == 1 || kind == 5 || kind == 6 || kind == 7;
 }
 
 // The panel (FUN_004c01e0), `held` the cursor item, drawn in the slot while placed (use_item.cpp).
