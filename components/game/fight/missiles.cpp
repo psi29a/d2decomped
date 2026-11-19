@@ -1155,8 +1155,8 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         if (const int cost = cost_of(*skill, lvl); cost > 0 && skill->srvdofunc == ServerDoFunction::kEnemyAura) {
             auto& values = actor->character.stats.values;
             const bool afford = (blood_mana() ? values[d2d::d2s::kLife] : values[d2d::d2s::kMana]) >= cost;
-            const bool target_stats = !skill->auratarget.empty() && std::ranges::any_of(std::views::iota(std::size_t(0), skill->aurastat.size()), [&](std::size_t k) {
-                return skill->aurastat[k] >= 0 && calc(*skill, skill->aura_calc[k], lvl) != 0;
+            const bool target_stats = !skill->auratarget.empty() && std::ranges::any_of(std::views::iota(std::size_t(0), skill->aurastat.size()), [&](std::size_t slot) {
+                return skill->aurastat[slot] >= 0 && calc(*skill, skill->aura_calc[slot], lvl) != 0;
             });
             const float reach = float(calc(*skill, skill->aurarange, lvl));
             const bool took = afford && target_stats && std::ranges::any_of(monsters, [&](const Monster& monster) {

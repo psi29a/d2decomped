@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <vector>
 
 using namespace d2d::d2s;
 

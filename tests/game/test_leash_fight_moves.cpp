@@ -5,9 +5,11 @@
 // is undone, the fight's too: a leap in flight or a knockback's slide that
 // carries a player off is cut off where they stood. No game data.
 #include <ds1.hpp>
+#include <fight.hpp>
 #include <gamedata.hpp>
 #include <world.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <exception>

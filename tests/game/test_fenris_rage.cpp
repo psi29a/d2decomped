@@ -7,6 +7,7 @@
 // already used, does nothing. Synthetic rows: no game data.
 #include <ai.hpp>
 #include <cues.hpp>
+#include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
