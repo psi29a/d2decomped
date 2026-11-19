@@ -1280,8 +1280,8 @@ struct Fight {
     // The skill's passive stats, aurastats and sumskills land on it as
     // summons.cpp has them (FUN_005c4470; the masteries come in that way),
     // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
-    // ponytail: the golems' specials (Blood Golem's life link, Iron Golem's
-    // item) aren't traced or built.
+    // Iron Golem wears the metal item it's cast at (golem_item_at).
+    // ponytail: Blood Golem's life link isn't built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
@@ -1298,6 +1298,12 @@ struct Fight {
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
+    // Iron Golem's item (FUN_005c32a0, start 20 and do 57's check): a ground
+    // item (type 4, mode 3) of a metal base (FUN_00629cc0: Items bitfield1 & 2),
+    // identified (flag 0x10), at the cast's subtile, else the nearest within a
+    // cell: its index in loot.ground, or -1.
+    [[nodiscard]] int golem_item_at(float x, float y) const;
+    std::optional<d2d::d2s::Item> golem_item;   // the one do 57 took off the floor, for summon_one's golem to wear
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;

@@ -1196,7 +1196,7 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 - Record: +0xbc `summon` (MonStats row), +0xbe `pettype`, +0xc0 `petmax`
   (calc), +0xc4 sumskill1..5 with +0xd0 sumsk*calc, +0xe4 `sumumod`,
   +0xe6 `sumoverlay`. Do functions: 56 (FUN_005c5100, the golems), 57
-  (Iron Golem), 31 (FUN_005c4b00, Raise Skeleton / Skeletal Mage, from a
+  (Iron Golem, FUN_005c5250: below), 31 (FUN_005c4b00, Raise Skeleton / Skeletal Mage, from a
   corpse), 16 (FUN_005dc1e0, Valkyrie), 119 (FUN_005c7390, the Druid's
   wolves, bear, spirits), 114 (Raven), 15 (Decoy), 44 / 45 (the
   Assassin's traps), 49 (Shadow Warrior / Master).
@@ -1278,6 +1278,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 
+- **Iron Golem** (start 20 and do 57 both run `FUN_005c32a0`): the unit
+  cast at (`FUN_00553540`) is an item (type 4) on the ground (mode 3) of a
+  metal base (`FUN_00629cc0`: Items bitfield1 & 2), identified (flag 0x10,
+  `FUN_006280a0`), its stats not linked to an owner (`FUN_00625820`), else
+  no start and no golem. `FUN_005c5250`: the golem (`FUN_0056d940`), the
+  item out of its room (`FUN_0061a270`), mode 4, then `FUN_005606b0`(the
+  golem, the item, forced, its type's body location) equips it, and only
+  then `FUN_005c50c0` puts the summon's stats on (`FUN_005c4470`, Summon
+  Resist after the item's absorbs). d2d: `Fight::golem_item_at` (the item
+  at the cast's subtile: the client sends the item's spot, not its id),
+  `Fight::summon`, `summon_one`.
 ### Traps (phase 5, part 4)
 - Do 45 (**FUN_005d6170** → **FUN_005d5e10**): the summon path —
   FUN_0056e620 (the pet slot), FUN_0056d940 at the target, FUN_005c49e0 /

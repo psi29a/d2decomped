@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -56,6 +57,7 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || !summon_skill(*skill_row)) return false;
         if (skill_row->target_corpse && corpse_near(target_x, target_y) < 0) return false;
+        if (skill_row->srvdofunc == ServerDoFunction::kIronGolem && golem_item_at(target_x, target_y) < 0) return false;   // start 20 (FUN_005c32a0)
         if (ask(skill, now_ms) != skill) return false;
         const int lvl = cast_level(skill);
         pay(*skill_row, lvl);
@@ -73,6 +75,21 @@ auto Fight::corpse_near(float x, float y) const -> int {
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (const auto& corpse = monsters[i]; !corpse.alive() && !corpse.corpse_used && corpse.mode == "DD")
                 if (const float distance = std::hypot(corpse.unit.x - x, corpse.unit.y - y); distance < best_distance) { best_distance = distance; best = int(i); }
+        return best;
+    }
+
+auto Fight::golem_item_at(float x, float y) const -> int {
+        if (loot.ground_level != level) return -1;
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        int best = -1;
+        float best_distance = 1.f;
+        for (std::size_t i = 0; i < loot.ground.size(); ++i) {
+            const auto& lying = loot.ground[i];
+            const auto base = game_data->rules.item_base.find(lying.item.code);
+            if (base == game_data->rules.item_base.end() || !(base->second.bitfield1 & 2) || !lying.item.identified) continue;
+            if (subtile(lying.x) == subtile(x) && subtile(lying.y) == subtile(y)) return int(i);
+            if (const float distance = std::hypot(lying.x - x, lying.y - y); distance < best_distance) { best_distance = distance; best = int(i); }
+        }
         return best;
     }
 
@@ -104,6 +121,15 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             if (skill.srvdofunc == ServerDoFunction::kRevive) type = monsters[std::size_t(corpse)].type;
         }
         if (type < 0) return;
+        // Iron Golem (do 57, FUN_005c5250): its check again (FUN_005c32a0), then the
+        // golem, the item off the floor (FUN_0061a270) and on it (FUN_005606b0 at its
+        // type's body location), then its stats (FUN_005c50c0): summon_one.
+        if (skill.srvdofunc == ServerDoFunction::kIronGolem) {
+            const int taken = golem_item_at(x, y);
+            if (taken < 0) return;
+            golem_item = loot.ground[std::size_t(taken)].item;
+            loot.ground.erase(loot.ground.begin() + taken);
+        }
         // Bone Wall (do 60, FUN_005c58b0): one on the point, then its two
         // makers (srvmissilea, missile do 13: missile_tick) fly across the
         // caster's line from it, each laying up to calc2 / 2 more
@@ -281,10 +307,24 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             std::tie(monster.stats.a1_min, monster.stats.a1_max) = d2d::rules::gear_damage(worn_gear, monster.stats.a1_min, monster.stats.a1_max);
             monster.stats.armor_class += int(worn_gear.defense);
         }
+        // Iron Golem's item (FUN_005606b0, before FUN_005c50c0 makes its stats):
+        // worn in its type's first body location, its stats the golem's, so
+        // its absorbs count in Summon Resist below and its maxhp gets calc1 %.
+        if (skill.srvdofunc == ServerDoFunction::kIronGolem && golem_item) {
+            auto item = *std::exchange(golem_item, std::nullopt);
+            const auto info = game_data->rules.item_info.find(item.code);
+            const auto item_type = info == game_data->rules.item_info.end() ? game_data->rules.types.end() : game_data->rules.types.find(info->second.type);
+            item.location = d2d::d2s::item_location::kEquipped;
+            item.slot = item_type == game_data->rules.types.end() ? 0 : item_type->second.body[0];
+            const auto worn_gear = d2d::rules::gear_sum(game_data->rules, std::span(&item, 1));
+            for (std::size_t stat_id = 0; stat_id < worn_gear.sum.size(); ++stat_id)
+                if (worn_gear.sum[stat_id] != 0) pet_stats[int(stat_id)] += int(stat_id == d2d::d2s::kMaxLife ? worn_gear.sum[stat_id] << 8 : worn_gear.sum[stat_id]);
+            std::tie(monster.stats.a1_min, monster.stats.a1_max) = d2d::rules::gear_damage(worn_gear, monster.stats.a1_min, monster.stats.a1_max);
+            monster.stats.armor_class += int(worn_gear.defense);
+        }
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
         using namespace d2d::d2s;
         // Summon Resist (FUN_005c40d0): a raised skeleton or mage and a golem, after its stats.
-        // ponytail: Iron Golem's item (FUN_005606b0, before it) isn't made (fight.hpp), so its absorbs don't hold any back.
         if (skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem || skill.srvdofunc == ServerDoFunction::kIronGolem) {
             int owner_value = 0;
             for (const auto& passive : d2d::rules::passive_stats(game_data->skills, env))

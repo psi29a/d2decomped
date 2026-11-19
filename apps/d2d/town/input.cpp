@@ -211,7 +211,7 @@ auto Town::shift_pick(int skill) const -> int {
 // (FUN_0065ac70), so equals tie apart; other players aren't among them (two players without the
 // hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
 // target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
-// as a spot: the World neither names nor takes it.
+// as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
 auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
