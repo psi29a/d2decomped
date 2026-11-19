@@ -1279,10 +1279,11 @@ struct Fight {
     // The unraised corpse within 2 cells of (x, y) nearest it, or -1.
     [[nodiscard]] int corpse_near(float x, float y) const;
     // The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
-    // as its MonStats row at the row's level, then set to level min(clvl,
-    // clvl x 3 / 4 + bonus) — bonus calc2 for the Druid's (do 114 / 119),
-    // else 0 — with MonLvl's own defense and attack rating at it (stats 31
-    // / 19), life + calc1 %.
+    // as its MonStats row at the row's level, then set to its level
+    // (rules::summon_level: Raven's and the Druid's forced to max(calc2, 1),
+    // else min(max(clvl x 3 / 4 + the skill level, 1), clvl) for Raise, the
+    // golems, the Decoy, the Valkyrie and the traps), with MonLvl's defense
+    // and attack rating at it added (stats 31 / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
     // The skill's passive stats, aurastats and sumskills land on it as
     // summons.cpp has them (FUN_005c4470; the masteries come in that way),
