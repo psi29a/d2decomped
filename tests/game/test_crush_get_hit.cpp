@@ -157,7 +157,7 @@ int main(int argc, char** argv) try {
     }
     std::printf("ok\n");
     return 0;
-} catch (const std::exception& e) {
-    std::fprintf(stderr, "FAIL: %s\n", e.what());
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "FAIL: %s\n", error.what());
     return 1;
 }
