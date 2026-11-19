@@ -253,7 +253,7 @@ auto World::life_update_frame(std::uint32_t tick_ms) -> void {
 // The merc's items run too (game.exe's timer is on any item unit), never
 // mended: an item's owner id (item data +0xc) is its inventory's owner only
 // when that's a player (FUN_0063afd0), else -1.
-auto World::replenish_frame() -> void {
+auto World::replenish_frame(std::uint32_t tick_ms) -> void {
         const auto& tables = game_data->rules;
         bool mended = false;
         const auto due = [&](d2d::d2s::Item& item, bool owned) {
@@ -261,10 +261,12 @@ auto World::replenish_frame() -> void {
         };
         for (auto& item : actor->character.items)
             if (due(item, true)) { d2d::rules::wield_enters(tables, actor->character.items, item); mended = true; }
-        if (actor->held) (void)due(*actor->held, true);
+        bool held_mended = false;
+        if (actor->held) held_mended = due(*actor->held, true);
         for (auto& item : actor->character.merc_items) (void)due(item, false);
         for (auto& page : actor->store.tabs) for (auto& item : page) (void)due(item, false);   // the vendor's window: its stock
         if (mended) settle_requirements(*game_data, actor->character);
+        if (mended || held_mended) hand_skills(tick_ms);   // FUN_0055f900 -> FUN_0055c5c0, an owner's item
     }
 
 // The same for what lies on the floors, every level's, never mended: an
@@ -449,7 +451,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             }
             tyrael_frame();
-            each_player([&](Player&) { stamina_frame(); replenish_frame(); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
+            each_player([&](Player&) { stamina_frame(); replenish_frame(frame_at); life_update_frame(frame_at); footstep_frame(frame_at); find_voice(frame_at); });
         }
         day_at = day_end;
         each_player([&](Player& player) {
@@ -580,6 +582,14 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             for (const auto& command : cmds) {
                 if (std::holds_alternative<cmd::Resurrect>(command) || std::holds_alternative<cmd::Say>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
+                const auto worn = [&] {
+                    std::vector<std::pair<std::uint32_t, int>> worn_now;
+                    for (const auto& item : actor->character.items)
+                        if (item.location == d2d::d2s::item_location::kEquipped) worn_now.emplace_back(item.id, item.slot + (item.wielded ? 0x100 : 0));
+                    return worn_now;
+                };
+                const auto worn_before = worn();
+                const auto header_before = actor->character.header.weapon_set;
                 apply(command, now_ms);
                 // ItemMode.cpp's server moves end with FUN_0055dbc0: a hand's or body
                 // slot's item off (FUN_00560cd0) or on (FUN_005606b0 ..), into the
@@ -589,6 +599,10 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     || std::holds_alternative<cmd::SwapWeapons>(command) || std::holds_alternative<cmd::Buy>(command) || std::holds_alternative<cmd::Sell>(command)
                     || std::holds_alternative<cmd::Repair>(command))
                     settle_requirements(*game_data, actor->character);
+                // A body slot's item off or on and the weapon switch then run the hand-skill
+                // pass (FUN_00560cd0, FUN_005606b0, FUN_00560f00, FUN_00561220, FUN_00563d20,
+                // FUN_005616a0 -> FUN_0055c5c0); a mend's is in deal / replenish_frame.
+                if (worn() != worn_before || actor->character.header.weapon_set != header_before) hand_skills(now_ms);
             }
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall

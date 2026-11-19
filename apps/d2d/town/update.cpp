@@ -23,6 +23,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
+#include "spinner_step.hpp"
 #include "storage_close.hpp"
 #include "store.hpp"
 #include "touch_input.hpp"
@@ -45,6 +46,7 @@
 #include <shake.hpp>
 #include <shop_action.hpp>
 #include <sound_ids.hpp>
+#include <stone_scroll.hpp>
 #include <userdir.hpp>
 #include <weather.hpp>
 
@@ -112,14 +114,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 gold_box->cancel_down = part == GoldBoxPart::kCancel;
             }
             if (!mouse.down) gold_box->spin = 0;
-            // Held (FUN_004bbfb0 through the box's 0x453fe0): a step at most every
-            // 70 ms, 1 for the first second, then the draws held >> 5, >> 4, >> 2
-            // past 1, 2, 3 s, and (ms held >> 11) x the draws past 4096 ms.
-            // ponytail: game.exe counts its own draws (+0x40); here 25 a second, its in-game rate.
+            // Held (FUN_004bbfb0 through the box's 0x453fe0): each frame drawn
+            // counts one (FUN_004bbe70: +0x40, gone on release; update draws
+            // the frame, once each); a step (spinner_step) at most every 70 ms.
+            gold_box->draws = gold_box->spin != 0 ? gold_box->draws + 1 : 0;
             if (gold_box->spin != 0 && frame_ms - gold_box->next_ms >= 70) {
-                const std::uint32_t held_ms = frame_ms - gold_box->spin_ms;
-                const std::int64_t draws = held_ms / 40;
-                const std::int64_t step = held_ms > 0x1000 ? std::int64_t(held_ms >> 11) * draws : held_ms > 3000 ? draws >> 2 : held_ms > 2000 ? draws >> 4 : held_ms > 1000 ? draws >> 5 : 1;
+                const std::int64_t step = spinner_step(frame_ms - gold_box->spin_ms, gold_box->draws);
                 gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin * step, 0, most));
                 gold_box->next_ms = frame_ms;
             }
@@ -180,6 +180,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
+        // UI 0x10 shares the left side: another panel opened since shuts it.
+        if (scroll.open && (char_open || waypoint.open || quest_log.open || party.open || hireling.open)) scroll.open = false;
+        if (scroll.open && !help.open && !controls.open && !game_menu.open && scroll.input(mouse)) mouse.press_this_frame = mouse.release_this_frame = false;   // FUN_0049fea0
+        if (std::exchange(scroll_sound, false)) audio.play_sfx(*scene, d2d::rules::kStoneSound, 1.f, 0);
         // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
         if (help.open && !controls.open && !game_menu.open) {
             if (help.input(mouse)) { help.open = true; toggle_help(); }
@@ -363,8 +367,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
                 else if (help.open) toggle_help();                    // then the Help screen
-                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open) {   // then panels
-                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open || scroll.open) {   // then panels
+                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = scroll.open = false;
                     cursor_follows = true;
                 } else open_game_menu();
             }
@@ -640,6 +644,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
             if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
+            else if (used != character.items.end() && (used->code == "bks" || used->code == "bkd")) {
+                // FUN_00487740 -> FUN_0049ff90: no use (C->S 0x20); the scroll
+                // opens (UI 0x10) and a bkd asks for the order (C->S 0x3e).
+                if (quest_log.open) toggle_quest_log();
+                char_open = party.open = hireling.open = false;
+                waypoint = {};
+                scroll.open = true;
+                scroll.deciphered = used->code == "bkd";
+                if (scroll.deciphered) { scroll.order.reset(); send(cmd::ReadScroll{ used->id }); }   // to a joined host too
+            }
             else if (used != character.items.end() &&
                      (((pad_playing && pad_config.skill_buttons) || touch_enabled) ? item_use(*used).kind == ItemUseKind::Identify : (used->code == "isc" || used->code == "ibk"))) {
                 identify_with = used->id;
@@ -775,7 +789,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             for (const auto& neighbour : level->nearby)
                 if (neighbour.level->layer == level->layer) automap_whole(*scene, *world.game_data, *neighbour.level, automap, automap_reveal);
             automap_step(*scene, *world.game_data, *level, view.player.x, view.player.y, frame_ms, automap, automap_reveal);
-            if (g_drawn.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters);
+            if (g_drawn.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters, &world.fight.spawning);
         }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.

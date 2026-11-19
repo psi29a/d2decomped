@@ -8,6 +8,7 @@
 #include <ai.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <overlays.hpp>
 #include <test_data.hpp>
 #include <world.hpp>
 
@@ -49,8 +50,8 @@ int main() try {
     const int life = fight.monsters.back().life_fine();
     assert(fight.skill_missile_hits(missile, 0, 1000));                       // it ends there, striking nothing
     assert(fight.monsters.back().life_fine() == life);                         // a heal of 0
-    assert(fight.monsters.back().flash_overlay == 1 && fight.monsters.back().flash_at == 1000);
-    assert(world.actor->pets.back().monster.flash_overlay == 1 && world.actor->pets.back().monster.flash_at == 1000);   // the pet's own copy too
+    assert((fight.monsters.back().one_shots == d2d::rules::OneShots{ { 1, 1000 } }));
+    assert((world.actor->pets.back().monster.one_shots == d2d::rules::OneShots{ { 1, 1000 } }));   // the pet's own copy too
     std::printf("holy bolt overlay: ok\n");
     return 0;
 } catch (const std::exception& error) {

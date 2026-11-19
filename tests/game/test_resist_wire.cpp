@@ -2,7 +2,9 @@
 // test-links: game
 // A monster's difficulty and its boss mods' resist adds cross the view codec,
 // so the client's hover bar shows the immunities the host's monster has
-// (rules::immunity_lines over Monster::target).
+// (rules::immunity_lines over Monster::target); a curse's or Conviction's
+// cut (Monster::res_cut, FUN_004526c0 reads the stat with its states) drops
+// a broken immunity's line.
 
 #include <ai.hpp>
 #include <gamedata.hpp>
@@ -12,6 +14,7 @@
 #include <world.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <exception>
 
@@ -37,6 +40,11 @@ int main() try {
     assert(received.monsters.size() == 1 && received.monsters[0].difficulty == 2 && received.monsters[0].boss_res[3] == 75);
     const auto lines = d2d::rules::immunity_lines("fallen1", received.monsters[0].target(game_data).res);
     assert(lines.size() == 1 && lines[0].stat == 39);                                // fire only: lightning 75 isn't over 99
+    sent.monsters[0].res_cut = { 0, 0, -4, 0, 0, 0 };                                // Conviction's -20 on an immune's fire: a fifth
+    assert(apply_view(game_data, encode_view(game_data, sent, encoder), received) && received.monsters[0].res_cut[2] == -4);
+    auto cut = received.monsters[0].target(game_data).res;
+    for (std::size_t k = 0; k < cut.size(); ++k) cut[k] += received.monsters[0].res_cut[k];
+    assert(d2d::rules::immunity_lines("fallen1", cut).empty());                      // 96: the line is gone
     std::printf("OK: a monster's resists cross the view codec\n");
     return 0;
 } catch (const std::exception& error) {

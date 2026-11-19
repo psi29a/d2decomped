@@ -5,7 +5,8 @@
 // SkillDamage (+0xa8) names Raven, and the per-mode damage (FUN_005a4f50 ->
 // FUN_0056e050 -> FUN_0056e000) adds Raven's MinDam..MaxDam (2-4, +1 / +1 a
 // level to 8) to A1, A2 and S1 and its ToHit (100, +15 a level) to each
-// mode's to-hit. A2TH / S1TH are empty, so those are the skill's alone.
+// mode's to-hit. A2TH / S1TH are empty, so those are MonLvl's attack rating
+// at its level (stat 0x13, FUN_005c49e0 0x5c4adf) plus the skill's.
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s.hpp>
@@ -20,6 +21,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -83,7 +85,8 @@ int main() try {
             assert(stats.a1_min == expected.low && stats.a1_max == expected.high);
             assert(stats.a2_min == expected.low && stats.a2_max == expected.high);
             assert(stats.s1_min == expected.low && stats.s1_max == expected.high);
-            assert(stats.to_hit2 == expected.to_hit && stats.to_hit_s1 == expected.to_hit);
+            const int row_to_hit = data->monsters.lvl[std::size_t(stats.level)].to_hit[0];
+            assert(stats.to_hit2 == row_to_hit + expected.to_hit && stats.to_hit_s1 == row_to_hit + expected.to_hit);
             std::printf("cast at %d, now level %d: A1 %d-%d, A2 to-hit %d\n", cast_lvl, expected.lvl, stats.a1_min, stats.a1_max, stats.to_hit2);
         }
     std::printf("OK: a Raven hits with its SkillDamage skill's damage and to-hit\n");

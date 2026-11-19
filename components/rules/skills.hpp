@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
@@ -485,6 +486,7 @@ struct Skill {
     bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
     bool targetable_only = false;          // TargetableOnly (flag bit 0x14, record +6 & 0x10)
     bool search_enemy_xy = false;          // SearchEnemyXY (flag bit 0x15, record +6 & 0x20): a shift-click's pick, FUN_00467660
+    bool search_enemy_near = false;        // SearchEnemyNear (flag bit 0x16, record +6 & 0x40): the unit nearest the click, FUN_00467490
     bool search_open_xy = false;           // SearchOpenXY (flag bit 0x17, record +6 & 0x80): off a wall to a free spot, FUN_004677b0
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
     std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels
@@ -907,6 +909,72 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
         for (std::size_t k = 0; k < 5 && skill.passive_stat[k] >= 0; ++k)
             out.push_back({ skill.passive_stat[k], eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl, 0), skill.passive_itype });
     }
+    return out;
+}
+
+// ---- a summon's stats (FUN_005c4470: every summoning skill runs it on its pet)
+
+// Its level (FUN_005c49e0): a `forced` one above 0 as it is (the Raven's and
+// the Druid's max(calc2, 1)), else the owner's x 3 / 4 + `bonus` (the skill
+// level: Raise, the golems, the Decoy, the Valkyrie), at least 1 and at most
+// the owner's.
+inline int summon_level(int clvl, int forced, int bonus) { return forced > 0 ? forced : std::min(std::max(clvl * 3 / 4 + bonus, 1), clvl); }
+
+// Its passive stats (Skills +0x98, added to the pet's own: FUN_006272b0) and
+// aurastats (+0x54, on its state node: FUN_00627150), each at the skill's
+// level through the owner's calcs (Skeleton Mastery, Golem Mastery and the
+// golems' synergies come in that way), summed by stat id.
+struct SummonStats { std::map<int, int> passive, aura; };
+inline SummonStats summon_stats(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    SummonStats out;
+    for (std::size_t k = 0; k < 5; ++k)
+        if (skill.passive_stat[k] >= 0) out.passive[skill.passive_stat[k]] += eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl);
+    for (std::size_t k = 0; k < 6; ++k)
+        if (skill.aurastat[k] >= 0) out.aura[skill.aurastat[k]] += eval_calc(skill_tables, skill.aura_calc[k], env, skill.id, lvl);
+    return out;
+}
+
+// Its max life in 256ths (0x5c4752..0x5c4821): the max with its passives in
+// (FUN_00625d10) and calc1 % (`pct`) of it, set as stats 7 and 6; the percent
+// is MulDiv (FUN_00483360) inlined, so its 32-bit product wraps as rules::mul_div
+// says (bugs.md 123), and so does the sum.
+inline int summon_life(int max_fine, int pct) {
+    return int(std::uint32_t(max_fine) + std::uint32_t(mul_div(max_fine, pct, 100)));
+}
+
+// Its skills (FUN_0056deb0): sumskill k at sumsk calc k, the ones at level 1
+// or more, in order, as (skill id, level). A name is looked up as written,
+// then ignoring case.
+inline std::vector<std::pair<int, int>> summon_skill_levels(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    std::vector<std::pair<int, int>> out;
+    const auto named = [&](const std::string& name) -> const Skill* {
+        if (name.empty()) return nullptr;
+        if (const auto found = skill_tables.by_name.find(name); found != skill_tables.by_name.end()) return skill_tables.get(found->second);
+        for (const auto& [skill_name, id] : skill_tables.by_name)
+            if (std::ranges::equal(skill_name, name, [](char left, char right) { return std::tolower(std::uint8_t(left)) == std::tolower(std::uint8_t(right)); }))
+                return skill_tables.get(id);
+        return nullptr;
+    };
+    for (std::size_t k = 0; k < 5; ++k)
+        if (const auto* given = named(skill.sumskill[k]))
+            if (const int given_level = eval_calc(skill_tables, skill.sumsk_calc[k], env, skill.id, lvl); given_level >= 1) out.emplace_back(given->id, given_level);
+    return out;
+}
+
+// Summon Resist on a raised skeleton or mage or a golem (FUN_005c40d0, after
+// its stats; Raise's do 0x5c4c97, the golems' FUN_005c50c0, not Revive's): the
+// owner's passive_summon_resist (stat 0x15d) on a state node of the pet as
+// fire, lightning and cold resist, each unless the pet's absorb percent of
+// that element (stats 0x8e, 0x90, 0x94) is above 0, and as poison resist;
+// nothing when it's 0. As (stat id, value), in the order game.exe adds them.
+inline constexpr int kPassiveSummonResist = 0x15d;
+inline std::vector<std::pair<int, int>> summon_resist(int value, int absorb_fire, int absorb_light, int absorb_cold) {
+    std::vector<std::pair<int, int>> out;
+    if (value == 0) return out;
+    if (absorb_fire <= 0) out.emplace_back(d2d::d2s::kFireResist, value);
+    if (absorb_light <= 0) out.emplace_back(d2d::d2s::kLightningResist, value);
+    if (absorb_cold <= 0) out.emplace_back(d2d::d2s::kColdResist, value);
+    out.emplace_back(d2d::d2s::kPoisonResist, value);
     return out;
 }
 

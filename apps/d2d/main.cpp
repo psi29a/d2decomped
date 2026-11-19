@@ -42,6 +42,7 @@
 #include <character_name.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <devctl.hpp>
 #include <install.hpp>
 #include <join.hpp>
@@ -499,7 +500,7 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
 // Widescreen spare columns live outside that band; touch input and draw_touch
 // stay 800-wide, so insets are only within [0, 800].
 void apply_safe_inset(const Window& win) {
-#if SDL_VERSION_ATLEAST(3, 4, 0)
+#if SDL_VERSION_ATLEAST(3, 2, 0)   // SDL_GetWindowSafeArea and SDL_RenderCoordinatesFromWindow: since 3.2.0
     SDL_Rect area{};
     float left = 0, top = 0, right = 0, bottom = 0;
     // Safe area is window points. RenderCoordinatesFromWindow lands in the
@@ -532,8 +533,7 @@ void apply_safe_inset(const Window& win) {
     touch::safe_inset.top = clamp_v(std::max(0.f, top));
     touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
 #else
-    // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
-    (void)win;
+    (void)win;   // the 3.1 previews: no safe area, the touch layout stays put
 #endif
 }
 
@@ -784,6 +784,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         csu.yes_label   = tbl_label(0x142e, "YES");
         csu.popup_no    = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
         csu.popup_yes   = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
+        csu.convert_text = { tbl_label(0x58ce, "Warning:  Once you convert a character to expansion, you cannot play it in original Diablo II games."), tbl_label(0x58cf, ""),
+                             tbl_label(0x58d0, "Are you sure you wish to continue?") };
         csu.difficulty_heading = tbl_label(0x2723, "SELECT DIFFICULTY");
         for (int index = 0; index < 3; ++index) {
             static constexpr int kBottom[3] = { 297, 340, 383 };
@@ -917,6 +919,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
         mouse.rpress_this_frame = false;
+        mouse.rrelease_this_frame = false;
         mouse.wheel = 0;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
@@ -1179,7 +1182,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             if (screen != Screen::CharSelect || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || pad_actions.focus_step != 0) roster_navigation = false;
-            if (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty)
+            if (screen == Screen::CharSelect && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty)
                 for (const auto key : pad_actions.keys)
                     if (key == pad::Key::Up || key == pad::Key::Down || key == pad::Key::Left || key == pad::Key::Right) roster_navigation = true;
             pad_cursor_hidden = pad_field || roster_navigation
@@ -1218,7 +1221,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
-                    if (csu.confirm_delete) buttons({ &csu.popup_no, &csu.popup_yes });
+                    if (csu.confirm_delete || csu.confirm_convert) buttons({ &csu.popup_no, &csu.popup_yes });
                     else if (csu.pick_difficulty) buttons({ &csu.difficulty_btn[0], &csu.difficulty_btn[1], &csu.difficulty_btn[2] });
                     else buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
                 } else if (screen == Screen::InGame && town.controls.open && scene) {
@@ -1229,7 +1232,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
                 // Char select's d-pad steps its roster by key instead.
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
-                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
+                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
                 const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
                 if (const int pick = (town.tree_open && screen == Screen::InGame ? pad::tree_pick : pad::snap_pick)(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
@@ -1507,6 +1510,44 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     render_charselect(framebuffer, *scene, csu, now_ms);
                     break;
                 }
+                if (csu.confirm_convert) {   // CONVERT's YES / NO takes the input
+                    Screen stay = screen;
+                    update_button(csu.popup_no, mouse, stay, quit);
+                    update_button(csu.popup_yes, mouse, stay, quit);
+                    const auto key = [&](auto... wanted) { return std::ranges::any_of(keys_this_frame, [&](SDL_Keycode got) { return ((got == wanted) || ...); }); };
+                    const bool yes = csu.popup_yes.clicked || key(SDLK_RETURN, SDLK_KP_ENTER);
+                    if (yes || csu.popup_no.clicked || key(SDLK_ESCAPE)) csu.confirm_convert = false;
+                    if (yes && g_no_save) d2d::log::info("--no-save: {} not converted", scene->saves[std::size_t(std::clamp(csu.selected, 0, int(scene->saves.size()) - 1))].name);
+                    if (yes && !g_no_save && csu.selected >= 0 && csu.selected < int(scene->saves.size()) && !scene->saves[std::size_t(csu.selected)].expansion()) {
+                        // FUN_0043b520 -> FUN_0043caa0 on <save dir><name>.d2s; a failure says 0x5570 (FUN_00435180).
+                        const auto path = save_dir / (scene->saves[std::size_t(csu.selected)].name + ".d2s");
+                        std::ifstream save_in(path, std::ios::binary);
+                        std::vector<char> raw{ std::istreambuf_iterator<char>(save_in), {} };
+                        save_in.close();
+                        std::vector<std::byte> bytes(raw.size());
+                        std::memcpy(bytes.data(), raw.data(), raw.size());
+                        // Written as any save is (CharacterStore::save_bytes: a .bak, a temp file, a rename), so a
+                        // failed write leaves the old save.
+                        bool done = d2d::d2s::convert_to_expansion(bytes);
+                        if (done) {
+                            const auto why = characters.save_bytes(scene->saves[std::size_t(csu.selected)].name, bytes);
+                            if (!why.empty()) d2d::log::warn("CONVERT TO EXPANSION: {}", why);
+                            done = why.empty();
+                        }
+                        if (done) {
+                            const int kept = csu.selected;
+                            load_saves(*scene, save_dir);
+                            csu.selected = std::min(kept, int(scene->saves.size()) - 1);
+                        } else {
+                            const auto text = lookup_string(*scene, 0x5570);
+                            csu.popup = text ? u16_to_latin1(*text) : "Unable to access file. Cannot convert character.";
+                            csu.popup_return = Screen::CharSelect;
+                        }
+                        d2d::log::info("charselect: convert {} to expansion: {}", path.filename().string(), done ? "done" : "failed");
+                    }
+                    render_charselect(framebuffer, *scene, csu, now_ms);
+                    break;
+                }
                 if (csu.confirm_delete) {   // DELETE's YES / NO takes the input
                     Screen stay = screen;
                     update_button(csu.popup_no, mouse, stay, quit);
@@ -1570,7 +1611,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                 }
                 csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
-                const bool pad_start = town.pad_a_edge && csu.popup.empty() && !csu.confirm_delete && !csu.pick_difficulty;
+                const bool pad_start = town.pad_a_edge && csu.popup.empty() && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty;
                 if (pad_start) {
                     const auto over = [&](const Button& button) {
                         return mouse.x >= button.x && mouse.x < button.x + button.width && mouse.y >= button.y && mouse.y < button.y + button.height;
@@ -1629,8 +1670,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     for (auto& button : csu.difficulty_btn) disarm(button);
                     csu.hell_open = top_difficulty(scene->saves[std::size_t(csu.selected)]) >= 2;
                 }
+                if (csu.convert_btn.clicked && csu.selected >= 0 && csu.selected < count && !scene->saves[std::size_t(csu.selected)].expansion()) {
+                    csu.confirm_convert = true;
+                    roster_navigation = false;                 // the pad's cursor shows on YES / NO
+                    disarm(csu.popup_yes);
+                    disarm(csu.popup_no);
+                }
                 if (csu.delete_btn.clicked && csu.selected >= 0 && csu.selected < count) {
                     csu.confirm_delete = true;
+                    roster_navigation = false;
                     disarm(csu.popup_yes);
                     disarm(csu.popup_no);
                 }

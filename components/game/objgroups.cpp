@@ -454,6 +454,7 @@ struct ObjectRooms {
     std::size_t index = 0;
     std::vector<d2d::rules::Spawn>* spawns = nullptr;
     Spawning::LevelState* level_state = nullptr;
+    const Spawning* spawning_now = nullptr;           // every level's rooms up (missile_rooms)
     int leader = 0;
     d2d::rules::Population pop;
 
@@ -528,7 +529,7 @@ struct ObjectRooms {
     [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
         if (from >= level.rooms.size()) return std::nullopt;
         const auto& source = level.rooms[from];
-        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5);
+        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5, spawning_now);
         for (std::size_t i = 0; i < level.rooms.size(); ++i) {
             const auto& held = level.rooms[i];
             if (x < held.x * 5 || y < held.y * 5 || x >= (held.x + held.width) * 5 || y >= (held.y + held.height) * 5) continue;
@@ -915,7 +916,7 @@ struct ObjectRooms {
     }
     // MonStats `hc_idx` made at the unit's spot (else within `retry`); an
     // NPC (Flavie, the towns') stands where it was made and walks the unit's
-    // DS1 path (`walks`: a marker's unit (FUN_005b2f20) takes none).
+    // DS1 path (`walks`: the docks' markers' units (FUN_005b2f20) take none).
     void monster_or_npc(int hc_idx, const d2d::drlg::Unit& unit, int retry, bool walks = true) {
         const auto row = game_data.mon_bin[std::size_t(hc_idx)];
         if (spawns) leader = int(spawns->size());                                              // a placement of its own (FUN_005b2f20)
@@ -991,9 +992,12 @@ struct ObjectRooms {
                 // gone (record +0x88), in the room each try is handed. Both are made in that
                 // room's bounds and on its seed (hand_room), not the marker room's.
                 // Larzuk's record +0x15 is Spawning::marker_records, so it outlives
-                // this level as the game's quest record does. ponytail: his record
-                // +0x10 (unit id) and +0x17 (FUN_00666120 run once for him) aren't
-                // kept. Nihlathak's +0x88 / +0x92 are PrisonQuest::town_left and
+                // this level as the game's quest record does. Each marker's DS1 path
+                // goes to its NPC's AI control +0x38 (FUN_00666120), once (Larzuk's
+                // record +0x17, Nihlathak's +0x10d), whichever of the InitFn and the
+                // object's post-hook (FUN_00587950 / FUN_0058ae10, found by the unit
+                // id at +0x10 / +0x9c) comes second: townWest.ds1 gives Larzuk's
+                // (object 126) two points, Anya's (FUN_0058ad80, act5.cpp) and Nihlathak's none. Nihlathak's +0x88 / +0x92 are PrisonQuest::town_left and
                 // World::nihlathak_made. InitFns 66 / 67 / 69 are Act 5's quests'
                 // (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
                 if (init == 71) {
@@ -1002,7 +1006,7 @@ struct ObjectRooms {
                     const auto free_spot = [&](std::size_t& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
                     const auto make_at = [&](std::size_t held, int at_x, int at_y, int radius) { return marker_make(int(row), held, at_x, at_y, radius); };
                     last_made.reset();
-                    if (d2d::rules::larzuk_marker(larzuk_made, room_at, unit.x, unit.y, free_spot, make_at)) npc_from(row, unit, false);
+                    if (d2d::rules::larzuk_marker(larzuk_made, room_at, unit.x, unit.y, free_spot, make_at)) npc_from(row, unit, true);
                 }
                 if (init == 68) {
                     const auto& marker_room = level.rooms[room_at];
@@ -1013,7 +1017,7 @@ struct ObjectRooms {
                     const auto near_room = [&](std::size_t from, int at_x, int at_y) { return near_holder(from, at_x, at_y); };
                     const auto make_at = [&](std::size_t held, int at_x, int at_y, int retry) { return marker_make(int(row), held, at_x, at_y, retry); };
                     last_made.reset();
-                    if (d2d::rules::marker_npc(room_at, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
+                    if (d2d::rules::marker_npc(room_at, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, true);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
@@ -1261,6 +1265,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     out = &state.group_rooms[index];
     spawns = &state.spawns;
     level_state = &state;
+    spawning_now = &spawning;
 }
 
 // in_room: the level's rooms up so far.

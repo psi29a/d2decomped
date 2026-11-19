@@ -194,6 +194,7 @@ struct Level {
     struct Critter { int row = -1, percent = 0, amount = 0; };
     std::array<Critter, 4> critters{};
     int teleport = 1;                                  // Levels.txt Teleport: 0 no, 1 yes, 2 only in a clear line (FUN_0061db70 +4)
+    std::uint32_t lays = 0;                            // the times relevel laid its rooms again (World::reopen_doors)
     d2d::ds1::Map ds1;
     std::vector<d2d::dt1::Archive> dt1s;
     // Keyed by (style, seq, type) — one map covers floors, walls, trees,
@@ -1124,9 +1125,8 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 // +0 / +0x24). Empty when no room holds it. With `spawning`, a near room
 // counts once it's come up (Spawning::LevelState::order): room1 +0 holds
 // null for one whose room1 isn't made, and FUN_00463740 skips it. A level
-// no rooms are kept for (no state): all count.
-// ponytail: the fight's, AI's and client's callers pass no spawning yet:
-// every near room counts as up there.
+// no rooms are kept for (no state): all count. The fight, the thinks and the
+// client pass the World's.
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y, const Spawning* spawning = nullptr);
 // The automap's rooms (FUN_00459020): the one holding (x, y) cells and its
 // near list (FUN_00619790), itself included, in the list's order: each

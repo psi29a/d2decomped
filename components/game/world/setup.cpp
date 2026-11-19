@@ -474,7 +474,7 @@ auto World::stones_portal() -> void {
         if (!stony || portal[2].level) return;
         const auto alpha = std::ranges::find(stony->npcs, d2d::rules::object_ids::kStoneAlpha, &Npc::object_id);
         if (alpha == stony->npcs.end()) return;
-        const auto [spot_x, spot_y] = stony->nearest_free(alpha->x + 4, alpha->y + 4);
+        const auto [spot_x, spot_y] = stony->nearest_free(alpha->x + 4 / 5.f, alpha->y + 4 / 5.f);   // subtiles: a tile is 5
         portal[2] = { stony, spot_x, spot_y, now };
         d2d::log::info("Search for Cain: the stones' portal");
     }

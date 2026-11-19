@@ -313,6 +313,7 @@ target_sources(d2d PRIVATE
     roster.cpp
     scene.cpp
     scene/render.cpp
+    scroll.cpp
     skilltree.cpp
     store.cpp
     tile_blit.cpp

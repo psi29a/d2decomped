@@ -114,6 +114,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "waypoint" && verb_args.size() >= 4) town.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "caravan" && verb_args.size() >= 3) town.send(cmd::Caravan{ int_arg(2) });
         else if (verb == "imbue" && verb_args.size() >= 3) town.send(cmd::Imbue{ int_arg(2), int_arg(3, town.held ? town.held->id : -1) });   // [item]: the held one
+        else if (verb == "place" && verb_args.size() >= 3) town.send(cmd::ObjectItem{ int_arg(2), int_arg(3, town.held ? town.held->id : -1), true });   // into an object's panel (the orifice)
         else if (verb == "hand" && verb_args.size() >= 3) town.send(cmd::ToCursor{ int_arg(2) });
         else if (verb == "use" && verb_args.size() >= 3) town.send(cmd::UseItem{ int_arg(2) });
         else if (verb == "grid" && verb_args.size() >= 4)    // the held item into the inventory (or "cube") at col, row
@@ -127,7 +128,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "close") town.send(cmd::CloseTrade{});
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
-                                " | caravan <npc> | imbue <npc> [item] | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>"
+                                " | caravan <npc> | imbue <npc> [item] | place <object> [item] | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>"
                                 " | trade <npc> [gamble] | buy <stock> | sell <item> | close\n");
         return std::string("ok\n");
     });

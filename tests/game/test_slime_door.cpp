@@ -87,6 +87,12 @@ int main() try {
             // (FrameCnt1 + 1, or the client's OP counter's end if sooner).
             assert(door.mode2 && object_op_ticks(door) > 0);
             const std::uint32_t on_ms = 1000 + std::uint32_t(object_op_ticks(door)) * kTickMs;
+            // Only while the game runs its room (a player near, Fight::near_players): one due
+            // with the player away comes once they're back.
+            world.actor->player.x = door.x + 40.f; world.actor->player.y = door.y;
+            world.slime_doors_on(on_ms);
+            assert(world.doors.at({ lair, int(index) }).mode == 1);
+            world.actor->player.x = door.x; world.actor->player.y = door.y;
             world.slime_doors_on(on_ms - 1);
             assert(world.doors.at({ lair, int(index) }).mode == 1);
             world.slime_doors_on(on_ms);

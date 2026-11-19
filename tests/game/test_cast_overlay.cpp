@@ -4,7 +4,8 @@
 // from an item): played once on its caster (FUN_00470390 kind 2) unless that row is already
 // playing on it (FUN_0046e100). Through the REAL Fight: a Sorceress's Fire Bolt shows
 // fire_cast_1 as it starts, a second start while it plays doesn't restart it, one after it
-// ended does; a monster's Resurrect shows its own.
+// ended does; a monster's Resurrect shows its own. The unit's one-shots are a list (+0x2c,
+// rules::add_one_shot): another row plays beside it, its own row restarts in place.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -42,11 +43,24 @@ void check_rules() {
     assert(cast_overlay_row(5, -1, true) == 5);       // none set: castoverlay still
     assert(cast_overlay_row(0, -1, false) == -1);     // row 0 never plays (0 < row)
     assert(cast_overlay_row(-1, -1, true) == -1);
-    assert(cast_overlay_starts(5, -1, 0, 0, 0));                   // nothing on it
-    assert(!cast_overlay_starts(5, 5, 13 * 40, 16, 14));           // its 14th frame still to draw
-    assert(cast_overlay_starts(5, 5, 14 * 40, 16, 14));            // done
-    assert(cast_overlay_starts(5, 6, 0, 16, 14));                  // another row playing
-    assert(!cast_overlay_starts(-1, -1, 0, 0, 0));
+    using d2d::rules::OneShots;
+    assert(cast_overlay_starts(5, {}, 0, 0, 0));                                  // nothing on it
+    assert(!cast_overlay_starts(5, OneShots{ { 5, 0 } }, 13 * 40, 16, 14));       // its 14th frame still to draw
+    assert(cast_overlay_starts(5, OneShots{ { 5, 0 } }, 14 * 40, 16, 14));        // done
+    assert(cast_overlay_starts(5, OneShots{ { 6, 0 } }, 0, 16, 14));              // another row playing
+    assert(!cast_overlay_starts(5, OneShots{ { 6, 0 }, { 5, 40 } }, 80, 16, 14)); // its row among others
+    assert(!cast_overlay_starts(-1, {}, 0, 0, 0));
+    OneShots shots;
+    d2d::rules::add_one_shot(shots, 5, 100);
+    d2d::rules::add_one_shot(shots, 0x2e, 200);                                   // a Cry Help flash beside the cast
+    assert((shots == OneShots{ { 0x2e, 200 }, { 5, 100 } }));
+    d2d::rules::add_one_shot(shots, 5, 300);                                      // its row off first, the new one at the head
+    assert((shots == OneShots{ { 5, 300 }, { 0x2e, 200 } }));
+    d2d::rules::add_one_shot(shots, 0x8c, 400);
+    d2d::rules::add_one_shot(shots, 0x8c, 500);                                   // 0x8c..0x8e and 0x9e stack
+    assert(shots.size() == 4 && shots[0].row == 0x8c && shots[1].row == 0x8c);
+    d2d::rules::add_one_shot(shots, -1, 600);
+    assert(shots.size() == 4);
 }
 
 }  // namespace
@@ -97,14 +111,15 @@ int main() try {
         return world->fight.cast_missile(36, actor->player.x + 3, actor->player.y, when);
     };
     now += 100 * kTickMs;
-    assert(actor->flash_overlay == -1);
+    using d2d::rules::OneShot;
+    assert(actor->one_shots.empty());
     assert(cast_at(now));
-    assert(actor->flash_overlay == fire_cast && actor->flash_at == now);
+    assert(actor->one_shots.size() == 1 && actor->one_shots[0] == (OneShot{ fire_cast, now }));
     const std::uint32_t first = now;
     assert(cast_at(now + 13 * kTickMs));                                // its last frame still to come
-    assert(actor->flash_overlay == fire_cast && actor->flash_at == first);
-    assert(cast_at(now + 14 * kTickMs));                                // over: a new one
-    assert(actor->flash_at == now + 14 * kTickMs);
+    assert(actor->one_shots.size() == 1 && actor->one_shots[0] == (OneShot{ fire_cast, first }));
+    assert(cast_at(now + 14 * kTickMs));                                // over: a new one in its place
+    assert(actor->one_shots.size() == 1 && actor->one_shots[0].start == now + 14 * kTickMs);
     std::printf("OK: Fire Bolt's start plays fire_cast_1 once, not over itself\n");
 
     const auto* resurrect = data->skills.by_name.contains("Resurrect") ? data->skills.get(data->skills.by_name.at("Resurrect")) : nullptr;
@@ -117,7 +132,7 @@ int main() try {
     monster.last_mode = monster.mode;
     monster.skill_sound = resurrect->id;
     world->fight.monster_sounds(monster, now + 100 * kTickMs);
-    assert(monster.flash_overlay == raise && monster.flash_at == now + 100 * kTickMs && monster.skill_sound == -1);
+    assert(!monster.one_shots.empty() && monster.one_shots[0] == (OneShot{ raise, now + 100 * kTickMs }) && monster.skill_sound == -1);
     std::printf("OK: a monster's Resurrect start plays %s\n", resurrect->cast_overlay.c_str());
 
     // The merc's and a pet's starts (merc_turn, pet_think_turn) take the same helper on their own
@@ -127,14 +142,14 @@ int main() try {
     const int fire_cast_2 = data->overlay_row("fire_cast_2");
     world->actor->merc = Monster{};
     auto& merc = *world->actor->merc;
-    world->fight.start_cast_overlay(*fire_ball, false, merc.flash_overlay, merc.flash_at, now + 200 * kTickMs);
-    assert(merc.flash_overlay == fire_cast_2 && merc.flash_at == now + 200 * kTickMs);
-    assert(actor->flash_overlay == fire_cast);                          // the player's own is untouched
+    world->fight.start_cast_overlay(*fire_ball, false, merc.one_shots, now + 200 * kTickMs);
+    assert((merc.one_shots == d2d::rules::OneShots{ { fire_cast_2, now + 200 * kTickMs } }));
+    assert(actor->one_shots.size() == 1 && actor->one_shots[0].row == fire_cast);   // the player's own is untouched
     const auto* attack = data->skills.get(0);
     assert(attack && attack->cast_overlay.empty());
     Monster pet;
-    world->fight.start_cast_overlay(*attack, false, pet.flash_overlay, pet.flash_at, now + 200 * kTickMs);
-    assert(pet.flash_overlay == -1);
+    world->fight.start_cast_overlay(*attack, false, pet.one_shots, now + 200 * kTickMs);
+    assert(pet.one_shots.empty());
     std::printf("OK: the merc's Fire Ball start plays fire_cast_2 on the merc\n");
     return 0;
 } catch (const std::exception& error) {

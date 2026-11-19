@@ -23,7 +23,7 @@ namespace d2d::rules {
 // What a kill drops: an item (code, quality 1 low .. 7 unique) or gold
 // ("gld": `gold` coins, or while 0 its amount is rolled as it's made:
 // gold_amount, times `mul` / 256 when the entry was "gld,mul=N").
-struct Drop { std::string code; int quality = 2; int gold = 0; int mul = 0; };
+struct Drop { std::string code; int quality = 2; int gold = 0; int mul = 0; int special = 0; };   // special: a unique / set row + 1 to make (struct +0x40)
 
 // Does the floor take a drop? FUN_0055a550 asks FUN_00555da0 for a spot
 // before it makes the item (after the quality roll, so after its draws) and
@@ -123,28 +123,15 @@ inline int stand_quality(const Tables& tables, const std::string& code, int ilvl
 }
 
 // One TreasureClassEx item cell (FUN_00654440): the code, then comma
-// parameters. "uni" / "uni=N" is flag 1, "set" / "set=N" flag 2; N is the
-// unique / set index (entry +0xa). Gold keeps "gld,mul=N" as its code (the
-// roll reads the multiplier). Quotes around the cell are dropped.
+// parameters. Gold keeps "gld,mul=N" as its code (the roll reads the
+// multiplier). Quotes around the cell are dropped. A unique or set by name
+// (flag 1 / 2, entry +0xa its row) is the loader's (gamedata_load.cpp).
 struct TreasureEntry { std::string code; int flags = 0; int index = 0; };
 inline TreasureEntry treasure_entry(std::string cell) {
     std::erase(cell, '"');
     TreasureEntry entry;
     const auto comma = cell.find(',');
-    if (comma == std::string::npos) { entry.code = std::move(cell); return entry; }
-    entry.code = cell.substr(0, comma);
-    if (entry.code == "gld") { entry.code = std::move(cell); return entry; }
-    std::size_t cursor = comma;
-    while (cursor < cell.size()) {
-        const auto next = cell.find(',', cursor + 1);
-        const auto token = cell.substr(cursor + 1, (next == std::string::npos ? cell.size() : next) - (cursor + 1));
-        const auto equals = token.find('=');
-        const auto key = token.substr(0, equals);
-        const int value = equals == std::string::npos ? 0 : std::atoi(token.c_str() + equals + 1);
-        if (key == "uni" || key == "unique") { entry.flags |= 1; entry.index = value; }
-        else if (key == "set") { entry.flags |= 2; entry.index = value; }
-        cursor = next == std::string::npos ? cell.size() : next;
-    }
+    entry.code = comma == std::string::npos || cell.starts_with("gld,") ? std::move(cell) : cell.substr(0, comma);
     return entry;
 }
 
@@ -218,18 +205,18 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
                     if (++count >= max) return false;
                 }
             } else if (tables.item_info.contains(name)) {
-                // FUN_0055a6d0 step 4: forced quality, else 7 / 5 for a unique /
-                // set entry (flags 1 / 2), else the quality roll. A zero flag
-                // modifier (flag_mod, bin +0x30 / +0x32; the txt chances are 0)
-                // does not draw. Set 29 is not decided here: it drops only from
-                // a Hell Bovine (flag 1 on the made item, FUN_005c25c0).
-                int quality = forced;
-                if (quality == 0) {
-                    if ((flags & 1) != 0) quality = 7;
-                    else if ((flags & 2) != 0) quality = 5;
-                    else quality = roll_quality(tables, name, ilvl, mod, rng, magic_find);
-                }
-                const Drop made{ name, quality };
+                // FUN_0055a6d0 step 4: 7 / 5 for a unique / set entry (flags 1 /
+                // 2), its index + 1 the row to make (struct +0x40); else the
+                // forced quality, else the quality roll. A zero flag modifier
+                // (flag_mod, bin +0x30 / +0x32; the txt chances are 0) does not
+                // draw. Set 29 is not decided here: it drops only from a Hell
+                // Bovine (flag 1 on the made item, FUN_005c25c0).
+                const int index = entry < treasure.entry_index.size() ? treasure.entry_index[entry] : 0;
+                int quality = 0, special = 0;
+                if ((flags & 1) != 0) { quality = 7; special = index + 1; }
+                else if ((flags & 2) != 0) { quality = 5; special = index + 1; }
+                else quality = forced ? forced : roll_quality(tables, name, ilvl, mod, rng, magic_find);
+                const Drop made{ name, quality, 0, 0, special };
                 if (!place || place(made, count)) {
                     out.push_back(made);
                     if (++count >= max) return false;
@@ -250,13 +237,11 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // whose running weight passes n (the Countess: her item TC, then her rune
 // TC), stopping at the weights' total. At most `max` items (6) in all.
 // A nonzero `forced` quality (a chest round's) replaces the quality roll, gold's too.
-// A unique / set entry (flags 1 / 2) is quality 7 / 5 and skips the quality roll.
+// A unique / set entry (flags 1 / 2) is quality 7 / 5, forced or not, and skips the
+// quality roll; its row goes with it (Drop::special, generate_item's `special`).
 // Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
 // `place` (FUN_00555da0 through FUN_0055a550): a drop it refuses is not made
 // and not counted (Loot's monster drops pass one).
-// ponytail: chest_round and the other callers pass none, so there every drop
-// counts; the unique / set index (entry +0xa) is stored and not applied
-// when the item is made (struct +0x40).
 // With `players` in the game and `nearby` of the killer's party on its
 // level (FUN_005408e0; a lone killer 1), NoDrop rolls for n = nearby +
 // (players - nearby) / 2 (drops.md "Rolling"); a monster dropper (unit type
@@ -273,11 +258,12 @@ inline void roll_drops(const Tables& tables, const std::string& treasure_class, 
 }
 
 // One chest round (FUN_00585b90): its class `tc` (chest_tc) off the
-// object's unit seed, qualities at its tier (A..C = 0..2), onto `out`.
+// object's unit seed, qualities at its tier (A..C = 0..2), onto `out`;
+// each placed as it's rolled (`place`, FUN_0055a550 as for a monster).
 // Returns the first item's quality as made (made_quality), 0 for none.
-inline int chest_round(const Tables& tables, const std::string& treasure_class, Rng& unit_seed, std::vector<Drop>& out, int forced) {
+inline int chest_round(const Tables& tables, const std::string& treasure_class, Rng& unit_seed, std::vector<Drop>& out, int forced, const Placement& place = {}) {
     const auto first = out.size();
-    roll_drops(tables, treasure_class, treasure_class.back() - 'A', unit_seed, out, 1, 0, 6, forced);
+    roll_drops(tables, treasure_class, treasure_class.back() - 'A', unit_seed, out, 1, 0, 6, forced, 1, 0, place);
     return out.size() > first ? made_quality(tables, out[first].code, out[first].quality) : 0;
 }
 

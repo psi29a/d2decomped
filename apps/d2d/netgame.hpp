@@ -216,6 +216,7 @@ struct NetGame {
     int movie = -1;                            // the cinematic the host asked for (0x61), -1 none
     std::vector<d2d::rules::QuestQuake::Kind> quest_quakes;
     bool diablo_red = false;                   // 0x89 event 12 until 13 (rules::release_light)
+    std::optional<std::array<int, 5>> stone_order;   // S->C 0x50 subtype 4: the deciphered scroll's order, taken by the Town
     bool cairn_opened = false;                 // 0x89 event 1: the Cairn Stones opened (0x46aee0's dip)
     // State 153 (cloak_of_shadows) set on a unit (0xa8 / 0xaa): its stat
     // list's skill (0x15e) and level (0x15f), and where the unit stands

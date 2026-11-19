@@ -80,6 +80,7 @@ struct ThinkCtx {
     int& lay_x;
     int& lay_y;
     std::vector<int>& wisp_finds;
+    const Spawning* spawning;                  // the rooms come up (missile_rooms)
 
     // The acts (ai.cpp): stand (FUN_005de080), set off at a foe or to
     // unit.goal, walk to a spot subtiles off, a mode against the target.

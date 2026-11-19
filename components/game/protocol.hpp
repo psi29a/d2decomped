@@ -66,6 +66,9 @@ struct UseBelt { int slot = 0; bool merc = false; };   // merc: shift held, the 
 struct ToCursor { int item = -1; };
 struct Drop { int item = -1; };                    // the item in hand onto the ground at the player's feet (C→S 0x17)
 struct UseItem { int item = -1; };                 // right-click an item: a potion's drunk (C→S 0x20 / 0x26)
+// 0x3e (FUN_0049ff90 -> FUN_0054bf60): the deciphered Scroll of Inifuss
+// read; the server answers with the stones' order (ev::StoneOrder).
+struct ReadScroll { int item = -1; };
 struct ToGrid { int panel = 1, col = 0, row = 0; };
 struct ToBody { int slot = 0; };
 struct ToBelt { int box = 0; };
@@ -105,6 +108,10 @@ struct Caravan { int npc = -1; };
 // service on the item in hand, `item` its id (the server checks it's the
 // cursor item, FUN_00578610).
 struct Imbue { int npc = -1; int item = -1; };
+// 0x44 (FUN_00478700 from the item panel opened by S->C 0x58 kind 0): the
+// item `item` into object `npc` (place, action 3: FUN_004bfaf0) or the
+// panel cancelled (action 2: FUN_004c02f0 / FUN_004c0150, no item).
+struct ObjectItem { int npc = -1; int item = -1; bool place = false; };
 // 0x53 / 0x54: run or walk.
 struct Run { bool running = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
@@ -132,10 +139,10 @@ struct Say { std::string text; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
-                             cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
+                             cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem, cmd::ReadScroll,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::ObjectItem, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -215,7 +222,9 @@ inline constexpr std::uint8_t kNpcDeal = 0x38;
 inline constexpr std::uint8_t kStatPoint = 0x3a;
 inline constexpr std::uint8_t kSkillPoint = 0x3b;
 inline constexpr std::uint8_t kSelectSkill = 0x3c;
+inline constexpr std::uint8_t kReadScroll = 0x3e;
 inline constexpr std::uint8_t kResurrect = 0x41;
+inline constexpr std::uint8_t kObjectItem = 0x44;
 inline constexpr std::uint8_t kButton = 0x4f;      // game.exe's "click button": +1 u16 0x18 Transmute
 inline constexpr std::uint8_t kWaypoint = 0x49;
 inline constexpr std::uint8_t kDropGold = 0x50;
@@ -252,6 +261,8 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(opcode::kSelectSkill).i32(message.skill).u8(message.left);
         else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(opcode::kUseBelt).i32(message.slot).u8(message.merc);
         else if constexpr (std::is_same_v<T, cmd::UseItem>) out.u8(opcode::kUseItem).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ReadScroll>) out.u8(opcode::kReadScroll).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ObjectItem>) out.u8(opcode::kObjectItem).i32(message.npc).i32(message.item).u8(message.place ? 3 : 2);
         else if constexpr (std::is_same_v<T, cmd::ToCursor>) out.u8(opcode::kToCursor).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Drop>) out.u8(opcode::kDrop).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(opcode::kToGrid).i32(message.panel).i32(message.col).i32(message.row);
@@ -313,6 +324,8 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kSelectSkill: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
         case opcode::kUseBelt: { const int slot = i32(); command = cmd::UseBelt{ slot, byte() != 0 }; break; }
         case opcode::kUseItem: command = cmd::UseItem{ i32() }; break;
+        case opcode::kReadScroll: command = cmd::ReadScroll{ i32() }; break;
+        case opcode::kObjectItem: { const int npc = i32(), item = i32(); command = cmd::ObjectItem{ npc, item, byte() == 3 }; break; }
         case opcode::kToCursor: command = cmd::ToCursor{ i32() }; break;
         case opcode::kDrop: command = cmd::Drop{ i32() }; break;
         case opcode::kToGrid: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }

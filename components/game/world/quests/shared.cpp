@@ -448,9 +448,11 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
                 const auto [low, high] = d2d::rules::kChestLevels[0];
                 const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
                 std::vector<d2d::rules::Drop> drops;
-                for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4);
-                for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
-                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4, chest_place(chest, here, now_ms, &cellar));
+                for (const auto* code : { "hp", "hp", "mp", "mp" }) {
+                    drops.push_back({ std::string(code) + (diff ? "3" : "1") });
+                    loot.put(drops.back(), chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                }
                 operated[{ &cellar, spawner.npc }] = now_ms;
                 d2d::log::info("The Forgotten Tower: the Countess's chest opens ({} drops)", drops.size());
             }
@@ -713,7 +715,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
                                 d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 14);
                         });
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
-            else open_portal_at(object.x + 6, object.y + 6, now_ms, int(kGibbetPortal));   // a pair of its own: the player's stays
+            else open_portal_at(object.x + 6 / 5.f, object.y + 6 / 5.f, now_ms, int(kGibbetPortal));   // subtiles: a tile is 5   // a pair of its own: the player's stays
             d2d::log::info("Search for Cain: Cain is free");
             return;
         }
@@ -732,7 +734,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         actor->character.items.erase(std::ranges::find(actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
         party_bits(Cain::kQuest, { 4 });                      // the party in Act 1 (LAB_005936b0)
         const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
-        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
+        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6 / 5.f, lambda == level->npcs.end() ? object.y : lambda->y - 3 / 5.f);   // subtiles: a tile is 5
         portal[2] = { level, spot_x, spot_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
         // FUN_00593710 ends with FUN_0056ede0(.., 1, 0x120, x + 6, y - 3): missile
@@ -762,11 +764,14 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
 auto World::den_count(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::DenQuest::kDen || fight.mon_level != level) return;
         const int left = int(std::ranges::count_if(fight.monsters, &Monster::alive));
-        for (const auto& kill : fight.kills)
-            if (kill.killer > 0) den.took_part(kill.killer);   // a monster's death: its killer takes part
-        if (den_left >= 0 && left < den_left) {
-            const auto kill = den.killed(left, every_room_populated(fight.spawning, *level));
-            if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
+        // Each death in turn (FUN_00590260): its killer takes part, then the count with the ones dying after it
+        // this frame still up.
+        int dying = int(fight.kills.size());
+        for (const auto& death : fight.kills) {
+            if (death.killer > 0) den.took_part(death.killer);
+            const int remaining = left + --dying;
+            const auto kill = den.killed(remaining, every_room_populated(fight.spawning, *level));
+            if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", remaining == 1 ? "one monster left" : std::format("monsters remaining: {}", remaining));
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
                 music_cue("music_quest_den");

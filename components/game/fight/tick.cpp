@@ -17,6 +17,7 @@
 #include <melee_reach.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -441,7 +442,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players()))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players(), &spawning))
                     killed(i, now_ms);                           // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
@@ -491,7 +492,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
-            for (auto& monster : monsters) monster.in_aura = false;
+            for (auto& monster : monsters) { monster.in_aura = false; monster.res_cut = {}; }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 if (now_ms >= actor->curses[0].until) actor->curses[0] = {};   // its state's end (blood_mana asks for it gone)
@@ -501,6 +502,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 buff_tick(now_ms);
                 aura_pulse(now_ms);
                 for (auto& monster : monsters) monster.in_aura = monster.in_aura || (monster.alive() && in_aura(monster));   // its auratargetstate shows (states.md)
+                // Its resists as the client reads them (FUN_004526c0: GetUnitStat, the states' stats in): the curse
+                // and this side's auras; two sides' Convictions are one state, so the deepest cut stands.
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (auto& monster = monsters[i]; monster.alive() && (monster.in_aura || monster.curse.skill >= 0 || !monster.states.empty() || monster.self_state.skill >= 0)) {
+                        const auto base = monster.target(*game_data).res, now = target_of(i).res;
+                        for (std::size_t k = 0; k < 6; ++k) monster.res_cut[k] = std::min(monster.res_cut[k], now[k] - base[k]);
+                    }
                 for (std::size_t k = 0; k < actor->pets.size(); ++k) {
                     auto& pet = actor->pets[k];
                     const auto& foe = foes[side.pets + k];
@@ -509,14 +517,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
-                    if (foe.flashed >= 0) { pet.monster.flash_overlay = foe.flashed; pet.monster.flash_at = now_ms; }
+                    if (foe.flashed >= 0) d2d::rules::add_one_shot(pet.monster.one_shots, foe.flashed, now_ms);
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
             }
             missile_tick(now_ms);
             // The merc's arrows strike the first live monster they reach.
-            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y); };
+            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y, &spawning); };
             // A missile's sounds (FUN_004cd540, FUN_004d2d70): its TravelSound from its first frame,
             // on it while it flies; its HitSound where it struck (gone before its end).
             struct Flying { int sound; std::uint32_t dies; float x, y; int hit_sound; };
@@ -791,8 +799,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->curses[k] = curse;
                 d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }
-        if (side[0].flashed >= 0) { actor->flash_overlay = side[0].flashed; actor->flash_at = now_ms; }
-        if (side[1].flashed >= 0 && actor->merc) { actor->merc->flash_overlay = side[1].flashed; actor->merc->flash_at = now_ms; }
+        if (side[0].flashed >= 0) d2d::rules::add_one_shot(actor->one_shots, side[0].flashed, now_ms);
+        if (side[1].flashed >= 0 && actor->merc) d2d::rules::add_one_shot(actor->merc->one_shots, side[1].flashed, now_ms);
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(side[k].marked.skill)) {
                 if (now_ms >= actor->marks[k].until) d2d::log::info("{} marked: {}", k ? "the merc" : "the player", skill->auratarget);

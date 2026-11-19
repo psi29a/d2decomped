@@ -40,16 +40,11 @@
 
 namespace d2d::game {
 
-// ponytail: a unit keeps one one-shot here, so a cast overlay and a Cry Help flash replace each
-// other (game.exe keeps a list, +0x2c).
-auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const -> void {
+auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, d2d::rules::OneShots& shown, std::uint32_t now_ms) const -> void {
         const auto& rows = game_data->overlay_rows;
         const int row = d2d::rules::cast_overlay_row(game_data->overlay_row(skill.cast_overlay), game_data->overlay_row(skill.item_cast_overlay), from_item);
         if (row < 0 || std::size_t(row) >= rows.size() || !rows[std::size_t(row)]) return;
-        const auto* playing = shown >= 0 && std::size_t(shown) < rows.size() ? rows[std::size_t(shown)] : nullptr;
-        if (!d2d::rules::cast_overlay_starts(row, shown, now_ms - shown_at, playing ? playing->rate : 0, playing ? playing->frames : 0)) return;
-        shown = row;
-        shown_at = now_ms;
+        if (d2d::rules::cast_overlay_starts(row, shown, now_ms, rows[std::size_t(row)]->rate, rows[std::size_t(row)]->frames)) d2d::rules::add_one_shot(shown, row, now_ms);
     }
 
 auto Fight::monster_index(int id) const -> int {
@@ -121,6 +116,7 @@ auto Fight::merc_joins() -> void {
         // Given to the client (FUN_00571f90, a monster): SetStat(0x148, (x + y) & 0xffff), its subtile spot (FUN_00620870).
         const auto& joined = actor->merc->unit;
         actor->merc_pierce_idx = std::uint32_t(int(std::floor(joined.x * 5)) + int(std::floor(joined.y * 5))) & 0xffffu;
+        actor->merc_given = { actor->id };
     }
 
 auto Fight::merc_level_stats() -> void {
@@ -379,7 +375,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                                                                   .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
                     for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
                         if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
-                    start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                    start_cast_overlay(*skill, false, monster.one_shots, now_ms);   // and its castoverlay (Resurrect's)
                 }
             }
         if (monster.mode != monster.last_mode) {
@@ -584,7 +580,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const int cls = actor->character.character_class;
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
-            start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
+            start_cast_overlay(*skill, from_charges(skill->id), actor->one_shots, now_ms);   // its castoverlay, at once
             // Cltstfunc 15 (LAB_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the unit
             // (the server's list, from its own state packet, or the client's below), the prgsound on no unit
             // (FUN_004b9a00, EDX 0: unplaced, the listener's). Then the state's list: found (the server's or the

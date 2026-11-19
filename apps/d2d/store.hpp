@@ -80,6 +80,7 @@ struct GoldBox {
     std::string amount;            // as typed
     int spin = 0;                  // the spinner held: +1 up, -1 down
     std::uint32_t spin_ms = 0, next_ms = 0;   // pressed at, last stepped at (FUN_004bbfb0: +0x44 / +0x48)
+    std::int64_t draws = 0;        // the frames drawn while held (FUN_004bbe70: +0x40)
     bool ok_down = false, cancel_down = false;
 };
 enum class GoldBoxPart { kNone, kUp, kDown, kOk, kCancel };

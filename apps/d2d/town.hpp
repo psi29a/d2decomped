@@ -22,6 +22,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "scroll.hpp"
 #include "skillbar.hpp"
 #include "skillpad.hpp"
 #include "store.hpp"
@@ -133,10 +134,12 @@ inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::
         if (state.cast) unit.overs.push_back({ state.cast, start, true });
     }
 }
-// A one-shot overlay (FUN_00621e40: an Overlay.txt row, -1 none) played
-// once from `start`.
-inline void flash(const Scene& scene, Unit& unit, int row, std::uint32_t start) {
-    if (row >= 0 && std::size_t(row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(row)]) unit.overs.push_back({ scene.overlay_rows[std::size_t(row)], start, true });
+// The unit's one-shot overlays (rules::OneShots: Overlay.txt rows), each
+// played once from its start, together.
+inline void flash(const Scene& scene, Unit& unit, const d2d::rules::OneShots& shots) {
+    for (const auto& shot : shots)
+        if (shot.row >= 0 && std::size_t(shot.row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(shot.row)])
+            unit.overs.push_back({ scene.overlay_rows[std::size_t(shot.row)], shot.start, true });
 }
 // The states on a monster and on the player, by States.txt name.
 inline std::vector<std::string_view> monster_states(const Scene& scene, const Monster& monster, std::uint32_t now, int player_aura = 0) {
@@ -145,7 +148,7 @@ inline std::vector<std::string_view> monster_states(const Scene& scene, const Mo
     if (now < monster.poison_until) out.push_back("poison");
     if (now < monster.chill_until) out.push_back("cold");
     if (now < monster.stun_until) out.push_back("stunned");
-    for (const auto& effect : { monster.curse, monster.cry })
+    for (const auto& effect : monster.curse_and_states())
         if (effect.skill >= 0 && now < effect.until)
             if (const auto* skill = scene.skills.get(effect.skill)) out.push_back(skill->auratarget);
     if (monster.aura > 0)
@@ -413,7 +416,7 @@ struct Town {
     // Waypoints UI 0x14 (left), stash 0x19 and cube 0x1a (both sides): FUN_00455f20's
     // second switch (menu.md "The view with panels open").
     [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
-    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
+    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open || scroll.open; }
     [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0 || use_item.open(); }   // UI 0xe too: state 3 (menu.md)
     // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
     // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
@@ -471,6 +474,8 @@ struct Town {
     bool life_text = false, mana_text = false;    // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): d2d.cfg's show_hp_text / show_mp_text, read at a game's start (FUN_004967f0)
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
+    ScrollPanel scroll;                           // UI 0x10: the Scroll of Inifuss read
+    bool scroll_sound = false;                    // a symbol came last draw: Sounds.txt 0xa6f, played by update
     HirelingPanel hireling;                       // UI 0x24
     PartyPanel party;                             // UI 0x16 (a joined game's)
     std::vector<PartyPanel::Row> party_preview;   // devctl `debug party on`: rows to show without a joined game
@@ -620,7 +625,7 @@ struct Town {
     void open_use_item(int npc);
     void close_use_item();
     void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
-    void use_item_reply(int kind);
+    void use_item_reply(int kind, Audio* audio = nullptr);   // `audio`: kind 5's sound
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes
@@ -737,6 +742,9 @@ struct Town {
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
+    // A SearchEnemyNear skill's unit nearest the click (FUN_00467490): false for another skill, else
+    // `unit` (a monster id, -1 the ground) and the spot (cells) as the search leaves them.
+    [[nodiscard]] bool near_pick(int skill, int& unit, float& at_x, float& at_y) const;
     // A SearchOpenXY skill's free spot off a wall (FUN_004677b0), in cells, or none.
     [[nodiscard]] std::optional<std::pair<float, float>> open_spot(int skill, int unit, float click_x, float click_y) const;
     [[nodiscard]] int hovered_ground() const;
@@ -819,6 +827,9 @@ struct Town {
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc);
+    // S->C 0x2a's answer at the mouse (FUN_004b6390): a store's refusal box,
+    // or a resurrect's (dialog state 10, FUN_004b5640).
+    void trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y);
 
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.

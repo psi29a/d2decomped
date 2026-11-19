@@ -21,10 +21,12 @@
 #include <click_spot.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drops.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <overlays.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -92,19 +94,25 @@ struct QuestNews { int quest = 0; };
 // now, `sound` plays `jingle_ms` on, the song comes back `back_ms` on (from
 // its Block 1 cue with `from_block`); 0 / 0: the sound at once, the song on.
 struct MusicCue { int sound = 0; int jingle_ms = 0, back_ms = 0; bool from_block = false; };
-// A store buy or sale the server refused (S->C 0x2a's result, rules::Trade).
-struct TradeRefused { d2d::rules::Trade result = d2d::rules::Trade::no_gold; };
+// A store buy or sale the server refused, or a merc resurrect's answer (S->C 0x2a's
+// result, rules::Trade); `npc` the resurrect's NPC (-1: the store's).
+struct TradeResult { d2d::rules::Trade result = d2d::rules::Trade::no_gold; int npc = -1; };
 // The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
 // frames and the level it's for.
 struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
-// An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
-// 7 refused}, FUN_00579d60): the client shuts its item panel.
-struct ServiceResult { int npc = -1; bool done = false; };
+// The item panel (S->C 0x58 {unit, kind}, FUN_004c0550): 0 an object's
+// opens (the orifice, FUN_0059dc70); for an open one 1 shuts it, 4 takes
+// the wait box down, 5 the item's gone in (FUN_005852e0), 6 an NPC's
+// service done / 7 refused (FUN_00579d60).
+struct ServiceResult { int npc = -1; int kind = 1; };
+// The Cairn Stones' order, each stone 0..4 (StoneAlpha..StoneLambda), for
+// the deciphered scroll (S->C 0x50 subtype 4, FUN_00593cb0).
+struct StoneOrder { std::array<int, 5> order{}; };
 // A line for everyone in the game, wherever they are (a LAN game's chat
 // and news): typed chat, who joined or left, who was slain.
 struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeResult, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -127,8 +135,7 @@ struct View {
     // FUN_00497110; rules::life_end_percent); 0 without.
     int life_preview = 0, mana_preview = 0;
     int curse = -1;                        // a monster's curse on the player (Fight::curses): its skill, -1 none
-    int flash_overlay = -1;                // a one-shot overlay on the player (Fight::flash_overlay: an Overlay.txt row), from flash_at
-    std::uint32_t flash_at = 0;
+    d2d::rules::OneShots one_shots;        // the player's one-shot overlays (Hero::one_shots)
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
@@ -141,7 +148,7 @@ struct View {
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     GameData::Appearance gfx{};               // what the character wears
-    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; int flash_overlay = -1; std::uint32_t flash_at = 0; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
+    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; d2d::rules::OneShots one_shots; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
     std::optional<Merc> merc;
     // The Hireling screen's numbers (FUN_0048a990): level, experience and the
     // next level's, strength, dexterity, damage, defense, the resistances
@@ -153,7 +160,7 @@ struct View {
     };
     std::optional<MercSheet> merc_sheet;
     // pettype: its skill's Skills.txt pettype (PetType.txt row); life: percent.
-    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; int fhr = 0; };   // fhr: a party merc's (its items', merc_gear), for its get-hit
+    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; d2d::rules::OneShots one_shots; int fhr = 0; };   // fhr: a party merc's (its items', merc_gear), for its get-hit
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
@@ -174,7 +181,7 @@ struct View {
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
     struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; bool running = false;
-                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
+                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
     std::vector<OtherPlayer> others;
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
     // ghost; everyone dead (the death screen, Esc back to town); the bodies
@@ -290,6 +297,7 @@ struct World {
         std::optional<Body> body;              // raised: the channel's share done (0..1); raisers: those channelling now
         int raising = -1;                      // the body they're channelling on (its player's id), -1 none
         std::uint32_t right_before = 0;        // the right skill Resurrect took the place of (saved instead of it)
+        std::uint32_t kept_left = 0, kept_right = 0;   // the hand skills a throwing potion took the place of (player data +0x74 / +0x70, hand_skills)
         bool out = false;                      // hardcore, dead, Resurrect pressed: the screen takes them out of the game (FUN_0054c0e0)
     };
     using Corpse = Player::Corpse;
@@ -748,6 +756,8 @@ struct World {
     // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
     void drop_wirt_gold(std::uint32_t now_ms);
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    // C->S 0x44 from the orifice's item panel (FUN_005852e0): cmd::ObjectItem.
+    void object_item(const cmd::ObjectItem& given, std::uint32_t now_ms);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
     // containers, stands, wells, bookshelves, shrines, traps and doors.
@@ -778,6 +788,7 @@ struct World {
     void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
     void reopen_doors();
+    std::pair<const Level*, std::uint32_t> doors_laid{};   // the level and its Level::lays at the last reopen_doors
     // The player's item_reducedprices (stat 87) off their gear and charms now.
     [[nodiscard]] int reduced_prices() const;
     // A monster's door at its think (Fight::open_door): found, operated in reach.
@@ -880,9 +891,8 @@ struct World {
     // five are counted down in the quest log; the last one clears it, and a
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
-    // Nothing till every Den room has populated (rules::DenQuest::killed).
-    // ponytail: counted when the number drops (game.exe: on each death,
-    // and the count resent at log 4 with 6 or more, a monster back up).
+    // Nothing till every Den room has populated (rules::DenQuest::killed);
+    // counted at each death (FUN_00590260), resent at log 4 with 6 or more.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 
@@ -947,7 +957,7 @@ struct World {
     void tower_treasure(std::uint32_t now_ms);
     void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
-    void replenish_frame();                // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
+    void replenish_frame(std::uint32_t tick_ms);   // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
     void replenish_ground_frame();         // the same for the items on the floors
     void life_update_frame(std::uint32_t tick_ms);   // a 40 ms frame's life update to the client (FUN_0052d980; rules::life_update_frame)
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
@@ -1060,6 +1070,12 @@ struct World {
     // A belt put on or taken off: what the boxes it lacks held, to the
     // inventory or the floor (rules::spill_belt, FUN_005608c0).
     void spill_belt(std::uint32_t now_ms);
+    // A chest round's drops put as they're rolled (FUN_0055a550 for chest_round),
+    // round `object` on `onto` (null: this level).
+    [[nodiscard]] d2d::rules::Placement chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto = nullptr);
+    // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
+    // slot, a weapon switch): each hand skill fits what the hands hold now.
+    void hand_skills(std::uint32_t now_ms);
 
     // A command from the player, checked and applied. game.exe's dispatcher
     // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state

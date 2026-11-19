@@ -9,6 +9,7 @@
 #include <missiles.hpp>
 #include <mon_equip.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <town_npcs.hpp>
 #include <uniques.hpp>
@@ -260,6 +261,7 @@ struct Monster {
     int super = -1;                           // SuperUniques row
     int name_seed = 0;                        // a boss's name seed (make_boss: the 0xac packet's, unit data +0x14)
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
+    std::array<int, 6> res_cut{};             // what its curse, cry and the auras on it add to them (Fight::target_of): the hover's immunity lines
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
     UnitState unit;
@@ -346,18 +348,24 @@ struct Monster {
     int aura = 0, aura_lvl = 0;
     std::vector<std::string_view> host_states;   // a joined game's: the States.txt names the host has on it (0xa8 / 0xaa)
     std::uint8_t looks = 0;                      // its thinks' states: 0x5a "blue" (bit 1), 0x5b "red" (bit 2)
-    int flash_overlay = -1;                      // its think's one-shot overlay (FUN_00621e40: an Overlay.txt row), from flash_at
-    std::uint32_t flash_at = 0;
+    d2d::rules::OneShots one_shots;              // its one-shot overlays: its thinks' (FUN_00621e40), its casts'
     std::uint32_t aura_next = 0;
     int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
     // Skills' states on it (their auratargetstate): one curse state at a time
     // (Amplify Damage .. Lower Resist, Confuse, Attract, Battle Cry, Taunt,
-    // Cloak of Shadows' blindness, Bloodlust), one other (Inner Sight, Slow
-    // Missiles, Conversion, a monster's war cry).
+    // Cloak of Shadows' blindness, Bloodlust); the others (Inner Sight, Slow
+    // Missiles, Conversion, a monster's war cry) each in its own node, one a
+    // state (FUN_0056e970), so they don't take each other's place.
     // `swaps`: its end toggles the AI back (FUN_005c3370: Dim Vision's,
     // Terror's, Cloak of Shadows').
     struct SkillState { int skill = -1, level = 0; std::uint32_t until = 0; bool swaps = false; };
-    SkillState curse, cry;
+    SkillState curse;
+    std::vector<SkillState> states;
+    [[nodiscard]] std::vector<SkillState> curse_and_states() const {   // its curse, then its other states
+        std::vector<SkillState> all{ curse };
+        all.insert(all.end(), states.begin(), states.end());
+        return all;
+    }
     // MonFrenzy's state (FUN_005d8c70: "monfrenzy", its charges stat 0xa9
     // as the level, up to the skill's own): its aurastats as curse's.
     SkillState frenzy;
@@ -774,7 +782,7 @@ struct Missile {
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
-    int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
+    int turn = 0;                             // Frozen Orb's direction index (do 15)
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     int pierce = 0;                           // the player's: pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
@@ -788,7 +796,7 @@ struct Missile {
     // `rooms`: its room, then the near list's (missile_rooms); `follow`:
     // the target point lay outside that room, so the room moves with it.
     std::optional<std::pair<float, float>> to;
-    std::vector<std::pair<int, int>> route;   // a laid route in act subtiles (do 143's, rules::wobble_route): its flight's points
+    std::vector<std::pair<int, int>> route;   // a laid route in act subtiles (do 143's, rules::wobble_route; Blessed Hammer's, rules::hammer_route): its flight's points
     std::optional<std::pair<float, float>> retarget;   // cells: a point it's re-aimed at in flight (missile_fly), its velocity turned to match
     int bolt = -1;
     bool wall_maker = false;                    // FUN_005cd110: a draw first, under 20 its path stays straight
@@ -831,8 +839,8 @@ inline std::pair<float, float> offset_target(float x, float y, int offset_x, int
 // the path's one point that unit's subtile, the fine position kept,
 // FUN_0064fe40 -> FUN_0064fc60 from it to the point's centre, the room
 // followed once the point is outside it; none over 99 subtiles off). Nothing
-// moves a flying missile by hand (Blessed Hammer's turn stands at velocity
-// 0). Its subtiles are the act's; `blocked` tests the 0x04 bit, and a
+// moves a flying missile by hand (Blessed Hammer flies its route,
+// rules::hammer_route). Its subtiles are the act's; `blocked` tests the 0x04 bit, and a
 // subtile off its rooms reads 0x27 (blocked). False: the flight is over (a
 // wall, or off its rooms).
 template <class Reach>
@@ -868,7 +876,15 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
         }
     }
     const auto inside = [](const std::array<int, 4>& rect, int x, int y) { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]; };
-    const auto reached = [&](int x, int y) { return missile.rooms.empty() || std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+    // FUN_00463740 reads the room's near list as it is now: a room come up since the list
+    // was taken holds its room1, so a miss asks the list again, round its own room.
+    const auto reached = [&](int x, int y) {
+        const auto in_list = [&] { return std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+        if (missile.rooms.empty() || in_list()) return true;
+        const auto& own = missile.rooms.front();
+        missile.rooms = reach((float(own[0] + own[2] / 2 - origin_x) + 0.5f) / 5, (float(own[1] + own[3] / 2 - origin_y) + 0.5f) / 5);
+        return missile.rooms.empty() || in_list();
+    };
     bool flying = missile.flight.step([&](int x, int y) {
         return !reached(x, y) || level.blocked((float(x - origin_x) + 0.5f) / 5, (float(y - origin_y) + 0.5f) / 5, 0x04);
     });
@@ -1303,9 +1319,9 @@ inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables
 }
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster in its slot, a curse state in the curse slot
-// whichever is named (FUN_0056e970), and a state's end (fight/).
-bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
+// A timed state on a monster: a curse state in its curse slot, any other in
+// its state's node (FUN_0056e970); and a state's end (fight/).
+bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components
@@ -1396,10 +1412,11 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `open_door`: its door at a think (OpenDoor). `players_counted`: the
 // game's player count (Fight::game_players: every level's, or the /players
 // count), for what it makes in play; 0 counts the players in `foes`.
+// `spawning`: every level's rooms come up (missile_rooms' near rooms).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
                     std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
-                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0);
+                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0, const Spawning* spawning = nullptr);
 
 // FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
 // subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each

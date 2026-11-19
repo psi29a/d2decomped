@@ -290,6 +290,18 @@ int main() try {
         assert(d2d::game::required_level(*data, bow) < 30);
         std::printf("OK: the class automod's levelreq in magic and rare items' required level\n");
     }
+    if (data->patched) {   // ROP (H)'s "Annihilus" is a unique by name (FUN_00654440): flag 1, its row, the small charm.
+        const auto& rop = data->rules.treasure.at("ROP (H)");
+        const auto entry = std::ranges::find(rop.items, std::string("cm1"), &std::pair<std::string, int>::first);
+        assert(entry != rop.items.end());
+        const auto slot = std::size_t(entry - rop.items.begin());
+        assert(rop.entry_flags[slot] == 1 && data->rules.uniques[std::size_t(rop.entry_index[slot])].index == "Annihilus");
+        // Uber Diablo's drop is ilvl 110 (FUN_00628220 floors at 1, no cap): the row (lvl 110) fits and wins.
+        d2d::rules::Rng seed{ 5 };
+        const auto charm = d2d::rules::generate_item(data->rules, "cm1", 110, 7, seed, nullptr, nullptr, false, 2, rop.entry_index[slot] + 1);
+        assert(charm.ilvl == 110 && charm.quality == 7 && charm.unique_id == rop.entry_index[slot]);
+        std::printf("OK: ROP (H) names Annihilus, unique row %d, made at ilvl 110\n", rop.entry_index[slot]);
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

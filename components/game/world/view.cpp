@@ -61,7 +61,7 @@ auto World::view() const -> View {
         if (potion_on(true)) view.life_preview = actor->life_sent.life_percent + actor->player_combat.life_regen;
         if (potion_on(false)) view.mana_preview = actor->life_sent.mana_percent + int(actor->psum[d2d::d2s::kManaRecovery]);
         view.curse = now < actor->curses[0].until ? actor->curses[0].skill : -1;
-        view.flash_overlay = actor->flash_overlay; view.flash_at = actor->flash_at;
+        view.one_shots = actor->one_shots;
         view.stunned = now < actor->stunned;
         view.pmode = actor->pmode;
         view.prate = actor->prate;
@@ -70,7 +70,7 @@ auto World::view() const -> View {
         view.seq.assign(actor->seq.begin(), actor->seq.end()); view.seq_frame_ms = actor->seq_frame_ms; view.seq_loop = actor->seq_loop;
         view.gfx = fight.gfx();
         if (actor->merc && actor->merc_npc) {
-            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode, 0, actor->merc->flash_overlay, actor->merc->flash_at };
+            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode, 0, actor->merc->one_shots };
             const auto fighter = fight.merc_fighter();
             view.merc->fhr = fighter.fhr;
             const auto gear = fight.merc_gear();
@@ -93,12 +93,12 @@ auto World::view() const -> View {
                 const auto* skill = game_data->skills.get(pet.skill);
                 view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode, skill ? std::string_view(skill->pettype) : std::string_view{},
                                       std::clamp(pet.monster.hit_points * 100 / std::max(pet.monster.stats.hit_points, 1), 0, 100),
-                                      pet.monster.flash_overlay, pet.monster.flash_at });
+                                      pet.monster.one_shots });
             }
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
             if (player.get() == actor || !here(*player)) continue;   // split levels: this level's party
             if (player->merc && player->merc_npc)                  // its life isn't shown (our own pets' portraits only)
-                view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable", 100, -1, 0,
+                view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable", 100, {},
                                             int(fight.merc_gear(*player).sum[std::size_t(d2d::d2s::kFasterGetHitRate)]) });
             for (const auto& pet : player->pets)
                 if (pet.where == level) {
@@ -118,7 +118,7 @@ auto World::view() const -> View {
                 view.others.push_back({ player->player, cls, player->character.name, std::uint32_t(player->id),
                                         player->character.appearance ? *player->character.appearance : game_data->starting_gear[std::size_t(cls)],
                                         player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, walk_percent(*player, now),
-                                        player->flash_overlay, player->flash_at });
+                                        player->one_shots });
             }
         for (const auto& player : players)
             if (player->body && player->body->level == level)

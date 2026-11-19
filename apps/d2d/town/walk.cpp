@@ -16,6 +16,7 @@
 #include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <ambient_dip.hpp>
@@ -156,6 +157,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             // World::cain_operate's; FUN_004cdb40 at 0x46af25 also makes
             // client missile 0x120 at that stone for the row's Range.
             if (std::exchange(net_game->cairn_opened, false)) cairn_opened(frame_ms);
+            if (const auto order = std::exchange(net_game->stone_order, std::nullopt)) scroll.order = *order;   // S->C 0x50 subtype 4
             // State 153 on a unit (0xa8 / 0xaa): its setfunc (FUN_004d87e0) dips
             // the ambient in the level of the unit's room, one the act has.
             for (const auto& cast : std::exchange(net_game->cloak_casts, {}))
@@ -482,7 +484,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
         for (const auto& event : view.events) {
-            if (const auto* refused = std::get_if<ev::TradeRefused>(&event); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+            if (const auto* traded = std::get_if<ev::TradeResult>(&event)) trade_result(*traded, mouse.x, mouse.y);
             handle(event, audio, frame_ms);
         }
         // A partner's: a window to open (an NPC talked to, the stash) takes
@@ -541,6 +543,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             return;
         }
         if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) { quest_quakes.push_back({ quake->kind, frame_ms }); return; }
+        if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { scroll.order = stones->order; return; }   // 0x7bf098, 0x7bf254 = 0
         if (const auto* ambient_dip = std::get_if<ev::AmbientDip>(&event)) {
             if (ambient_dip->level == d2d::rules::level_ids::kStonyField) cairn_opened(frame_ms);
             else dip.start(ambient_dip->fade_in, ambient_dip->hold, ambient_dip->back, ambient_dip->level);
@@ -554,9 +557,17 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
-        if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
-        if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 kind 6 / 7 (FUN_004c0550)
-            if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
+        if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
+        if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 (FUN_004c0550)
+            if (service->kind == 0) {                                          // an object's panel opens (FUN_004c0380)
+                close_use_item();
+                use_item::open_object(use_item, service->npc, now_ms);
+                char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
+                waypoint = {};
+                inv_open = true;
+            } else if (service->npc == use_item.npc) {
+                use_item_reply(service->kind, &audio);
+            }
             return;
         }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once

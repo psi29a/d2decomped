@@ -177,6 +177,26 @@ inline std::uint32_t save_checksum(std::span<const std::byte> bytes) {
     return sum;
 }
 
+// Convert to Expansion (char-select's YES, FUN_0043b520 -> FUN_0043caa0): a
+// save with the magic, version 0x5c on and at least 0x14f bytes gets status
+// bit 0x20 (+0x24), its checksum zeroed and summed again, and is written
+// back. game.exe reads and writes at most 0x2000 bytes (bugs.md); this
+// takes the whole file. False: too old or short, left as it was.
+inline bool convert_to_expansion(std::vector<std::byte>& bytes) {
+    constexpr std::size_t kLeast = 0x14f, kStatus = 0x24, kChecksum = 0x0C;
+    constexpr std::uint32_t kFirstVersion = 0x5c;
+    std::uint32_t magic = 0, version = 0;
+    if (bytes.size() < kLeast) return false;
+    std::memcpy(&magic, bytes.data(), 4);
+    std::memcpy(&version, bytes.data() + 4, 4);
+    if (magic != kMagic || version < kFirstVersion) return false;
+    bytes[kStatus] |= std::byte{ 0x20 };
+    std::memset(bytes.data() + kChecksum, 0, 4);
+    const std::uint32_t sum = save_checksum(bytes);
+    std::memcpy(bytes.data() + kChecksum, &sum, 4);
+    return true;
+}
+
 // The whole file. `original`: the save as read (empty for a character made
 // in d2d); its unknown header bytes and trailing lists are kept.
 // `corpse`: the corpse's items to write in the corpse list (an empty vector:

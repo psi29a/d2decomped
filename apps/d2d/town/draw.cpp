@@ -85,6 +85,27 @@ auto Town::open_menu(int npc) -> void {
         if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
     }
 
+auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
+        if (result.npc < 0) {
+            if (store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y);
+            return;
+        }
+        if (!level || std::size_t(result.npc) >= level->npcs.size()) return;
+        if (result.result != d2d::rules::Trade::hireling) {
+            npc_menu = open_trade_refused(*scene, result.npc, result.result, mouse_x, mouse_y);   // state 0xc, the store's box
+            return;
+        }
+        // 5: FUN_004939b0 shuts the panels (FUN_00455f20(0)) and arms the hireling hint while the
+        // registry's PopupHireling (d2d.cfg's popup_hireling) isn't 1; then the NPC's menu again (FUN_004b4830).
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = scroll.open = false;
+        if (!cfg_file.empty()) {
+            d2d::userdir::Config cfg;
+            d2d::userdir::load_cfg(cfg_file, cfg);
+            hireling_hint = cfg["popup_hireling"] != "1";
+        }
+        open_menu(result.npc);
+    }
+
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
 /**
@@ -254,7 +275,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                         cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnPlayer, hero.id), skill->prg_sound, frame_ms, view.player.x, view.player.y,
                                     state->second.rem_func == 4 ? owner : 0);
                 }
-        flash(*scene, player_look, view.flash_overlay, view.flash_at);
+        flash(*scene, player_look, view.one_shots);
         if (net_game)   // our own overhead text: the host sends it on our unit like another player's
             if (const auto own = net_said.find(net_game->self_id); own != net_said.end()) { player_look.says = own->second.string; player_look.said = own->second.text; }
         // A state gone plays its offsound once, where it was; one leaving the
@@ -478,6 +499,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
+        if (scroll.open) scroll_sound = scroll.draw(framebuffer, *scene, now_ms) || scroll_sound;
         if (help.open) help.draw(framebuffer, *scene, key_table);
         if (controls.open) controls.draw(framebuffer, *scene, now_ms);
         // A joining pad's pick: down the left, clear of the action in the middle and of the portraits' column.

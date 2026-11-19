@@ -17,11 +17,12 @@ struct TextBoxRow {
 
 // Latin kind-4 text boxes: FUN_004fc9b0 / FUN_004fcda0 add and wrap
 // rows; FUN_004fbf30 places them. Baselines use the original bottom anchor.
+// `texts`: one FUN_004fc9b0 each, in order.
 template<class Measure>
-auto text_box_rows(std::string_view text, int x, int bottom, int width, int height,
+auto text_box_rows(const std::vector<std::string_view>& texts, int x, int bottom, int width, int height,
                    int font_height, Measure measure, int margin_x = 0, int margin_y = 0,
                    int spacing = 4) -> std::vector<TextBoxRow> {
-    std::vector<std::string_view> pending{ text };
+    std::vector<std::string_view> pending(texts.rbegin(), texts.rend());
     std::vector<std::string_view> lines;
     std::vector<TextBoxRow> rows;
     const int available_width = width - 2 * margin_x;
@@ -66,6 +67,12 @@ auto text_box_rows(std::string_view text, int x, int bottom, int width, int heig
         baseline += pitch;
     }
     return rows;
+}
+template<class Measure>
+auto text_box_rows(std::string_view text, int x, int bottom, int width, int height,
+                   int font_height, Measure measure, int margin_x = 0, int margin_y = 0,
+                   int spacing = 4) -> std::vector<TextBoxRow> {
+    return text_box_rows(std::vector<std::string_view>{ text }, x, bottom, width, height, font_height, measure, margin_x, margin_y, spacing);
 }
 
 } // namespace d2d::font
