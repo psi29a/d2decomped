@@ -206,15 +206,24 @@ def gap_id(kind, *parts):
 
 
 class Functions:
-    def __init__(self, rows):
+    def __init__(self, rows, ranges=None):
         self.rows = sorted(rows)  # (address, name, size)
         self.starts = [r[0] for r in self.rows]
+        # Each body's address ranges, inclusive: game-ranges.tsv's for a body Ghidra split (a
+        # tail moved away), else one run of `size` bytes from the entry.
+        ranges = ranges or {}
+        spans = []
+        for start, _, size in self.rows:
+            for low, high in ranges.get(start, [(start, start + max(size, 1) - 1)]):
+                spans.append((low, high, start))
+        spans.sort()
+        self.spans = spans
+        self.span_lows = [span[0] for span in spans]
 
     def holding(self, address):
-        # ponytail: a body is taken as one run of `size` bytes; split bodies miss their tails.
-        i = bisect.bisect_right(self.starts, address) - 1
-        if i >= 0 and address < self.starts[i] + max(self.rows[i][2], 1):
-            return self.starts[i]
+        i = bisect.bisect_right(self.span_lows, address) - 1
+        if i >= 0 and address <= self.spans[i][1]:
+            return self.spans[i][2]
         return None
 
 
@@ -236,7 +245,9 @@ def module_of(path):
 
 
 def build(with_issues):
-    funcs = Functions((int(a, 16), n, int(s)) for a, n, s, _ in read_tsv("game-functions.tsv"))
+    split = {int(a, 16): [tuple(int(end, 16) for end in part.split("-")) for part in parts.split(",")]
+             for a, parts in read_tsv("game-ranges.tsv", optional=True)}
+    funcs = Functions(((int(a, 16), n, int(s)) for a, n, s, _ in read_tsv("game-functions.tsv")), split)
     info = {a: {"name": n, "size": s, "kinds": set(), "refs": [], "gaps": [], "d2d": set()} for a, n, s in funcs.rows}
 
     # Who cites what.
