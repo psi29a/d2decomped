@@ -998,6 +998,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (FUN_00648eb0: what its last path's steps met, on_door), its door
     // (OpenDoor) operated, it stands 5.
     if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    // ReanimatedHorde's think (FUN_005e1540) first puts the unit flags 0xe back
+    // (|= 0xe at 0x5e156c), whatever it then does: its rise (Monster::rising) is over.
+    if (type_info.ai_name == "ReanimatedHorde") monster.rising = false;
     x = subtile(unit.x); y = subtile(unit.y);
     const auto searched = search_target(game_data, level, monster, foes, seen, crowd);
     target = searched.target; best = searched.best; nearest = searched.nearest;

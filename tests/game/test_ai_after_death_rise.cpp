@@ -73,8 +73,14 @@ int main() try {
         far_foe[0].x = 900.f; far_foe[0].y = 900.f; far_foe[0].alive = true;
         std::vector<Missile> missiles;
         d2d::rules::Rng step_rng{ 5 };
+        risen.mode_until = due - 40;                              // S1 over a frame early: the flags 0xe stay off till its think
+        monster_update(data, floor, risen, far_foe, step_rng, due - 40, 0.04f, Crowd{}, missiles);
+        assert(risen.mode == "NU" && risen.next_act == due && risen.rising && !risen.targetable());
+        // Its think (FUN_005e1540) puts them back first thing (0x5e156c).
+        data.monsters.types[0].ai_name = "ReanimatedHorde";
         monster_update(data, floor, risen, far_foe, step_rng, due, 0.04f, Crowd{}, missiles);
-        assert(risen.mode == "NU" && risen.next_act == due);
+        assert(!risen.rising && risen.targetable());
+        data.monsters.types[0].ai_name.clear();
     }
     make();                                                       // a unique, or a good one, never rises
     fight.monsters[0].align = 2;
