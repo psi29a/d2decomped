@@ -442,7 +442,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players()))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players(), &spawning))
                     killed(i, now_ms);                           // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
@@ -524,7 +524,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             missile_tick(now_ms);
             // The merc's arrows strike the first live monster they reach.
-            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y); };
+            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y, &spawning); };
             // A missile's sounds (FUN_004cd540, FUN_004d2d70): its TravelSound from its first frame,
             // on it while it flies; its HitSound where it struck (gone before its end).
             struct Flying { int sound; std::uint32_t dies; float x, y; int hit_sound; };

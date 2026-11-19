@@ -1463,6 +1463,23 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        // A TreasureClassEx cell that's no item code (under 5 letters) and no
+        // class names a unique, then a set, by its index (FUN_00654440: the
+        // name tables 0x96c850 / 0x96c844): flag 1 / 2, the row as the entry's
+        // index (+0xa) and the row's base code as its item (ROP's Annihilus).
+        for (auto& [class_name, treasure_class] : game_data.rules.treasure)
+            for (std::size_t entry = 0; entry < treasure_class.items.size(); ++entry) {
+                auto& code = treasure_class.items[entry].first;
+                if ((code.size() < 5 && game_data.rules.item_info.contains(code)) || game_data.rules.treasure.contains(code) || code.starts_with("gld")) continue;
+                for (const auto& [list, flag] : { std::pair{ &game_data.rules.uniques, 1 }, std::pair{ &game_data.rules.sets, 2 } }) {
+                    const auto named = std::ranges::find(*list, code, &d2d::rules::Special::index);
+                    if (named == list->end()) continue;
+                    treasure_class.entry_flags[entry] |= flag;
+                    treasure_class.entry_index[entry] = int(named - list->begin());
+                    code = named->code;
+                    break;
+                }
+            }
         {
             std::unordered_map<int, int> members;   // the loader's running count per set (at most 6)
             for (auto& set_item : game_data.rules.sets)

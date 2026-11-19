@@ -876,9 +876,8 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
 
 // Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
 // restocking stack back to its max, durability to its max, charges full.
-// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off.
-// ponytail: the hand-skill pass FUN_0055f900 ends with (FUN_0055c5c0) isn't
-// ported (replenish.hpp).
+// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off; its
+// hand-skill pass (FUN_0055c5c0) is World::hand_skills, run by the repair.
 inline bool mend(const Tables& tables, d2d::d2s::Item& item) {
     if (!repairable(tables, item)) return false;
     if (restocks(tables, item)) item.quantity = stack_most(tables, item);   // FUN_006295b0
@@ -1836,8 +1835,8 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
 // ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
 // -max levels past req). Codes match whatever their case.
-// ponytail: without `on` (affixes) damage is one-hand, charges full and
-// 11 / 19 off ilvl 1.
+// Without `on` (no item: set bonuses, a monster's gear) damage is one-hand,
+// charges full and 11 / 19 off ilvl 1.
 struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
 inline std::string lower_case(std::string_view text) {
     std::string out(text);
@@ -2041,19 +2040,20 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // seed's first low % the most + 1, the most = gemsockets / MaxSock by
 // ilvl / 3, 4, 6 by difficulty) and the AutoMagic class affix (FUN_005c1560
 // off the base's auto prefix group).
+// `special_wanted`: a unique / set row + 1 that wins with no draw when it
+// fits (struct +0x40: FUN_005566b0, FUN_005c25c0).
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
-// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules and
-// forced picks (struct +0x40) aren't here; without a unit seed everything
+// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules aren't here; without a unit seed everything
 // comes off `rng` (stores, gambling, imbue) and none of the above is
 // rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
 // and dmg%'s +1 max damage on a weak weapon only reach its props.
 inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                                     Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                                    int difficulty = 0) {
+                                    int difficulty = 0, int special_wanted = 0) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
-    item.ilvl = std::clamp(ilvl, 1, 99);
+    item.ilvl = std::max(ilvl, 1);                         // FUN_00628220: at least 1, no cap (Uber Diablo's are 110)
     const auto* info = info_of(tables, item);
     const auto found = tables.item_base.find(code);
     const int qlvl = found != tables.item_base.end() ? found->second.level : 1;
@@ -2214,6 +2214,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         int total = 0, pick = -1;
         for (const auto& row : list) if (fits(row)) total += std::max(1, row.rarity);
         if (total == 0) return -1;
+        // The forced row (struct +0x40, row + 1: a TC's unique / set entry) when it fits, no draw.
+        if (special_wanted > 0 && std::size_t(special_wanted - 1) < list.size() && fits(list[std::size_t(special_wanted - 1)])) return special_wanted - 1;
         int roll = rng(total);
         for (std::size_t i = 0; i < list.size() && pick < 0; ++i) {
             if (!fits(list[i])) continue;
@@ -2269,7 +2271,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng, magic_lvl != 0);
         if (affix_row <= 0) return 0;
         groups.push_back(list[std::size_t(affix_row)].group);
-        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng);
+        const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };   // FUN_0065fec0 with the item, as a unique's
+        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng, base ? &target : nullptr);
         return affix_row;
     };
     if (quality == 6) {

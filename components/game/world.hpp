@@ -21,6 +21,7 @@
 #include <click_spot.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drops.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
@@ -296,6 +297,7 @@ struct World {
         std::optional<Body> body;              // raised: the channel's share done (0..1); raisers: those channelling now
         int raising = -1;                      // the body they're channelling on (its player's id), -1 none
         std::uint32_t right_before = 0;        // the right skill Resurrect took the place of (saved instead of it)
+        std::uint32_t kept_left = 0, kept_right = 0;   // the hand skills a throwing potion took the place of (player data +0x74 / +0x70, hand_skills)
         bool out = false;                      // hardcore, dead, Resurrect pressed: the screen takes them out of the game (FUN_0054c0e0)
     };
     using Corpse = Player::Corpse;
@@ -786,6 +788,7 @@ struct World {
     void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
     void reopen_doors();
+    std::pair<const Level*, std::uint32_t> doors_laid{};   // the level and its Level::lays at the last reopen_doors
     // The player's item_reducedprices (stat 87) off their gear and charms now.
     [[nodiscard]] int reduced_prices() const;
     // A monster's door at its think (Fight::open_door): found, operated in reach.
@@ -954,7 +957,7 @@ struct World {
     void tower_treasure(std::uint32_t now_ms);
     void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
-    void replenish_frame();                // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
+    void replenish_frame(std::uint32_t tick_ms);   // a 40 ms frame of the items' timer 3: replenish durability / quantity (FUN_00562d30)
     void replenish_ground_frame();         // the same for the items on the floors
     void life_update_frame(std::uint32_t tick_ms);   // a 40 ms frame's life update to the client (FUN_0052d980; rules::life_update_frame)
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
@@ -1067,6 +1070,12 @@ struct World {
     // A belt put on or taken off: what the boxes it lacks held, to the
     // inventory or the floor (rules::spill_belt, FUN_005608c0).
     void spill_belt(std::uint32_t now_ms);
+    // A chest round's drops put as they're rolled (FUN_0055a550 for chest_round),
+    // round `object` on `onto` (null: this level).
+    [[nodiscard]] d2d::rules::Placement chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto = nullptr);
+    // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
+    // slot, a weapon switch): each hand skill fits what the hands hold now.
+    void hand_skills(std::uint32_t now_ms);
 
     // A command from the player, checked and applied. game.exe's dispatcher
     // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state

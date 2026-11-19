@@ -232,7 +232,7 @@ touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, fl
         // existing do-27 path uses (FUN_005ca360 / FUN_0064e7b0).
         if (d2d::rules::level_ids::is_town(level->id) || level->teleport == 0) target.valid = false;
         const int spot_x = int(std::floor(target.x * 5)), spot_y = int(std::floor(target.y * 5));
-        const auto rooms = missile_rooms(*scene, *level, unit.x, unit.y);
+        const auto rooms = missile_rooms(*scene, *level, unit.x, unit.y, &world.fight.spawning);
         if (!std::ranges::any_of(rooms, [&](const auto& room) {
             const int sub_x = spot_x + level->world_x * 5, sub_y = spot_y + level->world_y * 5;
             return sub_x >= room[0] && sub_y >= room[1] && sub_x < room[0] + room[2] && sub_y < room[1] + room[3];

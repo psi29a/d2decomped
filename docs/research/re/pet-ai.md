@@ -490,7 +490,7 @@ pet's own stats (FUN_006272b0); each non-zero aurastat (+0x54, its calc +0x68)
 on one state node of the pet (FUN_006251f0, FUN_00627150), its aurastate on;
 the max life (FUN_00625d10, the passives in, 256ths) plus calc1 (+0x138) % of
 it, set as stats 7 and 6 (0x5c4752..0x5c4821, MulDiv FUN_00483360 inlined;
-its 32-bit wrap is bugs.md 122);
+its 32-bit wrap is bugs.md 123);
 each sumskill (+0xc4) at its calc (+0xd0) above 0 given to the pet
 (FUN_0056deb0), the right skill when its row has flag 0x6ce27c (FUN_005701b0);
 last, its MonEquip gear (FUN_005d6b60, the Valkyrie's), at the gear level

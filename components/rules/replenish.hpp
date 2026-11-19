@@ -103,11 +103,9 @@ inline void replenish_arm(const Tables& tables, d2d::d2s::Item& item) {
 // The item's timer 3 has come (FUN_00562d30). True when the point mended
 // it (FUN_0055f900: flag 0x200 on and 0x100 off, durability back to its max
 // when it has one); its stats then go back on (wield_enters,
-// settle_requirements).
-// ponytail: FUN_0055f900 ends with the hand-skill pass FUN_0055c5c0 (a
-// player's left / right skill dropped when its weapon is gone or refused),
-// which needs the character's skills, not rules/: not ported here, as in
-// rules::mend.
+// settle_requirements). FUN_0055f900 ends with the hand-skill pass
+// FUN_0055c5c0, which needs the character's skills: World::hand_skills,
+// run by replenish_frame on a mend, as by a repair.
 inline bool replenish_fire(const Tables& tables, d2d::d2s::Item& item, bool owned) {
     const auto base = tables.item_base.find(item.code);
     const Replenishing now{ broken(item), has_durability(tables, item), base != tables.item_base.end() && base->second.stackable, owned,

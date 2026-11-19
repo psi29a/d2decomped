@@ -52,6 +52,30 @@ int main() try {
     assert(on_edge.flight.aim_x == aim_x && on_edge.flight.aim_y == aim_y);
     assert(on_edge.follow);                     // (21, 21) lies outside the start subtile
 
+    // A room that comes up in flight takes the missile in: FUN_00463740 reads the near list as it
+    // is then. Its own room (20, 20, 2x40) at launch; the east room (22.., x 18) up only later.
+    {
+        bool east_up = false;
+        const auto growing = [&](float, float) {
+            std::vector<std::array<int, 4>> rooms{ { 20, 0, 2, 40 } };
+            if (east_up) rooms.push_back({ 22, 0, 18, 40 });
+            return rooms;
+        };
+        Missile crossing = shot_at(4.1f, 4.1f);
+        crossing.to = { 7.f, 4.1f };
+        assert(missile_fly(level, crossing, growing));          // launched, still in its own room
+        east_up = true;
+        bool still = true;
+        for (int step = 0; step < 8 && still; ++step) still = missile_fly(level, crossing, growing);
+        assert(crossing.x > 4.4f);                              // past x 22 (4.4 cells): the east room let it in
+        Missile blocked = shot_at(4.1f, 4.1f);
+        blocked.to = { 7.f, 4.1f };
+        east_up = false;
+        still = missile_fly(level, blocked, growing);
+        for (int step = 0; step < 8 && still; ++step) still = missile_fly(level, blocked, growing);
+        assert(!still && blocked.x < 4.4f);                     // still down: it stops at the edge
+    }
+
     Missile inside = shot_at(4.1f, 4.1f);
     inside.to = { 4.5f, 4.5f };                 // subtile (22, 22), inside the room
     assert(missile_fly(level, inside, whole));

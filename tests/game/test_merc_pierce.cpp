@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <exception>
 #include <utility>
+#include <vector>
 
 using namespace d2d::game;
 
@@ -98,7 +99,21 @@ int main() try {
     hero.merc->unit.x = 3.1f;
     hero.merc->unit.y = 4.5f;
     fight.merc_joins();
-    assert(hero.merc_pierce_idx == 15 + 22);
+    assert(hero.merc_pierce_idx == 15 + 22 && hero.merc_given == std::vector<int>{ 0 });
+    // Another player coming near is given it too: x + y again; one still near isn't given twice.
+    Fight::Hero other;
+    other.id = 2;
+    other.player.x = 100.f; other.player.y = 100.f;
+    fight.heroes = { &hero, &other };
+    hero.merc_pierce_idx = 50;
+    fight.merc_gives();
+    assert(hero.merc_pierce_idx == 50);                                 // far off: not given
+    hero.merc->unit.x = 90.5f; hero.merc->unit.y = 95.5f;              // now near the other, far from the owner
+    fight.merc_gives();
+    assert(hero.merc_pierce_idx == 452 + 477 && std::ranges::contains(hero.merc_given, 2) && !std::ranges::contains(hero.merc_given, 0));
+    hero.merc_pierce_idx = 7;
+    fight.merc_gives();
+    assert(hero.merc_pierce_idx == 7);
 
     std::puts("OK: a merc's Pierce charges are its gear's and its stat 0x148");
     return 0;

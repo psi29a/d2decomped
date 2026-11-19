@@ -876,7 +876,15 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
         }
     }
     const auto inside = [](const std::array<int, 4>& rect, int x, int y) { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]; };
-    const auto reached = [&](int x, int y) { return missile.rooms.empty() || std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+    // FUN_00463740 reads the room's near list as it is now: a room come up since the list
+    // was taken holds its room1, so a miss asks the list again, round its own room.
+    const auto reached = [&](int x, int y) {
+        const auto in_list = [&] { return std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+        if (missile.rooms.empty() || in_list()) return true;
+        const auto& own = missile.rooms.front();
+        missile.rooms = reach((float(own[0] + own[2] / 2 - origin_x) + 0.5f) / 5, (float(own[1] + own[3] / 2 - origin_y) + 0.5f) / 5);
+        return missile.rooms.empty() || in_list();
+    };
     bool flying = missile.flight.step([&](int x, int y) {
         return !reached(x, y) || level.blocked((float(x - origin_x) + 0.5f) / 5, (float(y - origin_y) + 0.5f) / 5, 0x04);
     });
@@ -1404,10 +1412,11 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `open_door`: its door at a think (OpenDoor). `players_counted`: the
 // game's player count (Fight::game_players: every level's, or the /players
 // count), for what it makes in play; 0 counts the players in `foes`.
+// `spawning`: every level's rooms come up (missile_rooms' near rooms).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
                     std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
-                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0);
+                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0, const Spawning* spawning = nullptr);
 
 // FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
 // subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each

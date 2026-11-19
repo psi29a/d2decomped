@@ -934,7 +934,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // Teleport (do 27, FUN_005ca360 -> FUN_00554ea0 -> FUN_00463740): only a point in the caster's room or its near list.
                 if (teleporting) {
                     const int sub_x = level->world_x * 5 + int(std::floor(target_x * 5)), sub_y = level->world_y * 5 + int(std::floor(target_y * 5));
-                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y);
+                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y, &spawning);
                     if (!std::ranges::any_of(rects, [&](const std::array<int, 4>& rect) {
                             return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; })) break;
                     // Then the nearest free spot to it (FUN_0064e7b0), the point itself when it is free.

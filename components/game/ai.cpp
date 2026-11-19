@@ -952,7 +952,7 @@ const AiRow* ai_row(std::string_view ai_name) {
 // and first step are open.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
            int walk, int run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen, const OpenDoor* open_door, std::vector<Monster>* born,
-           Spawning::LevelState* rooms_in_play, int players_counted) {
+           Spawning::LevelState* rooms_in_play, int players_counted, const Spawning* spawning) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
@@ -973,7 +973,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     const int frame = int(now_ms / 40);
     ThinkCtx ctx{ game_data, level, monster, type_info, per_difficulty, foes, pack, crowd, rooms_in_play, now_ms, rng, has_run, frame, self, unit, input,
-                  x, y, target, best, targeted, target_x, target_y, dx, dy, act, second, corpse, kin, aid, imp_found, lay_x, lay_y, wisp_finds };
+                  x, y, target, best, targeted, target_x, target_y, dx, dy, act, second, corpse, kin, aid, imp_found, lay_x, lay_y, wisp_finds, spawning };
     // A move runs to its end (move_frame), then it thinks: a walk or run's
     // end does so at once (FUN_005a8030: DAT_0073c6d0 flags WL and RN),
     // whatever think is pending (that one still comes).
@@ -998,6 +998,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (FUN_00648eb0: what its last path's steps met, on_door), its door
     // (OpenDoor) operated, it stands 5.
     if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    // ReanimatedHorde's think (FUN_005e1540) first puts the unit flags 0xe back
+    // (|= 0xe at 0x5e156c), whatever it then does: its rise (Monster::rising) is over.
+    if (type_info.ai_name == "ReanimatedHorde") monster.rising = false;
     x = subtile(unit.x); y = subtile(unit.y);
     const auto searched = search_target(game_data, level, monster, foes, seen, crowd);
     target = searched.target; best = searched.best; nearest = searched.nearest;
@@ -1583,7 +1586,8 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
 
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack,
-                    std::vector<Monster>* born, AreaSeen* seen, const OpenDoor* open_door, Spawning::LevelState* rooms_in_play, int players_counted) {
+                    std::vector<Monster>* born, AreaSeen* seen, const OpenDoor* open_door, Spawning::LevelState* rooms_in_play, int players_counted,
+                    const Spawning* spawning) {
     auto& unit = monster.unit;
     // Its foe: the one its last think's mode or move was set against
     // (FUN_005ddf90 / FUN_005dead0 / FUN_005deb60 put the target in the mode
@@ -2609,7 +2613,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes
     // in through an AI's pace (Run x 100 / Velocity - 100) or a charge.
     const int run = walk;
-    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door, born, rooms_in_play, players_counted)) return false;
+    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door, born, rooms_in_play, players_counted, spawning)) return false;
     // AI Idle (MonAI row 1: the cow, chickens, rats, birds, the doors and
     // barricades; search type 0, no target looked for): FUN_005b0cd0 stands
     // 200 frames when it's in a room (FUN_00620bb0), and that's all.

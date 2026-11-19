@@ -843,12 +843,12 @@ void save_automap(Automap& automap, const std::filesystem::path& dir, const std:
 // (unit type 1) with a MonStats2 automapCel (+0x118) the same way, with no
 // other condition: in 1.14d only barricadetower (1258).
 void automap_icons(const GameData& game_data, const Level& level, Automap& automap, float player_x, float player_y,
-                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters) {
+                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters, const d2d::game::Spawning* spawning) {
     constexpr int kWidth = int(kScreenWidth), kViewHeight = int(kScreenHeight) - 40;   // the view (FUN_00476000)
     const float player_act_x = player_x + float(level.world_x), player_act_y = player_y + float(level.world_y);
     const int view_x = int(std::lround((player_act_x - player_act_y) * 80)) - kWidth / 2;   // FUN_0044c990
     const int view_y = int(std::lround((player_act_x + player_act_y) * 40)) - kViewHeight / 2;
-    auto rooms = game::missile_rooms(game_data, level, player_x, player_y);   // act subtiles: the player's room, then its near list
+    auto rooms = game::missile_rooms(game_data, level, player_x, player_y, spawning);   // act subtiles: the player's room, then its near list
     if (rooms.empty()) return;
     rooms.erase(rooms.begin());
     std::erase_if(rooms, [&](const auto& room) {

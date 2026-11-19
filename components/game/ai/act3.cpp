@@ -94,7 +94,7 @@ struct Act3Ai : ThinkCtx {
     // (its unit list, +0x74 / +0xe8). The blessing's target a player not
     // dying or dead (FUN_005541b0).
     void will_o_wisp() {
-        auto rects = missile_rooms(game_data, level, unit.x, unit.y);
+        auto rects = missile_rooms(game_data, level, unit.x, unit.y, spawning);
         if (!rects.empty()) {
             const auto own = rects.front();
             const bool inside = own[0] < x - 0x20 && own[1] < y - 0x20 && x + 0x20 < own[0] + own[2] && y + 0x20 < own[1] + own[3];

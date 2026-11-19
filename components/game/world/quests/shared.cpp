@@ -448,9 +448,11 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
                 const auto [low, high] = d2d::rules::kChestLevels[0];
                 const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
                 std::vector<d2d::rules::Drop> drops;
-                for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4);
-                for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
-                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4, chest_place(chest, here, now_ms, &cellar));
+                for (const auto* code : { "hp", "hp", "mp", "mp" }) {
+                    drops.push_back({ std::string(code) + (diff ? "3" : "1") });
+                    loot.put(drops.back(), chest.x, chest.y, here, fight.spawning.game, now_ms, false, 0, &cellar);
+                }
                 operated[{ &cellar, spawner.npc }] = now_ms;
                 d2d::log::info("The Forgotten Tower: the Countess's chest opens ({} drops)", drops.size());
             }

@@ -117,12 +117,11 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // set_mode, as it dies. Hook 2 (FUN_005a3910, event 7, `rise_at`): a corpse in DD, no unique, not
             // good, its spot free around the corpse (every hero's side), fewer than 2 rises (AI scratch +0x14),
             // takes skill 0x125 in S1: life full, flags 0x4020000 off, scratch + 1, its think 0x33 frames on
-            // (`next_act`); a blocked spot tries again aip1 x 10 + 1 frames on. ponytail: the S1 end's own
-            // restore of the unit flags 0xe is `rising` off when the mode leaves S1.
+            // (`next_act`); a blocked spot tries again aip1 x 10 + 1 frames on. Srvstfunc 61 (0x5d1bf0)
+            // takes the unit flags 0xe off (`rising`); its think (FUN_005e1540) puts them back.
             if (std::ranges::contains(family, d2d::rules::umod::ai_after_death) && monster.type >= 0) {
                 const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                 const auto& per_difficulty = type_info.diff[std::size_t(std::clamp(monster.difficulty, 0, 2))];
-                if (monster.rising && monster.mode != "S1") monster.rising = false;
                 // A death animation that ran out while no hero was near (monster_update, which ends it, is not
                 // called out of range) is over before event 7 is delivered: the corpse is in DD, as FUN_005a3910 finds it.
                 if (monster.mode == "DT" && !monster.alive() && now_ms >= monster.mode_until) set_mode(*game_data, monster, "DD", now_ms);

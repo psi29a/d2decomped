@@ -937,7 +937,7 @@ inline SummonStats summon_stats(const SkillTables& skill_tables, const Skill& sk
 // Its max life in 256ths (0x5c4752..0x5c4821): the max with its passives in
 // (FUN_00625d10) and calc1 % (`pct`) of it, set as stats 7 and 6; the percent
 // is MulDiv (FUN_00483360) inlined, so its 32-bit product wraps as rules::mul_div
-// says (bugs.md 122), and so does the sum.
+// says (bugs.md 123), and so does the sum.
 inline int summon_life(int max_fine, int pct) {
     return int(std::uint32_t(max_fine) + std::uint32_t(mul_div(max_fine, pct, 100)));
 }

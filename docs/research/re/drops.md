@@ -172,6 +172,15 @@ uses the area level for a chest, agreeing for a type-2 dropper (not
 verified here against `d2d_ai_area_monster_level`'s table); a player
 dropper (base stat 0xc) is not ported.
 
+A TC cell (FUN_00654440) is an item code when under 5 letters and Items has
+it; else a class name (flag 4); else a UniqueItems `index` name (flags 0x11,
+entry +0xa its row, +8 the row's base code), then a SetItems one (0x12). In
+1.14d only ROP (N) / ROP (H) name one: Annihilus (row 381, cm1). Its pick
+(FUN_0055a6d0) is quality 7 / 5 with the index + 1 to make, ahead of a forced
+quality (a chest's, param_5), which only the other items take. d2d: the
+loader's pass after SetItems (`gamedata_load.cpp`), `roll_class`,
+`Drop::special`; `tests/test_drops.cpp`, `tests/game/test_game_tables.cpp`.
+
 FUN_0055a550 (ECX item index, ESI dropper; game, quality, unique / set
 index + 1, flags) places it first (FUN_00555da0, no draws; none free →
 nothing made), then fills a 0x84-byte struct: +0xc ilvl (the dropper's
@@ -208,12 +217,13 @@ seed (FUN_00650e50 before them only reads it):
   (or an expansion item), enabled (flag 1), not ladder (flag 8) outside a
   ladder game (`game+0x6a` / `+0x74`), the item's code and lvl <= ilvl;
   weight rarity, at least 1. A forced index among them wins with no draw;
-  else rand(total). One found already (bit set in `game+0x1b24`) fails
+  else rand(total) (d2d: `generate_item`'s `special_wanted`). One found already (bit set in `game+0x1b24`) fails
   but for a quest item (Items `+0x12a`); FUN_00556530 sets the bit unless
   nolimit (flag 2).
 - Set: SetItems rows (`+0xc18`, stride 0x1b8), version as above, the
   code, lvl <= ilvl, set 29 (Cow King's Leathers) only with flag 1;
-  weight rarity, 0 counts 1; rand(total), then subtract.
+  weight rarity, 0 counts 1; a forced index among them wins with no draw
+  (FUN_005c25c0's `+0x40 - 1` test), else rand(total), then subtract.
 - A failed unique goes rare with durability x3, a failed set x2.
 
 ### The quality roll, expansion and classic — FUN_00556f60
@@ -522,10 +532,7 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
 
 ## Not ours yet
 
-- Unique / set item entries (flags 1 / 2; ROP only in 1.14d) force quality
-  7 / 5 in `roll_drops`, with no quality draw. Flag modifiers (bin +0x30 /
-  +0x32) are 0, so those draws do not run. Forced picks (struct +0x40, the
-  entry's unique / set index) are stored and not applied when the item is made.
+- Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
 - `Loot::drop_at` reads the live walk grid (& 0x01), the items lying
   there (0x200), and on this level the Crowd's unit footprints
   (0x1000 / 0x2000, FUN_00555da0's mask 0x3e01). Those bits are not in

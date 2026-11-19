@@ -429,10 +429,11 @@ struct Fight {
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
         // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
         // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
-        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y (merc_joins).
-        // ponytail: only the merc's own owner's give is kept (another player coming near
-        // isn't one), and whether the give's own NU send (FUN_00571cd0's queue) adds 1 isn't traced.
+        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y: the owner's
+        // at merc_joins, another player's as it comes near (merc_turn, `merc_given`). The
+        // give's queue replay (FUN_00571cd0) sends no mode, so it adds nothing.
         std::uint32_t merc_pierce_idx = 0;
+        std::vector<int> merc_given;          // the heroes (Hero::id) whose clients have it now
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
         const std::vector<GameData::MonSeqFrame>* merc_seq = nullptr;
@@ -561,6 +562,10 @@ struct Fight {
     void new_game(int difficulty);
     // The save's merc joins: its fighting stats at its experience.
     void merc_joins();
+    // A player coming near the merc: its client is given it (FUN_00571f90),
+    // SetStat(0x148, (x + y) & 0xffff); one gone off forgets it (merc_given).
+    void merc_gives();
+    [[nodiscard]] bool merc_near(const Hero& hero) const;   // within the 30-cell window a client is sent it in
     // The merc's stats and skill levels for its experience (FUN_00572840).
     void merc_level_stats();
     // Back in camp after dying: full life, mana and stamina, no potions or poison working.
