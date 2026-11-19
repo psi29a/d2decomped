@@ -219,6 +219,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             pet.skill_damage = true;
             pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = summon_skill_to_hit;
         }
+        const int revived_level = monster.stats.level;
         monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage ? clvl : plvl;
         if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
             const auto& level_row = game_data->monsters.lvl[std::min<std::size_t>(std::size_t(plvl), game_data->monsters.lvl.size() - 1)];
@@ -284,11 +285,12 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         }
         // The Decoy's do (FUN_005dc000 0x5dc0ec..0x5dc12f) sets its life first: the owner's max life x calc3 / 100
         // (FUN_00483360), 256ths; calc1 % then goes on that.
-        // ponytail: Revive's do (FUN_005c56c0) also brings the life down with the level (MulDiv by clvl / its level)
-        // before FUN_005c4470; d2d brings only the level down.
-        const int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
-                                  ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
-                                  : monster.stats.hit_points << 8;
+        // Revive's do (FUN_005c56c0 0x5c57f6..0x5c582c) brings a monster above the owner's level down before FUN_005c4470:
+        // its life x clvl / its level (FUN_00483360, at least 1), 256ths, then the level.
+        int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
+                            ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
+                            : monster.stats.hit_points << 8;
+        if (skill.srvdofunc == ServerDoFunction::kRevive && revived_level != 0 && clvl < revived_level) base_fine = std::max(d2d::rules::mul_div(base_fine, clvl, revived_level), 1);
         // ponytail: a life that wraps to 0 or below (bugs.md 122) is held at one point; what game.exe's pet does then isn't traced.
         int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
         if (life_fine <= 0) life_fine = 256;
