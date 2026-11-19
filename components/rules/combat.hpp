@@ -776,6 +776,18 @@ inline int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corp
     if (corpse_level != 0 && caster_level < corpse_level) fine = mul_div(fine, caster_level, corpse_level);
     return fine;
 }
+// calc3 % (0..100) of that blow goes to the skill's EType when it has one
+// (FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a): {physical,
+// element}, 256ths.
+inline std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental) {
+    element_pct = std::min(std::max(element_pct, 0), 100);
+    if (element_pct <= 0 || !elemental) return { fine, 0 };
+    return { mul_div(fine, 100 - element_pct, 100), mul_div(fine, element_pct, 100) };
+}
+// The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
+// subtiles of the corpse; the physical reaches only aurarange / 2
+// (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
+inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
