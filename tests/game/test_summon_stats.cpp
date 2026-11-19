@@ -159,7 +159,7 @@ int raise_check(const GameData& data) {
     const auto own = [&](int stat) { int sum = 0; for (const auto* part : { &fire_stats.passive, &fire_stats.aura }) if (part->contains(stat)) sum += part->at(stat); return sum; };
     assert(own(d2d::d2s::kAbsorbFirePercent) > 0);
     assert(fire.res[0] == fire_base[2] + own(d2d::d2s::kFireResist) && fire.res[1] == fire_base[3] + summon_resist && fire.res[3] == fire_base[5] + summon_resist);
-    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left\n", pet.max_life_fine(), summon_resist);
+    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left\n", actor->pets.front().monster.max_life_fine(), summon_resist);
     return 0;
 }
 
