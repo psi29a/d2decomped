@@ -83,7 +83,7 @@ int main() try {
     }
     {
         // MonProp knock and crush on a monster foe (FUN_005bf960, FUN_005bffc0):
-        // MonStats2 small / large, a hireling's 10, a boss's or unique's 8, +50 % a player past one.
+        // MonStats2 small / large, a hireling's 10, a boss's or superunique's 8, +50 % a player past one.
         const auto row = [&](std::string_view id) { return int(data->monsters.by_id.at(std::string(id))); };
         const auto props_of = [&](int type, d2d::rules::Boss boss, int players) {
             Monster monster; monster.type = type; monster.boss = boss; monster.players = players;
@@ -93,7 +93,7 @@ int main() try {
         const int zombie = row("zombie1"), quill = row("quillrat1");
         assert(!data->monsters.types[std::size_t(zombie)].small && !data->monsters.types[std::size_t(zombie)].large);
         assert(props_of(zombie, d2d::rules::Boss::none, 1) == std::pair(0x40, 4) && props_of(zombie, d2d::rules::Boss::champion, 1).second == 4);
-        assert(props_of(zombie, d2d::rules::Boss::unique, 1).second == 8 && props_of(zombie, d2d::rules::Boss::superunique, 3).second == 16);
+        assert(props_of(zombie, d2d::rules::Boss::unique, 1).second == 4 && props_of(zombie, d2d::rules::Boss::superunique, 3).second == 16);
         assert(props_of(zombie, d2d::rules::Boss::none, 2).second == 6 && props_of(row("andariel"), d2d::rules::Boss::none, 1).second == 8);
         assert(props_of(row("roguehire"), d2d::rules::Boss::none, 4).second == 10 && row("roguehire") == 0x10f);
         assert(data->monsters.types[std::size_t(quill)].small == (props_of(quill, d2d::rules::Boss::none, 1).first == 0x80));
