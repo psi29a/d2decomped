@@ -509,6 +509,10 @@ struct Skill {
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
     std::uint32_t aura_filter = 0;         // aurafilter (+0x50): the units an aura takes (aura_filter.hpp)
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
+    // auraevent1..3 (Events.txt names) and auraeventfunc1..3: the unit events FUN_0056e740 hooks onto the summon
+    // or the state's wearer, each with its function, slot n of the table at 0x7325b0 (23: Blood Golem's life steal).
+    std::array<std::string, 3> aura_event;
+    std::array<int, 3> aura_event_func{};
     std::string srvoverlay;                // srvoverlay (+0x4e): an Overlay.txt name, played once on its unit (FUN_00621e40)
     // castoverlay (+0x106) and ItemCastOverlay (+0x124, cast from an item): Overlay.txt names the
     // client's skill start (FUN_004c6140) plays once on its caster (rules::cast_overlay_starts).

@@ -325,7 +325,7 @@ struct Fight {
         struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
         struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
         struct Pet {
-            Monster monster; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;
+            Monster monster; int skill = 0, level = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;   // level: its skill's at the cast
             // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
             // missile it shoots (the skeletal mage's, the hydra's), an aura it
             // runs (Fire Golem's Holy Fire, the totems').
@@ -1288,7 +1288,10 @@ struct Fight {
     // summons.cpp has them (FUN_005c4470; the masteries come in that way),
     // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
     // Iron Golem wears the metal item it's cast at (golem_item_at).
-    // ponytail: Blood Golem's life link isn't built.
+    // Blood Golem's life steal is pet_strike's (rules::blood_golem_steal); its
+    // damaged events (func 26, FUN_005c6690) pass Param5 % of a hit on it to
+    // the owner, the skill being its MonStats +0x170 one (BloodGolem): 0 in
+    // 1.14d's Skills.txt, so nothing.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;

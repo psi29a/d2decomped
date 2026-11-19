@@ -381,6 +381,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         monster.unit.x = monster.home_x = x; monster.unit.y = monster.home_y = y;
         monster.unit.dir = actor->player.dir;
         pet.skill = skill.id;
+        pet.level = lvl;
         pet.where = level;
         pet.variant = int(rng(4));
         switch (skill.srvdofunc) {

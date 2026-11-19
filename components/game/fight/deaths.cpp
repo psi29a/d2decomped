@@ -15,6 +15,7 @@
 #include <merc.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <shatter.hpp>
 #include <skills.hpp>
@@ -507,7 +508,24 @@ auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& str
         auto blow = struck;
         if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); percent != 0 && blow.hit)   // a curse's (Weaken) on its physical part
             blow.damage = std::max(blow.damage + d2d::rules::resisted(blow.phys * percent / 100, target_of(target).res[0]), 0);
+        const int target_life = monsters[target].life_fine();               // as FUN_005c6530 reads it: before the blow's loss
         const bool landed = land(target, blow, false, now_ms, pet.monster.id);
+        // Blood Golem's life steal (its skill's domeleedamage event, func 23: rules::blood_golem_steal), on the
+        // golem before the struck one's thorns come back (event 5 before event 1 / 2, FUN_0057c6c0).
+        if (const auto* skill = game_data->skills.get(pet.skill); landed && skill && !dead()) {   // an owner dying: none at all (0x5c65d4)
+            for (std::size_t event = 0; event < 3; ++event) {
+                if (skill->aura_event[event] != "domeleedamage" || skill->aura_event_func[event] != 23) continue;
+                const auto& victim = monsters[target];
+                const int drain = game_data->monsters.types[std::size_t(victim.type)].diff[std::size_t(victim.difficulty)].drain;
+                const int owner_max = int(actor->character.stats.values[d2d::d2s::kMaxLife]);
+                const auto lives = d2d::rules::blood_golem_steal(true, drain, victim.align == 0, blow.phys_fine, target_life,
+                                                                 d2d::rules::calc_dm(skill->par[0], skill->par[1], pet.level), skill->par[2], true,
+                                                                 { int(actor->character.stats.values[d2d::d2s::kLife]), pet.monster.life_fine() }, owner_max,
+                                                                 pet.monster.max_life_fine());
+                actor->character.stats.values[d2d::d2s::kLife] = lives.owner_life;
+                pet.monster.set_life_fine(lives.golem_life);
+            }
+        }
         // A MonProp thorns monster's flat value back on the pet (FUN_005bf670),
         // a monster striker: through its own damage resist, as a monster's hit on a monster.
         if (landed && thorns > 0) pet_hurt(pet, d2d::rules::resisted(thorns, pet.monster.target(*game_data).res[0]), now_ms);
