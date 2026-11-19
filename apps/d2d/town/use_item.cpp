@@ -41,8 +41,8 @@ auto Town::close_use_item() -> void {
 
 // The panel's handlers come first while it's up (FUN_004c0380 hangs them,
 // 0x727950): every press and release is its own, the inventory's only in
-// state 1; Esc and Space shut it.
-// ponytail: d2d's Mouse has no right release; a right press works the slot only.
+// state 1; Esc and Space shut it. The right button's press and release
+// (0x204 / 0x205) are the left's (FUN_004bfc50 / FUN_004c04e0).
 auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio) -> void {
     if (!use_item.open() || !scene) return;
     const auto play = [&](const use_item::Outcome& out) {
@@ -73,19 +73,18 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
                               : use_item.hc_idx == use_item::kLarzuk ? d2d::rules::socketable(scene->rules, *held)
                               : use_item.hc_idx == use_item::kAnya   && d2d::rules::nameable(scene->rules, *held));
     bool inventory_press = false;
-    if (mouse.press_this_frame) {
+    for (const bool pressed : { mouse.press_this_frame, mouse.rpress_this_frame }) {
+        if (!pressed || !use_item.open()) continue;
         const auto out = use_item::press(use_item, mouse.x, mouse.y, now_ms, in_inventory, on_close_box, held.has_value(), accepted);
-        inventory_press = out.act == use_item::Act::kInventory;
+        inventory_press = inventory_press || out.act == use_item::Act::kInventory;
         act(out);
-    } else if (mouse.rpress_this_frame && use_item::in_slot(mouse.x, mouse.y)) {
-        act(use_item::press(use_item, mouse.x, mouse.y, now_ms, false, false, held.has_value(), accepted));
-        mouse.rpress_this_frame = false;
     }
-    if (mouse.release_this_frame && use_item.open()) act(use_item::release(use_item, mouse.x, mouse.y, on_close_box));
+    for (const bool released : { mouse.release_this_frame, mouse.rrelease_this_frame })
+        if (released && use_item.open()) act(use_item::release(use_item, mouse.x, mouse.y, on_close_box));
     // The inventory takes its own clicks in state 1, nothing else does.
     const bool inventory_own = use_item.state == use_item::State::kOpen && in_inventory && !on_close_box;
     if (!inventory_press && !inventory_own) mouse.down = mouse.press_this_frame = mouse.rpress_this_frame = false;
-    if (!inventory_own) mouse.release_this_frame = false;
+    if (!inventory_own) mouse.release_this_frame = mouse.rrelease_this_frame = false;
 }
 
 // S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with it.

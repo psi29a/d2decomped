@@ -920,6 +920,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
         mouse.rpress_this_frame = false;
+        mouse.rrelease_this_frame = false;
         mouse.wheel = 0;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
