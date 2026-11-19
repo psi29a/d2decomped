@@ -352,8 +352,9 @@ Speech start_speech(const Scene& scene, int npc, std::uint16_t string, std::uint
 
 void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Speech& speech, std::uint32_t now_ms, bool touch_layout = false);
 
-// FUN_004b8100: a black box at draw mode 1 (half transparent), each line's
-// text with its baseline at the box top + the heights so far + its own;
+// FUN_004b8100: a black box at draw mode 1 (half transparent) in its frame of
+// boxpieces (FUN_00452e50 on x .. x + w - 1, y .. y + h - 1), each line's text
+// with its baseline at the box top + the heights so far + its own;
 // the hovered entry gets focus16 (frame = draw count % 7) bottom-anchored
 // at (x - 24, baseline + 4) and (x + width + 2, baseline + 4).
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
@@ -362,6 +363,8 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
 // marks either side of a line `width` wide from x, its baseline at `base`.
 void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height);
 void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int x, int base, int width, std::uint32_t now_ms);
+// FUN_00452e50: UI\menu\boxpieces round {left, top, last_x, last_y} (rules::box_piece_cels).
+void draw_box_frame(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int left, int top, int last_x, int last_y);
 
 // The character-creation screen over the Character it makes; name entry
 // (SDL text input) fills Character::name, capped at 15 chars like D2's
