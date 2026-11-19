@@ -388,7 +388,7 @@ inline MonProps monster_props(const Tables& tables, const MonType& type, int dif
 
 // FUN_006538a0's values before monster_stats' roll, at the type's own
 // Level (or `level`): life min / max, A1 min / max (the skill tooltips'
-// summon lines, game::skill_text).
+// summon lines, game::skill_text; Revive's life, revive_life).
 struct MonRanges { int min_hp = 0, max_hp = 0, a1_min = 0, a1_max = 0; };
 inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficulty, int level = -1) {
     if (type < 0 || std::size_t(type) >= monsters.types.size() || monsters.lvl.empty()) return {};
@@ -399,6 +399,20 @@ inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficul
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     return { pct(level_row.hit_points[index], per_difficulty.min_hp), pct(level_row.hit_points[index], per_difficulty.max_hp),
              pct(level_row.damage[index], per_difficulty.a1_min), pct(level_row.damage[index], per_difficulty.a1_max) };
+}
+
+// Revive (do 58, FUN_005c56c0 0x5c5776..0x5c5830) raises the corpse with a
+// life rolled at its own level: FUN_006538a0's range there, min + rand(max -
+// min + 1) on its unit seed (FUN_0045c3e0), in 256ths. When that level is
+// above the owner's (and not 0), the life becomes MulDiv(life, clvl, level)
+// (FUN_00483360), 1 at least, and the level the owner's. FUN_005c4470's
+// calc1 % comes after.
+struct RevivedLife { int life_fine = 0, level = 0; };
+inline RevivedLife revive_life(const Monsters& monsters, int type, int difficulty, int level, int clvl, Rng& rng) {
+    const auto range = monster_ranges(monsters, type, difficulty, level);
+    RevivedLife revived{ int(std::uint32_t(range.min_hp + rng(range.max_hp - range.min_hp + 1)) << 8), level };
+    if (level != 0 && clvl < level) revived = { std::max(mul_div(revived.life_fine, clvl, level), 1), clvl };
+    return revived;
 }
 
 // The level a spawned monster starts at (FUN_00573cb0 0x573e15..0x573e70):
