@@ -109,6 +109,10 @@ struct Item {
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     int  replenish_in = 0;             // frames to its timer 3 (FUN_00562d30: a replenishing item's next point), 0 none (not saved)
+    // Its unit seed (+0x20) as its making in play left it (rules::item_seed),
+    // not saved: a loaded item's starts again from uid (FUN_0062cbe0 at 0x62cd16).
+    std::uint32_t seed_low = 0, seed_high = 0;
+    bool seed_kept = false;
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, dur_extra = 0, set_lists = 0;
     bool charm_prefix = false;         // a normal charm's 1 bit: its 11 are the prefix (set) or the suffix

@@ -191,6 +191,14 @@ level, an object's area level), +0x2a / item data +0x30 version
 FUN_00555230 makes the unit: two steps of the game seed. FUN_00552df0:
 unit +0x20 = {low, 666} (the unit seed), +0x28 = low; FUN_00552e90: item
 data +0x10 = low, +4 = {low, 666} (its own seed, FUN_00627d90).
++0x28 is the fingerprint a save keeps (the 32 bits after the class
+affix): loading an item seeds +0x20 {it, 666} again (`FUN_0062cbe0` at
+`0x62cd13` / `0x62cd16`). An item made in play keeps its unit seed where
+its making left it, so Larzuk's sockets (`FUN_00579d60`) and a runeword's
+mods roll on from there; after a save and a load, from {fingerprint,
+666}. d2d: `rules::generate_item` sets `Item::uid` and keeps the seed
+(`Item::seed_kept`, not saved), `rules::item_seed`. Before this d2d saved
+every item it made with fingerprint 0.
 
 FUN_00557ab0 (ECX game, EDX &item; struct, do quality) off the unit seed:
 
