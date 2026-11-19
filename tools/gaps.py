@@ -608,8 +608,23 @@ def history(out):
         if line:
             days.setdefault(line.split()[1], line.split()[0])   # newest first: the day's last commit
     points = []
-    # ponytail: a checkout and a run per day (about a second each); cache old days in the Pages artifact if it gets slow
+    # A day's totals are kept in history-cache.json beside it, keyed by its commit and this
+    # script's own hash (a changed script runs every day again): only new days are checked out.
+    with open(os.path.abspath(__file__), "rb") as f:
+        script = hashlib.sha1(f.read()).hexdigest()[:12]
+    cache_path = os.path.join(out, "history-cache.json")
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
     for day, commit in sorted(days.items()):
+        key = f"{commit}:{script}"
+        if key in cache:
+            if cache[key] is not None:
+                points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
+            continue
+        cache[key] = None
         with tempfile.TemporaryDirectory() as tree:
             subprocess.run(["git", "worktree", "add", "--detach", "-q", tree, commit], check=True)
             try:
@@ -617,11 +632,14 @@ def history(out):
                                      cwd=tree, capture_output=True, text=True)
                 if run.returncode == 0:   # an old tree today's script can't read is left out
                     with open(os.path.join(tree, "out", "gaps.json"), encoding="utf-8") as f:
-                        points.append({"date": day, "commit": commit[:8], "totals": json.load(f)["totals"]})
+                        cache[key] = json.load(f)["totals"]
+                    points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
             finally:
                 subprocess.run(["git", "worktree", "remove", "--force", tree], check=True)
     with open(os.path.join(out, "history.json"), "w", encoding="utf-8") as f:
         json.dump(points, f, indent=1)
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(cache, f)
 
 
 def done_line(remaining):
