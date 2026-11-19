@@ -56,7 +56,8 @@ int main() try {
             const float to_x = from_x + float(dx) / 5, to_y = from_y + float(dy) / 5, length = std::hypot(to_x - from_x, to_y - from_y);
             if (length < 2 || !open(to_x, to_y)) continue;
             bool walled = false;
-            for (float part = 0; part <= 1 && !walled; part += 0.02f) walled = !open(from_x + (to_x - from_x) * part, from_y + (to_y - from_y) * part);
+            const auto centre = [](float cells) { return (std::floor(cells * 5) + 0.5f) / 5; };   // the route's subtile centres
+            for (float part = 0; part <= 1 && !walled; part += 0.02f) walled = !open(centre(from_x + (to_x - from_x) * part), centre(from_y + (to_y - from_y) * part));
             if (walled) behind = std::pair{ to_x, to_y };
         }
     if (!behind) { std::puts("SKIP: no walled point near the start"); return D2D_TEST_SKIPPED; }
