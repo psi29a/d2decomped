@@ -53,8 +53,13 @@ would kill can be survived because the heal comes first. `rules::absorbed_fine`,
 `StruckBlow::Part::took`; used by `monster_blow`, the armors' recompute (`elemental_fine`) and
 `Fight::hurt_side`. Oracle: `tools/emu/gear_absorb.py` (the player's life after one to three blows,
 FUN_0057c6c0 run for real) against `test_gear_absorb --life`. game.exe's functions test no unit
-type, so a mercenary's absorb gear would act the same; d2d's merc takes none (merc.cpp: the absorb
-without its heal-back on the merc's life would be half the rule). Not modelled: the ignore-resistances record (flags 0x100 / 0x200 / 0x400 by
+type (FUN_0057c6c0's own type-1 test is a MonStats flag of the class row, 0x57c76a, which the
+hirelings' rows pass), so a mercenary whose stats carry absorb takes it the same:
+`tools/emu/merc_absorb.py` runs FUN_0057c6c0 on a unit of type 1 of a hireling's MonStats class
+(every table loaded) and its lives are the player's byte for byte (300 cases). That a hireling's
+worn items put the stats on its stat list is inferred (as its gear resistances), not run.
+`Fight::merc_fighter` reads the stats from the merc's worn gear and
+`Fight::hurt_side` gives the merc the heal-back on its life (`test_merc_absorb --life`). Not modelled: the ignore-resistances record (flags 0x100 / 0x200 / 0x400 by
 attacker kind, 0x57c309..0x57c371), state 0x5c (death_delay) on the heal, a magic field's magic
 resistance (stat 37, decomp37 T3), absorb on the burn and blast paths (ai.hpp `burn`, objects.cpp)
 and on a missile's own element roll.
