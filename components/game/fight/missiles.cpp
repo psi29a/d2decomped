@@ -32,6 +32,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -1146,6 +1147,27 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
             return;
         }
         const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
+        // FUN_005cf3a0's cost (FUN_00644b10: Sanctuary's one point): the target
+        // state's aurastats are made only with the mana in hand, and the cost is
+        // paid (FUN_0056c110) with nomanaregen (0x55) on only when the pulse put
+        // that state on a unit (FUN_005cedc0's count, +0x40); else 0x55 goes off.
+        // Sanctuary has no target state (+0x82 -1), so it never pays.
+        if (const int cost = cost_of(*skill, lvl); cost > 0 && skill->srvdofunc == ServerDoFunction::kEnemyAura) {
+            auto& values = actor->character.stats.values;
+            const bool afford = (blood_mana() ? values[d2d::d2s::kLife] : values[d2d::d2s::kMana]) >= cost;
+            const bool target_stats = !skill->auratarget.empty() && std::ranges::any_of(std::views::iota(std::size_t(0), skill->aurastat.size()), [&](std::size_t k) {
+                return skill->aurastat[k] >= 0 && calc(*skill, skill->aura_calc[k], lvl) != 0;
+            });
+            const float reach = float(calc(*skill, skill->aurarange, lvl));
+            const bool took = afford && target_stats && std::ranges::any_of(monsters, [&](const Monster& monster) {
+                return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= reach && aura_takes(*skill, monster, actor->player.x, actor->player.y);
+            });
+            if (took) {
+                if (blood_mana()) (void)blood_pay(cost);
+                else values[d2d::d2s::kMana] -= cost;
+            }
+            actor->no_mana_regen = took;
+        }
         enemy_pulse(*skill, lvl, env, actor->player.x, actor->player.y, pierce, player_foe_id(), now_ms);
     }
 

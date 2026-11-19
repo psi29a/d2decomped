@@ -2101,6 +2101,21 @@ Cited from the decompile (no oracle run); re-check with
   states a pulse puts (FUN_005cf010 lasts it to the next pulse + 1). Every
   1.14d aura's perdelay is 50; the Druid spirits' auras and the masteries
   have none, so 5. d2d: `rules::aura_next_frame`, `Fight::aura_due`.
+- **An enemy aura's mana** (FUN_005cf3a0, do 66; FUN_005d0e90, do 82, the
+  same): the cost is FUN_00644b10 (Sanctuary's: mana 1, manashift 8, one
+  point; every other do 65 / 66 / 81 / 82 aura costs 0). The party's list
+  (the aurastate +0x80 with passivestat1..5, +0x98 / +0xa4, through
+  FUN_0056b740 -> FUN_005cedc0) is made for a non-player caster
+  (FUN_0044be50: the unit's type) or one with the mana; the targets' list
+  (auratargetstate +0x82 with aurastat1..6, +0x54 / +0x68) only when +0x82
+  is a state and the caster has the mana. The cost is paid (FUN_0056c110)
+  and nomanaregen (state 0x55) put on only when FUN_005cedc0 counted a
+  unit given the target state (+0x40 of the callback's record); otherwise
+  0x55 goes off. Sanctuary has no auratargetstate and no passivestats, so
+  its pulse never pays and never applies its aurastat1..3
+  (item_undeaddamage_percent, item_undead_tohit, skill_bypass_undead):
+  read, not run. Redemption's callback is FUN_005d0d70; the rest of do 66
+  share FUN_005cf2a0. d2d: `Fight::aura_pulse`.
 - **FUN_005a2d80** (124 bytes, no caller in game-calls.tsv, so reached
   through a table or pointer): reads stats 0x15 and 0x16; when 0x16 > 0
   and the unit's class id (+4) is not 0x10f, sets stat 0x15 = max(0, s15

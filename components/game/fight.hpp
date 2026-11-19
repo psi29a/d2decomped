@@ -1211,9 +1211,9 @@ struct Fight {
     // target state (+0x82) and target_of (and monster_states, Holy Freeze's
     // slow) applies them while the monster is in range and its aurafilter
     // takes it (enemy_auras).
-    // A pulse's next is aura_due (rules::aura_next_frame).
-    // ponytail: Sanctuary and Redemption's own callbacks aren't built;
-    // Sanctuary's mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
+    // A pulse's next is aura_due (rules::aura_next_frame). Redemption's
+    // callback (FUN_005d0d70) is aura_pulse's own; the rest of do 66 share
+    // FUN_005cf2a0. A cost (Sanctuary's) is paid only for a target state put.
     void aura_pulse(std::uint32_t now_ms);
     // When an aura pulsing now (at level `lvl`) pulses next, ms (FUN_0056cda0).
     [[nodiscard]] std::uint32_t aura_due(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) {
