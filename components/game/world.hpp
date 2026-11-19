@@ -99,9 +99,11 @@ struct TradeResult { d2d::rules::Trade result = d2d::rules::Trade::no_gold; int 
 // The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
 // frames and the level it's for.
 struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
-// An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
-// 7 refused}, FUN_00579d60): the client shuts its item panel.
-struct ServiceResult { int npc = -1; bool done = false; };
+// The item panel (S->C 0x58 {unit, kind}, FUN_004c0550): 0 an object's
+// opens (the orifice, FUN_0059dc70); for an open one 1 shuts it, 4 takes
+// the wait box down, 5 the item's gone in (FUN_005852e0), 6 an NPC's
+// service done / 7 refused (FUN_00579d60).
+struct ServiceResult { int npc = -1; int kind = 1; };
 // The Cairn Stones' order, each stone 0..4 (StoneAlpha..StoneLambda), for
 // the deciphered scroll (S->C 0x50 subtype 4, FUN_00593cb0).
 struct StoneOrder { std::array<int, 5> order{}; };
@@ -752,6 +754,8 @@ struct World {
     // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
     void drop_wirt_gold(std::uint32_t now_ms);
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    // C->S 0x44 from the orifice's item panel (FUN_005852e0): cmd::ObjectItem.
+    void object_item(const cmd::ObjectItem& given, std::uint32_t now_ms);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
     // containers, stands, wells, bookshelves, shrines, traps and doors.

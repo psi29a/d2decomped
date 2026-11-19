@@ -228,6 +228,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite gold_coin;                                   // PANEL\goldcoinbtn
     d2d::dc6::Sprite gold_dialog, spinner;                       // MENU\dialogbackground, MENU\spinner (the gold box)
     d2d::dc6::Sprite use_item_panel;                              // MENU\upgrade: an NPC service's item panel (0x7c5494, FUN_004bf9d0)
+    d2d::dc6::Sprite horadric_panel;                              // MENU\horadricback: the orifice's (kind 0, 0x7c5498)
     d2d::dc6::Sprite gem_socket;                                  // PANEL\GemSocket (0x7bef14)
     d2d::dc6::Sprite wp_bg, wp_icons;
     std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs

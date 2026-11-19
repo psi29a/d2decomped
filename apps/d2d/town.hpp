@@ -625,7 +625,7 @@ struct Town {
     void open_use_item(int npc);
     void close_use_item();
     void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
-    void use_item_reply(int kind);
+    void use_item_reply(int kind, Audio* audio = nullptr);   // `audio`: kind 5's sound
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes

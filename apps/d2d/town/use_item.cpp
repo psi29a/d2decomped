@@ -56,8 +56,14 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
             if (const auto found = scene->sound_index.find(d2d::game::item_sound(*scene, *held, false)); found != scene->sound_index.end())
                 audio.play_sfx(*scene, found->second, 1.f, 0);   // FUN_004c1d60
         }
-        if (out.act == use_item::Act::kSend) send(cmd::Imbue{ use_item.npc, use_item.item });   // FUN_004b2370
-        if (out.act == use_item::Act::kClose) close_use_item();
+        if (out.act == use_item::Act::kSend) {
+            if (use_item.kind == 0) send(cmd::ObjectItem{ use_item.npc, use_item.item, true });   // FUN_00478700(object, item, 3)
+            else send(cmd::Imbue{ use_item.npc, use_item.item });                                 // FUN_004b2370
+        }
+        if (out.act == use_item::Act::kClose) {
+            if (use_item.kind == 0) send(cmd::ObjectItem{ use_item.npc, -1, false });            // FUN_00478700(object, 0, 2)
+            close_use_item();
+        }
     };
     if (std::ranges::any_of(keys, [](SDL_Keycode key) { return key == SDLK_ESCAPE || key == SDLK_SPACE; })) {
         act(use_item::key(use_item));
@@ -68,7 +74,8 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
     const bool in_inventory = inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320 && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432;
     const int close_x = lay.panel_x + 0x12, close_bottom = lay.panel_y + 416;
     const bool on_close_box = inv_open && mouse.x >= close_x && mouse.x < close_x + 0x20 && mouse.y > close_bottom - 0x20 && mouse.y <= close_bottom;
-    const bool accepted = held && held->identified
+    const bool accepted = use_item.kind == 0 ? held && use_item::object_takes(held->code, held->identified)
+                          : held && held->identified
                           && (use_item.hc_idx == use_item::kCharsi   ? d2d::rules::imbuable(scene->rules, *held, character.expansion)
                               : use_item.hc_idx == use_item::kLarzuk ? d2d::rules::socketable(scene->rules, *held)
                               : use_item.hc_idx == use_item::kAnya   && d2d::rules::nameable(scene->rules, *held));
@@ -87,8 +94,10 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
     if (!inventory_own) mouse.release_this_frame = mouse.rrelease_this_frame = false;
 }
 
-// S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with it.
-auto Town::use_item_reply(int kind) -> void {
+// S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with it; 5 plays
+// Sounds.txt row 5 (the orifice's +6 set) as the staff goes in.
+auto Town::use_item_reply(int kind, Audio* audio) -> void {
+    if (kind == 5 && scene && audio) audio->play_sfx(*scene, 5, 1.f, 0);
     if (use_item::reply(use_item, kind)) close_use_item();
 }
 
