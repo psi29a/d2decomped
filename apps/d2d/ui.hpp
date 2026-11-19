@@ -126,6 +126,7 @@ struct Mouse {
     bool press_this_frame = false;     // rising edge
     bool release_this_frame = false;   // falling edge
     bool rpress_this_frame = false;    // right button, rising edge
+    bool rrelease_this_frame = false;  // right button, falling edge
     bool rdown = false;                // right button (or a Right-hand Skill click key) held
     int  wheel = 0;                    // wheel notches this frame, +up
 };
