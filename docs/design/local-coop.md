@@ -75,7 +75,9 @@ PC or Mac with pads works the same way.
 **One screen**
 
 - Camera: the centre of all players, leashed. Nobody walks past the screen
-  edge.
+  edge, nor leaps, teleports, charges or is knocked past it: a move that
+  spreads the party too far is undone, and a leap or slide stops there
+  (`World::leash`, after the commands and again after the fight).
 - Warps, waypoints and portals move the whole party. One screen means one
   level.
 - Panels (inventory, stash, store, skill tree, roster): one player owns the

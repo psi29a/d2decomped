@@ -417,11 +417,12 @@ struct World {
             }
         }
     }
-    // One screen (local co-op): a step that spreads the party further than
-    // kLeashWidth x kLeashHeight screen pixels is undone, for whoever took
-    // it (they stand where they were, `before` the tick's moves).
-    // ponytail: walks only; a leap, charge, teleport or knockback can still
-    // spread it, and a later step back in is let through.
+    // One screen (local co-op): a move that spreads the party further than
+    // kLeashWidth x kLeashHeight screen pixels is undone, for whoever made
+    // it (they stand where they were, `before` the moves): the commands'
+    // (walks, teleports, a charge's steps), then the fight's (a leap's
+    // flight, a knockback's slide, which stop there). A step that narrows a
+    // party already too wide is let through.
     static constexpr float kLeashWidth = 620, kLeashHeight = 380;
     void leash(std::span<const std::pair<float, float>> before);
     // The other players come to `destination` round (x, y) with their mercs

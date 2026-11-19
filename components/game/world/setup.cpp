@@ -154,6 +154,8 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
             auto& unit = players[slot]->player;
             std::tie(unit.x, unit.y) = before[slot];
             unit.walking = false; unit.path.clear();
+            players[slot]->leap.reset();                  // a leap or a knockback cut off where it was
+            players[slot]->knock.reset();
             players[slot]->interact_npc = -1;
             players[slot]->target_x = unit.x; players[slot]->target_y = unit.y;
         }
