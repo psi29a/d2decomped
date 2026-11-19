@@ -85,6 +85,27 @@ auto Town::open_menu(int npc) -> void {
         if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
     }
 
+auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
+        if (result.npc < 0) {
+            if (store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y);
+            return;
+        }
+        if (!level || std::size_t(result.npc) >= level->npcs.size()) return;
+        if (result.result != d2d::rules::Trade::hireling) {
+            npc_menu = open_trade_refused(*scene, result.npc, result.result, mouse_x, mouse_y);   // state 0xc, the store's box
+            return;
+        }
+        // 5: FUN_004939b0 shuts the panels (FUN_00455f20(0)) and arms the hireling hint while the
+        // registry's PopupHireling (d2d.cfg's popup_hireling) isn't 1; then the NPC's menu again (FUN_004b4830).
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = scroll.open = false;
+        if (!cfg_file.empty()) {
+            d2d::userdir::Config cfg;
+            d2d::userdir::load_cfg(cfg_file, cfg);
+            hireling_hint = cfg["popup_hireling"] != "1";
+        }
+        open_menu(result.npc);
+    }
+
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
 /**
