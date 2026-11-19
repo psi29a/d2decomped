@@ -193,7 +193,6 @@ struct NpcMenuState {
         scroll = moved.first;
         if (list) list->hover = moved.selected;
     }
-    bool blue_hover = false;                 // menu mode 1 (FUN_004b8370): the hovered line in text colour 3, no focus16
     // The selected line (+0x44; the one drawn lit, -1 none). A window starts at -1
     // (FUN_004b7eb0) and each line added selectable while it is -1 takes it
     // (FUN_004b85f0 -> FUN_004b82f0): so the first choosable line is lit as soon as
@@ -354,15 +353,16 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
 
 // FUN_004b8100: a black box at draw mode 1 (half transparent) in its frame of
 // boxpieces (FUN_00452e50 on x .. x + w - 1, y .. y + h - 1), each line's text
-// with its baseline at the box top + the heights so far + its own;
-// the hovered entry gets focus16 (frame = draw count % 7) bottom-anchored
-// at (x - 24, baseline + 4) and (x + width + 2, baseline + 4).
+// with its baseline at the box top + the heights so far + its own; the
+// selected line in text colour 3. That's menu mode 1 (+0x5c, FUN_004b8370),
+// which every NPC window d2d opens sets: the menu 0x4b4927, talk 0x4b58fa,
+// respec 0x4b5b44, a refused trade 0x4b55c1, hire 0x4b5d26. Mode 2, the
+// window's default (FUN_004b7eb0), draws UI\CURSOR\focus16 either side
+// instead; d2d has no window left in it.
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
                    std::uint32_t now_ms);
-// The menu's pieces: the box darkened to half (draw mode 1), and focus16's
-// marks either side of a line `width` wide from x, its baseline at `base`.
+// The box darkened to half (draw mode 1).
 void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height);
-void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int x, int base, int width, std::uint32_t now_ms);
 // FUN_00452e50: UI\menu\boxpieces round {left, top, last_x, last_y} (rules::box_piece_cels).
 void draw_box_frame(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int left, int top, int last_x, int last_y);
 

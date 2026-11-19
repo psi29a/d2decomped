@@ -247,7 +247,7 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
 }
 
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
-                   std::uint32_t now_ms) {
+                   std::uint32_t /*now_ms*/) {
     if (menu.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     shade_box(framebuffer, menu.x, menu.y, menu.box_width, menu.box_height);
@@ -262,8 +262,7 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
         const int x = menu.x + line.x;
         if (line.header && line.red) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 255, 77, 77);
         else if (line.header) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 199, 179, 119);
-        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, int(i) == hover && menu.blue_hover ? blue : pal, x, base - cell + 1, line.text);
-        if (int(i) == hover && !menu.blue_hover) draw_focus(framebuffer, scene, x, base, line.width, now_ms);
+        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, int(i) == hover ? blue : pal, x, base - cell + 1, line.text);
     }
     // The hire window's list box (FUN_004bee90): the rows that fit from the
     // first shown, each line at x + 0x20 on rules::list_line_y, white, the
@@ -304,14 +303,6 @@ void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, 
             auto* pixel = &framebuffer[(std::size_t(row) * kScreenWidth + std::size_t(column)) * 4];
             pixel[0] = std::uint8_t(pixel[0] / 2); pixel[1] = std::uint8_t(pixel[1] / 2); pixel[2] = std::uint8_t(pixel[2] / 2);
         }
-}
-
-void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int x, int base, int width, std::uint32_t now_ms) {
-    if (scene.focus16.frames_per_direction() == 0) return;
-    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    const auto& frame = scene.focus16.frame(0, (now_ms / 40) % std::min<std::uint32_t>(7, scene.focus16.frames_per_direction()));
-    blit_sprite(framebuffer, frame, pal, x - 24, base + 4 - int(frame.height) + 1);
-    blit_sprite(framebuffer, frame, pal, x + width + 2, base + 4 - int(frame.height) + 1);
 }
 
 void draw_box_frame(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int left, int top, int last_x, int last_y) {

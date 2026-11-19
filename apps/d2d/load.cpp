@@ -156,7 +156,6 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 6; ++i) graphics[std::size_t(i)] = std::string(types.get(row, "InvGfx" + std::to_string(i + 1)));
     }
     if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*bytes);
-    if (auto bytes = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*bytes);
     {
         static constexpr std::string_view kLevelTypeName[] = {
             "None", "1 Town", "1 Wilderness", "1 Cave", "1 Crypt", "1 Monestary", "1 Courtyard", "1 Barracks",

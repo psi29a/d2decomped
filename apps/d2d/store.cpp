@@ -25,13 +25,13 @@ namespace d2d::client {
 
 // The window (rules::hire_window_y: 490 x 350, no layout) holds the gold
 // header (0x15 high) and "cancel" (0x13b, so 0x150 down), each centred
-// (FUN_004b83a0), in menu mode 1 (FUN_004b8370); the list box
-// (rules::hire_list_box) holds every offer, from the first.
+// (FUN_004b83a0), in menu mode 1 (FUN_004b8370 at 0x4b5d26, as every NPC
+// window: draw_npc_menu); the list box (rules::hire_list_box) holds every
+// offer, from the first.
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
                             std::int64_t gold) {
     NpcMenuState menu;
     menu.npc = npc;
-    menu.blue_hover = true;
     std::string head = string_id(scene, 0xd24);
     if (const auto found = head.find("%d"); found != head.npos) head.replace(found, 2, std::to_string(gold));
     menu.lines.push_back({ std::move(head), 0x15, 0, 0, true });
