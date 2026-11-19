@@ -1205,11 +1205,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   seed, else none; the push at 0x56d9a3, the radius slot as FUN_005e0160's
   `push 2`), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
   Hydra's three (hydra1..3 are SizeX 0) share the subtile.
-- **FUN_005c49e0**(skill, owner, pet, level, bonus): the pet's level
-  (stat 12) = min(owner's level, owner's × 3 / 4 + bonus) — bonus calc2
-  for 119 / 114, 0 else — then its defense (31) and attack rating (19)
-  straight from MonLvl at that level (+0xb70 rows of 0x78: difficulty
-  and expansion columns).
+- **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
+  (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
+  4 + bonus, 1), owner's level). Raise, the golems, the Decoy and the
+  Valkyrie pass the skill level as the bonus; 114 / 119 force max(calc2,
+  1). Then MonLvl's defense (31) and attack rating (19) at that level
+  (+0xb70 rows of 0x78: difficulty and expansion columns) are added to the
+  pet's own (FUN_006272b0). `tools/emu/summon_level.py`; pet-ai.md.
 - **FUN_005c4470**(pet, owner, skill, level, bonus): the skill's passive
   stats (+0x98 / +0xa4) and aurastats (+0x54 / +0x68, in a state with
   aurastate +0x80) onto the pet, life and max life + calc1 % (stats 6 /
@@ -1403,11 +1405,15 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   (`Fight::pets_turn`'s untraced branch): monster thinks don't take
   monsters as targets yet.
 - Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
-  owner's max life x calc3 %, the owner's level, gone in calc2 frames.
+  owner's max life x calc3 / 100 (FUN_00483360) before FUN_005c4470's calc1
+  %; the owner's level (0x5dc144), then FUN_005c49e0's with the skill level
+  as the bonus (0x5dc154); gone in calc2 frames.
+- FUN_005c7520 holds a third FUN_005c49e0 call (0x5c7653, forced max(calc2,
+  1)) but nothing calls or points at it: dead, not a missed caller.
 - Do 49 (**FUN_005d6e70**, Shadow Warrior / Master): the owner's level
   (stat 12), skills (FUN_005d6cf0) and look; gear by FUN_005d6b60.
-- Do 114 / 119 (FUN_005c6910 / FUN_005c7390): FUN_005c49e0 with calc2 as
-  the bonus level, then FUN_005c4470.
+- Do 114 / 119 (FUN_005c6910 / FUN_005c7390): FUN_005c49e0 with max(calc2,
+  1) as the forced level (0x5c6a29, 0x5c74c9), then FUN_005c4470.
 - Built: `Fight::summon_one` (the stats, sumskills: a missile it shoots or
   an aura it runs), `Pet::ranged / aura / res / thorns / fire / until /
   variant / hits / idle / mirror / where`, `pet_aura` (Fire Golem's Holy

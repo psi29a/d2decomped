@@ -742,6 +742,9 @@ struct Town {
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
+    // A SearchEnemyNear skill's unit nearest the click (FUN_00467490): false for another skill, else
+    // `unit` (a monster id, -1 the ground) and the spot (cells) as the search leaves them.
+    [[nodiscard]] bool near_pick(int skill, int& unit, float& at_x, float& at_y) const;
     // A SearchOpenXY skill's free spot off a wall (FUN_004677b0), in cells, or none.
     [[nodiscard]] std::optional<std::pair<float, float>> open_spot(int skill, int unit, float click_x, float click_y) const;
     [[nodiscard]] int hovered_ground() const;
