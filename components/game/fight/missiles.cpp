@@ -455,7 +455,9 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             // Its path ignores the aim; a click on the caster aims one subtile on each axis (FUN_0059fa30's
-            // target = start moves + (1, 1)), so it still has a speed and flies.
+            // target = start moves + (1, 1)), so it still has a speed and flies. The aim still sets path flag 1
+            // (the room follows it, missile.follow) as game.exe's does: FUN_00648cf0(path, 0xe) keeps bits 0..7
+            // and type 0xe's set-up (FUN_00649760 -> FUN_0067a140) doesn't run FUN_006492f0 again.
             const bool on_caster = dx == 0 && dy == 0;
             auto& missile = send(on_caster ? 0.2f : dx, on_caster ? 0.2f : dy, range);
             missile.route = d2d::rules::hammer_route(level->world_x * 5 + int(std::floor(missile.x * 5)), level->world_y * 5 + int(std::floor(missile.y * 5)));
