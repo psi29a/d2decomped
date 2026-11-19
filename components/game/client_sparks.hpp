@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -42,8 +43,10 @@ struct SparkTrail {
     std::vector<ClientSpark> sparks;
     d2d::rules::Rng rng{ 0x1234 };
     // Each client do 8 missile's subtile at the last client frame: path flag
-    // 8 is a change of it. The client has no missile ids, so a missile is its
-    // row and birth, the nearest of those if there are several.
+    // 8 is a change of it. The client has no missile ids; the missile list
+    // keeps its order from frame to frame (the world erases in place and adds
+    // at the end, the host sends it in that order), so a missile is its row,
+    // its birth and its place among the missiles that share both.
     struct Seen { const GameData::MissileInfo* info = nullptr; std::uint32_t born = 0; int subtile_x = 0, subtile_y = 0; };
     std::vector<Seen> seen;
 
@@ -56,16 +59,16 @@ struct SparkTrail {
         std::erase_if(sparks, [&](const ClientSpark& spark) { return now_ms >= spark.dies; });
         std::vector<Seen> now_seen;
         const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        const auto same = [](const Seen& one, const Seen& other) { return one.info == other.info && one.born == other.born; };
         for (const auto& missile : missiles) {
             const auto* info = missile.info;
             if (!info || info->clt_do != 8 || !info->clt_sub_info) continue;
             const Seen here{ info, missile.born, subtile(missile.x), subtile(missile.y) };
+            const auto place = std::ranges::count_if(now_seen, [&](const Seen& was) { return same(was, here); });
             now_seen.push_back(here);
             const Seen* before = nullptr;
-            for (const auto& was : seen)
-                if (was.info == info && was.born == missile.born
-                    && (!before || std::abs(was.subtile_x - here.subtile_x) + std::abs(was.subtile_y - here.subtile_y)
-                                       < std::abs(before->subtile_x - here.subtile_x) + std::abs(before->subtile_y - here.subtile_y))) before = &was;
+            for (std::ptrdiff_t passed = 0; const auto& was : seen)
+                if (same(was, here) && passed++ == place) { before = &was; break; }
             const bool crossed = before && (before->subtile_x != here.subtile_x || before->subtile_y != here.subtile_y);
             if (crossed && int(now_ms - missile.born) / 40 >= info->init_steps) lay(missile, now_ms);
         }

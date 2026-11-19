@@ -102,6 +102,21 @@ void synthetic() {
     assert(trail.sparks.empty() && trail.seen.empty());
     trail.tick(std::vector<View::Shot>{ { &bolt, 1.5f, 0.1f, 0, born } }, born + 80);
     assert(trail.sparks.empty());
+
+    // Two bolts of one row and frame (two sentries' at once) keep their own
+    // places in the list: from subtiles 5 and 6 to 6 and 7, both moved and
+    // both lay; then the first stands while the second moves on.
+    SparkTrail pair;
+    const auto two = [&](float first_x, float second_x) {
+        return std::vector<View::Shot>{ { &bolt, first_x, 0.1f, 0, born }, { &bolt, second_x, 0.1f, 0, born } };
+    };
+    pair.tick(two(1.1f, 1.3f), born);
+    pair.tick(two(1.3f, 1.5f), born + 40);
+    assert(pair.sparks.size() == 6);
+    assert(std::ranges::count_if(pair.sparks, [](const ClientSpark& spark) { return spark.shot.x == 1.3f; }) == 3);
+    pair.tick(two(1.3f, 1.7f), born + 80);
+    assert(pair.sparks.size() == 9);
+    assert(std::ranges::count_if(pair.sparks, [](const ClientSpark& spark) { return spark.shot.x == 1.7f; }) == 3);
 }
 
 }  // namespace
