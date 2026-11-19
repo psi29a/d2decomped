@@ -384,10 +384,9 @@ unit. The first that passes is set as the player's path target
 In 1.14d's Skills.txt SearchEnemyXY is on Attack, Kick, Left Hand Swing and
 the class melee skills (Jab, Bash, Smite, Zeal, Dragon Claw, Maul and the
 rest; 49 rows, 35 of them class skills), so a shift-click at the ground beside a monster swings at
-it. SearchEnemyNear (`FUN_00467490`: the nearest unit to the click under
-10 by `FUN_006417f0`, max + min / 2, that `FUN_00466870(0,0)` passes) is on
-Raise Skeleton, Corpse Explosion, Psychic Hammer, Fist of the Heavens,
-Taunt and the other corpse skills.
+it. SearchEnemyNear (`FUN_00467490`, below) is on Raise Skeleton, Corpse
+Explosion, Psychic Hammer, Fist of the Heavens, Taunt and the other corpse
+skills.
 
 Oracle: `tools/emu/search_enemy_xy.py` runs `FUN_00467660` and everything
 under it but the hooks its docstring lists, on generated rooms (units of
@@ -398,6 +397,52 @@ without the unit bits); `tests/test_search_enemy_xy.cpp` gives d2d's
 no difference). d2d: `Town::shift_pick` (apps/d2d/town/input.cpp) runs it on
 a click with stand still held and no unit under the cursor, with the units'
 own bits from the players' and live monsters' collision shapes.
+
+**`FUN_00467490` (SearchEnemyNear)** (EAX the skill row, the skill, the
+target, &x, &y on the stack; ret 0x10; `.\GAME\Select.cpp` 0x301):
+
+1. A target: with TargetCorpse (+7 & 1, 0x6ce268) and dead
+   (`FUN_00464820`) it is returned, x and y untouched. Else x, y become its
+   subtile (`FUN_006488c0` / `FUN_00648900`, or a static path's +0xc / +0x10).
+2. The mask: 0x2003, or 0x3002 with TargetCorpse (`neg`, `sbb`, `and 0xfff`,
+   `add 0x2003` at 0x467524). The skill id (`FUN_00643ce0`: the row's first
+   word) 0x5a, Iron Golem: a target item (type 4) of a base with Items
+   bitfield1 & 2 (`FUN_00629cc0`) is returned; else the mask is 0x20 and the
+   filter `LAB_00467470` (ECX the unit: an item that `FUN_00629cc0` passes).
+3. The unit finder from the local player's room (`FUN_004646a0`), x, y and
+   size 9 (`FUN_0065a950`), the mask also at its +0x14 (0x4675c2), run by
+   `FUN_0065ac70`: the room alone when the square of 9 round x, y lies inside
+   it (`FUN_0065a6b0`), else its near list, rooms of a town skipped when the
+   mask has 0x2000 (`FUN_0061ab00`: room +0x10 → +0x58 → level +0x1d0, then
+   `FUN_006426a0`: 1, 40, 75, 103, 109), every room passing `FUN_0065a710`
+   (bugs.md 23), each room's units from +0x74 (next +0xe8). A unit is kept by
+   the filter when there is one (Iron Golem), else by `FUN_0065aa40` with a
+   struct {mask, 0, the local player 0x7a6a70, x, y, 9}: dx² + dy² ≤ 81;
+   type 0 with mask 1, not mode 0 / 0x11 (0x1000: only 0x11), not the local
+   player; type 1 with mask 2, not mode 0 / 0xc (0x1000: only 0xc); types 2,
+   3, 4 need masks 0x10, 8, 0x20, which neither mask has.
+4. Of those, the one nearest x, y by `FUN_006417f0` (max + min / 2) under 10
+   for which `FUN_00466870(unit, 0, 0, 0)` holds (its `param_4` 0 returns 1
+   once the selectable tests pass, before the box test), the first of
+   equals (`jge`). None returns the target as it came (null for none).
+
+So the corpse skills take only corpses in mode 0xc (not one still falling,
+mode 0), the others only live players and monsters, nothing in town but
+Iron Golem's metal items, and a target is itself a candidate at distance 0.
+In 1.14d's Skills.txt SearchEnemyNear is on Raise Skeleton, Corpse
+Explosion, Raise Skeletal Mage, Poison Explosion, Attract, Bone Prison, Iron
+Golem, Revive, Fist of the Heavens, Find Potion, Taunt, Find Item, Grim
+Ward, Psychic Hammer, Dragon Flight and the monster rows SkeletonRaise,
+VampireRaise, Resurrect, Resurrect2 and NihlathakCorpseExplosion.
+
+Oracle: `tools/emu/search_enemy_near.py` runs `FUN_00467490` and the finder
+natively on generated rooms (the hit test and `FUN_00629cc0` hooked to the
+case's answers); `tests/test_search_enemy_near.cpp` gives d2d's
+`rules::search_enemy_near` the same cases (fixture
+`search_enemy_near_cases.inc`, 2000; `gen 20000 3`: 20000 cases, 9571
+picks, no difference). d2d: `Town::near_pick` (apps/d2d/town/input.cpp) on
+each cast of such a skill from the mouse, with the client's monsters (and
+for Iron Golem its ground items) in view order.
 
 Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, and the order
 of units across near rooms in `FUN_00641cb0` (the oracle puts all of them

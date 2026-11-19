@@ -84,16 +84,19 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
         // A hand's skill at the cursor, at `unit` or the ground (-1): the press's FUN_004629a0 (left) /
         // FUN_00462ba0 (right), and a held frame's FUN_00462a20 / FUN_00462c20, all into FUN_004625b0.
-        // With no unit there and shift (stand still) held, the skill's own search may name one
-        // first (FUN_004621d0 -> FUN_00467880: shift_pick); the command says shift was held.
+        // The skill's own search may name one first (FUN_004621d0 -> FUN_00467880): SearchEnemyNear
+        // on any click, and it alone (near_pick); else with no unit there and shift (stand still)
+        // held SearchEnemyXY (shift_pick), then SearchOpenXY. The command says shift was held.
         const auto use_hand = [&](bool left, int unit) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
-            if (unit < 0 && stand) unit = shift_pick(skill);
             float at_x = world_x, at_y = world_y;
-            if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
-                std::tie(at_x, at_y) = *spot;
-                unit = -1;
+            if (!near_pick(skill, unit, at_x, at_y)) {
+                if (unit < 0 && stand) unit = shift_pick(skill);
+                if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
+                    std::tie(at_x, at_y) = *spot;
+                    unit = -1;
+                }
             }
             out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
         };
@@ -162,7 +165,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 // ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0: mana, the weapon), a
 // walking player faces its path's target there (FUN_006238c0), the units go in the near rooms'
 // list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
-// press flag 2 that also asks for the search and SearchEnemyNear (FUN_00467490) aren't made.
+// press flag 2 that also asks for the search isn't made.
 auto Town::shift_pick(int skill) const -> int {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_xy) return -1;
@@ -197,14 +200,58 @@ auto Town::shift_pick(int skill) const -> int {
         return pick < 0 ? -1 : view.monsters[std::size_t(pick)].id;
     }
 
+// A SearchEnemyNear skill (Raise Skeleton, Corpse Explosion, Iron Golem, Psychic Hammer, Fist of the
+// Heavens, Taunt...): game.exe's client takes the unit nearest the click under 10 (FUN_00467880 ->
+// FUN_00467490, rules::search_enemy_near; cursor-units.md "The skill's own target search"), from
+// the target monster's subtile when there is one: a live monster, or with a TargetCorpse skill a
+// corpse in DD; Iron Golem a ground item of a metal base (Items bitfield1 & 2), at any distance.
+// None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
+// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0) and not on a held frame of
+// a walking player (FUN_00622d00); the units go in view order, not the near rooms' list order
+// (FUN_0065ac70), so equals tie apart; other players aren't among them (two players without the
+// hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
+// target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
+// as a spot: the World neither names nor takes it.
+auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
+        constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
+        const auto* info = scene ? scene->skills.get(skill) : nullptr;
+        if (!info || !info->search_enemy_near) return false;
+        const auto subtile = [](d2d::game::Fine fine) { return int(fine.raw >> 16); };
+        const auto cell_subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        const int level_id = level ? level->id : 0;
+        const bool iron_golem = skill == kIronGolemSkill;
+        std::vector<d2d::rules::NearUnit> units;
+        units.reserve(view.monsters.size() + (iron_golem ? view.ground.size() : 0));
+        for (const auto& monster : view.monsters) {
+            const bool alive = monster.alive();
+            const int mode = alive ? 1 : monster.mode == "DD" ? 0xc : 0;
+            const bool hit = !monster.ally_not_interact(*scene, level_id) && (alive ? monster.targetable() : info->target_corpse && monster.usable_corpse());
+            units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
+        }
+        if (iron_golem)
+            for (const auto& ground : view.ground) {
+                const auto base = scene->rules.item_base.find(ground.item.code);
+                const bool metal = base != scene->rules.item_base.end() && (base->second.bitfield1 & 2) != 0;
+                units.push_back({ 4, cell_subtile(ground.x), cell_subtile(ground.y), 0, false, true, metal });
+            }
+        int spot_x = cell_subtile(at_x), spot_y = cell_subtile(at_y);
+        const int pick = d2d::rules::search_enemy_near(info->target_corpse, iron_golem, d2d::rules::level_ids::is_town(level_id), -1, view.monster(unit),
+                                                       spot_x, spot_y, units);
+        if (pick < 0) return true;
+        const auto& found = units[std::size_t(pick)];
+        unit = std::size_t(pick) < view.monsters.size() ? view.monsters[std::size_t(pick)].id : -1;
+        at_x = (float(found.x) + 0.5f) / 5;
+        at_y = (float(found.y) + 0.5f) / 5;
+        return true;
+    }
+
 // A SearchOpenXY skill (Fire Wall, Meteor, Blizzard, Eruption, Volcano) cast at a wall: game.exe's
 // client moves it to the nearest subtile without bit 1 within 7 and drops the target for the
 // ground (FUN_00467880 -> FUN_004677b0, game::search_open_xy; cursor-units.md "The skill's own
 // target search"). From the target monster's subtile, else the click's. The spot's centre, or none.
 // ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0) and not on a held frame
 // of a walking player (flags 8 and 1 without shift, FUN_00622d00); a dead target becomes the
-// ground first unless the skill is TargetCorpse (FUN_00466de0); the monster skills with
-// SearchEnemyNear too (Resurrect, SkeletonRaise) would take FUN_00467490 instead.
+// ground first unless the skill is TargetCorpse (FUN_00466de0).
 auto Town::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_open_xy || !level) return std::nullopt;
