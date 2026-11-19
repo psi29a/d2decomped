@@ -588,8 +588,8 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
 // Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
 // The foe2 poisoned (state 2: its poison running), the pet under
 // Decrepify (0x3c), the owner's life / mana in 256ths.
-// ponytail: no pet is ever in Fenris's rage (0x8a: its rage's effect isn't
-// traced, pet_cast); Blade Sentinel isn't summoned, so its think doesn't run.
+// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel isn't
+// summoned, so its think doesn't run.
 // The Shadows: the Warrior's scene and the Master's think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
@@ -699,6 +699,11 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.skill_mode = scene.mode1;
         // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
         if (const auto* curse = game_data->skills.get(pet.curse.skill); curse && now_ms < pet.curse.until) scene.slowed = curse->auratarget == "decrepify";
+        // State 0x8a is fenris_rage: Fenris Rage's buff (pet_cast).
+        scene.raging = std::ranges::any_of(pet.buffs, [&](const SelfState& buff) {
+            const auto* row = game_data->skills.get(buff.skill);
+            return row && row->aurastate == "fenris_rage" && now_ms < buff.until;
+        });
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
@@ -998,9 +1003,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // pet.target or its spot): a trap's or the Hydra's shot, the Death
 // Sentry's corpse blast, Poison Creeper's poison, the cycle vines eating a
 // corpse (their skill's Param5 % of the owner's max life / mana), a wolf's
-// Teleport, Fenris eating a corpse, the Grizzly's Maul (a blow).
-// ponytail: Vine Attack and the cyclers (do 130, st 63) and Fenris's rage
-// as their published effects, not traced.
+// Teleport, Fenris Rage (do 137), the Grizzly's Maul (a blow).
+// ponytail: Vine Attack and the cyclers (do 130, st 63) as their
+// published effects, not traced.
 // Blade Shield's strike (do 54, a periodic skill every perdelay frames:
 // FUN_005d7e10 -> FUN_005d7ce0, each unit by FUN_005d7c40): every monster
 // within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
@@ -1179,7 +1184,20 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             }
             return;
         }
-        if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }   // Fenris eats the corpse
+        // Fenris Rage (do 137, FUN_005d26f0): a corpse it may raise (FUN_00645590:
+        // DD, not used) is used up (state 0x68), and the skill's aurastate goes on
+        // Fenris (FUN_00570590): fenris_rage (0x8a) for auralen frames (par1, 500)
+        // with its damagepercent (par2, 100), which pet_strike adds to its blows.
+        if (skill->srvdofunc == ServerDoFunction::kFenrisRage) {
+            if (target < 0 || alive || !monsters[std::size_t(target)].usable_corpse()) return;
+            monsters[std::size_t(target)].corpse_used = true;
+            const int len = calc(*skill, skill->auralen, 1);
+            std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill->id; });
+            pet.buffs.push_back({ skill->id, 1, len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u });
+            pet_buffs(pet);
+            return;
+        }
+        if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
             pet_strike(pet, std::size_t(target), d2d::rules::player_blow(d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
                                                                          target_of(std::size_t(target)), monster.stats.level, rng), now_ms);

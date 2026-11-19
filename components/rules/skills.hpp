@@ -387,6 +387,7 @@ enum class ServerDoFunction : int {
     kSiegeBeastStomp = 134,        // FUN_005d2320: needs a srvmissilea, row 301 has none: nothing
     kMinionSpawner = 135,          // FUN_005d2490: what its start picked (FUN_0056e620), made through FUN_005b2f20
     kDeathMaul = 136,              // FUN_005d25b0: srvmissilea at the target's spot, its range by the distance
+    kFenrisRage = 137,             // FUN_005d26f0: a corpse used up, the aurastate on the caster
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kBaalCorpseExplode = 141,      // FUN_005d2e80: the corpses about the caster spent (baal_corpse_spent)

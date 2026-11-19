@@ -254,6 +254,13 @@ path test (`rules::path_found`) as the merc does.
   state 0x8a; with a foe and +0x14 clear only rand(100) under aip3): a
   corpse within 10 of the owner (`FUN_005d2f80`) under aip4 / 2 off, in
   melee Skill1 at it; out of melee a run at it (+0x14 1, +0x18 its id).
+  Skill1 is fenris rage (Skills.txt 314, srvdofunc 137, `FUN_005d26f0`):
+  the caster's +0xc4 gets 0x40; the unit cast at (`FUN_00553540`), if
+  `FUN_00645590` passes (a corpse in DD it may raise), takes state 0x68
+  (used) and `FUN_0064c040`, and the skill's aurastate (+0x80,
+  fenris_rage, state 0x8a) goes on Fenris through `FUN_00570590`: auralen
+  par1 (500 frames) with damagepercent par2 (100). d2d: `Fight::pet_cast`
+  (a buff), `PetScene::raging`.
 - **DruidBear** (`0x5ed730`): over 50 mode 3, over 28 mode 0 pace 100, over
   18 after the moving owner. The foe within 28 with a clear line (or by
   gap). Out of melee a walk at it (rand(100) under aip2 at the pet's pace,
