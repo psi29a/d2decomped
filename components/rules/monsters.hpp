@@ -434,9 +434,11 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     stats.prime_evil = type_info.prime_evil;
     if (type_info.align != 0) players = 1;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
+    // A MonStats Level of 0 is kept (stat 0xc as read, FUN_00573cb0 0x573e18..0x573e70)
+    // and its life, defence and experience rolled at MonLvl row 0 (all 1s).
     const int base_level = start_level(type_info, difficulty_index, area_level);
-    const int spawn_level = std::max(base_level, 1);
-    stats.level = std::max(base_level + level_add, 1);
+    const int spawn_level = std::max(base_level, 0);
+    stats.level = std::max(base_level + level_add, 0);
     if (monsters.lvl.empty()) return stats;
     // Life, defence and experience are read once, at the MonStats level
     // (FUN_00573cb0); leveladd (FUN_005a0e40) raises only the level stat

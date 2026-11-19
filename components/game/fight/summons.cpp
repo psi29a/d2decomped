@@ -199,7 +199,18 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
-        monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its MonStats Level (FUN_005b2f20 -> FUN_005b2a00; the stat init FUN_00573cb0)
+        // Revive (do 58, FUN_005c56c0) raises the corpse itself (FUN_00553540: the unit cast at), so it keeps
+        // what it was made with (its level, damage, defence, to-hit, MonProp stats) and its own unit seed;
+        // the rest are spawned at their MonStats Level (FUN_005b2f20 -> FUN_005b2a00; the stat init FUN_00573cb0).
+        const bool raised = skill.srvdofunc == ServerDoFunction::kRevive && corpse >= 0;
+        if (raised) {
+            const auto& body = monsters[std::size_t(corpse)];
+            monster.stats = body.stats;
+            monster.props = body.props;
+            monster.seed = body.seed;
+        } else {
+            monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);
+        }
         // Its life and damage straight from MonStats' columns (a Raise
         // Skeleton skeleton: 21 life, 1-2 damage in Normal; 30 / 42 in
         // Nightmare / Hell), not scaled by MonLvl: every player summon's row
@@ -213,13 +224,10 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // Revive (do 58, FUN_005c56c0) raises the corpse itself: a life rolled
         // at the corpse's level and, above the owner's, MulDiv'd down with
         // the level to the owner's (rules::revive_life).
-        // ponytail: its other stats are the type's at its MonStats level here, not the corpse's own (the same unit in
-        // game.exe), and the roll is Fight::rng, not the corpse's unit seed (deviations.md approximation 18). A corpse
-        // whose start level is its MonStats Level of 0 is level 0 in game.exe (stat 0xc as read, FUN_00573cb0
-        // 0x573e18..0x573e70: rolled at MonLvl row 0, kept at 0) but 1 in monster_stats (rolled at row 1, kept at 1).
+        // The roll is on the corpse's own unit seed (FUN_0045c3e0 on +0x20), which the pet keeps.
         const bool revive = skill.srvdofunc == ServerDoFunction::kRevive;
-        const int corpse_level = revive && corpse >= 0 ? monsters[std::size_t(corpse)].stats.level : monster.stats.level;
-        const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, rng) : d2d::rules::RevivedLife{};
+        const int corpse_level = monster.stats.level;
+        const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, raised ? monster.seed : rng) : d2d::rules::RevivedLife{};
         if (!revive) {
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
             monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);

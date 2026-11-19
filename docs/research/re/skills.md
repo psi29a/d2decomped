@@ -1415,7 +1415,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
   15 frames on) and swaps no AI (no FUN_005b0e00). d2d runs a stand-in
   (`Fight::pets_turn`'s untraced branch): monster thinks don't take
-  monsters as targets yet.
+  monsters as targets yet. Being the same unit, it keeps every stat it was
+  made with (its level, damage, defence, to-hit, MonProp stats: an
+  expansion Nightmare or Hell corpse's are its area's level's) and its
+  unit seed, which the life roll steps. d2d: `Fight::summon_one` copies
+  the corpse's `stats`, `props` and `seed`. A MonStats Level of 0 stays 0
+  (`FUN_00573cb0` 0x573e18..0x573e70: MonLvl row 0, all 1s), in
+  `rules::monster_stats` too.
 - Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
   owner's max life x calc3 / 100 (FUN_00483360) before FUN_005c4470's calc1
   %; the owner's level (0x5dc144), then FUN_005c49e0's with the skill level
