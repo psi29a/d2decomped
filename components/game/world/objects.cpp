@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
