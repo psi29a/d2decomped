@@ -842,6 +842,23 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
 // heals its level in life; then it casts MonTeleport (0xb8) at the spot
 // (FUN_005dead0 command 4) and true. No heal under state 0x34
 // (Prevent Monster Heal), its roll still drawn.
+// FUN_0054dc40 with no unit: 20 tries, each rand(width) then rand(height) on
+// the room's seed (+0x6c) inside the room's subtiles less its first row and
+// column, the first where FUN_005b2f20 places the type at radius -1.
+std::optional<std::pair<int, int>> room_free_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play,
+                                                  int type, int room) {
+    const auto rect = room < 0 ? std::nullopt : level_room(level, std::size_t(room));
+    if (!rect || !rooms_in_play || std::size_t(room) >= rooms_in_play->room_seeds.size()) return std::nullopt;
+    const int left = rect->x * 5 + 1, top = rect->y * 5 + 1, width = (rect->x + rect->width) * 5 - left, height = (rect->y + rect->height) * 5 - top;
+    for (int tries = 0; tries < 20; ++tries) {
+        auto& room_seed = rooms_in_play->room_seeds[std::size_t(room)];
+        const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
+        int at_x = 0, at_y = 0;
+        if (spawn_spot(game_data, level, crowd, rooms_in_play, type, try_x, try_y, -1, room, at_x, at_y)) return std::pair{ at_x, at_y };
+    }
+    return std::nullopt;
+}
+
 bool teleport_mod(const GameData& game_data, const Level& level, Monster& monster, int distance, const Crowd& crowd, Spawning::LevelState* rooms_in_play, std::uint32_t now_ms) {
     if ((monster.boss != d2d::rules::Boss::unique && monster.boss != d2d::rules::Boss::superunique) || !std::ranges::contains(monster.mods, d2d::rules::umod::teleport)
         || monster.seed.next() % 100 >= 40) return false;
@@ -851,25 +868,17 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
     if (!low && (melee || distance >= 10)) return false;
     if (monster.seed(100) >= 15) return false;
     const int teleport = skill_id(game_data, "MonTeleport");
-    const int room = room_of(level, monster.unit.x, monster.unit.y);
-    const auto rect = room < 0 ? std::nullopt : level_room(level, std::size_t(room));
-    if (teleport < 0 || !rect || !rooms_in_play || std::size_t(room) >= rooms_in_play->room_seeds.size()) return false;
-    const int left = rect->x * 5 + 1, top = rect->y * 5 + 1, width = (rect->x + rect->width) * 5 - left, height = (rect->y + rect->height) * 5 - top;
-    for (int tries = 0; tries < 20; ++tries) {
-        auto& room_seed = rooms_in_play->room_seeds[std::size_t(room)];
-        const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
-        int at_x = 0, at_y = 0;
-        if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
-        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
-        monster.skill = teleport;
-        monster.skill_sound = teleport;
-        monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
-        monster.unit.walking = false;
-        set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
-        monster.struck = false;
-        return true;
-    }
-    return false;
+    if (teleport < 0) return false;
+    const auto spot = room_free_spot(game_data, level, crowd, rooms_in_play, monster.type, room_of(level, monster.unit.x, monster.unit.y));
+    if (!spot) return false;
+    if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
+    monster.skill = teleport;
+    monster.skill_sound = teleport;
+    monster.skill_x = spot->first; monster.skill_y = spot->second; monster.at_point = true;
+    monster.unit.walking = false;
+    set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
+    monster.struck = false;
+    return true;
 }
 
 }  // namespace
@@ -1096,6 +1105,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // young come out on spawnx / spawny off (FUN_005fd350 tests crownest's only).
     input.frame = frame; input.state2 = &monster.ai_state2;
     input.spot_free = nest_spot_free(game_data, level, crowd, monster.type, x, y, false);
+    input.room_spot = [&] { return room_free_spot(game_data, level, crowd, rooms_in_play, monster.type, room_of(level, monster.unit.x, monster.unit.y)); };   // Baal's teleport
     input.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
     input.off_x = target_x - x; input.off_y = target_y - y;
     int pace = 0;

@@ -1394,6 +1394,10 @@ struct ThinkIn {
     int self_x = 0, self_y = 0, target_x = 0, target_y = 0;
     bool same_room = true, can_land = false, victim = false, grouped = false;
     std::array<std::optional<std::pair<int, int>>, 2> free_spot{};
+    // Baal's teleport spot (FUN_0054dc40 with no unit: 20 tries at random in
+    // his room on its seed, each FUN_005b2f20 at radius -1), asked only when
+    // act 14 is chosen; none (or no callback): no spot.
+    std::function<std::optional<std::pair<int, int>>()> room_spot;
     // The curse thinks' (special AI 10 / 11): it can swing (an A1 mode,
     // FUN_0046c140 bit 4, and not interact, MonStats flag 9), it has an RN
     // mode (bit 15), Terror's state (0x38) is on it. The other thinks': the
