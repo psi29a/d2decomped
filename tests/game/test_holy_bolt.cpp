@@ -11,6 +11,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
@@ -91,7 +92,7 @@ int main() try {
     assert(world.actor->pets.back().monster.life_fine() == world.fight.monsters.back().life_fine());
     const int healing = data->overlay_row(bolt->second.prog_overlay);   // ProgOverlay (+0x36) on the healed unit, a one-shot
     assert(bolt->second.prog_overlay == "healing" && healing > 0);
-    assert(world.fight.monsters.back().flash_overlay == healing && world.fight.monsters.back().flash_at == 1000);
+    assert(!world.fight.monsters.back().one_shots.empty() && (world.fight.monsters.back().one_shots[0] == d2d::rules::OneShot{ healing, 1000 }));
 
     world.actor->pets.clear();
     world.fight.monsters.back().hit_points = 10;

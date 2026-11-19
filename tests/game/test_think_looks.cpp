@@ -10,6 +10,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -52,7 +53,7 @@ int main() try {
     for (int tick = 0; tick < 3000 && !(flashed && red); ++tick, now += 40) {
         monster.hit_points = monster.stats.hit_points;           // never hurt: no walk to its kin
         monster_update(*data, open, monster, foes, rng, now, 0.04f, crowd, missiles, pack);
-        if (monster.flash_overlay == 0x2e && monster.flash_at == now) { flashed = true; assert(monster.ai_state == 18 && !(monster.looks & 2)); }
+        if (!monster.one_shots.empty() && monster.one_shots[0] == d2d::rules::OneShot{ 0x2e, now }) { flashed = true; assert(monster.ai_state == 18 && !(monster.looks & 2)); }
         if (monster.looks & 2) { red = true; assert(flashed && (monster.looks & 1) == 0); }
     }
     assert(flashed && red);

@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -742,7 +743,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const int amount = (missile.seed ? (*missile.seed)(span) : 0) + (low_points << 8);
                 const int overlay = game_data->overlay_row(missile_info.prog_overlay);
                 const auto mend = [&](Monster& monster, int added) {
-                    if (overlay > 0) { monster.flash_overlay = overlay; monster.flash_at = now_ms; }
+                    if (overlay > 0) d2d::rules::add_one_shot(monster.one_shots, overlay, now_ms);
                     if (added <= 0) return;
                     int life = monster.life_fine() + added;
                     const int cap = monster.max_life_fine();

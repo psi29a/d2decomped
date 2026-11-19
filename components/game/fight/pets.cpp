@@ -966,7 +966,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                               ? kMonsterModes[std::size_t(act.mode)] : "A1";
             monster.next_act = now_ms + std::uint32_t(std::max(act.frames, 0)) * 40;
             if (const auto* started = game_data->skills.get(pet.cast))         // its castoverlay (FUN_004c6140)
-                start_cast_overlay(*started, false, monster.flash_overlay, monster.flash_at, now_ms);
+                start_cast_overlay(*started, false, monster.one_shots, now_ms);
             if (!game_data->npc_timing(monster.npc, mode).directions) {   // no frames for it (a trap): at once
                 if (pet.cast >= 0) pet_cast(pet, now_ms, crowd);
                 pet.cast = -1;

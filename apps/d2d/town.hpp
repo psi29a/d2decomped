@@ -134,10 +134,12 @@ inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::
         if (state.cast) unit.overs.push_back({ state.cast, start, true });
     }
 }
-// A one-shot overlay (FUN_00621e40: an Overlay.txt row, -1 none) played
-// once from `start`.
-inline void flash(const Scene& scene, Unit& unit, int row, std::uint32_t start) {
-    if (row >= 0 && std::size_t(row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(row)]) unit.overs.push_back({ scene.overlay_rows[std::size_t(row)], start, true });
+// The unit's one-shot overlays (rules::OneShots: Overlay.txt rows), each
+// played once from its start, together.
+inline void flash(const Scene& scene, Unit& unit, const d2d::rules::OneShots& shots) {
+    for (const auto& shot : shots)
+        if (shot.row >= 0 && std::size_t(shot.row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(shot.row)])
+            unit.overs.push_back({ scene.overlay_rows[std::size_t(shot.row)], shot.start, true });
 }
 // The states on a monster and on the player, by States.txt name.
 inline std::vector<std::string_view> monster_states(const Scene& scene, const Monster& monster, std::uint32_t now, int player_aura = 0) {

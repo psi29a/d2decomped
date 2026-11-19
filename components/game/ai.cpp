@@ -16,6 +16,7 @@
 #include <mon_equip.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <pets.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -1212,7 +1213,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             const auto bit = std::uint8_t(effect.id == 0x5a ? 1 : 2);
             monster.looks = effect.value ? std::uint8_t(monster.looks | bit) : std::uint8_t(monster.looks & ~bit);
         }
-        if (effect.kind == d2d::rules::ThinkEffect::overlay) { monster.flash_overlay = effect.id; monster.flash_at = now_ms; }
+        if (effect.kind == d2d::rules::ThinkEffect::overlay) d2d::rules::add_one_shot(monster.one_shots, effect.id, now_ms);
         if (effect.kind == d2d::rules::ThinkEffect::command_done) monster.ai_command = 0;
         if (effect.kind == d2d::rules::ThinkEffect::unset) monster.set_kind = 0;   // FUN_00573120
         if (effect.kind == d2d::rules::ThinkEffect::state && effect.id == 0xc && !effect.value) monster.breath_state = false;   // FUN_00639db0(0xc, 0)
@@ -2099,12 +2100,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // calc1 (at least 1) frames on; srvoverlay curseattract on it. The
                     // unit is its path's (+0x58, FUN_00553540): the think's second
                     // target, which `use` made the foe; its overlay (row > 0,
-                    // FUN_00621e40) a monster's flash_overlay, else Foe::flashed.
+                    // FUN_00621e40) a monster's one_shots, else Foe::flashed.
                     const auto& rows = game_data.overlay_rows;
                     const auto named = game_data.overlays.find(cast->srvoverlay);
                     if (const auto row = named == game_data.overlays.end() ? rows.end() : std::ranges::find(rows, &named->second); row > rows.begin() && row != rows.end()) {
                         const int overlay = int(row - rows.begin());
-                        if (foe.of && foe.of >= pack.data() && foe.of < pack.data() + pack.size()) { auto& hit = pack[std::size_t(foe.of - pack.data())]; hit.flash_overlay = overlay; hit.flash_at = now_ms; }
+                        if (foe.of && foe.of >= pack.data() && foe.of < pack.data() + pack.size()) { d2d::rules::add_one_shot(pack[std::size_t(foe.of - pack.data())].one_shots, overlay, now_ms); }
                         else foe.flashed = overlay;
                     }
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1);

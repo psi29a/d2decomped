@@ -20,6 +20,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
+#include <overlays.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -147,6 +148,17 @@ inline void monster_look(In& input, Monster& monster) {
     monster.difficulty = std::clamp(int(input.get<std::uint8_t>()), 0, 2);
     for (auto& resist : monster.boss_res) resist = input.get<std::int32_t>();
 }
+// One-shot overlays (rules::OneShots): a count, then {row, start} each.
+inline void one_shots(Out& out, const d2d::rules::OneShots& list) {
+    const auto count = std::min<std::size_t>(list.size(), 255);
+    out.u8(int(count));
+    for (std::size_t k = 0; k < count; ++k) out.i32(list[k].row).u32(list[k].start);
+}
+inline d2d::rules::OneShots one_shots(In& input) {
+    d2d::rules::OneShots list(input.get<std::uint8_t>());
+    for (auto& shot : list) { shot.row = input.get<std::int32_t>(); shot.start = input.get<std::uint32_t>(); }
+    return list;
+}
 inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
     unit(out, monster.unit);
@@ -154,7 +166,7 @@ inline void monster_state(Out& out, const Monster& monster) {
     out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
     for (const int cut : monster.res_cut) out.i32(cut);   // the hover's immunity lines (Fight::target_of)
     out.u8(monster.align).u8(monster.rising);   // a converted one: no hover, no pick (Monster::ally_not_interact); a Horde in its rise's S1: not targetable
-    out.i32(monster.flash_overlay).u32(monster.flash_at);   // its one-shot overlay (a think's, a cast's)
+    one_shots(out, monster.one_shots);   // its one-shot overlays (its thinks', its casts')
 }
 inline void monster_state(In& input, Monster& monster) {
     monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
@@ -170,7 +182,7 @@ inline void monster_state(In& input, Monster& monster) {
     for (auto& cut : monster.res_cut) cut = input.get<std::int32_t>();
     monster.align = input.get<std::uint8_t>();
     monster.rising = input.get<std::uint8_t>() != 0;
-    monster.flash_overlay = input.get<std::int32_t>(); monster.flash_at = input.get<std::uint32_t>();
+    monster.one_shots = one_shots(input);
 }
 }  // namespace wire
 
@@ -188,7 +200,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::Out chunk;
         wire::unit(chunk, view.player);
         chunk.u8(view.running).u8(view.dead).u8(view.poisoned).u8(view.chilled).u8(view.stamina_blue).u8(view.stamina_shrine).i32(view.life_preview).i32(view.mana_preview).i32(view.curse).u8(view.stunned).i32(view.pmode).f32(view.prate).i32(view.walk_percent).u32(view.seq_frame_ms).u8(view.seq_loop);
-        chunk.i32(view.flash_overlay).u32(view.flash_at);   // its one-shot overlay (a cast's: FUN_004c6140)
+        wire::one_shots(chunk, view.one_shots);   // its one-shot overlays (its casts': FUN_004c6140)
         chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (town/draw.cpp, FUN_00463390)
         chunk.u16(int(view.seq.size()));
         for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
@@ -196,7 +208,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         std::string merc_type;
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
-        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr).i32(view.merc->flash_overlay).u32(view.merc->flash_at); }
+        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); wire::one_shots(chunk, view.merc->one_shots); }
         chunk.u8(view.merc_sheet.has_value());             // the Hireling screen's numbers
         if (const auto& sheet = view.merc_sheet) {
             chunk.i32(sheet->level).i32(sheet->str).i32(sheet->dex).i32(sheet->min).i32(sheet->max).i32(sheet->defense).i32(sheet->life).i32(sheet->max_life).i32(sheet->cls);
@@ -230,7 +242,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::Out chunk;
         for (const auto* pets : { &view.pets, &view.party_pets }) {
             chunk.u16(int(pets->size()));
-            for (const auto& pet : *pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life).i32(pet.flash_overlay).u32(pet.flash_at); }
+            for (const auto& pet : *pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life); wire::one_shots(chunk, pet.one_shots); }
         }
         chunk.u16(int(view.others.size()));
         for (const auto& other : view.others) {
@@ -239,7 +251,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
             for (const auto look_byte : other.gfx) chunk.u8(look_byte);
             chunk.u16(int(other.states.size()));
             for (const auto state : other.states) chunk.str(state);
-            chunk.u8(other.ghost).i32(other.walk_percent).i32(other.flash_overlay).u32(other.flash_at);
+            chunk.u8(other.ghost).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
         }
         chunk.u8(view.ghost).u8(view.all_dead).u16(int(view.bodies.size()));
         for (const auto& body : view.bodies) {
@@ -414,7 +426,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
     body([&] {
         view.player = wire::unit(input);
         view.running = byte(); view.dead = byte(); view.poisoned = byte(); view.chilled = byte(); view.stamina_blue = byte(); view.stamina_shrine = byte(); view.life_preview = i32(); view.mana_preview = i32(); view.curse = i32(); view.stunned = byte(); view.pmode = i32(); view.prate = f32(); view.walk_percent = i32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
-        view.flash_overlay = i32(); view.flash_at = u32();
+        view.one_shots = wire::one_shots(input);
         view.pmode_until = u32(); view.knocked = byte() != 0; view.fhr = i32();
         view.seq.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {
@@ -428,9 +440,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
             const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (town/view.cpp)
-            const int flash_overlay = i32();
-            const auto flash_at = u32();
-            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, flash_overlay, flash_at };
+            auto shots = wire::one_shots(input);
+            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, std::move(shots) };
         }
         view.merc_sheet.reset();
         if (byte()) {
@@ -473,9 +484,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
                 const auto mode = wire::intern(input.str());
                 const auto pettype = wire::intern(input.str());
                 const int life = input.get<std::uint8_t>();
-                const int flash_overlay = input.get<std::int32_t>();
-                const auto flash_at = input.get<std::uint32_t>();
-                pets->push_back({ std::move(npc), unit, mode, pettype, life, flash_overlay, flash_at });
+                auto shots = wire::one_shots(input);
+                pets->push_back({ std::move(npc), unit, mode, pettype, life, std::move(shots) });
             }
         }
         view.others.clear();
@@ -486,7 +496,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             for (auto& look_byte : other.gfx) look_byte = std::uint8_t(byte());
             for (int states = u16(); states > 0 && input.ok; --states) other.states.push_back(wire::intern(input.str()));
             other.ghost = byte() != 0; other.walk_percent = i32();
-            other.flash_overlay = i32(); other.flash_at = u32();
+            other.one_shots = wire::one_shots(input);
             view.others.push_back(std::move(other));
         }
         view.ghost = byte() != 0; view.all_dead = byte() != 0;

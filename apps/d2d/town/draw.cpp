@@ -254,7 +254,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                         cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnPlayer, hero.id), skill->prg_sound, frame_ms, view.player.x, view.player.y,
                                     state->second.rem_func == 4 ? owner : 0);
                 }
-        flash(*scene, player_look, view.flash_overlay, view.flash_at);
+        flash(*scene, player_look, view.one_shots);
         if (net_game)   // our own overhead text: the host sends it on our unit like another player's
             if (const auto own = net_said.find(net_game->self_id); own != net_said.end()) { player_look.says = own->second.string; player_look.said = own->second.text; }
         // A state gone plays its offsound once, where it was; one leaving the
