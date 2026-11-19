@@ -781,8 +781,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 const bool charged = !row->aurastate.empty() && (held != pet.charges.end() || buffed);   // in its aurastate: a buff on, or a charge-up's charges
                 bool target_in = false;                                      // the driver's target in its auratargetstate (its curse / cry's)
                 if (found >= 0 && !row->auratarget.empty())
-                    for (const auto* effect : { &monsters[std::size_t(found)].curse, &monsters[std::size_t(found)].cry })
-                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && effect_skill->auratarget == row->auratarget && now_ms < effect->until) target_in = true;
+                    for (const auto& effect : monsters[std::size_t(found)].curse_and_states())
+                        if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && effect_skill->auratarget == row->auratarget && now_ms < effect.until) target_in = true;
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
                                                             charged, target_in, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
@@ -861,8 +861,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 }
             for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
                 if (monster_of[k] >= 0)
-                    for (const auto* effect : { &monsters[std::size_t(monster_of[k])].curse, &monsters[std::size_t(monster_of[k])].cry })
-                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect->until)
+                    for (const auto& effect : monsters[std::size_t(monster_of[k])].curse_and_states())
+                        if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect.until)
                             for (const auto& [id, row] : master.rows)
                                 if (const auto* listed_row = game_data->skills.get(id); row.state2 > 0 && listed_row && listed_row->auratarget == effect_skill->auratarget) units[k].states.push_back(row.state2);
             for (const auto& buff : pet.buffs)                              // its self states' aurastates on it

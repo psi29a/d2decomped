@@ -772,14 +772,14 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         if (missile_info.hit_func == 18) return false;
         if (missile_info.hit_func == 21) {
             if (monsters[monster_index].curse.skill != skill->id || now_ms >= monsters[monster_index].curse.until)   // a curse state: put_state's curse slot
-                put_state(*game_data, monsters[monster_index], monsters[monster_index].cry,
+                put_state(*game_data, monsters[monster_index],
                           { skill->id, missile.level, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, missile.level), 1)) * 40 }, now_ms);
             return false;
         }
         if (missile_info.hit_func == 17) {
             const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
             if (auto& howled = monsters[monster_index]; howled.stats.level < clvl + skill->par[1] + missile.level && howled.alive() && swaps_ai(*game_data, howled)) {
-                put_state(*game_data, howled, howled.curse, { kTerror, 1, now_ms + std::uint32_t(std::max(skill->par[4] + (std::max(missile.level, 1) - 1) * skill->par[5], 1)) * 40 }, now_ms);
+                put_state(*game_data, howled, { kTerror, 1, now_ms + std::uint32_t(std::max(skill->par[4] + (std::max(missile.level, 1) - 1) * skill->par[5], 1)) * 40 }, now_ms);
                 ai_toggle(*game_data, howled, 11);
                 howled.next_act = now_ms + 40;
             }
@@ -1202,7 +1202,9 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
         // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
         // Armor's skill_armor_percent): their aurastats as the aura's.
-        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry, &monsters[monster_index].self_state })
+        std::vector<const Monster::SkillState*> effects{ &monsters[monster_index].curse, &monsters[monster_index].self_state };
+        for (const auto& held : monsters[monster_index].states) effects.push_back(&held);
+        for (const auto* effect : effects)
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).

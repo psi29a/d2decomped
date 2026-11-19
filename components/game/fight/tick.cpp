@@ -505,7 +505,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 // Its resists as the client reads them (FUN_004526c0: GetUnitStat, the states' stats in): the curse
                 // and this side's auras; two sides' Convictions are one state, so the deepest cut stands.
                 for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (auto& monster = monsters[i]; monster.alive() && (monster.in_aura || monster.curse.skill >= 0 || monster.cry.skill >= 0 || monster.self_state.skill >= 0)) {
+                    if (auto& monster = monsters[i]; monster.alive() && (monster.in_aura || monster.curse.skill >= 0 || !monster.states.empty() || monster.self_state.skill >= 0)) {
                         const auto base = monster.target(*game_data).res, now = target_of(i).res;
                         for (std::size_t k = 0; k < 6; ++k) monster.res_cut[k] = std::min(monster.res_cut[k], now[k] - base[k]);
                     }

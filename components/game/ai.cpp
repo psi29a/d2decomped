@@ -2140,7 +2140,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             d2d::log::info("{} whips a minion into a suicide minion", monster.npc.name);
                         } else if (whipped.alive()) {
                             const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 0);
-                            put_state(game_data, whipped, whipped.cry, { monster.skill, lvl, now_ms + std::uint32_t(frames) * 40 }, now_ms);
+                            put_state(game_data, whipped, { monster.skill, lvl, now_ms + std::uint32_t(frames) * 40 }, now_ms);
                             d2d::log::info("{} #{} whips {} #{} into a bloodlust ({} frames)", monster.npc.name, monster.id, whipped.npc.name, whipped.id, frames);
                         }
                     }
@@ -2164,10 +2164,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const float reach = shout == game_data.missiles.end() ? 0.f : missile_speed(shout->second, lvl) * float(shout->second.range) * 0.04f;
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 1);
                     const Monster::SkillState state{ monster.skill, lvl, now_ms + std::uint32_t(frames) * 40 };
-                    if (!cast->aurastate.empty()) put_state(game_data, monster, monster.cry, state, now_ms);
+                    if (!cast->aurastate.empty()) put_state(game_data, monster, state, now_ms);
                     for (auto& ally : pack)
                         if (&ally != &monster && ally.alive() && ally.align == monster.align && std::hypot(ally.unit.x - unit.x, ally.unit.y - unit.y) <= reach)
-                            put_state(game_data, ally, ally.cry, state, now_ms);
+                            put_state(game_data, ally, state, now_ms);
                     d2d::log::info("{} shouts ({} frames)", monster.npc.name, frames);
                 } else if (cast->srvdofunc == ServerDoFunction::kSiegeBeastStomp) {
                     // Siege Beast Stomp (do 134, FUN_005d2320): it needs a srvmissilea

@@ -726,7 +726,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             auto& turned = monsters[target];
             if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)
-                && put_state(*game_data, turned, turned.cry, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms)) {
+                && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms)) {
                 turned.align = 2; turned.set_kind = 0; turned.chase = -1;
                 if (const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel)); turned.stats.level > clvl && turned.own_level == 0) {
                     turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
@@ -970,7 +970,6 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                                      || (skill.srvdofunc == ServerDoFunction::kCurse && (skill.auratarget == "dimvision" || skill.auratarget == "terror"))))
                     length /= divisor;
                 const std::uint32_t until = now_ms + std::uint32_t(std::max(length, 25)) * 40;
-                const bool curse = skill.srvdofunc == ServerDoFunction::kCurse || skill.srvdofunc == ServerDoFunction::kConfuse || skill.srvdofunc == ServerDoFunction::kAttract;
                 const auto set = [&](Monster& monster, int kind, int id) {
                     if (game_data->monsters.types[std::size_t(monster.type)].switch_ai) monster.set_kind = kind, monster.set_id = id, monster.set_until = until;
                 };
@@ -980,7 +979,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     // Confuse (FUN_005c3d50): evil, hostile, alive, and FUN_0056e2f0's test.
                     if (skill.srvdofunc == ServerDoFunction::kConfuse && (monster.align || !monster.alive() || !swaps_ai(*game_data, monster))) return;
                     if (special && (monster.align == 1 || !swaps_ai(*game_data, monster))) return;
-                    if (!put_state(*game_data, monster, curse ? monster.curse : monster.cry, { skill.id, lvl, until, special != 0 }, now_ms)) return;
+                    if (!put_state(*game_data, monster, { skill.id, lvl, until, special != 0 }, now_ms)) return;
                     if (special) ai_toggle(*game_data, monster, special);
                     if (skill.srvdofunc == ServerDoFunction::kConfuse) { monster.align = 1; set(monster, 3, 0); }
                 };

@@ -353,12 +353,19 @@ struct Monster {
     int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
     // Skills' states on it (their auratargetstate): one curse state at a time
     // (Amplify Damage .. Lower Resist, Confuse, Attract, Battle Cry, Taunt,
-    // Cloak of Shadows' blindness, Bloodlust), one other (Inner Sight, Slow
-    // Missiles, Conversion, a monster's war cry).
+    // Cloak of Shadows' blindness, Bloodlust); the others (Inner Sight, Slow
+    // Missiles, Conversion, a monster's war cry) each in its own node, one a
+    // state (FUN_0056e970), so they don't take each other's place.
     // `swaps`: its end toggles the AI back (FUN_005c3370: Dim Vision's,
     // Terror's, Cloak of Shadows').
     struct SkillState { int skill = -1, level = 0; std::uint32_t until = 0; bool swaps = false; };
-    SkillState curse, cry;
+    SkillState curse;
+    std::vector<SkillState> states;
+    [[nodiscard]] std::vector<SkillState> curse_and_states() const {   // its curse, then its other states
+        std::vector<SkillState> all{ curse };
+        all.insert(all.end(), states.begin(), states.end());
+        return all;
+    }
     // MonFrenzy's state (FUN_005d8c70: "monfrenzy", its charges stat 0xa9
     // as the level, up to the skill's own): its aurastats as curse's.
     SkillState frenzy;
@@ -1304,9 +1311,9 @@ inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables
 }
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster in its slot, a curse state in the curse slot
-// whichever is named (FUN_0056e970), and a state's end (fight/).
-bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
+// A timed state on a monster: a curse state in its curse slot, any other in
+// its state's node (FUN_0056e970); and a state's end (fight/).
+bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components

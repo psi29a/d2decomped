@@ -163,7 +163,10 @@ inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
     unit(out, monster.unit);
     // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
-    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
+    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until);
+    out.u8(int(std::min<std::size_t>(monster.states.size(), 255)));
+    for (std::size_t k = 0; k < std::min<std::size_t>(monster.states.size(), 255); ++k) out.i32(monster.states[k].skill).u32(monster.states[k].until);
+    out.i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
     for (const int cut : monster.res_cut) out.i32(cut);   // the hover's immunity lines (Fight::target_of)
     out.u8(monster.align).u8(monster.rising);   // a converted one: no hover, no pick (Monster::ally_not_interact); a Horde in its rise's S1: not targetable
     one_shots(out, monster.one_shots);   // its one-shot overlays (its thinks', its casts')
@@ -173,7 +176,9 @@ inline void monster_state(In& input, Monster& monster) {
     monster.unit = unit(input);
     monster.poison_until = input.get<std::uint32_t>(); monster.chill_until = input.get<std::uint32_t>(); monster.stun_until = input.get<std::uint32_t>();
     monster.curse.skill = input.get<std::int32_t>(); monster.curse.until = input.get<std::uint32_t>();
-    monster.cry.skill = input.get<std::int32_t>(); monster.cry.until = input.get<std::uint32_t>(); monster.aura = input.get<std::int32_t>();
+    monster.states.resize(input.get<std::uint8_t>());
+    for (auto& held : monster.states) { held.skill = input.get<std::int32_t>(); held.until = input.get<std::uint32_t>(); }
+    monster.aura = input.get<std::int32_t>();
     monster.in_aura = input.get<std::uint8_t>() != 0;
     monster.buried = input.get<std::uint8_t>() != 0;
     monster.aloft = input.get<std::uint8_t>() != 0;

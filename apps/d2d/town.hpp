@@ -148,7 +148,7 @@ inline std::vector<std::string_view> monster_states(const Scene& scene, const Mo
     if (now < monster.poison_until) out.push_back("poison");
     if (now < monster.chill_until) out.push_back("cold");
     if (now < monster.stun_until) out.push_back("stunned");
-    for (const auto& effect : { monster.curse, monster.cry })
+    for (const auto& effect : monster.curse_and_states())
         if (effect.skill >= 0 && now < effect.until)
             if (const auto* skill = scene.skills.get(effect.skill)) out.push_back(skill->auratarget);
     if (monster.aura > 0)
