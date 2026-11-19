@@ -2032,7 +2032,7 @@ inline int books_row(const Tables& tables, const std::string& code, bool scroll)
 }
 
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6
-// rare, 7 unique; set/unique fall back to rare when none fits),
+// rare, 7 unique; a set / unique none fits is remade, below),
 // identified, with its defence and durability rolled.
 // A made drop (FUN_00558d90) passes its unit seed (+0x20): the base rolls
 // (FUN_00557ab0) come off it: arrows / bolts (ItemTypes Quiver) min +
@@ -2043,7 +2043,9 @@ inline int books_row(const Tables& tables, const std::string& code, bool scroll)
 // pick is its first draw. `found_uniques` is the game's one-per-game list
 // (+0x1b24): a unique found already fails (but a quest item's); one found
 // is added unless nolimit, a quest item too. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
-// A failed unique turns rare with 3x durability, a set 2x (FUN_00557450).
+// A failed unique gets 3x durability and is remade rare (magic when its
+// type can't be rare), a failed set 2x and magic (FUN_00557450); off its
+// own seed's start, each falls on to superior and normal as magic does.
 // With a unit seed (a made drop) the rest of FUN_00557ab0 / FUN_00557450
 // too, in its order: the picture (ItemTypes VarInvGfx) off the unit seed;
 // low (FUN_005c2d40): sub rand(4), durability dur*33/100, defence 75%;
@@ -2290,12 +2292,18 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
             item.quality = 7;
             return finish();
         }
-        if (item.max_durability > 0) {
+        if (has_durability()) {                            // FUN_00629930: durability, not nodurability (6hx has both), not indestructible
             const int times = quality == 7 ? 3 : 2;
             item.durability = std::min(item.durability * times, 255);
             item.max_durability = std::min(item.max_durability * times, 255);
         }
-        quality = 6;
+        // Remade (FUN_005573f0 rare after a unique, FUN_00557380 magic after
+        // a set or a rare that won't take): the affixes cleared, the own seed
+        // back to {start, 666} (FUN_00627e20, FUN_00650e40). FUN_005c21a0
+        // refuses a type that can't be rare (a charm), so that one goes magic.
+        rng = Rng(start);
+        item.qsub = -1;                                    // FUN_00557250: +0x28 to -1
+        quality = quality == 7 && item_type && item_type->can_rare ? 6 : 4;
     }
     const int magic_lvl = found != tables.item_base.end() ? found->second.magic_lvl : 0;
     const int alvl = affix_level(item.ilvl, qlvl, magic_lvl);

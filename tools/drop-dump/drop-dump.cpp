@@ -10,7 +10,8 @@
 // "seed code iilvl qquality[ cow]: seeds unit own gold N qty N dur N/N def
 // N pick N -> game seed low after". The one-per-game uniques carry on
 // from line to line. Low / normal / superior take a 6th field, the
-// difficulty, and print "seed code iilvl qquality ddiff: seeds unit own qty
+// difficulty (a set or unique with one is made whole: one none fits is
+// remade, as FUN_00557450 does), and print "seed code iilvl qquality ddiff: seeds unit own qty
 // N dur N/N def N | qquality sub N flags (0x800 socketed, 0x400000
 // ethereal) sock N pic N auto N [stat:param=value,...] -> game, unit, own
 // seed lows after".
@@ -93,15 +94,16 @@ int main(int argc, char** argv) try {
             std::string seed, code, ilvl, quality, bovine, diff;
             for (auto* field : { &seed, &code, &ilvl, &quality, &bovine, &diff }) std::getline(fields, *field, '\t');
             const int level = std::stoi(ilvl), wanted = std::stoi(quality);
+            const bool whole = wanted >= 5 && !diff.empty();   // a set / unique with a difficulty: FUN_00557450 whole, remade when none fits
             d2d::rules::Rng game{ std::uint32_t(std::stoul(seed)) };
             d2d::rules::Rng unit{ game.next() }, own{ game.next() };
             const auto unit_low = unit.low, own_low = own.low;
             d2d::d2s::Item item;
             int gold = 0;
             if (code == "gld") gold = d2d::rules::gold_amount(level, 0, unit);
-            else item = d2d::rules::generate_item(rules, code, level, wanted == 4 ? d2d::rules::made_quality(rules, code, wanted) : wanted, own, &unit,
+            else item = d2d::rules::generate_item(rules, code, level, wanted == 4 || whole ? d2d::rules::made_quality(rules, code, wanted) : wanted, own, &unit,
                                                   &found_uniques, bovine == "1", diff.empty() ? 0 : std::stoi(diff));   // a magic ask: FUN_00557450's type flags first
-            if (wanted <= 4) {
+            if (wanted <= 4 || whole) {
                 std::map<std::pair<int, int>, int> props;      // the item's one modifier list, (stat, param) summed
                 for (const auto& prop : item.props) props[{ prop.stat, prop.param }] += prop.value;
                 std::string list;
@@ -111,7 +113,7 @@ int main(int argc, char** argv) try {
                 if (diff.empty()) diff = "0";
                 std::printf("%08x %s i%d q%d d%s: seeds %08x %08x qty %d dur %d/%d def %d | q%d sub %d flags %x sock %d pic %d auto %d [%s] -> %08x %08x %08x\n",
                             unsigned(std::stoul(seed)), code.c_str(), level, wanted, diff.c_str(), unit_low, own_low, std::max(item.quantity, 0), item.durability,
-                            item.max_durability, std::max(item.defense, 0), item.quality, item.quality == 7 ? item.unique_id : item.qsub, flags, item.sockets, std::max(item.picture, 0),
+                            item.max_durability, std::max(item.defense, 0), item.quality, item.quality == 7 ? item.unique_id : item.quality == 5 ? item.set_id : item.qsub, flags, item.sockets, std::max(item.picture, 0),
                             item.class_affix < 0 ? 0 : item.class_affix, list.c_str(), game.low, unit.low, own.low);
                 continue;
             }

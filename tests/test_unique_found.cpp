@@ -14,7 +14,8 @@ using namespace d2d::rules;
 
 int main() try {
     Tables tables;
-    for (const char* code : { "hax", "nol", "hst" }) { tables.item_info[code] = { .kind = 2 }; tables.item_base[code] = { .level = 1, .durability = 20 }; }
+    tables.types["axe"] = {};                      // can be rare: a refused unique is remade rare
+    for (const char* code : { "hax", "nol", "hst" }) { tables.item_info[code] = { .type = "axe", .kind = 2 }; tables.item_base[code] = { .level = 1, .durability = 20 }; }
     tables.item_base["hst"].quest = true;
     tables.uniques = { { .code = "hax" }, { .code = "nol", .nolimit = true }, { .code = "hst" } };
     std::vector<bool> found;
@@ -22,7 +23,7 @@ int main() try {
         Rng rng(5), unit_seed(6);
         return generate_item(tables, code, 10, 7, rng, &unit_seed, &found);
     };
-    // A plain unique: marked, then refused (a rare instead).
+    // A plain unique: marked, then refused (remade rare).
     auto first = make("hax");
     assert(first.quality == 7 && first.unique_id == 0 && found.size() >= 1 && found[0]);
     assert(make("hax").quality == 6);

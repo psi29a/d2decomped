@@ -113,7 +113,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Izual search gate (`FUN_005b43f0`; callees hooked) | `uv run python quest_izual_nearby.py --exe /path/to/game.exe` | `ok: 18 Izual search gate cases (callees hooked)` |
 | Diablo Act IV share gate (`FUN_005b4da0`; callees hooked) | `uv run python quest_diablo_act_share.py --exe /path/to/game.exe` | `ok: 72 Diablo Act IV share cases (callees hooked)` |
 | Hellforge alert gate (`FUN_005b5ee0`; flag test hooked) | `uv run python quest_hellforge_alert.py --exe /path/to/game.exe` | `ok: 486 Hellforge alert cases (flag test hooked)` |
-| Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
+| Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `remade`, `objects`, `stands`) | `N/N ... match game.exe` |
 | A normal item's fix-ups (FUN_00556f30 -> FUN_00556e80, the Books row FUN_005c2540) on every Items row, the loaded tables | `uv run python books_row.py inc && git diff --exit-code ../../tests/books_row_cases.inc`, then `test_books_row` with the data | no diff; `659 items, 0 differ` |
 | Dungeon.cpp field accessors and forwarding wrappers (52 functions, FUN_00619550 ... FUN_0061afa0; null asserts, callee arguments; `--mutation-check` 5 ways) | `uv run python dungeon_accessors.py` | `ok: 1248 Dungeon.cpp accessor and wrapper cases` |
 | Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |

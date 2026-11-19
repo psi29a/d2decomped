@@ -236,7 +236,22 @@ seed (FUN_00650e50 before them only reads it):
   code, lvl <= ilvl, set 29 (Cow King's Leathers) only with flag 1;
   weight rarity, 0 counts 1; a forced index among them wins with no draw
   (FUN_005c25c0's `+0x40 - 1` test), else rand(total), then subtract.
-- A failed unique goes rare with durability x3, a failed set x2.
+- A failed unique gets durability x3 (FUN_00629930, version not 0) and a
+  failed set x2. Then FUN_00557450 remakes it: a unique rare
+  (FUN_005573f0), and when that doesn't take magic (FUN_00557380), superior
+  (FUN_00557320), normal (FUN_005572a0); a set the same from magic on. Each
+  clears the affixes and `+0x28` (FUN_00557250), puts the own seed back to
+  {start, 666} (FUN_00627e20 stores the start at data `+0x10`, FUN_00650e40),
+  sets the quality (also the record's `+0x30`, so FUN_00556f60 draws
+  nothing) and reads the seed's low back as the next start. Rare refuses a
+  type that can't be rare (FUN_005c21a0 tests FUN_0062e990, ItemTypes
+  Rare), so a unique charm none fits (Gheed's Fortune under ilvl 62, or one
+  found already) is remade magic. `tools/emu/drops.py remade` runs
+  FUN_00557450 whole for a unique or set asked for. d2d: `generate_item`
+  (until this, both went rare off the seed as the pick left it, so a failed
+  unique charm came out a rare charm); a remade rare's affixes are only
+  compared up to its quality, as d2d's rare roll isn't game.exe's
+  (`generate_item`'s `ponytail:`).
 
 ### The quality roll, expansion and classic — FUN_00556f60
 
