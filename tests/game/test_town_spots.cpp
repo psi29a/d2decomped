@@ -4,13 +4,16 @@
 // D2_PATCH_INSTALLER): Lut Gholein's Jerhyn (FUN_0059f380 / FUN_0059ef70 ->
 // FUN_00545340, Level::free_area) at the search's answer round the spot
 // asked; Harrogath's Nihlathak marker (object 461, FUN_005459a0) already
-// inside its room less the last row and column (bugs.md #47 unreached).
+// inside its room less the last row and column (bugs.md #47 unreached);
+// Larzuk walks his marker's DS1 path (object 543, FUN_00587840 / FUN_00587950
+// hand it to AI control +0x38), townWest.ds1's two points.
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -58,6 +61,10 @@ int main() try {
         ++markers;
     }
     assert(markers == 1);
+    Spawning spawning;
+    populate_level(*data, spawning, *harrogath);
+    const auto larzuk = std::ranges::find(harrogath->npcs, 0x1ff, &Npc::hc_idx);
+    assert(larzuk != harrogath->npcs.end() && larzuk->path.size() == 2);
     // Tristram's one type 11 spawn tile, where the Cairn Stones' twin stands (FUN_0056cf40, twin_spot round it).
     const auto* tristram = data->level(d2d::rules::level_ids::kTristram);
     assert(tristram && tristram->starts.size() == 1);
