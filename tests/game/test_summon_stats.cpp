@@ -7,8 +7,8 @@
 // the passive stats and the aurastats rules::summon_stats gives (`stat=value`,
 // by stat id, the non-zero ones) and the skills rules::summon_skill_levels
 // gives (`skill=level`), each through the owner's calcs at the case's levels.
-// `--summon-resist` and `--summon-level` do the same for
-// tools/emu/summon_resist.py and summon_level.py.
+// `--summon-resist`, `--summon-level` and `--revive-life` do the same for
+// tools/emu/summon_resist.py, summon_level.py and revive_life.py.
 // Without arguments: summon_life on a few typed-in numbers, then, with the
 // game data, a Necromancer's Raise Skeleton through the real
 // Fight::summon_one (the corpse left out), its pet's max life to the 256th,
@@ -112,6 +112,28 @@ int summon_level_cases(const GameData& game_data) {
         const int level = d2d::rules::summon_level(clvl, forced, bonus);
         const auto& row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(level), game_data.monsters.lvl.size() - 1)];
         std::printf("%s | %d %d %d\n", line.c_str(), level, row.armor_class[std::size_t(difficulty)], row.to_hit[std::size_t(difficulty)]);
+    }
+    return 0;
+}
+
+// tools/emu/revive_life.py's cases (`type difficulty level clvl seed_low
+// seed_high`), each with `| life level`: the revived monster's life in 256ths
+// and its level as Fight::summon_one makes them (the type's MonStats roll on
+// that seed; above the owner's, that life x clvl / its level, the level the
+// owner's).
+int revive_life_cases(const GameData& game_data) {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty()) continue;
+        std::istringstream fields(line);
+        int type = 0, difficulty = 0, level = 0, clvl = 0;
+        std::uint32_t seed_low = 0, seed_high = 0;
+        if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        d2d::rules::Rng seed{ seed_low };
+        seed.high = seed_high;
+        const auto stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, seed);
+        const int life = stats.level != 0 && clvl < stats.level ? std::max(d2d::rules::mul_div(stats.hit_points << 8, clvl, stats.level), 1) : stats.hit_points << 8;
+        std::printf("%s | %d %d\n", line.c_str(), life, std::min(stats.level, clvl));
     }
     return 0;
 }
@@ -278,13 +300,14 @@ int revive_check(const GameData& data) {
 
 int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--summon-resist") return summon_resist_cases();
-    if (argc > 1 && (std::string_view(argv[1]) == "--summon-stats" || std::string_view(argv[1]) == "--summon-level")) {
+    if (const std::string_view mode = argc > 1 ? argv[1] : ""; mode == "--summon-stats" || mode == "--summon-level" || mode == "--revive-life") {
         const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-        if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::fprintf(stderr, "--summon-stats / --summon-level need D2_MPQ_DIR\n"); return 1; }
+        if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::fprintf(stderr, "%s needs D2_MPQ_DIR\n", argv[1]); return 1; }
         const char* patch = std::getenv("D2_PATCH_INSTALLER");
         auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-        if (!data || !data->patched) { std::fprintf(stderr, "--summon-stats / --summon-level need the 1.14d data (D2_PATCH_INSTALLER)\n"); return 1; }
-        return std::string_view(argv[1]) == "--summon-level" ? summon_level_cases(*data) : summon_stats_cases(*data);
+        if (!data || !data->patched) { std::fprintf(stderr, "%s needs the 1.14d data (D2_PATCH_INSTALLER)\n", argv[1]); return 1; }
+        if (mode == "--revive-life") return revive_life_cases(*data);
+        return mode == "--summon-level" ? summon_level_cases(*data) : summon_stats_cases(*data);
     }
     if (life_checks() != 0) return 1;
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
