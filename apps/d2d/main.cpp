@@ -500,7 +500,7 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
 // Widescreen spare columns live outside that band; touch input and draw_touch
 // stay 800-wide, so insets are only within [0, 800].
 void apply_safe_inset(const Window& win) {
-#if SDL_VERSION_ATLEAST(3, 4, 0)
+#if SDL_VERSION_ATLEAST(3, 2, 0)   // SDL_GetWindowSafeArea and SDL_RenderCoordinatesFromWindow: since 3.2.0
     SDL_Rect area{};
     float left = 0, top = 0, right = 0, bottom = 0;
     // Safe area is window points. RenderCoordinatesFromWindow lands in the
@@ -533,8 +533,7 @@ void apply_safe_inset(const Window& win) {
     touch::safe_inset.top = clamp_v(std::max(0.f, top));
     touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
 #else
-    // ponytail: this SDL has no SDL_GetWindowSafeArea, so the touch layout stays put.
-    (void)win;
+    (void)win;   // the 3.1 previews: no safe area, the touch layout stays put
 #endif
 }
 
