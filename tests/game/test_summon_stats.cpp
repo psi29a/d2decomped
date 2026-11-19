@@ -173,6 +173,14 @@ int raise_check(const GameData& data) {
     // kept with MonLvl's added.
     const auto& golem_type = data.monsters.types[std::size_t(golem.monster.type)];
     assert(golem.monster.stats.level == 35 && golem.monster.stats.armor_class == golem_type.diff[0].armor_class + data.monsters.lvl[35].armor_class[0]);
+    // Its attack rating: MonLvl's (stat 0x13, 0x5c4adf) plus the swing's A1TH as written (FUN_005a4f50).
+    const auto clay_stats = d2d::rules::summon_stats(data.skills, golem_row, world->fight.calc_env(), 5);
+    const int clay_to_hit = clay_stats.passive.contains(d2d::d2s::kToHit) ? clay_stats.passive.at(d2d::d2s::kToHit) : 0;
+    assert(golem.monster.stats.to_hit == golem_type.diff[0].a1_th + data.monsters.lvl[35].to_hit[0] + clay_to_hit);
+    // A Charged Bolt Sentry (FUN_005d5e10 0x5d5fc1) passes its skill level too: 40 x 3 / 4 + 5.
+    const auto& sentry_row = *data.skills.get(data.skills.by_name.at("Charged Bolt Sentry"));
+    world->fight.summon_one(sentry_row, data.monsters.row(sentry_row.summon), 5, world->fight.calc_env(), actor->player.x - 3, actor->player.y - 3, 100000);
+    assert(actor->pets.back().monster.stats.level == 35);
     // A Fire Golem absorbs fire (its aurastat item_absorbfire_percent): its fire resist gets none of it.
     const auto& fire_row = *data.skills.get(data.skills.by_name.at("FireGolem"));
     world->fight.summon_one(fire_row, data.monsters.row(fire_row.summon), 10, world->fight.calc_env(), actor->player.x, actor->player.y + 3, 100000);
