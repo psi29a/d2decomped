@@ -35,6 +35,10 @@ int heal_checks() {
     using d2d::rules::life_tap_life;
     assert(life_tap_life(100 * 256, 400 * 256, 50 * 256, 10) == 105 * 256);
     assert(life_tap_life(399 * 256, 400 * 256, 50 * 256, 10) == 400 * 256);   // held at the max
+    // The hit's 256ths count (FUN_00483360 on +8): 255 at 15 % heals 38, not the whole points' 0.
+    assert(life_tap_life(100 * 256, 400 * 256, 255, 15) == 100 * 256 + 38);
+    assert(life_tap_life(100 * 256, 400 * 256, 1000 * 256, -20) == 1);       // a negative % takes it to 1 at least
+    assert(life_tap_life(0, 400 * 256, 1000 * 256, 10) == 0);                // nothing on a striker at 0
     std::puts("OK: Life Tap's heal");
     return 0;
 }

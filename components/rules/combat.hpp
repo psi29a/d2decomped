@@ -418,9 +418,16 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
 inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
 
 // Life Tap (damagedinmelee / damagedbymissile, aura event func 5,
-// FUN_005c61e0): calc1 % of a hit on the cursed unit heals whoever dealt it.
+// FUN_005c61e0): FUN_0057c6c0 raises it on the cursed unit once
+// FUN_0057c1e0 has put the hit's final damage at +8 (0x57c7f3), before the
+// unit's life goes down. Whoever dealt it heals MulDiv(that damage, calc1,
+// 100) (FUN_00483360, 0x5c62d7), 256ths, its life (stat 6) then held
+// between 1 and its max (FUN_00625d10); nothing on a hit of 0 or less, or
+// when the striker's life or max is 0 or below.
 inline std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct) {
-    return std::min<std::int64_t>(max_fine, life_fine + ((std::int64_t(damage_fine >> 8) * pct / 100) << 8));
+    if (damage_fine <= 0 || life_fine <= 0 || max_fine <= 0) return life_fine;
+    const int life = int(std::uint32_t(life_fine) + std::uint32_t(mul_div(damage_fine, pct, 100)));
+    return life < 1 ? 1 : std::min<std::int64_t>(life, max_fine);
 }
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
