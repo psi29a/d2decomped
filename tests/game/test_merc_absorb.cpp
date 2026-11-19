@@ -156,11 +156,11 @@ int main(int argc, char** argv) try {
         assert(life_after(world, one, now) == life);            // through Fight::hurt_side
     }
     // The cap is the merc's whole max life: 20 of pin 0's 100 points and 50 of pin 7's from its armor, the same lives.
-    for (const auto& [at, gear_life] : { std::pair<std::size_t, int>{ 0, 20 }, std::pair<std::size_t, int>{ 7, 50 } }) {
+    for (const auto& [pin, gear_life] : { std::pair<std::size_t, int>{ 0, 20 }, std::pair<std::size_t, int>{ 7, 50 } }) {
         Case one;
-        const bool ok = parse(kPins[at].first, one);
+        const bool ok = parse(kPins[pin].first, one);
         assert(ok);
-        assert(life_after(world, one, now, gear_life) == kPins[at].second);
+        assert(life_after(world, one, now, gear_life) == kPins[pin].second);
     }
     std::printf("ok\n");
     return 0;
