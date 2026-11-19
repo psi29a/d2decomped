@@ -573,7 +573,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // Life Tap: whoever dealt the hit heals (rules::life_tap_life). FUN_005c61e0 takes any player or monster
         // striker that isn't dying (0x5c620a, FUN_005541b0), so the merc and the pets too.
         if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; curse && curse->auratarget == "lifetap") {
-            const int damage_fine = (blow.damage << 8) + blow.frac, pct = calc(*curse, curse->calc[0], target.curse.level);
+            const int damage_fine = blow.phys_fine, pct = calc(*curse, curse->calc[0], target.curse.level);   // the hit's +8: its physical
             if (striker == player_foe_id() && !dead())
                 actor->character.stats.values[kLife] = d2d::rules::life_tap_life(actor->character.stats.values[kLife], actor->character.stats.values[kMaxLife], damage_fine, pct);
             else if (striker == merc_foe_id() && actor->merc && actor->merc->alive())

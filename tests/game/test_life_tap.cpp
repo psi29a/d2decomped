@@ -63,8 +63,9 @@ int heal_checks() {
 }
 
 // A level-30 Necromancer's skeleton at 5 points strikes a zombie under his
-// Life Tap at 1 for 100 points: it heals calc1 % of that (FUN_005c61e0 takes
-// any striker, 0x5c620a), as the player would.
+// Life Tap at 1: it heals calc1 % of the blow's physical (the hit's +8;
+// FUN_005c61e0 takes any striker, 0x5c620a), as the player would; a fire-only
+// blow heals nothing (its damage is at +0x4c, not +8).
 int pet_check(const GameData& data) {
     d2d::rules::Rng rng{ 7 };
     Character character;
@@ -97,11 +98,16 @@ int pet_check(const GameData& data) {
     zombie.unit.x = actor->player.x + 4; zombie.unit.y = actor->player.y;
     zombie.curse = { life_tap, 1, 1'000'000'000u, false };
     const int pct = d2d::rules::eval_calc(data.skills, data.skills.get(life_tap)->calc[0], world->fight.calc_env(), life_tap, 1);
+    d2d::rules::Blow fire{ .hit = true };
+    fire.damage = 100;                                                   // all fire: phys_fine 0
+    (void)world->fight.land(world->fight.monsters.size() - 1, fire, false, 100000, pet_id);
+    assert(pet.life_fine() == 5 * 256);
     d2d::rules::Blow blow{ .hit = true };
-    blow.damage = 100;
+    blow.damage = 30;                                                    // 10 physical, 20 fire
+    blow.phys_fine = 10 * 256;
     (void)world->fight.land(world->fight.monsters.size() - 1, blow, false, 100000, pet_id);
-    const auto expect = d2d::rules::life_tap_life(5 * 256, pet.max_life_fine(), 100 * 256, pct);
-    assert(pct > 0 && pet.life_fine() == expect && expect > 5 * 256);
+    const auto expect = d2d::rules::life_tap_life(5 * 256, pet.max_life_fine(), 10 * 256, pct);
+    assert(pct > 0 && pet.life_fine() == expect && expect > 5 * 256 && expect < pet.max_life_fine());
     std::printf("OK: a skeleton striking a Life-Tapped zombie heals to %d/256 (%d %%)\n", pet.life_fine(), pct);
     return 0;
 }

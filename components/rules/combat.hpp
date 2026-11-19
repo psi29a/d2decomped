@@ -419,9 +419,11 @@ inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_r
 
 // Life Tap (damagedinmelee / damagedbymissile, aura event func 5,
 // FUN_005c61e0): FUN_0057c6c0 raises it on the cursed unit once
-// FUN_0057c1e0 has put the hit's final damage at +8 (0x57c7f3), before the
-// unit's life goes down. Whoever dealt it heals MulDiv(that damage, calc1,
-// 100) (FUN_00483360, 0x5c62d7), 256ths, its life (stat 6) then held
+// FUN_0057c1e0 has filled the hit (0x57c7f3), before the unit's life goes
+// down. Whoever dealt it heals MulDiv(the hit's +8, calc1, 100)
+// (FUN_00483360, 0x5c62d7), 256ths: +8 is the physical after resistance,
+// the total at +0x4c adds the elements (0x57c3a5..0x57c3c7), so an
+// elemental hit heals nothing. Its life (stat 6) is then held
 // between 1 and its max (FUN_00625d10); nothing on a hit of 0 or less, or
 // when the striker's life or max is 0 or below.
 inline std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct) {
