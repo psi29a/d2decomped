@@ -1835,8 +1835,8 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
 // ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
 // -max levels past req). Codes match whatever their case.
-// ponytail: without `on` (affixes) damage is one-hand, charges full and
-// 11 / 19 off ilvl 1.
+// Without `on` (no item: set bonuses, a monster's gear) damage is one-hand,
+// charges full and 11 / 19 off ilvl 1.
 struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
 inline std::string lower_case(std::string_view text) {
     std::string out(text);
@@ -2271,7 +2271,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng, magic_lvl != 0);
         if (affix_row <= 0) return 0;
         groups.push_back(list[std::size_t(affix_row)].group);
-        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng);
+        const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };   // FUN_0065fec0 with the item, as a unique's
+        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng, base ? &target : nullptr);
         return affix_row;
     };
     if (quality == 6) {
