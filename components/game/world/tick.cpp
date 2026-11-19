@@ -573,8 +573,9 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     // the client's FUN_0049eb10 shows it: a monster's MonStats NameStr or its SuperUnique's
                     // name, an object's Objects.txt Name ("an Exploding Barrel", 0xc98, for object 0xb).
                     // ponytail: the killer is the last blow's this frame (Foe::striker_id), not the record that took
-                    // the life under one point; a pet's or merc's kill isn't put on its owner (FUN_0058f0d0:
-                    // no player hurts another here).
+                    // the life under one point. FUN_0054d8a0 swaps a monster killer for its owner (FUN_0058f0d0)
+                    // only when that owner is a player; no pet or merc strikes a player here (no PvP), and a
+                    // monster's owner (party_owner) is a monster, so the killer stands as it is.
                     if (const auto killer = killer_name(actor->killer); split_levels && !killer.empty()) {
                         announce({ ev::Message::slain, actor->character.name, killer });
                         d2d::log::info("{} was slain by {}", actor->character.name, killer);

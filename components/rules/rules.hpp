@@ -706,6 +706,10 @@ inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
 
 // A broken item (item flag 0x100, set by FUN_0055f850): its stats and
 // defense are off until a repair (FUN_0055f900) clears it.
+// Item flag 0x200, "repaired": FUN_0055f900 sets it as it clears 0x100. Nothing
+// in game.exe's rules reads it back (the one reader, FUN_0053d440's caller in
+// InvMode.cpp, tells a client); the item's save writer keeps it (FUN_006312b0).
+inline constexpr std::uint32_t kItemRepaired = 0x200;
 inline bool broken(const d2d::d2s::Item& item) { return (item.flags & 0x100) != 0; }
 inline void wield_enters(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item);
 // A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
@@ -872,10 +876,14 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
 
 // Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
 // restocking stack back to its max, durability to its max, charges full.
+// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off.
+// ponytail: the hand-skill pass FUN_0055f900 ends with (FUN_0055c5c0) isn't
+// ported (replenish.hpp).
 inline bool mend(const Tables& tables, d2d::d2s::Item& item) {
     if (!repairable(tables, item)) return false;
     if (restocks(tables, item)) item.quantity = stack_most(tables, item);   // FUN_006295b0
     item.durability = max_durability(item);
+    if (broken(item)) item.flags |= kItemRepaired;   // FUN_0055f900
     item.flags &= ~0x100u;
     recharge(item);
     return true;
@@ -908,6 +916,11 @@ inline int repair_all_cost(const Tables& tables, const Store& store, const std::
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return std::int32_t(std::uint32_t(cost));
 }
+// Whether a death makes a corpse (FUN_0057f700): the live corpse count
+// (FUN_0063d5f0) against 0xf, unsigned (jbe at 0x57f730). Over 15,
+// FUN_0057f540 drops the gear instead and there is no corpse.
+// tools/emu/corpse_cap.py.
+constexpr bool death_makes_corpse(int corpses) { return unsigned(corpses) <= 15; }
 // Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
 // them oldest first, one with items scores 1 + each non-gold item's repair
 // cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at

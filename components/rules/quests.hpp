@@ -1984,6 +1984,13 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 18> kQuestLogRecords 
     { 935, 3725, 4, 995, 3725, 990, 628, 991, 628, 992, 628, 935, 628, 3729, 3725, 3730, 3725, 3725, 3725, 3725, 3725,
       3728, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
 } };
+// Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
+// FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
+// Those are a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
+// 0x23 .. 0x28. The others (acts 1 and 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
+[[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
+    return quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
+}
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
 // the open log picks that quest, FUN_004a3220).

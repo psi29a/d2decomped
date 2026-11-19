@@ -181,8 +181,10 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             d2d::log::info("The Blade of the Old Religion: the Gidbinn drops");
         }
         if (!hosted_quests && golden_bird.killed(quests(), kill.id)) {   // FUN_005bab60: its carrier drops the jade figurine
+            // It lands where Loot::put finds room: a neighbour level's room when the carrier stood in one.
+            const auto landing = loot.find_landing(kill.x, kill.y);
             loot.put({ .code = d2d::rules::GoldenBirdQuest::kFigurine }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
-            d2d::log::info("The Golden Bird: the jade figurine drops on level {}", level->id);
+            d2d::log::info("The Golden Bird: the jade figurine drops on level {}", landing && landing->level ? landing->level->id : level->id);
         }
     }
 

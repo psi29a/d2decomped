@@ -1071,6 +1071,12 @@ bool marker_npc(Room marker_room, const std::array<int, 4>& rect, int marker_x, 
     return make_at(marker_room, marker_x, marker_y, 15);
 }
 
+// The marker fields owned by a game's quest records, not by any level whose
+// rooms happen to contain their preset objects.
+struct MarkerRecords {
+    bool larzuk_made = false;                         // record 0x1f data +0x15 (FUN_00587840)
+};
+
 // InitFn 71 (FUN_00587840, object 543, quest record 0x1f): Larzuk's marker.
 // `made` is the record's byte +0x15 (set when he's made, and no second is).
 // `free_spot(room, x, y)` FUN_00545340 (size 2, mask 0x100, 100 rings) from the

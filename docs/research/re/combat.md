@@ -492,8 +492,6 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
 
 ## Approximations still in the port (marked `ponytail:` in code)
 
-- Crushing blow: a quarter of current life less physical resistance, with
-  no boss or difficulty divisors.
 - FBR acts as an animation-rate bonus on the plain frame count, not the
   block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
@@ -765,7 +763,7 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   a killer, 0x580ff2): a player's death puts it in mode 0 through
   `FUN_0057cee0` (`FUN_00580a70(0, 0, attacker type, attacker id)`), the
   attacker that dealt the record, so the death mode's unit is the killer; a
-  monster owned by a player (`FUN_0058f0d0`) is put on that player. The
+  monster owned by a player (`FUN_0058f0d0` returns a type-0 unit; a monster owner stays as it is, 0x54d8a0..0x54d8d6) is put on that player. d2d has no pet or merc blow on a player (no PvP) and its minions' owners are monsters, so nothing reaches that swap: not ported, no test can fail on old code. The
   builder fills S->C 0x5a at 0x54d91f: event 6, colour 4, +3 the killer's
   class (unit +4, -1 none), +7 its unit type (6 none), the dead player's
   name, and the killer's name (a player) or SuperUnique row (+0x18, a
@@ -854,7 +852,8 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     `FUN_0064e7e0(room, &xy, 2, mask 0x9c19, 4)` -> `FUN_0064dea0` with
     test 2 (`FUN_0064d9b0` case 2: the plus, `FUN_0064d100`) against
     0x9c19, which holds the player's own 0x1000 footprint, and a step of
-    4 (rings of radius 1, 5, 9, ..., spots 4 apart along each edge;
+    4 (rings of radius 1, 5, 9, ..., 49, the last under FUN_0064dea0's
+    limit of 50: `corpse_spot.py limit`; spots 4 apart along each edge;
     `FUN_0064e7b0` steps 1); with the player on the start the corpse lands
     at (x - 1, y - 1) (tools/emu/corpse_spot.py). Mode 0x11.
 - **The look:** a death COF has only a TR layer and only LIT pieces (no

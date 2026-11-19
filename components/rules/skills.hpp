@@ -469,7 +469,7 @@ struct Skill {
     // Only cltdofunc 16 (Jab's, FUN_004f4590) and cltstfunc 25 (FUN_004c9b40) read a / b.
     int do_sound_a = 0, do_sound_b = 0, clt_do_func = 0;
     std::array<int, 3> clt_prg_func{};     // cltprgfunc1..3 (+0xf6: the client's charge 1..3, table 0x727ba8)
-    bool st_sound_delay = false, weapon_sound = false;
+    bool st_success_only = false, st_sound_delay = false, weapon_sound = false;
     bool interrupt = false;                // Skills.txt `interrupt` (the row's flags byte +7 against the mask at 0x6ce284): 0, a hit never puts the user in a get-hit (FUN_0057eec0)
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
@@ -485,6 +485,7 @@ struct Skill {
     bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
     bool targetable_only = false;          // TargetableOnly (flag bit 0x14, record +6 & 0x10)
     bool search_enemy_xy = false;          // SearchEnemyXY (flag bit 0x15, record +6 & 0x20): a shift-click's pick, FUN_00467660
+    bool search_open_xy = false;           // SearchOpenXY (flag bit 0x17, record +6 & 0x80): off a wall to a free spot, FUN_004677b0
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
     std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels
     int result_flags = 0;                  // ResultFlags (8: knockback)
@@ -532,6 +533,40 @@ struct Skill {
     struct DescLine { int func = 0; std::string text_a, text_b; Calc calc_a, calc_b; };
     std::array<DescLine, 17> desc_lines{};
 };
+
+// The two stsuccessonly client starts used by stock Skills.txt. Hydra's
+// FUN_004e39a0 needs both the caster's room and a room at the selected point;
+// unless InTown is set, that point must not be in town. Charge's
+// FUN_004c9b40 needs the unit's selected skill record and dynamic path, and
+// rejects the local player's already-selected flagged record. Its later
+// target, sound, path and stat-list work cannot change the successful status.
+struct ClientStartContext {
+    bool caster_has_room = true;
+    bool target_has_room = true;
+    bool target_in_town = false;
+    bool skill_in_town = false;
+    bool has_skill_record = true;
+    bool has_dynamic_path = true;
+    bool same_local_flagged_skill = false;
+};
+
+inline constexpr bool client_start_succeeds(int clt_st_func, const ClientStartContext& context) {
+    if (clt_st_func == 17)
+        return context.has_skill_record && context.caster_has_room && context.target_has_room && (context.skill_in_town || !context.target_in_town);
+    if (clt_st_func == 25)
+        return context.has_skill_record && context.has_dynamic_path && !context.same_local_flagged_skill;
+    return true;
+}
+
+// Charge's FUN_005cf6b0 reads stat 0x43 after RN's FUN_00620e80 has added
+// RunVelocity * 100 / WalkVelocity - 100 and chill has added -50. It floors
+// that whole stat at 50, adds Param1, then uses FUN_00483360 MulDiv on the
+// class's 8.8 RunVelocity. The result is the path velocity in 8.8 units.
+inline int charge_velocity(int walk_velocity, int run_velocity, int velocity_percent, bool chilled, int param1) {
+    const int run_bonus = walk_velocity > 0 ? run_velocity * 100 / walk_velocity - 100 : 0;
+    const int velocity = std::max(100 + velocity_percent + run_bonus + (chilled ? -50 : 0), 50);
+    return mul_div(run_velocity << 8, velocity + param1, 100);
+}
 
 struct SkillTables {
     std::vector<Skill> rows;               // by Id

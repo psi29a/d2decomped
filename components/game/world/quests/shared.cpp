@@ -12,6 +12,7 @@
 
 #include <ambient_dip.hpp>
 #include <cube.hpp>
+#include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
@@ -597,11 +598,20 @@ auto World::game_quest_done(std::size_t quest) const -> bool {
 // FUN_004cc270 looks it up once; a row's first level this game marks all of
 // its levels, then speaks if its quest's to do (FUN_004a4180: open in this
 // game, the game's flag 13 and the player's 0, 1 and 14 clear; the Den's
-// log short of 5) and the class hasn't spoken for 62 ticks.
-// ponytail: "hasn't spoken" is the class's lines (voice_at); game.exe's is
-// any sound on the player (+0x7c) and no class line playing (FUN_004b9c20).
+// log short of 5), the player's last swing sound (unit +0x7c, set by
+// FUN_004cb6a0 as a swing mode starts) is over 62 ticks old and no class
+// voice is playing (FUN_004b9c20).
+// ponytail: "no class voice playing" is the class's last line within 62 ticks
+// (voice_at); the World has no sound lengths or playing list (Sounds ids
+// 0xb76..0x1230, state not 2).
 auto World::find_voice(std::uint32_t tick_ms) -> void {
         constexpr std::uint32_t kWait = 62 * kTickMs;
+        // FUN_004cb6a0 (FUN_004cc5b0's A1 / A2, a Barbarian's S3, an Assassin's S4; an SQ sequence plays
+        // none) stamps the player's +0x7c as the swing mode starts.
+        const int cls = actor->character.character_class;
+        const int mode = actor->pmode;
+        if ((mode == kModeA1 || mode == kModeA2 || (mode == kModeS3 && cls == d2d::d2s::kBarbarian) || (mode == kModeS4 && cls == d2d::d2s::kAssassin)) && fight.skill_sequence().empty())
+            actor->swung_at = std::max(actor->swung_at, actor->player.mode_ms);
         if (level->id != actor->voice_level) { actor->voice_level = level->id; actor->voice_level_at = tick_ms; }
         if (actor->voice_level == actor->voice_checked || tick_ms - actor->voice_level_at < kWait) return;
         actor->voice_checked = actor->voice_level;
@@ -614,6 +624,7 @@ auto World::find_voice(std::uint32_t tick_ms) -> void {
         namespace q = d2d::rules::quest;
         if (closed_at_join[quest] || game_quest_done(quest) || q::bit(bits, row->quest, 0) || q::bit(bits, row->quest, 1) || q::bit(bits, row->quest, 14)) return;
         if (row->quest == d2d::rules::DenQuest::kQuest && den.log_state(bits) >= 5) return;
+        if (actor->swung_at && (tick_ms < actor->swung_at || tick_ms - actor->swung_at <= kWait)) return;   // 0x3e < now - +0x7c to speak (FUN_004cc270)
         if (actor->voice_at && (tick_ms < actor->voice_at || tick_ms - actor->voice_at < kWait)) return;   // a line still due counts
         class_cue(row->line, tick_ms);
     }
@@ -702,7 +713,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
                                 d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 14);
                         });
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
-            else open_portal_at(object.x + 6, object.y + 6, now_ms, int(kGibbetPortal));   // a pair of its own: the player's stays
+            else open_portal_at(object.x + 6 / 5.f, object.y + 6 / 5.f, now_ms, int(kGibbetPortal));   // subtiles: a tile is 5   // a pair of its own: the player's stays
             d2d::log::info("Search for Cain: Cain is free");
             return;
         }
@@ -721,7 +732,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         actor->character.items.erase(std::ranges::find(actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
         party_bits(Cain::kQuest, { 4 });                      // the party in Act 1 (LAB_005936b0)
         const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
-        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
+        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6 / 5.f, lambda == level->npcs.end() ? object.y : lambda->y - 3 / 5.f);   // subtiles: a tile is 5
         portal[2] = { level, spot_x, spot_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
         // FUN_00593710 ends with FUN_0056ede0(.., 1, 0x120, x + 6, y - 3): missile
@@ -729,6 +740,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (const auto stones = game_data->missiles.find("cairnstones"); stones != game_data->missiles.end()) {
             Missile flash{ &stones->second, spot_x, spot_y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(stones->second.range, 1)) * kTickMs, {} };
             flash.visual_only = true;
+            flash.seed = d2d::rules::Rng{ fight.spawning.game.next() };   // FUN_0056ede0 -> FUN_0059fa30: a server missile's step
             fight.missiles.push_back(std::move(flash));
         }
         // FUN_00593710 ends on S->C 0x89 event 1 (FUN_00545760); each client's

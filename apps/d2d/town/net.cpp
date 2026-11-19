@@ -218,6 +218,11 @@ auto Town::send(const Command& command) -> void {
             if (host_npc && item) net_game->send_items({ d2d::net::d2gs::c2s::npc_action(0, host_npc->id, item) });
             else net_game->log.note("an NPC service with no host NPC or cursor item: not sent");
             return;                                         // the host's item comes back to us
+        } else if (const auto* read = std::get_if<cmd::ReadScroll>(&command)) {
+            // C->S 0x3e {u32 the item} (FUN_0049ff90); the host's order comes as S->C 0x50 subtype 4.
+            const auto found = std::ranges::find(hero.character.items, read->item, &d2d::d2s::Item::id);
+            if (const std::uint32_t id = found != hero.character.items.end() ? net_game->host_item(*found) : 0) net_game->send_items({ d2d::net::d2gs::c2s::item_id_packet(0x3e, id) });
+            return;
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
                    || std::holds_alternative<cmd::AutoBelt>(command)
@@ -524,7 +529,9 @@ auto Town::net_overlay() -> void {
             // The host sends no MonSounds: game.exe's client plays them itself, from the unit's
             // mode (FUN_004cc410, FUN_004cb890), its first showing (FUN_004cc380), Neutral
             // (FUN_004cb460) and footsteps (FUN_004caf60). The same path as single player's,
-            // which moves last_mode on.
+            // which moves last_mode on; the impact on GH / KB / DT from the last 0x0c's hit
+            // class (unit +0xb0, FUN_004cc410).
+            monster.hit_class = unit.hit_class;
             world.fight.monster_sounds(monster, world_ms);
             view.monsters.push_back(monster);
         }

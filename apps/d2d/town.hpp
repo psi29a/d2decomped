@@ -22,6 +22,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "scroll.hpp"
 #include "skillbar.hpp"
 #include "skillpad.hpp"
 #include "store.hpp"
@@ -35,6 +36,7 @@
 #include <ambient_dip.hpp>
 #include <d2s_items.hpp>
 #include <lan.hpp>
+#include <light.hpp>
 #include <overlays.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
@@ -193,12 +195,11 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // A light's radius moves toward a new one 8 eighths (a subtile) a frame
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
-// Light quality is always high (2: shadows on): deviations.md #4
-// (game.exe drops it by frame rate, FUN_00475780).
+// `quality`: Light Quality (rules::LightQuality, FUN_00475780), Town::light_quality's.
 // `player_at`: where the player stands when it isn't the camera's point (local co-op's camera).
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0,
-                     const std::pair<float, float>* player_at = nullptr);
+                     const std::pair<float, float>* player_at = nullptr, int quality = 2);
 
 struct Town {
     const Scene* scene = nullptr;
@@ -413,7 +414,7 @@ struct Town {
     // Waypoints UI 0x14 (left), stash 0x19 and cube 0x1a (both sides): FUN_00455f20's
     // second switch (menu.md "The view with panels open").
     [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
-    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
+    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open || scroll.open; }
     [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0 || use_item.open(); }   // UI 0xe too: state 3 (menu.md)
     // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
     // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
@@ -471,6 +472,8 @@ struct Town {
     bool life_text = false, mana_text = false;    // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): d2d.cfg's show_hp_text / show_mp_text, read at a game's start (FUN_004967f0)
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
+    ScrollPanel scroll;                           // UI 0x10: the Scroll of Inifuss read
+    bool scroll_sound = false;                    // a symbol came last draw: Sounds.txt 0xa6f, played by update
     HirelingPanel hireling;                       // UI 0x24
     PartyPanel party;                             // UI 0x16 (a joined game's)
     std::vector<PartyPanel::Row> party_preview;   // devctl `debug party on`: rows to show without a joined game
@@ -681,6 +684,7 @@ struct Town {
     bool  stats_down = false, skills_down = false;   // New Stats / New Skills held (DAT_007c02e4 / DAT_007c02e8)
     bool  run_down = false;                          // the run button held (DAT_007befd8)
     GameMenu game_menu;                    // Esc's menu (UI 9)
+    d2d::rules::LightQuality light_quality;    // the Video Options row and the frame rate (FUN_00475780)
     MiniPanel mini;                        // the mini-panel (UI 0x15) and the HUD's button for it
     std::filesystem::path cfg_file;        // where the menu's volumes are kept (d2d.cfg; empty: not kept)
 
@@ -736,6 +740,8 @@ struct Town {
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
+    // A SearchOpenXY skill's free spot off a wall (FUN_004677b0), in cells, or none.
+    [[nodiscard]] std::optional<std::pair<float, float>> open_spot(int skill, int unit, float click_x, float click_y) const;
     [[nodiscard]] int hovered_ground() const;
     // The New Stats / New Skills buttons as the panels stand.
     [[nodiscard]] LevelButtons level_buttons_now() const;
@@ -785,6 +791,8 @@ struct Town {
     int den_flash = -1;
     bool den_seen = false, den_lit = false;
     std::vector<View::Shot> den_beams;
+    std::optional<View::Shot> cairn_flash;              // LAB_0046aee0: client missile 0x120 at StoneAlpha
+    void cairn_opened(std::uint32_t frame_ms);
     [[nodiscard]] int den_ambient() const;
     // The client's own fill, ahead of the level's light (FUN_0046bdd0): the
     // Den's, Diablo's release (rules::release_light), the dip; -1 none.

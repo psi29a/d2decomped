@@ -215,6 +215,8 @@ struct TcpIpUI {
 TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip);
 void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms);
 void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip);
+// FUN_0042f6e0's Sky-palette popup while FUN_00434790 tests the connection.
+void render_connecting(std::vector<std::uint8_t>& framebuffer, const Scene& scene);
 
 // How many entries are unlocked, from what has been seen: game.exe's
 // chain (FUN_00431600) over its registry bits — 0x01 LoD ending: 7,

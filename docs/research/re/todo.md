@@ -27,26 +27,21 @@ Ranked by Seen, then by how much play it touches.
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
 | 7 | Council S1: compare built d2d timing, including speed modifiers. The original event is traced; the current source already waits for the action frame. | check | maybe | [council-s1.md](council-s1.md): stock original scheduler/dispatch checked; no built-d2d differential yet |
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
-| 9 | Unique monster mods traced, two not ported: 14 spcdamage (the trap monsters' level and damage from the area level) and 34 ai_after_death (the Reanimated Horde rising again, Act 5); 15 partydead is in (Diablo's Bone Prison) | build | maybe | monsters.md's hook table |
+| 9 | Unique monster mods: 14 spcdamage is in for the trap-melee (the chest trap monsters 0x146..0x14a are objects in d2d, their level and damage pairs unused), 34 ai_after_death is in (the Reanimated Horde rising again, Act 5), 15 partydead is in (Diablo's Bone Prison); left: where unit flags 0xe come back after the rise's S1; the trap-melee's first swing may run before hook 0's stat 0x13 (not traced) | build | maybe | monsters.md's hook table |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
-| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
-| 15 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game. Every server unit but a player, missiles too, takes a game seed step as it's made (FUN_00555230 -> FUN_00552df0: +0x28 the low, its seed {low, 666} by FUN_00650e40): d2d's missiles take none, so the game seed's later rolls (drops) drift after any missile |
+| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | `git grep -n ponytail: -- components apps | grep -i seed`, act1-gaps.md. Matters once machines share a game |
 
 ## Sounds
 
 `tools/sound_coverage.py <mpq dir>`: 3,416 of the base install's 3,520
-sounds play, 104 don't (2026-10-29). 97 of the 104 are traced as never
-played by stock 1.14d (the class quest phrases, the rogue confirms, 13 NPC
-lines and 6 monster rows), so d2d plays 3,416 of the 3,423 the original does
-(unit-sounds.md "In d2d").
+sounds play, 104 don't (2026-10-29). All 104 are traced as never played
+by stock 1.14d (unit-sounds.md "In d2d"), so in a game d2d hosts it
+plays every sound the original does; a joined game takes each monster's
+impact from the host's hit class (S->C 0x0c, unit-sounds.md "In d2d").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
 "Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
-to 70% and the menu's fade-out.
-
-| # | What | Count | Kind | Seen | Notes |
-|---|---|---|---|---|---|
-| 18 | Seven rows with no trigger traced either way: `event_desert_night_1..5` (no SoundEnviron row names them; the night may pick its event group by arithmetic, not traced), `scene_tavern_interior` (row 66, cathedral.wav), `monster_diablo_taunt_2` | 7 | trace | maybe | unit-sounds.md "In d2d"; every other code-played sound is wired or traced as never played (`tools/sound_coverage.py`: 3,416 of 3,520, the 97 others never played by stock) |
+to 70% and the menu's fade-out. Nothing open.
 
 ## Animation and drawing
 
@@ -65,7 +60,6 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 32 | Light Quality always high; unit shadows darken once | exact | hardly | deviations.md approximations 3–4 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 
@@ -90,19 +84,16 @@ Out of single player's way, listed so they aren't lost: 0x74 corpses,
 0x11 leech, 0x90 party spots and 0x99 skill effects are read but not
 drawn; tooltip stats leave out auras, states and weapon masteries; live
 checks still owed (shrine overheads, leaving a cave, the gold box's
-Backspace, other units' states, a Battle Orders cast vs d2d's maxima).
+Backspace, other units' states, a Battle Orders cast vs d2d's maxima, a
+host monster's impact sounds on GH / KB / DT from S->C 0x0c).
 docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
 
 ## The long tail
 
-437 `ponytail:` notes in components/ and apps/ (2026-10-30), most in
-ai.cpp (58), fight.cpp (45), world.cpp (41) and fight.hpp (40)
-(fight.cpp and world.cpp were split into `components/game/fight/` and
-`components/game/world/` since). Each names
-the game.exe function to trace when it matters. act1-gaps.md sorted them
-on 2026-10-10 (most don't change single-player play); `git grep -n
-ponytail:` lists them. Items here that a player could notice belong in a
-table above.
+`git grep -n ponytail: -- components apps` lists the `ponytail:` notes;
+each names the game.exe function to trace when it matters.
+act1-gaps.md sorted them on 2026-10-10 (most don't change single-player
+play). Items here that a player could notice belong in a table above.
 
 ## Keeping it current
 

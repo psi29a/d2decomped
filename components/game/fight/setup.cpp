@@ -135,6 +135,8 @@ auto Fight::merc_level_stats() -> void {
                 return skill ? skill->reqlevel : 0x7fff;
             });
         }
+        // The level-up sets stat 0x4a again (FUN_00572840); a merc whose regeneration runs takes the new one.
+        if (actor->merc && actor->merc->stats.regen > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
     }
 
 auto Fight::revive(std::uint32_t now_ms) -> void {
@@ -196,6 +198,8 @@ auto Fight::merc_drinks(const std::string& code, std::uint32_t now_ms) -> void {
             const double left = actor->merc_heal_until > now_ms ? actor->merc_heal_rate * double(actor->merc_heal_until - now_ms) : 0;
             actor->merc_heal_until = std::max(actor->merc_heal_until, now_ms) + std::uint32_t(len) * 40;
             actor->merc_heal_rate = (left + amount) / double(actor->merc_heal_until - now_ms);
+            // A non-player's potion state files its event 3 (FUN_005be3f0, 0x5be62b..0x5be659): its regeneration starts.
+            if (actor->merc->hit_points > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
         }
         cues.cue("item_potion_drink", now_ms, actor->merc->unit.x, actor->merc->unit.y);
     }
@@ -287,6 +291,32 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
             actor->merc_heal_acc -= gain;
             actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + gain);
         }
+        // The merc's own regeneration, a monster's unit event 3 once a frame
+        // (FUN_005a6920: a merc is unit type 1, FUN_005417d0 files it in list 1):
+        // its total stat 0x4a (the level-up's, `stats.regen`, and its items'
+        // Replenish Life) on its life. A total of 0 ends the event; a negative one
+        // under one point of life does nothing in a town (FUN_0061ab00) or out of
+        // a room; over its max life it's the max and the event ends; under one
+        // point it dies. stats.regen is 0 while the event isn't filed (a hurt or a
+        // poison files it in hurt_side, a healing potion in merc_drinks).
+        if (actor->merc && actor->merc->stats.regen > 0 && actor->merc->hit_points > 0) {
+            const std::int64_t total = actor->merc->stats.regen + merc_gear().sum[kHitPointRegeneration];
+            const std::int64_t max_life = std::int64_t(merc_max_life()) << 8;
+            const bool in_town = !level || d2d::rules::level_ids::is_town(level->id);
+            std::int64_t merc_life = actor->merc->life_fine();
+            for (auto frames = now_ms / 40 - last_ms / 40; frames > 0 && actor->merc->stats.regen > 0 && merc_life > 0; --frames) {
+                if (total == 0) { actor->merc->stats.regen = 0; break; }
+                if (total < 0 && merc_life < 0x100 && in_town) continue;
+                merc_life += total;
+                if (merc_life > max_life) { merc_life = max_life; actor->merc->stats.regen = 0; }
+                merc_life = std::max<std::int64_t>(merc_life, 0);
+            }
+            actor->merc->set_life_fine(int(merc_life));
+            if (merc_life == 0) {                                     // the kill (FUN_0057ccb0), as a hit's in hurt_side
+                actor->merc->mode = "DT"; actor->merc->unit.mode_ms = now_ms; actor->merc->unit.walking = false; actor->merc->unit.path.clear();
+                actor->merc->mode_until = now_ms + game_data->npc_timing(actor->merc->npc, "DT").length_ms();
+            }
+        }
         const auto life_gain = std::int64_t(actor->regen_acc_life), mana_gain = std::int64_t(actor->regen_acc_mana);
         actor->regen_acc_life -= double(life_gain); actor->regen_acc_mana -= double(mana_gain);
         auto& life_stat = actor->character.stats.values[kLife];
@@ -328,18 +358,29 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         }
         // A skill it starts (S→C 0x4c / 0x4d, unit command 0x15 / 0x16 -> FUN_004c6140):
         // the start sounds as a player's, on a monster (unit type 1, never a class sound),
-        // and its castoverlay.
-        // ponytail: a stsuccessonly start's cltstfunc (Hydra's FUN_004e39a0, Charge's
-        // FUN_004c9b40) isn't run here, so it always sounds.
+        // and its castoverlay. A stsuccessonly start stops before both when its
+        // cltstfunc fails (FUN_004c6140 at 0x4c649e).
         if (const int started = std::exchange(monster.skill_sound, -1); started >= 0 && monster.alive())
             if (const auto* skill = game_data->skills.get(started)) {
-                const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
-                const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
-                const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
-                                                              .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
-                for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
-                    if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
-                start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                d2d::rules::ClientStartContext context;
+                if (skill->clt_st_func == 17) {                       // Hydra's FUN_004e39a0
+                    context.caster_has_room = room_of(*level, monster.unit.x, monster.unit.y) >= 0;
+                    context.target_has_room = room_of(*level, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5) >= 0;
+                    context.target_in_town = d2d::rules::level_ids::is_town(level->id);
+                    context.skill_in_town = skill->in_town;
+                }
+                // Charge's FUN_004c9b40 succeeds here: d2d records this start only
+                // after its server path or in-reach swing has started, and every
+                // live Monster owns the client routine's skill record and path.
+                if (!skill->st_success_only || d2d::rules::client_start_succeeds(skill->clt_st_func, context)) {
+                    const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
+                    const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
+                    const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
+                                                                  .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
+                    for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
+                        if (cue.sound > 0) play(cue.sound, now_ms + std::uint32_t(std::max(cue.ticks, 0)) * 40);
+                    start_cast_overlay(*skill, false, monster.flash_overlay, monster.flash_at, now_ms);   // and its castoverlay (Resurrect's)
+                }
             }
         if (monster.mode != monster.last_mode) {
             monster.last_mode = monster.mode;
@@ -459,6 +500,7 @@ auto Fight::action_at() const -> std::uint32_t {
         return attack_mode(actor->pmode) ? actor->action_ms : std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate);
     }
 
+// Sets the actor's player mode and runs the start-of-mode cues, incl. the inferno list of cltstfunc 15 (LAB_004e3060).
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
@@ -543,11 +585,18 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
             start_cast_overlay(*skill, from_charges(skill->id), actor->flash_overlay, actor->flash_at, now_ms);   // its castoverlay, at once
-            // Cltstfunc 15 (FUN_004e3060: Inferno, Arctic Blast) with state inferno (0xc) off: the prgsound on no unit
-            // (FUN_004b9a00, EDX 0: unplaced, the listener's), then the client's own inferno on.
-            // ponytail: that client list (FUN_006251f0 flags 2, +0x18 = 0x15) isn't traced past its making; d2d asks
-            // the server's state (Hero::burning) instead.
-            if (skill->clt_st_func == 15 && now_ms >= actor->burning) cues.cue_on(0, skill->prg_sound, now_ms, actor->player.x, actor->player.y);
+            // Cltstfunc 15 (LAB_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the unit
+            // (the server's list, from its own state packet, or the client's below), the prgsound on no unit
+            // (FUN_004b9a00, EDX 0: unplaced, the listener's). Then the state's list: found (the server's or the
+            // client's) its timeout is set to 7 frames, else the client's own is made with 0x15 (FUN_006251f0 flags 2).
+            // ponytail: the server's list is Hero::burning, not an object: a start with only it on sets the
+            // client's 7 frames, which game.exe sets on the server's list (it would clear the state on its own).
+            // The overlay (prgoverlay, FUN_00470390), the sequence frame 8 and the frame count 0x500 aren't ported.
+            if (skill->clt_st_func == 15) {
+                const bool state_on = now_ms < actor->burning || now_ms < actor->inferno_list;
+                if (!state_on) cues.cue_on(0, skill->prg_sound, now_ms, actor->player.x, actor->player.y);
+                actor->inferno_list = now_ms + std::uint32_t(state_on ? 7 : 0x15) * 40;
+            }
         }
     }
 

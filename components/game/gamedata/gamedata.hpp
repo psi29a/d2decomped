@@ -20,6 +20,7 @@
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -807,6 +808,7 @@ struct GameData {
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound
                          int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
+                         std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
@@ -1118,6 +1120,8 @@ struct Spawning {
     // a3q7's +0xd4 (LAB_005bd2c0): the game's first player has seen the Dark
     // Wanderer (word 0x20 bit 0), its data +1 cleared: InitFn 43 makes none.
     bool wanderer_seen = false;
+    // Quest-record marker fields that outlive the levels containing them.
+    d2d::rules::MarkerRecords marker_records;
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
 };
@@ -1239,24 +1243,25 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     return d2d::rules::Rng{ game.next() };
 }
 
-// FUN_0064dea0's search (50 rings, `step` subtiles apart: FUN_0064e7b0 /
-// FUN_0064e810 pass 1, FUN_0064e7e0 4): (x, y) itself if `clear`, else
-// rings 1..49 out at radius r = 1 + step (ring - 1), each ring's columns
+// FUN_0064dea0's search (`step` subtiles apart: FUN_0064e7b0 / FUN_0064e810
+// pass 1, FUN_0064e7e0 its caller's 4 or 5): (x, y) itself if `clear`, else
+// rings out at radius r = 1, 1 + step, 1 + 2 step, ... while r < `limit`
+// (param_8: 0x32 from all three wrappers, so 49 rings at step 1, 13 at
+// step 4, 10 at step 5), each ring's columns
 // x - r and x + r from y - r every `step` (left then right a row), then its
 // rows y - r and y + r from x - r + 1 every `step` (top then bottom a
 // column); the first clear spot nearest (Manhattan) in the first ring with
 // one wins. None: nullopt (the callers' "keep the room" flag then keeps
-// (x, y) or fails).
+// (x, y) or fails). The limit by step: tools/emu/corpse_spot.py limit.
 template <class Clear>
-std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1) {
+std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1, int limit = 50) {
     if (clear(x, y)) return std::pair{ x, y };
     int best = -1, best_x = x, best_y = y;
-    for (int ring = 1; ring < 50 && best < 0; ++ring) {
+    for (int radius = 1; radius < limit && best < 0; radius += step) {
         auto test = [&](int test_x, int test_y) {
             const int distance = std::abs(test_x - x) + std::abs(test_y - y);
             if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
         };
-        const int radius = 1 + step * (ring - 1);
         for (int ty = y - radius; ty <= y + radius; ty += step) { test(x - radius, ty); test(x + radius, ty); }
         for (int tx = x - radius + 1; tx <= x + radius - 1; tx += step) { test(tx, y - radius); test(tx, y + radius); }
     }
@@ -1291,6 +1296,22 @@ std::pair<int, int> twin_spot(int x, int y, Flags flags) {
         return true;
     };
     return nearest_spot(x, y, clear, 5).value_or(std::pair{ x, y });
+}
+
+// Where a SearchOpenXY skill goes (Skills.txt +6 & 0x80: Fire Wall, Meteor,
+// Blizzard, Eruption, Volcano): FUN_004677b0, from FUN_00467880 on the
+// client before the skill is sent. From subtile (x, y), the target's or,
+// with none, the click's: when its word has bit 1 (FUN_0064cb30; 0x27 off
+// the rooms), the nearest subtile without it within 7 (FUN_0064e780(room,
+// &xy, 1, 1, 0, 7) -> FUN_0064dea0: size 1, rings of radius 1 to 6). That
+// spot: the skill goes there, at the ground (the target dropped). None:
+// nullopt, the target and the click as they were. Checked against
+// tools/emu/click_free_spot.py (test_search_open_xy).
+template <class Flags>
+std::optional<std::pair<int, int>> search_open_xy(int x, int y, Flags flags) {
+    const auto wall = [&](int at_x, int at_y) { return (flags(at_x, at_y) & 1) != 0; };
+    if (!wall(x, y)) return std::nullopt;
+    return nearest_spot(x, y, [&](int at_x, int at_y) { return !wall(at_x, at_y); }, 1, 7);
 }
 
 // FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free
@@ -1328,12 +1349,23 @@ std::optional<std::pair<int, int>> field_spot(const std::vector<std::uint8_t>& f
 
 // Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
 // if that's in a room, else (x, y), field_spot's free subtile (size 1, mask
-// 0x3e01, walk 0x801). None: the start.
+// 0x3e01, walk 0x801). None found: the start, as FUN_0064dea0 keeps it for
+// FUN_00555da0's flag (FUN_0055a550 passes 1), when it is in a room; else
+// FUN_00555da0 returns 0 and FUN_0055a550 makes no item: nullopt. (Which
+// room FUN_00463740 is asked, drops.md "Where a drop lands": `flags` stands
+// for it.)
 template <class Flags>
-std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+std::optional<std::pair<int, int>> drop_place(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
     int at_x = x + 2, at_y = y + 3;
     if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
-    return field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags).value_or(std::pair{ at_x, at_y });
+    if (const auto spot = field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags)) return spot;
+    if (flags(at_x, at_y) == 0x27) return std::nullopt;   // the start has no room (FUN_00463740)
+    return std::pair{ at_x, at_y };
+}
+// drop_place's spot, the dropper's own subtile (x, y) when none was made.
+template <class Flags>
+std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+    return drop_place(field, x, y, flags).value_or(std::pair{ x, y });
 }
 
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,

@@ -209,6 +209,9 @@ struct Monster {
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued going into GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
+    int spc_to_hit = 0;                       // MonUMod 14 (spcdamage)'s stat 0x13 (rules::spcdamage), 0 not one
+    std::uint32_t rise_at = 0;                // MonUMod 34 (ai_after_death)'s event 7 (FUN_005a3910), 0 none
+    bool rising = false;                      // its S1 rise (skill 0x125): unit flags 0xe off, not targetable
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
@@ -238,6 +241,8 @@ struct Monster {
                     if (swung_element.type == 2 && swung_element.dur == 0) swung_element.dur = 25;
                 }
             }
+        // MonUMod 14's hook 0 (FUN_005a3b50) runs after the swing's stats and puts stat 0x13 at level + 50 (at most 90).
+        if (spc_to_hit > 0) swung.to_hit = swung.to_hit2 = swung.to_hit_s1 = spc_to_hit;
         return swung;
     }
     // Its stats as a swing sets them in a classic game (FUN_005a4f50, game
@@ -345,9 +350,10 @@ struct Monster {
     std::uint32_t flash_at = 0;
     std::uint32_t aura_next = 0;
     int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
-    // Skills' states on it (their auratargetstate): one curse at a time
-    // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
-    // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
+    // Skills' states on it (their auratargetstate): one curse state at a time
+    // (Amplify Damage .. Lower Resist, Confuse, Attract, Battle Cry, Taunt,
+    // Cloak of Shadows' blindness, Bloodlust), one other (Inner Sight, Slow
+    // Missiles, Conversion, a monster's war cry).
     // `swaps`: its end toggles the AI back (FUN_005c3370: Dim Vision's,
     // Terror's, Cloak of Shadows').
     struct SkillState { int skill = -1, level = 0; std::uint32_t until = 0; bool swaps = false; };
@@ -438,6 +444,7 @@ struct Monster {
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
     std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    float leap_pace = 0;                      // the takeoff's path pace in cells a frame (FUN_005d9f70: MonStats Run << 8, FUN_00648690), 0: the sequence's time
     // Whirlwind as a monster casts it (srvstfunc 38 / do 76): its A1 sequence
     // looping along its path since whirl_ms, the rows passed, the last unit hit.
     bool whirl = false;
@@ -508,7 +515,7 @@ struct Monster {
     // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used
     // stands for revive / corpseexp / redeemed), not shattered (state 107).
     [[nodiscard]] bool usable_corpse() const { return !alive() && mode == "DD" && !corpse_used && !shatter; }
-    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
+    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding && !rising; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
     // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
     // the player's alignment (2: a converted monster, FUN_00650d70) refuses.
@@ -661,6 +668,21 @@ inline constexpr float kKnockCellsPerFrame = 0.2f;
 inline float knock_moved(std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * kKnockCellsPerFrame / 40.f, length); }
 inline std::uint32_t knock_ms(float length) { return std::uint32_t(std::ceil(length / kKnockCellsPerFrame - 1e-4f)) * 40; }
 
+// A takeoff's flight (FUN_005d9f70: the path's velocity is MonStats Run (row
+// +0x34) << 8, FUN_00648690; a frame moves it velocity / 4096 subtiles,
+// FUN_006502d0): Run / 16 subtiles = Run / 80 cells a frame. 0 for no Run.
+inline float leap_cells_per_frame(int run) { return float(std::max(run, 0)) / 80.f; }
+// The cells a takeoff has flown `elapsed_ms` in, at `pace` cells a frame, up to its `length`.
+inline float leap_moved(float pace, std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * pace / 40.f, length); }
+
+// How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the
+// takeoff's pace (FUN_005d9f70) when it has one, else along `span_ms`, the sequence's time.
+inline float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms) {
+    const float length = std::hypot(monster.leap_to_x - monster.leap_from_x, monster.leap_to_y - monster.leap_from_y);
+    if (monster.leap_pace > 0 && length > 0) return leap_moved(monster.leap_pace, elapsed_ms, length) / length;
+    return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
+}
+
 // A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
 // pet or the merc): at the knockback's pace to its leap_to, then it stands
 // till the mode ends (LAB_005a8630 steps the path each frame and leaves
@@ -711,12 +733,11 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
-// ponytail: no seed of its own (unit +0x20): the draws game.exe takes from it
-// (pSrvDmgFunc 3's soft hit, FUN_005ad220) take the fight's rng.
-struct Missile;
-// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when a step of
-// the missile's seed has its low 7 bits under dParam1 (+0x78).
-inline bool soft_hit(const GameData::MissileInfo& info, d2d::rules::Rng& rng) { return info.dmg_func == 3 && int(rng.next() & 0x7f) < info.dmg_par1; }
+// A missile's seed (Missile::seed, unit +0x20, {low, high}): the draws
+// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220) step it,
+// not the fight's rng.
+// ponytail: a missile Fight::missile_tick has not seeded (a client-made or
+// bare one) takes one step of the fight's rng for its first value (soft_hit).
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -730,6 +751,10 @@ struct Missile {
     bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
     int striker = -1;                         // a summon's (a Shadow's): its Monster::id, whom its hits are struck by
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
+    // Its unit seed (+0x20): {a game seed step, 666}, as FUN_0059fa30 makes it
+    // (FUN_00555230 type 3 -> FUN_00552df0 -> FUN_00650e40). Fight::missile_tick
+    // gives it to all but a visual-only one.
+    std::optional<d2d::rules::Rng> seed;
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).
@@ -773,6 +798,15 @@ struct Missile {
     bool launched = false, follow = true;
     std::vector<std::array<int, 4>> rooms;
 };
+// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when one step
+// of the missile's own seed (+0x20: low * 0x6ac690c5 + high) has its low 7
+// bits under dParam1 (+0x78). The step is kept, the roll passed or not. `rng`
+// only gives a missile with no seed yet its first value (see Missile::seed).
+inline bool soft_hit(Missile& missile, d2d::rules::Rng& rng) {
+    if (!missile.info || missile.info->dmg_func != 3) return false;
+    if (!missile.seed) missile.seed = d2d::rules::Rng(rng.next());   // {a step, 666}: FUN_00552df0
+    return int(missile.seed->next() & 0x7f) < missile.info->dmg_par1;
+}
 
 // A missile's speed, cells/s, for its velocity: FUN_0059fa30's path
 // velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
@@ -783,6 +817,13 @@ inline constexpr std::array<int, 16> kRingWayX{ 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -
 inline constexpr std::array<int, 16> kRingWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2 };
 inline float missile_speed(const GameData::MissileInfo& info, int level) {
     return missile_speed(d2d::rules::missile_velocity(info.vel, info.vel_lev, level));
+}
+// FUN_0059fa30's flag 2: the target point [7] / [8] subtiles from the
+// start's subtile (a nova's ring, FUN_0056d400; PrimePoisonNova's;
+// Frozen Orb's spin and burst), in cells: that subtile's centre, for
+// Missile::to.
+inline std::pair<float, float> offset_target(float x, float y, int offset_x, int offset_y) {
+    return { (std::floor(x * 5) + float(offset_x) + 0.5f) / 5, (std::floor(y * 5) + float(offset_y) + 0.5f) / 5 };
 }
 
 // One frame of a moving missile's flight (FUN_005ae1f0's move): launched
@@ -1115,7 +1156,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
                 // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
                 foe.hit_class = missile.info->hit_class;
-                if (soft_hit(*missile.info, rng)) ++foe.soft_hits;
+                if (soft_hit(missile, rng)) ++foe.soft_hits;
             }
             return false;
         }
@@ -1262,7 +1303,8 @@ inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables
 }
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).
+// A timed state on a monster in its slot, a curse state in the curse slot
+// whichever is named (FUN_0056e970), and a state's end (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 

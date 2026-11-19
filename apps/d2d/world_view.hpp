@@ -102,9 +102,6 @@ struct Unit {
 
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
-void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
-                      int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
-
 const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& sprite, std::uint32_t elapsed);
 
 // Screen rectangle a composite's current frame covers with its feet at
@@ -197,11 +194,12 @@ void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerA
 // from its bottom row up, every other row, a row up and a pixel left each
 // time — half as tall, leaning up and left — its pixels darkening the
 // ground through alpha table 0 as T[ground][0]: a quarter of the ground's
-// colour (whatever Blended Shadows says, lighting.md). `mask` / `id`: a pixel
-// darkens once however many layers cover it.
+// colour (whatever Blended Shadows says, lighting.md). Each layer the COF
+// marks (FUN_004db090: its record's shadow byte) is drawn on its own
+// (FUN_00471620 -> FUN_004f6540), so where two overlap the ground darkens twice.
 // ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
-                      int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
+                      int anchor_x, int anchor_y);
 
 // Draws a composite frame, feet at the anchor.
 }  // namespace d2d::client

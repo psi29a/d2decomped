@@ -54,6 +54,8 @@ the link it gives in src. width="400" keeps the pair side by side. -->
 - [ ] A test in `tests/` (fix or port)
 - [ ] The finding in `docs/research/re/`, its `todo.md` / `unverified.md` row moved (trace)
 - [ ] `python3 tools/pr_guard.py` passes
+- [ ] `ctest` with the game data: N passed, N failed, N skipped (or "not run": no game files); fails on main too: <names>
+- [ ] Labels: `trace`, `oracle`, `port`, `test`, `netplay`, `documentation` or `platform`, as it touches
 
 ---
 

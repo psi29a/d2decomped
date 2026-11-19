@@ -504,6 +504,17 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             }
             return;
         }
+        // FUN_0054bf60 -> FUN_00544840: a bkd read; FUN_00593cb0 draws the
+        // order if it's not drawn and sends it (S->C 0x50 subtype 4).
+        if (const auto* read = std::get_if<cmd::ReadScroll>(&command)) {
+            const auto found = std::ranges::find(actor->character.items, read->item, &d2d::d2s::Item::id);
+            if (found == actor->character.items.end() || found->code != "bkd" || hosted_quests) return;
+            if (!cain.ordered) cain.stone_order(fight.spawning.quests.low, fight.spawning.quests.high);
+            ev::StoneOrder stones;
+            std::ranges::transform(cain.order, stones.order.begin(), [](int stone) { return stone - d2d::rules::object_ids::kStoneAlpha; });
+            actor->events.push_back(stones);
+            return;
+        }
         if (const auto* use = std::get_if<cmd::UseItem>(&command)) {
             const auto found = std::ranges::find(actor->character.items, use->item, &d2d::d2s::Item::id);
             if (found != actor->character.items.end() && (found->code == "tsc" || found->code == "tbk")) read_portal(found, now_ms);
