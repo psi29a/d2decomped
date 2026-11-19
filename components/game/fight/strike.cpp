@@ -782,19 +782,35 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         launch(found->second, skill, lvl, x, y, next_target.unit.x - x, next_target.unit.y - y, found->second.range, now_ms).hops = calc(skill, skill.calc[1], lvl);
     }
 
-auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, std::uint32_t now_ms) -> void {
+auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms) -> void {
         auto& corpse = monsters[corpse_index];
         corpse.corpse_used = true;
-        const int low = calc(skill, skill.calc[0], lvl), high = std::max(calc(skill, skill.calc[1], lvl), low);
-        const int dmg = int(std::int64_t(corpse.stats.hit_points) * rng.range(low, high) / 100);
-        const int radius = std::max(calc(skill, skill.aurarange, lvl) / 2, 1);
-        for (std::size_t j = 0; j < monsters.size(); ++j)
-            if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - corpse.unit.x, monsters[j].unit.y - corpse.unit.y) * 5 <= float(radius)) {
-                const auto target = target_of(j);
-                d2d::rules::Blow blow{ .hit = true };
-                blow.damage = d2d::rules::resisted(dmg / 2, target.res[0]) + d2d::rules::resisted(dmg - dmg / 2, target.res[2]);
-                land(j, blow, true, now_ms, player_foe_id());
-            }
+        const int life_fine = d2d::rules::corpse_life_fine(game_data->monsters, corpse.type, corpse.difficulty, corpse.stats.level);
+        int fine = d2d::rules::corpse_blast_fine(life_fine, calc(skill, skill.calc[0], lvl), calc(skill, skill.calc[1], lvl), corpse.seed, corpse.stats.level, caster_level);
+        // calc3 % (0..100) of it goes to the skill's EType (fire in 1.14d's rows, FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a).
+        int element_fine = 0;
+        if (const int element_pct = std::min(std::max(calc(skill, skill.calc[2], lvl), 0), 100); element_pct > 0 && skill.etype == 0) {
+            element_fine = d2d::rules::mul_div(fine, element_pct, 100);
+            fine = d2d::rules::mul_div(fine, 100 - element_pct, 100);
+        }
+        // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2 subtiles of the corpse; the physical
+        // reaches only aurarange / 2 (FUN_005c4d10's FUN_006492a0 against its square).
+        const int range = calc(skill, skill.aurarange, lvl), walk = (range + 1) / 2, phys_reach = range / 2;
+        const int corpse_x = int(std::floor(corpse.unit.x * 5)), corpse_y = int(std::floor(corpse.unit.y * 5));
+        for (std::size_t j = 0; j < monsters.size(); ++j) {
+            if (j == corpse_index || !monsters[j].targetable()) continue;
+            const int off_x = int(std::floor(monsters[j].unit.x * 5)) - corpse_x, off_y = int(std::floor(monsters[j].unit.y * 5)) - corpse_y;
+            const int apart = off_x * off_x + off_y * off_y;
+            if (apart > walk * walk || !filter_takes(skill.aura_filter, monsters[j], corpse.unit.x, corpse.unit.y)) continue;
+            const auto target = target_of(j);
+            const int got = (apart <= phys_reach * phys_reach ? d2d::rules::resisted_fine(fine, target.res[0]) : 0)
+                            + d2d::rules::resisted_fine(element_fine, target.res[2] < 100 ? std::max(target.res[2] - fire_pierce, -100) : target.res[2]);
+            d2d::rules::Blow blow{ .hit = true };
+            blow.damage = got >> 8;
+            blow.frac = got & 255;
+            blow.elemental = element_fine > 0;
+            land(j, blow, true, now_ms, player_foe_id());
+        }
     }
 
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
@@ -865,7 +881,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                         launch(found->second, skill, lvl, corpse.unit.x, corpse.unit.y, 0, 0, found->second.range, now_ms);
                     break;
                 }
-                corpse_blast(skill, lvl, std::size_t(corpse_index), now_ms);
+                corpse_blast(skill, lvl, std::size_t(corpse_index), int(actor->character.stats.get(d2d::d2s::kLevel)), pierce()[0], now_ms);
                 break;
             }
             case ServerDoFunction::kTeleport: case ServerDoFunction::kLeap: case ServerDoFunction::kDragonFlight: {

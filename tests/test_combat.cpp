@@ -869,6 +869,22 @@ int main(int argc, char** argv) try {
         pool = 2 * 256;                                                // a pool under the flat: the flat still takes its 2 hp off the rest
         assert(absorb_blows(blows, pool, false) == 512 && blows[0].damage * 256 + blows[0].frac == reduce_fine(blow_hit.raw - 512, 50, 2));
     }
+    {                                                                  // Corpse Explosion's blow (FUN_005c4df0)
+        Monsters table;
+        table.types.resize(1);
+        table.lvl.resize(31);
+        table.types[0].diff[0].min_hp = 50;
+        table.types[0].diff[0].max_hp = 150;
+        table.lvl[30].hit_points[0] = 1000;                           // level 30: 500..1500, averaged: 1000 points
+        assert(corpse_life_fine(table, 0, 0, 30) == 1000 * 256);
+        Rng seed{ 99 }, same{ 99 };
+        const int roll = same(1000 * 256 * 80 / 100 - 1000 * 256 * 60 / 100);
+        assert(corpse_blast_fine(1000 * 256, 60, 80, seed, 30, 40) == 1000 * 256 * 60 / 100 + roll && seed.low == same.low);
+        Rng above{ 99 };                                               // a corpse at 30 by a level-15 caster: half
+        assert(corpse_blast_fine(1000 * 256, 60, 80, above, 30, 15) == (1000 * 256 * 60 / 100 + roll) / 2);
+        Rng flat{ 99 };                                                // calc1 == calc2: no draw
+        assert(corpse_blast_fine(1000 * 256, 70, 70, flat, 30, 40) == 1000 * 256 * 70 / 100 && flat.low == 99);
+    }
     {                                                                  // a fixed record (Corpse Explosion FUN_005c4d10, Diablo's cold FUN_005cce80): not FUN_0057b420's roll
         const Fighter bare;
         MonStats corpse;
