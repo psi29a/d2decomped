@@ -501,8 +501,12 @@ Its callers: every summoning skill's do but the Shadows' (the golems'
 through FUN_005c50c0, the traps' through FUN_005d5e10, Bone Wall's and
 Bone Prison's through FUN_005c58b0 / FUN_005c5bc0), and FUN_005aeda0. The
 Decoy's do (FUN_005dc000) sets its life first: the owner's max life x calc3
-/ 100 (FUN_00483360), so calc1 % goes on that; Revive's (FUN_005c56c0) brings
-the life down with the level first (not in d2d: a ponytail in summons.cpp).
+/ 100 (FUN_00483360), so calc1 % goes on that; Revive's (FUN_005c56c0
+0x5c5776..0x5c5830) rolls the corpse's life at its own level (FUN_006538a0's
+range, FUN_0045c3e0 on its unit seed) and, when that level is above the
+owner's, makes it MulDiv(life, clvl, level) (FUN_00483360), 1 at least, and
+the level the owner's (`tools/emu/revive_life.py` against
+`rules::revive_life`, `test_summon_stats --revive-life`).
 `tools/emu/summon_stats.py` runs it on those summons against
 `rules::summon_stats`, `summon_life` and `summon_skill_levels`
 (`test_summon_stats --summon-stats`). d2d: `Fight::summon_one`, which adds
@@ -713,6 +717,6 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `FUN_005b1900(0, ...)` and the path repattern. Unlike `FUN_0056d8d0`
   there is no clamp of the limit to 1, and no `+0xc4` bit 31 write in this
   function (the flag comes from `FUN_005c55c0`, collision.md). d2d:
-  `summon_one` does the Revive stats as skills.md says (reads the same, cited, no oracle run); the
+  `summon_one` does the Revive life and level by `rules::revive_life` (the oracle above); the
   registration and the missing clamp are the `pet_add` notes above.
 
