@@ -762,9 +762,10 @@ struct Fight {
     // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
-    // sentry'): its max life x calc1..calc2 %, half fire and half physical,
-    // on everything within half the skill's aurarange of it.
-    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, std::uint32_t now_ms);
+    // sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
+    // physical, on what its aurafilter takes within half the aurarange.
+    // `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
+    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms);
     // Skills that act where they're cast, with no missile of their own:
     // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
     // monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
@@ -772,8 +773,7 @@ struct Fight {
     // and stun within aurarange of the point), Static Field (20,
     // FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
     // aurarange of the caster, as lightning), Corpse Explosion (55,
-    // FUN_005c4df0: a corpse's max life x calc1..calc2 %, half fire and half
-    // physical, within half its aurarange), Poison Explosion (63,
+    // FUN_005c4df0: corpse_blast), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
     // FUN_005ca360: to the point, where it's open; not in town).
     // Static Field's walk takes its aurafilter (0x8783) from the caster: a
@@ -781,8 +781,7 @@ struct Fight {
     // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
     // enemy player: FUN_0056b3e0 type 0), Mind Blast's
     // conversion (Param3 / 4 through FUN_005d7680) and the knockback
-    // guards aren't applied; Corpse Explosion takes its corpse's life from
-    // the MonStats roll, not FUN_006538a0's.
+    // guards aren't applied.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with

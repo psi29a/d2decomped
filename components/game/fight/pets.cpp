@@ -1157,7 +1157,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             if (pet_skill)
                 for (std::size_t k = 0; k < 5; ++k)
                     if (const auto* bone_skill = skill_named(pet_skill->sumskill[k]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion && !monsters[std::size_t(target)].corpse_used) {
-                        corpse_blast(*bone_skill, pet.shot_level, std::size_t(target), now_ms);
+                        corpse_blast(*bone_skill, pet.shot_level, std::size_t(target), pet.monster.stats.level, 0, now_ms);
                         // Its client do, cltdofunc 78 (FUN_004f0cd0): the prgsound on the cltmissile it makes
                         // (FUN_004cdb40: corpseexplosion, which d2d doesn't draw), at the corpse.
                         if (bone_skill->clt_do_func == 78)
