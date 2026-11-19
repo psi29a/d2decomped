@@ -22,6 +22,7 @@ byte for byte: the life.
 """
 import os
 import random
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,9 +61,11 @@ def parse(line):
     if len(words) < HEAD:
         raise ValueError(f"bad case line {line!r}")
     head, rest = words[:HEAD], words[HEAD:]
+    if head[-1] < 0:
+        raise ValueError(f"bad case line {line!r}")
     blows = []
     for _ in range(head[-1]):
-        if not rest or len(rest) < 1 + 2 * rest[0]:
+        if not rest or rest[0] < 0 or len(rest) < 1 + 2 * rest[0]:
             raise ValueError(f"bad case line {line!r}")
         count = rest[0]
         blows.append([(rest[1 + 2 * k], rest[2 + 2 * k]) for k in range(count)])
@@ -145,7 +148,7 @@ def compare(cases, gfile, dfile):
     for case_line, g_line, d_line in zip(case_lines, game_lines, d2d_lines, strict=True):
         head, blows = parse(case_line)
         g, d = g_line.split(), d_line.split()
-        if len(g) != 2 or len(d) != 2 or g[0] != d[0] or g[0] != str(head[0]) or not (g[1].lstrip("-").isdigit() and d[1].lstrip("-").isdigit()):
+        if len(g) != 2 or len(d) != 2 or g[0] != d[0] or g[0] != str(head[0]) or not (re.fullmatch(r"-?[0-9]+", g[1]) and re.fullmatch(r"-?[0-9]+", d[1])):
             raise SystemExit(f"compare: malformed or out-of-step line near id {head[0]}")
         differ = g[1] != d[1]
         absorbing = any(head[7 + k] > 0 or head[11 + k] > 0 for k in range(4))
