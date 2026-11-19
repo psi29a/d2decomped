@@ -834,6 +834,9 @@ struct GameData {
                          bool last_unit_rule() const { return last_collide && !next_hit && !pierce && (srv_do == 1 || srv_do == 3); }
                          std::string sub, sub2, hit_sub;
                          std::array<const MissileInfo*, 2> subs{}; const MissileInfo* hit_sub_info = nullptr;   // those rows, loaded
+                         // The client's: CltSubMissile1 (+0x1e) and InitSteps (+0x135), the row client do 8 lays
+                         // and from what age (FUN_004d38d0; game.exe's column table FUN_00661b20).
+                         std::string clt_sub; const MissileInfo* clt_sub_info = nullptr; int init_steps = 0;
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,
                          // and at its range's end too when AlwaysExplode (+0x18c) (FUN_004d2d70).
                          std::string explosion_name; const MissileInfo* explosion = nullptr; bool always_explode = false;
