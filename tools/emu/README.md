@@ -619,9 +619,9 @@ game.exe as `emu.py` does (`--exe PATH` for another).
 4. Print the result in a text form that a small C++ tool beside the port
    also prints, then diff.
 
-ponytail: `__cinit` (C++ static constructors) isn't run, because its C
-initialisers want locale setup. Add it when a global constructor turns out
-to matter.
+`crt_init()` runs the CRT's startup in ___tmainCRTStartup's order, through
+`__cinit` (the C initialisers and the C++ static constructors), with Win32
+stubs for the lowio, environment and Latin-1 locale calls it makes.
 
 - `missiles.py`: missile flights (FUN_0059fa30, then srvdofunc 1 a frame at
   a time) in a Blood Moor game, against a line-for-line copy of
