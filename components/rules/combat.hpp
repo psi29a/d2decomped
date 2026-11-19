@@ -417,6 +417,12 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
 inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
 
+// Life Tap (damagedinmelee / damagedbymissile, aura event func 5,
+// FUN_005c61e0): calc1 % of a hit on the cursed unit heals whoever dealt it.
+inline std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct) {
+    return std::min<std::int64_t>(max_fine, life_fine + ((std::int64_t(damage_fine >> 8) * pct / 100) << 8));
+}
+
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
 // element's mastery) in 256ths, the element (Skill::etype order: fire,

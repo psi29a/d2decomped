@@ -570,11 +570,10 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
             target.bleed_until = now_ms + std::uint32_t(d2d::rules::kOpenWoundsFrames) * 40;
         }
-        // Life Tap (damagedinmelee / damagedbymissile, func 5): calc1 % of the
-        // damage heals whoever dealt it.
+        // Life Tap: rules::life_tap_life.
         if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; by_player && curse && curse->auratarget == "lifetap")
-            actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife]
-                                         + ((std::int64_t(blow.damage) * calc(*curse, curse->calc[0], target.curse.level) / 100) << 8));
+            actor->character.stats.values[kLife] = d2d::rules::life_tap_life(actor->character.stats.values[kLife], actor->character.stats.values[kMaxLife],
+                                                                             (blow.damage << 8) + blow.frac, calc(*curse, curse->calc[0], target.curse.level));
         if (blow_hurt(*game_data, target, blow, now_ms)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
