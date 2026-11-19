@@ -876,7 +876,15 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
         }
     }
     const auto inside = [](const std::array<int, 4>& rect, int x, int y) { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]; };
-    const auto reached = [&](int x, int y) { return missile.rooms.empty() || std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+    // FUN_00463740 reads the room's near list as it is now: a room come up since the list
+    // was taken holds its room1, so a miss asks the list again, round its own room.
+    const auto reached = [&](int x, int y) {
+        const auto in_list = [&] { return std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+        if (missile.rooms.empty() || in_list()) return true;
+        const auto& own = missile.rooms.front();
+        missile.rooms = reach((float(own[0] + own[2] / 2 - origin_x) + 0.5f) / 5, (float(own[1] + own[3] / 2 - origin_y) + 0.5f) / 5);
+        return missile.rooms.empty() || in_list();
+    };
     bool flying = missile.flight.step([&](int x, int y) {
         return !reached(x, y) || level.blocked((float(x - origin_x) + 0.5f) / 5, (float(y - origin_y) + 0.5f) / 5, 0x04);
     });
