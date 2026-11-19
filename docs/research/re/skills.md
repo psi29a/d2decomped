@@ -1395,9 +1395,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
   level (HydraMissile, whose row 'hydra' carries the Hydra skill).
-- Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with its
-  own stats (FUN_006538a0), brought down to the owner's level and life
-  when above it, then FUN_005c4470 (200 % life, Revive's speed and
+- Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with a
+  life rolled at its own level (FUN_006538a0's range, its unit seed),
+  brought down with the level to the owner's when above it (MulDiv by
+  clvl / level, pet-ai.md), then FUN_005c4470 (200 % life, Revive's speed and
   damage %); the pet's time is calc2 frames. It is the corpse itself
   (FUN_00553540: the unit cast at) on its own MonStats think:
   FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,

@@ -95,8 +95,9 @@ auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> c
 auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms) -> void {
         int type = game_data->monsters.row(skill.summon);
         const auto env = calc_env();
+        int corpse = -1;
         if (skill.target_corpse) {
-            const int corpse = corpse_near(x, y);
+            corpse = corpse_near(x, y);
             if (corpse < 0) return;
             monsters[std::size_t(corpse)].corpse_used = true;
             x = monsters[std::size_t(corpse)].unit.x; y = monsters[std::size_t(corpse)].unit.y;
@@ -141,12 +142,12 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
                     summon_one(skill, type, lvl, env, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
             return;
         }
-        summon_one(skill, type, lvl, env, x, y, now_ms);
+        summon_one(skill, type, lvl, env, x, y, now_ms, corpse);
     }
 
 // Makes one pet of monster row `type` for `skill` at a spot: its AI control
 // starts as the AI's init does (the traced inits in the body), returns its id.
-auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> int {
+auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse) -> int {
         const int max = std::max(d2d::rules::eval_calc(game_data->skills, skill.petmax, env, skill.id, lvl), 1);
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
         while (skill.pettype != "none" && std::ranges::count_if(actor->pets, same) >= max) actor->pets.erase(std::ranges::find_if(actor->pets, same));
@@ -183,10 +184,17 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // The life roll is min + rand(max - min + 1) on the pet's unit seed
         // (+0x20, 0x573f83..0x573f8f), here rng.range on Fight::rng:
         // deviations.md approximation 18.
-        // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
-        // stats at its level, life and level brought down to the owner's
-        // when it's above it.
-        if (skill.srvdofunc != ServerDoFunction::kRevive) {
+        // Revive (do 58, FUN_005c56c0) raises the corpse itself: a life rolled
+        // at the corpse's level and, above the owner's, MulDiv'd down with
+        // the level to the owner's (rules::revive_life).
+        // ponytail: its other stats are the type's at its MonStats level here, not the corpse's own (the same unit in
+        // game.exe), and the roll is Fight::rng, not the corpse's unit seed (deviations.md approximation 18). A corpse
+        // whose start level is its MonStats Level of 0 is level 0 in game.exe (stat 0xc as read, FUN_00573cb0
+        // 0x573e18..0x573e70: rolled at MonLvl row 0, kept at 0) but 1 in monster_stats (rolled at row 1, kept at 1).
+        const bool revive = skill.srvdofunc == ServerDoFunction::kRevive;
+        const int corpse_level = revive && corpse >= 0 ? monsters[std::size_t(corpse)].stats.level : monster.stats.level;
+        const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, rng) : d2d::rules::RevivedLife{};
+        if (!revive) {
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
             monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
@@ -220,8 +228,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             pet.skill_damage = true;
             pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = summon_skill_to_hit;
         }
-        const int revived_level = monster.stats.level;
-        if (skill.srvdofunc == ServerDoFunction::kRevive) monster.stats.level = std::min(monster.stats.level, clvl);
+        if (revive) monster.stats.level = revived.level;
         else if (skill.srvdofunc == ServerDoFunction::kMirrorImage) monster.stats.level = clvl;
         else if (levelled) monster.stats.level = plvl;
         if (levelled && !game_data->monsters.lvl.empty()) {
@@ -286,13 +293,11 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 pet_stats[stat_id] += value;
         }
         // The Decoy's do (FUN_005dc000 0x5dc0ec..0x5dc12f) sets its life first: the owner's max life x calc3 / 100
-        // (FUN_00483360), 256ths; calc1 % then goes on that.
-        // Revive's do (FUN_005c56c0 0x5c57f6..0x5c582c) brings a monster above the owner's level down before FUN_005c4470:
-        // its life x clvl / its level (FUN_00483360, at least 1), 256ths, then the level.
-        int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
-                            ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
-                            : monster.stats.hit_points << 8;
-        if (skill.srvdofunc == ServerDoFunction::kRevive && revived_level != 0 && clvl < revived_level) base_fine = std::max(d2d::rules::mul_div(base_fine, clvl, revived_level), 1);
+        // (FUN_00483360), 256ths; calc1 % then goes on that, as on Revive's (above).
+        const int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
+                                  ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
+                              : revive ? revived.life_fine
+                                       : monster.stats.hit_points << 8;
         // ponytail: a life that wraps to 0 or below (bugs.md 123) is held at one point; what game.exe's pet does then isn't traced.
         int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
         if (life_fine <= 0) life_fine = 256;

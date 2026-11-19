@@ -118,9 +118,7 @@ int summon_level_cases(const GameData& game_data) {
 
 // tools/emu/revive_life.py's cases (`type difficulty level clvl seed_low
 // seed_high`), each with `| life level`: the revived monster's life in 256ths
-// and its level as Fight::summon_one makes them (the type's MonStats roll on
-// that seed; above the owner's, that life x clvl / its level, the level the
-// owner's).
+// and its level (rules::revive_life on that unit seed).
 int revive_life_cases(const GameData& game_data) {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -131,9 +129,8 @@ int revive_life_cases(const GameData& game_data) {
         if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
         d2d::rules::Rng seed{ seed_low };
         seed.high = seed_high;
-        const auto stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, seed);
-        const int life = stats.level != 0 && clvl < stats.level ? std::max(d2d::rules::mul_div(stats.hit_points << 8, clvl, stats.level), 1) : stats.hit_points << 8;
-        std::printf("%s | %d %d\n", line.c_str(), life, std::min(stats.level, clvl));
+        const auto revived = d2d::rules::revive_life(game_data.monsters, type, difficulty, level, clvl, seed);
+        std::printf("%s | %d %d\n", line.c_str(), revived.life_fine, revived.level);
     }
     return 0;
 }
@@ -220,7 +217,21 @@ int raise_check(const GameData& data) {
     const int calc2 = std::max(d2d::rules::eval_calc(data.skills, raven_row.calc[1], world->fight.calc_env(), raven_id, 5), 1);
     world->fight.summon_one(raven_row, data.monsters.row(raven_row.summon), 5, world->fight.calc_env(), actor->player.x + 3, actor->player.y + 3, 100000);
     assert(calc2 > 40 && actor->pets.back().monster.stats.level == calc2);
-    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left, a Raven at %d\n", actor->pets.front().monster.max_life_fine(), summon_resist, calc2);
+    // Revive at 1 on a level-60 zombie's corpse: its life rolled at 60, then x 40 / 60 with the level 40
+    // (FUN_005c56c0), then calc1 % (FUN_005c4470).
+    const int revive_id = data.skills.by_name.at("Revive");
+    const auto& revive_row = *data.skills.get(revive_id);
+    auto& corpse = world->fight.monsters.emplace_back();
+    corpse.type = data.monsters.row("zombie1");
+    corpse.stats.level = 60;
+    world->fight.summon_one(revive_row, corpse.type, 1, world->fight.calc_env(), actor->player.x - 3, actor->player.y - 3, 100000, int(world->fight.monsters.size()) - 1);
+    const auto at_60 = d2d::rules::monster_ranges(data.monsters, corpse.type, 0, 60);
+    const int revive_calc1 = d2d::rules::eval_calc(data.skills, revive_row.calc[0], world->fight.calc_env(), revive_id, 1);
+    const auto revived_life = [&](int life) { return d2d::rules::summon_life(std::max(d2d::rules::mul_div(life << 8, 40, 60), 1), revive_calc1); };
+    const auto& revived = actor->pets.back().monster;
+    assert(revived.stats.level == 40 && revived.max_life_fine() >= revived_life(at_60.min_hp) && revived.max_life_fine() <= revived_life(at_60.max_hp));
+    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left, a Raven at %d, a revived zombie %d/256\n",
+                actor->pets.front().monster.max_life_fine(), summon_resist, calc2, revived.max_life_fine());
     return 0;
 }
 
@@ -260,8 +271,8 @@ int decoy_check(const GameData& data) {
     return 0;
 }
 
-// Revive at 1 on a level-3 Necromancer raising a Normal Andariel (level 12): its do (FUN_005c56c0
-// 0x5c57f6) takes her life x 3 / 12 (MulDiv) and her level down to 3 before FUN_005c4470's calc1 %.
+// Revive at 1 on a level-3 Necromancer raising a Normal Andariel (level 12): its do (FUN_005c56c0) rolls her
+// life at 12 (0x5c57a4), takes it x 3 / 12 (MulDiv, 0x5c57f6) and her level down to 3 before FUN_005c4470's calc1 %.
 int revive_check(const GameData& data) {
     d2d::rules::Rng rng{ 7 };
     Character character;
@@ -289,10 +300,11 @@ int revive_check(const GameData& data) {
     const int calc1 = d2d::rules::eval_calc(data.skills, row.calc[0], world->fight.calc_env(), revive, 1);
     world->fight.summon_one(row, andariel, 1, world->fight.calc_env(), actor->player.x + 3, actor->player.y, 100000);
     assert(actor->pets.size() == 1 && rolled.level > 3);
-    const int expect = d2d::rules::summon_life(d2d::rules::mul_div(rolled.hit_points << 8, 3, rolled.level), calc1);
+    const auto revived = d2d::rules::revive_life(data.monsters, andariel, 0, rolled.level, 3, copy);   // the roll after the spawn's
+    const int expect = d2d::rules::summon_life(revived.life_fine, calc1);
     const auto& pet = actor->pets.front().monster;
-    assert(pet.stats.level == 3 && pet.max_life_fine() == expect);
-    std::printf("OK: a revived Andariel's life %d/256 (her %d at %d, down to 3)\n", expect, rolled.hit_points, rolled.level);
+    assert(revived.level == 3 && pet.stats.level == 3 && pet.max_life_fine() == expect);
+    std::printf("OK: a revived Andariel's life %d/256 (rolled at %d, down to 3)\n", expect, rolled.level);
     return 0;
 }
 
