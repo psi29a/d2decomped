@@ -785,15 +785,11 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
         corpse.corpse_used = true;
         const int life_fine = d2d::rules::corpse_life_fine(game_data->monsters, corpse.type, corpse.difficulty, corpse.stats.level);
         int fine = d2d::rules::corpse_blast_fine(life_fine, calc(skill, skill.calc[0], lvl), calc(skill, skill.calc[1], lvl), corpse.seed, corpse.stats.level, caster_level);
-        // calc3 % (0..100) of it goes to the skill's EType (fire in 1.14d's rows, FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a).
+        // calc3 % of it to the skill's EType (fire in 1.14d's rows), the rest physical; the walk's radius and the
+        // physical's reach (rules::corpse_blast_split, corpse_blast_reach).
         int element_fine = 0;
-        if (const int element_pct = std::min(std::max(calc(skill, skill.calc[2], lvl), 0), 100); element_pct > 0 && skill.etype == 0) {
-            element_fine = d2d::rules::mul_div(fine, element_pct, 100);
-            fine = d2d::rules::mul_div(fine, 100 - element_pct, 100);
-        }
-        // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2 subtiles of the corpse; the physical
-        // reaches only aurarange / 2 (FUN_005c4d10's FUN_006492a0 against its square).
-        const int range = calc(skill, skill.aurarange, lvl), walk = (range + 1) / 2, phys_reach = range / 2;
+        std::tie(fine, element_fine) = d2d::rules::corpse_blast_split(fine, calc(skill, skill.calc[2], lvl), skill.etype == 0);
+        const auto [walk, phys_reach] = d2d::rules::corpse_blast_reach(calc(skill, skill.aurarange, lvl));
         const int corpse_x = int(std::floor(corpse.unit.x * 5)), corpse_y = int(std::floor(corpse.unit.y * 5));
         for (std::size_t j = 0; j < monsters.size(); ++j) {
             if (j == corpse_index || !monsters[j].targetable()) continue;

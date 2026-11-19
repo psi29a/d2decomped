@@ -6,8 +6,8 @@
 //   `--life CASES` reads tools/emu/gear_absorb.py's case lines and prints `id life`: the player's life after the blows,
 //   in 256ths; `gear_absorb.py compare` checks it against game.exe's FUN_0057c6c0. Needs the MPQs and 1.14d's tables
 //   (D2_MPQ_DIR, D2_PATCH_INSTALLER, as test_game); it skips without.
-//   no argument: game.exe's lives for the pinned cases (gear_absorb.py game) through Fight::hurt_side, and a merc's gear
-//   absorb left out; the same cases through the rules alone are test_gear_absorb_rules.
+//   no argument: game.exe's lives for the pinned cases (gear_absorb.py game) through Fight::hurt_side; the same cases
+//   through the rules alone are test_gear_absorb_rules; a merc's are test_merc_absorb.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -125,23 +125,6 @@ int main(int argc, char** argv) try {
         const bool ok = parse(line, one);
         assert(ok);
         assert(run(line) == life);            // through Fight::hurt_side
-    }
-    // Players only: a hireling's gear absorb is not modelled (merc.cpp), whatever its stats carry. A potion state's stats join
-    // the merc's stat sum exactly as its gear's do (merc_fighter), so a cold absorb and a cold resistance given that way show
-    // which reach its Fighter: the resistance does, the absorb does not.
-    {
-        auto& actor = *world.actor;
-        Monster merc;
-        merc.hit_points = 100;
-        actor.merc = merc;
-        actor.merc_st.level = 20;
-        const int bare_cold = world.fight.merc_fighter().res[2];
-        actor.merc_potion_states[0] = { { { d2d::d2s::kColdResist, 25 }, { d2d::d2s::kAbsorbColdPercent, 20 }, { d2d::d2s::kAbsorbCold, 5 } }, ~0u };
-        const auto fighter = world.fight.merc_fighter();
-        assert(fighter.res[2] == bare_cold + 25);
-        assert(fighter.absorb_pct[2] == 0 && fighter.absorb_flat[2] == 0);
-        actor.merc_potion_states[0] = {};
-        actor.merc.reset();
     }
     std::printf("ok\n");
     return 0;

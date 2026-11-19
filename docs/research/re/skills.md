@@ -1395,9 +1395,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
   level (HydraMissile, whose row 'hydra' carries the Hydra skill).
-- Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with its
-  own stats (FUN_006538a0), brought down to the owner's level and life
-  when above it, then FUN_005c4470 (200 % life, Revive's speed and
+- Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with a
+  life rolled at its own level (FUN_006538a0's range, its unit seed),
+  brought down with the level to the owner's when above it (MulDiv by
+  clvl / level, pet-ai.md), then FUN_005c4470 (200 % life, Revive's speed and
   damage %); the pet's time is calc2 frames. It is the corpse itself
   (FUN_00553540: the unit cast at) on its own MonStats think:
   FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
@@ -1518,8 +1519,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
   Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
   or in town isn't struck (`Fight::spot`, `filter_takes`). **55**
-  (FUN_005c4df0, Corpse Explosion): the corpse's max life (FUN_006538a0) x
-  calc1..calc2 %, half fire half physical, within aurarange / 2. **63**
+  (FUN_005c4df0, Corpse Explosion): the corpse's average life at its level
+  ((min + max) << 7 of FUN_006538a0's range) x calc1..calc2 %, each through
+  FUN_00483360 with the % as the value and the life as the times
+  (0x5c4f31, 0x5c4f57: over 0x10000 the life is cut to hundredths first),
+  rolled on the corpse's seed, cut above the caster's level; calc3 % of it
+  fire, the rest physical; the walk within (aurarange + 1) / 2, the
+  physical within aurarange / 2 (`tools/emu/corpse_explosion.py`). **63**
   (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**
   (FUN_005ca360, Teleport): to the point if it's open and not in town.
   It returns 0 on a refusal (no room, the level's Teleport 0, Teleport
