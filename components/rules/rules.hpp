@@ -2040,15 +2040,16 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // seed's first low % the most + 1, the most = gemsockets / MaxSock by
 // ilvl / 3, 4, 6 by difficulty) and the AutoMagic class affix (FUN_005c1560
 // off the base's auto prefix group).
+// `special_wanted`: a unique / set row + 1 that wins with no draw when it
+// fits (struct +0x40: FUN_005566b0, FUN_005c25c0).
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
-// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules and
-// forced picks (struct +0x40) aren't here; without a unit seed everything
+// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules aren't here; without a unit seed everything
 // comes off `rng` (stores, gambling, imbue) and none of the above is
 // rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
 // and dmg%'s +1 max damage on a weak weapon only reach its props.
 inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                                     Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                                    int difficulty = 0) {
+                                    int difficulty = 0, int special_wanted = 0) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
@@ -2213,6 +2214,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         int total = 0, pick = -1;
         for (const auto& row : list) if (fits(row)) total += std::max(1, row.rarity);
         if (total == 0) return -1;
+        // The forced row (struct +0x40, row + 1: a TC's unique / set entry) when it fits, no draw.
+        if (special_wanted > 0 && std::size_t(special_wanted - 1) < list.size() && fits(list[std::size_t(special_wanted - 1)])) return special_wanted - 1;
         int roll = rng(total);
         for (std::size_t i = 0; i < list.size() && pick < 0; ++i) {
             if (!fits(list[i])) continue;

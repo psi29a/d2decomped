@@ -290,6 +290,14 @@ int main() try {
         assert(d2d::game::required_level(*data, bow) < 30);
         std::printf("OK: the class automod's levelreq in magic and rare items' required level\n");
     }
+    {   // ROP (H)'s "Annihilus" is a unique by name (FUN_00654440): flag 1, its row, the small charm.
+        const auto& rop = data->rules.treasure.at("ROP (H)");
+        const auto entry = std::ranges::find(rop.items, std::string("cm1"), &std::pair<std::string, int>::first);
+        assert(entry != rop.items.end());
+        const auto at = std::size_t(entry - rop.items.begin());
+        assert(rop.entry_flags[at] == 1 && data->rules.uniques[std::size_t(rop.entry_index[at])].index == "Annihilus");
+        std::printf("OK: ROP (H) names Annihilus, unique row %d\n", rop.entry_index[at]);
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
