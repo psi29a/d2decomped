@@ -763,7 +763,9 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 
 // Corpse Explosion's blow (do 55, FUN_005c4df0): the corpse's life, a
 // monster's FUN_006538a0 range at its level (stat 0xc) averaged, 256ths
-// ((min + max) << 7, 0x5c4ecd); calc1..calc2 % of it (FUN_00483360), the
+// ((min + max) << 7, 0x5c4ecd); calc1..calc2 % of it (FUN_00483360 with
+// the % as its value and the life as the times, 0x5c4f31 / 0x5c4f57: a life
+// over 0x10000 is cut to hundredths first), the
 // roll on the corpse's unit seed (+0x20, FUN_0045c3e0: high - low, none
 // when that's 0); a corpse above the caster's level cut to clvl / its level.
 inline int corpse_life_fine(const Monsters& monsters, int type, int difficulty, int level) {
@@ -771,7 +773,7 @@ inline int corpse_life_fine(const Monsters& monsters, int type, int difficulty, 
     return (ranges.min_hp + ranges.max_hp) << 7;
 }
 inline int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed, int corpse_level, int caster_level) {
-    const int low = mul_div(life_fine, low_pct, 100), high = mul_div(life_fine, high_pct, 100);
+    const int low = mul_div(low_pct, life_fine, 100), high = mul_div(high_pct, life_fine, 100);
     int fine = corpse_seed(high - low) + low;
     if (corpse_level != 0 && caster_level < corpse_level) fine = mul_div(fine, caster_level, corpse_level);
     return fine;

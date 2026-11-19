@@ -6,7 +6,8 @@
 // `| physical element walk reach2`: rules::corpse_life_fine,
 // corpse_blast_fine on that unit seed, corpse_blast_split (Corpse
 // Explosion's fire EType) and corpse_blast_reach (the reach squared).
-// Without arguments: the split and the reach on a few typed-in numbers.
+// Without arguments: the split, the reach and the calc1 % on a few typed-in
+// numbers.
 
 #include <combat.hpp>
 #include <gamedata.hpp>
@@ -52,7 +53,7 @@ int corpse_explosion_cases(const GameData& game_data) {
     return 0;
 }
 
-int split_checks() {
+int blast_checks() {
     using d2d::rules::corpse_blast_reach;
     using d2d::rules::corpse_blast_split;
     assert(corpse_blast_split(1000, 50, true) == std::pair(500, 500));
@@ -60,7 +61,10 @@ int split_checks() {
     assert(corpse_blast_split(1000, -5, true) == std::pair(1000, 0));
     assert(corpse_blast_split(1000, 50, false) == std::pair(1000, 0));   // no EType: all physical
     assert(corpse_blast_reach(7) == std::pair(4, 3) && corpse_blast_reach(6) == std::pair(3, 3));
-    std::puts("OK: Corpse Explosion's split and reach");
+    // The % is FUN_00483360's value and the life its times (0x5c4f31): a life over 0x10000 is cut to hundredths first.
+    d2d::rules::Rng seed{ 99 };
+    assert(d2d::rules::corpse_blast_fine(0x20000, 120, 120, seed, 30, 40) == 0x20000 / 100 * 120);
+    std::puts("OK: Corpse Explosion's split, reach and calc1 %");
     return 0;
 }
 
@@ -75,7 +79,7 @@ int main(int argc, char** argv) try {
         if (!data || !data->patched) { std::fputs("--corpse-explosion needs the 1.14d data (D2_PATCH_INSTALLER)\n", stderr); return 1; }
         return corpse_explosion_cases(*data);
     }
-    return split_checks();
+    return blast_checks();
 } catch (const std::exception& error) {
     std::printf("test_corpse_explosion: %s\n", error.what());
     return 1;
