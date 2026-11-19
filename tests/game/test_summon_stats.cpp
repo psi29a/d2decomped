@@ -99,9 +99,8 @@ int summon_resist_cases() {
 
 // tools/emu/summon_level.py's cases (`clvl forced bonus difficulty
 // expansion`), each with `| level ac tohit`: the level d2d gives the pet
-// (rules::summon_level; its callers pass the forced level, the Raven's and
-// the Druid's calc2, as the bonus, and no skill level) and its MonLvl row's
-// defense and attack rating at the difficulty.
+// (rules::summon_level) and its MonLvl row's defense and attack rating at the
+// difficulty.
 int summon_level_cases(const GameData& game_data) {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -109,7 +108,7 @@ int summon_level_cases(const GameData& game_data) {
         std::istringstream fields(line);
         int clvl = 0, forced = 0, bonus = 0, difficulty = 0, expansion = 0;
         if (!(fields >> clvl >> forced >> bonus >> difficulty >> expansion)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
-        const int level = d2d::rules::summon_level(clvl, forced > 0 ? forced : 0);
+        const int level = d2d::rules::summon_level(clvl, forced, bonus);
         const auto& row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(level), game_data.monsters.lvl.size() - 1)];
         std::printf("%s | %d %d %d\n", line.c_str(), level, row.armor_class[std::size_t(difficulty)], row.to_hit[std::size_t(difficulty)]);
     }
@@ -156,7 +155,7 @@ int raise_check(const GameData& data) {
     world->fight.summon_one(row, data.monsters.row(row.summon), 10, world->fight.calc_env(), actor->player.x + 3, actor->player.y, 100000);
     assert(actor->pets.size() == 1);
     const auto& pet = actor->pets.front().monster;
-    assert(pet.max_life_fine() == 208512 && pet.life_fine() == 208512 && pet.stats.hit_points == 815);
+    assert(pet.max_life_fine() == 208512 && pet.life_fine() == 208512 && pet.stats.hit_points == 815 && pet.stats.level == 40);
     // Summon Resist at 10: its passive_summon_resist as the skeleton's resists (FUN_005c40d0).
     int summon_resist = 0;
     for (const auto& passive : d2d::rules::passive_stats(data.skills, world->fight.calc_env()))
@@ -166,10 +165,14 @@ int raise_check(const GameData& data) {
     assert(summon_resist > 0 && pet_res[0] == base_res[2] + summon_resist && pet_res[3] == base_res[5] + summon_resist);
     // A Clay Golem gets it too (FUN_005c50c0); a Revive doesn't (FUN_005c56c0 has no FUN_005c40d0).
     const auto& golem_row = *data.skills.get(data.skills.by_name.at("Clay Golem"));
-    world->fight.summon_one(golem_row, data.monsters.row(golem_row.summon), 10, world->fight.calc_env(), actor->player.x - 3, actor->player.y, 100000);
+    world->fight.summon_one(golem_row, data.monsters.row(golem_row.summon), 5, world->fight.calc_env(), actor->player.x - 3, actor->player.y, 100000);
     const auto& golem = actor->pets.back();
     const auto& golem_base = data.monsters.types[std::size_t(golem.monster.type)].diff[0].res;
     assert(actor->pets.size() == 2 && golem.res[3] == golem_base[5] + summon_resist);
+    // FUN_005c49e0: the skill level as the bonus (the golem at 5: 40 x 3 / 4 + 5 = 35), and the golem's own defense
+    // kept with MonLvl's added.
+    const auto& golem_type = data.monsters.types[std::size_t(golem.monster.type)];
+    assert(golem.monster.stats.level == 35 && golem.monster.stats.armor_class == golem_type.diff[0].armor_class + data.monsters.lvl[35].armor_class[0]);
     // A Fire Golem absorbs fire (its aurastat item_absorbfire_percent): its fire resist gets none of it.
     const auto& fire_row = *data.skills.get(data.skills.by_name.at("FireGolem"));
     world->fight.summon_one(fire_row, data.monsters.row(fire_row.summon), 10, world->fight.calc_env(), actor->player.x, actor->player.y + 3, 100000);
@@ -179,7 +182,14 @@ int raise_check(const GameData& data) {
     const auto own = [&](int stat) { int sum = 0; for (const auto* part : { &fire_stats.passive, &fire_stats.aura }) if (part->contains(stat)) sum += part->at(stat); return sum; };
     assert(own(d2d::d2s::kAbsorbFirePercent) > 0);
     assert(fire.res[0] == fire_base[2] + own(d2d::d2s::kFireResist) && fire.res[1] == fire_base[3] + summon_resist && fire.res[3] == fire_base[5] + summon_resist);
-    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left\n", actor->pets.front().monster.max_life_fine(), summon_resist);
+    // A Raven (do 114) at 5: its level forced to max(calc2, 1) (0x5c6a29), calc2 ulvl + par1 + lvl, above the
+    // owner's (the Druid's do-119 summons force ulvl alone).
+    const int raven_id = data.skills.by_name.at("Raven");
+    const auto& raven_row = *data.skills.get(raven_id);
+    const int calc2 = std::max(d2d::rules::eval_calc(data.skills, raven_row.calc[1], world->fight.calc_env(), raven_id, 5), 1);
+    world->fight.summon_one(raven_row, data.monsters.row(raven_row.summon), 5, world->fight.calc_env(), actor->player.x + 3, actor->player.y + 3, 100000);
+    assert(calc2 > 40 && actor->pets.back().monster.stats.level == calc2);
+    std::printf("OK: a raised skeleton's life %d/256, Summon Resist %d on it and the golems, a Fire Golem's fire left, a Raven at %d\n", actor->pets.front().monster.max_life_fine(), summon_resist, calc2);
     return 0;
 }
 

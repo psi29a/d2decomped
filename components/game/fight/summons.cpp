@@ -151,8 +151,16 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
         while (skill.pettype != "none" && std::ranges::count_if(actor->pets, same) >= max) actor->pets.erase(std::ranges::find_if(actor->pets, same));
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
-        const int bonus = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon ? d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl) : 0;
-        const int plvl = d2d::rules::summon_level(clvl, bonus);
+        // FUN_005c49e0 (the level, then MonLvl's defense and attack rating added): Raise (0x5c4c5e), the golems
+        // (FUN_005c50c0), the Decoy (0x5dc149) and the Valkyrie (0x5dc2c9) pass the skill level as the bonus; the
+        // Raven (0x5c6a29) and the Druid's summons (0x5c74c9) force max(calc2, 1).
+        // ponytail: the traps pass their own (FUN_005d5e10 0x5d5fc1, not traced) and keep the bonus 0 here; the
+        // summons that don't run FUN_005c49e0 (Hydra, Vines, Bone Wall, the Shadows) keep this level and row too.
+        const bool forced_calc2 = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon;
+        const bool levelled = forced_calc2 || skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem
+                              || skill.srvdofunc == ServerDoFunction::kIronGolem || skill.srvdofunc == ServerDoFunction::kDecoy || skill.srvdofunc == ServerDoFunction::kValkyrie;
+        const int forced = forced_calc2 ? std::max(d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl), 1) : 0;
+        const int plvl = d2d::rules::summon_level(clvl, forced, levelled ? lvl : 0);
         Pet pet;
         auto& monster = pet.monster;
         monster.type = type;
@@ -211,10 +219,14 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             pet.skill_damage = true;
             pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = summon_skill_to_hit;
         }
-        monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kDecoy ? clvl : plvl;
+        monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage ? clvl : plvl;
         if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
             const auto& level_row = game_data->monsters.lvl[std::min<std::size_t>(std::size_t(plvl), game_data->monsters.lvl.size() - 1)];
-            monster.stats.armor_class = level_row.armor_class[std::size_t(monster.difficulty)];
+            // FUN_005c49e0 adds the row's defense to the pet's own (MonStats AC, 0x5c4ac6).
+            const int row_defense = level_row.armor_class[std::size_t(monster.difficulty)];
+            monster.stats.armor_class = levelled ? monster.stats.armor_class + row_defense : row_defense;
+            // ponytail: it adds the row's attack rating to stat 0x13 too (0x5c4adf); how that and MonStats' A1TH meet at
+            // a hit isn't traced, so the row's stands alone here as before.
             monster.stats.to_hit = level_row.to_hit[std::size_t(monster.difficulty)];
         }
         for (int* mode_to_hit : { &monster.stats.to_hit, &monster.stats.to_hit2, &monster.stats.to_hit_s1 }) *mode_to_hit += summon_skill_to_hit;

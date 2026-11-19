@@ -471,6 +471,18 @@ Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
 ## A summon's stats (FUN_005c4470)
 
+Before it, FUN_005c49e0(game, owner; pet, forced, bonus) gives the pet its
+level: a forced one above 0 as it is, else min(max(owner's x 3 / 4 + bonus,
+1), owner's). Raise (0x5c4c5e), the golems (FUN_005c50c0), the Decoy
+(0x5dc149) and the Valkyrie (0x5dc2c9) pass the skill level as the bonus; the
+Raven (0x5c6a29) and the Druid's summons (0x5c74c9) force max(calc2, 1); the
+traps pass their own (FUN_005d5e10 0x5d5fc1, not traced). Then the MonLvl row
+of that level adds its defense (stat 0x1f) and attack rating (0x13) to the
+pet's own, MonStats' (0x5c4ac6, 0x5c4adf), by difficulty and expansion.
+`tools/emu/summon_level.py` runs it against `rules::summon_level`
+(`test_summon_stats --summon-level`); d2d adds the defense and keeps MonLvl's
+attack rating alone (a ponytail in summons.cpp).
+
 Every summoning skill runs FUN_005c4470(game, owner; pet, skill, level, gear
 level) on its new pet, its calcs through the owner's (FUN_00646ca0), in this
 order: each passivestat (Skills +0x98) at its passivecalc (+0xa4) added to the
