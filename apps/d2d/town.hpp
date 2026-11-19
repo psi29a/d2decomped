@@ -827,6 +827,9 @@ struct Town {
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc);
+    // S->C 0x2a's answer at the mouse (FUN_004b6390): a store's refusal box,
+    // or a resurrect's (dialog state 10, FUN_004b5640).
+    void trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y);
 
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.

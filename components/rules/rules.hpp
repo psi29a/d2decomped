@@ -973,7 +973,7 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
 // done, or the client's box (FUN_004b53f0: 9 string 0xd21 "I cannot complete
 // that request.", 10 string 0xd1c "You do not have enough free space to do
 // that.", 12 string 0xd22 "You do not have enough gold for that.").
-enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
+enum class Trade : std::uint8_t { done = 0, hireling = 5, refused = 9, no_room = 10, no_gold = 12 };   // S->C 0x2a's result (5: a merc back)
 inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, int boxes);
 inline bool stacks_with(const d2d::d2s::Item& one, const d2d::d2s::Item& other);
 // The vendor's perm items (FUN_00576ed0): its PermStoreItems, and in an
@@ -2775,17 +2775,18 @@ inline int merc_resurrect_cost(int merc_level) {
 inline constexpr std::array kMercNpcs = { 150, 198, 252, 367, 515 };   // hcIdx: Kashya, Greiz, Asheara, Tyrael (act 4), Qual-Kehk
 
 // Resurrects the save's dead merc at a hire NPC (FUN_00579c00): pays as
-// FUN_00576d90 (carried gold, then the stash). False with no dead merc or
-// not enough gold.
-inline bool resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
+// FUN_00576d90 (carried gold, then the stash). Its S->C 0x2a result: 5
+// (hireling) back, 9 (refused) with no dead merc, 0xc (no_gold) short.
+inline Trade resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;
     const int cost = merc_resurrect_cost(merc_level);
-    if (!header.merc_seed || !header.merc_dead || stats.get(kGold) + stats.get(kGoldBank) < cost) return false;
+    if (!header.merc_seed || !header.merc_dead) return Trade::refused;
+    if (stats.get(kGold) + stats.get(kGoldBank) < cost) return Trade::no_gold;
     const auto from_inv = std::min<std::int64_t>(stats.get(kGold), cost);
     stats.values[kGold] -= from_inv;
     stats.values[kGoldBank] -= cost - from_inv;
     header.merc_dead = false;
-    return true;
+    return Trade::hireling;
 }
 
 // Drinks the potion at the bottom of belt column `col` (box col, 0..3):

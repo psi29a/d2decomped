@@ -483,7 +483,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
         for (const auto& event : view.events) {
-            if (const auto* refused = std::get_if<ev::TradeRefused>(&event); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+            if (const auto* traded = std::get_if<ev::TradeResult>(&event)) trade_result(*traded, mouse.x, mouse.y);
             handle(event, audio, frame_ms);
         }
         // A partner's: a window to open (an NPC talked to, the stash) takes
@@ -556,7 +556,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
-        if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
+        if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 kind 6 / 7 (FUN_004c0550)
             if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
             return;

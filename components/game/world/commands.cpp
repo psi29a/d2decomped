@@ -104,7 +104,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
                                                     : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
                                                                             &worn_by, required_level(*game_data, stocked, worn_by.cls));
-            if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeRefused{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
+            if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeResult{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
@@ -112,7 +112,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
             if (found == actor->character.items.end()) return true;
-            if (!d2d::rules::sellable(item_rules, *found)) { actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::refused }); return true; }
+            if (!d2d::rules::sellable(item_rules, *found)) { actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::refused }); return true; }
             // Not stored nor on the cursor: off its body slot first (FUN_00579510
             // -> FUN_00560cd0, the item's body slot). A belt item has none and
             // something else on the cursor stops it: no sale, no message.
@@ -133,7 +133,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->store.reduced = reduced_prices();
             if (repair->item < 0) {
                 const auto mended = d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats);
-                if (!mended) actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::no_gold });
+                if (!mended) actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::no_gold });
                 else if (*mended > 0) cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
                 return true;
             }
@@ -187,17 +187,22 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             return true;
         }
         // A hire NPC brings the dead merc back (FUN_00579c00): paid, full
-        // life, beside the player (FUN_00579aa0).
-        // ponytail: no 0x5b..0x5a messages (refused / done) back to the client.
+        // life, beside the player (FUN_00579aa0). The answer is S->C 0x2a
+        // (0x579d50): 9 for another NPC or no dead merc, 0xc short of gold,
+        // 5 with it back.
         if (const auto* resurrect = std::get_if<cmd::ResurrectMerc>(&command)) {
             auto& header = actor->character.header;
-            if (std::size_t(resurrect->npc) >= level->npcs.size() || std::ranges::find(d2d::rules::kMercNpcs, level->npcs[std::size_t(resurrect->npc)].hc_idx) == d2d::rules::kMercNpcs.end())
+            if (std::size_t(resurrect->npc) >= level->npcs.size() || std::ranges::find(d2d::rules::kMercNpcs, level->npcs[std::size_t(resurrect->npc)].hc_idx) == d2d::rules::kMercNpcs.end()) {
+                actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::refused, resurrect->npc });
                 return true;
+            }
             const int merc_level = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp).level;
-            if (d2d::rules::resurrect_merc(merc_level, header, actor->character.stats)) {
+            const auto result = d2d::rules::resurrect_merc(merc_level, header, actor->character.stats);
+            if (result == d2d::rules::Trade::hireling) {
                 spawn_merc();
                 d2d::log::info("the merc is back");
             }
+            actor->events.push_back(ev::TradeResult{ result, resurrect->npc });
             return true;
         }
         // Ending the talk (C->S 0x30, FUN_00572f20) frees the player's gamble

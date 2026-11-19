@@ -392,7 +392,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (std::holds_alternative<ev::Reassigned>(event)) out.u8(5);
         else if (std::holds_alternative<ev::Lightning>(event)) out.u8(6);
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
-        else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
+        else if (const auto* refused = std::get_if<ev::TradeResult>(&event)) out.u8(8).u8(int(refused->result)).i32(refused->npc);
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
         else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->done ? 1 : 0);
         else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
@@ -650,8 +650,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             view.events.push_back(ev::QuestQuake{ d2d::rules::QuestQuake::Kind(kind) });
         } else if (kind_byte == 8) {
             const auto result = d2d::rules::Trade(byte());
-            if (result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
-            view.events.push_back(ev::TradeRefused{ result });
+            if (result != d2d::rules::Trade::hireling && result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
+            view.events.push_back(ev::TradeResult{ result, i32() });
         } else if (kind_byte == 9) {
             const int fade_in = i32(), hold = i32(), back = i32();
             view.events.push_back(ev::AmbientDip{ fade_in, hold, back, i32() });

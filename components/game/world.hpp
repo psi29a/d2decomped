@@ -93,8 +93,9 @@ struct QuestNews { int quest = 0; };
 // now, `sound` plays `jingle_ms` on, the song comes back `back_ms` on (from
 // its Block 1 cue with `from_block`); 0 / 0: the sound at once, the song on.
 struct MusicCue { int sound = 0; int jingle_ms = 0, back_ms = 0; bool from_block = false; };
-// A store buy or sale the server refused (S->C 0x2a's result, rules::Trade).
-struct TradeRefused { d2d::rules::Trade result = d2d::rules::Trade::no_gold; };
+// A store buy or sale the server refused, or a merc resurrect's answer (S->C 0x2a's
+// result, rules::Trade); `npc` the resurrect's NPC (-1: the store's).
+struct TradeResult { d2d::rules::Trade result = d2d::rules::Trade::no_gold; int npc = -1; };
 // The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
 // frames and the level it's for.
 struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
@@ -108,7 +109,7 @@ struct StoneOrder { std::array<int, 5> order{}; };
 // and news): typed chat, who joined or left, who was slain.
 struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeResult, ev::AmbientDip, ev::ServiceResult, ev::Message, ev::StoneOrder>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
