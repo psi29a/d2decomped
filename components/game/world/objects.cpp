@@ -694,12 +694,15 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
 // footprint ON's (HasCollision2). The time is object_op_ticks', as the
 // chests' tick: the sooner of that event and the client's OP counter's end.
-// ponytail: on this level's tick only; one left mid-OP goes ON when it's back in view.
+// An event comes only while the game runs the door's room (one near a
+// player: Fight::near_players, as the monsters'); one due while it wasn't
+// comes as it's run again. A level no player is on
+// runs no rooms.
 auto World::slime_doors_on(std::uint32_t now_ms) -> void {
         for (const auto& [key, state] : doors) {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
-            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor) continue;
+            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor || !fight.near_players(door.x, door.y)) continue;
             const int on_ticks = object_op_ticks(door);
             if (on_ticks < 0) continue;
             const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;
