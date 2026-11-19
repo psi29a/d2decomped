@@ -93,6 +93,15 @@ void synthetic() {
         for (const auto& spark : trail.sparks) { ++z_seen[std::size_t(spark.shot.motion_z + 8)]; ++frames_seen[(tick * 40 - spark.shot.born) / 40]; }
     }
     assert(std::ranges::all_of(z_seen, [](int seen) { return seen > 0; }) && std::ranges::all_of(frames_seen, [](int seen) { return seen > 0; }));
+
+    // A new level or game: nothing laid carries over, and a bolt there starts unseen.
+    trail.tick(std::vector<View::Shot>{ { &bolt, 1.1f, 0.1f, 0, born } }, born);
+    trail.tick(std::vector<View::Shot>{ { &bolt, 1.3f, 0.1f, 0, born } }, born + 40);
+    assert(!trail.sparks.empty() && !trail.seen.empty());
+    trail.clear();
+    assert(trail.sparks.empty() && trail.seen.empty());
+    trail.tick(std::vector<View::Shot>{ { &bolt, 1.5f, 0.1f, 0, born } }, born + 80);
+    assert(trail.sparks.empty());
 }
 
 }  // namespace

@@ -129,6 +129,7 @@ auto Town::enter() -> void {
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
         alert_clocks.clear();                      // Town is reused when a second game starts on the same level
+        spark_trail.clear();                       // ... and the trails were the last game's
         alert_level = nullptr;
         critters.clear();                         // a new game's map: its own critters
         critters_level = -1;

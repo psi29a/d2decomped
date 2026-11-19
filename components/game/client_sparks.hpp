@@ -47,6 +47,9 @@ struct SparkTrail {
     struct Seen { const GameData::MissileInfo* info = nullptr; std::uint32_t born = 0; int subtile_x = 0, subtile_y = 0; };
     std::vector<Seen> seen;
 
+    // A new level or game: nothing laid there carries over.
+    void clear() { sparks.clear(); seen.clear(); }
+
     // One client frame at `now_ms`: the spent sparks go, then each client do
     // 8 missile that stepped into a new subtile lays its own.
     void tick(std::span<const View::Shot> missiles, std::uint32_t now_ms) {
