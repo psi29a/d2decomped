@@ -7,6 +7,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <monsters.hpp>
+#include <montypes.hpp>
 #include <rules.hpp>
 #include <sound_ids.hpp>
 
