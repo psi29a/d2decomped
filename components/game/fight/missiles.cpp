@@ -454,7 +454,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (skill.srvdofunc == ServerDoFunction::kBreath) actor->burning = now_ms + 20 * 40;   // state inferno (FUN_005c8e30)
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
-            auto& missile = send(dx, dy, range);
+            // Its path ignores the aim; a click on the caster aims one subtile on each axis (FUN_0059fa30's
+            // target = start moves + (1, 1)), so it still has a speed and flies.
+            const bool on_caster = dx == 0 && dy == 0;
+            auto& missile = send(on_caster ? 0.2f : dx, on_caster ? 0.2f : dy, range);
             missile.route = d2d::rules::hammer_route(level->world_x * 5 + int(std::floor(missile.x * 5)), level->world_y * 5 + int(std::floor(missile.y * 5)));
             // FUN_006461d0: the caster's state 0x2a (Concentration), its damagepercent x Param1 / 8. The unit
             // holds one list per state: each aura's put (FUN_005cedc0 -> FUN_0056e970) fails under a higher
@@ -1202,8 +1205,9 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
         // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
         // Armor's skill_armor_percent): their aurastats as the aura's.
-        std::vector<const Monster::SkillState*> effects{ &monsters[monster_index].curse, &monsters[monster_index].self_state };
+        std::vector<const Monster::SkillState*> effects{ &monsters[monster_index].curse };
         for (const auto& held : monsters[monster_index].states) effects.push_back(&held);
+        effects.push_back(&monsters[monster_index].self_state);   // after the cries, as before: its % on their flat armor
         for (const auto* effect : effects)
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target, base);
