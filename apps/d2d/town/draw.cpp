@@ -87,7 +87,7 @@ auto Town::open_menu(int npc) -> void {
 
 auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
         if (result.npc < 0) {
-            if (store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y);
+            if (store.npc >= 0) { store.refused(); npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y); }
             return;
         }
         if (!level || std::size_t(result.npc) >= level->npcs.size()) return;

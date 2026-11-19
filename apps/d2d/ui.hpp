@@ -280,9 +280,9 @@ std::string resurrect_line(const Scene& scene, int merc_type, int name_index, in
 NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int screen_y);
 // A refused store buy's or sale's box (FUN_004b53f0): the result's text, red, over
 // "Continue" (0xd4b), at the mouse.
-// ponytail: the store stays as it was under it; what game.exe's state 6
-// (FUN_00487d30: 0x7bcbf0 = 7) and Continue's FUN_004b9a00(1) (0x4b4cf0)
-// do to the store panel isn't traced.
+// Under it the store's panel takes no clicks and its buttons are up
+// (rules::Store::refused); Continue (LAB_004b4cf0) clicks (FUN_004b9a00(1)),
+// closes the box and leaves the store open (0x7c0c6b = 3).
 NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade result, int mouse_x, int mouse_y);
 
 // The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"

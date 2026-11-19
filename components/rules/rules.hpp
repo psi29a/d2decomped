@@ -287,6 +287,11 @@ struct Store {
     std::vector<std::string> perm;              // PermStoreItems: buying doesn't use them up
     bool gamble = false;                        // Gheed's gamble list: buying rolls a new item
     int reduced = 0;                            // the player's item_reducedprices (stat 87), 0..99: off buy, gamble and repair
+    // A refused buy, sale or repair's box (FUN_004b53f0): the panel goes to
+    // mode 7 under it (FUN_00487d30: 0x7bcbf0, no button down, no clicks),
+    // and Continue (LAB_004b4cf0 -> FUN_00487d40) back to 1, the plain
+    // store: a buy, sell or repair button toggled on is off again.
+    void refused() { mode = 0; pressed = {}; }
     // A store opens on its first tab with anything on it.
     void first_tab() { tab = int(std::ranges::find_if(tabs, [](const auto& page) { return !page.empty(); }) - tabs.begin()) % 4; }
 };
