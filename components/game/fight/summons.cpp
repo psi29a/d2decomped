@@ -293,7 +293,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                             ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
                             : monster.stats.hit_points << 8;
         if (skill.srvdofunc == ServerDoFunction::kRevive && revived_level != 0 && clvl < revived_level) base_fine = std::max(d2d::rules::mul_div(base_fine, clvl, revived_level), 1);
-        // ponytail: a life that wraps to 0 or below (bugs.md 122) is held at one point; what game.exe's pet does then isn't traced.
+        // ponytail: a life that wraps to 0 or below (bugs.md 123) is held at one point; what game.exe's pet does then isn't traced.
         int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
         if (life_fine <= 0) life_fine = 256;
         monster.stats.hit_points = int((std::int64_t(life_fine) + 255) >> 8);
