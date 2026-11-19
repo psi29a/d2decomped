@@ -242,8 +242,6 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
 // `place` (FUN_00555da0 through FUN_0055a550): a drop it refuses is not made
 // and not counted (Loot's monster drops pass one).
-// ponytail: chest_round and the other callers pass none, so there every drop
-// counts.
 // With `players` in the game and `nearby` of the killer's party on its
 // level (FUN_005408e0; a lone killer 1), NoDrop rolls for n = nearby +
 // (players - nearby) / 2 (drops.md "Rolling"); a monster dropper (unit type
@@ -260,11 +258,12 @@ inline void roll_drops(const Tables& tables, const std::string& treasure_class, 
 }
 
 // One chest round (FUN_00585b90): its class `tc` (chest_tc) off the
-// object's unit seed, qualities at its tier (A..C = 0..2), onto `out`.
+// object's unit seed, qualities at its tier (A..C = 0..2), onto `out`;
+// each placed as it's rolled (`place`, FUN_0055a550 as for a monster).
 // Returns the first item's quality as made (made_quality), 0 for none.
-inline int chest_round(const Tables& tables, const std::string& treasure_class, Rng& unit_seed, std::vector<Drop>& out, int forced) {
+inline int chest_round(const Tables& tables, const std::string& treasure_class, Rng& unit_seed, std::vector<Drop>& out, int forced, const Placement& place = {}) {
     const auto first = out.size();
-    roll_drops(tables, treasure_class, treasure_class.back() - 'A', unit_seed, out, 1, 0, 6, forced);
+    roll_drops(tables, treasure_class, treasure_class.back() - 'A', unit_seed, out, 1, 0, 6, forced, 1, 0, place);
     return out.size() > first ? made_quality(tables, out[first].code, out[first].quality) : 0;
 }
 

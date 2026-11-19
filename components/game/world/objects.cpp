@@ -85,6 +85,12 @@ auto World::blast(const Npc& object, float x, float y, int size, std::int64_t li
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
 }
 
+auto World::chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto) -> d2d::rules::Placement {
+    return [this, &object, here, now_ms, onto](const d2d::rules::Drop& dropped, int) {
+        return fight.remote_monsters || loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms, false, 0, onto);   // a joined game: the host drops them (S->C 0x9c)
+    };
+}
+
 auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {   // force (devctl): the shrine row / trap to play
         using namespace d2d::d2s;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -104,10 +110,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto treasure_class = d2d::rules::chest_tc(act, diff, here, alvl(low), alvl(high));
             std::vector<d2d::rules::Drop> drops;
             const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, fight.spawning.objects,
-                                                           [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced); });
-            for (const auto& code : opened.extra) drops.push_back({ .code = code });
-            if (!fight.remote_monsters)              // a joined game: the host drops the chest's items (S->C 0x9c)
-                for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+                                                           [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced, chest_place(object, here, now_ms)); });
+            for (const auto& code : opened.extra) {
+                const d2d::rules::Drop extra{ .code = code };
+                if (fight.remote_monsters || loot.put(extra, object.x, object.y, here, fight.spawning.game, now_ms)) drops.push_back(extra);
+            }
             return std::pair{ opened, drops.size() };
         };
         auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (Town::object_sounds)
@@ -259,9 +266,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             });
             const auto [low, high] = d2d::rules::kChestLevels[1];
             std::vector<d2d::rules::Drop> drops;
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
+            const auto rolled = drops.size();
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            for (auto index = rolled; index < drops.size(); ++index) loot.put(drops[index], object.x, object.y, here, fight.spawning.game, now_ms);
             d2d::log::info("The Horadric Staff: chest {} opened ({} drops)", operate_id, drops.size());
             return;
         }
@@ -299,9 +307,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             }
             const auto [low, high] = d2d::rules::kChestLevels[1];
             std::vector<d2d::rules::Drop> drops;
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
+            const auto rolled = drops.size();
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            for (auto index = rolled; index < drops.size(); ++index) loot.put(drops[index], object.x, object.y, here, fight.spawning.game, now_ms);
             d2d::log::info("The Tainted Sun: the altar, the sun's back ({} drops)", drops.size() + std::size_t(amulets));
             return;
         }
@@ -331,8 +340,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const char* part = operate_id == d2d::rules::operate_fn::kKhalimHeart ? K::kHeartCode : operate_id == d2d::rules::operate_fn::kKhalimEye ? K::kEyeCode : K::kBrainCode;
             each_player([&](Player&) { if (!carries(part) && !carries(K::kWillCode)) drops.push_back({ .code = part }); });
             const auto [low, high] = d2d::rules::kChestLevels[std::size_t(std::clamp(act(), 0, 2))];
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(act(), diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(act(), diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
             d2d::log::info("Khalim's Will: chest {} opened ({} drops)", operate_id, drops.size());
             return;
         }

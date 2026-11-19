@@ -136,6 +136,16 @@ int main() try {
         roll_drops(tables, "Lots", 1, rng, out);
         assert(out.size() == 6);
     }
+    // A chest round places each drop as it's rolled (FUN_0055a550): one refused
+    // isn't made or counted, and the round's first quality is the first made one's.
+    {
+        tables.treasure["Chest A"] = { .picks = -2, .items = { { "hax", 1 }, { "rin", 1 } } };
+        Rng chest_seed{ 31 };
+        std::vector<Drop> out;
+        int asked = 0;
+        const int first = chest_round(tables, "Chest A", chest_seed, out, 2, [&](const Drop&, int) { return ++asked != 1; });
+        assert(asked == 2 && out.size() == 1 && out[0].code == "rin" && first == made_quality(tables, "rin", 2));
+    }
     // More players: NoDrop 1 of 2 at /players 3 (n = 2) is 1 * 1/4 / (3/4)
     // = 0, so every pick drops.
     for (int i = 0; i < 50; ++i) {

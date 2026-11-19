@@ -21,6 +21,7 @@
 #include <click_spot.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drops.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
@@ -1068,6 +1069,9 @@ struct World {
     // A belt put on or taken off: what the boxes it lacks held, to the
     // inventory or the floor (rules::spill_belt, FUN_005608c0).
     void spill_belt(std::uint32_t now_ms);
+    // A chest round's drops put as they're rolled (FUN_0055a550 for chest_round),
+    // round `object` on `onto` (null: this level).
+    [[nodiscard]] d2d::rules::Placement chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto = nullptr);
     // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
     // slot, a weapon switch): each hand skill fits what the hands hold now.
     void hand_skills(std::uint32_t now_ms);
