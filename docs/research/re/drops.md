@@ -227,7 +227,11 @@ seed (FUN_00650e50 before them only reads it):
   weight rarity, at least 1. A forced index among them wins with no draw;
   else rand(total) (d2d: `generate_item`'s `special_wanted`). One found already (bit set in `game+0x1b24`) fails
   but for a quest item (Items `+0x12a`); FUN_00556530 sets the bit unless
-  nolimit (flag 2).
+  nolimit (UniqueItems `+0x2c` bit 2), a quest item's too: its own
+  found test (`FUN_005564d0`, quality 7 and the bit) is skipped only for a
+  quest item, and an index past 0x1000 fails (no row comes near). d2d:
+  `generate_item` (`test_unique_found`); it left a quest item's bit unset,
+  which nothing read.
 - Set: SetItems rows (`+0xc18`, stride 0x1b8), version as above, the
   code, lvl <= ilvl, set 29 (Cow King's Leathers) only with flag 1;
   weight rarity, 0 counts 1; a forced index among them wins with no draw

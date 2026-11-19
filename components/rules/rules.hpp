@@ -2042,7 +2042,7 @@ inline int books_row(const Tables& tables, const std::string& code, bool scroll)
 // own seed (item data +4): the unique (FUN_005566b0) / set (FUN_005c25c0)
 // pick is its first draw. `found_uniques` is the game's one-per-game list
 // (+0x1b24): a unique found already fails (but a quest item's); one found
-// is added unless nolimit. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
+// is added unless nolimit, a quest item too. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
 // A failed unique turns rare with 3x durability, a set 2x (FUN_00557450).
 // With a unit seed (a made drop) the rest of FUN_00557ab0 / FUN_00557450
 // too, in its order: the picture (ItemTypes VarInvGfx) off the unit seed;
@@ -2259,9 +2259,12 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
         const int picked = special(list);
         int special_row = picked;
-        if (quality == 7 && special_row >= 0 && found_uniques && found != tables.item_base.end() && !found->second.quest) {
+        // FUN_005566b0 tests the one-per-game bit (but for a quest item);
+        // FUN_00556530 then sets it unless nolimit (UniqueItems +0x2c bit
+        // 2), a quest item's too.
+        if (quality == 7 && special_row >= 0 && found_uniques && base) {
             if (found_uniques->size() <= std::size_t(special_row)) found_uniques->resize(std::size_t(special_row) + 1);
-            if ((*found_uniques)[std::size_t(special_row)]) special_row = -1;
+            if (!base->quest && (*found_uniques)[std::size_t(special_row)]) special_row = -1;
             else if (!list[std::size_t(special_row)].nolimit) (*found_uniques)[std::size_t(special_row)] = true;
         }
         if (special_row >= 0) {
