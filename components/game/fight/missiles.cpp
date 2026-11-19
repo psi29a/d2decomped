@@ -826,9 +826,12 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // within the radius of the missile's subtile (squared), the bare line
         // from the caster clear of mask 4 (0x200); the next unit id above the
         // struck one's, else the lowest id up to it: the struck one itself
-        // then hops nowhere.
+        // then hops nowhere. The hop (FUN_0059fa30, flags 0x21) starts at the
+        // missile (ESI, 0x5aa7a3) and is aimed at the picked unit's x / y
+        // (EDI, 0x5aa855: request +0x1c / +0x20); the skill's radius is at
+        // least 1 (0x5aa7f0).
         if (missile_info.hit_func == 12 && missile.hops > 1) {
-            const int radius = missile_info.hit_par1 > 0 ? missile_info.hit_par1 : calc(*skill, skill->aurarange, missile.level);
+            const int radius = missile_info.hit_par1 > 0 ? missile_info.hit_par1 : std::max(calc(*skill, skill->aurarange, missile.level), 1);
             auto sub = [](float cells) { return int(std::floor(cells * 5)); };
             const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
             const auto rooms = near_rooms(*game_data, *level, actor->player.x, actor->player.y);
@@ -845,7 +848,9 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             const int pick = d2d::rules::ring_pick(found, int(monster_index)), best = pick == int(monster_index) ? -1 : pick;
             if (best >= 0) {
                 const auto& next_target = monsters[std::size_t(best)];
-                launch(missile_info, *skill, missile.level, missile.x, missile.y, next_target.unit.x - missile.x, next_target.unit.y - missile.y, missile_info.range, now_ms).hops = missile.hops - 1;
+                auto& hop = launch(missile_info, *skill, missile.level, missile.x, missile.y, next_target.unit.x - missile.x, next_target.unit.y - missile.y, missile_info.range, now_ms);
+                hop.hops = missile.hops - 1;
+                hop.to = { next_target.unit.x, next_target.unit.y };
             }
         }
         if (missile_info.hit_func == 2 || missile_info.hit_func == 4 || missile_info.hit_func == 9 || missile_info.hit_func == 20 || missile_info.hit_func == 47) {
