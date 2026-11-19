@@ -23,6 +23,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
+#include "spinner_step.hpp"
 #include "storage_close.hpp"
 #include "store.hpp"
 #include "touch_input.hpp"

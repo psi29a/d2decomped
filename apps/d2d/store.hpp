@@ -4,7 +4,6 @@
 
 #include "panels.hpp"
 #include "scene.hpp"
-#include "spinner_step.hpp"
 #include "ui.hpp"
 
 #include <d2s_items.hpp>

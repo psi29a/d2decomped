@@ -294,9 +294,9 @@ int main() try {
         const auto& rop = data->rules.treasure.at("ROP (H)");
         const auto entry = std::ranges::find(rop.items, std::string("cm1"), &std::pair<std::string, int>::first);
         assert(entry != rop.items.end());
-        const auto at = std::size_t(entry - rop.items.begin());
-        assert(rop.entry_flags[at] == 1 && data->rules.uniques[std::size_t(rop.entry_index[at])].index == "Annihilus");
-        std::printf("OK: ROP (H) names Annihilus, unique row %d\n", rop.entry_index[at]);
+        const auto slot = std::size_t(entry - rop.items.begin());
+        assert(rop.entry_flags[slot] == 1 && data->rules.uniques[std::size_t(rop.entry_index[slot])].index == "Annihilus");
+        std::printf("OK: ROP (H) names Annihilus, unique row %d\n", rop.entry_index[slot]);
     }
     return 0;
 } catch (const std::exception& error) {

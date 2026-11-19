@@ -583,10 +583,10 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 if (std::holds_alternative<cmd::Resurrect>(command) || std::holds_alternative<cmd::Say>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 const auto worn = [&] {
-                    std::vector<std::pair<std::uint32_t, int>> on;
+                    std::vector<std::pair<std::uint32_t, int>> worn_now;
                     for (const auto& item : actor->character.items)
-                        if (item.location == d2d::d2s::item_location::kEquipped) on.emplace_back(item.id, item.slot + (item.wielded ? 0x100 : 0));
-                    return on;
+                        if (item.location == d2d::d2s::item_location::kEquipped) worn_now.emplace_back(item.id, item.slot + (item.wielded ? 0x100 : 0));
+                    return worn_now;
                 };
                 const auto worn_before = worn();
                 const auto header_before = actor->character.header.weapon_set;
