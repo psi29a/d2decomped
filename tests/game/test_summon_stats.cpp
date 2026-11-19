@@ -7,7 +7,8 @@
 // the passive stats and the aurastats rules::summon_stats gives (`stat=value`,
 // by stat id, the non-zero ones) and the skills rules::summon_skill_levels
 // gives (`skill=level`), each through the owner's calcs at the case's levels.
-// `--summon-resist` does the same for tools/emu/summon_resist.py.
+// `--summon-resist` and `--summon-level` do the same for
+// tools/emu/summon_resist.py and summon_level.py.
 // Without arguments: summon_life on a few typed-in numbers, then, with the
 // game data, a Necromancer's Raise Skeleton through the real
 // Fight::summon_one (the corpse left out), its pet's max life to the 256th,
@@ -92,6 +93,25 @@ int summon_resist_cases() {
         std::string out;
         for (const auto& [stat, added] : d2d::rules::summon_resist(value, fire, light, cold)) out += (out.empty() ? "" : " ") + std::to_string(stat) + "=" + std::to_string(added);
         std::printf("%s | %s\n", line.c_str(), out.c_str());
+    }
+    return 0;
+}
+
+// tools/emu/summon_level.py's cases (`clvl forced bonus difficulty
+// expansion`), each with `| level ac tohit`: the level d2d gives the pet
+// (rules::summon_level; its callers pass the forced level, the Raven's and
+// the Druid's calc2, as the bonus, and no skill level) and its MonLvl row's
+// defense and attack rating at the difficulty.
+int summon_level_cases(const GameData& game_data) {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty()) continue;
+        std::istringstream fields(line);
+        int clvl = 0, forced = 0, bonus = 0, difficulty = 0, expansion = 0;
+        if (!(fields >> clvl >> forced >> bonus >> difficulty >> expansion)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        const int level = d2d::rules::summon_level(clvl, forced > 0 ? forced : 0);
+        const auto& row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(level), game_data.monsters.lvl.size() - 1)];
+        std::printf("%s | %d %d %d\n", line.c_str(), level, row.armor_class[std::size_t(difficulty)], row.to_hit[std::size_t(difficulty)]);
     }
     return 0;
 }
@@ -203,13 +223,13 @@ int decoy_check(const GameData& data) {
 
 int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--summon-resist") return summon_resist_cases();
-    if (argc > 1 && std::string_view(argv[1]) == "--summon-stats") {
+    if (argc > 1 && (std::string_view(argv[1]) == "--summon-stats" || std::string_view(argv[1]) == "--summon-level")) {
         const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-        if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::fprintf(stderr, "--summon-stats needs D2_MPQ_DIR\n"); return 1; }
+        if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::fprintf(stderr, "--summon-stats / --summon-level need D2_MPQ_DIR\n"); return 1; }
         const char* patch = std::getenv("D2_PATCH_INSTALLER");
         auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-        if (!data || !data->patched) { std::fprintf(stderr, "--summon-stats needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return 1; }
-        return summon_stats_cases(*data);
+        if (!data || !data->patched) { std::fprintf(stderr, "--summon-stats / --summon-level need the 1.14d data (D2_PATCH_INSTALLER)\n"); return 1; }
+        return std::string_view(argv[1]) == "--summon-level" ? summon_level_cases(*data) : summon_stats_cases(*data);
     }
     if (life_checks() != 0) return 1;
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");

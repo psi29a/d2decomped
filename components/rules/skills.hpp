@@ -913,6 +913,10 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
 
 // ---- a summon's stats (FUN_005c4470: every summoning skill runs it on its pet)
 
+// Its level: the owner's x 3 / 4 + `bonus` (the Raven's and the Druid's
+// calc2), at most the owner's and at least 1.
+inline int summon_level(int clvl, int bonus) { return std::max(std::min(clvl, clvl * 3 / 4 + bonus), 1); }
+
 // Its passive stats (Skills +0x98, added to the pet's own: FUN_006272b0) and
 // aurastats (+0x54, on its state node: FUN_00627150), each at the skill's
 // level through the owner's calcs (Skeleton Mastery, Golem Mastery and the

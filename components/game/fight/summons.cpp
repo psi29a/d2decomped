@@ -152,7 +152,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         while (skill.pettype != "none" && std::ranges::count_if(actor->pets, same) >= max) actor->pets.erase(std::ranges::find_if(actor->pets, same));
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         const int bonus = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon ? d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl) : 0;
-        const int plvl = std::max(std::min(clvl, clvl * 3 / 4 + bonus), 1);
+        const int plvl = d2d::rules::summon_level(clvl, bonus);
         Pet pet;
         auto& monster = pet.monster;
         monster.type = type;
