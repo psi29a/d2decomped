@@ -15,6 +15,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shadows.hpp>
@@ -268,11 +269,10 @@ struct Fight {
         // skill's auratargetstate for auralen frames, at least 5, with its
         // aurastats): the finger mage's fingermagecurse (0x54).
         std::array<Curse, 2> marks{};
-        // A one-shot overlay a monster's skill put on the player (Cry Help's
-        // srvoverlay, FUN_00621e40: an Overlay.txt row), from flash_at; the
-        // merc's and pets' are their Monster::flash_overlay.
-        int flash_overlay = -1;
-        std::uint32_t flash_at = 0;
+        // The player's one-shot overlays: its casts' and a monster's skill's
+        // (Cry Help's srvoverlay, FUN_00621e40); the merc's and pets' are
+        // their Monster::one_shots.
+        d2d::rules::OneShots one_shots;
         std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
         // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, kept
         // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
@@ -391,7 +391,7 @@ struct Fight {
         // A skill that moves the player (Whirlwind, Charge, Leap Attack):
         // toward (tx, ty) at `speed` cells/s while `on`; `fly` ignores walls
         // (a leap); whirl_next is Whirlwind's next hit time (FUN_005d9320).
-        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; };
+        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; std::vector<std::pair<float, float>> route; };   // route: Whirlwind's points, cells
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
@@ -599,8 +599,8 @@ struct Fight {
     // its chance) and weapon, get-hit, death, each after its delay in ticks.
     void monster_sounds(Monster& monster, std::uint32_t now_ms);
     // A skill start's cast overlay (FUN_004c6140, rules::cast_overlay_starts) on its caster's
-    // one-shot, `shown` from `shown_at`: the player's, a monster's, the merc's or a pet's.
-    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const;
+    // one-shots `shown`: the player's, a monster's, the merc's or a pet's.
+    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, d2d::rules::OneShots& shown, std::uint32_t now_ms) const;
     // What the character wears (the save's appearance, else the class's starting gear).
     [[nodiscard]] const GameData::Appearance& gfx() const;
     [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const;
@@ -688,14 +688,14 @@ struct Fight {
     void start_sequence(std::uint32_t now_ms);
     [[nodiscard]] std::span<const d2d::rules::SeqFrame> skill_sequence() const;   // the swing skill's frames for the weapon, none for a plain mode
     // The movement a moving skill starts with (its srvstfunc):
-    // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
-    // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
+    // Whirlwind (FUN_005d8f50) at the class's walk velocity (FUN_0056e5b0:
+    // CharStats +0x40) along a type 7 path to the point found with mask
+    // 0xc01 (FUN_00648ce0: walls, no units) and walked with 0x401 to its
+    // last point, its sequence over and over; no path, no whirl (FUN_00571b70);
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
     // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
     // FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
     // slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
-    // ponytail: Whirlwind's path is a straight line
-    // (FUN_0064ea90's pathing isn't traced).
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the
     // last) and how many event-1 frames have passed since the start.
@@ -762,9 +762,10 @@ struct Fight {
     // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
-    // sentry'): its max life x calc1..calc2 %, half fire and half physical,
-    // on everything within half the skill's aurarange of it.
-    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, std::uint32_t now_ms);
+    // sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
+    // physical, on what its aurafilter takes within half the aurarange.
+    // `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
+    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms);
     // Skills that act where they're cast, with no missile of their own:
     // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
     // monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
@@ -772,8 +773,7 @@ struct Fight {
     // and stun within aurarange of the point), Static Field (20,
     // FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
     // aurarange of the caster, as lightning), Corpse Explosion (55,
-    // FUN_005c4df0: a corpse's max life x calc1..calc2 %, half fire and half
-    // physical, within half its aurarange), Poison Explosion (63,
+    // FUN_005c4df0: corpse_blast), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
     // FUN_005ca360: to the point, where it's open; not in town).
     // Static Field's walk takes its aurafilter (0x8783) from the caster: a
@@ -781,8 +781,7 @@ struct Fight {
     // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
     // enemy player: FUN_0056b3e0 type 0), Mind Blast's
     // conversion (Param3 / 4 through FUN_005d7680) and the knockback
-    // guards aren't applied; Corpse Explosion takes its corpse's life from
-    // the MonStats roll, not FUN_006538a0's.
+    // guards aren't applied.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with

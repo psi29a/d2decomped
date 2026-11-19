@@ -239,9 +239,15 @@ identical, the game seed after too.
   standalone helper elsewhere, to put the merc beside the player; see
   also hireling.md "Spawning the merc" (`FUN_005774f0`), which creates
   the unit a dead-merc resurrect here is reviving.
+- The answer: S→C 0x2a (FUN_0053d740 at 0x579d54, 15 bytes) with result 9
+  (another NPC, no dead merc), 0xc (short of gold) or 5 (back, +7 the merc's
+  id). The client, in dialog state 10 (FUN_004b1dd0, a wait box), takes it
+  in FUN_004b5640: 5 runs FUN_004939b0 (the panels shut, the hireling hint
+  armed while PopupHireling isn't 1) and reopens the NPC's menu
+  (FUN_004b4830); 7..0x10 go to state 0xc and the store's refusal box.
 - d2d: `rules::merc_resurrect_cost` / `resurrect_merc`, `cmd::ResurrectMerc`,
-  `ui.cpp resurrect_line`. ponytail: the refusal / done messages back to the
-  client aren't sent; a joined game doesn't send 0x62. The stat relink
+  `ui.cpp resurrect_line`, `ev::TradeResult` (with the NPC) and
+  `Town::trade_result`. Not ported: the wait box; a joined game doesn't send 0x62. The stat relink
   (`FUN_00577470`) and the spawn/reposition helpers aren't ported; d2d's
   stats presumably stay attached since nothing detaches them, so no
   disagreement is expected, just unported.

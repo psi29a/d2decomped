@@ -1680,7 +1680,7 @@ int main(int argc, char** argv) try {
         turned.type = int(zombie - data->monsters.types.begin());   // a real one: a tick reads its MonStats row
         turned.id = 0x7ffff0;
         turned.hit_points = 100;
-        turned.cry = converted;
+        turned.states = { converted };
         turned.align = 2;
         turned.unit.x = attacker.player.x + 2;
         turned.unit.y = attacker.player.y;
@@ -1700,12 +1700,12 @@ int main(int argc, char** argv) try {
             assert(received.monsters.size() == 1 && received.monsters[0].align == 2 && received.monsters[0].ally_not_interact(*data, world.level->id));
             assert(received.sounds.size() == 1 && received.sounds[0].unit == 0x100000007ull && received.sounds[0].hush);
         }
-        world.fight.monsters[std::size_t(index)].cry = {};    // the same monster, hostile: attacked
+        world.fight.monsters[std::size_t(index)].states.clear();    // the same monster, hostile: attacked
         world.fight.monsters[std::size_t(index)].align = 0;
         world.tick(attack, (4502 + 2) * kTickMs, (4502 + 1) * kTickMs);
         assert(attacker.attack_mon == index && attacker.pmode < 0);   // still walking up to it
         // Converted while the button is held: the walk-up drops it, no swing.
-        world.fight.monsters[std::size_t(index)].cry = converted;   // as Conversion's hit sets both
+        world.fight.monsters[std::size_t(index)].states = { converted };   // as Conversion's hit sets both
         world.fight.monsters[std::size_t(index)].align = 2;
         world.tick({}, (4502 + 3) * kTickMs, (4502 + 2) * kTickMs);
         assert(attacker.attack_mon == -1 && attacker.pmode < 0);

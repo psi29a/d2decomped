@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
@@ -436,35 +437,16 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             arrive(fortress, fortress->start.first, fortress->start.second, "the hellgate");
             return;
         }
-        // The orifice (OperateFn 25, FUN_0059dc70): with the Horadric Staff
-        // carried it takes it (FUN_0059dd80: the staff and its parts gone,
-        // the Horadric Staff done, the way down to Duriel after its timer);
-        // without, "I can't" (voice).
-        // ponytail: game.exe opens the orifice (mode 1) and a drop panel (FUN_00554120 / FUN_0053d8d0) and takes
-        // the staff once it's placed (C->S 0x44 3 -> FUN_0059dd80); d2d has no panel and takes it on use.
+        // The orifice (OperateFn 25, FUN_0059dc70): in mode 0 with the Horadric Staff carried (FUN_00558110 'hst ')
+        // the player's busy with it (FUN_00554120(player, 2, it)), it opens (mode 1) and S->C 0x58 kind 0 opens
+        // the client's item panel (0x59dd6e); without, "I can't" (FUN_00553380). The staff goes in by C->S 0x44
+        // (object_item).
         if (object.operate_fn == d2d::rules::operate_fn::kOrifice) {
             if (operated.contains({ level, npc_index }) || hosted_quests) return;
             if (!carries("hst")) { d2d::log::info("I can't use this yet."); return; }
-            if (actor->held && actor->held->code == "hst") actor->held.reset();
-            for (const char* code : { "hst", "vip", "msf" })
-                if (const auto part = std::ranges::find(actor->character.items, std::string(code), &d2d::d2s::Item::code); part != actor->character.items.end()) actor->character.items.erase(part);
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
-            const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
-            tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
-            // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
-            const int placer = actor->id;
-            each_player([&](Player& player) {
-                auto& bits = quests();
-                if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
-                d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
-                for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
-            });
-            // FUN_0059dd80 sends S->C 0x89 event 3 to the game; its client entry
-            // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
-            // (object 152) near its player.
-            music_cue_near("music_quest_horadric", object.x, object.y);
-            d2d::log::info("The Horadric Staff: placed in the orifice");
+            actor->events.push_back(ev::ServiceResult{ npc_index, 0 });
             return;
         }
         // Horazon's Journal (OperateFn 42, FUN_0059b970): opened once (mode
@@ -634,6 +616,49 @@ auto World::reduced_prices() const -> int {
         d2d::rules::StatSum sum{};
         (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
         return int(sum[d2d::d2s::kReducedPrices]);
+    }
+
+// C->S 0x44 (FUN_005852e0): action 2, the panel cancelled: S->C 0x58 kind 1, the orifice back to mode 0, the
+// player free. Action 3 with the item a staff ('hst '): kind 5, mode 1 then 2 (ON) and FUN_0059dd80: the staff
+// and its parts gone, the Horadric Staff done, the way down to Duriel after its timer; another item: kind 4.
+auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> void {
+        if (hosted_quests || std::size_t(given.npc) >= level->npcs.size()) return;
+        const auto& object = level->npcs[std::size_t(given.npc)];
+        const auto used = operated.find({ level, given.npc });
+        if (object.operate_fn != d2d::rules::operate_fn::kOrifice || used == operated.end() || tombs.staff_placed || tombs.lair_open) return;
+        if (!given.place) {
+            operated.erase(used);
+            set_footprint(*level, object, object.collision & 1);
+            if (std::size_t(given.npc) < npc_states.size()) npc_states[std::size_t(given.npc)].mode = {};
+            actor->events.push_back(ev::ServiceResult{ given.npc, 1 });
+            return;
+        }
+        if (!actor->held || actor->held->id != given.item || actor->held->code != "hst") {
+            actor->events.push_back(ev::ServiceResult{ given.npc, 4 });
+            return;
+        }
+        actor->events.push_back(ev::ServiceResult{ given.npc, 5 });
+        actor->held.reset();
+        for (const char* code : { "hst", "vip", "msf" })
+            if (const auto part = std::ranges::find(actor->character.items, std::string(code), &d2d::d2s::Item::code); part != actor->character.items.end()) actor->character.items.erase(part);
+        const int on_ticks = object_op_ticks(object);
+        used->second = now_ms - std::uint32_t(std::max(on_ticks, 0)) * kTickMs;   // ON now (FUN_00624690(it, 2))
+        set_footprint(*level, object, object.collision >> 2 & 1);
+        const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
+        tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
+        // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
+        const int placer = actor->id;
+        each_player([&](Player& player) {
+            auto& bits = quests();
+            if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
+            d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
+            for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
+        });
+        // FUN_0059dd80 sends S->C 0x89 event 3 to the game; its client entry
+        // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
+        // (object 152) near its player.
+        music_cue_near("music_quest_horadric", object.x, object.y);
+        d2d::log::info("The Horadric Staff: placed in the orifice");
     }
 
 // Rooms laid again (relevel) stamp every door as its preset left it; the

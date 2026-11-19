@@ -762,11 +762,14 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
 auto World::den_count(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::DenQuest::kDen || fight.mon_level != level) return;
         const int left = int(std::ranges::count_if(fight.monsters, &Monster::alive));
-        for (const auto& kill : fight.kills)
-            if (kill.killer > 0) den.took_part(kill.killer);   // a monster's death: its killer takes part
-        if (den_left >= 0 && left < den_left) {
-            const auto kill = den.killed(left, every_room_populated(fight.spawning, *level));
-            if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
+        // Each death in turn (FUN_00590260): its killer takes part, then the count with the ones dying after it
+        // this frame still up.
+        int dying = int(fight.kills.size());
+        for (const auto& death : fight.kills) {
+            if (death.killer > 0) den.took_part(death.killer);
+            const int remaining = left + --dying;
+            const auto kill = den.killed(remaining, every_room_populated(fight.spawning, *level));
+            if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", remaining == 1 ? "one monster left" : std::format("monsters remaining: {}", remaining));
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
                 music_cue("music_quest_den");

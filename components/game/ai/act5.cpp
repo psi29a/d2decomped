@@ -88,7 +88,7 @@ struct Act5Ai : ThinkCtx {
     // The Ancients: Madawc's Shout on him; which by class, a foe picked (the
     // target), awake (a5q5's record, set by World::act5_update); Talic's state 0x36.
     void ancient() {
-        input.skill_state = monster.cry.skill >= 0 && monster.cry.skill == skill_id(game_data, type_info.skill[0]) && now_ms < monster.cry.until;
+        input.skill_state = std::ranges::any_of(monster.states, [&](const Monster::SkillState& held) { return held.skill >= 0 && held.skill == skill_id(game_data, type_info.skill[0]) && now_ms < held.until; });
         input.asleep = monster.asleep;
         input.state36 = monster.uninterruptable();
         input.ancient = type_info.id == "ancientbarb2" ? 1 : type_info.id == "ancientbarb3" ? 2 : 0;

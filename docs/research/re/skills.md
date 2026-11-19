@@ -1530,8 +1530,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   with the skill's toht (stat 19) and calc1 damage % (stat 25).
 - Built: `Fight::burst / strike / area / spot / spot_skill /
   strike_bolts / land_range`, `Missile::ox / oy / turn / hit_at`,
-  MonType undead / demon. Not traced / not built: Blessed Hammer's path
-  (a spiral out at a fifth of its speed), Holy Bolt's party heal and its
+  MonType undead / demon. Blessed Hammer's path type 14 (FUN_00649760 ->
+  FUN_0067a140): 77 subtile points on a spiral from the start subtile's
+  centre, each step 0x2580 (16.16) out and 16 of 512 round from angle 0,
+  whatever the aim (`rules::hammer_route`, tools/emu/hammer_route.py,
+  test_hammer_route); the missile walks them at its velocity. Not traced /
+  not built: Holy Bolt's party heal and its
   ProgOverlay (the pet heal is built; the draw uses the fight rng, not the
   missile seed), Static
   Field's floor, Mind Blast's conversion, Volcano's frame window,

@@ -287,8 +287,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
                           button.label2 ? button.label2 : "");
     };
     draw_tall(select_ui.create_btn);
-    // Convert-to-expansion only applies to a classic character (ponytail:
-    // drawn, never actionable).
+    // Convert-to-expansion only applies to a classic character.
     const bool classic_pick = select_ui.selected >= 0 && select_ui.selected < int(scene.saves.size())
                            && !scene.saves[std::size_t(select_ui.selected)].expansion();
     draw_tall(select_ui.convert_btn, !classic_pick);
@@ -307,6 +306,20 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
         blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
         draw_text_box(framebuffer, scene, scene.font, select_ui.delete_text, 268, 320, 264, 120, 255, 10, 8);
+        for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
+            blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
+            draw_button_label(framebuffer, scene, pal, *button, *label, button->hovered && button->pressed);
+        }
+        return;
+    }
+    if (select_ui.confirm_convert) {
+        // CONVERT's question: records 0xda..0xdd (0x439be0), its three lines in Font8, colour 4.
+        blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
+        const auto& font = scene.font_small;
+        const auto gold = scene.sky_pl2.text_palette(pal, 4);
+        const std::vector<std::string_view> texts(select_ui.convert_text.begin(), select_ui.convert_text.end());
+        for (const auto& row : d2d::font::text_box_rows(texts, 268, 310, 264, 120, font.line_height(), [&](std::string_view text) { return font.measure(text); }, 9, 0))
+            font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, gold, row.x, row.baseline, row.text, 255, 255, 255);
         for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
             blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
             draw_button_label(framebuffer, scene, pal, *button, *label, button->hovered && button->pressed);

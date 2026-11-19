@@ -134,10 +134,12 @@ inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::
         if (state.cast) unit.overs.push_back({ state.cast, start, true });
     }
 }
-// A one-shot overlay (FUN_00621e40: an Overlay.txt row, -1 none) played
-// once from `start`.
-inline void flash(const Scene& scene, Unit& unit, int row, std::uint32_t start) {
-    if (row >= 0 && std::size_t(row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(row)]) unit.overs.push_back({ scene.overlay_rows[std::size_t(row)], start, true });
+// The unit's one-shot overlays (rules::OneShots: Overlay.txt rows), each
+// played once from its start, together.
+inline void flash(const Scene& scene, Unit& unit, const d2d::rules::OneShots& shots) {
+    for (const auto& shot : shots)
+        if (shot.row >= 0 && std::size_t(shot.row) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(shot.row)])
+            unit.overs.push_back({ scene.overlay_rows[std::size_t(shot.row)], shot.start, true });
 }
 // The states on a monster and on the player, by States.txt name.
 inline std::vector<std::string_view> monster_states(const Scene& scene, const Monster& monster, std::uint32_t now, int player_aura = 0) {
@@ -146,7 +148,7 @@ inline std::vector<std::string_view> monster_states(const Scene& scene, const Mo
     if (now < monster.poison_until) out.push_back("poison");
     if (now < monster.chill_until) out.push_back("cold");
     if (now < monster.stun_until) out.push_back("stunned");
-    for (const auto& effect : { monster.curse, monster.cry })
+    for (const auto& effect : monster.curse_and_states())
         if (effect.skill >= 0 && now < effect.until)
             if (const auto* skill = scene.skills.get(effect.skill)) out.push_back(skill->auratarget);
     if (monster.aura > 0)
@@ -623,7 +625,7 @@ struct Town {
     void open_use_item(int npc);
     void close_use_item();
     void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
-    void use_item_reply(int kind);
+    void use_item_reply(int kind, Audio* audio = nullptr);   // `audio`: kind 5's sound
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes
@@ -825,6 +827,9 @@ struct Town {
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc);
+    // S->C 0x2a's answer at the mouse (FUN_004b6390): a store's refusal box,
+    // or a resurrect's (dialog state 10, FUN_004b5640).
+    void trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y);
 
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.

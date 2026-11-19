@@ -93,13 +93,13 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         line_top += scene.font.line_height();
     }
     // Then a line per immunity (FUN_004526c0, rules::immunity_lines), each in
-    // its font colour.
-    // ponytail: the resists are MonStats' and the boss mods' (Monster::target);
-    // a curse that lowers one (game.exe reads the stat with its states) still
-    // shows the line.
+    // its font colour: the resists with its states' stats (GetUnitStat), so a
+    // curse or Conviction that breaks one drops its line (Monster::res_cut).
     static constexpr std::array<std::array<std::uint8_t, 3>, 10> kFontRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
                                                                              { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
-    for (const auto& immunity : d2d::rules::immunity_lines(type_info.id, monster.target(scene).res)) {
+    auto resists = monster.target(scene).res;
+    for (std::size_t k = 0; k < resists.size(); ++k) resists[k] += monster.res_cut[k];
+    for (const auto& immunity : d2d::rules::immunity_lines(type_info.id, resists)) {
         const auto text = string_id(scene, immunity.string);
         const auto& rgb = kFontRgb[std::size_t(immunity.colour)];
         scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(text) / 2, line_top, text, rgb[0], rgb[1], rgb[2]);
@@ -203,7 +203,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
         if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
-        flash(scene, out.back(), view.merc->flash_overlay, view.merc->flash_at);
+        flash(scene, out.back(), view.merc->one_shots);
     }
     // A party member's merc (party_pets, "hireable") gets hit at its own FHR, as ours.
     for (const auto* pets : { &view.pets, &view.party_pets })
@@ -212,7 +212,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
             out.back().hold = pet.mode == "DT";
             if (pets == &view.party_pets && pet.pettype == "hireable" && pet.mode == "GH")
                 out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), pet.fhr));
-            flash(scene, out.back(), pet.flash_overlay, pet.flash_at);
+            flash(scene, out.back(), pet.one_shots);
         }
     // A joined game's other players, in what they wear (0x9d), walking,
     // standing or in a skill's mode.
@@ -229,7 +229,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                 out.back().rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, other.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
         if (other.ghost) { out.back().spirit = true; out.back().shadow = false; }   // local co-op's dead, walking along
         dress(scene, out.back(), -2 - int(other.id & 0xffffff), other.states, clk);
-        flash(scene, out.back(), other.flash_overlay, other.flash_at);
+        flash(scene, out.back(), other.one_shots);
     }
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
@@ -261,7 +261,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
         dress(scene, out.back(), monster.id, monster_states(scene, monster, now_ms, view.aura), clk);
-        flash(scene, out.back(), monster.flash_overlay, monster.flash_at);   // its think's overlay
+        flash(scene, out.back(), monster.one_shots);   // its thinks' and casts' overlays
     }
 }
 

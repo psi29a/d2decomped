@@ -232,7 +232,7 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
                 for (auto cue = cues.due.begin() + std::ptrdiff_t(queued); cue != cues.due.end(); ++cue) cue->when_ms += frame_ms;   // the host's delays, on our clock
                 if (std::getenv("D2D_LAN_SOUNDS") && cues.due.size() > queued) d2d::log::info("lan: {} sounds from the host", cues.due.size() - queued);
                 for (const auto& said : view.events) {
-                    if (const auto* refused = std::get_if<ev::TradeRefused>(&said); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+                    if (const auto* traded = std::get_if<ev::TradeResult>(&said)) trade_result(*traded, mouse.x, mouse.y);
                     handle(said, audio, frame_ms);
                 }
             } else if (event.type == Type::Save) {

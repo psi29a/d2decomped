@@ -119,6 +119,8 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
         if (event.button.button == SDL_BUTTON_LEFT) {
             mouse.down = false;
             mouse.release_this_frame = true;
+        } else if (event.button.button == SDL_BUTTON_RIGHT) {
+            mouse.rrelease_this_frame = true;
         }
     }
 }

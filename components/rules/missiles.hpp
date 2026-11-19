@@ -7,6 +7,7 @@
 
 #include "monsters.hpp"
 #include "rules.hpp"
+#include "weather.hpp"
 
 #include <algorithm>
 #include <array>
@@ -220,6 +221,26 @@ inline std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int
             sign = -sign;
             turn = int(seed.next() % 3) + kTurnLeast;
         }
+    }
+    return points;
+}
+
+// Blessed Hammer's route (FUN_005d0040 gives its path type 14; FUN_00649760
+// -> FUN_0067a140): from subtile (x, y)'s centre, each step 0x2580 (16.16)
+// further out and 16 further round on the 512-step sine table (0x707800)
+// from angle 0, whatever the aim; a point each time the subtile changes, 77
+// (0x4d) of them. tools/emu/hammer_route.py.
+inline std::vector<std::pair<int, int>> hammer_route(int x, int y) {
+    constexpr int kOut = 0x2580, kRound = 16, kPoints = 0x4d;
+    const std::int64_t from_x = (std::int64_t(x) << 16) + 0x8000, from_y = (std::int64_t(y) << 16) + 0x8000;
+    std::vector<std::pair<int, int>> points;
+    for (int step = 1, last_x = x, last_y = y; int(points.size()) < kPoints; ++step) {
+        const double radius = double(step) * kOut;
+        const int at_x = int((from_x + std::llrint(double(cos512(step * kRound)) * radius)) >> 16);
+        const int at_y = int((from_y + std::llrint(double(sin512(step * kRound)) * radius)) >> 16);
+        if (at_x == last_x && at_y == last_y) continue;
+        points.emplace_back(at_x, at_y);
+        last_x = at_x; last_y = at_y;
     }
     return points;
 }

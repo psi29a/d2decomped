@@ -835,12 +835,12 @@ int main() try {
     // none at or over its owner's level or at 98.
     assert(merc_kill_exp(1000, 300, false, 10, 20) == 1000 + 300 * 86 / 256 * 2 && merc_kill_exp(1000, 300, true, 10, 20) == 1600);
     assert(merc_kill_exp(1000, 300, true, 20, 20) == 1000 && merc_kill_exp(1000, 300, true, 98, 99) == 1000 && merc_kill_exp(1000, 2, false, 10, 20) == 1000);
-    assert(!resurrect_merc(5, merc_header, wallet2));                                  // alive
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::refused);                // alive
     merc_header.merc_dead = true;
     wallet2.values[kGold] = 100; wallet2.values[kGoldBank] = 100;
-    assert(resurrect_merc(5, merc_header, wallet2) && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::hireling && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
     merc_header.merc_dead = true;
-    assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::no_gold && merc_header.merc_dead);   // 20 < 180
 
     // Identify (FUN_0062a530): inventory, cube and worn items; not the stash or the belt.
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap"), stored("cap", 4, 0, 0), item("hp1") };
