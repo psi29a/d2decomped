@@ -44,6 +44,7 @@ int main() try {
     assert(den.killed(9, true) == DenQuest::Kill::none && den.log == 2);
     assert(den.killed(5, true) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
     assert(den.killed(0, false) == DenQuest::Kill::none && den.state < 4);               // a Den room not populated yet: nothing
+    assert(den.killed(7, false) == DenQuest::Kill::few && den.state < 4);                // log 4, a monster back up: the count resent
 
     assert(den.killed(0, true) == DenQuest::Kill::cleared && den.state == 4);
     QuestBits bystander{};                                                             // player 2 killed none: cleared by someone else

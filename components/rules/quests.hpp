@@ -136,18 +136,23 @@ struct DenQuest {
     // unless there).
     void took_part(int player) { if (state < 4 && active) participants.add(player); }
     // A monster died; `remaining` are the Den's left (level +0x2cc - +0x2d0)
-    // (FUN_00590260). 0: cleared (each player's credit follows). Only once
-    // `all_up`, every populatable Den room populated (its record +4 against
-    // FUN_00642be0's count); before that a death does nothing.
+    // (FUN_00590260, at each death). 0: cleared (each player's credit
+    // follows). Only once `all_up`, every populatable Den room populated (its
+    // record +4 against FUN_00642be0's count). Under 6 the count is sent
+    // (log 4, FUN_0058fbe0); at log 4 with 6 or more (a monster back up) it's
+    // sent again, populated or not.
     enum class Kill { none, few, cleared };
     Kill killed(int remaining, bool all_up) {
-        if (state >= 4 || !all_up) return Kill::none;        // its callback's gone once cleared
-        if (remaining > 0) {
-            if (remaining < 6) log = 4;            // "Monsters remaining: N"
-            return remaining < 6 ? Kill::few : Kill::none;
+        if (state >= 4) return Kill::none;                   // its callback's gone once cleared
+        if (all_up && remaining == 0) {
+            state = 4;
+            return Kill::cleared;
         }
-        state = 4;
-        return Kill::cleared;
+        if (all_up && remaining < 6) {
+            log = 4;                                         // "Monsters remaining: N"
+            return Kill::few;
+        }
+        return log == 4 && remaining > 5 ? Kill::few : Kill::none;
     }
     // The clear's credit for one player neither done nor due: a participant
     // bits 13 and 1, the reward due (FUN_005455f0), any other bit 14 (cleared

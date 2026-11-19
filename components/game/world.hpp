@@ -883,9 +883,8 @@ struct World {
     // five are counted down in the quest log; the last one clears it, and a
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
-    // Nothing till every Den room has populated (rules::DenQuest::killed).
-    // ponytail: counted when the number drops (game.exe: on each death,
-    // and the count resent at log 4 with 6 or more, a monster back up).
+    // Nothing till every Den room has populated (rules::DenQuest::killed);
+    // counted at each death (FUN_00590260), resent at log 4 with 6 or more.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 
