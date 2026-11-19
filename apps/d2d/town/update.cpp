@@ -446,7 +446,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // player alone ends the game, in local co-op the next player leads and it goes on.
             if (action == GameMenu::kExit) {
                 if (const int seat = focus_seat(); seat > 0) { coop_leave(seat); partner_left = seat; }
-                else if ((handed_over = lead_leaves()) < 0) { save(); screen = Screen::CharSelect; }
+                else if ((handed_over = lead_leaves()) < 0) {
+                    save();
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+                    game_ended();
+                    quit_app = true;
+#else
+                    screen = Screen::CharSelect;
+#endif
+                }
             }
             hud_click = true;
         } else {

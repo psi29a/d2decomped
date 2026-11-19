@@ -394,6 +394,7 @@ struct Town {
     // leads (World::leave), still played by their own pad; their seat, for
     // that pad to take seat 0, or -1 (no one to lead: the game ends as alone).
     int lead_leaves();
+    bool quit_app = false;                        // iOS: Save and Exit ends the development shell
     int handed_over = -1;                         // the seat a hand-over in the game menu gave seat 0 (main swaps the pads, frees the leaver's)
     int partner_left = -1;                        // the seat whose player Save and Exit logged out (main frees it)
     // A seat's player joins with `character` / leaves (saved).
