@@ -315,7 +315,7 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
 // level's monsters with a MonStats2 automapCel, into list 2 (FUN_00458dc0
 // -> FUN_00457e80), the player at (player_x, player_y) cells.
 void automap_icons(const GameData& game_data, const Level& level, Automap& automap, float player_x, float player_y,
-                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters = {});
+                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters = {}, const d2d::game::Spawning* spawning = nullptr);
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
 

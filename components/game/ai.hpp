@@ -1404,10 +1404,11 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `open_door`: its door at a think (OpenDoor). `players_counted`: the
 // game's player count (Fight::game_players: every level's, or the /players
 // count), for what it makes in play; 0 counts the players in `foes`.
+// `spawning`: every level's rooms come up (missile_rooms' near rooms).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
                     std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
-                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0);
+                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0, const Spawning* spawning = nullptr);
 
 // FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
 // subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each

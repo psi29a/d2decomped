@@ -1125,9 +1125,8 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 // +0 / +0x24). Empty when no room holds it. With `spawning`, a near room
 // counts once it's come up (Spawning::LevelState::order): room1 +0 holds
 // null for one whose room1 isn't made, and FUN_00463740 skips it. A level
-// no rooms are kept for (no state): all count.
-// ponytail: the fight's, AI's and client's callers pass no spawning yet:
-// every near room counts as up there.
+// no rooms are kept for (no state): all count. The fight, the thinks and the
+// client pass the World's.
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y, const Spawning* spawning = nullptr);
 // The automap's rooms (FUN_00459020): the one holding (x, y) cells and its
 // near list (FUN_00619790), itself included, in the list's order: each

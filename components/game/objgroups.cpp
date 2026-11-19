@@ -454,6 +454,7 @@ struct ObjectRooms {
     std::size_t index = 0;
     std::vector<d2d::rules::Spawn>* spawns = nullptr;
     Spawning::LevelState* level_state = nullptr;
+    const Spawning* spawning_now = nullptr;           // every level's rooms up (missile_rooms)
     int leader = 0;
     d2d::rules::Population pop;
 
@@ -528,7 +529,7 @@ struct ObjectRooms {
     [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
         if (from >= level.rooms.size()) return std::nullopt;
         const auto& source = level.rooms[from];
-        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5);
+        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5, spawning_now);
         for (std::size_t i = 0; i < level.rooms.size(); ++i) {
             const auto& held = level.rooms[i];
             if (x < held.x * 5 || y < held.y * 5 || x >= (held.x + held.width) * 5 || y >= (held.y + held.height) * 5) continue;
@@ -1264,6 +1265,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     out = &state.group_rooms[index];
     spawns = &state.spawns;
     level_state = &state;
+    spawning_now = &spawning;
 }
 
 // in_room: the level's rooms up so far.
