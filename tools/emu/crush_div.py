@@ -17,6 +17,7 @@ strike, the attacker's Crushing Blow stat 100) on a type-1 unit of that row, wit
 FUN_0063e9f0, FUN_005a0180 and FUN_005738f0 all running for real, on a unit at a life of 262,144 points and prints `id crush`: the life it takes, whole 256ths. The d2d side is the `crush_divisor` `Monster::target` gives `player_blow` for the same row, kind
 and player count, the crush = life / divisor. Compared byte for byte.
 """
+import re
 import sys
 
 M32 = 0xFFFFFFFF
@@ -106,7 +107,7 @@ def compare(cases_path, game_path, d2d_path):
         raise SystemExit(f"compare: lengths differ ({len(cases)}, {len(g)}, {len(d)})")
     bad, kinds = 0, {}
     for c, gl, dl in zip(cases, g, d, strict=True):
-        if len(gl) != 2 or len(dl) != 2 or gl[0] != dl[0] or gl[0] != str(c["id"]) or not (gl[1].lstrip("-").isdigit() and dl[1].lstrip("-").isdigit()):
+        if len(gl) != 2 or len(dl) != 2 or gl[0] != dl[0] or gl[0] != str(c["id"]) or not (re.fullmatch(r"-?[0-9]+", gl[1]) and re.fullmatch(r"-?[0-9]+", dl[1])):
             raise SystemExit(f"compare: malformed or out-of-step line near id {c['id']}")
         differ = gl[1] != dl[1]
         row = kinds.setdefault(c["kind"], [0, 0])
