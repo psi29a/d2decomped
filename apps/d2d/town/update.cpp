@@ -113,14 +113,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 gold_box->cancel_down = part == GoldBoxPart::kCancel;
             }
             if (!mouse.down) gold_box->spin = 0;
-            // Held (FUN_004bbfb0 through the box's 0x453fe0): a step at most every
-            // 70 ms, 1 for the first second, then the draws held >> 5, >> 4, >> 2
-            // past 1, 2, 3 s, and (ms held >> 11) x the draws past 4096 ms.
-            // ponytail: game.exe counts its own draws (+0x40); here 25 a second, its in-game rate.
+            // Held (FUN_004bbfb0 through the box's 0x453fe0): each frame drawn
+            // counts one (FUN_004bbe70: +0x40, gone on release; update draws
+            // the frame, once each); a step (spinner_step) at most every 70 ms.
+            gold_box->draws = gold_box->spin != 0 ? gold_box->draws + 1 : 0;
             if (gold_box->spin != 0 && frame_ms - gold_box->next_ms >= 70) {
-                const std::uint32_t held_ms = frame_ms - gold_box->spin_ms;
-                const std::int64_t draws = held_ms / 40;
-                const std::int64_t step = held_ms > 0x1000 ? std::int64_t(held_ms >> 11) * draws : held_ms > 3000 ? draws >> 2 : held_ms > 2000 ? draws >> 4 : held_ms > 1000 ? draws >> 5 : 1;
+                const std::int64_t step = spinner_step(frame_ms - gold_box->spin_ms, gold_box->draws);
                 gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin * step, 0, most));
                 gold_box->next_ms = frame_ms;
             }
