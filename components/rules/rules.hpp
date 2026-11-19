@@ -2053,7 +2053,7 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
-    item.ilvl = std::clamp(ilvl, 1, 99);
+    item.ilvl = std::max(ilvl, 1);                         // FUN_00628220: at least 1, no cap (Uber Diablo's are 110)
     const auto* info = info_of(tables, item);
     const auto found = tables.item_base.find(code);
     const int qlvl = found != tables.item_base.end() ? found->second.level : 1;
