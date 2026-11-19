@@ -672,8 +672,9 @@ auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> v
 
 // Rooms laid again (relevel) stamp every door as its preset left it; the
 // doors used since go back to their mode's footprint.
-// ponytail: every frame, a few doors; on relevel only if it shows.
+// Only after a relevel of this level (Level::lays moved on).
 auto World::reopen_doors() -> void {
+        if (std::exchange(doors_laid, std::pair{ level, level->lays }) == std::pair{ level, level->lays }) return;
         for (const auto& [key, door] : doors)
             if (key.first == level && std::size_t(key.second) < level->npcs.size())
                 set_footprint(*level, level->npcs[std::size_t(key.second)], level->npcs[std::size_t(key.second)].collision >> door.mode & 1);

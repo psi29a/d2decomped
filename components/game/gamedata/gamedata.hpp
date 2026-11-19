@@ -194,6 +194,7 @@ struct Level {
     struct Critter { int row = -1, percent = 0, amount = 0; };
     std::array<Critter, 4> critters{};
     int teleport = 1;                                  // Levels.txt Teleport: 0 no, 1 yes, 2 only in a clear line (FUN_0061db70 +4)
+    std::uint32_t lays = 0;                            // the times relevel laid its rooms again (World::reopen_doors)
     d2d::ds1::Map ds1;
     std::vector<d2d::dt1::Archive> dt1s;
     // Keyed by (style, seq, type) — one map covers floors, walls, trees,

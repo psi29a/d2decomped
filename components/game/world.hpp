@@ -788,6 +788,7 @@ struct World {
     void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
     void reopen_doors();
+    std::pair<const Level*, std::uint32_t> doors_laid{};   // the level and its Level::lays at the last reopen_doors
     // The player's item_reducedprices (stat 87) off their gear and charms now.
     [[nodiscard]] int reduced_prices() const;
     // A monster's door at its think (Fight::open_door): found, operated in reach.
