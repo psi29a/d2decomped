@@ -12,7 +12,7 @@
 // Without arguments: summon_life on a few typed-in numbers, then, with the
 // game data, a Necromancer's Raise Skeleton through the real
 // Fight::summon_one (the corpse left out), its pet's max life to the 256th,
-// and an Amazon's Decoy.
+// an Amazon's Decoy and a Revive above its owner's level.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -229,6 +229,42 @@ int decoy_check(const GameData& data) {
     return 0;
 }
 
+// Revive at 1 on a level-3 Necromancer raising a Normal Andariel (level 12): its do (FUN_005c56c0
+// 0x5c57f6) takes her life x 3 / 12 (MulDiv) and her level down to 3 before FUN_005c4470's calc1 %.
+int revive_check(const GameData& data) {
+    d2d::rules::Rng rng{ 7 };
+    Character character;
+    auto made = new_character(data, 2, "Raiser", false, true, rng);
+    character.name = "Raiser";
+    character.header = made.header;
+    character.stats = made.stats;
+    character.items = made.items;
+    character.panel = panel_stats(data, character.header, character.items, character.stats);
+    character.stats.values[d2d::d2s::kLevel] = 3;
+    auto world = std::make_unique<World>(&data, -1, -1);
+    world->enter(character);
+    Level open = *data.level(d2d::rules::level_ids::kBloodMoor);
+    std::ranges::fill(open.walk, std::uint16_t(0));
+    world->level = &open;
+    world->fight.enter(&open);
+    const int revive = data.skills.by_name.at("Revive");
+    world->fight.skill_level = [&](int skill) { return skill == revive ? 1 : 0; };
+    world->fight.skill_base = world->fight.skill_level;
+    auto* actor = world->actor;
+    const auto& row = *data.skills.get(revive);
+    const int andariel = data.monsters.row("andariel");
+    auto copy = world->fight.rng;
+    const auto rolled = d2d::rules::monster_stats(data.monsters, andariel, 0, copy);
+    const int calc1 = d2d::rules::eval_calc(data.skills, row.calc[0], world->fight.calc_env(), revive, 1);
+    world->fight.summon_one(row, andariel, 1, world->fight.calc_env(), actor->player.x + 3, actor->player.y, 100000);
+    assert(actor->pets.size() == 1 && rolled.level > 3);
+    const int expect = d2d::rules::summon_life(d2d::rules::mul_div(rolled.hit_points << 8, 3, rolled.level), calc1);
+    const auto& pet = actor->pets.front().monster;
+    assert(pet.stats.level == 3 && pet.max_life_fine() == expect);
+    std::printf("OK: a revived Andariel's life %d/256 (her %d at %d, down to 3)\n", expect, rolled.hit_points, rolled.level);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -247,7 +283,7 @@ int main(int argc, char** argv) try {
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("no game data: the summon check skipped"); return 0; }
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data || !data->patched) { std::puts("no 1.14d data: the summon check skipped"); return 0; }
-    return raise_check(*data) | decoy_check(*data);
+    return raise_check(*data) | decoy_check(*data) | revive_check(*data);
 } catch (const std::exception& error) {
     std::printf("test_summon_stats: %s\n", error.what());
     return 1;
