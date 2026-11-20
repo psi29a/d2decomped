@@ -12,9 +12,11 @@
 #include <combat.hpp>
 #include <dc6.hpp>
 #include <dt1.hpp>
+#include <level_ids.hpp>
 #include <overlays.hpp>
 #include <palette.hpp>
 #include <room_tiles.hpp>
+#include <stars.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -23,6 +25,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <span>
 #include <thread>
 #include <unordered_map>
@@ -270,6 +273,25 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     };
 
     const auto& upal_splash = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    // The Arcane Sanctuary's stars (FUN_00476290, from the world draw
+    // FUN_00476bc0 in level 74, before the lower walls): each a point in its
+    // palette index (the driver's line, FUN_004f6380, from (x, y) to itself),
+    // then the drift. Made once a run, on the screen's size then.
+    // ponytail: not traced whether a side panel moves them (the driver's view offset).
+    if (level.id == d2d::rules::level_ids::kArcaneSanctuary) {
+        static d2d::rules::Stars stars;
+        const int screen_h = int(framebuffer.size() / 4) / std::max(screen_w, 1);
+        if (!stars.made)
+            stars.make(std::uint32_t(std::time(nullptr)) + elapsed_ms, screen_w, screen_h,   // game.exe: time() and the clock mixed (FUN_00650de0)
+                       [&](int red, int green, int blue) { return upal_splash.nearest(red, green, blue); });
+        for (const auto& star : stars.stars) {
+            if (star.x < 0 || star.y < 0 || star.x >= screen_w || star.y >= screen_h) continue;
+            const auto colour = upal_splash[star.colour];
+            auto* pixel = framebuffer.data() + (std::size_t(star.y) * std::size_t(screen_w) + std::size_t(star.x)) * 4;
+            pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
+        }
+        stars.step(elapsed_ms, screen_w, screen_h);
+    }
     // Lower walls (16..19: cliff faces hanging below their cell) go first,
     // under every floor (FUN_004df480 before the floors' FUN_004ded10).
     for (int dy = -kReach; dy <= kReach; ++dy)
