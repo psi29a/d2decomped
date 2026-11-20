@@ -5,7 +5,8 @@
 // +0x1a / +0x20, FUN_0062cbe0's index 1), no param bits (+0x28 is no column),
 // and keeps a few stats as their 1.10 neighbours (FUN_0062ac80: 0x5e as
 // 0x5d, 0x61 as 0x60, 100 as 99, 0x67 as 0x66, 0x6a as 0x69). Defence is row
-// 31's widths. Synthetic tables: no game data.
+// 31's widths. The writer takes the same widths for a 0x5c save, so a
+// rewritten one reloads the same. Synthetic tables: no game data.
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 
@@ -54,6 +55,13 @@ int main() try {
     detail::props(new_bits, tables, props);
     assert(props.size() == 2 && props[0].stat == 0x5e && props[0].value == 25);
     assert(props[1].stat == 107 && props[1].param == 149 && props[1].value == 3);
+
+    // Written back into a 0x5c save, the list goes out at the widths it's read with: the same bits
+    // as the hand-made 0x5c list above, so a reload reads the same values.
+    const std::vector<ItemProp> kept{ { 0x5e, 0, 25 }, { 107, 0, 3 } };
+    detail::BitWriter rewritten;
+    detail::write_props(rewritten, tables, kept.data(), kept.size(), 0x5c);
+    assert(rewritten.out == old_list.out);
 
     assert(detail::width(tables.stats[kArmorClass], 0x5c).bits == 10 && detail::width(tables.stats[kArmorClass], 0x60).bits == 11);
     std::puts("OK: a 0x5c save's property widths and stat ids (FUN_0062cbe0, FUN_0062ac80)");
