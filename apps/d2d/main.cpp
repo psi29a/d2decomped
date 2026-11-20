@@ -1931,6 +1931,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // the screen underneath.
             // The hand plays CursorAnim's row and frame (FUN_004683c0 draws
             // row 0x7a6adc at frame 0x7a6ae0 >> 8, then FUN_00468310 steps it).
+            // The mouse's press, release and moves reach the hand whether it's drawn or not (a held
+            // item, an identify pick, a pad's field mode), so a release then can't leave it pressed.
+            if (mouse.press_this_frame) cursor_anim.press(now_ms);
+            if (mouse.release_this_frame) cursor_anim.release(now_ms);
+            if (mouse.x != cursor_seen.first || mouse.y != cursor_seen.second) cursor_anim.move(now_ms);
+            cursor_seen = { mouse.x, mouse.y };
             const int cursor_dx = (fb_width(framebuffer) - int(kScreenWidth)) / 2;
             bool os_cursor = false;   // the OS shows the gauntlet this frame (hw_cursor.hpp)
             if (screen == Screen::InGame && town.held && !town.use_item.placed()) {   // placed in an item panel: the hand (FUN_00468070(0))
@@ -1947,10 +1953,6 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act_pal.entries().empty() ? scene->pal : scene->act_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
-                if (mouse.press_this_frame) cursor_anim.press(now_ms);
-                if (mouse.release_this_frame) cursor_anim.release(now_ms);
-                if (mouse.x != cursor_seen.first || mouse.y != cursor_seen.second) cursor_anim.move(now_ms);
-                cursor_seen = { mouse.x, mouse.y };
                 const auto& row_sprite = scene->cursor_rows[std::size_t(std::clamp(cursor_anim.row, 0, 5))];
                 const auto& sheet = row_sprite.frames_per_direction() > std::uint32_t(cursor_anim.frame()) ? row_sprite : scene->cursor;
                 const auto& frame = sheet.frame(0, std::uint32_t(&sheet == &row_sprite ? cursor_anim.frame() : 0));
