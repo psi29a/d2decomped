@@ -213,6 +213,8 @@ address	name	evidence
 00466730	critter_make	ECX, EDX, three stack words: counter DAT_00711f30 + 1 (-1 wraps to 0); type 1 builds a record for FUN_00466360, else FUN_00620290(0, type) record +0xc4 |= 0x600000 then FUN_00465fd0 (critters.md; ui_client_helpers.py)
 00466ff0	clear_7a6a98	DAT_007a6a98 = 0. 5 callers, among them FUN_0044c180 (unnamed-frontier.md)
 00467410	pet_colour_set	Fastcall (unit, pet, value): the pet's colour record (FUN_00478e40) +8 = value. Callers FUN_00462b40, FUN_00462ca0, FUN_00493430 (unnamed-frontier.md)
+00467e40	cursor_row_loops	EAX row: the cursor table 0x712010 row's +4 (loops), asserts row < 7 (client-frontier.md)
+00467e90	cursor_row_length	EAX row: the cursor table row's +8 frames << 8 (client-frontier.md)
 00467f20	cursor_click_left	Keeps the click's x, y (0x7a6ab0, 0x7a6aac) and tick; marks the event unhandled (+0x18); unless the cursor state is 5, a state with a handler (table 0x712020, 0x1c bytes) moves to state 5 with mode 4. 4 callers, ... (unnamed-frontier.md)
 00467fa0	cursor_click_right	As cursor_click_left; state 5 goes to mode 5, else state 1. 5 callers, among them FUN_0048b7c0, FUN_004a6840, FUN_004a6920 (unnamed-frontier.md)
 004680a0	client_cursor_item	returns the exact client cursor-unit pointer at 0x7a6abc; no branch or callee (client-frontier.md)

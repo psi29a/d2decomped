@@ -86,3 +86,24 @@ uv run python client_frontier.py --exe /path/to/game.exe --mutation-check
 Expected: `ok: 207 client frontier cases over 5 functions`, followed by five
 `failed as required` mutation lines. The oracle loads no MPQs; the text width
 and glyph draw callees of `FUN_004a7080` are the only hooks.
+
+## The hand cursor and the OS cursor
+
+Helpers of the hand cursor's code (cursor_anim.hpp, `FUN_00468310`'s
+family). Read from the decompile; the two row getters also ran in
+`tools/emu/cursor_rows.py`. Rows in address order.
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00467e40` | `cursor_row_loops` | The row in EAX. Asserts the row count at `0x7120d4` is 7 (line 0x8f) and the row under it (line 0x90), then returns the row's `+4` in the table at `0x712010` (0x1c bytes a row): whether it loops. Callers the forward step `FUN_004681c0` and the backward one `FUN_004682c0`, at a row's end | matches: `row_loops` (cursor_anim.hpp), oracle `cursor_rows.py`, test `test_cursor_rows` |
+| `FUN_00467e90` | `cursor_row_length` | The same asserts (lines 0x9a, 0x9b); returns the row's `+8` (its frames) shifted left 8, the length in the 8.8 frames the position `0x7a6ae0` counts. Callers `FUN_004681c0`, `FUN_004682c0` and the mouse move `FUN_00468840` (ohand backward from its length less 0x100) | matches: `row_length`, the same oracle and test |
+
+Re-check:
+
+```sh
+python3 tools/ghidra/fn.py 00467e40 00467e90 00468840
+cd tools/emu && uv run python cursor_rows.py
+```
+
+Expected from the oracle: the seven rows (Gaunt .. buysell) and
+`ok: 7 cursor rows`; `cursor_rows.py inc` writes `tests/cursor_rows_cases.inc`.
