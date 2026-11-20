@@ -807,7 +807,9 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
                 const int dexterity = player.merc_st.dex + int(fight.merc_gear().sum[std::size_t(kDex)]);
                 const int taken = d2d::rules::blast_taken(blast(barrel, merc.unit.x, merc.unit.y, 2, merc.life_fine(), player.merc_st.level, dexterity, merc_fighter.defense),
                                                           merc_fighter.dr_flat, merc_fighter.dr_pct);
-                merc.set_life_fine(merc.life_fine() - taken);
+                std::int64_t life = merc.life_fine();
+                take_blast(life, taken);                                 // under one point is dead, as the player's
+                merc.set_life_fine(int(life));
                 act_as(*was);
                 break;
             }

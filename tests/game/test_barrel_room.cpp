@@ -52,8 +52,13 @@ int main() try {
     near_one.unit.x = 7.5f;                                        // room 0, 1 subtile off
     across.unit.x = 8.1f;                                          // room 1, 2 subtiles off
     fight.monsters = { near_one, across };
+    // A merc beside it with a point and a 256th: any blast leaves it under one point, dead (as a player).
+    auto& merc = world.actor->merc.emplace();
+    merc.type = 0; merc.hit_points = merc.stats.hit_points = 2; merc.unit.x = 7.6f; merc.unit.y = 4.1f;
+    merc.set_life_fine(257);
     fight.restamp();
     world.explode(0, 1000);
+    assert(merc.hit_points == 0 && merc.life_fine() == 0);
     assert(fight.monsters[0].life_fine() < 400 * 256);
     assert(fight.monsters[1].life_fine() == 400 * 256);
     assert(world.operated.contains({ &field, 1 }));                // the second barrel went off too
