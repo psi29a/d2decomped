@@ -88,6 +88,14 @@ def game():
         print(line.strip(), "|", rig.run(*(int(f) for f in field[:5])))
 
 
+def is_int(token):
+    try:
+        int(token)
+    except ValueError:
+        return False
+    return True
+
+
 def rows(path):
     out = []
     with open(path, encoding="utf-8") as handle:
@@ -98,7 +106,7 @@ def rows(path):
                 sys.exit(f"malformed line in {path}: {line.strip()!r}")
             case, result = line.split("|", 1)
             case, result = case.split(), result.split()
-            if len(case) != 5 or len(result) != 1 or not all(f.lstrip("-").isdigit() for f in case + result):
+            if len(case) != 5 or len(result) != 1 or not all(is_int(f) for f in case + result):
                 sys.exit(f"malformed row in {path}: {line.strip()!r}")
             out.append((case, result))
     return out
