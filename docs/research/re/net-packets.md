@@ -330,9 +330,10 @@ network flush.
 | `FUN_00571840` | 0x9a skill at x, y | 0x14 | skill id, skill level, x, y, a byte |
 | `FUN_005718c0` | 0x9e unit stat set | 0x14 | unit GUID, stat id (asserts ≤ 0xfe), value |
 | `FUN_00571960` | 0xa1 unit stat delta | 0x18 | unit GUID, stat id (asserts ≤ 0xfe), old value, new value — queued only when old != new |
-| `FUN_00571aa0` | 0xa3 progressive-skill overlay | 0x28 | wArg1/wArg2/byParam, source unit type+GUID, target unit type+GUID (or -1 with no target), dwParam1/dwParam2 |
-| `FUN_00571a10` | 0xab health update | 0x14 | unit type, unit GUID, hp % 128 |
-| `FUN_00571b70` | 0xa5 force-stop skill | 0x14 | unit type, unit GUID, skill id; also clears `STATE_skill_move` on the unit immediately (`D2Common::DATATBLS::ItemStats::SetState`), not only when the queued packet is later sent |
+| `FUN_00571aa0` | 0xa3 a skill's effect | 0x28 | ECX source unit, EDX target unit (null allowed), five stack words (`ret 0x14`): +8 u8 a4, +0xa u16 a0 (the Skills.txt row), +0xc u16 a1 (the skill level the do function was given, at `FUN_005c8080`; 1 at `FUN_005d2a10`), +0x10 source type, +0x14 source id, +0x18 target type, +0x1c target id (−1 with no target; the type stays 0), +0x20 u32 a2, +0x24 u32 a3. Line 0x2ea. Callers: `FUN_005c8080` (srvdofunc 123, Volcano; a2, a3 are the two words `FUN_0056d2c0` fills, a4 `FUN_0045c390`), `FUN_005c8520` (States.txt srvactivefunc 146, Armageddon), `FUN_005ca4d0` (srvdofunc 29, Thunder Storm), `FUN_005d2a10` (passes 1, 0, 0, 0 after the skill), `FUN_005d5220` (a finisher's release) |
+| `FUN_00571a10` | 0xab health update | 0x14 | ECX unit, DL: +8 u8 unit type (6 with no unit), +0xc u32 id (−1), +0x10 u8 DL (life / 128 on the client, below). Line 0x2d9 |
+| `FUN_00571b70` | 0xa5 stop a skill's move | 0x14 | ECX unit, u16 DX: +8 u8 unit type (6 with no unit), +0xc u32 id (−1), +0x10 u16 DX (the Skills.txt row). First clears state 0x12 on the unit (`FUN_00639db0(unit, 0x12, 0)`), at queue time, not at send. Line 0x30f. Callers `FUN_005cf900`, `FUN_005d8f50`, `FUN_005d9460`, `FUN_005da120` |
+| `FUN_00571c00` | 0xa4 load a monster class | 0xc | ECX unit, u16 DX: +8 u16 DX (a MonStats row). Line 0x322. One caller, BaalThrone (`FUN_005ef320`), with the next wave's class (quests-act5.md) |
 
 `SERVER_UnitQueuePacketSend` (`FUN_00571cd0`, 443 bytes) drains the list
 per client and dispatches on `nOpcode` to the real S→C builders:
@@ -342,8 +343,11 @@ per client and dispatches on `nOpcode` to the real S→C builders:
 here, is the "last argument set" flag of line 287 above that turns 0x4c
 / 0x4d into 0x99 / 0x9a), `..._0x9E_0x9F_0xA0_MercAttribute`,
 `..._0xA1_0xA2_0xA0_MercExperience`, `..._0xA3_PROGRESSIVE_SKILL`,
-`..._0xA4_PRELOAD_MONSTER` (0xa4 is queued elsewhere, not in this
-batch), `..._0xA5_FORCESTOPSKILL`, `..._0xAB_HEALTH_UPDATE`.
+`..._0xA4_PRELOAD_MONSTER`, `..._0xA5_FORCESTOPSKILL`,
+`..._0xAB_HEALTH_UPDATE` (names from D2MOO). In game.exe the 0xa3,
+0xa4, 0xa5 and 0xab cases call `FUN_0053c0e0`, `FUN_0053e1a0`,
+`FUN_0053c190` and `FUN_0053c150` ("Verified in the emulator: server
+packet builders" below has their layouts).
 
 Call site `0x571dab` (inside this function) is the second caller of
 `FUN_0053bfd0`'s wrapper named in bugs.md #94: it passes (stat id, old
@@ -358,6 +362,35 @@ target (`D2Game::UNIT::SUnit::UNITS_CheckIfCanAttackTarget`) — rechecked
 on every drain, not only when the 0xab message was queued. Not ported
 (d2d has no server-side per-client attack-legality gate for this
 packet).
+
+**What the client does with 0xa3, 0xa4 and 0xa5** (the table at
+`0x7114d0`: 0xa3 `0x45d5e0` size 0x18, 0xa4 `0x45d760` size 3, 0xa5
+`0x45d6a0` size 8; 0xab is in "Units: movement and modes"):
+
+- **0xa3** (`0x45d5e0`): finds the source unit (type +6, id +7,
+  `FUN_00463990`); none drops the packet. Then the target (type +0xb, id
+  +0xc), which may be missing. The skill is the i16 at +2, dropped when
+  negative or not below the Skills count (data tables +0xba0; rows of
+  0x23c at +0xb98). With the row's flag byte +4 & 4 (the mask byte at
+  `0x6ce270`) it calls `FUN_004c6ac0`, else `FUN_004c6930`, both with
+  ECX source, EDX target, then skill, the i16 at +4, u32 +0x10,
+  u32 +0x14, u8 +1.
+- **0xa4** (`0x45d760`): the u16 at +1, if below the MonStats count (data
+  tables +0xa80), goes to `FUN_0046f870(class, 0)` (a tail jump). That
+  takes the class's MonStats2 row (MonStats +0x18; rows of 0x134 at
+  +0xa90) and, for each mode in the list at `0x712ac4` (count
+  `0x712b00`) whose bit is set in MonStats2 +0xf0, calls
+  `FUN_0046f650(row, mode, 0)`, which walks the mode's components
+  (`FUN_004dbcf0`, `FUN_006001f0`); what it builds is not traced
+  further. Its one sender is BaalThrone, before the next wave.
+- **0xa5** (`0x45d6a0`): finds the unit (type +1, id +2); none drops it.
+  The u16 skill at +6 must be below the Skills count. By the row's i16
+  at +0x2e (`0x45d6df`; a 12-entry byte table at `0x45d748`, jumps at
+  `0x45d738`): 0x43 calls `FUN_004ca000`, 0x4c `FUN_004c9420`, 0x4d and
+  0x4e `FUN_004c8b80` (the same split as `FUN_004c7890`, skills.md),
+  any other does nothing. Every path that passes the checks then clears
+  state 0x12 on the unit (`FUN_00639db0(unit, 0x12, 0)`), as the server
+  did when it queued it.
 
 ### Life, mana, stamina and the own player's position
 
@@ -1040,7 +1073,12 @@ rest, and a d2d client talking to it must too.
   only 0x2c sounds.
 - **Rooms come and go** by 0x07 / 0x08: the client builds the act's map
   from the seed (0x03, the handshake note) and adds rooms as they come
-  into play; units are only sent for rooms in play.
+  into play; units are only sent for rooms in play. The server's side is
+  `FUN_00537b50`, run as the player's room (unit +0x1b4) changes: each room
+  in the new room's near list (`d2d_act5_rooms_near`) but not the old one's
+  goes through `FUN_0053a8e0` (0x07 for it, then `FUN_00571f90` for each
+  unit in its list, room +0x74, next +0xe8), each room only in the old
+  list through `FUN_0053a9b0` (0x08). d2d: `World::view`'s monsters.
 - **Monster life** is a byte (life / 128) and the client shows only
   that; exact numbers stay on the server.
 - **A held button** repeats the same packet; the send throttle drops
@@ -1285,9 +1323,9 @@ Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
 
 ## Verified in the emulator: server packet builders (SCmd.cpp)
 
-`tools/emu/scmd_senders.py` runs 33 server-to-client packet builders of
+`tools/emu/scmd_senders.py` runs 37 server-to-client packet builders of
 `GAME/SCmd.cpp` and the queue they hand their packet to (`FUN_0053b280`) for real in the
-emulator against stock game.exe 1.14d: 2263 cases, 37 deliberate model defects
+emulator against stock game.exe 1.14d: 2503 cases (run of 2026-11-19), 37 deliberate model defects
 planted and caught (`--mutation-check`). A builder takes the client in ECX
 (copied to EDI for the queue), the packet id or a pointer in EDX and the rest
 on the stack (`ret 4 * n`); the oracle hooks the queue to log EDI, the buffer
@@ -1330,6 +1368,9 @@ words `a0`, `a1` ... are the arguments in order, each read at its field width):
 | `FUN_0053bcd0` | 0xb | id (DL; 9 at its one call site `005721e2` in `FUN_00571f90`), u8 a0 (+1, the unit type), u32 a1 (+2), u8 a2 (+6), u16 a3 (+7), u16 a4 (+9): the 0x09 assign warp packet (the caller passes the type byte of its record, the id at +0xc, the warp class byte at +4 and two words); no lookup, no checks |
 | `FUN_0053bd10` | 0xe | id (DL; `0x51` at its one call site `0x572067`, in `FUN_00571f90`), u8 a0 (unit type, 2 there), u32 a1 (+2, the unit id), u16 a2 (+6), u16 a3 (+8), u16 a4 (+0xa), u8 a5 (+0xc), u8 a6 (+0xd): the assign object packet. It first finds the unit (a0, a1) in the client's game (`FUN_005387c0`, `FUN_00552f60`) and takes the fatal report (line 0x341) when there is none |
 | `FUN_0053bda0` | 6 | id (DL; 0x0a at its three call sites `0052e03d`, `0053a7fe`, `0057160e`), u8 a0 (+1, the unit type), u32 a1 (+2, the id): the 0x0a remove unit packet. A type of 3 (a missile) queues nothing |
+| `FUN_0053c0e0` | 0x18 | 0xa3 (a constant), DL (+1), u16 a0 (+2), u16 a1 (+4), u8 a2 (+6), u32 a3 (+7), u8 a4 (+0xb), u32 a5 (+0xc), u32 a6 (+0x10), u32 a7 (+0x14); eight stack words, `ret 0x20`. Its one caller, the unit-queue drain `FUN_00571cd0` (`0x571dc5..0x571dec`), passes the 0xa3 record's byte +8 in DL and its u16 +0xa, u16 +0xc, dwords +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24 (below, "The server's per-unit outbound queue") |
+| `FUN_0053c150` | 7 | 0xab (a constant), DL (+1), u32 a0 (+2), u8 a1 (+6): health update. `FUN_00571cd0` (`0x571e2a..0x571e38`) passes the record's byte +8, dword +0xc, byte +0x10 |
+| `FUN_0053c190` | 8 | 0xa5 (a constant), DL (+1), u32 a0 (+2), u16 a1 (+6). `FUN_00571cd0` (`0x571e3f..0x571e4d`) passes the record's byte +8, dword +0xc, u16 +0x10 |
 | `FUN_0053c520` | 0xc | 0x22 (a constant), u8 EDX (+1, unit type), u32 a0 (+3, unit id), u16 a1 (+7, skill), low byte of a2 (+9, count), +0xa not written, +0xb flag: 1 when `FUN_00552f60` finds the unit (type EDX, id a0) in the client's game and `FUN_00639df0(unit, 7)` is nonzero, else 0. Callers `FUN_0055c070`, `FUN_0055c110`, `FUN_0055e0d0`, `FUN_0055e170`, `FUN_0055f9c0` |
 | `FUN_0053c590` | 0xd | 0x23, EDX byte, u32 a0 (+2), u8 a1 (+6), u16 a2 (+7), u32 a3 (+9): set skill |
 | `FUN_0053cb30` | 0xd | 0x7a, EDX byte, u8 a0, u16 a3 (+3), u32 a2 (+5), u32 a1 (+9): pet list |
@@ -1337,6 +1378,7 @@ words `a0`, `a1` ... are the arguments in order, each read at its field width):
 | `FUN_0053d4d0` | 0x11 | 0x4d, or 0x9a when a6 != 0; EDX byte, u32 a0 (+2), u32 a3 (+6), u8 a5 (+0xa), u16 a1 (+0xb), u16 a2 (+0xd), u16 a4 (+0xf): skill at x, y |
 | `FUN_0053d2e0` | 6 | 0x42, the byte at EDX+0 (6 when EDX is null), u32 at EDX+0xc (0xffffffff when null): clear cursor |
 | `FUN_0053e020` | 0x21 | 0x8f then 32 zero bytes: the pong |
+| `FUN_0053e1a0` | 3 | 0xa4 (a constant), u16 DX (+1); no stack words (`ret`). `FUN_00571cd0` (`0x571db5`) passes the record's u16 +8 |
 
 **Struct copies**: the packet is the first n bytes of the structure EDX points
 at (its first byte is the id the caller set): `FUN_0053c900` 10 (0x53,

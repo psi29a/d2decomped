@@ -553,12 +553,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             std::vector<int> rooms;
             for (const auto& [room_level, room] : near_rooms(*game_data, *level, actor->player.x, actor->player.y))
                 if (room_level == level) rooms.push_back(room);
+            fight.restamp();                                         // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
             std::vector<d2d::rules::RoomUnit> units;
             for (const auto& monster : fight.monsters) {
                 const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
                 units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
                                   monster.alive() && monster.align == 0 && (monster.mode == "NU" || monster.mode == "WL") && kind.can_walk && kind.height != 0 &&
-                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none });
+                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none, monster.unit.room_stamp });
             }
             int best = -1, best_distance = 0xffff;
             const int player_x = int(std::floor(actor->player.x * 5)), player_y = int(std::floor(actor->player.y * 5));
@@ -670,14 +671,24 @@ auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> v
         d2d::log::info("The Horadric Staff: placed in the orifice");
     }
 
-// Rooms laid again (relevel) stamp every door as its preset left it; the
-// doors used since go back to their mode's footprint.
+// Rooms laid again (relevel) stamp every door and object as its preset left
+// it; the doors and the shrines / chests used since go back to their mode's
+// footprint.
 // Only after a relevel of this level (Level::lays moved on).
 auto World::reopen_doors() -> void {
         if (std::exchange(doors_laid, std::pair{ level, level->lays }) == std::pair{ level, level->lays }) return;
         for (const auto& [key, door] : doors)
             if (key.first == level && std::size_t(key.second) < level->npcs.size())
                 set_footprint(*level, level->npcs[std::size_t(key.second)], level->npcs[std::size_t(key.second)].collision >> door.mode & 1);
+        // The used shrines and chests (World::operated) too: relevel stamps
+        // the preset mode's footprint, and tick_level re-stamps one only when
+        // its mode changes, so one already OP / ON is put back here.
+        for (const auto& [key, when_ms] : operated) {
+            const auto npc_index = std::size_t(key.second);
+            if (key.first != level || npc_index >= level->npcs.size() || npc_index >= npc_states.size() || npc_states[npc_index].mode.empty()) continue;
+            const auto& npc = level->npcs[npc_index];
+            set_footprint(*level, npc, npc.collision >> mode_index(npc_states[npc_index].mode) & 1);
+        }
     }
 
 auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void {
@@ -749,47 +760,100 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         const auto& barrel = level->npcs[std::size_t(npc_index)];
         operated[{ level, npc_index }] = now_ms;
-        // FUN_00584240: a physical blast (FUN_005dfa00 type 0) on each live
-        // unit within 3 subtiles: every player, their merc and pets, then
-        // the monsters.
-        // ponytail: in that order, not the rooms' unit lists (the seed's
-        // draws go by those); a monster's, pet's and the merc's life in whole
-        // points (Monster::hit_points), not the game's 256ths.
+        // FUN_00584240 walks the barrel's own room's unit list (room +0x74, next
+        // +0xe8; room stamps, rules::room_order), the barrel itself skipped: a
+        // player not dead (mode 0x11) or a monster (the mercs and pets too) not
+        // in DD (0xc) within 3 subtiles takes a physical blast (FUN_005dfa00
+        // type 0) on the barrel's seed, life in 256ths; an exploding barrel
+        // (class 0xb) still in mode 0 under 3 off (FUN_006416d0) goes off there
+        // and then (FUN_00584330), the walk going on after it.
+        // ponytail: the other barrels list last (objects keep no room stamp); game.exe's walk puts
+        // an object group's barrel, made after the room's preset monsters, ahead of them.
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
+        const int room = room_of(*level, barrel.x, barrel.y);
+        const auto in_room = [&](float x, float y) { return level->rooms.empty() || room_of(*level, x, y) == room; };
+        enum class Kind { player, merc, pet, monster, other_barrel };
+        struct Listed { Kind kind; Player* player = nullptr; Fight::Pet* pet = nullptr; std::size_t index = 0; };
+        fight.restamp();                                             // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
+        std::vector<Listed> listed;
+        std::vector<d2d::rules::RoomUnit> order;
+        const auto add = [&](Listed entry, float x, float y, std::uint32_t stamp) {
+            if (!in_room(x, y)) return;
+            listed.push_back(entry);
+            order.push_back({ 0, true, stamp });
+        };
         each_player([&](Player& player) {
-            const auto& fighter = player.player_combat;
-            if (nearby(player.player.x, player.player.y, 3) && player.character.stats.values[kLife] > 0) {
+            add({ Kind::player, &player }, player.player.x, player.player.y, player.player.room_stamp);
+            if (player.merc) add({ Kind::merc, &player }, player.merc->unit.x, player.merc->unit.y, player.merc->unit.room_stamp);
+            for (auto& pet : player.pets)
+                if (pet.where == level) add({ Kind::pet, &player, &pet }, pet.monster.unit.x, pet.monster.unit.y, pet.monster.unit.room_stamp);
+        });
+        if (fight.mon_level == level)
+            for (std::size_t k = 0; k < fight.monsters.size(); ++k)
+                add({ Kind::monster, nullptr, nullptr, k }, fight.monsters[k].unit.x, fight.monsters[k].unit.y, fight.monsters[k].unit.room_stamp);
+        for (std::size_t k = 0; k < level->npcs.size(); ++k)
+            if (int(k) != npc_index && level->npcs[k].object_id == d2d::rules::object_ids::kExplodingBarrel)
+                add({ Kind::other_barrel, nullptr, nullptr, k }, level->npcs[k].x, level->npcs[k].y, 0);
+        const std::vector<int> one_room{ 0 };
+        for (const int listed_at : d2d::rules::room_order(order, one_room)) {
+            const auto& entry = listed[std::size_t(listed_at)];
+            switch (entry.kind) {
+            case Kind::player: {
+                auto& player = *entry.player;
+                const auto& fighter = player.player_combat;
+                if (!nearby(player.player.x, player.player.y, 3) || player.character.stats.values[kLife] <= 0) break;
                 take_blast(player.character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, player.player.x, player.player.y, 2, player.character.stats.values[kLife], int(player.character.stats.get(kLevel)),
                                                                                         int(player.character.stats.get(kDex) + player.psum[kDex]), fighter.defense),
                                                                                   fighter.dr_flat, fighter.dr_pct));
                 player.struck_by = { 2, barrel.object_id };
+                break;
             }
-            if (player.merc && nearby(player.merc->unit.x, player.merc->unit.y, 3) && player.merc->hit_points > 0) {
+            case Kind::merc: {
+                auto& player = *entry.player;
+                auto& merc = *player.merc;
+                if (!nearby(merc.unit.x, merc.unit.y, 3) || merc.mode == "DD" || merc.hit_points <= 0) break;
+                Player* const was = actor;
+                act_as(player);
                 const auto merc_fighter = fight.merc_fighter();
                 const int dexterity = player.merc_st.dex + int(fight.merc_gear().sum[std::size_t(kDex)]);
-                player.merc->hit_points -= d2d::rules::blast_taken(blast(barrel, player.merc->unit.x, player.merc->unit.y, 2, std::int64_t(player.merc->hit_points) << 8, player.merc_st.level, dexterity, merc_fighter.defense),
-                                                           merc_fighter.dr_flat, merc_fighter.dr_pct) >> 8;
+                const int taken = d2d::rules::blast_taken(blast(barrel, merc.unit.x, merc.unit.y, 2, merc.life_fine(), player.merc_st.level, dexterity, merc_fighter.defense),
+                                                          merc_fighter.dr_flat, merc_fighter.dr_pct);
+                std::int64_t life = merc.life_fine();
+                take_blast(life, taken);                                 // under one point is dead, as the player's
+                merc.set_life_fine(int(life));
+                act_as(*was);
+                break;
             }
-            for (auto& pet : player.pets) {
-                if (pet.where != level || !pet.monster.alive() || !nearby(pet.monster.unit.x, pet.monster.unit.y, 3)) continue;
+            case Kind::pet: {
+                auto& pet = *entry.pet;
+                if (!pet.monster.alive() || pet.monster.mode == "DD" || !nearby(pet.monster.unit.x, pet.monster.unit.y, 3)) break;
+                Player* const was = actor;
+                act_as(*entry.player);
                 const auto target = pet.monster.target(*game_data);
                 const int damage = d2d::rules::blast_taken(blast(barrel, pet.monster.unit.x, pet.monster.unit.y, game_data->monsters.types[std::size_t(pet.monster.type)].size,
-                                                                 std::int64_t(pet.monster.hit_points) << 8, pet.monster.stats.level, 0, pet.monster.stats.armor_class), 0, target.res[0]);
-                fight.pet_hurt(pet, damage >> 8, now_ms);
+                                                                 pet.monster.life_fine(), pet.monster.stats.level, 0, pet.monster.stats.armor_class), 0, target.res[0]);
+                fight.pet_hurt(pet, damage >> 8, now_ms, 0, false, damage & 0xff);
+                act_as(*was);
+                break;
             }
-        });
-        if (fight.mon_level == level)
-            for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
-                auto& monster = fight.monsters[k];
-                if (!monster.alive() || !nearby(monster.unit.x, monster.unit.y, 3)) continue;
+            case Kind::monster: {
+                auto& monster = fight.monsters[entry.index];
+                if (!monster.alive() || monster.mode == "DD" || !nearby(monster.unit.x, monster.unit.y, 3)) break;
                 const auto target = monster.target(*game_data);
                 const int damage = d2d::rules::blast_taken(blast(barrel, monster.unit.x, monster.unit.y, game_data->monsters.types[std::size_t(monster.type)].size,
-                                                                 std::int64_t(monster.hit_points) << 8, monster.stats.level, 0, monster.stats.armor_class), 0, target.res[0]);
-                if (hurt(*game_data, monster, damage >> 8, now_ms)) fight.killed(k, now_ms);
+                                                                 monster.life_fine(), monster.stats.level, 0, monster.stats.armor_class), 0, target.res[0]);
+                if (hurt(*game_data, monster, damage >> 8, now_ms, damage & 0xff)) fight.killed(entry.index, now_ms);
+                break;
             }
-        for (std::size_t k = 0; k < level->npcs.size(); ++k)          // the next barrels along (class 11, still NU)
-            if (const auto& other = level->npcs[k]; other.object_id == d2d::rules::object_ids::kExplodingBarrel && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)
-                explode(int(k), now_ms);
+            case Kind::other_barrel: {
+                const auto& other = level->npcs[entry.index];
+                const int apart = d2d::rules::unit_range(int(std::floor(other.x * 5)) - int(std::floor(barrel.x * 5)), int(std::floor(other.y * 5)) - int(std::floor(barrel.y * 5)),
+                                                         barrel.size_x, other.size_x);
+                if (!other.preoperated && !operated.contains({ level, int(entry.index) }) && apart < 3) explode(int(entry.index), now_ms);
+                break;
+            }
+            }
+        }
         set_footprint(*level, barrel, barrel.collision >> 1 & 1);
         d2d::log::info("barrel {} exploded", npc_index);
     }

@@ -232,18 +232,34 @@ class Emu:
         ret = e.r32(e.mu.reg_read(UC_X86_REG_ESP))
         raise SystemExit(f"emu: game.exe fatal error from {ret:08x}: {txt}")
 
-    def crt_init(self):
-        """The statically linked MSVC CRT's startup: heap, per-thread data, static constructors."""
+    STORM_CALLS = (0x419980, 0x4192f0, 0x416370, 0x41aad0, 0x4198d0, 0x416230, 0x4165a0)   # serve_files' hooks
+
+    def crt_init(self, language=b"ENG"):
+        """The statically linked MSVC CRT's startup: heap, per-thread data, static constructors;
+        then the string tables as game.exe loads them (FUN_005259c0, expansionstring.tbl too), so
+        a name lookup (FUN_00524d30) gets its real id. Storm's file calls are answered from the
+        MPQs for that load and left as they were after it."""
         self.hook(0x408a60, Emu.fatal, 0)
-        # ponytail: string tables not loaded; name lookups (FUN_00524d30(key, &str)) get id 0, ""
-        empty = self.alloc(4)
-        self.hook(0x524d30, lambda e: (e.w32(e.arg(1), empty) if e.arg(1) else None, 0)[1], 2)
         # __get_osplatform / __get_winmajor: NT, 6
         self.hook(0x681b00, lambda e: (e.w32(e.arg(0), 2), 0)[1], 0)
         self.hook(0x681baf, lambda e: (e.w32(e.arg(0), 6), 0)[1], 0)
         self.call(0x68c7d1, 1)      # __heap_init
         self.call(0x688fbb)         # __mtinit
-        # ponytail: __cinit (0x681c95) skipped - its C initialisers need locale setup; add if a global ctor matters
+        # The rest of ___tmainCRTStartup's order (0x6827a5): __ioinit, the command line and the
+        # environment block (its two globals), __setargv, __setenvp, then __cinit: the floating
+        # point setup, the C initialisers (__initterm_e) and the C++ static constructors.
+        if self.call(0x68ad0c) & 0x80000000: raise SystemExit("emu: __ioinit failed")
+        self.w32(0x994c8c, self.w_GetCommandLineA()[0])
+        self.w32(0x96d6b8, self.call(0x68c641))           # ___crtGetEnvironmentStringsA
+        if self.call(0x68c588) & 0x80000000: raise SystemExit("emu: __setargv failed")
+        if self.call(0x68c30b) & 0x80000000: raise SystemExit("emu: __setenvp failed")
+        if self.call(0x681c95, 1) != 0: raise SystemExit("emu: __cinit failed")
+        kept = {addr: self.read(addr, 5) for addr in Emu.STORM_CALLS}
+        serve_files(self)
+        self.call(0x5259c0, 1, ecx=0, edx=self.put(language + b"\0"))
+        for addr, code in kept.items():
+            self.mu.mem_write(addr, code)
+            self.mu.ctl_remove_cache(addr, addr + 5)
 
     # ---- files --------------------------------------------------------
     def mpq_file(self, name):
@@ -300,6 +316,64 @@ class Emu:
     def w_GetProcAddress(self): return 0, 2        # CRT falls back to the Tls* imports
     def w_GetACP(self): return 1252, 0
     def w_GetCommandLineA(self): return self.put(b"Game.exe"), 0
+    # The CRT's lowio and environment startup (__ioinit, ___crtGetEnvironmentStringsA): no
+    # inherited handles (STARTUPINFO's cbReserved2 0), three character-device std handles,
+    # an empty environment block.
+    def w_GetStartupInfoA(self): self.mu.mem_write(self.arg(0), bytes(0x44)); return 0, 1
+    def w_GetStdHandle(self): return 0x100 + (self.arg(0) & 0xff), 1
+    def w_GetFileType(self): return 2, 1          # FILE_TYPE_CHAR
+    def w_SetHandleCount(self): return self.arg(0), 1
+    def w_GetEnvironmentStringsW(self): return self.put(b"\0\0\0\0"), 0
+    def w_GetEnvironmentStrings(self): return self.put(b"\0\0"), 0
+    def w_FreeEnvironmentStringsW(self): return 1, 1
+    def w_IsValidCodePage(self): return 1, 1
+    def w_MultiByteToWideChar(self):               # Latin-1 bytes to UTF-16 units
+        src, count, dst, size = self.arg(2), self.arg(3), self.arg(4), self.arg(5)
+        if count == 0xFFFFFFFF:
+            count = 0
+            while self.read(src + count, 1)[0]: count += 1
+            count += 1
+        data = self.read(src, count) if count else b""
+        if not size: return count, 6
+        for i, byte in enumerate(data[:size]): self.mu.mem_write(dst + 2 * i, byte.to_bytes(2, "little"))
+        return min(count, size), 6
+    def w_GetStringTypeW(self):                    # CT_CTYPE1 for Latin-1, as the CRT's ctype tables want
+        src, count, out = self.arg(1), self.arg(2), self.arg(3)
+        if count == 0xFFFFFFFF:
+            count = 0
+            while self.r16(src + 2 * count): count += 1
+        for i in range(count):
+            ch = chr(self.r16(src + 2 * i))
+            kind = (1 if ch.isupper() else 0) | (2 if ch.islower() else 0) | (4 if ch in "0123456789" else 0) \
+                | (8 if ch in " \t\n\v\f\r" else 0) | (0x10 if (ch.isprintable() and not ch.isalnum() and ch != " " and ord(ch) > 32) else 0) \
+                | (0x20 if ord(ch) < 32 or ord(ch) == 127 else 0) | (0x40 if ch in " \t" else 0) \
+                | (0x80 if ch in "0123456789abcdefABCDEF" else 0) | (0x100 if ch.isalpha() else 0)
+            self.mu.mem_write(out + 2 * i, kind.to_bytes(2, "little"))
+        return 1, 4
+    def w_LCMapStringW(self):                      # LCMAP_LOWERCASE 0x100 / UPPERCASE 0x200, Latin-1
+        flags, src, count, dst, size = self.arg(1), self.arg(2), self.arg(3), self.arg(4), self.arg(5)
+        if count == 0xFFFFFFFF:
+            count = 0
+            while self.r16(src + 2 * count): count += 1
+            count += 1
+        if not size: return count, 6
+        for i in range(min(count, size)):
+            ch = chr(self.r16(src + 2 * i))
+            ch = ch.lower() if flags & 0x100 else ch.upper() if flags & 0x200 else ch
+            self.mu.mem_write(dst + 2 * i, (ord(ch[0]) & 0xFFFF).to_bytes(2, "little"))
+        return min(count, size), 6
+    def w_GetCPInfo(self):                         # code page 1252: single byte, '?' default
+        info = self.arg(1); self.mu.mem_write(info, bytes(20)); self.w32(info, 1); self.mu.mem_write(info + 4, b"?\0"); return 1, 2
+    def w_FreeEnvironmentStringsA(self): return 1, 1
+    def w_WideCharToMultiByte(self):
+        src, count, dst, size = self.arg(2), self.arg(3), self.arg(4), self.arg(5)
+        units = []
+        while (count == 0xFFFFFFFF or len(units) < count):
+            unit = self.r16(src + 2 * len(units)); units.append(unit)
+            if unit == 0 and count == 0xFFFFFFFF: break
+        out = bytes(u & 0xFF for u in units)
+        if dst and size: self.mu.mem_write(dst, out[:size])
+        return len(out), 8
     def w_SetUnhandledExceptionFilter(self): return 0, 1
     def w_InitializeCriticalSectionAndSpinCount(self): return 1, 2
     def w_DeleteCriticalSection(self): return 0, 1

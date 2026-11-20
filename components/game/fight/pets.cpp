@@ -91,7 +91,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
-        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id;
+        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id; foe.room_stamp = pet.monster.unit.room_stamp;
         monster_foe_props(*game_data, pet.monster, foe);
         foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
@@ -102,7 +102,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
     }
 
 auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, bool marked, int fraction) -> void {
-        if ((damage > 0 || fraction > 0) && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
+        if ((damage > 0 || fraction > 0 || pet.monster.lifeless) && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
@@ -118,7 +118,7 @@ auto Fight::pets_cross(const Level* from, const Level* destination, float dx, fl
 auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(pet.aura);
         if (!skill || skill->srvdofunc != ServerDoFunction::kEnemyAura || now_ms < pet.aura_next || skill->etype < 0 || skill->etype > 4) return;
-        pet.aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+        pet.aura_next = aura_due(*skill, pet.aura_level, now_ms);
         const int radius = calc(*skill, skill->aurarange, pet.aura_level);
         const auto damage = d2d::rules::MissileDamage{ .etype = skill->etype,
                                                    .elo = d2d::rules::elem_damage(game_data->skills, *skill, calc_env(), pet.aura_level, false),
@@ -180,11 +180,12 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, golem.unit.x, golem.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
         }
+        restamp();                                                   // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(monsters.size());
         for (const auto& other : monsters) {
             const int room = room_of(*level, other.unit.x, other.unit.y);
-            units.push_back({ room, std::ranges::contains(rooms, room) });
+            units.push_back({ room, std::ranges::contains(rooms, room), other.unit.room_stamp });
         }
         for (const int index : d2d::rules::room_order(units, rooms)) {
             const auto monster_index = std::size_t(index);
@@ -443,10 +444,9 @@ auto Fight::pet_crowd(const Pet& pet) const -> int {
 // in a preset room that isn't Outdoors, or once after a walk at a foe found
 // no path (flag 0x40); its melee is MeleeRng + 1, its line FUN_005dc640.
 // A teleport is room_teleport (mode 3).
-// The crowd is pet_crowd's.
-// ponytail: the owner's path spot (+0x10) is the player's next path point;
-// a good monster's own room order isn't kept (the search runs over the
-// monsters in fight order).
+// The crowd is pet_crowd's. The search walks the near rooms' units in their
+// lists' order (room_order); the owner's path target and planned target
+// (+0x10 / +0x18, SP1 / SP3) are Hero::target_x and player.goal_x.
 auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         auto& monster = pet.monster;
         auto& unit = monster.unit;
@@ -465,31 +465,33 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
         std::vector<d2d::rules::NearFoe> nears;
-        // The Shadow Master's units are its near rooms' (FUN_005eb970's FUN_005dd0b0 mode 1):
-        // its foe, the driver, comes from those only.
-        const bool master_ai = type_info.ai_name == "ShadowMaster";
+        // FUN_005dd0b0 (mode 5; the Shadow Master's mode 1) over its near rooms'
+        // units in their lists' order: a monster outside those isn't seen.
         std::vector<int> rooms;
-        if (master_ai)
-            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
-                if (room_level == level) rooms.push_back(near_room);
-        for (const auto& other : monsters) {
+        for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
+            if (room_level == level) rooms.push_back(near_room);
+        restamp();                                                   // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
+        std::vector<d2d::rules::RoomUnit> listed;
+        listed.reserve(monsters.size());
+        for (const auto& other : monsters) listed.push_back({ room_of(*level, other.unit.x, other.unit.y), true, other.unit.room_stamp });
+        const auto near_of = d2d::rules::room_order(listed, rooms);
+        for (const int index : near_of) {
+            const auto& other = monsters[std::size_t(index)];
             const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
             const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
             auto& entry = nears.emplace_back(d2d::rules::NearFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other.align, other_type.threat,
                                                                   false, true, !other.targetable(), town });   // FUN_005dca70: no unit flag 0x4, no target
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
-            if (master_ai && !std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) entry.skip = true;
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
-        const int found = pick.target >= 0 ? pick.target : pick.second;
+        const int picked = pick.target >= 0 ? pick.target : pick.second;
+        const int found = picked >= 0 ? near_of[std::size_t(picked)] : -1;
         // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
         const auto* curse = game_data->skills.get(pet.curse.skill);
         const bool slowed = curse && now_ms < pet.curse.until && curse->auratarget == "decrepify";
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
-                                  .cur_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.front().first),
-                                  .cur_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.front().second),
-                                  .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
-                                  .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
+                                  .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
+                                  .end_x = sub(actor->player.goal_x), .end_y = sub(actor->player.goal_y),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
@@ -588,8 +590,8 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
 // Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
 // The foe2 poisoned (state 2: its poison running), the pet under
 // Decrepify (0x3c), the owner's life / mana in 256ths.
-// ponytail: no pet is ever in Fenris's rage (0x8a: its rage's effect isn't
-// traced, pet_cast); Blade Sentinel isn't summoned, so its think doesn't run.
+// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel isn't
+// summoned, so its think doesn't run.
 // The Shadows: the Warrior's scene and the Master's think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
@@ -699,13 +701,16 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.skill_mode = scene.mode1;
         // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
         if (const auto* curse = game_data->skills.get(pet.curse.skill); curse && now_ms < pet.curse.until) scene.slowed = curse->auratarget == "decrepify";
+        // State 0x8a is fenris_rage: Fenris Rage's buff (pet_cast).
+        scene.raging = std::ranges::any_of(pet.buffs, [&](const SelfState& buff) {
+            const auto* row = game_data->skills.get(buff.skill);
+            return row && row->aurastate == "fenris_rage" && now_ms < buff.until;
+        });
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
-                                  .cur_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.front().first),
-                                  .cur_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.front().second),
-                                  .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
-                                  .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
+                                  .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
+                                  .end_x = sub(actor->player.goal_x), .end_y = sub(actor->player.goal_y),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = scene.slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
@@ -798,21 +803,46 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // owner, the monsters in its near rooms (FUN_005eb970's FUN_005dd0b0
         // mode 1: room_order), its fellow pets (the traps it counts). Its
         // world turns what it does into a PetAct. A monster's states are its
-        // curse / cry (their auratargetstates).
-        // ponytail: players and pets go first, not in their rooms' turn.
+        // curse / cry (their auratargetstates). units[0] is the pet; the rest
+        // go in their rooms' turn, the owner and the fellow pets among the
+        // monsters (UnitState::room_stamp). The owner is always listed (the
+        // scan measures from it), at the end when it's in none of the rooms.
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
             auto& units = master.units;
-            std::vector<int> monster_of{ -1, -1 };                          // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
-            units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false, .owner = 1 });
-            units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
+            std::vector<int> monster_of{ -1 };                              // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
+            int owner_index = -1;
+            units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false });
             std::vector<int> rooms;
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
-            std::vector<d2d::rules::RoomUnit> room_units;
-            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT" });
+            restamp();                                               // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
+            std::vector<d2d::rules::RoomUnit> room_units;                   // the monsters, then the owner, then the fellow pets
+            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT", other.unit.room_stamp });
+            const auto owner_slot = room_units.size();
+            room_units.push_back({ room_of(*level, actor->player.x, actor->player.y), true, actor->player.room_stamp });
+            std::vector<const Pet*> fellows;
+            for (const auto& fellow : actor->pets)
+                if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {
+                    fellows.push_back(&fellow);
+                    room_units.push_back({ room_of(*level, fellow.monster.unit.x, fellow.monster.unit.y), true, fellow.monster.unit.room_stamp });
+                }
+            const auto add_owner = [&] {
+                owner_index = int(units.size());
+                units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
+                monster_of.push_back(-1);
+            };
             for (const int near_index : d2d::rules::room_order(room_units, rooms)) {
+                if (std::size_t(near_index) == owner_slot) { add_owner(); continue; }
+                if (std::size_t(near_index) > owner_slot) {
+                    const auto& fellow = *fellows[std::size_t(near_index) - owner_slot - 1];
+                    const auto& fellow_type = game_data->monsters.types[std::size_t(fellow.monster.type)];
+                    units.push_back({ .type = 1, .x = sub(fellow.monster.unit.x), .y = sub(fellow.monster.unit.y), .targetable = false, .foe = false, .side = true,
+                                      .monster_id = fellow_type.base >= 0 ? fellow_type.base : fellow.monster.type });
+                    monster_of.push_back(-2);
+                    continue;
+                }
                 const auto monster_index = std::size_t(near_index);
                 const auto& other = monsters[monster_index];
                 const int other_x = sub(other.unit.x), other_y = sub(other.unit.y);
@@ -830,20 +860,15 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 units.push_back(std::move(entry));
                 monster_of.push_back(int(monster_index));
             }
-            for (const auto& fellow : actor->pets)
-                if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {
-                    const auto& fellow_type = game_data->monsters.types[std::size_t(fellow.monster.type)];
-                    units.push_back({ .type = 1, .x = sub(fellow.monster.unit.x), .y = sub(fellow.monster.unit.y), .targetable = false, .foe = false, .side = true,
-                                      .monster_id = fellow_type.base >= 0 ? fellow_type.base : fellow.monster.type });
-                    monster_of.push_back(-2);
-                }
+            if (owner_index < 0) add_owner();
+            units[0].owner = owner_index;
             const auto unit_of = [&](int monster_index) {
                 const auto slot = monster_index >= 0 ? std::ranges::find(monster_of, monster_index) : monster_of.end();
                 return slot == monster_of.end() ? -1 : int(slot - monster_of.begin());
             };
             units[0].target = pet.target >= 0 && monsters[std::size_t(pet.target)].alive() ? unit_of(pet.target) : -1;
-            units[1].target = actor->attack_mon >= 0 ? unit_of(actor->attack_mon) : -1;
-            master.owner = 1;
+            units[std::size_t(owner_index)].target = actor->attack_mon >= 0 ? unit_of(actor->attack_mon) : -1;
+            master.owner = owner_index;
             master.driver = found >= 0 ? unit_of(found) : -1;
             master.driver_melee = scene.driver_melee; master.driver_distance = scene.driver_distance;
             master.skills = pet.skill_list;
@@ -859,7 +884,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                                .missile_range = missile == game_data->missiles.end() ? -1 : missile->second.range,
                                                .repeat = row->srvdofunc == ServerDoFunction::kBreath };
                 }
-            for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
+            for (std::size_t k = 1; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
                 if (monster_of[k] >= 0)
                     for (const auto& effect : monsters[std::size_t(monster_of[k])].curse_and_states())
                         if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect.until)
@@ -874,7 +899,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 }
             for (std::size_t k = 0; k < 3; ++k) { master.fixed[k] = type_info.diff[k].aip[0]; master.fixed[k + 3] = type_info.diff[k].aip[1]; }
             master.aip3 = per_difficulty.aip[2];
-            master.scan = d2d::rules::shadow_scan(units, 0, 1);
+            master.scan = d2d::rules::shadow_scan(units, 0, owner_index);
             master.life = monster.hit_points * 100 / std::max(monster.stats.hit_points, 1);
             master.left = pet.left_skill >= 0;
             master.town = town;
@@ -998,9 +1023,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // pet.target or its spot): a trap's or the Hydra's shot, the Death
 // Sentry's corpse blast, Poison Creeper's poison, the cycle vines eating a
 // corpse (their skill's Param5 % of the owner's max life / mana), a wolf's
-// Teleport, Fenris eating a corpse, the Grizzly's Maul (a blow).
-// ponytail: Vine Attack and the cyclers (do 130, st 63) and Fenris's rage
-// as their published effects, not traced.
+// Teleport, Fenris Rage (do 137), the Grizzly's Maul (a blow).
+// ponytail: Vine Attack and the cyclers (do 130, st 63) as their
+// published effects, not traced.
 // Blade Shield's strike (do 54, a periodic skill every perdelay frames:
 // FUN_005d7e10 -> FUN_005d7ce0, each unit by FUN_005d7c40): every monster
 // within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
@@ -1179,7 +1204,20 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             }
             return;
         }
-        if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }   // Fenris eats the corpse
+        // Fenris Rage (do 137, FUN_005d26f0): a corpse it may raise (FUN_00645590:
+        // DD, not used) is used up (state 0x68), and the skill's aurastate goes on
+        // Fenris (FUN_00570590): fenris_rage (0x8a) for auralen frames (par1, 500)
+        // with its damagepercent (par2, 100), which pet_strike adds to its blows.
+        if (skill->srvdofunc == ServerDoFunction::kFenrisRage) {
+            if (target < 0 || alive || !monsters[std::size_t(target)].usable_corpse()) return;
+            monsters[std::size_t(target)].corpse_used = true;
+            const int len = calc(*skill, skill->auralen, 1);
+            std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill->id; });
+            pet.buffs.push_back({ skill->id, 1, len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u });
+            pet_buffs(pet);
+            return;
+        }
+        if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
             pet_strike(pet, std::size_t(target), d2d::rules::player_blow(d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
                                                                          target_of(std::size_t(target)), monster.stats.level, rng), now_ms);

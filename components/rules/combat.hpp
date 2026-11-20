@@ -667,6 +667,7 @@ struct Blow {
     int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
+    int crush_fine = 0;                  // the Crushing Blow's share of `damage` and `frac`, 256ths: not in the record's total (+0x4c), so not in the get-hit's size
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
@@ -1064,6 +1065,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     const int fraction = blow.frac + crushing_fine;                // the physical's part under a point and the crush, in 256ths
     blow.damage = phys + elem + (fraction >> 8);
     blow.frac = fraction & 255;
+    blow.crush_fine = crushing_fine;
     blow.elemental = marking > 0 || blow.poison > 0;
     return blow;
 }
@@ -1155,8 +1157,8 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
             default: break;   // types above 4 have no field in the record
         }
     }
-    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants, after its elements
-        if (const auto& enchant = attacker.enchants[type]) {
+    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants and its gear's elements, after its elements
+        if (const auto& enchant = attacker.enchants[type]; enchant && type != 3) {
             const int roll = rng.range(enchant->first, enchant->second);
             if (roll <= 0) continue;
             if (type == 2) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, attacker.enchant_len));

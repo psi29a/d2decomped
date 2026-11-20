@@ -17,7 +17,8 @@
 namespace d2d::rules {
 
 // What the think sees, as MercView (subtiles). `cur`: the owner's path +0x10
-// (where it's at on its path), `end` its end (+0x18). `arrive`: where the
+// (its target, SP1: FUN_00648a00 / 10), `end` +0x18 (the target the path was
+// last worked out to, SP3, written by FUN_00649970: FUN_00648a20 / 30). `arrive`: where the
 // owner last arrived through a warp or teleport (player data +0x148,
 // FUN_00554ea0). `pets`: how many pets the owner has (FUN_00574f40);
 // `crowd`: how many of them, the merc too, stand within 2 of this one

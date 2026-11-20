@@ -191,6 +191,14 @@ level, an object's area level), +0x2a / item data +0x30 version
 FUN_00555230 makes the unit: two steps of the game seed. FUN_00552df0:
 unit +0x20 = {low, 666} (the unit seed), +0x28 = low; FUN_00552e90: item
 data +0x10 = low, +4 = {low, 666} (its own seed, FUN_00627d90).
++0x28 is the fingerprint a save keeps (the 32 bits after the class
+affix): loading an item seeds +0x20 {it, 666} again (`FUN_0062cbe0` at
+`0x62cd13` / `0x62cd16`). An item made in play keeps its unit seed where
+its making left it, so Larzuk's sockets (`FUN_00579d60`) and a runeword's
+mods roll on from there; after a save and a load, from {fingerprint,
+666}. d2d: `rules::generate_item` sets `Item::uid` and keeps the seed
+(`Item::seed_kept`, not saved), `rules::item_seed`. Before this d2d saved
+every item it made with fingerprint 0.
 
 FUN_00557ab0 (ECX game, EDX &item; struct, do quality) off the unit seed:
 
@@ -503,8 +511,8 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
   job (seed, class, level, ilvl, players, mf; FUN_0055a550 hooked to
   record what it makes, FUN_005585d0 to answer mf) and diffs
   `build/tools/drop-dump` line by line, the dropper's seed after
-  included. 100000 / 100000 match, every class but ROP (N) / ROP (H)
-  (Annihilus, a unique entry).
+  included. 100000 / 100000 match, ROP (N) / ROP (H) (Annihilus, a
+  unique entry) among them.
 - `uv run python drops.py tables`: every class's entries against ours,
   1012 / 1012.
 - `drops.py act1` prints the Act 1 jobs `tests/game/test_game_tables.cpp` hashes.
@@ -679,12 +687,16 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 5a0180`,
 0x5c0068), `uv run --project tools/emu python tools/emu/disasm.py 5a6600` (0x5a66c0..0x5a66dd),
 `python3 tools/ghidra/fn.py 005a03a0`.
 d2d: reads the same for the class pick, cited from the decompile, no oracle run (`Loot::drop`: superunique, then champion, then unique).
-**Possible disagreement, not established:** `crush_divisor` (`ai.hpp`) and monsters.md call
-mask 2 "a unique" and give 8 to `Boss::unique` as well as `Boss::superunique`, while the
-game tests bit 2 only, the superunique bit by `FUN_005a03a0`; `strike.cpp`'s stun test
-(mask 8) takes champions and superuniques too. Whether a plain unique carries bit 2, or a
-superunique bit 8, needs the writers of `FUN_005a01b0`'s bits; they were not found, so no
-issue is filed.
+**Writers (V read, decompile):** on the game side bit 2 is set only by `or word ptr [eax + 0x16], 2` at `0x5a4a99`
+(`FUN_005a49b0`, a SuperUniques row; beside the spawned-bit table at `+0x1d30`) and `0x5a4599` (`FUN_005a4440`, a monster
+made from a saved record whose flag 0x800 the saver sets from bit 2 alone, `0x542305..0x54230e`); `FUN_004ac810`, a setter
+with a mask like `FUN_005a01b0`, also writes the word (calls at `0x45e465` and `0x45e473` with 4 and 8, `0x4664bd` with a word
+read from a record); its callers sit in the client's address range (not traced further). A plain unique
+(`FUN_005a4940`: `or ..., cx` with cx 1 at `0x5a4967`, then `FUN_005a0320`'s bit 8 at `0x5a0375`) carries 1 | 8, a champion
+(`FUN_005a48c0`: `or ..., 5` at `0x5a4905`, then bit 8) 1 | 4 | 8. `FUN_005a01b0` has no caller. So `crush_divisor` (`ai.hpp`)
+gives 8 to a MonStats boss or a superunique only, 4 to a unique (`tools/emu/crush_div.py`: game.exe's `FUN_005bffc0`
+run natively on every MonStats row made each way). Not read here: whether a superunique carries bit 8 (the stun
+test of `strike.cpp`, mask 8).
 
 ### A room's level id (`FUN_0061a1b0`)
 

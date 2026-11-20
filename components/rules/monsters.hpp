@@ -293,7 +293,7 @@ struct MonStats {
     // A boss's enchants (MonUMod fire / lightning / cold, ghostly's cold): fire, lightning and cold
     // min / max on its own stats, apart from a swing's (FUN_005a4f50 sets those on the hit's list),
     // so each comes on every A1 / A2 blow; the cold's length in frames.
-    std::array<std::optional<std::pair<int, int>>, 3> enchants{};
+    std::array<std::optional<std::pair<int, int>>, 5> enchants{};   // by element type: fire, lightning, cold, (poison: its own), magic
     int enchant_len = 0;
     bool prime_evil = false;                  // MonStats primeevil (+0xc & 0x80, FUN_0063edc0): FUN_0057c060's pair percent
 };
@@ -434,9 +434,11 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     stats.prime_evil = type_info.prime_evil;
     if (type_info.align != 0) players = 1;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
+    // A MonStats Level of 0 is kept (stat 0xc as read, FUN_00573cb0 0x573e18..0x573e70)
+    // and its life, defence and experience rolled at MonLvl row 0 (all 1s).
     const int base_level = start_level(type_info, difficulty_index, area_level);
-    const int spawn_level = std::max(base_level, 1);
-    stats.level = std::max(base_level + level_add, 1);
+    const int spawn_level = std::max(base_level, 0);
+    stats.level = std::max(base_level + level_add, 0);
     if (monsters.lvl.empty()) return stats;
     // Life, defence and experience are read once, at the MonStats level
     // (FUN_00573cb0); leveladd (FUN_005a0e40) raises only the level stat
@@ -1112,12 +1114,17 @@ inline int near_distance(int dx, int dy, int size) {
 
 // FUN_005dd0b0 mode 1 (FUN_005dce60): the eligible units in the near
 // rooms' order, each room's units newest first; `units` is oldest first.
-struct RoomUnit { int room = -1; bool eligible = false; };
+// `stamp`: when the unit came into its room (UnitState::room_stamp), its
+// list's head the latest; units of one stamp (0: none kept) newest index first.
+struct RoomUnit { int room = -1; bool eligible = false; std::uint32_t stamp = 0; };
 inline std::vector<int> room_order(std::span<const RoomUnit> units, std::span<const int> rooms) {
     std::vector<int> order;
-    for (const int room : rooms)
+    for (const int room : rooms) {
+        const auto first = order.size();
         for (std::size_t i = units.size(); i-- > 0;)
             if (units[i].room == room && units[i].eligible) order.push_back(int(i));
+        std::stable_sort(order.begin() + std::ptrdiff_t(first), order.end(), [&](int left, int right) { return units[std::size_t(left)].stamp > units[std::size_t(right)].stamp; });
+    }
     return order;
 }
 
@@ -1392,6 +1399,10 @@ struct ThinkIn {
     int self_x = 0, self_y = 0, target_x = 0, target_y = 0;
     bool same_room = true, can_land = false, victim = false, grouped = false;
     std::array<std::optional<std::pair<int, int>>, 2> free_spot{};
+    // Baal's teleport spot (FUN_0054dc40 with no unit: 20 tries at random in
+    // his room on its seed, each FUN_005b2f20 at radius -1), asked only when
+    // act 14 is chosen; none (or no callback): no spot.
+    std::function<std::optional<std::pair<int, int>>()> room_spot;
     // The curse thinks' (special AI 10 / 11): it can swing (an A1 mode,
     // FUN_0046c140 bit 4, and not interact, MonStats flag 9), it has an RN
     // mode (bit 15), Terror's state (0x38) is on it. The other thinks': the

@@ -192,9 +192,8 @@ def check_addresses(where, text, entries, fails, warns):
         if not in_ranges(address, (TEXT,)):
             fails.append(f"{where}: {kind}_{digits} is outside game.exe's code (.text)")
         elif kind == "FUN" and address not in entries:
-            starts = sorted(entries)
-            holder = starts[bisect.bisect_right(starts, address) - 1] if address > starts[0] else None
-            if holder is not None and address < holder + entries[holder]:
+            holder = body_holding(address, entries)
+            if holder is not None:
                 fails.append(f"{where}: FUN_{digits} is inside FUN_{holder:08x}'s body: "
                              f"not a function (LAB_{digits} if it's a label)")
             else:
@@ -203,6 +202,32 @@ def check_addresses(where, text, entries, fails, warns):
         address = int(digits, 16)
         if 0x400000 <= address < 0xa00000 and not in_ranges(address, IMAGE):
             fails.append(f"{where}: 0x{digits} is between game.exe's sections")
+
+
+def function_ranges():
+    """game-ranges.tsv: the bodies Ghidra split, entry -> [(low, high)] inclusive."""
+    try:
+        with open("docs/research/re/game-ranges.tsv") as f:
+            rows = [line.rstrip("\n").split("\t") for line in list(f)[1:]]
+    except FileNotFoundError:
+        return {}
+    return {int(address, 16): [tuple(int(end, 16) for end in part.split("-")) for part in parts.split(",")] for address, parts in rows}
+
+
+SPLIT = function_ranges()
+
+
+def body_holding(address, entries, split=None):
+    """The function whose body holds `address`: a split one's ranges, else entry + size."""
+    split = SPLIT if split is None else split
+    for entry, spans in split.items():
+        if any(low <= address <= high for low, high in spans):
+            return entry
+    starts = sorted(entries)
+    holder = starts[bisect.bisect_right(starts, address) - 1] if address > starts[0] else None
+    if holder is not None and holder not in split and address < holder + entries[holder]:
+        return holder
+    return None
 
 
 def function_entries():

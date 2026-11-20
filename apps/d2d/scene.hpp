@@ -77,6 +77,7 @@ struct Scene : GameData {
     d2d::font::Font       font_exocet10;      // FontExocet10 (font id 9): labels on buttons 0x23 high and up
     d2d::font::Font       font_ridiculous;    // FontRidiculous (font id 10): labels on lower buttons
     d2d::dc6::Sprite      cursor;             // CURSOR\ohand.dc6 — D2's gauntlet, 8 frames
+    std::array<d2d::dc6::Sprite, 6> cursor_rows;   // CURSOR\<kCursorRows[i].name> for rows 0..5 (Gaunt .. protate), CursorAnim's
     d2d::dc6::Sprite      cursor_buysell;     // CURSOR\buysell.dc6 — the item-use cursors (frame 0 identify)
     // Character composites (in-game player, char-select portraits). The
     // COF names the body-part layers and their per-frame draw order; each

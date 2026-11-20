@@ -287,6 +287,11 @@ struct Store {
     std::vector<std::string> perm;              // PermStoreItems: buying doesn't use them up
     bool gamble = false;                        // Gheed's gamble list: buying rolls a new item
     int reduced = 0;                            // the player's item_reducedprices (stat 87), 0..99: off buy, gamble and repair
+    // A refused buy, sale or repair's box (FUN_004b53f0): the panel goes to
+    // mode 7 under it (FUN_00487d30: 0x7bcbf0, no button down, no clicks),
+    // and Continue (LAB_004b4cf0 -> FUN_00487d40) back to 1, the plain
+    // store: a buy, sell or repair button toggled on is off again.
+    void refused() { mode = 0; pressed = {}; }
     // A store opens on its first tab with anything on it.
     void first_tab() { tab = int(std::ranges::find_if(tabs, [](const auto& page) { return !page.empty(); }) - tabs.begin()) % 4; }
 };
@@ -2047,9 +2052,9 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // comes off `rng` (stores, gambling, imbue) and none of the above is
 // rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
 // and dmg%'s +1 max damage on a weak weapon only reach its props.
-inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
-                                    Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                                    int difficulty = 0, int special_wanted = 0) {
+inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
+                                Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
+                                int difficulty = 0, int special_wanted = 0) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
@@ -2349,8 +2354,35 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
-    if (!item.prefix && !item.suffix) return generate_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
+    if (!item.prefix && !item.suffix) return roll_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
     return item;
+}
+// The item as roll_item makes it, with its unit's seed: the fingerprint
+// (unit +0x28, what a save keeps) is the low word the unit seed starts from
+// (FUN_00552df0: a step of the game seed, then FUN_00650e40 {it, 666}), and
+// the seed goes on from where the making left it (Item::seed_kept).
+inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
+                                    Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
+                                    int difficulty = 0, int special_wanted = 0) {
+    const std::uint32_t fingerprint = unit_seed ? unit_seed->low : 0;
+    auto item = roll_item(tables, code, ilvl, quality, rng, unit_seed, found_uniques, bovine, difficulty, special_wanted);
+    if (unit_seed) {
+        item.uid = fingerprint;
+        item.seed_low = unit_seed->low;
+        item.seed_high = unit_seed->high;
+        item.seed_kept = true;
+    }
+    return item;
+}
+// The item's unit seed (+0x20): where the making left it while it's in play,
+// else fresh from its fingerprint, as a loaded item's (FUN_0062cbe0 at
+// 0x62cd16 seeds the unit {fingerprint, 666}).
+[[nodiscard]] inline Rng item_seed(const d2d::d2s::Item& item) {
+    if (!item.seed_kept) return Rng{ item.uid };
+    Rng seed;
+    seed.low = item.seed_low;
+    seed.high = item.seed_high;
+    return seed;
 }
 
 // Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
@@ -2435,13 +2467,16 @@ inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
 // Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
 // at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
 // the rest the most. FUN_0062bcb0 caps them at the grid and 6.
-// The item's seed is taken fresh from its fingerprint: exact for an item
-// loaded from a save (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint,
-// 666}). ponytail: one made or rolled on this game keeps where that left it.
+// The item's seed is its unit's (item_seed): fresh from its fingerprint for
+// one loaded from a save, where its making left it for one made in play.
 inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& item) {
     auto made = item;
     int sockets = most_sockets(tables, item);
-    if (item.quality == 4) { Rng seed{ item.uid }; sockets = seed(std::min(sockets, 2)) + 1; }
+    if (item.quality == 4) {
+        auto seed = item_seed(item);
+        sockets = seed(std::min(sockets, 2)) + 1;
+        made.seed_low = seed.low; made.seed_high = seed.high; made.seed_kept = true;
+    }
     else if (item.quality >= 5 && item.quality <= 9 && sockets > 0) sockets = 1;
     const auto [width, height] = item_size(tables, item.code);
     made.socketed = true;
@@ -2830,9 +2865,8 @@ inline const Tables::Runeword* runeword_row(const Tables& tables, const d2d::d2s
 // sockets spell, not one already, takes the runeword flag (0x4000000)
 // and its T1 mods as the runeword list (stat list 0xab / 0x40), each
 // through FUN_0065fd70 kind 6 on the item's seed.
-// The seed is the item's fingerprint: exact for an item loaded from a save
-// (FUN_0062cbe0 at 0x62cd16 seeds the unit {fingerprint, 666}). ponytail:
-// one made or rolled on this game keeps where that left it.
+// The seed is the item's unit's (item_seed): fresh from its fingerprint for
+// one loaded from a save, where its making left it for one made in play.
 inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     const auto* row = item.runeword ? nullptr : runeword_row(tables, item);
     if (!row) return false;
@@ -2843,9 +2877,10 @@ inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     item.runeword = true;
     item.runeword_id = row->save_id;
     item.main_props = item.props.size();
-    Rng rng{ item.uid };
+    auto rng = item_seed(item);
     const ModItem target{ &item, &base->second, info->second.kind, type != tables.types.end() && type->second.throwable, false };
     for (const auto& mod : row->mods) apply_mod(tables, mod, item.props, rng, &target);
+    item.seed_low = rng.low; item.seed_high = rng.high; item.seed_kept = true;
     return true;
 }
 // FUN_00562660's checks: `filler` is a socket filler (item type "sock":

@@ -164,7 +164,8 @@ struct View {
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
-    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; int anim_rate = 0; };
+    // motion_z: in pixels, negative up (gfx.md "The motion record": draw z = -z); a client spark's (client_sparks.hpp).
+    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; int anim_rate = 0; int motion_z = 0; };
     std::vector<Shot> missiles;
     int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
     std::vector<Loot::GroundItem> ground;  // the level's floor
@@ -203,6 +204,7 @@ struct View {
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
+    std::array<int, 2> hand_status{};      // the left / right skill's status (Player::hand_status)
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
@@ -246,7 +248,6 @@ struct World {
     // unit, character, merc, combat), where they're headed, what they hold
     // and have open, what the World told them.
     struct Player : Fight::Hero {
-        float target_x = 0, target_y = 0;      // where the player is walking to
         bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
         int   take_warp = -1;                  // the warp of `level` the player is walking to
         bool  walk_pending = false;            // a walk to an item or warp may be issued once more when it ends (unit +0x150, FUN_00548a50)
@@ -298,6 +299,9 @@ struct World {
         int raising = -1;                      // the body they're channelling on (its player's id), -1 none
         std::uint32_t right_before = 0;        // the right skill Resurrect took the place of (saved instead of it)
         std::uint32_t kept_left = 0, kept_right = 0;   // the hand skills a throwing potion took the place of (player data +0x74 / +0x70, hand_skills)
+        // The left / right skill's status as this tick left it (FUN_004d9fc0 -> FUN_00647960:
+        // Fight::skill_status, 0 it can go): the client's skill searches run only at 0.
+        std::array<int, 2> hand_status{};
         bool out = false;                      // hardcore, dead, Resurrect pressed: the screen takes them out of the game (FUN_0054c0e0)
     };
     using Corpse = Player::Corpse;
@@ -417,11 +421,12 @@ struct World {
             }
         }
     }
-    // One screen (local co-op): a step that spreads the party further than
-    // kLeashWidth x kLeashHeight screen pixels is undone, for whoever took
-    // it (they stand where they were, `before` the tick's moves).
-    // ponytail: walks only; a leap, charge, teleport or knockback can still
-    // spread it, and a later step back in is let through.
+    // One screen (local co-op): a move that spreads the party further than
+    // kLeashWidth x kLeashHeight screen pixels is undone, for whoever made
+    // it (they stand where they were, `before` the moves): the commands'
+    // (walks, teleports, a charge's steps), then the fight's (a leap's
+    // flight, a knockback's slide, which stop there). A step that narrows a
+    // party already too wide is let through.
     static constexpr float kLeashWidth = 620, kLeashHeight = 380;
     void leash(std::span<const std::pair<float, float>> before);
     // The other players come to `destination` round (x, y) with their mercs
@@ -1076,6 +1081,8 @@ struct World {
     // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
     // slot, a weapon switch): each hand skill fits what the hands hold now.
     void hand_skills(std::uint32_t now_ms);
+    // Each player's Player::hand_status, at the end of a level's tick (what FUN_00467880 asks).
+    void hand_statuses(std::uint32_t now_ms);
 
     // A command from the player, checked and applied. game.exe's dispatcher
     // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state

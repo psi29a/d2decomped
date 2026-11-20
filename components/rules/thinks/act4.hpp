@@ -374,12 +374,15 @@ struct Act4Thinks : Thinker {
         case 11: return waited(cast(0, baal_aim));                                        // Nova (0x13c, S3)
         case 12: return waited(cast(1, baal_aim));                                        // Inferno (0x13d, S1)
         case 13: return waited(cast(3, baal_aim));                                        // Cold Missiles (0x13e, A1)
-        case 14: {                                                                  // Teleport 25 off, away from the target
+        case 14: {                                                                  // Teleport (Skill5) to a spot in his room
+            // FUN_005fcb60 works out him + (him - target) x 25 / distance, then hands those words to
+            // FUN_0054dc40 as its outputs: the spot is the room's (input.room_spot). None: act 0 (stand 5).
             if (!input.target) break;
-            const int span = std::max(input.dist, 1);
+            const auto spot = input.room_spot ? input.room_spot() : std::nullopt;
+            if (!spot) break;
             auto out = cast(4, ThinkUnit::none);
-            out.x = (input.self_x - input.target_x) * 25 / span + input.self_x;
-            out.y = (input.self_y - input.target_y) * 25 / span + input.self_y;
+            out.x = spot->first;
+            out.y = spot->second;
             return waited(out);
         }
         case 15: effect(ThinkEffect::clone); break;                                 // FUN_005fc860: a Vile Effigy

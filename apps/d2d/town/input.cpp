@@ -87,11 +87,12 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         // The skill's own search may name one first (FUN_004621d0 -> FUN_00467880): SearchEnemyNear
         // on any click, and it alone (near_pick); else with no unit there and shift (stand still)
         // held SearchEnemyXY (shift_pick), then SearchOpenXY. The command says shift was held.
+        // None of them runs unless the skill can go now (FUN_004d9fc0 0: View::hand_status).
         const auto use_hand = [&](bool left, int unit) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
             float at_x = world_x, at_y = world_y;
-            if (!near_pick(skill, unit, at_x, at_y)) {
+            if (view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
                 if (unit < 0 && stand) unit = shift_pick(skill);
                 if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
                     std::tie(at_x, at_y) = *spot;
@@ -162,9 +163,9 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 // way first (FUN_00467880 -> FUN_00467660, rules::search_enemy_xy; cursor-units.md "The skill's
 // own target search"). A spot counts with a unit's own collision bit on it (0x180: a player's or
 // a live monster's plus, a SizeX 3 monster's 3 x 3). The monster's id, or -1.
-// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0: mana, the weapon), a
-// walking player faces its path's target there (FUN_006238c0), the units go in the near rooms'
-// list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
+// Only at skill status 0 (FUN_004d9fc0, View::hand_status: use_hand).
+// ponytail: a walking player faces its path's target there (FUN_006238c0), the units go in the
+// near rooms' list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
 // press flag 2 that also asks for the search isn't made.
 auto Town::shift_pick(int skill) const -> int {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
@@ -206,12 +207,12 @@ auto Town::shift_pick(int skill) const -> int {
 // the target monster's subtile when there is one: a live monster, or with a TargetCorpse skill a
 // corpse in DD; Iron Golem a ground item of a metal base (Items bitfield1 & 2), at any distance.
 // None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
-// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0) and not on a held frame of
+// ponytail: FUN_00467880 doesn't search on a held frame of
 // a walking player (FUN_00622d00); the units go in view order, not the near rooms' list order
 // (FUN_0065ac70), so equals tie apart; other players aren't among them (two players without the
 // hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
 // target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
-// as a spot: the World neither names nor takes it.
+// as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
 auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
@@ -249,7 +250,7 @@ auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bo
 // client moves it to the nearest subtile without bit 1 within 7 and drops the target for the
 // ground (FUN_00467880 -> FUN_004677b0, game::search_open_xy; cursor-units.md "The skill's own
 // target search"). From the target monster's subtile, else the click's. The spot's centre, or none.
-// ponytail: FUN_00467880 searches only at skill status 0 (FUN_004d9fc0) and not on a held frame
+// ponytail: FUN_00467880 doesn't search on a held frame
 // of a walking player (flags 8 and 1 without shift, FUN_00622d00); a dead target becomes the
 // ground first unless the skill is TargetCorpse (FUN_00466de0).
 auto Town::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {

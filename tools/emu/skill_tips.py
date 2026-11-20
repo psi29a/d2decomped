@@ -18,13 +18,8 @@ import emu
 
 def boot():
     e = emu.Emu()
-    original = e.read(0x524d30, 5)           # crt_init stubs the key lookup; the tables load for real here
     emu.serve_files(e)
-    e.crt_init()
-    e.mu.mem_write(0x524d30, original)
-    e.mu.ctl_remove_cache(0x524d30, 0x524d35)
-    lang = e.put(b"ENG\0")
-    e.call(0x5259c0, 1, ecx=0, edx=lang)   # 1: expansionstring.tbl too
+    e.crt_init()                             # the string tables too (FUN_005259c0)
     e.w32(0x7a04f4, 1)                       # an expansion game (FUN_0044dcc0)
     if e.call(0x619300, 0, 1, 1) != 0: raise SystemExit("skill_tips: data tables failed to load")
     return e

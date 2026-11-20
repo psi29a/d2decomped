@@ -26,6 +26,24 @@ class GapsTests(unittest.TestCase):
         self.assertIsNone(funcs.holding(0x401020))  # the gap between them
         self.assertIsNone(funcs.holding(0x400fff))
 
+    def test_holding_follows_a_split_body(self):
+        # FUN_00401000's tail sits past FUN_00401040 (game-ranges.tsv), its gap belongs to no one.
+        funcs = gaps.Functions([(0x401000, "FUN_00401000", 0x28), (0x401040, "FUN_00401040", 0x10)],
+                               {0x401000: [(0x401000, 0x40101f), (0x401060, 0x401067)]})
+        self.assertEqual(funcs.holding(0x401010), 0x401000)
+        self.assertIsNone(funcs.holding(0x401024))    # a run of `size` from the entry would have held it
+        self.assertEqual(funcs.holding(0x401045), 0x401040)
+        self.assertEqual(funcs.holding(0x401064), 0x401000)
+        self.assertIsNone(funcs.holding(0x401068))
+
+    def test_holding_prefers_a_split_range_to_an_inferred_run(self):
+        # 1.14d's FUN_00688718 holds 006987ee-006987fa, where FUN_006987ee's own 13 bytes also
+        # lie: the split range wins, as pr_guard.body_holding has it.
+        funcs = gaps.Functions([(0x688718, "FUN_00688718", 145), (0x6987ee, "FUN_006987ee", 13)],
+                               {0x688718: [(0x688718, 0x6887a8), (0x6987ee, 0x6987fa)]})
+        self.assertEqual(funcs.holding(0x6987f0), 0x688718)
+        self.assertEqual(funcs.holding(0x688720), 0x688718)
+
     def test_level_by_path(self):
         self.assertEqual(gaps.level("tools/emu/drlg.py"), 3)
         self.assertEqual(gaps.level("components/game/ai.hpp"), 2)

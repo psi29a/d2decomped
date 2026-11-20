@@ -68,7 +68,7 @@ int object_op_ticks(const Npc& npc) {
     int client = -1;
     if (npc.frames[1] != 1) {
         const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
-        const int rate = object_frame_delta(npc, 1);
+        const int rate = object_frame_delta_peek(npc, 1);
         if (need <= 0) client = 0;
         else if (rate) client = (need + rate - 1) / rate;
     }
@@ -325,9 +325,18 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         if (now_ms - day_at > 1000) day_at = now_ms;
         day_frames.clear();
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) day_frames.push_back(day_at);
+        auto sweep_rooms = [&] {
+            std::vector<RoomPosition> room_positions;
+            room_positions.reserve(players.size());
+            for (const auto& player : players)
+                room_positions.push_back({ level_of(*player), player->player.x, player->player.y });
+            for ([[maybe_unused]] const auto frame_at : day_frames)
+                sweep_idle_rooms(*game_data, fight.spawning, room_positions);
+        };
         first_turn = true;
         if (!split_levels) {
             tick_level(orders, now_ms, last_ms);
+            sweep_rooms();
             gidbinn_due = false;                             // a3q3's one look (FUN_005b9a30): this tick's turns only
             hand_out_announced();
             if (turn_done) turn_done();
@@ -369,6 +378,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         fight.heroes = std::move(all_heroes);
         act_as(lead());
         swap_to(lead().on_level);                                  // the host's screen: where its player is now
+        sweep_rooms();
         hand_out_announced();                                // the joiners have them in their next View
     }
 
@@ -828,7 +838,12 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
+        // The fight moves players too (a leap's flight, a knockback's slide:
+        // Fight::hurt_side): the leash again after it.
+        std::vector<std::pair<float, float>> before_fight;
+        for (const auto& player : players) before_fight.emplace_back(player->player.x, player->player.y);
         fight.world(in_moor, now_ms, elapsed, crowd);
+        leash(before_fight);
         den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
@@ -879,7 +894,15 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again
             each_player([&](Player& player) { if (player.ghost) revive(player, now_ms); });
+        hand_statuses(now_ms);
         loot.standing = nullptr;                                 // the crowd dies with this tick
+    }
+
+auto World::hand_statuses(std::uint32_t now_ms) -> void {
+        each_player([&](Player& player) {
+            const auto& header = player.character.header;
+            player.hand_status = { fight.skill_status(int(header.left_skill), now_ms), fight.skill_status(int(header.right_skill), now_ms) };
+        });
     }
 
 // State 153 on a unit: each client's setfunc 2 (FUN_004d87e0) dips its

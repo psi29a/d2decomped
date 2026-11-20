@@ -109,6 +109,10 @@ struct Item {
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     int  replenish_in = 0;             // frames to its timer 3 (FUN_00562d30: a replenishing item's next point), 0 none (not saved)
+    // Its unit seed (+0x20) as its making in play left it (rules::item_seed),
+    // not saved: a loaded item's starts again from uid (FUN_0062cbe0 at 0x62cd16).
+    std::uint32_t seed_low = 0, seed_high = 0;
+    bool seed_kept = false;
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, dur_extra = 0, set_lists = 0;
     bool charm_prefix = false;         // a normal charm's 1 bit: its 11 are the prefix (set) or the suffix
@@ -132,7 +136,9 @@ struct Item {
 
 // What the parser needs from the excel tables.
 struct ItemTables {
-    struct Stat { int save_bits = 0, save_add = 0, param_bits = 0, csv_bits = 0; };
+    // save_bits_109 / save_add_109: the "1.09-Save Bits" / "1.09-Save Add"
+    // columns (record +0x1a / +0x20), what a save below version 0x5d reads.
+    struct Stat { int save_bits = 0, save_add = 0, param_bits = 0, csv_bits = 0, save_bits_109 = 0, save_add_109 = 0; };
     std::vector<Stat> stats;                        // by ItemStatCost ID
     std::unordered_set<std::string> armor, weapons, stackable;
     std::unordered_set<std::string> compact;        // misc.txt compactsave: written short (simple)
@@ -175,7 +181,7 @@ struct ItemTables {
         };
         const auto c_id = isc.col("ID"), c_b = isc.col("Save Bits"),
                    c_a = isc.col("Save Add"), c_p = isc.col("Save Param Bits"),
-                   c_c = isc.col("CSvBits");
+                   c_c = isc.col("CSvBits"), c_old_bits = isc.col("1.09-Save Bits"), c_old_add = isc.col("1.09-Save Add");
         auto num = [](std::string_view text) { return text.empty() ? 0 : std::stoi(std::string(text)); };
         for (std::size_t row = 0; row < isc.size(); ++row) {
             const auto id = isc.get(row, c_id);
@@ -183,7 +189,7 @@ struct ItemTables {
             const auto stat_id = std::size_t(num(id));
             if (stat_id >= item_tables.stats.size()) item_tables.stats.resize(stat_id + 1);
             item_tables.stats[stat_id] = { num(isc.get(row, c_b)), num(isc.get(row, c_a)), num(isc.get(row, c_p)),
-                           num(isc.get(row, c_c)) };
+                           num(isc.get(row, c_c)), num(isc.get(row, c_old_bits)), num(isc.get(row, c_old_add)) };
         }
         auto codes = [&](const txt::Table& tab, auto& into) {
             for (std::size_t row = 0; row < tab.size(); ++row) {
@@ -278,6 +284,30 @@ struct Bits {
     }
 };
 
+// A stat's widths in this save (FUN_0062cbe0 / FUN_0062ac80): the record's
+// +0x19 + n save bits, +0x1c + 4n save add and +0x24 + 4n param bits, n 1
+// below version 0x5d (the 1.09 columns; +0x28 is no column, 0 in every row).
+struct Width { int bits = 0, add = 0, param = 0; };
+[[nodiscard]] inline Width width(const ItemTables::Stat& stat, std::uint32_t file_version) {
+    if (file_version < 0x5d) return { stat.save_bits_109, stat.save_add_109, 0 };
+    return { stat.save_bits, stat.save_add, stat.param_bits };
+}
+// FUN_0062ac80 below version 0x5d: a stat read under its own record's widths
+// is kept as its 1.10 neighbour (0x5c / 0x5e as 0x5d, 0x5f / 0x61 as 0x60,
+// 0x62 / 100 as 99, 0x65 / 0x67 as 0x66, 0x68 / 0x6a as 0x69). Its
+// version < 0x5a / 0x58 cases never run: FUN_0056a090 takes 0x5c up.
+[[nodiscard]] inline int stat_109(int stat, std::uint32_t file_version) {
+    if (file_version >= 0x5d) return stat;
+    switch (stat) {
+        case 0x5c: case 0x5e: return 0x5d;
+        case 0x5f: case 0x61: return 0x60;
+        case 0x62: case 100:  return 99;
+        case 0x65: case 0x67: return 0x66;
+        case 0x68: case 0x6a: return 0x69;
+        default: return stat;
+    }
+}
+
 inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemProp>& out) {
     for (;;) {
         const int id = int(bits.read(9));
@@ -289,9 +319,9 @@ inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemPro
         for (int stat = id; stat < id + run; ++stat) {
             if (std::size_t(stat) >= item_tables.stats.size() || item_tables.stats[std::size_t(stat)].save_bits == 0)
                 throw std::runtime_error("d2s items: unknown stat " + std::to_string(stat));
-            const auto& stat_info = item_tables.stats[std::size_t(stat)];
-            const int param = stat_info.param_bits ? int(bits.read(stat_info.param_bits)) : 0;
-            out.push_back({ stat, param, int(bits.read(stat_info.save_bits)) - stat_info.save_add });
+            const auto read = width(item_tables.stats[std::size_t(stat)], bits.file_version);
+            const int param = read.param ? int(bits.read(read.param)) : 0;
+            out.push_back({ stat_109(stat, bits.file_version), param, int(bits.read(read.bits)) - read.add });
         }
     }
 }
@@ -381,8 +411,12 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
             if (parsed.runeword) { parsed.runeword_id = int(bits.read(12)); parsed.rw_extra = int(bits.read(4)); }
             if (parsed.personalized) while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
             if (!net) realm(bits, parsed);
-            // ponytail: saves before 0x5d read ItemStatCost's older Save Bits column here and below; 1.14d's only
-            if (item_tables.armor.contains(parsed.code)) parsed.defense = int(bits.read(11)) - 10;
+            // Defence is ItemStatCost row 31's widths (11 less 10; 10 less 10 below 0x5d), max durability
+            // row 73's, the socket count row 194's: the 1.09 columns give the others the same as 1.14d's.
+            if (item_tables.armor.contains(parsed.code)) {
+                const auto read = item_tables.stats.size() > kArmorClass ? width(item_tables.stats[kArmorClass], bits.file_version) : Width{ 11, 10 };
+                parsed.defense = int(bits.read(read.bits ? read.bits : 11)) - (read.bits ? read.add : 10);
+            }
             if (item_tables.armor.contains(parsed.code) || item_tables.weapons.contains(parsed.code))
                 if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (ItemStatCost row 72's 9 bits; 8 up to save version 0x5f)
                     parsed.durability = int(bits.read(8));

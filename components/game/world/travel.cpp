@@ -127,6 +127,7 @@ auto World::go_alone(const Level* destination, float arrive_x, float arrive_y, c
             actor->player.x = free_x; actor->player.y = free_y;
             actor->player.walking = false; actor->player.path.clear();
             actor->target_x = free_x; actor->target_y = free_y;
+            actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
             if (actor->merc) {
                 actor->merc->unit.path.clear();
                 std::tie(actor->merc->unit.x, actor->merc->unit.y) = destination->nearest_free(free_x + 1, free_y + 1);
@@ -242,6 +243,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         actor->player.x = free_x; actor->player.y = free_y;
         actor->player.walking = false; actor->player.path.clear();
         actor->target_x = free_x; actor->target_y = free_y;
+        actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
         if (actor->merc) {
             actor->merc->unit.path.clear();
             std::tie(actor->merc->unit.x, actor->merc->unit.y) = level->nearest_free(free_x + 1, free_y + 1);

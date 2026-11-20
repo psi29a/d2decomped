@@ -238,6 +238,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
         chunk.u8(view.boost_code);
         chunk.i32(view.gold_lost);
+        chunk.u8(view.hand_status[0]).u8(view.hand_status[1]);
         chunk.u16(int(view.buffs.size()));
         for (const int buff : view.buffs) chunk.i32(buff);
         wire::section(out, enc.section[0], std::move(chunk.bytes));
@@ -477,6 +478,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
         view.boost_code = byte();
         view.gold_lost = i32();
+        view.hand_status = { byte(), byte() };
         view.buffs.clear();
         for (int count = u16(); count > 0 && input.ok; --count) view.buffs.push_back(i32());
     });

@@ -387,6 +387,7 @@ enum class ServerDoFunction : int {
     kSiegeBeastStomp = 134,        // FUN_005d2320: needs a srvmissilea, row 301 has none: nothing
     kMinionSpawner = 135,          // FUN_005d2490: what its start picked (FUN_0056e620), made through FUN_005b2f20
     kDeathMaul = 136,              // FUN_005d25b0: srvmissilea at the target's spot, its range by the distance
+    kFenrisRage = 137,             // FUN_005d26f0: a corpse used up, the aurastate on the caster
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kBaalCorpseExplode = 141,      // FUN_005d2e80: the corpses about the caster spent (baal_corpse_spent)
@@ -712,6 +713,18 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
     if (lvl < 1) return 0;
     if (!skill.tohit_calc.empty()) return eval_calc(skill_tables, skill.tohit_calc, env, skill.id, lvl, depth + 1);
     return skill.tohit + skill.levtohit * (lvl - 1);
+}
+
+// An aura's next pulse (FUN_0056cda0 / FUN_0056ce70 arming unit event 8 /
+// 9, FUN_0056cd50 for the states a pulse puts): perdelay's calc at the
+// skill's level, under 6 taken as 5, and the first game frame (+0xa8) after
+// `frame` that is 1 more than a multiple of it. Event 8's handler
+// (FUN_0056fcb0, table 0x6e2490) casts the aura and arms the next, so every
+// aura of one perdelay pulses on the same frames; its start (FUN_0056fc50)
+// casts at once.
+[[nodiscard]] constexpr int aura_next_frame(int frame, int perdelay) {
+    const int period = perdelay < 6 ? 5 : perdelay;
+    return (frame - 1 + period) / period * period + 1;
 }
 
 // The char panel's attack block for the left / right skill (FUN_004ed570,

@@ -278,6 +278,18 @@ The base y is 539 (= 60 + 255 + 224):
   (red), line height 0x15, over "Continue" (0xd4b, height 0xf, handler
   0x4b4cf0). Texts: 7 / 8 0xd1e, 9 / 0xd / 0xe 0xd21, 10 0xd1c, 11 0xd20,
   12 0xd22, 15 0xd23, 16 0xd1d (string.tbl "TransactionResults4".."11").
+  Before the box (dialog state `0x7c0c6b` 5 -> 6) the store panel goes to
+  mode 7 (`FUN_00487d30`: `0x7bcbf0`): no button drawn down, no clicks
+  taken (`FUN_00486b30` refuses 7). A refused sale whose item is still
+  in the cursor (`0x7c0d31` 2, `0x7c0d3f` 1) gets the hand cursor
+  (`FUN_00468070`). Continue (`LAB_004b4cf0`): `FUN_00466fe0`, the click
+  (`FUN_004b9a00(1)`), the box freed, then state 3 (the store open) and
+  `FUN_00487d40`: mode 7 -> 1 (it asserts 7), four panel words cleared
+  (`0x7bc9e4`, `0x7bc9f8`, `0x7bca0c`, `0x7bca20`), the hand cursor. Mode
+  1 is the plain store, so a buy, sell or repair button toggled on is off
+  after a refusal. A refusal at state 0xc (the NPC's service box, not
+  the store) goes back to the NPC's menu (`FUN_004b4830`), or the
+  repair panel when `0x7c0d31` is 5. d2d: `rules::Store::refused`.
 - d2d: `rules::Trade`, `rules::sellable`, `ev::TradeRefused`,
   `open_trade_refused`.
 

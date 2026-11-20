@@ -818,8 +818,12 @@ uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --
   max life (stat 7, FUN_00625d10) or it's no player, else Blood Mana
   (Skill7) at a player; 9 Tentacles (0x13b, S2); 10 A2; 11 Nova (0x13c,
   S3); 12 Inferno (0x13d, S1); 13 Cold Missiles (0x13e, A1); 14 Teleport
-  (Skill5) to him + (him − target) × 25 / FUN_006416d0 (uber Baal 0x2c5:
-  the target's spot); 15 a clone (FUN_005fc860), then stand 5; else stand 5.
+  (Skill5): him + (him − target) × 25 / FUN_006416d0 is worked out, then its
+  words are FUN_0054dc40's outputs (ECX game, EDX his room; no unit, his
+  class, &x, &y, 0; `ret 0x14`): 20 tries at random in his room on its
+  seed, the first FUN_005b2f20 places him at radius -1; none, act 0
+  (stand 5). So he lands somewhere in his room, never 25 off (uber Baal
+  0x2c5 skips it: the target's spot); 15 a clone (FUN_005fc860), then stand 5; else stand 5.
 - Clone (FUN_005fc860): none while one of his lives (FUN_0058f380 /
   FUN_005fc830); baalclone (0x23a) at his spot + low % 24 − 12 per axis
   (his seed), a third of his max life and life, regen 0, flags 0x4020000

@@ -229,7 +229,14 @@ def check_room_expiry(machine):
     machine.hook(0x61A790, lambda c: ages[c.arg(0)], 1)
     machine.hook(0x61A3F0, lambda c: removable[c.arg(1)], 2)
     machine.hook(0x5433F0, lambda c: (log.append(("unit", c.mu.reg_read(UC_X86_REG_ECX), c.mu.reg_read(UC_X86_REG_EDX))), 0)[1], 0)
-    machine.hook(0x61A910, lambda c: (log.append(("free", c.arg(0), c.arg(1))), 0)[1], 2)
+    def release_room(current):
+        """Poison the released node: FUN_0052d240 must have saved +0x7c before this call."""
+        room = current.arg(1)
+        log.append(("free", current.arg(0), room))
+        current.w32(room + 0x7C, 0xDEADF00D)
+        return 0
+
+    machine.hook(0x61A910, release_room, 2)
     game = machine.alloc(0x200)
     acts = [machine.alloc(0x20) for _ in range(5)]
     rooms = [machine.alloc(0x100) for _ in range(4)]

@@ -73,8 +73,9 @@ monster-ai.md.
     (`0x57c7f8`, `crush.py pair`). The divisor: 10 for a player or a
     hireling (`FUN_0063ee90`: classes 0x10f, 0x152, 0x167, 0x230, 0x231);
     for another monster (a pet, or one made a foe by Confuse or Attract) 4,
-    8 for a MonStats boss (+0xc & 0x40, `FUN_0063e9f0`) or a unique (data
-    +0x16 & 2, `FUN_005a0180`), plus its monster_playercount share (stat
+    8 for a MonStats boss (+0xc & 0x40, `FUN_0063e9f0`) or a superunique (data
+    +0x16 & 2, `FUN_005a0180`; a plain unique has 1 | 8 and a champion
+    1 | 4 | 8, so they take 4), plus its monster_playercount share (stat
     0x64, at least 1, through `FUN_005738f0`: the table at 0x6e1590, 0, 0,
     50, 100 … %, then (n − 2) × 50); doubled for the missile event (6).
     The share it takes off is the raw damageresist (stat 0x24), 100 at

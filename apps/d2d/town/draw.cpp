@@ -87,7 +87,7 @@ auto Town::open_menu(int npc) -> void {
 
 auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
         if (result.npc < 0) {
-            if (store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y);
+            if (store.npc >= 0) { store.refused(); npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y); }
             return;
         }
         if (!level || std::size_t(result.npc) >= level->npcs.size()) return;
@@ -194,6 +194,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
         std::vector<View::Shot> client_effects = den_beams;
+        for (const auto& spark : spark_trail.sparks) client_effects.push_back(spark.shot);
         if (cairn_flash) {
             const std::uint32_t lifetime = std::uint32_t(std::max(cairn_flash->info ? cairn_flash->info->range : 0, 1)) * kTickMs;
             if (frame_ms - cairn_flash->born < lifetime) client_effects.push_back(*cairn_flash);

@@ -3,6 +3,7 @@
 #include "load.hpp"
 
 #include "common.hpp"
+#include "cursor_anim.hpp"
 #include "gamemenu.hpp"
 #include "save_list.hpp"
 #include "scene.hpp"
@@ -535,6 +536,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.font_exocet10 = font("fontexocet10");
         scene.font_ridiculous = font("fontridiculous");
         scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
+        for (std::size_t row = 0; row < scene.cursor_rows.size(); ++row)   // FUN_004680b0's loads
+            scene.cursor_rows[row] = d2d::dc6::Sprite(mpqs.read(std::string(R"(data\global\ui\CURSOR\)") + kCursorRows[row].name + ".dc6"));
         scene.cursor_buysell = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\buysell.dc6)"));
         scene.class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.

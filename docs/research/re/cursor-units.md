@@ -348,7 +348,9 @@ the mask table at 0x6ce268 (1, 2, 4, ..., 0x80): TargetableOnly +6 & 0x10
    A click on the player's own subtile calls `FUN_004c51e0`.
 2. A held frame (flag 8) with flag 1 and without shift (0x20), while the player
    walks or runs (`FUN_00622d00`: mode 2, 3 or 6) keeps the target.
-3. The skill's status (`FUN_004d9fc0`) not 0 keeps it.
+3. The skill's status (`FUN_004d9fc0`) not 0 keeps it. d2d: the World leaves
+   each hand's status in the View (`World::hand_statuses`,
+   `View::hand_status`), and `Town::input`'s `use_hand` searches only at 0.
 4. SearchEnemyNear: `FUN_00467490`. Else SearchEnemyXY with no target and
    `near`: `FUN_00467660`. Else SearchOpenXY: `FUN_004677b0` (above).
    Else the target as it was.
