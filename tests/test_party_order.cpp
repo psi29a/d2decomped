@@ -10,6 +10,7 @@
 // file (`party_regroup.py gen`) it prints `id ids...` for each line, as the oracle's `game` does.
 #include "party.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -63,7 +64,8 @@ int print_file(const char* path) {
         std::istringstream fields(line);
         int case_id = 0, local = 0, by_key = 0, count = 0;
         if (!(fields >> case_id >> local >> by_key >> count)) continue;
-        std::vector<PartyPanel::Row> rows(std::size_t(count > 0 ? count : 0));
+        count = std::clamp(count, 0, 64);              // bounded: party_regroup.py writes a roster's few records
+        std::vector<PartyPanel::Row> rows(static_cast<std::size_t>(count));
         for (auto& row : rows) {
             std::string name;
             fields >> row.id >> row.party >> row.sort_key >> name;

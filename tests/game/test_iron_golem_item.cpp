@@ -71,7 +71,7 @@ int main() try {
     axe.item.code = "axe";
     axe.item.identified = false;
     axe.x = axe.y = 14.1f;
-    loot.ground.push_back(axe);
+    loot.ground.push_back(std::move(axe));
     assert(fight.golem_item_at(14.1f, 14.1f) < 0);   // not identified
     loot.ground.back().item.identified = true;
     loot.ground.back().item.props.push_back({ d2d::d2s::kMaxDamage, 0, 3 });

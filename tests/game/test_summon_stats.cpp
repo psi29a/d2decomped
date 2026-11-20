@@ -51,7 +51,10 @@ int summon_stats_cases(const GameData& game_data) {
         if (line.empty()) continue;
         std::istringstream fields(line);
         int skill = 0, lvl = 0, clvl = 0, life = 0, count = 0;
-        if (!(fields >> skill >> lvl >> clvl >> life >> count)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        if (!(fields >> skill >> lvl >> clvl >> life >> count) || count < 0 || count > 64) {   // a handful of other skills' levels
+            std::fprintf(stderr, "malformed case: %s\n", line.c_str());
+            return 1;
+        }
         std::map<int, int> levels;
         for (int k = 0; k < count; ++k) {
             int other = 0, other_level = 0;
@@ -108,7 +111,10 @@ int summon_level_cases(const GameData& game_data) {
         if (line.empty()) continue;
         std::istringstream fields(line);
         int clvl = 0, forced = 0, bonus = 0, difficulty = 0, expansion = 0;
-        if (!(fields >> clvl >> forced >> bonus >> difficulty >> expansion)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        if (!(fields >> clvl >> forced >> bonus >> difficulty >> expansion) || difficulty < 0 || difficulty > 2) {
+            std::fprintf(stderr, "malformed case: %s\n", line.c_str());
+            return 1;
+        }
         const int level = d2d::rules::summon_level(clvl, forced, bonus);
         const auto& row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(level), game_data.monsters.lvl.size() - 1)];
         std::printf("%s | %d %d %d\n", line.c_str(), level, row.armor_class[std::size_t(difficulty)], row.to_hit[std::size_t(difficulty)]);

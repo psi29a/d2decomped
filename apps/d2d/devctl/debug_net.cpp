@@ -101,7 +101,7 @@ void DebugVerbs::add_net() {
     add("typing", [this](const Args& args) -> Reply {   // the chat edit box open with this text (its look; nothing is sent)
         std::string text;
         for (std::size_t i = 2; i < args.size(); ++i) text += (i > 2 ? " " : "") + args[i];
-        session.chat_typing = text;
+        session.chat_typing = std::move(text);
         return std::string("ok\n");
     });
     add("view", [this](const Args& /*args*/) -> Reply {   // what this screen was last told: its level, the monsters (and their positions summed), the other players (a LAN joiner's View)

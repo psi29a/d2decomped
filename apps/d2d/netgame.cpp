@@ -463,7 +463,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 13 && read_u16(packet, 1) == 4) {
             std::array<int, 5> order{};
             for (std::size_t stone = 0; stone < order.size(); ++stone) order[stone] = read_u16(packet, 3 + 2 * stone);
-            stone_order = order;
+            stone_order = std::move(order);
         }
         break;
     case 0x89:   // quest flag: 12 starts diablo appears (FUN_0046b650 table 0x7129d8); 1 the Cairn Stones' dip

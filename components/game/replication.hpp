@@ -663,7 +663,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         } else if (kind_byte == 12) {
             ev::StoneOrder stones;
             for (auto& stone : stones.order) stone = byte();
-            view.events.push_back(stones);
+            view.events.push_back(std::move(stones));
         } else if (kind_byte == 11) {
             const auto kind = byte();
             if (kind > ev::Message::slain) return false;

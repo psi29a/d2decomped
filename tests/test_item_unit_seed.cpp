@@ -33,7 +33,7 @@ int main() try {
     loaded.uid = 0x5150;
     const auto fresh = item_seed(loaded);
     assert(fresh.low == 0x5150 && fresh.high == 666);
-    d2d::d2s::Item in_play = loaded;
+    d2d::d2s::Item in_play = std::move(loaded);
     in_play.seed_kept = true;
     in_play.seed_low = 77;
     in_play.seed_high = 88;

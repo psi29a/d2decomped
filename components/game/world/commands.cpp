@@ -572,7 +572,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (!cain.ordered) cain.stone_order(fight.spawning.quests.low, fight.spawning.quests.high);
             ev::StoneOrder stones;
             std::ranges::transform(cain.order, stones.order.begin(), [](int stone) { return stone - d2d::rules::object_ids::kStoneAlpha; });
-            actor->events.push_back(stones);
+            actor->events.push_back(std::move(stones));
             return;
         }
         if (const auto* use = std::get_if<cmd::UseItem>(&command)) {

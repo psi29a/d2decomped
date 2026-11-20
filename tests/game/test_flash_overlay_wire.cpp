@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -35,7 +36,7 @@ int main() try {
     sent.others.push_back(other);
     Monster monster;
     monster.id = 7; monster.type = 0; monster.one_shots = { { 33, 3300 } };
-    sent.monsters.push_back(monster);
+    sent.monsters.push_back(std::move(monster));
 
     ViewEncoder encoder;
     View received;

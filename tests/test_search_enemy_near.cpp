@@ -7,6 +7,7 @@
 // oracle's `game` does.
 #include <search_enemy.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -46,7 +47,12 @@ int print_file(const char* path) {
         std::istringstream fields(line);
         int case_id = 0, kind = 0, town = 0, target = -1, click_x = 0, click_y = 0, count = 0;
         if (!(fields >> case_id >> kind >> town >> target >> click_x >> click_y >> count)) continue;
-        std::vector<Unit> units(std::size_t(count > 0 ? count : 0));
+        // Bounded so a malformed line can't run a search away: search_enemy_near.py's cases sit
+        // round (100, 100), 8 units at most.
+        count = std::clamp(count, 0, 64);
+        target = std::clamp(target, -1, count - 1);
+        click_x = std::clamp(click_x, -0x400, 0x400); click_y = std::clamp(click_y, -0x400, 0x400);
+        std::vector<Unit> units(static_cast<std::size_t>(count));
         for (auto& unit : units) fields >> unit.type >> unit.x >> unit.y >> unit.mode >> unit.dead >> unit.hit >> unit.metal;
         const auto got = pick(kind, town, target, click_x, click_y, units);
         std::printf("%d %d %d %d\n", case_id, got.index, got.x, got.y);

@@ -27,7 +27,7 @@ int main() try {
     d2d::rules::MonType horde;
     horde.id = "reanimatedhorde1"; horde.base = 0x1b4; horde.level = { 4, 4, 4 }; horde.corpse_sel = true; horde.velocity = 6; horde.killable = true;
     for (auto& per_difficulty : horde.diff) { per_difficulty.aip[0] = 2; per_difficulty.aip[7] = 100; per_difficulty.min_hp = per_difficulty.max_hp = 100; }
-    data.monsters.types = { horde };
+    data.monsters.types = { std::move(horde) };
     data.mon_npc.resize(1);
     data.monsters.lvl.resize(10);
     for (auto& row : data.monsters.lvl) row.hit_points = { 50, 50, 50 };

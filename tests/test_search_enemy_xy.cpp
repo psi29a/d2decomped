@@ -7,6 +7,7 @@
 // the oracle's `game` does.
 #include <search_enemy.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -38,14 +39,20 @@ int print_file(const char* path) {
         std::istringstream fields(line);
         int case_id = 0, dir = 0, player_x = 0, player_y = 0, tonly = 0, count = 0;
         if (!(fields >> case_id >> dir >> player_x >> player_y >> tonly >> count)) continue;
-        std::vector<SearchUnit> units(std::size_t(count > 0 ? count : 0));
+        // Bounded so a malformed line can't run a search away: search_enemy_xy.py's cases sit
+        // round (100, 100), a 64-step direction, a few units and words.
+        dir = std::clamp(dir, 0, 63);
+        player_x = std::clamp(player_x, -0x400, 0x400); player_y = std::clamp(player_y, -0x400, 0x400);
+        count = std::clamp(count, 0, 64);
+        std::vector<SearchUnit> units(static_cast<std::size_t>(count));
         for (auto& unit : units) {
             int flag4 = 0, shift_sel = 0, interact = 0;
             fields >> unit.x >> unit.y >> unit.size >> unit.type >> unit.mode >> flag4 >> shift_sel >> interact;
             unit.flag4 = flag4 != 0; unit.shift_sel = shift_sel != 0; unit.interact = interact != 0;
         }
         fields >> count;
-        std::vector<Word> words(std::size_t(count > 0 ? count : 0));
+        count = std::clamp(count, 0, 64);
+        std::vector<Word> words(static_cast<std::size_t>(count));
         for (auto& word : words) fields >> word.x >> word.y >> word.bits;
         std::printf("%d %d\n", case_id, pick(dir, player_x, player_y, tonly != 0, units, words));
     }
