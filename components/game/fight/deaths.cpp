@@ -510,7 +510,10 @@ auto Fight::player_thorns(std::size_t target, const d2d::rules::Blow& blow) -> v
 auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms) -> void {
         const int thorns = monsters[target].props.thorns;
         auto blow = struck;
-        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); percent != 0 && blow.hit)   // a curse's (Weaken) on its physical part
+        // A curse's damagepercent (Weaken) is in the pet's own swing (pet_swing, before the roll); a Shadow swings
+        // the owner's fighter, so its share is added here.
+        // ponytail: a Shadow's (and its kicks' and skills') stat 25 isn't joined to its copied fighter's percent.
+        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); pet.mirror && percent != 0 && blow.hit)
             blow.damage = std::max(blow.damage + d2d::rules::resisted(blow.phys * percent / 100, target_of(target).res[0]), 0);
         const int target_life = monsters[target].life_fine();               // as FUN_005c6530 reads it: before the blow's loss
         const bool landed = land(target, blow, false, now_ms, pet.monster.id);
@@ -522,9 +525,7 @@ auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& str
                 const auto& victim = monsters[target];
                 const int drain = game_data->monsters.types[std::size_t(victim.type)].diff[std::size_t(victim.difficulty)].drain;
                 const int owner_max = int(actor->character.stats.values[d2d::d2s::kMaxLife]);
-                // ponytail: the steal reads blow.phys_fine, which the Weaken cut above (damagepercent) leaves as it was:
-                // a weakened golem steals off its uncut physical here. game.exe's +8 is the physical as the golem's
-                // swing builds it; how that swing takes damagepercent isn't traced.
+                // The steal reads blow.phys_fine, the swing's physical with any Weaken in it (pet_swing, FUN_0057b420).
                 const auto lives = d2d::rules::blood_golem_steal(true, drain, victim.align == 0, blow.phys_fine, target_life,
                                                                  d2d::rules::calc_dm(skill->par[0], skill->par[1], pet.level), skill->par[2], true,
                                                                  { int(actor->character.stats.values[d2d::d2s::kLife]), pet.monster.life_fine() }, owner_max,
