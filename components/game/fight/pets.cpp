@@ -803,21 +803,45 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // owner, the monsters in its near rooms (FUN_005eb970's FUN_005dd0b0
         // mode 1: room_order), its fellow pets (the traps it counts). Its
         // world turns what it does into a PetAct. A monster's states are its
-        // curse / cry (their auratargetstates).
-        // ponytail: players and pets go first, not in their rooms' turn.
+        // curse / cry (their auratargetstates). units[0] is the pet; the rest
+        // go in their rooms' turn, the owner and the fellow pets among the
+        // monsters (UnitState::room_stamp). The owner is always listed (the
+        // scan measures from it), at the end when it's in none of the rooms.
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
             auto& units = master.units;
-            std::vector<int> monster_of{ -1, -1 };                          // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
-            units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false, .owner = 1 });
-            units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
+            std::vector<int> monster_of{ -1 };                              // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
+            int owner_index = -1;
+            units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false });
             std::vector<int> rooms;
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
-            std::vector<d2d::rules::RoomUnit> room_units;
+            std::vector<d2d::rules::RoomUnit> room_units;                   // the monsters, then the owner, then the fellow pets
             for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT", other.unit.room_stamp });
+            const auto owner_slot = room_units.size();
+            room_units.push_back({ room_of(*level, actor->player.x, actor->player.y), true, actor->player.room_stamp });
+            std::vector<const Pet*> fellows;
+            for (const auto& fellow : actor->pets)
+                if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {
+                    fellows.push_back(&fellow);
+                    room_units.push_back({ room_of(*level, fellow.monster.unit.x, fellow.monster.unit.y), true, fellow.monster.unit.room_stamp });
+                }
+            const auto add_owner = [&] {
+                owner_index = int(units.size());
+                units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
+                monster_of.push_back(-1);
+            };
             for (const int near_index : d2d::rules::room_order(room_units, rooms)) {
+                if (std::size_t(near_index) == owner_slot) { add_owner(); continue; }
+                if (std::size_t(near_index) > owner_slot) {
+                    const auto& fellow = *fellows[std::size_t(near_index) - owner_slot - 1];
+                    const auto& fellow_type = game_data->monsters.types[std::size_t(fellow.monster.type)];
+                    units.push_back({ .type = 1, .x = sub(fellow.monster.unit.x), .y = sub(fellow.monster.unit.y), .targetable = false, .foe = false, .side = true,
+                                      .monster_id = fellow_type.base >= 0 ? fellow_type.base : fellow.monster.type });
+                    monster_of.push_back(-2);
+                    continue;
+                }
                 const auto monster_index = std::size_t(near_index);
                 const auto& other = monsters[monster_index];
                 const int other_x = sub(other.unit.x), other_y = sub(other.unit.y);
@@ -835,20 +859,15 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 units.push_back(std::move(entry));
                 monster_of.push_back(int(monster_index));
             }
-            for (const auto& fellow : actor->pets)
-                if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {
-                    const auto& fellow_type = game_data->monsters.types[std::size_t(fellow.monster.type)];
-                    units.push_back({ .type = 1, .x = sub(fellow.monster.unit.x), .y = sub(fellow.monster.unit.y), .targetable = false, .foe = false, .side = true,
-                                      .monster_id = fellow_type.base >= 0 ? fellow_type.base : fellow.monster.type });
-                    monster_of.push_back(-2);
-                }
+            if (owner_index < 0) add_owner();
+            units[0].owner = owner_index;
             const auto unit_of = [&](int monster_index) {
                 const auto slot = monster_index >= 0 ? std::ranges::find(monster_of, monster_index) : monster_of.end();
                 return slot == monster_of.end() ? -1 : int(slot - monster_of.begin());
             };
             units[0].target = pet.target >= 0 && monsters[std::size_t(pet.target)].alive() ? unit_of(pet.target) : -1;
-            units[1].target = actor->attack_mon >= 0 ? unit_of(actor->attack_mon) : -1;
-            master.owner = 1;
+            units[std::size_t(owner_index)].target = actor->attack_mon >= 0 ? unit_of(actor->attack_mon) : -1;
+            master.owner = owner_index;
             master.driver = found >= 0 ? unit_of(found) : -1;
             master.driver_melee = scene.driver_melee; master.driver_distance = scene.driver_distance;
             master.skills = pet.skill_list;
@@ -864,7 +883,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                                .missile_range = missile == game_data->missiles.end() ? -1 : missile->second.range,
                                                .repeat = row->srvdofunc == ServerDoFunction::kBreath };
                 }
-            for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
+            for (std::size_t k = 1; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
                 if (monster_of[k] >= 0)
                     for (const auto& effect : monsters[std::size_t(monster_of[k])].curse_and_states())
                         if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect.until)
@@ -879,7 +898,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 }
             for (std::size_t k = 0; k < 3; ++k) { master.fixed[k] = type_info.diff[k].aip[0]; master.fixed[k + 3] = type_info.diff[k].aip[1]; }
             master.aip3 = per_difficulty.aip[2];
-            master.scan = d2d::rules::shadow_scan(units, 0, 1);
+            master.scan = d2d::rules::shadow_scan(units, 0, owner_index);
             master.life = monster.hit_points * 100 / std::max(monster.stats.hit_points, 1);
             master.left = pet.left_skill >= 0;
             master.town = town;
