@@ -242,6 +242,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\Widgets\OptBarC.dc6)", scene.opt_bar_c);
     sprite(R"(data\global\ui\Widgets\OptSkull.dc6)", scene.opt_skull);
     sprite(R"(data\global\ui\PANEL\menubutton.dc6)", scene.menu_button);
+    sprite(R"(data\global\ui\PANEL\minipanel.dc6)", scene.minipanel_wide);
     sprite(R"(data\global\ui\PANEL\minipanel_s.dc6)", scene.minipanel);
     sprite(R"(data\global\ui\PANEL\minipanelbtn.dc6)", scene.minipanel_btn);
     scene.unique_inv = keys("UniqueItems", "invfile", false);

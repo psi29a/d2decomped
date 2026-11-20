@@ -759,6 +759,7 @@ struct ClientSession {
     void toggle_inventory();               // I, C, T and the mini-panel (FUN_00455f20 via FUN_00453910)
     void toggle_character();
     void toggle_skill_tree();
+    void toggle_party();                   // P and the wide mini-panel's button 3 (UI 0x16): a left-hand panel
     [[nodiscard]] QuestLogButton quest_log_button_now() const;
 
     // The client's side of a click: what it asks the server for

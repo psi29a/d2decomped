@@ -302,10 +302,18 @@ them times master/100.
 
 ## Mini-panel — FUN_0047f710
 
-- Panel (`PANEL\minipanel_s`), bottom H-0x2f, at x:
-  - no side panel open: W/2-0x4a-3;
-  - a right panel open: W/2-0xcd;
-  - a left panel open: W/2+0x38-2;
+Two forms (`FUN_0047f0c0`, ui-module-frontier.md "The UI start"): a
+single-player game (type 0) has `0x7bc978` = 1, `PANEL\minipanel_s` and
+7 buttons; any other game type (TCP host 8, join 9, ...) has it 0, the
+wide `PANEL\minipanel` and 8 buttons, 3 the Party screen. The values
+below are the single-player ones; the wide form's differences follow
+each, from `tools/emu/minipanel_layout.py` (game.exe's layout at 640 ×
+480 and 800 × 600, checked against d2d by test_mini_panel).
+
+- Panel (`PANEL\minipanel_s`; wide: `PANEL\minipanel`), bottom H-0x2f, at x:
+  - no side panel open: W/2-0x4a-3 (wide: W/2-0x54-3);
+  - a right panel open: W/2-0xcd (both forms);
+  - a left panel open: W/2+0x38-2 (wide: W/2+0x23-2);
   - both open: hidden.
   - "left" is FUN_0047ea60: UI 2 character, 0xf quests, 0x14 waypoint,
     0x24 hire, 0xc store, 0x19 stash, 0x1a cube, 0x17 trade, ...;
@@ -318,13 +326,20 @@ them times master/100.
     The bar moves to stay centred over the HUD strip the panels leave.
 - Buttons (`PANEL\minipanelbtn`):
   - x0 = W/2-0x4a (R: W/2-0xca, L: W/2+0x39), step 0x15, bottom H-0x32;
-  - frame 2*id (+1 held), ids 0, 1, 2, 4, 5, 6, 7.
+    wide: W/2-0x54 (R: W/2-0xca, L: W/2+0x23);
+  - frame 2*id (+1 held), ids 0, 1, 2, 4, 5, 6, 7; wide: 0..7.
 - Press `FUN_0047ef30`:
   - box centre cx = W/2 + (R ? -0x76 : 0) + (L ? 0x77 : 0);
   - x in (cx-0x54, cx+0x59), y in (H-0x45, H-0x2f);
   - sound 4.
 - Release `FUN_0047ed90` → `FUN_0047ec50`: 0 character, 1 inventory,
-  2 skills, 4 automap, 5 messages, 6 quests, 7 the game menu.
+  2 skills, 3 the Party screen (only when the game type isn't 0), 4
+  automap, 5 messages, 6 quests, 7 the game menu.
+- d2d (apps/d2d/mini_panel.hpp): a joined game (`net_game`, game.exe's
+  type 9) takes the wide form, where its Party screen is; single player,
+  local co-op (the HUD hidden) and d2d's own `--host` / `--connect` LAN
+  games keep the single-player bar, as the P key opens the Party screen
+  only in a joined game or local co-op.
 - HUD menu button `FUN_004977c0` (`PANEL\menubutton`):
   - at (W/2-8, bottom H-16), frames 0/1 closed, 2/3 open;
   - hit `FUN_00497780`: x [W/2-8, W/2+5], y [H-0x27, H-0xd];

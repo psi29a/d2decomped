@@ -225,7 +225,7 @@ auto ClientSession::view_act() const -> int { return view.level ? d2d::rules::le
 auto ClientSession::toggle_quest_log() -> void {
         if (quest_log.open) { quest_log.open = false; return; }
         quest_log_open(quest_log, quest_bits(), quest_state(), view_act());
-        char_open = stash_open = cube_open = false;
+        char_open = stash_open = cube_open = party.open = false;
     }
 
 // The Inventory, Character and Skill Tree keys and the mini-panel's
@@ -242,7 +242,15 @@ auto ClientSession::toggle_inventory() -> void {
 auto ClientSession::toggle_character() -> void {
         if (d2d::client::panel_key_refused(d2d::client::kUiCharacter, stash_open, cube_open, store.npc >= 0)) return;
         char_open = !char_open;
-        if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false;
+        if (char_open) stash_open = cube_open = quest_log.open = hireling.open = party.open = false;
+    }
+
+// Party (UI 0x16) and Character (2), Quest Log (0xf), Hireling (0x24)
+// shut each other: FUN_00453910's table at 0x711130 has 1 ("shut it") at
+// each pair, Party's row at 0x710848.
+auto ClientSession::toggle_party() -> void {
+        party.open = !party.open;
+        if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
     }
 
 auto ClientSession::toggle_skill_tree() -> void {

@@ -63,9 +63,10 @@ private:
 // Messages (5, 0x47ed08) shuts the belt (UI 0x1f) and toggles the Message
 // Log (UI 0x18), a flag 1.14d never draws (controls.md).
 struct MiniPanel {
-    enum Button { kCharacter = 0, kInventory = 1, kSkills = 2, kAutomap = 4, kMessages = 5, kQuests = 6, kMenu = 7 };
+    enum Button { kCharacter = 0, kInventory = 1, kSkills = 2, kParty = 3, kAutomap = 4, kMessages = 5, kQuests = 6, kMenu = 7 };
     bool open = true;                      // FUN_004567f0 opens it with the game
-    std::array<bool, 7> down{};            // a button held
+    bool party = false;                    // the wide bar with Party (mini_panel.hpp, FUN_0047f0c0): a joined game
+    std::array<bool, 8> down{};            // a button held
     bool button_down = false;              // the HUD's menu button held (0x7befd0)
     // A press / release on it (left / right: panels open on that side);
     // true if it took the click; `action` the button let go on, else -1.

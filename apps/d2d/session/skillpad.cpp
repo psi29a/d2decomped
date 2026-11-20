@@ -340,15 +340,12 @@ auto ClientSession::drive_strip(const pad::Actions& actions) -> void {
         case 3: automap.open = !automap.open; break;
         case 4: toggle_quest_log(); break;
         case 5:
-            if (net_game || coop_hud_hidden()) {
-                party.open = !party.open;
-                if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
-            }
+            if (net_game || coop_hud_hidden()) toggle_party();
             break;
         case 6:
             if (character.expansion && view.merc_sheet) {
                 hireling.open = !hireling.open;
-                if (hireling.open) char_open = stash_open = cube_open = quest_log.open = false;
+                if (hireling.open) char_open = stash_open = cube_open = quest_log.open = party.open = false;
             }
             break;
         case 7: toggle_help(); break;

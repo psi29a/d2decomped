@@ -207,10 +207,10 @@ struct Scene : GameData {
     d2d::dc6::Sprite you_died, you_died_inst;          // UI\ENG\youdiedhardcore, youdiedinst (FUN_00453100)
     // The game menu and the mini-panel (docs/research/re/menu.md): the menus'
     // text images by name (UI\ENG\<name>), the slider (Widgets\OptBar,
-    // OptBarC, OptSkull), CURSOR\pentspin, PANEL\menubutton, minipanel_s
-    // and minipanelbtn.
+    // OptBarC, OptSkull), CURSOR\pentspin, PANEL\menubutton, minipanel_s,
+    // minipanel (the wide bar of a multiplayer game) and minipanelbtn.
     std::unordered_map<std::string, d2d::dc6::Sprite> menu_text;
-    d2d::dc6::Sprite pentspin, opt_bar, opt_bar_c, opt_skull, menu_button, minipanel, minipanel_btn;
+    d2d::dc6::Sprite pentspin, opt_bar, opt_bar_c, opt_skull, menu_button, minipanel, minipanel_wide, minipanel_btn;
     d2d::dc6::Sprite boxpieces, textslid;   // UI\menu\boxpieces (a menu box's frame, FUN_00452e50), textslid (a scroll bar)
     d2d::dc6::Sprite help_border, help_white_bullet, help_yellow_bullet;   // the Help screen: UI\Menu\800helpborder, helpwhitebullet, helpyellowbullet
     d2d::dc6::Sprite scroll, scroll_symbols, scroll_glow;   // the Scroll of Inifuss read: UI\MENU\scroin, scroin2 (the stones' symbols), scroin3 (their glow)
