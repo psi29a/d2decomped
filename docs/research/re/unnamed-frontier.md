@@ -133,6 +133,7 @@ A caller list gives the count and the callers d2d ports.
 | `FUN_004b2250` | `npc_menu_strings_init` | (From its data:) fills the NPC menu entries at `0x726cc1..0x726e4f`. Only caller `FUN_004b6dd0` | not compared |
 | `FUN_004b23e0` | `npc_ui_init` | Clears the NPC UI state (`0x7c0c68`, 0x160 bytes), two lists (`FUN_0065c430`), loads `ui\panel\buysell` and `ui\menu\goldbtn`. Callers `FUN_00456970`, `FUN_004b32f0` | not compared |
 | `FUN_004b24a0` | `npc_ui_end` | (From its calls and data:) closes the NPC menus (`FUN_004b8020`), frees the lists (`FUN_0065c490`) and DC6s. Only caller `FUN_00456d80` | no counterpart (as `gamemenu_cels_free`) |
+| `FUN_004b25c0` | `npc_quest_special_3` | Fastcall S->C 0x50 packet (null: the fatal report, line 0xfc6). Acts only on subtype 3 (the u16 at +1), while an NPC is being talked to (`DAT_007c0d29`) and its unit (id `DAT_007c0d25`, type 1, `FUN_00463990`) still exists: `0x7c0d39` = 1 and the u16 at `0x7c0d3d` = 3. Nothing reads either address directly (both are inside the NPC UI state at `0x7c0c68`). Only caller `FUN_004b9210`, for subtypes 3 and 6; on 6 it does nothing | not compared |
 | `FUN_004bc480` | `spinner_ctor` | `SpinnerWrapper`: a 0x54-byte spinner (`FUN_004bc340`) with the four arguments at `+8`. Only caller `FUN_00454150` | not compared |
 | `FUN_004bdfd0` | `rec_14_plus_28` | Fastcall: `*(arg + 0x14) + 0x28`. Only caller `FUN_00454f30` | not compared |
 | `FUN_004be060` | `ui_cel_free_7c546c` | Frees the DC6 `0x7c546c`. Only caller `FUN_00456d80` | no counterpart (as `gamemenu_cels_free`) |
