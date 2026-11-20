@@ -129,6 +129,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             const int taken = golem_item_at(x, y);
             if (taken < 0) return;
             golem_item = loot.ground[std::size_t(taken)].item;
+            x = loot.ground[std::size_t(taken)].x; y = loot.ground[std::size_t(taken)].y;   // on the item: FUN_0045adf0 / FUN_0045ae20 of it (0x5c535e..0x5c536f)
             loot.ground.erase(loot.ground.begin() + taken);
         }
         // Bone Wall (do 60, FUN_005c58b0): one on the point, then its two
