@@ -866,6 +866,15 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
             auto& life = actor->character.stats.values[kLife];
+            // FUN_0057c6c0 takes the records off one at a time, so the killer (FUN_0054d8a0's) is the striker of the
+            // record that took the life under one point (0x57c865), not the frame's last; the blows are in landing order.
+            if (life - ((std::int64_t(foe.damage) << 8) + fine) < 0x100) {
+                std::int64_t left = life;
+                for (const auto& blow : foe.blows) {
+                    left -= (std::int64_t(blow.damage) << 8) + blow.frac;
+                    if (left < 0x100) { if (blow.striker >= 0) actor->struck_by = { 1, blow.striker }; break; }
+                }
+            }
             life -= (std::int64_t(foe.damage) << 8) + fine;
             if (life < 0x100) life = 0;                     // under one whole point is dead (FUN_0057c6c0, 0057c865)
             if (life <= 0) { die(now_ms); died = true; }
@@ -947,6 +956,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                     const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
+                    foe.blows.back().striker = aura_monster.id;
                     foe.striker_id = aura_monster.id;
                 }
         }

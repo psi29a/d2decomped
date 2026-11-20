@@ -5,17 +5,21 @@
 // NameStr, a SuperUnique's name, "an Exploding Barrel" (0xc98) for object
 // 0xb, another object's Objects.txt Name; none, no message. A blow carries
 // its striker to Foe::striker_id, and the player's death keeps the last one as the
-// killer (Fight::die). Needs the game data.
+// killer (Fight::die). With two strikers in a frame the killer is the one whose
+// record took the life under one point (FUN_0057c6c0, one record at a time), not
+// the last. Needs the game data.
 
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -73,6 +77,20 @@ int main() try {
     world.actor->struck_by = { 1, foe.striker_id };
     world.fight.die(0);
     assert(world.actor->killer.kind == 1 && world.actor->killer.id == 4242 && world.actor->struck_by.kind == -1);
+    // Two strikers in one frame: Fallen's blow takes the last 10 points, Bishibosh's lands after it.
+    world.enter(character);
+    world.actor->character.stats.values[d2d::d2s::kLife] = 10 << 8;
+    std::array<Foe, 2> side{};
+    d2d::rules::Taken lethal;
+    lethal.hit = true;
+    lethal.damage = 12;
+    side[0].take(lethal, 4242);
+    d2d::rules::Taken after = lethal;
+    after.damage = 3;
+    side[0].take(after, 4243);
+    assert(side[0].striker_id == 4243);                              // the frame's last blow
+    world.fight.hurt_side(side, 1000);
+    assert(world.fight.dead() && world.actor->killer.kind == 1 && world.actor->killer.id == 4242);
     std::printf("slain message: ok\n");
     return 0;
 } catch (const std::exception& error) {
