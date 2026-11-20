@@ -325,7 +325,7 @@ struct Fight {
         struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
         struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
         struct Pet {
-            Monster monster; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;
+            Monster monster; int skill = 0, level = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;   // level: its skill's at the cast
             // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
             // missile it shoots (the skeletal mage's, the hydra's), an aura it
             // runs (Fire Golem's Holy Fire, the totems').
@@ -1279,16 +1279,20 @@ struct Fight {
     // The unraised corpse within 2 cells of (x, y) nearest it, or -1.
     [[nodiscard]] int corpse_near(float x, float y) const;
     // The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
-    // as its MonStats row at the row's level, then set to level min(clvl,
-    // clvl x 3 / 4 + bonus) — bonus calc2 for the Druid's (do 114 / 119),
-    // else 0 — with MonLvl's own defense and attack rating at it (stats 31
-    // / 19), life + calc1 %.
+    // as its MonStats row at the row's level, then set to its level
+    // (rules::summon_level: Raven's and the Druid's forced to max(calc2, 1),
+    // else min(max(clvl x 3 / 4 + the skill level, 1), clvl) for Raise, the
+    // golems, the Decoy, the Valkyrie and the traps), with MonLvl's defense
+    // and attack rating at it added (stats 31 / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
     // The skill's passive stats, aurastats and sumskills land on it as
     // summons.cpp has them (FUN_005c4470; the masteries come in that way),
     // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
     // Iron Golem wears the metal item it's cast at (golem_item_at).
-    // ponytail: Blood Golem's life link isn't built.
+    // Blood Golem's life steal is pet_strike's (rules::blood_golem_steal); its
+    // damaged events (func 26, FUN_005c6690) pass Param5 % of a hit on it to
+    // the owner, the skill being its MonStats +0x170 one (BloodGolem): 0 in
+    // 1.14d's Skills.txt, so nothing.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;

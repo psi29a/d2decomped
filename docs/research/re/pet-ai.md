@@ -521,6 +521,23 @@ the level the owner's (`tools/emu/revive_life.py` against
 (`test_summon_stats --summon-stats`). d2d: `Fight::summon_one`, which adds
 the MonEquip gear's stats before the life (a ponytail there).
 
+Blood Golem's events (its Skills.txt auraevent1..3, hooked on the golem by
+FUN_0056e740 from the table at 0x7325b0): **domeleedamage, func 23**
+(FUN_005c6530) as its melee hit lands, before the struck unit's life goes
+down (FUN_0057c6c0 event 5, 0x57c7e3): only off an evil unit (FUN_006259b0
+0); the hit's physical (+8) through MulDiv by a monster's Drain at the
+difficulty unless it is 100 (none at 0), held to the struck unit's life; the
+life MulDiv(that, dm(Param1, Param2) at the skill's level, 100) (FUN_00645b70
+-> FUN_00645b20); Param3 % of it to the owner first (FUN_004efc50), the rest
+to the golem, the owner what the golem has no room for (FUN_005c5f10, each up
+to its max). None when the owner or the golem is dying. **damagedinmelee /
+damagedbymissile, func 26** (FUN_005c6690): Param5 % (FUN_004e6c70) of the
+hit's total (+0x4c) off the owner (held at a point) and off the hit, of the
+skill at the golem's MonStats +0x170 (row 290, bloodgolem: skill 85,
+BloodGolem, Param5 0 in 1.14d), so nothing. `tools/emu/blood_golem.py` runs
+func 23 against `rules::blood_golem_steal` (`test_blood_golem
+--blood-golem`); d2d: `Fight::pet_strike`.
+
 Summon Resist then goes on a raised skeleton or mage (Raise's do
 FUN_005c4b00 at 0x5c4c97) and a golem (FUN_005c50c0), not on a Revive or the
 other classes' summons: FUN_005c40d0(owner, pet) reads the owner's stat 0x15d

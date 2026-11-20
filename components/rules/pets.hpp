@@ -262,6 +262,46 @@ inline int run_percent(int walk_velocity, int run_velocity) {
     return walk_velocity > 0 ? run_velocity * 100 / walk_velocity - 100 : 0;
 }
 
+// Blood Golem's life steal (domeleedamage, aura event func 23, FUN_005c6530):
+// FUN_0057c6c0 raises it on the golem as its melee hit lands (0x57c7e3),
+// before the struck unit's life goes down. Only off an evil unit
+// (FUN_006259b0 0). The hit's physical (+8, 256ths) becomes MulDiv(it,
+// Drain, 100) on a monster whose Drain at the difficulty isn't 100 (none at
+// 0), held to the struck unit's life (stat 6); the life = MulDiv(that,
+// steal %, 100) (FUN_00483360), the % dm(Param1, Param2) at the skill's level
+// (FUN_00645b70: none at 0). The owner takes Param3 % of it first
+// (FUN_004efc50), the golem the rest, the owner what the golem has no room
+// for; each heal stops at the unit's max (FUN_005c5f10). 256ths.
+struct GolemSteal { int owner_life = 0, golem_life = 0; };
+inline int heal_to_max(int& life, int max_life, int amount) {   // FUN_005c5f10: what it took
+    if (amount <= 0) return 0;
+    int healed = int(std::uint32_t(life) + std::uint32_t(amount));
+    if (healed > max_life) { amount += max_life - healed; healed = max_life; }
+    life = healed;
+    return amount;
+}
+inline GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
+                                    bool owner, GolemSteal lives, int owner_max, int golem_max) {
+    if ((monster && (drain & 0xff) == 0) || !evil) return lives;
+    int amount = monster && (drain & 0xff) != 100 ? mul_div(phys_fine, drain & 0xff, 100) : phys_fine;
+    if (amount >= target_life) amount = target_life;
+    if (steal_pct <= 0) return lives;
+    int heal = mul_div(amount, steal_pct, 100);
+    if (heal <= 0) return lives;
+    if (owner && owner_pct > 0) heal -= heal_to_max(lives.owner_life, owner_max, mul_div(heal, owner_pct, 100));
+    heal -= heal_to_max(lives.golem_life, golem_max, heal);
+    if (owner && heal > 0) heal_to_max(lives.owner_life, owner_max, heal);
+    return lives;
+}
+
+// Iron Golem's target (its srvstfunc 20, FUN_005c32a0): an item (unit type 4)
+// on the ground (mode 3) of a metal base (Items bitfield1 & 2, FUN_00629cc0),
+// identified (item flags & 0x10, FUN_006280a0) and that nothing holds
+// (FUN_00625820). Else no golem.
+[[nodiscard]] constexpr bool iron_golem_takes(int type, int mode, int bitfield1, std::uint32_t flags, bool held) noexcept {
+    return type == 4 && mode == 3 && (bitfield1 & 2) != 0 && (flags & 0x10) != 0 && !held;
+}
+
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).
 // Bone Wall's makers (FUN_005c58b0, do 60), in subtiles: none in a town or when calc2 / 2 (C division) is 1 or less; else two

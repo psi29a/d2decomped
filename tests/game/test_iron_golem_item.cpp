@@ -82,9 +82,10 @@ int main() try {
     loot.ground.back().item.sockets = 1;
     loot.ground.back().item.socketed_items.push_back(jewel);
     assert(fight.golem_item_at(14.1f, 14.1f) == 1);
-    fight.summon(skill, 1, 14.1f, 14.1f, 2000);
+    fight.summon(skill, 1, 14.6f, 14.3f, 2000);                     // a cast beside it, on another subtile
     assert(hero.pets.size() == 1 && loot.ground.size() == 1 && loot.ground[0].id == 1);   // the axe left the floor
     const auto& golem = hero.pets.front().monster;
+    assert(golem.unit.x == 14.1f && golem.unit.y == 14.1f);          // made on the axe (FUN_005c5250)
     assert(golem.stats.a1_min == 5 + 4 && golem.stats.a1_max == 10 + 11 + 3 + 2);   // a one-hand weapon's damage, its max damage and the jewel's
     assert(golem.max_life_fine() == 120 * 256);                      // 100 life, the axe's 20 % (calc1 none)
     assert(!fight.golem_item);
