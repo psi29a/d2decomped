@@ -55,8 +55,18 @@ draw (`FUN_004dea70`, after the walls and units) skips only tiles flagged 0x400 
 On screen, walls (upper and lower) stand 16 px higher than a floor's
 frame would put them: measured live against game.exe in Lut Gholein
 (floors, raised roofs, units and walls each on game.exe's pixels), not
-traced to the entry y (`FUN_0066dc50`); lower walls follow the upper
-ones untested.
+traced to the entry y (`FUN_0066dc50`).
+
+Upper and lower walls share one origin. `FUN_0066dc50` gives every wall
+tile one x, y (the cell's point at (x, y + 1), y + 0x28), and the lower
+walls' draw (`FUN_004dedf0`) passes it to the same `FUN_004f6920` as the
+upper walls' (`FUN_004df1c0`), which adds each block's signed y (dt1.md).
+A lower wall's blocks start above that origin (Sanctuary.dt1's at y −64),
+so its packed buffer goes up by its y_shift as an upper wall's does. In
+all 4,454 upper walls of the DT1s LvlTypes.txt names, y_shift = |height| −
+32, so d2d's one rule (`wall_screen_y`) keeps them where they were
+measured; the lower walls moved 32 px up, closing the gap under the
+Arcane Sanctuary's walkways (2026-11-19; tests/test_wall_origin.cpp).
 
 d2d cuts a see-through circle in roofs round the player by default
 (deviations.md improvement 4; `--toggle trans_roof=off` for game.exe's).

@@ -12,9 +12,11 @@
 #include <combat.hpp>
 #include <dc6.hpp>
 #include <dt1.hpp>
+#include <level_ids.hpp>
 #include <overlays.hpp>
 #include <palette.hpp>
 #include <room_tiles.hpp>
+#include <stars.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -23,6 +25,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <span>
 #include <thread>
 #include <unordered_map>
@@ -171,13 +174,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
         const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
-        // A wall's block y counts from the cell's bottom corner (iso_y + 80):
-        // upper walls rise above it, lower walls (16..19: Act 5's cliffs) hang below.
-        // Walls sit 16 px higher than a floor's frame would put them
-        // (measured live against game.exe in Lut Gholein: floors, roofs,
-        // units and walls each on game.exe's pixels; not traced).
-        const int wall_lift = layer == 0 ? 16 : 0;
-        const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
+        // Walls: one origin for upper and lower walls (16..19: the Arcane
+        // Sanctuary's walkway sides, Act 5's cliffs), wall_screen_y. Every
+        // upper wall of LvlTypes' DT1s (4,454) has y_shift = |height| - 32,
+        // so they stay where they were measured.
+        const int screen_y = layer == 0 ? wall_screen_y(iso_y, tile) : iso_y - (tile_height - kIsoH);
         const bool drawn = layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile);
         if (drawn) g_drawn.cells.push_back({ cell_x, cell_y, source });
         if (layer == 1) { floors.push_back({ &tile, screen_x, screen_y, cell_x, cell_y }); return drawn; }   // drawn after the sweep, below
@@ -272,6 +273,25 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     };
 
     const auto& upal_splash = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    // The Arcane Sanctuary's stars (FUN_00476290, from the world draw
+    // FUN_00476bc0 in level 74, before the lower walls): each a point in its
+    // palette index (the driver's line, FUN_004f6380, from (x, y) to itself),
+    // then the drift. Made once a run, on the screen's size then.
+    // ponytail: not traced whether a side panel moves them (the driver's view offset).
+    if (level.id == d2d::rules::level_ids::kArcaneSanctuary) {
+        static d2d::rules::Stars stars;
+        const int screen_h = int(framebuffer.size() / 4) / std::max(screen_w, 1);
+        if (!stars.made)
+            stars.make(std::uint32_t(std::time(nullptr)) + elapsed_ms, screen_w, screen_h,   // game.exe: time() and the clock mixed (FUN_00650de0)
+                       [&](int red, int green, int blue) { return upal_splash.nearest(red, green, blue); });
+        for (const auto& star : stars.stars) {
+            if (star.x < 0 || star.y < 0 || star.x >= screen_w || star.y >= screen_h) continue;
+            const auto colour = upal_splash[star.colour];
+            auto* pixel = framebuffer.data() + (std::size_t(star.y) * std::size_t(screen_w) + std::size_t(star.x)) * 4;
+            pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
+        }
+        stars.step(elapsed_ms, screen_w, screen_h);
+    }
     // Lower walls (16..19: cliff faces hanging below their cell) go first,
     // under every floor (FUN_004df480 before the floors' FUN_004ded10).
     for (int dy = -kReach; dy <= kReach; ++dy)
