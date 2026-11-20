@@ -334,10 +334,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             if (fires(keys::kMessageLog)) message_log = !message_log;
             if (fires(keys::kHelp)) toggle_help();
             // 0x468960: UI 0x16, in a multiplayer game only (FUN_0044db30), local co-op's too; a left-hand panel.
-            if (fires(keys::kParty) && (net_game || coop_hud_hidden())) {
-                party.open = !party.open;
-                if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
-            }
+            if (fires(keys::kParty) && (net_game || coop_hud_hidden())) toggle_party();
             // 0x469170: UI 0x24, an expansion game with a merc; a left-hand panel.
             if (fires(keys::kHireling) && character.expansion && view.merc_sheet) {
                 hireling.open = !hireling.open;
@@ -422,6 +419,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
         // The game menu takes every click while it's up; Exit saves and goes
         // to the roster. Its volumes go to d2d.cfg.
         bool hud_click = false;
+        mini.party = net_game != nullptr;                // a joined game (game type 9): the wide mini-panel with Party (FUN_0047f0c0)
         if (game_menu.open) {
             const auto action = game_menu.input(*scene, audio, mouse, keys_this_frame, frame_ms);
             if (game_menu.volume_changed && !cfg_file.empty()
@@ -456,6 +454,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             if (action == MiniPanel::kCharacter) toggle_character();
             if (action == MiniPanel::kInventory) toggle_inventory();
             if (action == MiniPanel::kSkills) toggle_skill_tree();
+            if (action == MiniPanel::kParty) toggle_party();
             if (action == MiniPanel::kAutomap) automap.open = !automap.open;
             if (action == MiniPanel::kMessages) mini_panel::messages(belt_open, message_log);
             if (action == MiniPanel::kQuests) toggle_quest_log();

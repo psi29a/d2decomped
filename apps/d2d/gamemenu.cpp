@@ -4,6 +4,7 @@
 
 #include "audio.hpp"
 #include "common.hpp"
+#include "mini_panel.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
@@ -371,11 +372,6 @@ void GameMenu::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) 
 
 namespace {
 
-constexpr std::array<int, 7> kMiniActions = { 0, 1, 2, 4, 5, 6, 7 };   // single player: no party (3)
-
-// The first button's x (FUN_0047e8b0): centred, or beside the panels open.
-int mini_x0(bool left, bool right) { return right ? kWidth / 2 - 0xca : left ? kWidth / 2 + 0x39 : kWidth / 2 - 0x4a; }
-
 bool on_menu_button(int mouse_x, int mouse_y) {           // FUN_00497780
     return mouse_x >= kWidth / 2 - 8 && mouse_x <= kWidth / 2 + 5 && mouse_y >= kHeight - 0x27 && mouse_y <= kHeight - 0xd;
 }
@@ -400,18 +396,19 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
     if (!open || (left && right)) { down.fill(false); return took; }   // both sides open: hidden (0x7bc970)
     const int centre = kWidth / 2 + (right ? -0x76 : 0) + (left ? 0x77 : 0);
     const bool in_box = mouse.x > centre - 0x54 && mouse.x < centre + 0x59 && mouse.y > kHeight - 0x45 && mouse.y < kHeight - 0x2f;
-    const int buttons_x = mini_x0(left, right);
+    const auto actions = mini_panel::buttons(party);
+    const int buttons_x = mini_panel::first_button_x(kWidth, left, right, party);
     if (mouse.press_this_frame && in_box) {                // FUN_0047ef30
-        for (std::size_t i = 0; i < down.size(); ++i) {
+        for (std::size_t i = 0; i < actions.size(); ++i) {
             const int button_x = buttons_x + 0x15 * int(i);
             if (mouse.x > button_x && mouse.x < button_x + 0x14) { down[i] = true; audio.play_sfx(scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         }
         took = true;
     }
     if (mouse.release_this_frame && std::ranges::any_of(down, [](bool held) { return held; })) {   // FUN_0047ed90
-        for (std::size_t i = 0; i < down.size(); ++i) {
+        for (std::size_t i = 0; i < actions.size(); ++i) {
             const int button_x = buttons_x + 0x15 * int(i);
-            if (in_box && mouse.x > button_x && mouse.x < button_x + 0x14) action = kMiniActions[i];
+            if (in_box && mouse.x > button_x && mouse.x < button_x + 0x14) action = actions[i];
         }
         down.fill(false);
         took = true;
@@ -423,19 +420,20 @@ int MiniPanel::hovered(bool left, bool right, int mouse_x, int mouse_y, int& but
     if (!open || (left && right)) return -1;
     const int centre = kWidth / 2 + (right ? -0x76 : 0) + (left ? 0x77 : 0);
     if (!(mouse_x > centre - 0x54 && mouse_x < centre + 0x59 && mouse_y > kHeight - 0x45 && mouse_y < kHeight - 0x2f)) return -1;
-    for (std::size_t i = 0; i < kMiniActions.size(); ++i)
-        if (const int x = mini_x0(left, right) + 0x15 * int(i); mouse_x > x && mouse_x < x + 0x14) { button_x = x; return kMiniActions[i]; }
+    const auto actions = mini_panel::buttons(party);
+    for (std::size_t i = 0; i < actions.size(); ++i)
+        if (const int x = mini_panel::first_button_x(kWidth, left, right, party) + 0x15 * int(i); mouse_x > x && mouse_x < x + 0x14) { button_x = x; return actions[i]; }
     return -1;
 }
 
 void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y, bool show_strip) const {
     const bool contents = open && show_strip && !(left && right);   // FUN_0047f710. The pad hides the strip; open is kept.
     if (contents) {
-        const int panel_x = right ? kWidth / 2 - 0xcd : left ? kWidth / 2 + 0x38 - 2 : kWidth / 2 - 0x4a - 3;
-        cel(framebuffer, scene, scene.minipanel, 0, panel_x, kHeight - 0x2f, false);
-        const int buttons_x = mini_x0(left, right);
-        for (std::size_t i = 0; i < kMiniActions.size(); ++i)
-            cel(framebuffer, scene, scene.minipanel_btn, 2 * kMiniActions[i] + (down[i] ? 1 : 0), buttons_x + 0x15 * int(i), kHeight - 0x32, false);
+        cel(framebuffer, scene, party ? scene.minipanel_wide : scene.minipanel, 0, mini_panel::bar_x(kWidth, left, right, party), mini_panel::bar_y(kHeight), false);
+        const auto actions = mini_panel::buttons(party);
+        const int buttons_x = mini_panel::first_button_x(kWidth, left, right, party);
+        for (std::size_t i = 0; i < actions.size(); ++i)
+            cel(framebuffer, scene, scene.minipanel_btn, 2 * actions[i] + (down[i] ? 1 : 0), buttons_x + 0x15 * int(i), mini_panel::button_y(kHeight), false);
     }
     // FUN_004977c0: frames 0 / 1 closed, 2 / 3 open, the odd one held down.
     const int frame = (contents ? 2 : 0) + (button_down && on_menu_button(mouse_x, mouse_y) ? 1 : 0);

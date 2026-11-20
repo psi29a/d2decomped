@@ -245,6 +245,11 @@ auto ClientSession::toggle_character() -> void {
         if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false;
     }
 
+auto ClientSession::toggle_party() -> void {
+        party.open = !party.open;
+        if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
+    }
+
 auto ClientSession::toggle_skill_tree() -> void {
         if (d2d::client::panel_key_refused(d2d::client::kUiSkillTree, stash_open, cube_open, store.npc >= 0)) return;
         tree_open = !tree_open;
