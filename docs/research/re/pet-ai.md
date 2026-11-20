@@ -547,6 +547,45 @@ pet's fire absorb percent (0x8e) is above 0, lightning (0x29) unless 0x90 is,
 cold (0x2b) unless 0x94 is, and poison (0x2d). `tools/emu/summon_resist.py`
 runs it against `rules::summon_resist` (`test_summon_stats --summon-resist`).
 
+## A raised skeleton's or mage's look (FUN_005c4430)
+
+Raise's do FUN_005c4b00 calls FUN_005c4430 at 0x5c4c7a, after the level
+(FUN_005c49e0) and before the gear (`d2d_mon_equip_summon_gear_level`):
+ECX the owner, EDX the pet, the skill id and the skill level on the stack
+(`ret 8`; read in the disassembly of both). By the pet's class (unit +4;
+a null pet counts as -1):
+
+- 0x16b (363, a raised skeleton): FUN_005c4300, ECX the owner, EAX the
+  skill id; the pet and the skill level on the stack. The variant index
+  is 1, or, when the owner is in state 0x61, what FUN_00625d00 reads of
+  stat 0x15f in that state's list (0x15e is read too and dropped). At a
+  skill level above 2 it steps the owner's seed (+0x20) and rolls
+  `seed % 100 < Param1` (the skill's row, +0x148); level 1 or 2 rolls
+  nothing and passes 0. Then `d2d_pet_variant` (FUN_005c4180) with ECX the
+  pet, EAX the index, the roll, and 0.
+- 0x16c (364, a raised mage): FUN_005c43d0, EAX the owner, the pet on the
+  stack: the same index, then `d2d_pet_variant` with the roll 0 and 1, the
+  call that rolls the mage's element (fight.hpp `pet_missile`).
+- Any other class: nothing.
+
+`d2d_pet_variant` copies the index's 9-byte row of 0x741940 (clamped to
+10) into the pet's monster data (+4..+8, +0xc, +0xd); the roll copies one
+more byte to +0xb; a 0 last argument one more to +9, and 1 steps the
+owner's seed into +0xf / +0x10 instead. Rows 0 and 1 of 0x741940 are all
+zero; row 2 is 0, 1, 0, 0, 0, 0, 0, 0, 1 (read from game.exe's bytes,
+`tools/emu`). What the monster-data bytes draw (which component), state
+0x61 and stats 0x15e / 0x15f were not followed.
+
+d2d (`Fight::summon_one`) rolls `rng(4)` for every pet's variant and
+uses it only for a mage's missile (deviations.md approximation 18); it
+has no state 0x61 index and doesn't make a skeleton's Param1 roll, which
+steps the owner's seed in game.exe at a skill level above 2. Not
+compared: the look bytes, until what they draw is traced.
+
+Re-check: `python3 tools/ghidra/fn.py 005c4430 005c4300 005c43d0 005c4180`,
+`uv run --project tools/emu python tools/emu/disasm.py 5c4430` (and
+`5c4300`, `5c4b00` round 0x5c4c7a).
+
 ## The owner's pet lists (PlayerPets.cpp)
 
 Traced from the decompile only (cited, no oracle): the decompiler drops

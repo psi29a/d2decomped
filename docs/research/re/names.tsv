@@ -1465,6 +1465,7 @@ address	name	evidence
 005c31f0	unit_can_be_raised	A unit not a pet, with FUN_0056e2f0, no FUN_005541b0, in a room without FUN_0061ab00, and FUN_00554200. Callers FUN_005c3bcc and one more (unnamed-frontier.md)
 005c3de0	confuse_unit	per-unit Confuse: FUN_005c3d50 test, d2d_states_put_state, descriptor stats set, alignment 1 (FUN_005543b0), list 9, kind 3, event 10; monster-ai.md "Confuse and Attract"
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
+005c4430	raise_pet_look	ECX owner, EDX pet; skill id, level: class 363 -> FUN_005c4300, 364 -> FUN_005c43d0 (pet-ai.md)
 005c5f10	heal_unit_life	EAX amount (256ths), EBX unit: 0 when amount < 1, else stat 6 += amount capped at d2d_unit_max_life, returns the amount that fitted (skills.md "Iron Maiden's function"; cited)
 005c5f50	aura_event_iron_maiden	aura event function 4 (table 0x7325b0 slot 0x7325c0), ECX game, 5 stack args (wearer, struck, hit, skill, level): hits the wearer calc1 / 2 / 3 % of the hit's damage (skills.md "Iron Maiden's function"; cited)
 005c6cc0	skill_aurastats_apply	fastcall (unit ECX, stat list EDX; stack row or 0, id, level): per aurastat slot (row +0x54 / +0x68) a nonzero FUN_00646ca0 value added with FUN_006270b0, stat 0x44 also sets 0x45; then FUN_00623f50; missiles.md; skills_combat_helpers.py
