@@ -537,6 +537,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             npc_menu = {}; store = {}; speech = {}; waypoint = {}; use_item = {}; menu_after_speech = -1;
             cairn_flash.reset();
             shake = {}; quest_quakes.clear(); audio.stop_quake();
+            spark_trail.clear();                                  // the trails were the last level's
             level_ms = frame_ms;                                  // its song comes in 3 s later
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));   // the host's 0x15 for the warp
             d2d::rules::automap_pause(automap_reveal.step);

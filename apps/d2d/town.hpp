@@ -34,6 +34,7 @@
 #include "world_view.hpp"
 
 #include <ambient_dip.hpp>
+#include <client_sparks.hpp>
 #include <d2s_items.hpp>
 #include <lan.hpp>
 #include <light.hpp>
@@ -807,6 +808,9 @@ struct Town {
     d2d::rules::AmbientDip dip;
     void dip_tick();
     void den_tick(std::uint32_t frame_ms);
+    // The lightning's trails (client do 8, d2d::game::SparkTrail): drawn and
+    // lit with the client's other missiles, never told to the host.
+    d2d::game::SparkTrail spark_trail;
     // The client's critters (docs/research/re/critters.md): the level's
     // Levels.txt cmon / cpct / camt, made per room on its seed as the room
     // comes up (FUN_0046c460 / FUN_0046c1a0), thinking a client frame at a

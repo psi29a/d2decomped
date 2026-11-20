@@ -472,7 +472,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 const std::uint32_t per_256 = unit.missile_rate > 0 ? std::uint32_t(unit.missile_rate) : std::uint32_t(unit.missile->anim_speed) * 16u;
                 const auto frame = (elapsed_ms - unit.mode_ms) * per_256 / (40u * 256u)
                                    % std::min<std::uint32_t>(std::uint32_t(unit.missile->anim_len), fpd);
-                if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y, unit.missile->trans))
+                if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y + unit.missile_z, unit.missile->trans))
                     Scene::note_drawn("missiles", unit.missile->cel_file);
                 continue;
             }

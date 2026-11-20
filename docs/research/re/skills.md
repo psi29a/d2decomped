@@ -1322,8 +1322,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   at the next (FUN_0056bd10) per call, calc2 as its damage % (0x5db6a0).
 - **Do 26** (FUN_005ca1b0, Chain Lightning): srvmissilea with calc1 hops
   (FUN_0064a710). Hit **12** (FUN_005aa730): with hops > 1, a new one from
-  the hit point at another unit within sHitPar1 (else aurarange) subtiles,
-  filter 0x88583, not the one just hit, a hop fewer.
+  the hit point at another unit within sHitPar1 (else aurarange, at least
+  1: 0x5aa7f0) subtiles, filter 0x88583, not the one just hit, a hop fewer.
+  The new one (FUN_0059fa30, flags 0x21) starts at the missile's x / y
+  (ESI, 0x5aa7a3) and is aimed at the picked unit's (EDI, 0x5aa855:
+  request +0x1c / +0x20). d2d: `Fight::skill_missile_hits` sets its
+  `Missile::to`; `tests/game/test_chain_lightning_hop.cpp`.
 - **Missile do 14** (FUN_005aef70, Grim Ward's grimwardsmall / medium /
   large): every Param1 frames (6; FUN_0064a3b0 the missile's age) it runs
   skill srvdofunc Param2 (30, the curse; FUN_0056d810 -> 0x7322b0) at the

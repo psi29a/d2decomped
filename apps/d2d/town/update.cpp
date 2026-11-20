@@ -830,6 +830,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool flashed = false;
         for (; frame_ms - rain_ms >= 40; rain_ms += 40) {
             den_tick(frame_ms);
+            spark_trail.tick(view.missiles, rain_ms + 40);
             dip_tick();
             critter_tick(frame_ms);
             // The weather keeps to the unshifted view (0x7a520c); its draw moves it by the panel's quarter.
