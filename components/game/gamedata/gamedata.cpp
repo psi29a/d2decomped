@@ -43,6 +43,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -471,10 +472,15 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     std::vector<const Level*> moved;
     std::vector<std::pair<const Level*, std::size_t>> batch_from;   // where this move's batch starts in client_order
     auto bring_up = [&](const Level* which, std::size_t index) {
-        auto& order = spawning.levels[which].order;
+        auto& state = spawning.levels[which];
+        if (state.live.size() != room_count(*which)) state.live.resize(room_count(*which));
+        if (state.idle_sweeps.size() != room_count(*which)) state.idle_sweeps.resize(room_count(*which));
+        if (index < state.live.size() && state.live[index]) return;
+        if (index < state.live.size()) { state.live[index] = true; state.idle_sweeps[index] = 0; }
+        auto& order = state.order;
         if (std::ranges::contains(order, index)) return;
         order.push_back(index);
-        auto& client = spawning.levels[which].client_order;
+        auto& client = state.client_order;
         auto from = std::ranges::find(batch_from, which, &std::pair<const Level*, std::size_t>::first);
         if (from == batch_from.end()) from = batch_from.insert(batch_from.end(), { which, client.size() });
         client.push_back(index);
@@ -496,14 +502,12 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     // play gets its room1 (FUN_0061b2d0), made at the head of the act's
     // room list; the next tick populates the list's new rooms from the
     // head (FUN_0052d160), newest first.
-    // ponytail: a room stays up for good. game.exe frees one ~5 s after no
-    // player holds it within depth 1 (FUN_0052d240) and remakes it on return:
-    // new room1 seed, edge tiles re-laid, units from storage (drlg.md "A
-    // room's life on the server").
+    // FUN_0052d240 may have released a populated room1. Its population bit
+    // stays set, so bring_up re-lays the room without rolling presets again.
     std::vector<NearRoom> fresh;
     for (const auto& near_room : near_list(game_data, level, room)) {
         auto& state = spawning.levels[near_room.level];
-        if (state.up.size() == room_count(*near_room.level) && state.up[std::size_t(near_room.room)]) continue;
+        if (state.live.size() == room_count(*near_room.level) && state.live[std::size_t(near_room.room)]) continue;
         if (std::ranges::any_of(fresh, [&](const NearRoom& other) { return other.level == near_room.level && other.room == near_room.room; })) continue;
         fresh.push_back(near_room);
     }
@@ -533,6 +537,45 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         note(it->level, from);
     }
     return grown;
+}
+
+std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameData& game_data, Spawning& spawning,
+                                                                    std::span<const RoomPosition> players) {
+    std::vector<std::pair<const Level*, std::size_t>> released;
+    if (++spawning.room_sweep_frame < 12) return released;
+    spawning.room_sweep_frame = 0;
+    std::vector<std::pair<const Level*, std::size_t>> held;
+    for (const auto& player : players) {
+        if (!player.level) continue;
+        const int room = room_holding(room_rects(*player.level), *player.level, player.cell_x, player.cell_y);
+        if (room < 0) continue;
+        for (const auto& near_room : near_list(game_data, *player.level, room)) {
+            const std::pair key{ near_room.level, std::size_t(near_room.room) };
+            if (!std::ranges::contains(held, key)) held.push_back(key);
+        }
+    }
+    std::vector<const Level*> changed_levels;
+    for (auto& [level, state] : spawning.levels) {
+        if (!level || state.live.empty()) continue;
+        bool changed = false;
+        for (std::size_t room = 0; room < state.live.size(); ++room) {
+            if (age_live_room(state, room, std::ranges::contains(held, std::pair{ level, room }))) {
+                released.push_back({ level, room });
+                changed = true;
+            }
+        }
+        if (changed) changed_levels.push_back(level);
+    }
+    // Lay each changed level once, after every retirement: a level's shared
+    // edge comes from its neighbours' current lay orders (camp_rooms), so it
+    // is laid again too when one of its nearby levels changed.
+    for (auto& [level, state] : spawning.levels) {
+        if (!level || state.live.empty()) continue;
+        const bool stale = std::ranges::contains(changed_levels, level) ||
+                           std::ranges::any_of(level->nearby, [&](const Level::Near& near_level) { return std::ranges::contains(changed_levels, near_level.level); });
+        if (stale) relevel(const_cast<Level&>(*level), state.order, &game_data, &spawning);
+    }
+    return released;
 }
 
 

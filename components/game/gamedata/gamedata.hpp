@@ -145,6 +145,13 @@ struct Npc {
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.
     mutable d2d::rules::Rng seed;
+    // The client unit's independent animation seed. FUN_00465fd0 draws its
+    // initial low word from room1 +0x6c/+0x70; d2d does not retain that
+    // client-room stream, so the first mode falls back to the object's spot.
+    mutable d2d::rules::Rng client_seed;
+    mutable int client_mode = -1;
+    mutable std::uint16_t client_frame_delta = 0;
+    mutable bool client_seeded = false;
     int room = -1;
     bool preoperated = false;            // a PreOperate object that starts opened (ON)
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
@@ -1067,6 +1074,11 @@ struct Spawning {
     struct LevelState {
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+        // Which populated rooms currently have a server room1. FUN_0052d240
+        // may drop one without clearing `up`: returning rebuilds its tiles,
+        // but the stored units, rather than the preset population, come back.
+        std::vector<bool> live;
+        std::vector<std::uint8_t> idle_sweeps;              // FUN_0061a790's room1 +0xc, saturated for d2d
         std::vector<std::size_t> order;                    // Level::rooms indices as they came up
         std::vector<std::size_t> client_order;             // the same, each batch in made order (Level::drawn)
         // The level's object placement as it stands (objgroups.cpp): objrgn's
@@ -1102,6 +1114,7 @@ struct Spawning {
     // The game's quest words (World::game_bits, a d2d::rules::QuestBits), as
     // the town markers' inits read them (FUN_00544760).
     std::array<std::uint8_t, 96> game_quests{};
+    std::uint8_t room_sweep_frame = 0;                      // FUN_0052d870 calls FUN_0052d240 every 12th frame
     // a3q5's record 0x13, its data +0xc: Khalim's Will done by a player at the
     // join (word 0x12 bit 0, FUN_005bb480): the compelling orb comes up broken.
     bool orb_smashed = false;
@@ -1120,6 +1133,25 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 // level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
+struct RoomPosition { const Level* level; float cell_x, cell_y; };
+// One FUN_0061a790 age step as FUN_0052d240 uses it. `up` deliberately is
+// not cleared: room2 keeps the populated bit while room1 is absent.
+inline bool age_live_room(Spawning::LevelState& state, std::size_t room, bool held) {
+    if (room >= state.live.size() || !state.live[room]) return false;
+    if (state.idle_sweeps.size() != state.live.size()) state.idle_sweeps.resize(state.live.size());
+    if (held) { state.idle_sweeps[room] = 0; return false; }
+    if (state.idle_sweeps[room] < UINT8_MAX) ++state.idle_sweeps[room];
+    if (state.idle_sweeps[room] <= 10) return false;
+    state.live[room] = false;
+    std::erase(state.order, room);
+    std::erase(state.client_order, room);
+    return true;
+}
+// FUN_0052d240: every twelfth server frame, age live room1s not held by a
+// player's depth-1 near set and release those older than ten sweeps. Returns
+// the rooms whose tiles were dropped; their population stays stored.
+std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameData& game_data, Spawning& spawning,
+                                                                    std::span<const RoomPosition> players);
 // Where a missile in the room holding (x, y) cells can be: that room's rect,
 // then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
 // +0 / +0x24). Empty when no room holds it. With `spawning`, a near room
@@ -1185,17 +1217,36 @@ int monster_mode(std::string_view token, int unknown = 14);
 // An object's frame rate in a mode (FUN_00624390, 0x624558): FrameDelta as
 // written with Sync, else less its 1/16 plus a roll under its 1/8 on the
 // unit's seed, kept within 0..0x7fff.
-// ponytail: one roll on a seed from the object's spot, the same each time the
-// mode comes (what's drawn and object_op_ticks agree); game.exe rolls at each mode
-// set on the client unit's seed ({its room's client seed step, 666},
-// FUN_00465fd0), whose room seed isn't kept.
 inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {
     if (sync) return delta;
     return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
 }
+// The same for a placed object: its client seed (its spot) steps once on
+// entering a mode, and the rate is kept until the mode changes.
 inline int object_frame_delta(const Npc& npc, std::size_t mode) {
-    const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
-    return object_frame_delta(npc.frame_delta[mode], npc.sync, d2d::rules::Rng{ spot });
+    if (npc.sync) return npc.frame_delta[mode];
+    if (!npc.client_seeded) {
+        const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
+        npc.client_seed = d2d::rules::Rng{ spot };
+        npc.client_seeded = true;
+    }
+    if (npc.client_mode != int(mode)) {
+        npc.client_mode = int(mode);
+        const int delta = npc.frame_delta[mode];
+        npc.client_frame_delta = std::uint16_t(std::clamp(npc.client_seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff));
+    }
+    return npc.client_frame_delta;
+}
+// The rate object_frame_delta(npc, mode) would give, without drawing: the
+// cached one while the unit is in that mode, else the roll its seed makes
+// next. A timing query (object_op_ticks) uses it so asking about a mode the
+// unit is not in neither changes the animation cache nor steps the seed.
+inline int object_frame_delta_peek(const Npc& npc, std::size_t mode) {
+    if (npc.sync) return npc.frame_delta[mode];
+    if (npc.client_seeded && npc.client_mode == int(mode)) return npc.client_frame_delta;
+    auto seed = npc.client_seeded ? npc.client_seed : d2d::rules::Rng{ std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5) };
+    const int delta = npc.frame_delta[mode];
+    return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
 }
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).

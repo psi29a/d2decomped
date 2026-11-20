@@ -668,8 +668,12 @@ counter; `World`'s operated objects go ON at the earlier applicable client
 counter or operate-function-specific server event (`object_op_ticks`, world/tick.cpp), with ON's footprint
 (one on a level with no player swaps its footprint at that time too: the
 server's event runs while its room is up, and d2d's rooms stay up); the drawn unit takes
-ON's selectable bit and light from its mode. Not ported: the rate's roll (no client unit seed), OrderFlag2
-and Parm7.
+ON's selectable bit and light from its mode. `Npc::client_seed` is separate
+from the server unit seed and advances once when the object's mode changes;
+the renderer and `object_op_ticks` cache and share that mode's roll. ponytail:
+the first low word is still seeded from the object's fixed spot because d2d
+does not retain the client room1 seed that `FUN_00465fd0` advances. Not
+ported: OrderFlag2 and Parm7.
 
 23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
 COF and AnimData 2 frames, DCC 1, FrameCnt0 1); FrameCnt keeps most of

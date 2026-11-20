@@ -1512,7 +1512,14 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
 
 d2d: a room comes up the first time a player's near list reaches it
 (`player_moved`). Its room1 seed is the first one, and it is populated
-once (`LevelState::up`). ponytail: no room is ever freed. game.exe frees a
+once (`LevelState::up`). `sweep_idle_rooms` now runs the `FUN_0052d240`
+schedule: every twelfth frame it resets rooms in any player's depth-1 near
+set, ages the others, and after age 10 removes their room index from the
+server and client lay orders. The population bit stays set, so returning
+re-lays shared edges without rolling presets, object groups or monsters a
+second time. ponytail: d2d does not yet draw a new room1 seed on the return,
+does not apply `FUN_0061ba30`'s room flags and town/Summit whole-level gate,
+and keeps live units in the level instead of storing/remaking them. game.exe frees a
 room about 5 s after the last player moves 2+ rooms away, and rebuilds it on
 return, with a new room1 seed, its edge tiles re-laid against the rooms
 up then, and its units restored from storage. Matching that needs the
