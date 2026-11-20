@@ -4,24 +4,33 @@
 // (FUN_00648ce0: walls, no units), walked to its last point. On the camp's
 // grid, a point the straight line can't reach through a wall gets a route
 // round it, every point open.
+// Its hit gap (FUN_005d9320): the wielded weapon's own attack frames
+// (FUN_0062a710: AnimData's A1 for its class, the item's IAS and WSM),
+// banded 4..16; 10 frames with no weapon.
 // Needs the game data (D2_MPQ_DIR); SKIPs without it.
 
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_text.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <world.hpp>
 
 #include <cassert>
+#include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <utility>
 
 using namespace d2d::game;
@@ -68,6 +77,34 @@ int main() try {
     for (const auto& [point_x, point_y] : route) assert(open(point_x, point_y));
     assert(actor.smove.target_x == route.back().first && actor.smove.target_y == route.back().second);
     std::printf("OK: Whirlwind goes round the wall in %zu points\n", route.size());
+
+    // The hit gap: the weapon's A1 frames << 8 over its speed x (100 + the item's IAS - WSM) / 100.
+    const auto weapon_at = [&]() -> d2d::d2s::Item* {
+        const auto* wielded = d2d::rules::wielded_weapon(data->rules, actor.character.items);
+        for (auto& item : actor.character.items) if (&item == wielded) return &item;
+        return nullptr;
+    };
+    auto* weapon = weapon_at();
+    assert(weapon);
+    const auto gap_for = [&](int ias) {
+        std::string wclass = data->item_desc.at(weapon->code).wclass;
+        for (auto& letter : wclass) letter = char(std::toupper(static_cast<unsigned char>(letter)));
+        const auto& anim = data->anim_data.at(std::string("BAA1") + wclass);
+        const int rate = (100 + ias - data->rules.item_base.at(weapon->code).speed) * int(anim.speed) / 100;
+        return d2d::rules::whirlwind_gap(int((std::int64_t(anim.frames) << 8) / rate));
+    };
+    const auto gap_now = [&](std::uint32_t when) { actor.whirl_next = 0; world.fight.move_event(*whirlwind, when); return int(actor.whirl_next - when) / 40; };
+    const int plain = gap_now(2000);
+    assert(plain == gap_for(0) && plain == d2d::rules::whirlwind_gap(weapon_attack_frames(*data, *weapon, 4)));
+    weapon->props.push_back({ d2d::d2s::kFasterAttackRate, 0, 60 });
+    const int quick = gap_now(3000);
+    assert(quick == gap_for(60) && quick < plain);
+    weapon->props.pop_back();
+    const auto worn = actor.character.items;
+    std::erase_if(actor.character.items, [&](const d2d::d2s::Item& item) { return &item == weapon; });
+    assert(gap_now(4000) == 10);
+    actor.character.items = worn;
+    std::printf("OK: Whirlwind hits every %d frames, %d with +60%% IAS on the weapon, 10 bare-handed\n", plain, quick);
 
     return 0;
 } catch (const std::exception& error) {

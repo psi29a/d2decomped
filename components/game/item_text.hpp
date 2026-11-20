@@ -249,6 +249,26 @@ inline constexpr std::array<std::uint8_t, 90> kSpeedBand{
     4, 3, 5, 4, 4,  5, 4, 5, 5, 4,  5, 4, 5, 5, 5,  5, 4, 5, 5, 5,  5, 5, 5, 5, 5,  5, 5, 5, 5, 5 };
 inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 }, { 0, 3 }, { 0, 3 }, { 1, 4 }, { 0, 3 } };
 
+// A weapon's attack length in frames as FUN_0062a710 gives it: class `cls`'s
+// A1 frames (AnimData, the weapon's class) << 8 over the animation speed x
+// (100 + the item's IAS, stat 93 with its sockets', - its WSM) / 100; 45
+// without the animation. The weapon-speed line and Whirlwind's hit gap
+// (FUN_005d9320) read it.
+inline int weapon_attack_frames(const GameData& game_data, const d2d::d2s::Item& item, int cls) {
+    if (cls < 0 || cls >= 7) return 45;
+    const auto desc = game_data.item_desc.find(item.code);
+    const auto base = game_data.rules.item_base.find(item.code);
+    std::string upper = desc != game_data.item_desc.end() ? desc->second.wclass : std::string{};
+    for (auto& letter : upper) letter = char(std::toupper(static_cast<unsigned char>(letter)));
+    std::int64_t ias = 0;
+    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kFasterAttackRate) ias += prop.value;
+    for (const auto& socketed : item.socketed_items)
+        for (const auto& prop : socket_props(game_data, item, socketed)) if (prop.stat == d2d::d2s::kFasterAttackRate) ias += prop.value;
+    const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
+    const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + ias - (base != game_data.rules.item_base.end() ? base->second.speed : 0)) * std::int64_t(anim->second.speed) / 100 : 0;
+    return rate > 0 ? int((std::int64_t(anim->second.frames) << 8) / rate) : 45;
+}
+
 // A quest consumable its quest doesn't let the player use now (FUN_00483f80,
 // 0x483f80, on the client's quest words, FUN_004b32d0): the Book of Skill
 // (ass) unless Radament's word (9) has bit 5, the Potion of Life (xyz)
@@ -612,11 +632,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // Weapon speed (FUN_0062a710): the class's A1 frames << 8 over the
     // animation speed x (100 + IAS (93) - WSM) / 100, banded; class name first.
     if (weapon && cls >= 0) {
-        std::string upper = desc.wclass;
-        for (auto& letter : upper) letter = char(std::toupper(static_cast<unsigned char>(letter)));
-        const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
-        const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + stat(d2d::d2s::kFasterAttackRate) - item_base.speed) * std::int64_t(anim->second.speed) / 100 : 0;
-        const std::int64_t frames = rate > 0 ? (std::int64_t(anim->second.frames) << 8) / rate : 45;
+        const std::int64_t frames = weapon_attack_frames(game_data, item, cls);
         const int band = frames >= 28 ? 5 : frames < 10 ? 1
                        : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is_type("bow") || is_type("xbow") ? 1 : 0])];
         static constexpr std::pair<std::string_view, int> kClassName[] = { { "staf", 4085 }, { "axe", 4078 }, { "swor", 4079 }, { "knif", 4080 },
