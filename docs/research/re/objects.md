@@ -261,7 +261,10 @@ the walk is that one room's list (room +0x74, next +0xe8: newest
 first), so a unit just over the room's edge isn't struck, the seed's
 draws go in that order, and a barrel met in it goes off there and then
 (its blast before the rest of the list's). d2d: `World::explode` by room
-stamp, the objects (the room's own population) last, life in 256ths.
+stamp, life in 256ths, the other barrels last: objects keep no stamp.
+That differs from the newest-first walk when a barrel came into the room
+after a unit in it (an object group's barrel is made after the room's
+preset monsters, and anything that walks in later is newer still).
 
 - Nothing in town (`FUN_0061ab00`) or through a wall (`FUN_00622b50`,
   mask 0x804, each unit's own footprint lifted).

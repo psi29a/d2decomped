@@ -756,8 +756,9 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         // in DD (0xc) within 3 subtiles takes a physical blast (FUN_005dfa00
         // type 0) on the barrel's seed, life in 256ths; an exploding barrel
         // (class 0xb) still in mode 0 under 3 off (FUN_006416d0) goes off there
-        // and then (FUN_00584330), the walk going on after it. The objects came
-        // into the room first (the room's own population), so they list last.
+        // and then (FUN_00584330), the walk going on after it.
+        // ponytail: the other barrels list last (objects keep no room stamp); game.exe's walk puts
+        // an object group's barrel, made after the room's preset monsters, ahead of them.
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
         const int room = room_of(*level, barrel.x, barrel.y);
         const auto in_room = [&](float x, float y) { return level->rooms.empty() || room_of(*level, x, y) == room; };
