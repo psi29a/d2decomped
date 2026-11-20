@@ -16,9 +16,9 @@ tail +0x1bc, free list +0x1c0; block = u32 length, 0x200 data bytes, u32 next at
 
 Covers: FUN_0053b280 queue, 0053b320, 0053b340, 0053b390, 0053b430, 0053b4b0,
 0053b520, 0053b570, 0053b9f0, 0053ba40, 0053baa0, 0053bb00, 0053bb70, 0053bc10,
-0053bdd0, 0053be40, 0053bee0, 0053bfd0, 0053c320, 0053c3f0, 0053c590, 0053c900,
-0053cb30, 0053cb80, 0053d2e0, 0053d4d0, 0053d710, 0053d780, 0053d7e0, 0053d8d0,
-0053d960, 0053e020, 0053e060, 0053e9b0.
+0053bdd0, 0053be40, 0053bee0, 0053bfd0, 0053c0e0, 0053c150, 0053c190, 0053c320,
+0053c3f0, 0053c590, 0053c900, 0053cb30, 0053cb80, 0053d2e0, 0053d4d0, 0053d710,
+0053d780, 0053d7e0, 0053d8d0, 0053d960, 0053e020, 0053e060, 0053e1a0, 0053e9b0.
 
 Hooked (their work is not claimed): 0x53_FD40 (game difficulty seed, returns a
 dword), 0x40_B430 / 0x40_B480 (pool, logged), 0x40_8A60 (fatal report, logged),
@@ -71,7 +71,7 @@ def u(value, width):
 
 
 # Fixed layouts: address -> (stack words, packet size, [(offset, width, source)]); source is "dl" (EDX low
-# byte), "edx" (EDX), "aN" (stack word N) or an integer constant. Written from the disassembly.
+# byte), "edx" (EDX, its low `width` bytes), "aN" (stack word N) or an integer constant. Written from the disassembly.
 FIXED = {
     0x53_B320: (0, 1, [(0, 1, "dl")]),
     0x53_B390: (4, 0xC, [(0, 1, "dl"), (1, 1, "a0"), (2, 4, "a1"), (6, 2, "a3"), (8, 4, "a2")]),
@@ -87,10 +87,15 @@ FIXED = {
                           (0xB, 1, "a5"), (0xC, 2, "a6"), (0xE, 2, "a7")]),
     0x53_BB70: (3, 10, [(0, 1, 0x6D), (1, 4, "edx"), (5, 2, "a0"), (7, 2, "a1"), (9, 1, "a2")]),
     0x53_BC10: (5, 0xB, [(0, 1, "dl"), (1, 1, "a0"), (2, 4, "a1"), (6, 2, "a2"), (8, 2, "a3"), (0xA, 1, "a4")]),
+    0x53_C0E0: (8, 0x18, [(0, 1, 0xA3), (1, 1, "dl"), (2, 2, "a0"), (4, 2, "a1"), (6, 1, "a2"), (7, 4, "a3"),
+                          (0xB, 1, "a4"), (0xC, 4, "a5"), (0x10, 4, "a6"), (0x14, 4, "a7")]),
+    0x53_C150: (2, 7, [(0, 1, 0xAB), (1, 1, "dl"), (2, 4, "a0"), (6, 1, "a1")]),
+    0x53_C190: (2, 8, [(0, 1, 0xA5), (1, 1, "dl"), (2, 4, "a0"), (6, 2, "a1")]),
     0x53_C590: (4, 0xD, [(0, 1, 0x23), (1, 1, "dl"), (2, 4, "a0"), (6, 1, "a1"), (7, 2, "a2"), (9, 4, "a3")]),
     0x53_CB30: (4, 0xD, [(0, 1, 0x7A), (1, 1, "dl"), (2, 1, "a0"), (3, 2, "a3"), (5, 4, "a2"), (9, 4, "a1")]),
     0x53_CB80: (6, 0x14, [(0, 1, 0x81), (1, 1, "a0"), (2, 2, "a3"), (4, 4, "a2"), (8, 4, "a1"), (0xC, 4, "a4"),
                           (0x10, 4, "a5")]),
+    0x53_E1A0: (0, 3, [(0, 1, 0xA4), (1, 2, "edx")]),
 }
 # Fixed layouts that first reject a byte >= 6 in stack word 0 with the fatal report (call-site address).
 FATAL6 = {
