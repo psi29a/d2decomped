@@ -72,10 +72,10 @@ enum class ServerStartFunction : int {
     kLightningStrike = 10,
     kCheckMana = 11,               // FUN_005c8fa0: Inferno, Arctic Blast
     kThunderStorm = 13,
-    kRaiseSkeleton = 15,           // FUN_005c3070: a corpse rules::raise_takes passes
+    kRaiseSkeleton = 15,           // LAB_005c3070: a corpse rules::raise_takes passes
     kPoisonDagger = 16,            // FUN_005c30a0
-    kCorpseBlast = 17,             // FUN_005c31c0: Corpse / Poison Explosion, a corpse rules::blast_takes passes
-    kRevive = 21,                  // FUN_005c3350: a corpse rules::revive_takes passes
+    kCorpseBlast = 17,             // LAB_005c31c0: Corpse / Poison Explosion, a corpse rules::blast_takes passes
+    kRevive = 21,                  // LAB_005c3350: a corpse rules::revive_takes passes
     kChargeUp = 23,                // the Assassin's charge-ups (FUN_005d3490 hits)
     kDragonTalon = 24,             // FUN_005d5970: calc1 kicks
     kDragonClaw = 25,

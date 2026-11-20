@@ -17,6 +17,7 @@
 #include <rules.hpp>
 #include <shadows.hpp>
 #include <skills.hpp>
+#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -78,7 +79,7 @@ auto Fight::corpse_takes(d2d::rules::ServerStartFunction start, const Monster& c
         using Start = d2d::rules::ServerStartFunction;
         if (start != Start::kRaiseSkeleton && start != Start::kCorpseBlast && start != Start::kRevive) return true;
         const auto& type_info = game_data->monsters.types[std::size_t(corpse.type)];
-        // Monster data +0x16: 8 on a champion, unique or superunique, 2 on a superunique (ai.hpp's crush_divisor).
+        // Monster data +0x16: a champion's 0xd (FUN_005a48c0), a unique's 9 (FUN_005a4940), 2 and 8 on a superunique.
         const int flags = corpse.boss == Boss::superunique ? 0xb : corpse.boss == Boss::champion ? 0xd : corpse.boss == Boss::unique ? 9 : 0;
         const d2d::rules::CorpseState state{ .mode = 0xc, .flags = flags, .targetable = false, .dying = false, .hidden = false,
                                              .uninterruptable = corpse.uninterruptable(), .attached = corpse.riding,

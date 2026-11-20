@@ -2,7 +2,8 @@
 // test-links: game
 // The Necromancer's corpse tests, as tools/emu/corpse_tests.py runs game.exe's
 // start functions 15, 17 and 21: `--corpse-tests` reads its cases (`pick mode
-// flags c4 c6 hidden s36 s8f town`, the row `pick` modulo the MonStats rows)
+// flags c4 c6 hidden s36 s8f town`: c4 the unit flag
+// +0xc4 & 4, c6 byte +0xc6 & 1, the row `pick` modulo the MonStats rows)
 // and prints each with `| raise blast revive`: rules::raise_takes,
 // blast_takes and revive_takes.
 // Without arguments, with the game data: Fight::corpse_near through Revive's
@@ -16,7 +17,9 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <pets.hpp>
+#include <rules.hpp>
 #include <skills.hpp>
+#include <uniques.hpp>
 #include <world.hpp>
 
 #include <cassert>
@@ -42,13 +45,13 @@ int corpse_cases(const GameData& data) {
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
         std::istringstream fields(line);
-        long long pick = 0, mode = 0, flags = 0, c4 = 0, c6 = 0, hidden = 0, s36 = 0, s8f = 0, town = 0;
-        if (!(fields >> pick >> mode >> flags >> c4 >> c6 >> hidden >> s36 >> s8f >> town)) {
+        long long pick = 0, mode = 0, flags = 0, unit_flag = 0, dying_byte = 0, hidden = 0, s36 = 0, s8f = 0, town = 0;
+        if (!(fields >> pick >> mode >> flags >> unit_flag >> dying_byte >> hidden >> s36 >> s8f >> town)) {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
         }
         const auto& type = types[std::size_t(pick) % types.size()];
-        const d2d::rules::CorpseState corpse{ .mode = int(mode), .flags = int(flags & 0xffff), .targetable = c4 != 0, .dying = c6 != 0, .hidden = hidden != 0,
+        const d2d::rules::CorpseState corpse{ .mode = int(mode), .flags = int(flags & 0xffff), .targetable = unit_flag != 0, .dying = dying_byte != 0, .hidden = hidden != 0,
                                               .uninterruptable = s36 != 0, .attached = s8f != 0, .town = town != 0 };
         std::printf("%s | %d %d %d\n", line.c_str(), d2d::rules::raise_takes(type, corpse) ? 1 : 0, d2d::rules::blast_takes(type, corpse) ? 1 : 0,
                     d2d::rules::revive_takes(type, corpse) ? 1 : 0);
