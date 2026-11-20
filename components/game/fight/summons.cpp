@@ -346,8 +346,11 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                                   ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
                               : revive ? revived.life_fine
                                        : monster.stats.hit_points << 8;
-        // ponytail: a life that wraps to 0 or below (bugs.md 123) is held at one point; what game.exe's pet does then isn't traced.
+        // A life that wraps to 0 or below (bugs.md 123) is set as it is (stats 7 and 6, 0x5c4816 / 0x5c4821);
+        // the dead test is the mode (FUN_005541b0), so the pet lives and thinks till a landed hit, which
+        // kills it (life <= 0 after it, 0x57c8e2): a zero-life monster's `lifeless` (make_monster).
         int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
+        monster.lifeless = life_fine <= 0;
         if (life_fine <= 0) life_fine = 256;
         monster.stats.hit_points = int((std::int64_t(life_fine) + 255) >> 8);
         monster.max_life_frac = monster.stats.hit_points * 256 - life_fine;

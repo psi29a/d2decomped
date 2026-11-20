@@ -102,7 +102,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
     }
 
 auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, bool marked, int fraction) -> void {
-        if ((damage > 0 || fraction > 0) && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
+        if ((damage > 0 || fraction > 0 || pet.monster.lifeless) && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
