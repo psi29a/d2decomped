@@ -1167,7 +1167,7 @@ Minions and Leader election:
   counts unless its mode is Death/Dead, a monster killer unless Death/Kick
   and only if `UNITS_CheckIfCanAttackTarget` allows it (masked, not
   branched: `-(canAttack) & killer`); otherwise null. This is the
-  Overseer's `attacker` input (`act5.cpp:59`, `monsters.hpp:1343`: "the one
+  Overseer's `attacker` input (`act5.cpp:59`, `monsters.hpp:1001`: "the one
   that last struck at it").
 - **The catapult-gone check, `FUN_005edf70`/`AI_Monster_FindDeadMonsterNearby`**
   (`ECX` game, `EDX` unit; halts at 0x141b with no room): `MONSTERS_GetUpgradeSkillsAndCount`
@@ -1176,7 +1176,7 @@ Minions and Leader election:
   (`× try count`) and call `SUNITINACTIVE_CheckDeadMonsterAtCoords(game,
   room, x, y, classId − 0x13)`; the first hit's nonzero handle is returned,
   0 after three misses. This is the CatapultSpotter's "catapult gone" test
-  (`act5.hpp:239`, `monsters.hpp:1352`), despite the generic name.
+  (`act5.hpp:239`, `monsters.hpp:1010`), despite the generic name.
 - **The upgrade anim-flags getter, `FUN_0063ee10`/`MONSTERS_GetUpgradeSkillsAndCount`**
   (`MonStats.cpp`, `__stdcall`; halts at line 0x2c8/0x2c9 on a non-monster
   unit or an out-of-range upgrade index): `MONSTERTBLS_GetUpgradeDataByMonStatsId(classId,

@@ -618,7 +618,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   same group value. The short's column name is not in the repo (the PetType.txt
   header was not read; no MPQ here), and which rows share a value is
   data. d2d: **not ported**: `Fight::summon_one` trims only the cast
-  skill's own `pettype` (summons.cpp:147), and `GameData::PetType` has no
+  skill's own `pettype` (summons.cpp:154), and `GameData::PetType` has no
   group (gamedata_load.cpp:847).
 - **`FUN_00575850`** (`pet_set_max`, owner in EDX, then row and max on the
   stack): sets a row's limit. The player data is fetched with
@@ -632,7 +632,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   pets at once, except the merc. Callers: `FUN_00575d90` (the cast skill's
   petmax), `FUN_00575900` (rebuild from the skills, below), `FUN_00575a80`,
   `FUN_0056bd90`. d2d: **not ported**: it has no per-row limit; the
-  `Fight::summon_one` loop (summons.cpp:147) trims at the cast, to the
+  `Fight::summon_one` loop (summons.cpp:154) trims at the cast, to the
   cast skill's petmax, which reads the same as the value game.exe stores at
   a cast (cited from the decompile, no oracle run).
   What d2d lacks is the trim when a skill point is removed or a limit
@@ -655,7 +655,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
      Count + 1; above max asserts (line 0x330). Returns 1.
   So the list is oldest first and a full list loses its head: d2d's
   `std::ranges::find_if` + `erase` of the first same-pettype pet in
-  `Fight::summon_one` (summons.cpp:148) reads the same, cited from the
+  `Fight::summon_one` (summons.cpp:155) reads the same, cited from the
   decompile, no oracle run (and ECX = the head's id is a reading). Caller `FUN_00575d90`
   and `FUN_00575e90`.
 - **`FUN_00575d90`** (`pet_add`, owner in EDX; stack: the pet unit, the
@@ -678,7 +678,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
      (the callback is `FUN_00574930`; it skips a client for which
      `FUN_00639df0(client, 7)` is not 0), so those clients' pet lists get
      a 0x7a entry. A refusal sends nothing.
-  d2d: **partly ported**. `Fight::summon_one` (summons.cpp:147) keeps the
+  d2d: **partly ported**. `Fight::summon_one` (summons.cpp:154) keeps the
   pets of the cast skill's pettype within petmax, dropping the oldest
   (reads the same, cited from the decompile, no oracle run); the group release (`FUN_00575720`) is **not ported**, nor are
   the broadcast and the limit shed outside a cast. One possible
@@ -695,7 +695,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   least 1).
   Whether Revive's calc can be that low needs Skills.txt, which was not
   read here: possible, not shown.
-- **`FUN_0056d8d0`** (d2d: summons.cpp:156, collision.md; the pet tail of
+- **`FUN_0056d8d0`** (d2d: summons.cpp:163, collision.md; the pet tail of
   the summon skills' do-functions; the pet is the stack argument, a
   record is in EBX, which the decompile does not show being set):
   1. Record flags (byte `+0`) with bit 8 clear and a pet: the pet's
@@ -734,7 +734,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `FUN_00574f80` skip a flagged node; `FUN_00574ab0` clears it when the
   merc is raised. So a dead pet or merc is in no crowd count
   (`Fight::pet_crowd`: d2d tests alive instead; reads the same, cited).
-- **`FUN_005c56c0`** (Revive, do 58; d2d: summons.cpp:168, skills.md "Do
+- **`FUN_005c56c0`** (Revive, do 58; d2d: summons.cpp:175, skills.md "Do
   58"): its end is the pet's registration. The row is the skill record's
   byte `+0xbe` (`local_5`, 0 when it is at or past the row count), the
   limit `FUN_00646ca0(owner, record +0xc0, skill, level)` (the petmax

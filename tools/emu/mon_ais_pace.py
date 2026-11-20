@@ -134,7 +134,7 @@ def check(e, ai, cases, rng, lines, tally):
         s["dying"] = ai == "Fallen" and ("pace", 50, 0) in out                    # the flee branch's pace (0x5f03a8); command_done also comes from a command word that is not 1 (0x5f068b)
         act, pace, effects, asks = M.outcome(s, out)
         if ai == "BloodRaven" and s.get("home_set"): s["free"][0] = s["home_set"]   # the case line carries the home she kept
-        if ai == "FallenShaman" and act[0] == "seq": act[:] = ["skill", act[1], 0, 0, 0, act[5], act[6]]   # ai.cpp:1559-1560 runs seq and skill alike; its corpse is skill_unit
+        if ai == "FallenShaman" and act[0] == "seq": act[:] = ["skill", act[1], 0, 0, 0, act[5], act[6]]   # ai.cpp:1561-1562 runs seq and skill alike; its corpse is skill_unit
         if ai == "BloodRaven" and act[0] == "skill" and act[4] == 1:                  # her raise: a point (unit none); d2d keeps its offset from the target
             fx, fy = s["spots"]["foe"]; act[:] = ["skill", act[1], act[2] - fx, act[3] - fy, 0, act[5], act[6]]
         if ai == "BloodRaven" and act[0] == "circle": act[3] = 0                    # the circle's flag 1 (walk flagged 4): d2d's Think has no field for it

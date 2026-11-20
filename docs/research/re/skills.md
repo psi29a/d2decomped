@@ -346,7 +346,7 @@ lines (missile names aren't passed in). What it does:
   moved to the new end (`FUN_00625310`: replaced, not kept at the longer),
   event 0xc is set for it (`FUN_005417d0`); with none, a list is made
   (`FUN_006251f0`, kind 2, owner the attacker), `FUN_0056e900` is its end
-  callback and state 0x15 goes on. d2d (`strike.cpp:511`): reads the same,
+  callback and state 0x15 goes on. d2d (`strike.cpp:537`): reads the same,
   cited from the decompile, no oracle run, on the
   special 90 %, the boss and Velocity tests, the 250 cap and the
   replacement. DISAGREES in the order: d2d tests boss / Velocity first and
@@ -1676,7 +1676,7 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     d2d: reads the same, cited from the decompile, no oracle run, on the
     reflected share and the calc pick for a monster
     wearer (`Monster::reflect_pct`, calc1 of "ironmaiden", states.cpp:364;
-    ai.cpp:3073 as thorns) and for a player wearer's picked row
+    ai.cpp:2589 as thorns) and for a player wearer's picked row
     (tick.cpp:550); the wearer rule is "hireling" (FUN_0063ee90 classes
     0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
     golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
@@ -1995,7 +1995,7 @@ and per-class base frames, not a table. What's stored:
 
 - **The formula.** `EFCR = FCR × 120 / (120 + FCR)` (integer truncated), the
   same diminishing return as `rules::effective_speed` in
-  `components/rules/combat.hpp:164`. Then
+  `components/rules/combat.cpp:103`. Then
 
   ```
   frames_shown = ceil(base_frames × 256 / (256 + floor(256 × EFCR / 100)))
@@ -2083,7 +2083,7 @@ Cited from the decompile (no oracle run); re-check with
   unit, flag 0x2000 at unit +0xc4: links it through unit +0xe0 into the list
   head FUN_00619f90 returns; asserts on a null unit). Callers:
   0045d705/19/2d, 0046df40, 004c2180 and the four skill functions below.
-  d2d: reads the same, cited from the decompile, no oracle run. `ai.hpp:413` and `ai.cpp:1570` cite the call for
+  d2d: reads the same, cited from the decompile, no oracle run. `ai.hpp:412` and `ai.cpp:1572` cite the call for
   state 0x76 / 0xc, and `FUN_00625a70`'s bit is cited by
   `tools/emu/freeze_rules.py:249`. d2d has no one function for the
   bounded set; each caller writes its flag.
@@ -2118,7 +2118,7 @@ Cited from the decompile (no oracle run); re-check with
   FUN_00627150 sets it in the list. Then stats 0x15e = skill, 0x15f = level
   and FUN_00639e30(unit, passivestate, 1). If the +0x80 state **is** on, the
   tail FUN_006256b0 -> FUN_006277e0 + FUN_00626cd0 removes the passivestate's
-  list. d2d: **agrees** with skills.hpp:765-774 and skills.md:674; this adds
+  list. d2d: **agrees** with skills.hpp:528-537 and skills.md:674; this adds
   the invalid-stat break, level 0 removing the list, and the removal while the
   aura state is on.
 - **FUN_0056de40**(unit in ECX) (37 bytes): refreshes that unit's passives,
@@ -2145,7 +2145,7 @@ Cited from the decompile (no oracle run); re-check with
   unit `+0x10 == 0x11` branch, after FUN_0053fdf0 and before the max life /
   mana / stamina stats are written back and state 0x36 is set then cleared;
   `tick.cpp:572` cites it) and FUN_0055b800. d2d: **not ported**: d2d
-  derives passives on read (`rules::passive_stats`, skills.hpp:765) and
+  derives passives on read (`rules::passive_stats`, skills.hpp:528) and
   does not replay this refresh; whether that differs in play is untested.
 - **FUN_00647110**(unit, skill) -> list entry or 0: 0 for a null unit, a
   skill outside `[0, +0xba0)` or a null record. Sets the passivestate on
@@ -2208,7 +2208,7 @@ Cited from the decompile (no oracle run); re-check with
   extra two are not confirmed from asm). Callers: Dragon Tail's kick
   start FUN_005d7090 and Bash's start FUN_005d7ea0, both just before the
   to-hit roll (FUN_0057ec10). d2d: **not ported** as such; the nearest is
-  the SIAS term (combat.hpp:68), which the kick/bash paths do not add.
+  the SIAS term (combat.hpp:62), which the kick/bash paths do not add.
   This function does not free the list (kind 4, no length):
   **unverified** whether anything removes it later; not claimed.
 - **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
@@ -2287,7 +2287,7 @@ Cited from the decompile (no oracle run); re-check with
   record's calc3 (+0x140) and then calls FUN_0056e520, so the temporary
   attackrate list of Bash is probably calc3 (the value register is not
   visible in the decompile: likely, not certain). d2d: skills.md
-  "Melee skills" and strike.cpp:455 **agree** on the roll, flags, ED
+  "Melee skills" and strike.cpp:481 **agree** on the roll, flags, ED
   and the aurastate list (FUN_006251f0 kind 4, FUN_0056e900 callback,
   FUN_005c6cc0); **not ported**: the town refusal and the attackrate list.
 - **FUN_0056e970** (`d2d_states_put_state`, 622 bytes; fastcall, ECX = a
@@ -2325,7 +2325,7 @@ Cited from the decompile (no oracle run); re-check with
   FUN_0057dbf0 applies it with SrcDam, record +0x1a5 (0x80 when 0;
   HitClass is the separate field at +0x134);
   returns 1 (also on a miss). d2d: **agrees** with skills.md "Dragon Tail"
-  and strike.cpp:415 on the kick at toht + stat 325 and the 0x80 default;
+  and strike.cpp:434 on the kick at toht + stat 325 and the 0x80 default;
   unlike Bash it has no town refusal. **Not ported**: the attackrate list.
 
 ### Skill record and skill-list accessors (work package 004c9460, cited)
@@ -2342,7 +2342,7 @@ Cited from the decompile (no oracle run); re-check with
   result to FUN_00483360 and FUN_00648690. The decompile shows a file and
   line (0x1ca, 0x330) beside the call; the function itself takes the id only
   (no assert in its body), so the pair is not its. The decompile drops the
-  fastcall registers, so what each call passes is inferred. d2d: **agrees**: `skills.hpp:723` returns
+  fastcall registers, so what each call passes is inferred. d2d: **agrees**: `skills.hpp:486` returns
   `params[code - 8]` for operand 8 (the table's Param1); the list has no
   separate Par1 reader for the two starts, which are not ported
   (`FUN_004c9b40`: cited only).
@@ -2355,7 +2355,7 @@ Cited from the decompile (no oracle run); re-check with
   of the 64-bit product by c sign-extended). The tests are signed, so a
   negative a or b passes its own bound, but the 32-bit branch needs both
   (a ≤ 0x100000 and b ≤ 0x10000); one over its bound takes the other paths. d2d: **agrees**,
-  `rules::mul_div` (`combat.hpp:261`) is the same branch for branch (its
+  `rules::mul_div` (`combat.cpp:164`) is the same branch for branch (its
   comment names FUN_00483360); callers in ai.cpp, strike.cpp and
   gamedata.hpp use it. The only wart is the 32-bit wrap (bugs.md #61).
 - **FUN_004833e0**(class in ECX) (36 bytes) -> the CharStats record
@@ -2826,10 +2826,10 @@ the 005dxxxx SkillAss range).
 ### Hit-recovery (FHR) and block-rate (FBR)
 
 Same shape as FCR / IAS: an effective rate on the stat, then the animation
-plays that much faster. Formula in `components/rules/combat.hpp:164`
+plays that much faster. Formula in `components/rules/combat.cpp:103`
 (`effective_speed`, cap 120): `E = 120 * v / (120 + v)`. Applied at
 `components/game/fight/` for kModeGH / kModeBL / kModeSC:
-`len = base_ms * 100 / (100 + E)`. Stats read at `combat.hpp:142` are 99
+`len = base_ms * 100 / (100 + E)`. Stats read at `combat.cpp:81` are 99
 (FHR), 102 (FBR), 105 (FCR).
 
 Base frames come from `animdata.d2` (loaded `gamedata_load.cpp:850`),
@@ -2933,8 +2933,8 @@ Cited from the decompile (no oracle run); re-check with
   (FUN_00648a00 / FUN_00648a10, `+0x10` / `+0x12`).
   Callers: FUN_0056d940, FUN_0056dbc0, FUN_0056e450, FUN_0056e780,
   FUN_0056ecb0 and others (game-calls.tsv). d2d: reads the same, cited from the
-  decompile, no oracle run (ai.cpp:2034, ai.cpp:2811, missiles.cpp:552 and
-  strike.cpp:889 cite it); d2d's `to_x` / `to_y` stand for the point.
+  decompile, no oracle run (ai.cpp:2036, ai.cpp:2813, missiles.cpp:552 and
+  strike.cpp:925 cite it); d2d's `to_x` / `to_y` stand for the point.
 - **Do 44** (FUN_005d6020, Blade Sentinel), read from the decompile: it
   needs the skill id in range of `[0x744304]+0xba0` and a non-null record;
   FUN_0056e620 non-negative; the caster's `+0xc4 |= 0x40`; FUN_0056d2c0's
