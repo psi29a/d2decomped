@@ -668,6 +668,7 @@ struct Foe {
                                        fighter.absorb_pct[type], fighter.absorb_flat[type], taken.element_took[type] };
             blow.mdr = fighter.mdr;
             blow.sum = taken.sum;
+            blow.striker = striker;
             blows.push_back(blow);
         }
         damage += taken.damage; frac += taken.frac; physical += taken.physical; elemental += taken.elemental;
@@ -1180,6 +1181,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
                 d2d::rules::StruckBlow blow{ dealt, 0, true, 0, dealt, false, burn & 255 };   // its own record (absorbed alone), no get-hit
                 blow.landed = false;
+                blow.striker = missile.owner;
                 foe.blows.push_back(blow);
                 if (missile.owner >= 0) foe.striker_id = missile.owner;
                 // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.

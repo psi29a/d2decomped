@@ -209,6 +209,7 @@ struct StruckBlow {
     // Result flag 4: FUN_0057cee0 tests the get-hit only with it. A burner's record (pSrvDoFunc 5) has 1 alone:
     // FUN_005ad730 sets 4 for a row with GetHit (Missiles.txt +4 bit 0x40, FUN_00661b20), and the flames have none.
     bool landed = true;
+    int striker = -1;                    // the Monster::id it came from, -1 none: the killer when it takes the life under a point
 };
 inline int part_fine(const StruckBlow::Part& part) { return part.fine != StruckBlow::kNoFine ? part.fine : part.dealt * 256; }
 // The record's absorbed total (+0x48) in 256ths: the sum over the four fields of what FUN_0057bf10 took, signed (a field under 0 gives a negative share).
