@@ -173,7 +173,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // becomes 0xa0, and FUN_004afc10 breaks it into ice (rules::shatter_rows) from it.
             // Each stands on the corpse unless its row has a speed (rules::shatter_row_made),
             // for its Range + LevRange at level 1, facing a draw below 64 (FUN_004cd540, flags 0x2020).
-            // ponytail: the draw is sound_rng (the client's rolls), not the missile's own seed (+0x20).
+            // ponytail: the draw is sound_rng (the client's rolls), not the missile's own seed (+0x20):
+            // {1, 666}, then its room's seed (+0x6c / +0x70) stepped once, {low, 666} (FUN_00465fd0,
+            // 0x46606a..0x466093); d2d keeps no client room seeds.
             if (monster.mode != monster.fx_mode && monster.mode == "DT" && (monster.shatter || now_ms < monster.frozen_until)) {
                 monster.corpse_used = true;
                 monster.hit_class = (monster.hit_class & 0xf) | 0xa0;
