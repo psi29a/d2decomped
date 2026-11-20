@@ -2626,7 +2626,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const int fine = d2d::rules::resisted_fine(*back, std::max(monster.target(game_data).res[0], -100));
                         const bool out_of_gh = monster.mode != "GH";
                         if (hurt(game_data, monster, fine >> 8, now_ms, fine & 255, maiden->hit_class)) return true;
-                        if (out_of_gh && fine > 0) monster.struck_event = true;   // ponytail: a 0-damage record's event 4 isn't traced
+                        // The record is ResultFlags 0x4001 | 0x20 (0x4021, as Thorns'): FUN_0057cee0's 0x4000
+                        // branch raises event 4 (FUN_005a43a0) whatever the damage, 0 included.
+                        if (out_of_gh) monster.struck_event = true;
                     }
                 }
                 const int thorns = foe.fighter.thorns + d2d::rules::resisted(foe.fighter.thorns_light, res[3]) + taken.damage * foe.fighter.thorns_pct / 100;
