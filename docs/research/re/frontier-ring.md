@@ -1,7 +1,9 @@
 # The ring past the frontier — game.exe 1.14d
 
-100 untouched functions on 2026-11-20 (`python3 tools/gaps.py` at
-`d6eb7bc7`), in two groups:
+200 untouched functions on 2026-11-20, traced in two hundreds.
+
+**The first hundred** (`python3 tools/gaps.py` at `d6eb7bc7`), in two
+groups:
 
 - **Reached from ported code:** the two `frontier = true` rows of
   `build/gaps/functions.tsv`, and 17 untouched functions whose address a
@@ -13,9 +15,16 @@
   lighting, missile, party, drop and inventory notes. Of the 119 such
   functions there, the 19 largest (135 bytes and up) are left for later.
 
+**The second hundred** (the gap map after the first): untouched
+functions that cited code calls or takes the address of, where the citing
+note is this file or one of the cursor, collision, lighting, skills, DRLG,
+cels, COF draw order, player, character panel, item name, hireling,
+packet, menu and UI notes; the 100 smallest of the 112 there up to 270
+bytes, leaving out the Battle.net chat dialog (`0x43c000..0x44a000`).
+
 Rows are in address order within each table. A reading says what the
 decompile and, where noted, the disassembly show; callers are named with
-the note that cites them. **Run** marks the 47 functions that
+the note that cites them. **Run** marks the 80 functions that
 `tools/emu/frontier_ring.py` runs in stock game.exe and checks against the
 reading (`cd tools/emu && uv run python frontier_ring.py`). Everything else
 is read, not run: re-check with `tools/ghidra/fn.py <address>` and, for
@@ -30,9 +39,13 @@ each, count `+0xa80`) and Skills rows at `+0xb98` (0x23c bytes, count
 `+0xba0`). A server game keeps its units in 128 hash chains per type,
 chained through unit `+0xe4`: players at game `+0x1120`, monsters
 `+0x1320`, objects `+0x1520`, items `+0x1720`, missiles `+0x1920` (the
-table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
+table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`. A D2Win
+control's first dword is its type; `FUN_004f95c0` destroys one through a
+per-type function, most ending in the shared `FUN_004f9310`. "The run's
+settings" is the switch struct of switches.md, as `FUN_00405c30` (the
+caller of `app_mode_run`) reads it.
 
-## Reached from ported code
+## First hundred: reached from ported code
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
@@ -56,7 +69,7 @@ table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
 | `FUN_00669080` | `cubemain_input_column` | A CubeMain column parser (`FUN_00669130`, cube.md): a non-empty text compiles into input slot i (`d2d_cube_compile_cube_input`, record + 0x14 + 8i) | `components/game/cube` reads the inputs its own way |
 | `FUN_006690b0` | `cubemain_output_column` | As `cubemain_input_column` for output slot i (`d2d_cube_compile_cube_output`, record + 0x4c + 0x54 i) | as above |
 
-## Called by cited code: 0x407000..0x4bdfff
+## First hundred: called by cited code, 0x407000..0x4bdfff
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
@@ -97,7 +110,7 @@ table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
 | `FUN_004bd650` | `object_client_dispatch` | EDI object: its data (`d2d_object_data_8`) byte 0 picks a row of `0x6da8c0` (0x14 bytes, count `DAT_0072779c`); the row's function runs when set. Asserts no data (line 0x37a) or a row out of range (0x37b). Callers `FUN_004bd6b0` (the object's init, objects.md) and `FUN_004bd6d0` | not compared |
 | `FUN_004bdfe0` | `unit_name_copy` | Copies at most 0x10 characters from EDX to ECX's data (`+0x14`) `+0x28` (`FUN_004135d0`). Caller `FUN_0045e9d0` (party.md) | not compared |
 
-## Called by cited code: 0x4c0000..0x50ffff
+## First hundred: called by cited code, 0x4c0000..0x50ffff
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
@@ -108,7 +121,7 @@ table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
 | `FUN_004c9d70` | `sequence_first_byte5` | ECX unit: 7 without a sequence (`FUN_006633b0`) or with a count (`FUN_006633f0`) of 0; otherwise its loop tests the first record's byte `+5` on every pass (the pointer never moves, read from the disassembly): 0 gives −1, nonzero gives 7 (bugs.md 125). Caller `FUN_004c9db0` (skills.md). Run | n/a (bugs.md 125) |
 | `FUN_004fb130` | `palette_fade_start` | ECX 0: `DAT_00841b68` and `DAT_0072de50` = 0. Else both 1, the start tick in `DAT_00841b6c` and `DAT_007d5638` = 2. Both then `d2d_renderer_set_palette(0x81e668)`. Callers `FUN_0044c5e0`, `FUN_00460480` (3 calls), `FUN_004f90a0`, `FUN_004f9f20` | not compared |
 
-## Called by cited code: 0x520000..0x5fffff (server)
+## First hundred: called by cited code, 0x520000..0x5fffff (server)
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
@@ -140,7 +153,7 @@ table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
 | `FUN_005ff3a0` | `spritecache_async_cancel` | SpriteCache.cpp: for each node of `DAT_0089db7c` (next `+0x14`) whose object's `+0xb0` is set while its async read isn't done (`d2d_async_data_done`), `FUN_0040ab00` and clear `+0xb0`. Caller `FUN_0044c890` | not compared |
 | `FUN_005ffe30` | `spritecache_reset` | Arg nonzero and `DAT_0089db8c`: `FUN_005ffbe0`; zeroes `0x89db60` (0x50 bytes); arg nonzero: `FUN_006093e0`; zeroes `0x88db20` (0x34); `FUN_0060cd50`. Callers `FUN_00457420` (gfx.md), `FUN_004f9030`, `FUN_004f9060`, `FUN_004f90a0` | not compared |
 
-## Called by cited code: 0x600000..
+## First hundred: called by cited code, 0x600000..
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
@@ -156,3 +169,123 @@ table at `0x6e10e0`, read from game.exe), tiles `+0x1b20`.
 | `FUN_006617b0` | `code4_pad` | Copies a code (ECX) into 4 bytes at EAX, padding with spaces after its end; longer codes keep 4. Caller the misscalc identifier `FUN_00661880` (skills.md). Run | not compared |
 | `FUN_006b1a30` | `throw_hresult` | `__CxxThrowException(&hr, 0x7020b4)`; both callers (`FUN_006b1b20`, `FUN_006b2f60`, lighting.md) pass 0x80004005 | no counterpart (library) |
 | `FUN_006c8a50` | `ddraw_get_14_b` | `*(DAT_007c9148 + 0x14)`, the same read as `ddraw_get_14` (`FUN_00512700`). Callers `FUN_006c87e0`, `FUN_006c9290` (lighting.md). Run | not compared |
+
+## Second hundred: 0x405000..0x4fffff
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00406870` | `storm_options_setup` | `FUN_004164b0(0x6cca68)`, `FUN_00415f70(ECX)`, `FUN_004166b0(0, 0)`, `FUN_00415f90(EDX)`; keeps ECX in `DAT_0074c82c` (what `get_74c82c` returns, unnamed-frontier.md); then `FUN_0041bfc0` option 2 = 0x8000, options 1 and 3 = 1. Caller `FUN_00405c30` before the mode loop | not compared |
+| `FUN_00407970` | `crash_app` | Writes 0 to address 0 (`XOR EAX,EAX; MOV [EAX],EAX`). `FUN_00405c30` calls it when the run's settings +4 (`-crash`, DEBUG/CRASHAPP) is 1. Run | n/a (Blizzard debug switch) |
+| `FUN_004088c0` | `error_reentry_log` | ErrorManager.cpp: while `DAT_0074f0c8` (Crash.txt being written, `FUN_00407ff0`) is set, logs `***** ENCOUNTERED ERROR DURING ERROR HANDLING!!!` with `FUN_00408000(EDX, stack)` and returns 1; else 0. Caller `FUN_00408900` (the pool's log call, chat.md) | no counterpart |
+| `FUN_004091b0` | `pool_size_class` | EAX a size: up to 0x10 gives 0, else the bit length of size − 1, less 4 (`BSR`); its `< 3` branch can't be reached. Caller the pool allocator `FUN_0040a080` (chat.md). Run | no counterpart (the C++ allocator) |
+| `FUN_00409700` | `pool_block_take` | ESI pool: with no current block (`+0x28`), a new one (`FUN_004095e0`) becomes `+0x28` and `+0x2c`; with one whose count (`+8`) is under `+0x1c`, `FUN_00409240` tries it and a slot ≥ 0 returns with the block in the out pointer; otherwise a new block goes in front (its `+0x10` the old, the old's `+0xc` it). Caller `FUN_0040a080` | as above |
+| `FUN_00409770` | `pool_big_alloc` | ECX pool, EDX size: `malloc(size + 4)`; a failure logs `(3) Pool Blocks overflowed at %d` (`+0x7a0`) and asserts line 0x388. Under the pool's lock (`+4`) the block goes at the head of chain (address % 0x3ff) of the table at `+0x7ac`; returns the block + 4. Caller `FUN_0040a080`, twice | as above |
+| `FUN_0040a440` | `async_handles_close` | AsyncData.cpp: closes each handle of `DAT_0075af9c` (`DAT_0075af98` records of 0xc bytes), frees the array (line 0xae), zeroes both and `DAT_0075af94`. Callers `FUN_00405c30` (at exit) and `FUN_00407de0` (runtime-support.md) | no counterpart |
+| `FUN_0040b320` | `nop_40b320` | Returns at once. Caller `FUN_00405c30` | n/a |
+| `FUN_0041a930` | `sfile_close_checked` | SFILE.CPP: a null handle sets Storm's last error 0x57 (`FUN_0041c340`); else `FUN_0041a300(handle, 0)`. Caller `FUN_0040ab00` (from `spritecache_async_cancel`) with the record's `+0x3c` | no counterpart (Storm) |
+| `FUN_0041aa80` | `sfile_async_signal` | SFILE.CPP: null sets 0x57; else `FUN_0041a8f0()` and, for a second argument > 0, `SetEvent(DAT_00779054)`. Caller `FUN_0040a960` with (`+0x3c`, 1) | as above |
+| `FUN_0041b050` | `sfile_read5` | SFILE.CPP: `FUN_0041aad0` with its five arguments and two zeros. Callers `FUN_0041b0b0`, `FUN_0041b210`, `d2d_patch_extract`, `d2d_patch_apply` (bnclient.md) and one more | as above |
+| `FUN_0042e5d0` | `words_byteswap` | ECX words, EDX count: swaps the two bytes of each word (`ROL 8`). Callers `FUN_00430cd0`, `FUN_00433810`. Run | not compared |
+| `FUN_0044b220` | `set_799308` | Stores ECX in `DAT_00799308`. Caller `FUN_00441b70` (the chat front end). Run | not compared |
+| `FUN_0044bba0` | `get_7a0460` | Returns `DAT_007a0460`; the client's game start `FUN_0044e200` sets `DAT_007a0620` to whether it's nonzero. Run | not compared |
+| `FUN_0044dbe0` | `game_flag_file_check` | Game.cpp: once (`DAT_007a05fc` 0), when `FUN_00516e46(local, 1)` opens, reads one byte (`d2d_file_read_error_name(&c, 1)`), closes (`FUN_00516e84`), and a `'1'` sets `DAT_007a05fc`. The name in the local buffer isn't set here (not traced). Caller `FUN_0044e200` | not compared |
+| `FUN_00451450` | `input_record_push` | Record.cpp: with more than 499 records (`PTR_DAT_0070f7a0` +8000) it flushes them (`FUN_00451400`) first; then appends 0x10 bytes: `FUN_0044da90()` and its three arguments. Caller `FUN_004514b0`, the first call of `game_wndproc` | not compared |
+| `FUN_00466dd0` | `get_711f94` | Returns `DAT_00711f94`. Callers `FUN_004a7180`, `FUN_004a74a0` (char-panel.md). Run | not compared |
+| `FUN_00467250` | `cursor_not_between` | ESI unit, stack unit: 0 when ESI's `+0x10` is set; else, on y when ESI's `FUN_00621b30` record has byte `+0x13c` = 1 and on x otherwise, 1 unless ESI's position lies strictly between the client player's and the stack unit's (`d2d_unit_pos`). Caller the cursor's unit pick `FUN_00467ac0` (cursor-units.md) | not compared |
+| `FUN_00467310` | `cursor_between` | The reverse of `cursor_not_between` with the units' roles swapped: 1 when the stack unit's position lies strictly between the player's and ESI's. Caller `FUN_00467ac0` | not compared |
+| `FUN_004673c0` | `unit_distance_sq` | EAX and EBX units: (Δx)² + (Δy)² of `FUN_00620650` / `FUN_006206b0` (the path's screen x, y; collision.md). Caller `FUN_00467ac0`. Run | not compared |
+| `FUN_0046d750` | `clear_7a7470` | Zeroes the eight dwords `0x7a7470..0x7a748c`. Caller `FUN_0044e200`. Run | not compared |
+| `FUN_00473ce0` | `nop_473ce0` | Returns at once. Caller `FUN_0044e200`. Run | n/a |
+| `FUN_00474790` | `client_start_room` | With the client player, `d2d_unit_room` (the result unused); then `FUN_004744b0(0)`. Caller `FUN_0044e200` | not compared |
+| `FUN_00476b10` | `view_create` | View.cpp: asserts `DAT_007b953c` (line 0x119), `DAT_007b9540` (0x11a) and `DAT_007b9544` (0x11b); allocates a block (0x11d) with an empty rect at `+4`, the three at `+0x2c..+0x34`, runs `FUN_004dddf0` and `FUN_004dcf10`, sets flag bit 0, clears `DAT_007b9530` and returns it. Caller `FUN_0044e200`, into `DAT_007a0640` when that is null | not compared |
+| `FUN_0047f1d0` | `resolution_apply` | Reads `Diablo II\Resolution` (`FUN_00414f10`; missing gives 1, which isn't used), then the screen size set `FUN_0044ba20` (automap.md). Caller `FUN_0044e200` | not compared |
+| `FUN_0047f210` | `minipanel_row_hit` | 1 when `FUN_004538d0(0x14)` and `FUN_004538d0(0x15)` hold and the cursor (`FUN_00468730`, `FUN_00468740`) is strictly inside the mini-panel's button row: x from W/2 + 0x38 (single player, `DAT_007bc978`) or W/2 + 0x23 over 7 or 8 buttons of 0x14, y between H − 0x4c and H − 0x32 (W, H `DAT_0071146c`, `DAT_00711470`). Callers `FUN_0049d010` (act1-end.md), `FUN_0049d160`. Run | apps/d2d draws the mini-panel (ui-module-frontier.md); not compared |
+| `FUN_00481840` | `set_7bc9cc` | Stores ECX in `DAT_007bc9cc`. Caller `FUN_00457300` (gfx start). Run | not compared |
+| `FUN_00488e10` | `tabs_select_by_id` | EAX a value: each of the dwords `0x7bc9e4`, `0x7bc9f8`, `0x7bca0c`, `0x7bca20` := whether the word 0xa bytes after it equals EAX. Caller `FUN_00488f10` (char-panel.md). Run | not compared |
+| `FUN_00489da0` | `object_10b_note_id` | ECX an object of class 0x10b with a room in the client player's act (`d2d_level_act_index`): its id goes to `DAT_00721e54`. Taken by the panel opener `FUN_00489e00` (collision.md) | not compared |
+| `FUN_0048a680` | `clear_7bcaf0` | Zeroes `DAT_007bcaf0`. Caller the open handler `FUN_00455720` (menu.md). Run | not compared |
+| `FUN_004a70c0` | `stat_15c_max_held` | EAX unit: the largest value among its stat 0x15c layers (`FUN_006261d0(unit, 0x15c, list, 0x20)`) whose layer is 0 or names a skill one of its two hands' items holds (`d2d_rules_hand_index` 4 and 5, `FUN_00629bb0`). Caller `FUN_004a7180` (char-panel.md) | not compared |
+| `FUN_004aa8f0` | `clear_7c0c3c` | Zeroes `DAT_007c0c3c`. Caller the S→C 0x21 handler `FUN_0045dcd0` (net-packets.md). Run | not compared |
+| `FUN_004b8920` | `trade_reset` | `DAT_007c0e78` = 0, `DAT_007c0e68` = 0, byte `DAT_007c0e80` = 1. Caller `FUN_00455720`. Run | not compared |
+| `FUN_004c5e30` | `radius_scan_first` | The radius scan `FUN_004c5c40` with the filter (stack 3) | 0xa783, the callback `LAB_004c5e20` and a result slot, which it returns. Callers the client skill code `FUN_004f4170` (filter 3) and `FUN_004f42e0` (0x20003) | not compared |
+| `FUN_004e8fe0` | `charpanel_line_cb` | A callback the character panel's rows (`FUN_004e94e0`, `FUN_004e9510`, `FUN_004e95c0`; char-panel.md) give `FUN_004e93a0`: `FUN_004e8ec0(EDX, s1, s4, s5)` (sN the stack arguments) | not compared |
+| `FUN_004e9610` | `charpanel_attack_cb` | The callback the attack rows (`FUN_004ea170`, `FUN_004ea240`, `FUN_004ea310`; char-panel.md) give `FUN_004e99f0`: `FUN_004e86f0(EDX, s1, s2, s4, s5, s6, s7, 0)`, then `FUN_004e89a0(ECX, EDX, s1, s2, s5)` | not compared |
+| `FUN_004f5270` | `video_vsync_on` | `DAT_0072da58` = 1. `FUN_00405c30` calls it for the run's settings +0x14 (`-vsync`); `FUN_0044d760` too. Run | not compared |
+| `FUN_004f5280` | `video_aspect_free` | `DAT_0072da7c` = 0. `FUN_00405c30` calls it for +9 (`-nofixaspect`) or a `Fixed Aspect Ratio` registry value other than 1. Run | not compared |
+| `FUN_004f54f0` | `video_quality_toggle` | `DAT_0072da50` := !`DAT_0072da50`. `FUN_00405c30` calls it for +0xf (`-lq`). Run | not compared |
+| `FUN_004f5990` | `set_7c933c` | Stores its stack argument in `DAT_007c933c`. `FUN_004f9f20` calls it with 1, then 0. Run | not compared |
+| `FUN_004f6080` | `renderer_after_cutscene` | Asserts `DAT_007c8cc0` (line 0x2b9); `d2d_renderer_activate`; with `DAT_007c9340` 0 it changes the resolution to its argument (failing: `Failed to resize window after cutscenes... this is fatal!` and exit), else keeps it in `DAT_007c8cb8`; then `d2d_renderer_set_palette(0)`. Caller `FUN_004f9060` | not compared |
+| `FUN_004fc960` | `textbox_destroy` | D2WinTextBox.cpp: asserts a control (line 0xcb) of type 4 (0xcc); destroys its scrollbar `+0x90` when set (`FUN_00507ee0`), `FUN_004fb6a0`, then `FUN_004f9310`. Caller `FUN_004f95c0` | not compared |
+| `FUN_004fd0f0` | `control_destroy_4fd0f0` | `FUN_004f9310(ECX)`. Caller `FUN_004f95c0` | not compared |
+| `FUN_004fd100` | `control_destroy_4fd100` | `FUN_004f9310(ECX)`. Caller `FUN_004f95c0` | not compared |
+| `FUN_004fd820` | `control_destroy_4fd820` | `FUN_004f9310(ECX)`. Caller `FUN_004f95c0` | not compared |
+| `FUN_004fdaa0` | `control_destroy_type1` | Asserts a control (line 0x6e) of type 1 (0x70), then `FUN_004f9310`. Caller `FUN_004f95c0` | not compared |
+
+## Second hundred: 0x500000..0x51ffff
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00500300` | `control_destroy_500300` | `FUN_004f9310(ECX)`. Caller `FUN_004f95c0` | not compared |
+| `FUN_00500930` | `control_destroy_type6` | Asserts type 6 (line 0x59), then `FUN_004f9310`. Caller `FUN_004f95c0` | not compared |
+| `FUN_00500b20` | `control6_set_5c` | Asserts type 6 (line 0xd6); `+0x5c` := EDX. Callers the chat front end (`FUN_0043f630`, `FUN_0043fc20`, `FUN_00441b70`, `FUN_00445ff0`). Run | not compared |
+| `FUN_00505100` | `comp_list_free` | D2Comp.cpp: each node of `DAT_0087e838` (next `+0xc4`) gets `FUN_005041b0(node, 0)` and is freed (line 0xd38); clears the head. Caller `FUN_00441b70` | not compared |
+| `FUN_00506a40` | `control_destroy_type9` | Asserts type 9 (line 0x8c); `FUN_00506990`, then `FUN_004f9310`. Caller `FUN_004f95c0` | not compared |
+| `FUN_00506e60` | `list_destroy` | D2WinList.cpp: asserts type 7 (line 0x80); frees its rows (`+0x64`, next `+0x220`; line 0x85), then `FUN_004f9310`. Caller `FUN_004f95c0` | not compared |
+| `FUN_005072f0` | `list_click` | D2WinList.cpp, slot 9 of the list builder `FUN_005075e0`. Asserts type 7 (line 0x154). The row under the mouse (`DAT_007d55a4`, `DAT_007d55a8` strictly inside x `+0x208..+0x20c`, y `+0x210..+0x214`): the last row clicked (`+0x68`) again within 300 ms of `DAT_0087e970` runs its `+0x204`; else it becomes `+0x68`. Then keeps the tick and runs the control's `+0x34` when set | not compared |
+| `FUN_005073b0` | `list_key` | D2WinList.cpp, slot 0xb: asserts type 7 (line 0x179); runs the first row (next `+0x220`) whose byte `+0x218` is the event's key (`+8`) and that has a `+0x204`; else 0 | not compared |
+| `FUN_00507af0` | `account_list_destroy` | D2WinAccountList.cpp: asserts type 0xc (line 0x50); `FUN_00507850`, then `FUN_004f9310`. Caller `FUN_004f95c0` | no counterpart (Battle.net) |
+| `FUN_00507db0` | `control_destroy_507db0` | `FUN_004f9310(ECX)`. Caller `FUN_004f95c0` | not compared |
+| `FUN_00507ee0` | `control_destroy_507ee0` | `FUN_004f9310(ECX)`. Callers `FUN_004f95c0` and `textbox_destroy` | not compared |
+| `FUN_00514060` | `shutdown_881764` | `DAT_00881764` = 0; `FUN_00515ce0`, `FUN_005147b0`, `FUN_00515120`, `FUN_00513af0`; releases the objects `DAT_00881748` and `DAT_00881768` (vtable `+8`) and clears them; deletes the lock `0x88174c` once (`DAT_0088177c`). Callers `FUN_00405c30` (twice) and `FUN_005140d0` | not compared |
+| `FUN_00514d00` | `music_volume_set` | Writes `Diablo II\Music Volume` (`FUN_004150e0`) and `DAT_008817b4` from ECX; returns ECX. Caller `FUN_004f9f20`. Run | d2d keeps its volumes in its own settings |
+| `FUN_0051a480` | `nop_51a480` | Returns at once. The Battle.net server list code (`FUN_0051bee0`, `FUN_0051ca90`) calls it with printf-style text (`Original servlist:`, `%d --> %s`): a log left empty. Run | n/a |
+
+## Second hundred: 0x530000..0x5fffff (server and caches)
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_005316d0` | `plrsave_item_read` | PlrSave.cpp: 0 for no unit or one with `+0xc8` bit 15; with (s4, s5, s6) = (0, nonzero, 0) it needs `FUN_00564ca0()`; then `FUN_006313e0(unit, buffer, length, 1, 1, 0)`, asserted (line 0x75c). Callers `FUN_005317b0` (three) and `FUN_00569a00` (hireling.md) | not compared |
+| `FUN_00533bf0` | `merc_exp_for_level` | PlrSave.cpp; ECX player, EDX (word) hireling, stack experience, `RET 4`. Counts the level up from 1 while the experience step (`FUN_00533a70`, ×0x12 first, then × (L + 1) × L × 3) is at most the experience and L < 99; then, for the hireling row (`FUN_006562f0(+0x70, hireling, level)`), returns `FUN_00663790(level, row +0x20)` when that is above the experience, else the experience. Caller `FUN_00533c70` (hireling.md) | not compared |
+| `FUN_0053b470` | `scmd_send_12` | SCmd.cpp: queues 12 bytes (`d2d_scmd_queue`) laid out byte, byte, dword, byte, byte, dword from its arguments. Caller `FUN_00581a20` (from `unit_flags_send`) | not compared |
+| `FUN_0053cc40` | `scmd_owned_monster` | SCmd.cpp: EAX a monster (type 1) with data whose `+0x40` isn't EDI and whose owner (`d2d_monster_owner_unit`) is the stack unit: `FUN_0053cc10()`; else 0. Caller `FUN_0053cd80` | not compared |
+| `FUN_0053ddf0` | `scmd_send_0b` | SCmd.cpp: `FUN_005531c0(0xbae)`, then queues 0xb bytes. Taken by `FUN_0053de20` (collision.md) | not compared |
+| `FUN_0053de90` | `scmd_send_07` | SCmd.cpp: `FUN_005531c0(0xbd8)`, then queues 7 bytes. Taken by `scmd_send_8d` (`FUN_0053dec0`) | not compared |
+| `FUN_00547f70` | `unit_stop_send` | ECX unit: `d2d_scmd_unit_stop(0, id, 0x13, x, y, byte +0xb0, FUN_00621f20(unit))`; x, y from the path (`+0x2c`): `+0xc` / `+0x10` for types 2, 4 and 5, `d2d_path_get_x` / `_y` for the others. Caller `FUN_00580860` | not compared |
+| `FUN_00548010` | `unit_pkt_11_send` | ECX unit, stack value: `d2d_scmd_pkt_11(type, id, x, y, value)`, x and y as in `unit_stop_send`. Callers the C→S 0x5f handler `FUN_0054cd50` (network.md, with 0) and `FUN_00580860` | not compared |
+| `FUN_00549490` | `skill_point_check` | PlrMsg.cpp; ESI skill id, EDI unit: 2 for an id outside the Skills rows; 0 when `FUN_0056c700()`, `FUN_006447d0(unit, id)` and `FUN_00644920(unit, id)` all hold; else 3. Caller the C→S 0x3b handler `FUN_0054bd90` (add skill point, network.md) | not compared |
+| `FUN_00566c80` | `trade_partner_send` | PlrTrade.cpp: when EDX isn't the stack unit, `FUN_005531c0(0x83b)` and `FUN_0053b3d0(0, the stack unit's id or −1)`. Taken by `d2d_trade_restore` (`FUN_005678f0`) | not compared |
+| `FUN_005675e0` | `trade_saved_copy` | PlrTrade.cpp: the player data's `+0x5c` record (size, bytes) is copied to EDX when it fits the stack length, returning the size; else 0. Caller `FUN_00531bb0` (the save's `JM` items, hireling.md) | not compared |
+| `FUN_0056af31` | `inv_nth_item_id_tail` | PlrSave2.cpp. Not a function's start: Ghidra's split of `d2d_inv_nth_item_id` (`FUN_0056af20`) at 0x56af31. Walks the inventory (EAX) to item n (the caller's EBP + 8, from 1) and returns its id, −1 past the end | not compared |
+| `FUN_0056c2d0` | `skill_target_flag` | Skills.cpp: EDX unit's flags `+0xc4` |= 0x40; `FUN_00553540(ECX, EDX)` none gives 0; else `FUN_0057d4f0(record, 0)` and 1. Callers `FUN_0056f070`, `FUN_0056f115` (combat.md) | not compared |
+| `FUN_00573ae0` | `monster_data_any` | ECX: 1 when a byte of the monster data's `+4..+0x13` is nonzero, else 0. Anything but a monster with data reads address 0 (`XOR EAX,EAX`, then `CMP byte [EAX]`). Caller the S→C 0xac builder `FUN_0053e2e0` (net-packets.md). Run | not compared |
+| `FUN_005a0380` | `monster_data_byte1c` | ECX: a monster's data byte `+0x1c` ≠ 0; false for anything else. Caller `FUN_0053e2e0`. Run | not compared |
+| `FUN_005a5900` | `party_relation_send` | PartyScreen.cpp; ESI and EDI units (id or −1) differ: when `FUN_00554630()` is −1, `FUN_0055b3a0(2)` if `FUN_0055b3f0()` is 4, else `FUN_0055b3a0(0)` and `(1)`; otherwise `FUN_0055b3a0(1)` twice. Caller `FUN_005a5970` (twice) | not compared |
+| `FUN_005a5cb0` | `party_relation_send2` | PartyScreen.cpp: EDX the stack unit: `FUN_0055b3a0(1)`, `FUN_0053da90()`; else `FUN_0055b3a0(0)`, `FUN_0055b3a0(FUN_00554630() ≠ −1)` and `FUN_0053da90()` twice. Taken by `party_packet_send` (`FUN_005a5ff0`) | not compared |
+| `FUN_005fde10` | `lru_cache_end` | When `DAT_0088cb14`: a nonzero argument runs `FUN_006093e0`; zeroes `0x88cae0` (0x34 bytes) and `DAT_0088cb18`. Then `FUN_006006b0`. Caller `FUN_00457420` (gfx end) | not compared |
+| `FUN_005fe120` | `lru_cache_start` | `DAT_0088cb18` = stack 2; zeroes `0x88cae0` and sets up the LRU cache (`lru_init`) with limit stack 2, the evict callback `LAB_005fde50` and 0x1000 entries; `DAT_0088cb14` = 1. Caller `FUN_00457300` (gfx start, 0x600000) | not compared |
+| `FUN_005ff3f0` | `spritecache_node_take` | SpriteCache.cpp; EDI cache, under its lock (`+0x30`): when the count (`+0xc`) isn't 0x1400 and the bytes (`+8`) plus the stack size fit the limit (`+4`), it unlinks the free list's head (`+0x24`; next `+0x14`, prev `+0x18`, tail `+0x28`) unless that has flag `+0xc` bit 2, runs `FUN_005ff060(stack 2)`, asserts a node (line 0x993) and counts it and its size. Caller `FUN_005ffc40` (cof-draw-order.md) | not compared |
+
+## Second hundred: 0x600000..
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00600b80` | `free8_6009c0` | `FUN_006009c0` eight times (its arguments are in registers). Caller `FUN_0044e200` | not compared |
+| `FUN_00609020` | `lru_init` | LRUCache.cpp; ECX cache: `+0` EDX, `+4` stack 1 (the byte limit), `+0x28` stack 2 (the evict callback), `+0x14` stack 3 entries of 0x14 bytes, allocated (`FUN_0040b430`, line 0x30), zeroed and chained (next `+0xc`, prev `+0x10`) from `+0x20` to `+0x24`; `+8`, `+0xc`, `+0x18`, `+0x1c`, `+0x2c`, `+0x30` = 0. Callers `lru_cache_start`, `FUN_005ffd40`. Run | not compared |
+| `FUN_006092d0` | `lru_evict` | LRUCache.cpp; ECX cache, EDX entry or null (then the used list's head `+0x18`): unlinks it (`FUN_00609180` for a given entry), takes its size (`+4`) off `+8`, runs the evict callback (`+0x28`) when its `+8` is set, frees its block (`+0`, line 200) and puts it at the free list's tail (`+0x24`); the count `+0xc` drops by 1. Callers `FUN_005fdf50`, `FUN_005fe080`, `FUN_006093e0`, `FUN_00609420` | not compared |
+| `FUN_0060aaf0` | `gfxhash_clear` | GfxHash.cpp: zeroes 0x10000 bytes at ECX. Caller `FUN_005ffd40`. Run | not compared |
+| `FUN_0060ac60` | `gfxhash_key` | GfxHash.cpp; ECX record: `FUN_0060ab80(EAX)` is stored at EDI; kinds (`+8`) 3 and 4, and 6 with `+4` bit 2, add the hash of the name `+0x2c` (`FUN_00413ce0(name, 1, 0)`; asserts it, line 0x2c), the others add `+0x18..+0x28`; the sum v folds to ((v >> 8 ^ v) >> 16 ^ v >> 8 ^ v) & 0x1fff. Callers `FUN_0060ace0`, `FUN_0060adc0` (cof-draw-order.md). Run | not compared |
+| `FUN_0060aee0` | `celdatahash_clear` | CelDataHash.cpp: zeroes 0x1000 bytes at ECX. Caller `FUN_005ffd40`. Run | not compared |
+| `FUN_0060b200` | `bits_read_lsb` | EDI a bit count (0 gives 0), EDX a reader (`+4` dword pointer, `+0xc` bit position): the next bits LSB first, masked by `0x6e6030` ((1 << n) − 1), across a dword boundary. Callers the DCC decoders `FUN_0060b280`, `FUN_0060b7b0`, `FUN_0060b9a0`, `FUN_0060bff0` (cels.md). Run | not compared |
+| `FUN_0060b4b0` | `dcc_cell_grid` | ESI direction: `+0x28` = (width `+0x10` + 3) / 4, `+0x24` = that × ((height `+0x14` + 3) / 4); with `+0x1c` set, counts in `+0x20` the calls to `FUN_0060b2b0` before it returns 0. Caller `FUN_0060bff0` | not compared |
+| `FUN_0060b530` | `dcc_frame_bounds` | ECX header, EAX frames (0x2c bytes, count header `+0xc`), EDI out, stack value: out = header, frames, min x, min y, width, height, the stack value, the count; x spans `+0xc` to `+0xc` + width (`+4`), y from `+0x10` − height (`+8`) (or `+0x10` when `+0x28`, bottom-up) for height. Caller `FUN_0060bff0`. Run | not compared |
+| `FUN_0060cd30` | `findtiles_lock_init` | `InterlockedIncrement(0x8f03e4)`; the first one initialises the lock `0x8f03cc`. Caller `FUN_005ffd40` | not compared |
+| `FUN_0060cd70` | `tile_hash_bucket` | ECX style, EDX sequence, stack orientation: returns (2·style − orientation + sequence) & 0x7f in EAX (the decompile shows void), drlg.md's tile hash bucket; its assert (line 0x1e) can't fire. `RET 4`. Callers `FUN_0060cfa0`, `FUN_0060d040` (drlg.md). Run | not compared |
+| `FUN_0060cdb0` | `tile_hash_alloc` | FindTiles.cpp: allocates (line 0x2a; asserts 0x2b) and zeroes 0x200 bytes, the 128 buckets. Caller `FUN_0060a440` (drlg.md) | not compared |
+| `FUN_0060cea0` | `tile_hash_note` | FindTiles.cpp; ESI record, EDI value: unless the value is on ESI `+0xc`'s list (next `+4`), a new node (line 0x6e; asserts 0x6f) holding it goes in front. Caller `FUN_0060cfa0` | not compared |
+| `FUN_0060cf00` | `tile_hash_add` | FindTiles.cpp; EDI tile, EBX list head: pushes a 0x14-byte node (line 0x82; asserts 0x83) of the tile's `+0x18`, `+0x1c`, `+0x14`, a second node (line 0x8e; asserts 0x8f) holding the tile at `+0xc`, and the old head at `+0x10`. Caller `FUN_0060cfa0` | not compared |
+| `FUN_006274f0` | `stats_apply_list` | (unit, list): for each 8-byte entry of the list's `+0x24` (count word `+0x28`), `FUN_00627030(unit, word +2, dword +4, word +0)`. Caller `FUN_004e60a0` (item-names.md) | not compared |
+| `FUN_00647b20` | `skill_bonus_add` | (unit, skill, delta): the node of the unit's skill list (`+0xa8` → `+4`, next `+4`) for the skill with `+0x34` = −1; none and a delta ≥ 1 grants it (`d2d_skill_grant`, `FUN_006439b0(−1)` `+0x28` = 0, `d2d_skill_passive_refresh`). Then `+0x2c` += delta, held at ≥ 0. Caller `FUN_004c7990` (skills.md) | not compared |
+| `FUN_00661210` | `set_field_0c` | (record, value): `+0xc` := value. Caller `d2d_unit_text_free` with 0. Run | not compared |
+| `FUN_0067fb90` | `outdoor_bridge_cell` | EAX level: walks cells 1 to (`+0x14` → `+0x5c`) − 2 through `FUN_0067c570` for one that is 0x1c with bits 16..19 = 1; found: EBX and the index into the two out pointers; else −1, −1. Callers `FUN_0067fc20` (the river's bridge, drlg.md), `FUN_0067fc50` | not compared |
+| `FUN_006809c0` | `outdoor_neighbours` | EAX index, ESI out: nine `FUN_0067c570` reads at EAX − 1, EAX and EAX + 1 (its other coordinate in registers the decompile drops) into ESI[0..8]. Caller `FUN_00680b10` (the neighbour bits, drlg.md) | not compared |
+| `FUN_006b1b60` | `display_mode_matches` | (record, flags): when the record's `+4`, `+0xc`, `+0x10`, `+0x14`, `+0x18`, `+0x1c` equal `0x74c028`, `0x74c030..0x74c040`, the flags get 0x200; returns 1. Taken by `FUN_006b42f0` (chat.md). Run | not compared |
