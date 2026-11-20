@@ -6,7 +6,7 @@ confirmed against stock 1.14d (PetView::slowed was missing, always running).
 From the worktree root with GAME_EXE set to stock 1.14d:
     mkdir -p build/ai-pet-slow
     uv run --no-sync --project tools/emu python tools/emu/ai_pet_decrepify_probe.py --cpp > build/ai-pet-slow/cases.cpp
-    c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-pet-slow/cases.cpp -o build/ai-pet-slow/cases
+    c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-pet-slow/cases.cpp build/components/rules/librules.a -o build/ai-pet-slow/cases
     build/ai-pet-slow/cases > build/ai-pet-slow/cases.txt
     uv run --no-sync --project tools/emu python tools/emu/ai_pet_decrepify_probe.py --cases build/ai-pet-slow/cases.txt --exe "$GAME_EXE"
 

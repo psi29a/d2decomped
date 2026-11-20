@@ -479,33 +479,16 @@ inline constexpr ObjectSounds kObjectSounds[] = {
 // Object 0x3d's loop (FUN_004cb3e0's special case, 0x728338): a row by mode.
 inline constexpr std::array<int, 8> kObject61Loops = { 0, 413, 414, 415, 416, 417, 0, 0 };
 
-inline const ObjectSounds* object_sounds(int id) {
-    const auto found = std::ranges::lower_bound(kObjectSounds, id, {}, &ObjectSounds::id);
-    return found != std::end(kObjectSounds) && found->id == id ? &*found : nullptr;
-}
+const ObjectSounds* object_sounds(int id);
 // The row object `id` plays entering `mode` from `from` (FUN_004cb380), 0 none.
-inline int object_sound(int id, int mode, int from = -1) {
-    const auto* sounds = object_sounds(id);
-    if (!sounds || mode < 0 || mode > 7 || (sounds->shared && from > mode)) return 0;
-    return sounds->modes[std::size_t(mode)];
-}
+int object_sound(int id, int mode, int from = -1);
 // Its looping row in `mode` (FUN_004cb3e0), 0 none.
-inline int object_loop(int id, int mode) {
-    if (mode < 0 || mode > 7) return 0;
-    if (id == 0x3d) return kObject61Loops[std::size_t(mode)];
-    const auto* sounds = object_sounds(id);
-    if (!sounds || (sounds->loops[0] == 0 && sounds->loops[2] == 0)) return 0;
-    if (sounds->loops[1] == mode || sounds->loops[1] == 8) return sounds->loops[0];
-    if (sounds->loops[3] == mode || sounds->loops[3] == 8) return sounds->loops[2];
-    return 0;
-}
+int object_loop(int id, int mode);
 // An object's own call (FUN_004cb460, its unit-type-2 branch): the Gibbet
 // (26) in mode 0 plays cain_act1_help when a player is under 0x14 off
 // (unit_range), if it has played nothing yet (unit +0x80, set to the
 // game's frame after). 0 none.
 inline constexpr int kCallRange = 0x14;
-inline int object_call(int id, int mode, int range, bool played) {
-    return id == object_ids::kGibbet && mode == 0 && range < kCallRange && !played ? sound_ids::kCainHelp : 0;
-}
+int object_call(int id, int mode, int range, bool played);
 
 }  // namespace d2d::rules

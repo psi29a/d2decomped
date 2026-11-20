@@ -403,12 +403,6 @@ inline constexpr SeqEntry kSeqEntries[] = {
 
 // Sequence `seq`'s frames for weapon class `wclass` (a WeaponClass.txt
 // code); empty when the table has none for it.
-inline std::span<const SeqFrame> sequence(int seq, std::string_view wclass) {
-    for (std::size_t weapon_class = 0; weapon_class < kSeqWClass.size(); ++weapon_class)
-        if (kSeqWClass[weapon_class] == wclass)
-            for (const auto& entry : kSeqEntries)
-                if (entry.seq == seq && entry.wclass == weapon_class) return { kSeqFrames + entry.first, entry.count };
-    return {};
-}
+std::span<const SeqFrame> sequence(int seq, std::string_view wclass);
 
 }  // namespace d2d::rules

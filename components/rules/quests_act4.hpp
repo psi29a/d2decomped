@@ -21,15 +21,9 @@ inline constexpr int kTyrael = 367, kCain = 246, kIzualGhost = 406, kFortress = 
 inline void clear_steps(QuestBits& quest_bits, int quest) { for (int bit = 2; bit <= 11; ++bit) quest::set(quest_bits, quest, bit, false); }
 // FUN_005b3940 / FUN_005b4e40 / FUN_005b59c0: the log goes to a player
 // unless done (bit 0 or 15) without 13 / 14.
-inline bool told(const QuestBits& quest_bits, int quest) {
-    return !(quest::bit(quest_bits, quest, 0) || quest::bit(quest_bits, quest, 15)) || quest::bit(quest_bits, quest, 13) || quest::bit(quest_bits, quest, 14);
-}
+bool told(const QuestBits& quest_bits, int quest);
 struct Entry { int npc, string; bool greet; };
-inline std::vector<QuestMsg> block_for(const std::vector<Entry>& block, int npc) {
-    std::vector<QuestMsg> out;
-    for (const auto& entry : block) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
-    return out;
-}
+std::vector<QuestMsg> block_for(const std::vector<Entry>& block, int npc);
 }  // namespace act4_detail
 
 // a4q0 (word 0x18, FUN_005b3780): Tyrael's welcome (664) and "!" till bit 0;

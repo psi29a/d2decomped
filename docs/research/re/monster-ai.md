@@ -383,7 +383,7 @@ worktree root, with `GAME_EXE` set to stock 1.14d:
 ```sh
 mkdir -p build/ai-boss-range
 uv run --no-sync --project tools/emu python tools/emu/ai_boss_player_range.py --cpp > build/ai-boss-range/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-boss-range/cases.cpp -o build/ai-boss-range/cases
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-boss-range/cases.cpp build/components/rules/librules.a -o build/ai-boss-range/cases
 build/ai-boss-range/cases > build/ai-boss-range/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_boss_player_range.py --cases build/ai-boss-range/cases.txt --exe "$GAME_EXE"
 ```
@@ -397,7 +397,7 @@ From the worktree root with `GAME_EXE` set to stock 1.14d:
 ```sh
 mkdir -p build/ai-diablo-melee
 uv run --no-sync --project tools/emu python tools/emu/ai_diablo_melee_choice.py --cpp > build/ai-diablo-melee/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-diablo-melee/cases.cpp -o build/ai-diablo-melee/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-diablo-melee/cases.cpp build/components/rules/librules.a -o build/ai-diablo-melee/cases
 build/ai-diablo-melee/cases > build/ai-diablo-melee/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_diablo_melee_choice.py --cases build/ai-diablo-melee/cases.txt --exe "$GAME_EXE"
 ```
@@ -460,7 +460,7 @@ check search ordering or the later skill action. From the worktree root with
 ```sh
 mkdir -p build/ai-mephisto-target
 uv run --no-sync --project tools/emu python tools/emu/ai_mephisto_target_choice.py --cpp > build/ai-mephisto-target/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-mephisto-target/cases.cpp -o build/ai-mephisto-target/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-mephisto-target/cases.cpp build/components/rules/librules.a -o build/ai-mephisto-target/cases
 build/ai-mephisto-target/cases > build/ai-mephisto-target/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_mephisto_target_choice.py --cases build/ai-mephisto-target/cases.txt --exe "$GAME_EXE"
 ```
@@ -547,7 +547,7 @@ with the emulator set up and `GAME_EXE` pointing to stock 1.14d:
 ```sh
 mkdir -p build/ai-imp-ride
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_ride_init.py --cpp > build/ai-imp-ride/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-imp-ride/cases.cpp -o build/ai-imp-ride/cases
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-imp-ride/cases.cpp build/components/rules/librules.a -o build/ai-imp-ride/cases
 build/ai-imp-ride/cases > build/ai-imp-ride/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_ride_init.py --cases build/ai-imp-ride/cases.txt --exe "$GAME_EXE"
 ```
@@ -560,7 +560,7 @@ skill action. From the worktree root, with the same `GAME_EXE`:
 ```sh
 mkdir -p build/ai-imp-teleport
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_teleport_point.py --cpp > build/ai-imp-teleport/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-imp-teleport/cases.cpp -o build/ai-imp-teleport/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-imp-teleport/cases.cpp build/components/rules/librules.a -o build/ai-imp-teleport/cases
 build/ai-imp-teleport/cases > build/ai-imp-teleport/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_imp_teleport_point.py --cases build/ai-imp-teleport/cases.txt --exe "$GAME_EXE"
 ```
@@ -574,7 +574,7 @@ checked. From the worktree root, with `GAME_EXE` set to stock 1.14d:
 ```sh
 mkdir -p build/ai-countess-firewall
 uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cpp > build/ai-countess-firewall/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-countess-firewall/cases.cpp -o build/ai-countess-firewall/cases
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-countess-firewall/cases.cpp build/components/rules/librules.a -o build/ai-countess-firewall/cases
 build/ai-countess-firewall/cases > build/ai-countess-firewall/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_countess_firewall.py --cases build/ai-countess-firewall/cases.txt --exe "$GAME_EXE"
 ```
@@ -742,7 +742,7 @@ root, with `GAME_EXE` set to stock 1.14d:
 ```sh
 mkdir -p build/ai-baal-melee
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_melee_choice.py --cpp > build/ai-baal-melee/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-melee/cases.cpp -o build/ai-baal-melee/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-melee/cases.cpp build/components/rules/librules.a -o build/ai-baal-melee/cases
 build/ai-baal-melee/cases > build/ai-baal-melee/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_melee_choice.py --cases build/ai-baal-melee/cases.txt --exe "$GAME_EXE"
 ```
@@ -755,7 +755,7 @@ post-action seed is not compared because some d2d actions draw again.
 ```sh
 mkdir -p build/ai-baal-blocked
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cpp > build/ai-baal-blocked/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-blocked/cases.cpp -o build/ai-baal-blocked/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-blocked/cases.cpp build/components/rules/librules.a -o build/ai-baal-blocked/cases
 build/ai-baal-blocked/cases > build/ai-baal-blocked/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_blocked_choice.py --cases build/ai-baal-blocked/cases.txt --exe "$GAME_EXE"
 ```
@@ -778,7 +778,7 @@ IDs and levels are hooked. It compares action outcomes, with choices 2 and
 ```sh
 mkdir -p build/ai-baal-hands
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_hand_predicate.py --cpp > build/ai-baal-hands/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-hands/cases.cpp -o build/ai-baal-hands/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-hands/cases.cpp build/components/rules/librules.a -o build/ai-baal-hands/cases
 build/ai-baal-hands/cases > build/ai-baal-hands/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_hand_predicate.py --cases build/ai-baal-hands/cases.txt --exe "$GAME_EXE"
 ```
@@ -791,7 +791,7 @@ and does not compare the seed after the action.
 ```sh
 mkdir -p build/ai-baal-clear
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --cpp > build/ai-baal-clear/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-clear/cases.cpp -o build/ai-baal-clear/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-baal-clear/cases.cpp build/components/rules/librules.a -o build/ai-baal-clear/cases
 build/ai-baal-clear/cases > build/ai-baal-clear/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_baal_clear_choice.py --cases build/ai-baal-clear/cases.txt --exe "$GAME_EXE"
 ```
@@ -857,7 +857,7 @@ comparison. From the worktree root with `GAME_EXE` set to stock 1.14d:
 ```sh
 mkdir -p build/ai-korlic
 uv run --no-sync --project tools/emu python tools/emu/ai_korlic_no_skill.py --cpp > build/ai-korlic/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-korlic/cases.cpp -o build/ai-korlic/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-korlic/cases.cpp build/components/rules/librules.a -o build/ai-korlic/cases
 build/ai-korlic/cases > build/ai-korlic/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_korlic_no_skill.py --cases build/ai-korlic/cases.txt --exe "$GAME_EXE"
 ```
@@ -870,7 +870,7 @@ approach branches are not checked.
 ```sh
 mkdir -p build/ai-madawc
 uv run --no-sync --project tools/emu python tools/emu/ai_madawc_no_skill.py --cpp > build/ai-madawc/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-madawc/cases.cpp -o build/ai-madawc/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-madawc/cases.cpp build/components/rules/librules.a -o build/ai-madawc/cases
 build/ai-madawc/cases > build/ai-madawc/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_madawc_no_skill.py --cases build/ai-madawc/cases.txt --exe "$GAME_EXE"
 ```

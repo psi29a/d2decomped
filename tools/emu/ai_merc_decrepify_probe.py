@@ -7,7 +7,7 @@ downgrades to a walk under Decrepify (state 0x3c), confirmed against stock
 From the worktree root with GAME_EXE set to stock 1.14d:
     mkdir -p build/ai-merc-slow
     uv run --no-sync --project tools/emu python tools/emu/ai_merc_decrepify_probe.py --cpp > build/ai-merc-slow/cases.cpp
-    c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-merc-slow/cases.cpp -o build/ai-merc-slow/cases
+    c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-merc-slow/cases.cpp build/components/rules/librules.a -o build/ai-merc-slow/cases
     build/ai-merc-slow/cases > build/ai-merc-slow/cases.txt
     uv run --no-sync --project tools/emu python tools/emu/ai_merc_decrepify_probe.py --cases build/ai-merc-slow/cases.txt --exe "$GAME_EXE"
 

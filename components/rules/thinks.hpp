@@ -22,28 +22,15 @@
 namespace d2d::rules {
 
 // The think's row, nullptr when d2d has none for that AI.
-inline const ThinkRow* think_row(std::string_view ai_name) {
-    // game.exe indexes its table by the AI row (0x73ca18 + AI x 16); d2d finds
-    // the same row by name, linearly (a few hundred compares at a spawn).
-    for (const std::span<const ThinkRow> table : { std::span<const ThinkRow>(kAct1Thinks), std::span<const ThinkRow>(kAct2Thinks), std::span<const ThinkRow>(kAct3Thinks),
-                                                   std::span<const ThinkRow>(kAct4Thinks), std::span<const ThinkRow>(kAct5Thinks) })
-        if (const auto row = std::ranges::find(table, ai_name, &ThinkRow::ai_name); row != table.end()) return &*row;
-    return nullptr;
-}
+const ThinkRow* think_row(std::string_view ai_name);
 
 // The AI's think, MonAct::untraced for one d2d has none for.
-inline Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, const ThinkAway& away) {
-    const auto* row = think_row(ai_name);
-    return row ? row->think(ai_name, input, rng, away) : Think{ MonAct::untraced };
-}
+Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, const ThinkAway& away);
 
 // An AI d2d thinks for: a row above, or one the game runs itself
 // (game/ai/: the prisoners', Baal's throne and stairs, the Dark
 // Wanderer's). ImpRide is the riding imp's think (special AI 16), no
 // MonStats AI.
-inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 4> kGameSide{ "Wussie", "BaalThrone", "BaalToStairs", "DarkWanderer" };
-    return (ai_name != "ImpRide" && think_row(ai_name)) || std::ranges::contains(kGameSide, ai_name);
-}
+bool traced_ai(std::string_view ai_name);
 
 }  // namespace d2d::rules

@@ -7,7 +7,7 @@
     uv run python crush.py game cases.tsv > game.tsv       # id crush life_at_event life_after, 256ths
     uv run python crush.py order cases.tsv > order.tsv     # FUN_0057c6c0: the life the strike events see, and after the damage
     g++ -O2 -std=c++23 -I<d2d>/components/rules -I<d2d>/components -I<d2d>/components/d2s -I<d2d>/components/txt \\
-        -o crush_harness crush_harness.cpp && ./crush_harness < cases.tsv > d2d.tsv
+        -o crush_harness crush_harness.cpp <d2d>/build/components/rules/librules.a && ./crush_harness < cases.tsv > d2d.tsv
     uv run python crush.py compare cases.tsv game.tsv d2d.tsv        # exit 1 on a mismatch
     uv run python crush.py gen-pair 2000 7 > pair.tsv                 # Crushing Blow and leech on one blow
     uv run python crush.py pair pair.tsv > game_pair.tsv              # id crush life mana, 256ths

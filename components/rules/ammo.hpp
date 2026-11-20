@@ -28,9 +28,7 @@ inline constexpr int kItemThrowable = 0x7d;   // item_throwable: no 1.14d item r
 // quantity 0 there); else only one without a max stack (FUN_006295b0 at 0
 // or less).
 [[nodiscard]] inline bool quantity_left(int quantity, bool throw_stat, int most) { return quantity > 0 || throw_stat || most <= 0; }
-[[nodiscard]] inline bool quantity_left(const Tables& tables, const d2d::d2s::Item& item) {
-    return quantity_left(item.quantity, own_stat(tables, item, kItemThrowable) != 0, stack_most(tables, item));
-}
+[[nodiscard]] bool quantity_left(const Tables& tables, const d2d::d2s::Item& item);
 
 // FUN_0056c310: a shot spends one of the hand's ammunition (FUN_0056c3f0
 // picks it). The quantity (stat 0x46) less 1 in 32 bits, 0 when that is
@@ -42,11 +40,7 @@ struct ShotSpent {
     int quantity = 0, durability = 0, answer = 0;
     friend bool operator==(const ShotSpent&, const ShotSpent&) = default;
 };
-[[nodiscard]] inline ShotSpent shot_spent(int quantity, int durability_most) {
-    const auto next = std::int32_t(std::uint32_t(quantity) - 1u);
-    if (next < 0) return { 0, durability_most, 0 };
-    return { next, durability_most, std::int32_t(std::uint32_t(next) + 1u) };
-}
+[[nodiscard]] ShotSpent shot_spent(int quantity, int durability_most);
 
 // What FUN_00580030 reads of a hand's item.
 struct SpentItem {
@@ -76,22 +70,13 @@ struct Spent {
 
 // FUN_00580030: a stackable or throwable item, or one with stat 0x7d, at
 // quantity 0 or less.
-[[nodiscard]] inline Spent spent_fate(const SpentItem& item) {
-    if ((!item.stackable && !item.throwable && !item.throw_stat) || item.quantity > 0) return {};
-    if (item.throw_stat) return { SpentFate::emptied };
-    if (item.weapon && item.magic) return { item.broken ? SpentFate::stays : SpentFate::breaks };
-    return { SpentFate::leaves, item.reload, item.reequip };
-}
+[[nodiscard]] Spent spent_fate(const SpentItem& item);
 
 // The reload's pick among the pack's items of the spent one's type, in
 // the pack's order (FUN_0063cd80): the first of its class (its code) that
 // isn't broken, and no other; -1 none.
 struct PackItem { bool same_class = false, broken = false; };
-[[nodiscard]] inline int reload_pick(std::span<const PackItem> pack) {
-    for (std::size_t at = 0; at < pack.size(); ++at)
-        if (pack[at].same_class && !pack[at].broken) return int(at);
-    return -1;
-}
+[[nodiscard]] int reload_pick(std::span<const PackItem> pack);
 
 // FUN_0057ff70, ReEquip (the player in EDI; the game and the spent slot on
 // the stack, `ret 8`). The player keeps one item's unit id (FUN_00623410,
@@ -111,9 +96,6 @@ struct KeptWeapon {
     bool ours = false;        // FUN_0063ad50: in the player's inventory
     int found_slot = -1;      // FUN_0055d710 mode 0's slot, -1 none
 };
-[[nodiscard]] inline int reequip_slot(const KeptWeapon& kept) {
-    if (kept.id == 0 || !kept.of_game || kept.page != 0 || !kept.ours) return -1;
-    return kept.found_slot;
-}
+[[nodiscard]] int reequip_slot(const KeptWeapon& kept);
 
 }  // namespace d2d::rules

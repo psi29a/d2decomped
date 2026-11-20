@@ -158,12 +158,7 @@ struct LightQuality {
 // player's (type 0, not the player's own unit) over 15 is 16, a type 1 one
 // (monsters', missiles') 8, a type 3 one 0 (not stamped). Other qualities
 // and types keep it.
-[[nodiscard]] inline int light_radius8(int quality, int type, bool own, int radius8) {
-    if (quality != 0 || radius8 <= 0) return radius8;              // 0: not stamped at all (radius - 1 over 0xfe)
-    if (type == 0 && !own && radius8 > 15) return 16;
-    if (type == 1) return 8;
-    return type == 3 ? 0 : radius8;
-}
+[[nodiscard]] int light_radius8(int quality, int type, bool own, int radius8);
 
 // One near room, in act tiles, and the light its subtiles take.
 struct BorderRoom { int x = 0, y = 0, width = 0, height = 0, light = 0; };

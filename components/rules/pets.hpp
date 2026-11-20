@@ -258,9 +258,7 @@ PetAct necropet_think(const PetView& view, Rng& seed, AreaAt&& area_at, TryMove&
 
 // A player's run (FUN_00620e80, on RN): velocitypercent + RunVelocity x 100
 // / WalkVelocity - 100 over its WalkVelocity; 0 without a walk.
-inline int run_percent(int walk_velocity, int run_velocity) {
-    return walk_velocity > 0 ? run_velocity * 100 / walk_velocity - 100 : 0;
-}
+int run_percent(int walk_velocity, int run_velocity);
 
 // Blood Golem's life steal (domeleedamage, aura event func 23, FUN_005c6530):
 // FUN_0057c6c0 raises it on the golem as its melee hit lands (0x57c7e3),
@@ -273,26 +271,9 @@ inline int run_percent(int walk_velocity, int run_velocity) {
 // (FUN_004efc50), the golem the rest, the owner what the golem has no room
 // for; each heal stops at the unit's max (FUN_005c5f10). 256ths.
 struct GolemSteal { int owner_life = 0, golem_life = 0; };
-inline int heal_to_max(int& life, int max_life, int amount) {   // FUN_005c5f10: what it took
-    if (amount <= 0) return 0;
-    int healed = int(std::uint32_t(life) + std::uint32_t(amount));
-    if (healed > max_life) { amount += max_life - healed; healed = max_life; }
-    life = healed;
-    return amount;
-}
-inline GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
-                                    bool owner, GolemSteal lives, int owner_max, int golem_max) {
-    if ((monster && (drain & 0xff) == 0) || !evil) return lives;
-    int amount = monster && (drain & 0xff) != 100 ? mul_div(phys_fine, drain & 0xff, 100) : phys_fine;
-    if (amount >= target_life) amount = target_life;
-    if (steal_pct <= 0) return lives;
-    int heal = mul_div(amount, steal_pct, 100);
-    if (heal <= 0) return lives;
-    if (owner && owner_pct > 0) heal -= heal_to_max(lives.owner_life, owner_max, mul_div(heal, owner_pct, 100));
-    heal -= heal_to_max(lives.golem_life, golem_max, heal);
-    if (owner && heal > 0) heal_to_max(lives.owner_life, owner_max, heal);
-    return lives;
-}
+int heal_to_max(int& life, int max_life, int amount);
+GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
+                             bool owner, GolemSteal lives, int owner_max, int golem_max);
 
 // Iron Golem's target (its srvstfunc 20, FUN_005c32a0): an item (unit type 4)
 // on the ground (mode 3) of a metal base (Items bitfield1 & 2, FUN_00629cc0),
@@ -308,19 +289,8 @@ inline GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys
 // bonewallmaker missiles from the first piece's subtile P, each carrying count = calc2 / 2 and the piece's id: with dx, dy the
 // caster less P (dx 1 when both are 0), one toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx).
 struct BoneWallMakers { int count = 0; std::array<std::pair<int, int>, 2> aims{}; };
-inline BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town) {
-    const int count = calc2 / 2;
-    if (town || count <= 1) return {};
-    int across = caster_x - piece_x;
-    const int down = caster_y - piece_y;
-    if (across == 0 && down == 0) across = 1;
-    return { count, { std::pair{ piece_x - down, piece_y + across }, std::pair{ piece_x + down, piece_y - across } } };
-}
-inline bool traced_pet_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 11> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear",
-                                                               "ShadowWarrior", "ShadowMaster" };
-    return std::ranges::contains(kTraced, ai_name);
-}
+BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town);
+bool traced_pet_ai(std::string_view ai_name);
 
 // What the other pets' thinks read (tools/emu/pet_ais.py feeds game.exe the
 // same): the pet's class (MonStats hcIdx), its owner (or none) and its mode,

@@ -28,13 +28,7 @@ namespace d2d::rules {
 // Chance to hit in percent (FUN_0057d9b0): negative defense adds to the
 // attack rating (and vice versa); c = AR x 100 / (AR + DEF), then
 // c x 2 x alvl / (alvl + dlvl), clamped to 5..95.
-inline int hit_chance(int attack_rating, int def, int alvl, int dlvl) {
-    std::int64_t attack = attack_rating, defense = def;
-    if (defense < 0) { attack -= defense; defense = 0; }
-    if (attack < 0) { defense -= attack; attack = 0; }
-    const std::int64_t chance = attack + defense != 0 ? attack * 100 / (attack + defense) : 100;
-    return int(std::clamp<std::int64_t>(chance * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
-}
+int hit_chance(int attack_rating, int def, int alvl, int dlvl);
 
 // Item stats summed by ItemStatCost id: what's worn, charms carried, and
 // what's socketed in them (the caller resolves sockets).
@@ -108,86 +102,14 @@ struct Fighter {
 //   masteries (FUN_00645830), in `sum` only when the weapon is their
 //     passiveitype (the caller checks): 342 to-hit joins 119, 343 damage
 //     joins 25, 344 crit rolls first; 348 weapon block (two claws).
-inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
-                            const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,
-                            const ClassGains& gains, int defense, const std::array<int, 4>& res,
-                            const d2d::d2s::Item* boots = nullptr, bool thrown = false) {
-    using namespace d2d::d2s;
-    Fighter fighter;
-    const auto stat = [&](int id) { return sum[std::size_t(id)]; };
-    const auto weapon_stat = [&](int id) { return weapon_sum[std::size_t(id)]; };
-    const std::int64_t clvl = std::max<std::int64_t>(stats.get(kLevel), 1), str = stats.get(kStr), dex = stats.get(kDex);
-    const ItemBase* weapon_base = nullptr;
-    if (weapon && item_usable(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken or 0x4000 one's stats are off (FUN_0055f850, FUN_0055dbc0)
-    if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
-    // In 256ths, as game.exe keeps them.
-    // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
-    const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
-    std::int64_t low = (weapon_base ? base_min * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
-                 high = (weapon_base ? base_max * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
-    low = std::max<std::int64_t>(low, 1) << 8;
-    high = std::max<std::int64_t>(high << 8, low + 256);
-    const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
-    fighter.phys_lo = int(low); fighter.phys_hi = int(high); fighter.phys_pct = int(pct);
-    if (weapon_base) {
-        const auto info = tables.item_info.find(weapon->code);
-        fighter.blunt = (info != tables.item_info.end() && type_is(tables, info->second.type, "blun")) || (!weapon_base->type2.empty() && type_is(tables, weapon_base->type2, "blun"));
-    }
-    fighter.undead_pct = int(stat(kUndeadDamagePercent));
-    fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
-    fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
-    fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
-    fighter.ar_pct = int(stat(kToHitPercent) + stat(kPassiveMasteryMeleeToHit));
-    fighter.attack_rating = int(std::max<std::int64_t>(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct) / 100, 1));
-    fighter.kick_lo = fighter.kick_hi = int(stat(kKickDamage));
-    if (boots) if (const auto found = tables.item_base.find(boots->code); found != tables.item_base.end()) {
-        fighter.kick_lo += found->second.mindam;
-        fighter.kick_hi = std::max(fighter.kick_hi + found->second.maxdam, fighter.kick_lo);
-        fighter.kick_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(kDamagePercent), -90)
-                         + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
-    }
-    if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end()) {
-        fighter.smite_lo = found->second.mindam + int(stat(kNormalDamage));      // FUN_0057b420 adds stat 111 to both ends (0x57b4c3..0x57b4d6)
-        fighter.smite_hi = found->second.maxdam + int(stat(kNormalDamage));
-        fighter.smite_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(kDamagePercent), -90)
-                          + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
-    }
-    if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end() && found->second.block > 0)
-        fighter.block = int(std::clamp<std::int64_t>((found->second.block + gains.block + stat(kToBlock)) * (dex - 15) / (clvl * 2), 0, 75));
-    // Each element's mastery % (FUN_0057b7d0 -> FUN_0057a8e0): fire 329,
-    // lightning 330, cold 331, poison 332, magic 357.
-    const auto scaled = [&](std::int64_t value, int stat_id) { return int(value * (100 + stat(stat_id)) / 100); };
-    fighter.elem = { { { scaled(stat(kFireMinDamage), kPassiveFireMastery), scaled(stat(kFireMaxDamage), kPassiveFireMastery) }, { scaled(stat(kLightningMinDamage), kPassiveLightningMastery), scaled(stat(kLightningMaxDamage), kPassiveLightningMastery) }, { scaled(stat(kColdMinDamage), kPassiveColdMastery), scaled(stat(kColdMaxDamage), kPassiveColdMastery) },
-                 { scaled(stat(kPoisonMinDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery), scaled(stat(kPoisonMaxDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery) }, { scaled(stat(kMagicMinDamage), kPassiveMagicMastery), scaled(stat(kMagicMaxDamage), kPassiveMagicMastery) } } };
-    fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
-    fighter.stun_len = int(stat(kStunLength));
-    fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
-    fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
-    fighter.open_wounds = int(stat(kOpenWounds));
-    fighter.knockback = stat(kKnockback) > 0;
-    fighter.prevent_heal = stat(kPreventHeal) > 0;
-    fighter.life_steal = int(stat(kLifeDrainMinDamage)); fighter.mana_steal = int(stat(kManaDrainMinDamage));
-    fighter.ias = int(stat(kFasterAttackRate)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(kFasterMoveVelocity)); fighter.fhr = int(stat(kFasterGetHitRate)); fighter.fbr = int(stat(kFasterBlockRate)); fighter.fcr = int(stat(kFasterCastRate));
-    fighter.defense = defense;
-    fighter.def_melee = int(stat(kArmorClassVsHandToHand)); fighter.def_missile = int(stat(kArmorClassVsMissile));
-    fighter.dodge = int(stat(kPassiveDodge)); fighter.avoid = int(stat(kPassiveAvoid)); fighter.evade = int(stat(kPassiveEvade));
-    fighter.dr_pct = int(std::min<std::int64_t>(stat(kDamageResist), 50)); fighter.dr_flat = int(stat(kNormalDamageReduction)); fighter.mdr = int(stat(kMagicDamageReduction));
-    fighter.res = res;
-    fighter.absorb_pct = { int(stat(kAbsorbFirePercent)), int(stat(kAbsorbLightningPercent)), int(stat(kAbsorbColdPercent)), 0, int(stat(kAbsorbMagicPercent)) };
-    fighter.absorb_flat = { int(stat(kAbsorbFire)), int(stat(kAbsorbLightning)), int(stat(kAbsorbCold)), 0, int(stat(kAbsorbMagic)) };
-    fighter.thorns = int(stat(kAttackerTakesDamage)); fighter.thorns_light = int(stat(kAttackerTakesLightningDamage)); fighter.thorns_pct = int(stat(kThornsPercent));
-    fighter.life_regen = int(stat(kHitPointRegeneration)); fighter.mana_regen = int(stat(kManaRecoveryBonus));
-    return fighter;
-}
+Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
+                     const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,
+                     const ClassGains& gains, int defense, const std::array<int, 4>& res,
+                     const d2d::d2s::Item* boots = nullptr, bool thrown = false);
 
 // A fighter with just damage, attack rating and defense (the merc, its
 // arrows, tests).
-inline Fighter simple_fighter(int min, int max, int attack_rating, int defense = 0) {
-    Fighter fighter;
-    fighter.min = min; fighter.max = std::max(max, min); fighter.attack_rating = fighter.ar_base = attack_rating; fighter.defense = defense;
-    fighter.phys_lo = min << 8; fighter.phys_hi = fighter.max << 8;
-    return fighter;
-}
+Fighter simple_fighter(int min, int max, int attack_rating, int defense = 0);
 
 // Diminishing returns on the speed stats (FUN_00621740, table 0x6e8e24): IAS / FHR / FBR count
 // 120 x v / (120 + v), FRW 150 x v / (150 + v), for any v but 0, a negative too (truncated toward zero).
@@ -199,31 +121,20 @@ inline int effective_speed(int speed, int cap = 120) { return speed != 0 && spee
 // TW 0xd5 (AnimData's speed isn't read), x the walk % (velocitypercent +
 // effective FRW, at least 25) / 100, clamped to 0..0x7fff. The client's
 // player tick (FUN_00463390) steps WL / RN / TW by it (FUN_00623e00).
-inline int moving_anim_rate(bool run, int walk_percent) {
-    return std::clamp((run ? 0x65 : 0xd5) * std::max(walk_percent, 25) / 100, 0, 0x7fff);
-}
+int moving_anim_rate(bool run, int walk_percent);
 
 // Ticks an attack animation of `frames` frames at AnimData `rate` takes with
 // `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
 // to -85..75; ticks = ceil(256 x frames / (rate x (100 + EIAS) / 100)).
-inline int attack_speed(int rate, int ias, int wsm, int sias = 0) {
-    const int eias = std::clamp(effective_speed(ias) - wsm + sias, -85, 75);
-    return std::max(rate * (100 + eias) / 100, 1);
-}
+int attack_speed(int rate, int ias, int wsm, int sias = 0);
 // The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame `start` and
 // plays `speed` / 256 frames a tick: FUN_005539b0 files the strike there, max(1, ceil(256 (frame - start) / speed)), and the end of the swing
 // (game.exe's floor for the end is 2 ticks: the two differ only when one tick covers the rest of the animation, no player record's case)
 // (tools/emu/swing_start.py runs it).
-inline int frame_tick(int frame, int start, int speed) {
-    return std::max(1, (256 * (frame - start) + speed - 1) / speed);
-}
-inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0) {
-    return frame_tick(frames, start, attack_speed(rate, ias, wsm, sias));
-}
+int frame_tick(int frame, int start, int speed);
+int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0);
 // The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
-inline int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0) {
-    return frame_tick(action, start, attack_speed(rate, ias, wsm, sias));
-}
+int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0);
 
 // The frame a player's A1 or A2 swing starts on (FUN_00623b10, 0x623b88 .. 0x623bfa; every other mode and a monster start on frame 0):
 // the weapon in hand (FUN_00623990) gives its class key (FUN_00629fe0: the weapons.txt wclass through the map at 0x7446a0), which picks
@@ -242,22 +153,13 @@ inline constexpr std::array<AttackStart, 9> kAttackStart = {{
     { "xbw", { 0, 0, 0, 0, 0, 0, 0 } },   // row 7
     { "ht1", { 0, 0, 0, 0, 0, 0, 0 } },   // row 12
 }};
-inline int attack_start_frame(int player_class, std::string_view wclass) {
-    if (player_class < 0 || std::size_t(player_class) >= 7) return 0;
-    for (const auto& row : kAttackStart)
-        if (row.wclass == wclass) return row.by_class[std::size_t(player_class)];
-    return kAttackStart.front().by_class[std::size_t(player_class)];
-}
+int attack_start_frame(int player_class, std::string_view wclass);
 
 // Frame count after a speed stat (FCR / FHR / FBR) shortens `base_frames`:
 // E = 120 v / (120 + v); shown = ceil(base x 256 / (256 + floor(256 E / 100))).
 // Emergent breakpoints — Sorc SC base 14 sweeps 14/13/12/11/10/9/8 at
 // stat 0/9/20/37/63/105/200.
-inline int speed_frames(int base_frames, int speed_stat) {
-    if (base_frames <= 0 || speed_stat <= 0) return std::max(base_frames, 0);
-    const int scaled = 256 * effective_speed(speed_stat) / 100;
-    return (base_frames * 256 + 256 + scaled - 1) / (256 + scaled);
-}
+int speed_frames(int base_frames, int speed_stat);
 
 // The get-hit test on a landed hit (FUN_0057cb00, called by FUN_0057cee0 on
 // result flag 4 unless the unit is stunned: the player branch at 0x57d37a,
@@ -276,39 +178,18 @@ inline int speed_frames(int base_frames, int speed_stat) {
 // 2 max / d, sure from 4 max / d. A monster also needs MonStats2's GH mode
 // (FUN_0046c140 bit 3), asked after the rolls (0x57cbda). Its oracle: tools/emu/hit_rule.py against test_combat --get-hit.
 // `max_life` and `damage` in 256ths; `marked`: an element or a doubled hit.
-inline int get_hit_divisor(int hit_class) {
-    switch (hit_class) {
-    case 2: case 6: case 10: case 11: return 8;
-    case 4: case 8: return 32;
-    case 5: return 64;
-    default: return 16;
-    }
-}
-inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, bool marked, Rng& rng) {
-    if (damage < 256) return false;
-    const int divisor = marked ? 16 : get_hit_divisor(hit_class);
-    if (damage < max_life / divisor) return false;
-    if (damage < max_life / (divisor / 2) && rng(2) == 0) return false;
-    if (damage < max_life / (divisor / 4) && rng(4) == 0) return false;
-    return true;
-}
+int get_hit_divisor(int hit_class);
+bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, bool marked, Rng& rng);
 
 // FUN_0057c1e0 (0x57c252..0x57c2a4): the flat (stat 34 or 35, whole points) in 256ths, scaled by the record's +0x54 / 1024
 // (FUN_00483360) when that is above 0. +0x54 is the missile's stat 327 damage_framerate, Missiles.txt DamageRate (FUN_0059fa30,
 // copied by its hit FUN_005ad730): set only on the burners, so any other hit takes the flat whole.
-inline int frame_rate_flat(int flat, int rate) {
-    const int fine = flat * 256;
-    return fine > 0 && rate > 0 ? mul_div(fine, rate, 0x400) : fine;
-}
+int frame_rate_flat(int flat, int rate);
 // A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
 // at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
 // MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
 // 32 bits; a wrapped (negative) result deals nothing.
-inline int resisted_fine(int fine, int res) {
-    if (fine <= 0 || res >= 100) return 0;
-    if (res == 0) return fine;
-    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
-}
+int resisted_fine(int fine, int res);
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
 // of what is left; a field already at 0 stays 0, the product through MulDiv
@@ -317,12 +198,7 @@ inline int resisted_fine(int fine, int res) {
 // FUN_0057c1e0 scales the whole record by FUN_0057c060's pair percent
 // first (monster_blow: a prime evil's on a pet). A burner's hit scales the
 // flat first: frame_rate_flat. reduce_fine_by takes the flat in 256ths.
-inline int reduce_fine_by(int fine, int percent, int flat_fine) {
-    if (fine <= 0) return 0;
-    fine -= flat_fine;
-    if (fine > 0 && percent != 0) fine = mul_div(fine, 100 - std::clamp(percent, -100, 100), 100);
-    return fine;
-}
+int reduce_fine_by(int fine, int percent, int flat_fine);
 inline int reduce_fine_signed(int fine, int percent, int flat) { return reduce_fine_by(fine, percent, flat * 256); }
 inline int reduce_fine(int fine, int percent, int flat) { return std::max(reduce_fine_signed(fine, percent, flat), 0); }
 // One landed blow on a unit this frame, as game.exe keeps one damage record a
@@ -358,86 +234,37 @@ struct StruckBlow {
 };
 inline int part_fine(const StruckBlow::Part& part) { return part.fine != StruckBlow::kNoFine ? part.fine : part.dealt * 256; }
 // The record's absorbed total (+0x48) in 256ths: the sum over the four fields of what FUN_0057bf10 took, signed (a field under 0 gives a negative share).
-inline std::int64_t blow_absorbed(const StruckBlow& blow) {
-    std::int64_t total = 0;
-    for (const auto& part : blow.parts) total += part.took;
-    return total;
-}
+std::int64_t blow_absorbed(const StruckBlow& blow);
 // The record total in 256ths, unclamped when known.
 inline std::int64_t blow_total(const StruckBlow& blow) { return blow.sum ? *blow.sum : (std::int64_t(blow.damage) << 8) + blow.frac; }
 // The physical field now, in 256ths: under 0 when the blow keeps its fields signed (`sum`), else as `damage` holds it (clamped).
-inline std::int64_t physical_now(const StruckBlow& blow) {
-    if (blow.raw < 0) return std::int64_t(blow.physical) * 256 + blow.frac;
-    const std::int64_t fine = reduce_fine_signed(blow.raw, blow.pct, blow.flat);
-    return blow.sum ? fine : std::max<std::int64_t>(fine, 0);
-}
-inline void store_total(StruckBlow& blow, std::int64_t total) {
-    if (blow.sum || total < 0) blow.sum = int(total);
-    total = std::max(total, std::int64_t(0));
-    blow.damage = int(total >> 8);
-    blow.frac = int(total & 255);
-}
+std::int64_t physical_now(const StruckBlow& blow);
+void store_total(StruckBlow& blow, std::int64_t total);
 
 // FUN_005c8780, Cyclone Armor's pool on one field in 256ths (FUN_005c87a0 calls it on fire, cold, then lightning): only a field
 // above 0; the pool takes all of it it can. Returns the cut.
-inline int cyclone_take(int& pool, int field) {
-    if (field <= 0 || pool <= 0) return 0;
-    const int cut = std::min(pool, field);
-    pool -= cut;
-    return cut;
-}
+int cyclone_take(int& pool, int field);
 // The gear's absorb of one elemental or magic field (FUN_0057bf10, which FUN_0057bf80 calls last unless the record ignores
 // resistances, 0x57c027): the percent stat (142 / 144 / 146 / 148) at most 40 takes MulDiv(field, percent, 100) (a field under 0 is
 // taken the same way, which moves it toward 0), then the flat stat (143 / 145 / 147 / 149, whole points << 8) takes at most what
 // is left (a field under 0 is cleared to 0). tools/emu/gear_absorb.py runs it on game.exe.
-inline int absorbed_fine(int field, int pct, int flat) {
-    if (pct > 0) field -= mul_div(field, std::min(pct, 40), 100);
-    if (flat > 0) field -= std::min(flat << 8, field);
-    return field;
-}
+int absorbed_fine(int field, int pct, int flat);
 // FUN_0057bf80 on an elemental or magic field in 256ths after the absorb: one at or under 0 is stored as 0; else the flat magic
 // reduction comes off FIRST (and may leave it under 0, which is stored and summed), then the resistance on what is still above 0
 // (magic has none on a monster blow here: `resist` false).
-inline int elemental_fine(int field, int mdr_fine, int res, bool resist, int abs_pct = 0, int abs_flat = 0) {
-    if (field <= 0) return 0;
-    field -= mdr_fine;
-    if (field > 0 && resist) field = resisted_fine(field, res);
-    return absorbed_fine(field, abs_pct, abs_flat);
-}
+int elemental_fine(int field, int mdr_fine, int res, bool resist, int abs_pct = 0, int abs_flat = 0);
 // What the absorb took off that same field (elemental_fine without it less elemental_fine with it), in 256ths, signed.
-inline int elemental_took(int field, int mdr_fine, int res, bool resist, int abs_pct, int abs_flat) {
-    return elemental_fine(field, mdr_fine, res, resist) - elemental_fine(field, mdr_fine, res, resist, abs_pct, abs_flat);
-}
+int elemental_took(int field, int mdr_fine, int res, bool resist, int abs_pct, int abs_flat);
 // The life the absorbed amounts give back, in 256ths: FUN_0057c6c0 hands the record's +0x48 to FUN_0057a980 (0x57c844) BEFORE it takes
 // the record total (+0x4c) off the life (0x57c852..0x57c874). FUN_0057a980: nothing when the amount is 0 or less or the unit is dead,
 // else life = min(life + amount, max life) (a life over the max is brought down to it); the total then comes off, and one that
 // leaves under 0x100 is 0 (dead; the later blows then heal nothing). One record at a time, in landing order, as game.exe applies them:
 // the cap is hit per blow, so two blows in one frame are not one summed heal. `life` is the life before the frame's blows.
-inline std::int64_t absorb_heal(std::span<const StruckBlow> blows, std::int64_t life, std::int64_t max_life) {
-    std::int64_t healed = 0;
-    for (const auto& blow : blows) {
-        if (life < 0x100) break;
-        if (const std::int64_t took = blow_absorbed(blow); took > 0) {
-            const std::int64_t gain = std::min(life + took, max_life) - life;
-            life += gain;
-            healed += gain;
-        }
-        if (const std::int64_t total = blow_total(blow); total > 0) {
-            life -= total;
-            if (life < 0x100) life = 0;
-        }
-    }
-    return healed;
-}
+std::int64_t absorb_heal(std::span<const StruckBlow> blows, std::int64_t life, std::int64_t max_life);
 
 // Puts a blow's reduced physical (`physical`, and its share of the total) back in line with `raw`; `old` is the physical field it had
 // (physical_now before `raw` changed).
-inline void settle_blow(StruckBlow& blow, std::int64_t old) {
-    if (blow.raw < 0) return;
-    const std::int64_t fine = reduce_fine_signed(blow.raw, blow.pct, blow.flat);
-    store_total(blow, blow_total(blow) + fine - old);
-    blow.physical = int(std::max<std::int64_t>(fine, 0) >> 8);
-}
+void settle_blow(StruckBlow& blow, std::int64_t old);
 
 // A state's absorb pool on the frame's blows: FUN_0057c1e0 raises state event
 // 0xb (FUN_005c0c30, 0x57c2fc) on each record before it sums the total +0x4c,
@@ -457,58 +284,13 @@ inline void settle_blow(StruckBlow& blow, std::int64_t old) {
 // both); tools/emu/hit_absorb.py runs a frame's records through either armor's pool and FUN_0057ce30's mark.
 // Cyclone Armor works on each part's unresisted field (raw x 256) in 256ths and puts what is left back through the flat magic
 // reduction and the resistance (elemental_fine); a blow with no parts (built by hand) loses whole points of its elemental total.
-inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
-    int taken = 0;
-    for (auto& blow : blows) {
-        if (elemental && std::ranges::any_of(std::array{ 0, 1, 2 }, [&](int type) { return blow.parts[std::size_t(type)].raw > 0; })) {
-            std::int64_t total = blow_total(blow);
-            for (const int type : { 0, 2, 1 }) {   // fire, cold, lightning
-                auto& part = blow.parts[std::size_t(type)];
-                const int field = part.raw * 256;
-                const int cut = cyclone_take(pool, field);
-                if (cut <= 0) continue;
-                const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, true, part.abs_pct, part.abs_flat);
-                part.took = elemental_took(field - cut, blow.mdr * 256, part.res, true, part.abs_pct, part.abs_flat);
-                total += fine - part_fine(part);
-                blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
-                part.dealt = std::max(fine, 0) >> 8;
-                part.fine = fine;
-                taken += cut;
-            }
-            store_total(blow, total);
-            // FUN_0057ce30 reads the fields in 256ths: a fire, lightning or cold field with under a point left still marks.
-            const bool lit = std::ranges::any_of(std::array{ 0, 1, 2 }, [&](int type) { return part_fine(blow.parts[std::size_t(type)]) > 0; });
-            if (!lit && !blow.poisoned) blow.marked = false;
-            continue;
-        }
-        if (elemental) {
-            const int cut = std::min({ pool >> 8, blow.elemental, blow.damage });
-            if (cut <= 0) continue;
-            blow.elemental -= cut; store_total(blow, blow_total(blow) - cut * 256); pool -= cut * 256; taken += cut * 256;
-            if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
-            continue;
-        }
-        const std::int64_t before = physical_now(blow);
-        if (blow.raw < 0) blow.raw = blow.physical * 256 + blow.frac;
-        const int cut = std::min(pool, blow.raw);
-        if (cut <= 0) continue;
-        blow.raw -= cut;
-        settle_blow(blow, before);
-        pool -= cut; taken += cut;
-    }
-    return taken;
-}
+int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental);
 
 // FUN_0057cb00 once per landed blow (FUN_0057c6c0 then FUN_0057cee0 per
 // record): each blow rolls on what is left of it (the record's total in
 // 256ths, as clamped: `damage` and `frac`), its own class and mark; a
 // get-hit if any is.
-inline bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed) {
-    bool big = false;
-    for (const auto& blow : blows)
-        if (blow.landed && get_hit(max_life, (std::int64_t(blow.damage) << 8) + blow.frac, blow.hit_class, blow.marked, seed)) big = true;
-    return big;
-}
+bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed);
 
 // The get-hit's animation rate, 1/256 frames a tick (FUN_00623f50's get-hit
 // branch, 0x62409f..0x624385, a player's mode 4 or a monster's mode 3): the
@@ -517,11 +299,7 @@ inline bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life,
 // are unsigned (0x62435c..0x624368), so a negative factor wraps and normally
 // clamps to 0x7fff. Chill, attackrate and other_animrate aren't read there.
 // At v = -120 game.exe's IDIV divides by zero; d2d leaves that v unchanged.
-inline int get_hit_rate(int speed, int fhr) {
-    const int recovery = fhr != 0 && fhr != -120 ? 120 * fhr / (120 + fhr) : fhr;
-    const std::uint32_t product = std::uint32_t(speed) * std::uint32_t(50 + recovery);
-    return int(std::min(product / 100, std::uint32_t{ 0x7fff }));
-}
+int get_hit_rate(int speed, int fhr);
 
 // How many server ticks the get-hit mode holds (FUN_005539b0, the mode's
 // events, from FUN_0057fe30 / FUN_005a7c20): from frame 0 it adds the rate
@@ -536,23 +314,13 @@ inline int get_hit_rate(int speed, int fhr) {
 // action 0x732c10[4] = FUN_0057fe20) returns 1, a monster's (mode 3's
 // action FUN_005a6de0) drops the unit's type-0 events. 11 of 1.14d's 187
 // GH records have one (frame 0: BAGH 1HT / 2HS / 2HT / XBW, IP, SL, ...).
-inline int get_hit_ticks(int frames, int speed, int fhr) {
-    const int rate = get_hit_rate(speed, fhr);
-    if (rate <= 0) return 1;
-    const int held = frames > 0 ? (frames * 256 - 1) / rate : 0;
-    return std::max(held, 1) + 1;
-}
+int get_hit_ticks(int frames, int speed, int fhr);
 
 // The block animation's rate, 1/256 frames a tick (FUN_00623f50's block branch, 0x62403d..0x624084, a player's mode 9):
 // the AnimData speed x (50 + the effective FBR, FUN_00621740's 120 v / (120 + v) of stat 102, + 50 with Holy Shield's
 // state 0x65) / 100, at least 1. Its length is the get-hit's (FUN_005539b0): block_ticks. Negative FBR: not read (U).
-inline int block_rate(int speed, int fbr, bool holy_shield) {
-    return std::max(speed * (50 + effective_speed(fbr) + (holy_shield ? 50 : 0)) / 100, 1);
-}
-inline int block_ticks(int frames, int speed, int fbr, bool holy_shield) {
-    const int held = frames > 0 ? (frames * 256 - 1) / block_rate(speed, fbr, holy_shield) : 0;
-    return std::max(held, 1) + 1;
-}
+int block_rate(int speed, int fbr, bool holy_shield);
+int block_ticks(int frames, int speed, int fbr, bool holy_shield);
 
 // The frame game.exe's client draws `tick` ticks into a get-hit (tick 0 the
 // mode set): the client steps the unit's 8.8 frame position by its rate a
@@ -562,64 +330,44 @@ inline int block_ticks(int frames, int speed, int fbr, bool holy_shield) {
 // at 0x463487 the same) and the draw shows position >> 8 (FUN_00621810), so
 // the animation plays once at the get-hit rate and stands on its last stepped
 // frame for the rest of the hold; it never loops. A rate of 0 stays on 0.
-inline int get_hit_frame(int frames, int rate, int tick) {
-    if (rate <= 0 || frames <= 0 || tick <= 0) return 0;
-    const int held = (frames * 256 - 1) / rate;
-    return std::min(tick, held) * rate / 256;
-}
+int get_hit_frame(int frames, int rate, int tick);
 // A player's (FUN_00463390, row 4 of 0x711e00): get_hit_frame's stepping, but
 // re-testing after the step the client's mode ends a tick before the server's
 // event, `held` ticks after the mode was set: -1 from then (the client stands).
-inline int player_get_hit_frame(int frames, int rate, int tick, int held) {
-    return tick + 1 >= held ? -1 : get_hit_frame(frames, rate, tick);
-}
+int player_get_hit_frame(int frames, int rate, int tick, int held);
 
 // A player's attack sequence (mode SQ, 0x12) runs 30 points slower than its attack rate: FUN_00623f50's attack branch takes 30 off the
 // percent (0x624290..0x62429b: unit type 0, mode 0x12, sub esi, 0x1e) before the clamp to 15..175. The branch is the one FUN_00621580 picks for
 // a skill whose UseAttackRate is set (record +6 against the mask at 0x6ce274); FUN_006216e0 sends a skill whose seqtrans is SC (Lightning,
 // Chain Lightning) to the cast branch, which has no such term. tools/emu/seq_rate.py runs the function on every sequence record.
 inline constexpr int kSequenceRatePenalty = 30;
-inline int sequence_sias(bool use_attack_rate, std::string_view seqtrans) {
-    return use_attack_rate && seqtrans != "SC" ? -kSequenceRatePenalty : 0;
-}
+int sequence_sias(bool use_attack_rate, std::string_view seqtrans);
 
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row
 // at 0x6e8e3c): AnimData speed x min(100 + effective FCR, 175) / 100, clamped
 // to 0..0x7fff.
-inline int cast_speed(int rate, int fcr) {
-    return std::clamp(rate * std::min(100 + effective_speed(fcr), 175) / 100, 0, 0x7fff);
-}
+int cast_speed(int rate, int fcr);
 
 // Client ticks a plain cast (a mode with no sequence) lasts. FUN_00463390 asks
 // FUN_006217c0 after each step whether `current + speed >= frames x 256`, so the
 // last step is never taken: ceil(256 x frames / speed) - 1 ticks, at least one
 // (tools/emu/cast_rates.py runs game.exe's code for it).
-inline int cast_ticks(int frames, int rate, int fcr) {
-    if (frames <= 0) return 0;
-    const int speed = std::max(cast_speed(rate, fcr), 1);
-    return std::max((256 * frames + speed - 1) / speed - 1, 1);
-}
+int cast_ticks(int frames, int rate, int fcr);
 
 // Client ticks a cast sequence lasts (anim SQ with seqtrans SC: Lightning, Chain
 // Lightning). FUN_00621260 sets the countdown (+0x48) to the sequence's step count
 // x 256 (0x62129a) and the mode ends once it is <= 0: ceil(256 x steps / speed),
 // with no step skipped as a plain cast's is, at the cast speed (FUN_006216e0 says yes
 // for a mode 0x12 whose skill's +0x12 is 10).
-inline int cast_sequence_ticks(int steps, int rate, int fcr) {
-    if (steps <= 0) return 0;
-    const int speed = std::max(cast_speed(rate, fcr), 1);
-    return (256 * steps + speed - 1) / speed;
-}
+int cast_sequence_ticks(int steps, int rate, int fcr);
 
 // The tick of a cast mode's action frame, counted from its start: the animation scheduler
 // (FUN_005539b0) files the event on the first tick whose position (steps of the cast speed
 // from 0) reaches the frame (tools/emu/cast_mana.py runs game.exe's code for it, V run, for the
 // first Sorceress SC record only; other classes' SC records and A1-mode casts such as Magic Arrow
 // are not in the oracle, U).
-inline int cast_action_ticks(int frame, int rate, int fcr) {
-    return std::max(256 * frame + std::max(cast_speed(rate, fcr), 1) - 1, 0) / std::max(cast_speed(rate, fcr), 1);
-}
+int cast_action_ticks(int frame, int rate, int fcr);
 
 // Open Wounds (item_openwounds, stat 135; its item event is FUN_005bfe60): a hit that rolls it puts state 0x3e on the struck
 // monster for 200 frames with a negative life regeneration (stat 0x4a, 256ths a frame): a bracket of the attacker's level
@@ -627,12 +375,7 @@ inline int cast_action_ticks(int frame, int rate, int fcr) {
 // that on a champion, a unique or a superunique (FUN_005a0180 over the monster's data word +0x16 & 12). tools/emu/open_wounds.py
 // runs the handler on game.exe.
 inline constexpr int kOpenWoundsFrames = 200;
-inline int open_wounds_fine(int clvl, bool special) {
-    const int level = std::max(clvl, 1);
-    const int bracket = level <= 15 ? 9 * (level - 1) : level <= 30 ? 126 + 18 * (level - 15) : level <= 45 ? 396 + 27 * (level - 30)
-                      : level <= 60 ? 801 + 36 * (level - 45) : 1341 + 45 * (level - 60);
-    return special ? (bracket + 40) / 2 : bracket + 40;
-}
+int open_wounds_fine(int clvl, bool special);
 
 // A monster being struck: its life now and max, defense, level, block
 // chance (0 unless it can block), resistances (physical, magic, fire,
@@ -704,41 +447,7 @@ struct EnergyShield {
 // The state cast later runs first (FUN_005c0ad0: Fight::absorb).
 // Magic has no percent resistance on a monster blow here (monster_blow), so its field goes through the flat reduction only.
 // A field the shield did not touch keeps monster_blow's value, which has the same order (reduction, resistance, a negative kept in the total).
-inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield) {
-    constexpr std::array<int, 4> kElementOrder{ 0, 1, 2, 4 };
-    for (auto& blow : blows) {
-        const std::int64_t whole = blow_total(blow);
-        std::int64_t total = whole;   // the record total (+0x4c) in 256ths: a field under 0 stays in it, the total is clamped once at the end
-        const std::int64_t physical_before = physical_now(blow);
-        const int physical_fine = blow.raw >= 0 ? blow.raw : blow.physical * 256 + blow.frac;
-        std::int64_t accounted = physical_before;   // what the fields hold of the blow
-        if (const int cut = shield.take(physical_fine); cut > 0) {
-            blow.raw = physical_fine - cut;
-            const int fine = reduce_fine_signed(blow.raw, blow.pct, blow.flat);
-            total += fine - physical_before;
-            blow.physical = std::max(fine, 0) >> 8;
-        }
-        for (const int type : kElementOrder) {
-            auto& part = blow.parts[std::size_t(type)];
-            if (part.raw <= 0) continue;
-            accounted += part_fine(part);
-            const int field = part.raw * 256;
-            const int cut = shield.take(field);
-            if (cut <= 0) continue;
-            const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, type != 4, part.abs_pct, part.abs_flat);
-            part.took = elemental_took(field - cut, blow.mdr * 256, part.res, type != 4, part.abs_pct, part.abs_flat);
-            total += fine - part_fine(part);
-            if (type != 4) {
-                blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
-                if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
-            }
-            part.dealt = std::max(fine, 0) >> 8;
-            part.fine = fine;
-        }
-        if (const std::int64_t loose = whole - accounted; loose > 0) total -= shield.take(int(std::min<std::int64_t>(loose, 0x7fffffff)));
-        store_total(blow, total);
-    }
-}
+void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield);
 
 // Static Field's record on one unit (FUN_005c96a0), in 256ths before the
 // resistance, or -1 when it makes none. Life is the unit's in whole points
@@ -751,16 +460,7 @@ inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shiel
 // life FUN_00625d10 at 0x5c96e1, each >> 8 there); res is the unit's own
 // stat 0x29 (FUN_00625480 on FUN_0056c8e0's stat), as game.exe reads it
 // here: the attacker's pierce comes off only in FUN_0057c6c0, after.
-inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res) {
-    const int life = life_fine >> 8;
-    if (life < 1) return -1;
-    if (floor_pct != 0 && life <= mul_div(max_fine >> 8, floor_pct, 100)) return -1;
-    int dmg = mul_div(life, pct, 100);
-    if (life - dmg < 1) dmg = life - 1;
-    dmg = std::max(dmg << 8, low);
-    if (res < 0) dmg = mul_div(dmg, 100, 100 - res);
-    return dmg;
-}
+int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res);
 
 // Corpse Explosion's blow (do 55, FUN_005c4df0): the corpse's life, a
 // monster's FUN_006538a0 range at its level (stat 0xc) averaged, 256ths
@@ -769,24 +469,12 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 // over 0x10000 is cut to hundredths first), the
 // roll on the corpse's unit seed (+0x20, FUN_0045c3e0: high - low, none
 // when that's 0); a corpse above the caster's level cut to clvl / its level.
-inline int corpse_life_fine(const Monsters& monsters, int type, int difficulty, int level) {
-    const auto ranges = monster_ranges(monsters, type, difficulty, level);
-    return (ranges.min_hp + ranges.max_hp) << 7;
-}
-inline int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed, int corpse_level, int caster_level) {
-    const int low = mul_div(low_pct, life_fine, 100), high = mul_div(high_pct, life_fine, 100);
-    int fine = corpse_seed(high - low) + low;
-    if (corpse_level != 0 && caster_level < corpse_level) fine = mul_div(fine, caster_level, corpse_level);
-    return fine;
-}
+int corpse_life_fine(const Monsters& monsters, int type, int difficulty, int level);
+int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed, int corpse_level, int caster_level);
 // calc3 % (0..100) of that blow goes to the skill's EType when it has one
 // (FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a): {physical,
 // element}, 256ths.
-inline std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental) {
-    element_pct = std::min(std::max(element_pct, 0), 100);
-    if (element_pct <= 0 || !elemental) return { fine, 0 };
-    return { mul_div(fine, 100 - element_pct, 100), mul_div(fine, element_pct, 100) };
-}
+std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental);
 // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
 // subtiles of the corpse; the physical reaches only aurarange / 2
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
@@ -810,12 +498,7 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // when it is not 0. `percent` is the state's damagepercent stat, 0 with no
 // such state.
 inline int aura_influence(int percent, int param1) { return percent * param1 / 8; }
-inline MissileDamage influenced(MissileDamage damage, int influence) {
-    if (influence == 0) return damage;
-    damage.elo = mul_div(damage.elo, 100 + influence, 100);
-    damage.ehi = mul_div(damage.ehi, 100 + influence, 100);
-    return damage;
-}
+MissileDamage influenced(MissileDamage damage, int influence);
 
 // A burst rolls its record once and hands a copy to every unit it takes in
 // (FUN_005a9a70 and FUN_005aa8b0 call FUN_005a8c70 once; each unit resists
@@ -835,56 +518,8 @@ struct MissileRoll { int phys = -1, element = -1; };
 // attacker's pierce stat only while under 100. Stats 0x99 / 0x76
 // (FUN_0057c140) aren't read: no MonProp, MonUMod or state row gives them
 // to a monster.
-inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
-                         Blow blow = { .hit = true }, MissileRoll* shared = nullptr) {
-    if (damage.phys_hi > 0) {
-        // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
-        // value, the life stat takes it as is: keep the part under a point in Blow::frac
-        // as the element below does.
-        const int roll = shared && shared->phys >= 0 ? shared->phys : rng.range(damage.phys_lo, damage.phys_hi);
-        if (shared) shared->phys = roll;
-        blow.phys += roll >> 8;
-        // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
-        const int fine = resisted_fine(int(target.paired(roll)), std::max(target.res[0], -100));
-        blow.damage += fine >> 8;
-        blow.frac += fine & 255;
-        blow.phys_fine += fine;
-    }
-    if (damage.etype < 0 || damage.etype > 5 || damage.ehi <= 0) return blow;
-    static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    // FUN_005a8910: nothing unless both ends are over 0, then min + rand(max -
-    // min) on the missile's seed: the max itself is never rolled.
-    const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
-    const int roll = shared && shared->element >= 0 ? shared->element : low > 0 ? low + rng(high - low) : 0;
-    if (shared) shared->element = roll;
-    // FUN_005ad2f0: after the roll, MulDiv(roll, dParam, 100) more for each class the monster is in.
-    // Magic only (etype 4; the one row with pSrvDmgFunc 5 is the hammer): for poison the base is
-    // the roll x 25 (0x5a8e1a), which this does not model. game.exe rolls the hit twice from the
-    // missile's seed (the record, then FUN_005a8c70 inside this function); d2d draws from one
-    // shared fight stream, so the distribution is the same.
-    const int rolled = int(target.paired(roll + (target.undead && damage.undead_pct > 0 ? mul_div(roll, damage.undead_pct, 100) : 0)
-                                              + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0)));
-    if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
-    int res = target.res[std::size_t(kRes[damage.etype])];
-    if (damage.etype < 4 && res < 100) res -= pierce[std::size_t(damage.etype)];
-    res = std::max(res, -100);   // FUN_0057be00 also floors magic, which has no pierce stat.
-    if (damage.etype == 3) {
-        blow.poison += resisted(int(std::int64_t(rolled) * std::max(damage.elen, 1) >> 8), res);
-        blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
-        blow.elemental = blow.elemental || resisted_fine(rolled, res) > 0;   // the record's poison field (per tick, 256ths) is tested as the others are
-        return blow;
-    }
-    // FUN_005a89a0 rolls the element in 256ths, the resistance applies to
-    // that fine value (FUN_0057bf80) and the life stat (6) takes it as is
-    // (0057c852): keep the part under one point in `frac`.
-    const int fine = resisted_fine(rolled, res);
-    const int resisted_damage = fine >> 8;
-    blow.damage += resisted_damage;
-    blow.elemental = blow.elemental || (fine > 0 && damage.etype != 4);   // the record's element is in 256ths (over 0)
-    blow.frac += fine & 255;
-    if (damage.etype == 2) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
-    return blow;
-}
+Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
+                  Blow blow = { .hit = true }, MissileRoll* shared = nullptr);
 
 // A monster's freeze (FUN_0057b230): the length FUN_0057c1e0 left, which
 // is cut by the cold resist less pierce as the chill length is (record
@@ -896,15 +531,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
 // coldeffect (FUN_0057af30), for the length / MonsterFreezeDivisor
 // (+0x14), and isn't chilled for it.
 struct Freeze { int freeze_ticks = 0, chill_ticks = 0; };
-inline Freeze monster_freeze(int length, const Target& target, int cold_pierce, bool special, int cold_effect, int divisor) {
-    int res = target.res[4];
-    if (res < 100) res = std::max(res - cold_pierce, -100);
-    const int resisted_length = resisted(length, res);
-    if (resisted_length <= 0) return {};
-    if (special) return { .chill_ticks = resisted_length };
-    if (cold_effect >= 0 || divisor == 0) return {};
-    return { .freeze_ticks = resisted_length / divisor };
-}
+Freeze monster_freeze(int length, const Target& target, int cold_pierce, bool special, int cold_effect, int divisor);
 
 // What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
 // its attack-rating bonus % (toht) and enhanced damage % (calc1) joining
@@ -934,141 +561,13 @@ struct Swing {
 // resistance) is cut to the target's life; the steal % is shifted left 6 and divided by the difficulty's
 // LifeStealDivisor / ManaStealDivisor (whole division); then MulDiv by the physical over 100, MulDiv by the
 // monster's Drain over 100 (skipped at 100), and / 64 toward zero. A Drain of 0 or less takes nothing.
-inline int leech_fine(int physical_fine, const Target& target, int steal, int divisor) {
-    if (target.drain <= 0 || steal == 0) return 0;
-    const int life = target.life_fine >= 0 ? target.life_fine : target.hit_points * 256;
-    const int physical = std::min(physical_fine, life);
-    const int per = (steal << 6) / std::max(divisor, 1);
-    if (per == 0 || physical <= 0) return 0;
-    int amount = mul_div(physical, per, 100);
-    if (target.drain != 100) amount = mul_div(amount, target.drain, 100);
-    return amount / 64;
-}
+int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
 // takes the life left / the target's divisor (less physical resistance).
-inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}) {
-    Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
-    const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
-    if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
-    blow.prevent_heal = !swing.smite && fighter.prevent_heal;
-    if (target.block > 0 && rng(100) < target.block) {
-        blow.blocked = true;
-        if (!swing.smite) return blow;      // FUN_005ce9f0 sets the hit bit again after the block check (0x5cebb0): Smite lands
-    }
-    blow.hit = true;
-    std::int64_t low, high;                                  // 256ths
-    if (swing.smite) {
-        const std::int64_t smite_pct = std::max<std::int64_t>(fighter.smite_pct + swing.ed_pct, -90);
-        // FUN_0057b420 makes a minimum below 1 (in 256ths) one point (0x57b4d8) and, when the maximum is not above the minimum, the minimum plus
-        // one point (0x57b4ea..0x57b4f4), both before the percents.
-        std::int64_t base_low = (std::int64_t(fighter.smite_lo) << 8) + swing.skill_lo;
-        if (base_low < 1) base_low = 256;
-        std::int64_t base_high = (std::int64_t(fighter.smite_hi) << 8) + swing.skill_hi;
-        if (base_high <= base_low) base_high = base_low + 256;
-        low = base_low * (100 + smite_pct) / 100;
-        high = base_high * (100 + smite_pct) / 100;
-    } else if (swing.kick) {
-        const std::int64_t kick_pct = fighter.kick_pct + swing.ed_pct;
-        low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
-        high = swing.skill_hi + std::int64_t(swing.skill_hi) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_hi) << 8) * (100 + kick_pct) / 100;
-    } else {
-        // Against an undead monster FUN_0057b660 adds 50 with a Blunt weapon plus stat 122 to the
-        // record's enhanced damage, only when that sum is over 0. FUN_0057b7d0 asks for it when the attacker is
-        // a player unit or has alignment 2 (FUN_006259b0), so a merc or a Shadow is not excluded here.
-        const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
-        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
-        low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
-        high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
-    }
-    std::int64_t damage = high > low ? low + rng(int(high - low)) : low;
-    const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
-    // The mastery crit, critical strike and deadly strike are separate
-    // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
-    const auto roll = [&](int chance) { return chance > 0 && rng(100) < chance; };
-    if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
-    damage = damage * swing.srcdam / 128;
-    // A skill's own damage beside the weapon's SrcDam share (Blade Shield:
-    // FUN_0056e170 then FUN_0057b7d0); kicks and Smite took theirs above.
-    if (!swing.kick && !swing.smite && swing.skill_hi > 0)
-        damage += swing.skill_hi > swing.skill_lo ? swing.skill_lo + rng(swing.skill_hi - swing.skill_lo) : swing.skill_lo;
-    // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
-    // pct % of the physical moves to the element, calc2's add comes after;
-    // cold chills and poison runs at least 50 ticks, poison an eighth of
-    // it a tick (record [10], 256ths).
-    const std::int64_t conv = swing.conv_type >= 0 && swing.conv_type < 5 ? damage * std::clamp(swing.conv_pct, 0, 100) / 100 : 0;
-    damage -= conv;
-    // The physical stays in 256ths through the resistance (FUN_0057bf80 on the record's fine value) and
-    // the life stat takes it as is (0057c852): the whole points go in `damage`, the part under a point in `frac`.
-    const std::int64_t rolled_fine = target.paired(std::max<std::int64_t>(damage, 0) + std::int64_t(swing.flat) * 256);
-    blow.phys = int(rolled_fine >> 8);
-    const int fine = resisted_fine(int(rolled_fine), target.res[0]);
-    const int phys = fine >> 8;
-    blow.frac = fine & 255;
-    blow.phys_fine = fine;
-    // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
-    const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
-    if (swing.smite) {
-        blow.damage = phys;
-        blow.knockback = swing.knockback;
-        blow.stun_ticks = std::min(stun, 250);
-        return blow;
-    }
-    static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    const auto share = [&](int pct) { return int(target.paired(rolled * pct / 100)); };
-    int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(target.paired(conv) >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
-    int marking = swing.conv_type != 4 ? elem : 0;                 // what FUN_0057ce30 sees: the record's fire / lightning / cold / poison, not magic (+0x20)
-    elem += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
-    marking += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
-    if (const int cold = resisted(share(swing.cold_pct), target.res[4]); cold > 0) { elem += cold; marking += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
-    for (int element = 0; element < 5; ++element) {
-        const auto [elo, ehi] = fighter.elem[std::size_t(element)];
-        if (ehi <= 0) continue;
-        // The gear's cold puts its length in the record with any cold rolled
-        // (FUN_0057b7d0: +0x30 when +0x24 > 0, before resistance), and
-        // FUN_0057c6c0 chills on it untested: cold resisted under a point
-        // still chills; so does a conversion to cold, at least 50 frames (case 4).
-        const int element_roll = rng.range(elo, ehi);
-        const int element_damage = resisted(int(target.paired(element_roll)), target.res[std::size_t(kRes[element])]);
-        if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
-        if (element == 2 && element_roll > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
-        elem += element_damage;
-        if (element != 4) marking += element_damage;
-    }
-    if (conv > 0 && swing.conv_type == 3) {
-        const int ticks = std::max(fighter.poison_len, 50);
-        blow.poison += resisted(int(target.paired(conv / 8) * ticks >> 8), target.res[5]);
-        blow.poison_ticks = std::max(blow.poison_ticks, ticks);
-    }
-    if (conv > 0 && swing.conv_type == 2)
-        blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
-    // Crushing Blow (FUN_005bffc0, run by the strike event 5 or 6 of FUN_0057c6c0, before LAB_0057c852 takes the hit's damage):
-    // the life the target has BEFORE the hit, in 256ths, / the divisor, less the raw damage resist's share (100 at most, none
-    // at 0 or less: not resisted's).
-    int crushing_fine = 0;
-    if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
-        blow.crushing = true;
-        crushing_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) / (target.crush_divisor * (swing.missile ? 2 : 1));
-        if (target.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(target.res[0], 100), 100);
-    }
-    // The leech cuts the physical to the life the crush left: FUN_0057c6c0 reads stat 6 at 0x57c7f8, after the strike events.
-    Target after_crush = target;
-    after_crush.life_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) - crushing_fine;
-    blow.life = leech_fine(fine, after_crush, fighter.life_steal, target.life_steal_divisor);
-    blow.mana = leech_fine(fine, after_crush, fighter.mana_steal, target.mana_steal_divisor);
-    blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
-    if (blow.bleed) blow.bleed_fine = open_wounds_fine(clvl, target.special);
-    blow.knockback = fighter.knockback || swing.knockback;
-    blow.stun_ticks = std::min(stun, 250);
-    const int fraction = blow.frac + crushing_fine;                // the physical's part under a point and the crush, in 256ths
-    blow.damage = phys + elem + (fraction >> 8);
-    blow.frac = fraction & 255;
-    blow.crush_fine = crushing_fine;
-    blow.elemental = marking > 0 || blow.poison > 0;
-    return blow;
-}
+Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {});
 
 // A monster's attack on the player (`motion`: its mode, standing, WL or RN;
 // `missile`: a spike rather than a swing): hit chance against defense plus
@@ -1092,10 +591,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
 // (118); the cold resist cuts them (FUN_0057c1e0). A player's freeze is
 // chill (FUN_0057b230 -> FUN_0057af80: state 11, -50 velocitypercent,
 // attackrate and other_animrate, at least 1 tick, only ever lengthened).
-inline int chill_length(const Fighter& defender, int len) {
-    if (defender.cannot_freeze) return 0;
-    return resisted(defender.half_freeze ? len / 2 : len, defender.res[2]);
-}
+int chill_length(const Fighter& defender, int len);
 // `physical` / `elemental` (fire, lightning, cold): the parts of `damage`
 // Bone Armor (22) and Cyclone Armor (25) absorb.
 // `frac`: the 256ths of a point the physical carries beyond `damage` (game.exe keeps life in 256ths).
@@ -1105,125 +601,28 @@ struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0
              std::array<int, 5> element_raw{}, element_dealt{}, element_fine{}, element_took{};   // element_took: what the gear's absorb took off each field (256ths, signed)
              std::optional<int> sum; };   // element_fine: each field after the reduction in 256ths, under 0 kept; sum: the record total before the clamp; `damage` / `frac` are it clamped   // by element type: the rolls before the resistance and what they dealt after it (whole points)
 enum class Motion : std::uint8_t { standing, walking, running };
-inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
-                          bool missile = false, bool sure = false, bool exact = false) {
-    Taken taken;
-    const bool moving = motion != Motion::standing, running = motion == Motion::running;
-    if (!sure) {
-        if (!(running && !missile) && !attacker.no_hit_roll && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
-            return taken;
-        if (!(missile && attacker.unblockable) && defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
-        if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
-        const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
-        if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
-    }
-    taken.hit = true;
-    // FUN_0057b420: min << 8 + rand((max - min) << 8) on the attacker's seed, the top never rolled; FUN_0057c1e0
-    // reduces that record in 256ths (reduce_fine) and the life stat takes it as is (0057c852). A missile's
-    // FUN_005a89a0 draws on the missile's own seed with no clamp; here it shares the roll (unverified).
-    // `exact`: a record the caller builds itself (Corpse Explosion FUN_005c4d10, Diablo's cold touch FUN_005cce80: min == max
-    // straight into FUN_0057c6c0 with the reduce flag, V read 005c4dc1 / 005ccf3f): not FUN_0057b420's roll, so no 256ths
-    // are added, no clamp and no draw; the reduction and the absorbs still apply (57c6c0 calls 57c1e0 at 57c7a0).
-    int low = second_attack ? attacker.a2_min : attacker.a1_min, high = second_attack ? attacker.a2_max : attacker.a1_max;
-    if (!missile && !exact) { low = std::max(low, 1); high = std::max(high, low + 1); }   // min at least 1, max at least min + 1: an empty range still draws
-    taken.raw = exact ? low * 256 : low * 256 + rng((high - low) * 256);
-    // FUN_0057c060 (0x57c060), the attacker / defender pair's percent: a prime
-    // evil (MonStats +0xc & 0x80) on a player's pet (unit +0xc4 bit 31), 200
-    // a hireling, else 400. FUN_0057c1e0 takes each damage field above 0 to
-    // v x pct / 100 (FUN_00483360) before the absorbs and reductions. Its
-    // other pairs (a player or a hireling or pet on a player 17, hireling on
-    // hireling 25) don't come up here. The table's +0x20 flag is set on the
-    // poison damage row (8, +0x28) but not the poison length's (7, +0x2c).
-    // A hireling on a MonStats boss takes the difficulty's DifficultyLevels
-    // row +0x38, HireableBossDamagePercent (the context's +4: FUN_00611d30,
-    // 0x57c206); here the attacker is always a monster, never a hireling:
-    // the merc's own blows take it through Target::pair_pct (Fight::merc_target).
-    const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
-    const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
-    taken.raw = pair_scaled(taken.raw);
-    // FUN_0057bf80, per field of the record: the flat reduction (physical: stat 34 then the percent; the elements and magic: the magic damage
-    // reduction) comes off FIRST, then the resistance on what is still above 0; a field left under 0 is stored and summed into the record total
-    // (+0x4c), which is clamped once (0057c852). A type's rows are one field of the record.
-    const int physical_fine = reduce_fine_signed(taken.raw, defender.dr_pct, defender.dr_flat);
-    taken.physical = std::max(physical_fine, 0) >> 8;
-    std::int64_t total = physical_fine;
-    for (const auto& element : attacker.elements) {
-        if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
-        const int roll = rng.range(element.min, element.max);
-        switch (element.type) {
-            case 2: if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); [[fallthrough]];
-            case 0: case 1: case 4: if (roll > 0) taken.element_raw[std::size_t(element.type)] += roll; break;
-            case 3: if (const int per = resisted(pair_scaled(roll * 10), defender.res[3]); per >= taken.poison) { taken.poison = per; taken.poison_ticks = resisted(element.dur * 2, defender.plr); } break;
-            default: break;   // types above 4 have no field in the record
-        }
-    }
-    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants and its gear's elements, after its elements
-        if (const auto& enchant = attacker.enchants[type]; enchant && type != 3) {
-            const int roll = rng.range(enchant->first, enchant->second);
-            if (roll <= 0) continue;
-            if (type == 2) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, attacker.enchant_len));
-            taken.element_raw[type] += roll;
-        }
-    for (const int type : { 0, 1, 2, 4 }) {
-        if (pair_pct != 100) taken.element_raw[std::size_t(type)] = pair_scaled(taken.element_raw[std::size_t(type)] * 256) >> 8;   // 200 / 400: whole points stay whole
-        const int roll = taken.element_raw[std::size_t(type)];
-        if (roll <= 0) continue;
-        const int fine = elemental_fine(roll * 256, defender.mdr * 256, type != 4 ? defender.res[std::size_t(type)] : 0, type != 4,
-                                        defender.absorb_pct[std::size_t(type)], defender.absorb_flat[std::size_t(type)]);
-        taken.element_fine[std::size_t(type)] = fine;
-        taken.element_took[std::size_t(type)] = elemental_took(roll * 256, defender.mdr * 256, type != 4 ? defender.res[std::size_t(type)] : 0, type != 4,
-                                                               defender.absorb_pct[std::size_t(type)], defender.absorb_flat[std::size_t(type)]);
-        taken.element_dealt[std::size_t(type)] = std::max(fine, 0) >> 8;
-        if (type != 4) taken.elemental += taken.element_dealt[std::size_t(type)];
-        total += fine;
-    }
-    taken.sum = int(total);
-    total = std::max(total, std::int64_t(0));
-    taken.damage = int(total >> 8);
-    taken.frac = int(total & 255);
-    if (attacker.poison_max > 0)
-        if (const int per = resisted(pair_scaled(rng.range(attacker.poison_min, attacker.poison_max)), defender.res[3]); per >= taken.poison) {
-            taken.poison = per; taken.poison_ticks = resisted(attacker.poison_len, defender.plr);
-        }
-    return taken;
-}
+Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
+                   bool missile = false, bool sure = false, bool exact = false);
 
 
 // A kill's experience by the level difference (FUN_0057e2f0), in 256ths:
 // the character above the monster by 6..10+ 207 / 159 / 110 / 61 / 13
 // (0x6e1668); the monster above by 6..10+ 225 / 174 / 92 / 38 / 5
 // (0x6e1694), or clvl / mlvl once the character's level is 25 or more.
-inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
-    static constexpr std::array<int, 11> kCharacterAbove{ 256, 256, 256, 256, 256, 256, 207, 159, 110, 61, 13 };
-    static constexpr std::array<int, 11> kMonsterAbove{ 256, 256, 256, 256, 256, 256, 225, 174, 92, 38, 5 };
-    int factor = 0;
-    if (mlvl <= clvl) factor = kCharacterAbove[std::size_t(std::min(clvl - mlvl, 10))];
-    else if (clvl >= 25 && mlvl > 0) return scale(exp, clvl, mlvl);
-    else factor = kMonsterAbove[std::size_t(std::min(mlvl - clvl, 10))];
-    return factor == 256 ? exp : scale(exp, factor, 256);
-}
+std::int64_t kill_exp(int exp, int clvl, int mlvl);
 
 // A kill award's ExpRatio step (FUN_0057e390): `award` unapplied outside
 // `shift` 1..31 or at 0 or less; otherwise (award >> shift) x ratio when
 // award x ratio would overflow INT32_MAX, else award x ratio >> shift.
 // Oracled bit-for-bit (game.exe's own ratio and shift, from Experience.txt
 // through TXT_Experience_GetExpRatio, FUN_00613e60): tools/emu/xp_ratio.py.
-inline std::int64_t exp_ratio_apply(std::int64_t award, int ratio, int shift) {
-    if (award <= 0 || shift < 1 || shift > 31) return award;
-    return award > (0x7fffffff >> (((ratio >> shift) + shift) & 31)) ? (award >> shift) * ratio : award * ratio >> shift;
-}
+std::int64_t exp_ratio_apply(std::int64_t award, int ratio, int shift);
 
 // What a kill gives a unit of level `clvl` (FUN_0057e480): 1 for a kill
 // worth none, 0 at `max_level` (Experience.txt MaxLvl); else kill_exp, then
 // the level's ExpRatio (`ratios`, by level) through exp_ratio_apply, then
 // + item_addexperience % of that.
-inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<const int> ratios, int shift, int max_level) {
-    if (exp < 1) return 1;
-    if (clvl >= max_level) return 0;
-    auto award = int(exp_ratio_apply(kill_exp(exp, clvl, mlvl), clvl >= 1 && std::size_t(clvl) < ratios.size() ? ratios[std::size_t(clvl)] : 0, shift));
-    if (add_pct != 0) award += scale(award, add_pct, 100);
-    return award;
-}
+std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<const int> ratios, int shift, int max_level);
 
 // A kill's experience shared by the party members who share it
 // (FUN_0057e6c0), by their character levels: two or more make the total
@@ -1236,74 +635,23 @@ inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::sp
 // through a double: an int over a level sum under 2^28 is never within
 // 2^-53 of a float's halfway point without being on it, so rounding to 53
 // bits first (or 64, or the 24 of a single-precision FPU) can't move it.
-inline std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels) {
-    if (levels.size() < 2) return std::vector<std::int64_t>(levels.size(), exp);
-    const auto grown = std::int32_t(std::uint32_t(levels.size() - 1) * std::uint32_t(exp) * 0x59u);
-    const std::int32_t total = grown / 256 + exp;
-    std::int64_t sum = 0;
-    for (const int level : levels) sum += level;
-    const float share = sum > 0 ? float(double(total) / double(sum)) : 0.f;
-    std::vector<std::int64_t> out;
-    for (const int level : levels) out.push_back(std::int64_t(double(level) * double(share)));
-    return out;
-}
+std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 
 // Adds experience; every level reached (exp_next[level] = experience for
 // level + 1) gives StatPerLevel stat points, a skill point and the class's
 // life/stamina/mana per level (quarter points, 8.8 fixed stats), and fills
 // all three. Returns the levels gained.
-inline int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains) {
-    using namespace d2d::d2s;
-    stats.values[kExp] += exp;
-    int gained = 0;
-    for (;;) {
-        const auto lvl = stats.get(kLevel);
-        if (lvl < 1 || std::size_t(lvl) >= exp_next.size() || exp_next[std::size_t(lvl)] <= 0
-            || stats.values[kExp] < exp_next[std::size_t(lvl)] || lvl >= 99) break;
-        ++stats.values[kLevel];
-        ++gained;
-        stats.values[kStatPts] += gains.stat_per_level;
-        stats.values[kSkillPts] += 1;
-        for (auto [cur, max, per_level] : { std::tuple{ kLife, kMaxLife, gains.life_per_level },
-                                    std::tuple{ kStamina, kMaxStamina, gains.stamina_per_level },
-                                    std::tuple{ kMana, kMaxMana, gains.mana_per_level } }) {
-            stats.values[std::size_t(max)] += std::int64_t(per_level) * 64;
-            stats.values[std::size_t(cur)] += std::int64_t(per_level) * 64;
-        }
-    }
-    // Then full (FUN_00570880: FUN_00625d10 / 25d60 / 25db0): life only if
-    // it's above 0, mana and stamina always.
-    if (gained) {
-        if (stats.values[kLife] > 0) stats.values[kLife] = stats.values[kMaxLife];
-        stats.values[kMana] = stats.values[kMaxMana];
-        stats.values[kStamina] = stats.values[kMaxStamina];
-    }
-    return gained;
-}
+int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains);
 
 // Stamina a running frame costs outside town (FUN_0057f240, 8.8 fixed):
 // CharStats RunDrain x 2, x (armor.txt speed / 10 + 1) for the body armor
 // worn, less item_staminadrainpct (stat 154) percent; at least 1.
-inline int stamina_drain(int run_drain, int armor_speed, int slower_pct) {
-    int drain = run_drain * 2 * (armor_speed / 10 + 1);
-    drain -= slower_pct * drain / 100;
-    return std::max(drain, 1);
-}
+int stamina_drain(int run_drain, int armor_speed, int slower_pct);
 
 // A frame's stamina regen (FUN_00580500): max >> 8 standing / town
 // standing (modes 1 / 5), >> 9 walking (2, 6; walking only above 1.0),
 // none running or otherwise unless staminarecoverybonus (stat 28) is 1000+;
 // plus bonus percent.
-inline std::int64_t stamina_regen(std::int64_t cur, std::int64_t max, int mode, int bonus) {
-    int shift = 8;
-    if (mode == 2 || mode == 6) {
-        if (mode == 2 && cur < 256) return cur;
-        shift = 9;
-    } else if (mode != 1 && mode != 5 && bonus < 1000) return cur;
-    if (cur >= max) return cur;
-    std::int64_t add = max >> shift;
-    if (bonus) add += add * bonus / 100;
-    return std::min(max, cur + add);
-}
+std::int64_t stamina_regen(std::int64_t cur, std::int64_t max, int mode, int bonus);
 
 }  // namespace d2d::rules

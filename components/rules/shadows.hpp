@@ -23,12 +23,7 @@ namespace d2d::rules {
 // FUN_005eab20: may a Shadow have this skill? One that summons nothing, or
 // neither this monster (MonStats row `pet_class`) nor this pet's pettype
 // (`pet_types` rows in PetType.txt; Skills.txt summon / pettype).
-inline bool shadow_may_have(int summon, int pet_type, int pet_class, int own_pet_type, int pet_types) {
-    if (summon == 0) return true;
-    if (summon == (pet_class & 0xffff)) return false;
-    if (pet_type >= 0 && pet_type < pet_types) return own_pet_type != pet_type;
-    return true;
-}
+bool shadow_may_have(int summon, int pet_type, int pet_class, int own_pet_type, int pet_types);
 
 // FUN_005eb420: a skill's level on the Shadow, the owner's hard points (none
 // counts 1) / 2 + its level in the summoning skill / 2, 1..24.
@@ -45,14 +40,8 @@ inline int shadow_hand_level(int summoned_level, int level) { return std::max(su
 // target in its auratargetstate; a progressive skill (Skills.txt flags
 // bit 2: a charge-up) with its aurastate on, not once that state's
 // aurastat1 (its charges) is 3.
-inline bool shadow_ai_may_use(bool may_have, int aitype, bool melee, bool target, bool in_state, bool target_in_state2, bool progressive,
-                              std::optional<int> charges) {
-    if (!may_have || melee != (aitype == 4 || aitype == 13)) return false;
-    if (aitype == 1 && in_state) return false;
-    if (!target && (aitype == 2 || aitype == 4 || aitype == 5 || aitype == 11 || aitype == 12 || aitype == 13)) return false;
-    if (aitype == 2 && (in_state || target_in_state2)) return false;
-    return !(progressive && in_state && charges && *charges >= 3);
-}
+bool shadow_ai_may_use(bool may_have, int aitype, bool melee, bool target, bool in_state, bool target_in_state2, bool progressive,
+                       std::optional<int> charges);
 
 struct ShadowGift {
     int skill = 0, level = 0;
@@ -106,9 +95,7 @@ struct ShadowUnit {
 // FUN_005eb650: worth chasing — a monster, not dying, MonStats not npc but
 // killable, and boss or primeevil or a superunique / champion / unique (monster
 // data +0x16 & 0xe).
-inline bool shadow_worth(bool monster, bool dying, bool npc, bool killable, bool boss, bool prime_evil, bool special) {
-    return monster && !dying && !npc && killable && (boss || prime_evil || special);
-}
+bool shadow_worth(bool monster, bool dying, bool npc, bool killable, bool boss, bool prime_evil, bool special);
 
 // What FUN_005eb6d0 gathers over the units round the pet (squared subtile
 // distances): the closest foe within 32 (and its distance), how many within
@@ -120,33 +107,11 @@ struct ShadowScan {
     int all = 0, traps = 0, worth = -1;
 };
 
-inline int shadow_distance(const ShadowUnit& from, const ShadowUnit& unit) {   // FUN_005b0bd0
-    return (from.x - unit.x) * (from.x - unit.x) + (from.y - unit.y) * (from.y - unit.y);
-}
+int shadow_distance(const ShadowUnit& from, const ShadowUnit& unit);
 
 // FUN_005eb6d0 on each unit but the pet (and the dying): the traps first
 // (MonStats 0x19a..0x1a0 but 0x19e on its side), then targetable foes.
-inline ShadowScan shadow_scan(std::span<const ShadowUnit> units, int pet, int owner) {
-    ShadowScan scan;
-    for (int index = 0; index < int(units.size()); ++index) {
-        const auto& unit = units[std::size_t(index)];
-        if (index == pet || unit.dying) continue;
-        if (unit.type == 1 && unit.side && unit.monster_id >= 0x19a && unit.monster_id <= 0x1a0 && unit.monster_id != 0x19e) { ++scan.traps; continue; }
-        if (!unit.targetable || !unit.foe) continue;
-        if (owner >= 0) {
-            const int apart = shadow_distance(units[std::size_t(owner)], unit);
-            if (apart <= 0x64) ++scan.owner_close_count;
-            if (apart < scan.owner_closest_distance) { scan.owner_closest = index; scan.owner_closest_distance = apart; }
-        }
-        const int apart = shadow_distance(units[std::size_t(pet)], unit);
-        if (apart > 0x400) continue;
-        ++scan.all;
-        if (apart <= 0x64) ++scan.close_count;
-        if (apart < scan.closest_distance) { scan.closest = index; scan.closest_distance = apart; }
-        if (unit.worth) scan.worth = index;
-    }
-    return scan;
-}
+ShadowScan shadow_scan(std::span<const ShadowUnit> units, int pet, int owner);
 
 // A skill the Shadow Master has (its list at +0xa8): id, level (bonuses on),
 // kind (FUN_00645460: 1 walks to its target out of melee), mode.

@@ -58,7 +58,7 @@ paths are not checked. From the worktree root with `GAME_EXE` set to stock
 ```sh
 mkdir -p build/ai-necropet-distance
 uv run --no-sync --project tools/emu python tools/emu/ai_necropet_owner_distance.py --cpp > build/ai-necropet-distance/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-necropet-distance/cases.cpp -o build/ai-necropet-distance/cases
+c++ -std=c++23 -Icomponents -Icomponents/rules -Icomponents/d2s -Icomponents/txt build/ai-necropet-distance/cases.cpp build/components/rules/librules.a -o build/ai-necropet-distance/cases
 build/ai-necropet-distance/cases > build/ai-necropet-distance/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_necropet_owner_distance.py --cases build/ai-necropet-distance/cases.txt --exe "$GAME_EXE"
 ```
@@ -355,7 +355,7 @@ checked. From the worktree root, with the emulator environment set up and
 ```sh
 mkdir -p build/ai-shadow-oracle
 uv run --no-sync --project tools/emu python tools/emu/ai_shadow_hand.py --cpp > build/ai-shadow-oracle/cases.cpp
-c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-shadow-oracle/cases.cpp -o build/ai-shadow-oracle/cases
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-shadow-oracle/cases.cpp build/components/rules/librules.a -o build/ai-shadow-oracle/cases
 build/ai-shadow-oracle/cases > build/ai-shadow-oracle/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_shadow_hand.py --cases build/ai-shadow-oracle/cases.txt --exe "$GAME_EXE"
 ```

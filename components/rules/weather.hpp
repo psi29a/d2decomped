@@ -290,20 +290,9 @@ struct Rain {
 // tone 0..11. A flake's grey (0x7a898c): 120 + 80 x its index / 12, the
 // index its shape x 12 / 8, halved at dusk and dawn, a quarter at night
 // (FUN_00472fb0, the software modes).
-inline std::array<std::uint8_t, 3> rain_rgb(int kind, int tone) {
-    if (kind == 0) { const int shade = tone * 80 / 12; return { std::uint8_t(98 - shade), std::uint8_t(123 - shade), std::uint8_t(98 - shade) }; }
-    if (kind == 2) { const int shade = tone * 2; return { std::uint8_t(25 - shade), std::uint8_t(30 - shade), std::uint8_t(25 - shade) }; }
-    const int shade = tone * 40 / 12;
-    return { std::uint8_t(45 - shade), std::uint8_t(55 - shade), std::uint8_t(45 - shade) };
-}
-inline int flake_tone(int kind, int size) {
-    const int index = size * 12 / 8;
-    return kind == 0 ? index : kind == 2 ? index / 4 : index / 2;
-}
-inline std::array<std::uint8_t, 3> snow_rgb(int tone) {
-    const auto grey = std::uint8_t(120 + tone * 80 / 12);
-    return { grey, grey, grey };
-}
+std::array<std::uint8_t, 3> rain_rgb(int kind, int tone);
+int flake_tone(int kind, int size);
+std::array<std::uint8_t, 3> snow_rgb(int tone);
 // A flake's lines (0x6d6e78, FUN_00473470): shape n draws n and n + 1,
 // offsets from it (x1, y1, x2, y2).
 inline constexpr std::array<std::array<int, 4>, 9> kFlake{ { { 0, 0, 0, 1 }, { -1, -1, 0, 0 }, { 0, -1, 0, 1 }, { 1, 0, -1, 1 }, { 1, 0, 0, 1 },

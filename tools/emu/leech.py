@@ -6,7 +6,7 @@
     uv run python leech.py gen 20000 7 > cases.tsv
     uv run python leech.py game cases.tsv > game.tsv
     g++ -O2 -std=c++23 -I<d2d>/components/rules -I<d2d>/components -I<d2d>/components/d2s -I<d2d>/components/txt \\
-        -o leech_harness leech_harness.cpp && ./leech_harness < cases.tsv > d2d.tsv
+        -o leech_harness leech_harness.cpp <d2d>/build/components/rules/librules.a && ./leech_harness < cases.tsv > d2d.tsv
     uv run python leech.py compare cases.tsv game.tsv d2d.tsv        # exit 1 on a mismatch
 
 A case line is `id diff steal_life steal_mana drain phys life`: diff 0 / 1 / 2 (the game's difficulty, byte +0x6d),

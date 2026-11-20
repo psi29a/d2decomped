@@ -45,21 +45,10 @@ inline constexpr std::array<QuestMusic, 12> kQuestMusic{ {
     { 0, "music_quest_izual", 0, 0xfa, 0, false, false },
 } };
 
-inline std::optional<QuestMusic> quest_music_event(int event) {
-    for (const auto& row : kQuestMusic)
-        if (row.event != 0 && row.event == event) return row;
-    return std::nullopt;
-}
+std::optional<QuestMusic> quest_music_event(int event);
 // Any row by its jingle.
-inline std::optional<QuestMusic> quest_music_jingle(std::string_view jingle) {
-    for (const auto& row : kQuestMusic)
-        if (!jingle.empty() && row.jingle == jingle) return row;
-    return std::nullopt;
-}
+std::optional<QuestMusic> quest_music_jingle(std::string_view jingle);
 // When unit event `event`'s class line plays, from `now_ms` (40 ms frames).
-inline std::uint32_t quest_line_due(int event, std::uint32_t now_ms) {
-    const auto row = quest_music_event(event);
-    return row && row->speaks ? now_ms + std::uint32_t(row->line_at) * 40 : now_ms;
-}
+std::uint32_t quest_line_due(int event, std::uint32_t now_ms);
 
 }  // namespace d2d::rules

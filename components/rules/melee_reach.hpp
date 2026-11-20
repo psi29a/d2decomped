@@ -11,12 +11,7 @@ namespace d2d::rules {
 // or 6 (walk, run, town walk); a monster in mode 2 or 0xf (walk, run), or
 // a vulture (MonStats BaseId 0x6e, vulture1: FUN_00463860 → FUN_00463900)
 // in 8 / 9 (S1 / S2). Any other type isn't (a missile asserts).
-inline bool unit_moving(UnitType type, int mode, int base_id) {
-    if (type == UnitType::kPlayer) return mode == 2 || mode == 3 || mode == 6;
-    if (type != UnitType::kMonster) return false;
-    if (mode == 2 || mode == 0xf) return true;
-    return (mode == 8 || mode == 9) && base_id == 0x6e;
-}
+bool unit_moving(UnitType type, int mode, int base_id);
 
 // Is the target in the unit's melee reach (FUN_00622c40(unit, target,
 // extra))? `apart` is FUN_00641530's distance, `range` the unit's

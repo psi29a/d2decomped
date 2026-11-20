@@ -15,28 +15,7 @@ namespace d2d::rules {
 // to 32 bits) clamped to 1..8. Any other line: none. The caller tests the
 // game type (FUN_0044db30: single player or a host) and stores the count
 // (FUN_00535780); the line then goes out as "players set to N".
-inline std::optional<int> players_command(std::string_view line) {
-    constexpr std::string_view kCommand = "/players";
-    if (line.size() < kCommand.size()) return std::nullopt;
-    for (std::size_t index = 0; index < kCommand.size(); ++index) {
-        const char typed = line[index];
-        const char lower = typed >= 'A' && typed <= 'Z' ? char(typed - 'A' + 'a') : typed;
-        if (lower != kCommand[index]) return std::nullopt;
-    }
-    std::string_view rest = line.substr(kCommand.size());
-    const auto blank = [](char letter) { return letter == ' ' || (letter >= '\t' && letter <= '\r'); };
-    while (!rest.empty() && blank(rest.front())) rest.remove_prefix(1);
-    bool negative = false;
-    if (!rest.empty() && (rest.front() == '+' || rest.front() == '-')) {
-        negative = rest.front() == '-';
-        rest.remove_prefix(1);
-    }
-    std::int64_t value = 0;
-    for (; !rest.empty() && rest.front() >= '0' && rest.front() <= '9'; rest.remove_prefix(1))
-        value = std::min<std::int64_t>(value * 10 + (rest.front() - '0'), std::int64_t{ 1 } << 32);   // past 32 bits it's held anyway
-    value = std::clamp<std::int64_t>(negative ? -value : value, INT32_MIN, INT32_MAX);
-    return int(std::clamp<std::int64_t>(value, 1, 8));
-}
+std::optional<int> players_command(std::string_view line);
 
 // The players a monster's life, experience (FUN_00573930) and NoDrop
 // (FUN_0055a6d0) count (FUN_00535790): those in the game, or the /players
