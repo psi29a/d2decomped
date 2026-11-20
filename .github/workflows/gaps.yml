@@ -55,9 +55,18 @@ jobs:
           if new <= old:
               raise SystemExit
           commit = new_summary["generated"]["commit"]
-          body = {"content": f"🔥⛧🔥 **More of the Prime Evil's code is ours** 🔥⛧🔥\n"
-                             f"😈 D2Decomp is now **{new}% done** (was {old}%), as of `{commit}`\n"
-                             "💀 The gap map: https://psi29a.github.io/d2decomped/gaps.html"}
+          url = "https://psi29a.github.io/d2decomped/gaps.html"
+          messages = [
+              f"🔥⛧🔥 **More of the Prime Evil's code is ours** 🔥⛧🔥\n"
+              f"😈 D2Decomp is now **{new}% done** (was {old}%), as of `{commit}`\n💀 The gap map: {url}",
+              f"⛧ **Another shard of the Soulstone is ours** ⛧\n"
+              f"🔥 **{new}%** decompiled (was {old}%) · `{commit}`\n🕯️ {url}",
+              f"🔥 **We descend deeper into Hell** 🔥\n⛧ {old}% → **{new}%** done · `{commit}`\n💀 See how deep: {url}",
+              f"🕯️⛧🕯️ **The ritual grows stronger** 🕯️⛧🕯️\n"
+              f"🩸 **{new}%** of game.exe reclaimed (was {old}%)\n🔥 `{commit}` · {url}",
+          ]
+          # ponytail: rotates by tenths of a percent, so a jump of exactly 0.4 repeats one; store the last pick if that bothers anyone
+          body = {"content": messages[round(new * 10) % len(messages)]}
           request = urllib.request.Request(os.environ["DISCORD_WEBHOOK"], json.dumps(body).encode(),
                                            {"Content-Type": "application/json", "User-Agent": "d2decomped-gaps"})
           urllib.request.urlopen(request, timeout=30)
