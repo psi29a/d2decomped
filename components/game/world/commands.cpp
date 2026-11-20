@@ -860,7 +860,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // weapon's goes as its missile (cast_missile). Only with no unit named: the client's null target
         // (the ground, shift); a held click on a converted monster walks (cursor-units.md). A shift-click's
         // monster beside the player (Skills.txt SearchEnemyXY, FUN_00467660) comes named: the client picks it.
-        // ponytail: another melee skill at a spot (Bash with shift) isn't swung: its start isn't traced.
+        // Another melee skill at a spot isn't swung: FUN_0056f640 refuses a skill whose start returns 0, and
+        // starts 32 (FUN_005d7ea0: Bash, Stun, Concentrate, Conversion), 35 (FUN_005cfe10: Vengeance), 39
+        // (FUN_005d97f0: Berserk) and 29 (FUN_005ce790: Sacrifice) return 0 with no target (FUN_00553540).
+        // ponytail: Zeal's start (37, FUN_005daf40) takes a foe about the player (d2d_rules_ring_pick, 0x20003)
+        // when none is named, and a skill with no start (Frenzy, Smite: srvstfunc 0) is started and swung at
+        // nothing; neither is swung here.
         const auto attack_spot = [&] {
             const auto* attack = game_data->skills.get(0);
             actor->interact_npc = actor->pick_item = -1;
@@ -909,7 +914,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
             // both) swings where the player stands, at the click (FUN_00461c70: flag 0x20 -> FUN_00461700(0)),
             // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot;
-            // another skill's isn't swung (the ponytail above), but an earlier walk stops all the same,
+            // another skill's isn't swung (its start refuses, above), but an earlier walk stops all the same,
             // and a queued pickup or interaction goes with it, as attack_spot's does (the skill takes their place).
             actor->attack_mon = -1;
             if (use_skill.skill == 0) attack_spot();
