@@ -6,6 +6,7 @@
 #include <rules.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace d2d::client {
@@ -29,6 +30,11 @@ inline constexpr std::array<CursorRow, 7> kCursorRows{ {
     { "protate", true, true, 8, 0x40, true },
     { "buysell", false, false, 1, 0, false },
 } };
+
+// Whether a row loops (FUN_00467e40: +4) and its length in 8.8 frames
+// (FUN_00467e90: +8 << 8); game.exe asserts the row is under 7.
+[[nodiscard]] constexpr bool row_loops(int row) { return kCursorRows[std::size_t(row)].loops; }
+[[nodiscard]] constexpr int row_length(int row) { return kCursorRows[std::size_t(row)].frames << 8; }
 
 // The hand's state (0x7a6af0), row (0x7a6adc) and frame (0x7a6ae0, 8.8).
 // 1 idle: protate, stepped 0x20 a tick on a draw of the client player's
@@ -58,7 +64,7 @@ struct CursorAnim {
     }
     void move(std::uint32_t now_ms) {
         input_ms = now_ms;
-        if (state == kOpen || state == kOpening) set(kClosing, kOhand, (kCursorRows[kOhand].frames << 8) - 0x100);
+        if (state == kOpen || state == kOpening) set(kClosing, kOhand, row_length(kOhand) - 0x100);
     }
     // FUN_00468310, once a draw.
     void tick(std::uint32_t now_ms) {
@@ -72,13 +78,12 @@ struct CursorAnim {
 
 private:
     void set(int to_state, int to_row, int to_pos) { state = to_state; row = to_row; pos = to_pos; }
-    [[nodiscard]] int length() const { return kCursorRows[std::size_t(row)].frames << 8; }
     // FUN_004681c0.
     void open_step() {
         if (state == kIdle) { if ((seed.next() & 0x3f) < 0x10) pos += 0x20; }
         else pos += kCursorRows[std::size_t(row)].step;
-        if (pos < length()) return;
-        if (kCursorRows[std::size_t(row)].loops) { pos -= length(); return; }
+        if (pos < row_length(row)) return;
+        if (row_loops(row)) { pos -= row_length(row); return; }
         if (state == kOpening) set(kOpen, kOrotate, 0);
         else set(kIdle, state, 0);   // 5 only (its assert): row 5, protate
     }
@@ -86,7 +91,7 @@ private:
     void close_step() {
         pos -= 0x40;
         if (pos >= 0) return;
-        if (kCursorRows[std::size_t(row)].loops) { pos += length(); return; }
+        if (row_loops(row)) { pos += row_length(row); return; }
         set(kIdle, kProtate, 0);
     }
 };

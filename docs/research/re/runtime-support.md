@@ -47,6 +47,22 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   read here), and so what each mode runs is untraced.
 - d2d: not ported; it has no application mode (switches.md).
 
+## WinMain (`FUN_004066e0`)
+
+- **`FUN_004066e0`** (`hInstance`, `hPrevInstance`, `lpCmdLine`,
+  `nCmdShow` on the stack, by the CRT's call at `0x6827a5`, tools/emu/emu.py
+  "___tmainCRTStartup"): keeps `hInstance` at `0x0074c718` and `nCmdShow` at
+  `0x0074c71c`, then asks `FUN_00406650` whether the process was started
+  as the `DIABLO2SRV` service (it opens the service and, when it exists,
+  runs `StartServiceCtrlDispatcherA` with `FUN_004065e0`). Not one: the
+  process's ACL gets an access-denied entry (`FUN_004061c0`; the decompile
+  shows the string `"d2server"` and `lpCmdLine` passed to it, dropped from
+  its own signature, so what it does with them was not read) and the game
+  runs (`FUN_004064c0`, the start-up switches.md describes). Returns 0
+  either way.
+- d2d: no counterpart. Its `main` parses the switches itself
+  (switches.md) and never runs as a Windows service.
+
 ## The per-user folder path (`FUN_00406d30`, with `FUN_004067d0` / `FUN_00406b20`)
 
 - **`FUN_00406d30`** (buffer in ESI, size in EDI; both registers as the
@@ -79,6 +95,20 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
 - Open (switches.md lists it): whether `FUN_00407050` uses this for
   `D2.ini`'s directory. Not traced here.
 - d2d: not ported (its settings and saves folder is its own, apps/d2d/README.md).
+
+## The crash handler's flag (`FUN_00407ff0`)
+
+- **`FUN_00407ff0`** (no arguments, 6 bytes) returns `DAT_0074f0c8`. Fog's
+  crash handler `FUN_004082e0` sets it to 1 while it writes `Crash.txt` and
+  the minidump (the first entry only: `InterlockedIncrement` of
+  `0x007076b8` from -1), and back to 0 after; `FUN_00408660` and
+  `FUN_00408900` set and clear it too (not read further).
+- Its callers: the hand cursor's mouse move `FUN_00468840` (with a 3D
+  driver, `FUN_004f6270`, and the flag 0, it keeps the cursor inside the
+  window with `SetCursorPos`: client-frontier.md "The hand cursor and the
+  OS cursor") and `FUN_004f9f20` (`.\Src\D2WinMain.cpp`, not read).
+- d2d: no counterpart. Its crash reports are Sentry's (off unless turned
+  on), and it has no 3D driver path to clamp the cursor for.
 
 ## The error box and the start-up of the error system (`FUN_00408b20`, `FUN_00408ce0`)
 

@@ -1,9 +1,11 @@
 address	name	evidence
 00403040	vector_ctor_iterator	calls arg 4 arg 3 times (the MSVC array constructor loop)
 004059d0	app_mode_run	mode 1..5 (DAT_0074c704): obj = make() from 0x706554 + 8 * mode, calls its first virtual method, then done() at 0x706558 + 8 * mode; null entries raise lines 0x133 / 0x134; only caller FUN_00405c30 (runtime-support.md "The mode run")
+004066e0	win_main	WinMain: keeps hInstance / nCmdShow, runs the game unless started as the DIABLO2SRV service (runtime-support.md)
 00406ba0	install_path_get	The registry's Diablo II\InstallPath (FUN_00414e50), else the module's folder (GetModuleFileNameA), checked with GetFileAttributesA, saved back (FUN_00415070). 6 callers, ported: FUN_00408f20, FUN_00469780, ... (unnamed-frontier.md)
 00406d20	get_74c82c	Returns DAT_0074c82c. 7 callers (the MPQ opens FUN_004fab90, FUN_004fac90, FUN_004fad10, FUN_004faec0; FUN_0050fdf0) (unnamed-frontier.md)
 00406d30	user_dir_path	(buf in ESI, size in EDI): FUN_004067d0 SHGetKnownFolderPath(id 0x6cca6c) + "Diablo II", else SHGetFolderPathA CSIDL 5 + "Diablo II\\Save"; null buf line 0x44 (runtime-support.md "The per-user folder path")
+00407ff0	crash_handler_active	returns DAT_0074f0c8, set while Fog's crash handler FUN_004082e0 writes Crash.txt (runtime-support.md)
 00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
 00409ab0	pool_free_block	Fastcall (_, *ptr, file, line): the pool block holding the pointer (FUN_004099d0); a slot inside its range has its in-use bit cleared (masks 0x6ce268 / 0x6ce2e8) and the count dropped under the block's lock ... (src-frontier.md)
 00409b80	pool_release_empty	For the global pool (0x74f104, a null argument): each sub-pool's blocks with no slots in use are unlinked, removed from the sorted list (d2d_pool_block_remove), VirtualFreed and freed. Only caller the app start ... (src-frontier.md)
@@ -213,6 +215,8 @@ address	name	evidence
 00466730	critter_make	ECX, EDX, three stack words: counter DAT_00711f30 + 1 (-1 wraps to 0); type 1 builds a record for FUN_00466360, else FUN_00620290(0, type) record +0xc4 |= 0x600000 then FUN_00465fd0 (critters.md; ui_client_helpers.py)
 00466ff0	clear_7a6a98	DAT_007a6a98 = 0. 5 callers, among them FUN_0044c180 (unnamed-frontier.md)
 00467410	pet_colour_set	Fastcall (unit, pet, value): the pet's colour record (FUN_00478e40) +8 = value. Callers FUN_00462b40, FUN_00462ca0, FUN_00493430 (unnamed-frontier.md)
+00467e40	cursor_row_loops	EAX row: the cursor table 0x712010 row's +4 (loops), asserts row < 7 (client-frontier.md)
+00467e90	cursor_row_length	EAX row: the cursor table row's +8 frames << 8 (client-frontier.md)
 00467f20	cursor_click_left	Keeps the click's x, y (0x7a6ab0, 0x7a6aac) and tick; marks the event unhandled (+0x18); unless the cursor state is 5, a state with a handler (table 0x712020, 0x1c bytes) moves to state 5 with mode 4. 4 callers, ... (unnamed-frontier.md)
 00467fa0	cursor_click_right	As cursor_click_left; state 5 goes to mode 5, else state 1. 5 callers, among them FUN_0048b7c0, FUN_004a6840, FUN_004a6920 (unnamed-frontier.md)
 004680a0	client_cursor_item	returns the exact client cursor-unit pointer at 0x7a6abc; no branch or callee (client-frontier.md)
@@ -706,6 +710,7 @@ address	name	evidence
 004f5220	set_light_option	DAT_0072da50 = the value. Only caller FUN_0047cf80 (unnamed-frontier.md)
 004f52a0	set_7c8cc4	Fastcall: DAT_007c8cc4 = ECX. Only caller FUN_0045aea0 (unnamed-frontier.md)
 004f59a0	window_handle_get	no args: returns the dword at 0x7c8cbc, the HWND (FUN_004f90a0 passes it to GetWindowRect); FUN_004fa550 and FUN_004f8fe0 pass it as ECX of the handler-table calls (net-join.md "D2Win shutdown")
+004f59f0	os_cursor_hide	fullscreen 2D only: 1 hides the Windows cursor (FUN_004f5510), 0 shows it (FUN_004f5540) (client-frontier.md)
 004f5a30	renderer_ready	A renderer (DAT_007c8cc0) and not DAT_007c8cb4. Callers FUN_00468770 and two more (unnamed-frontier.md)
 004f6f60	tile_rle_blit_a	(From its data:) a DT1 block blitter on the frame buffer (DAT_007d544c). Callers FUN_004f8050 and one more (unnamed-frontier.md)
 004f7580	tile_blit_iso	(From its data:) a tile blit with clipping against the view (0x7c97a0, 0x7ca318, 0x7d2334, 0x7d233c). Callers FUN_004f8050, FUN_004f88b0 (unnamed-frontier.md)
@@ -1460,6 +1465,7 @@ address	name	evidence
 005c31f0	unit_can_be_raised	A unit not a pet, with FUN_0056e2f0, no FUN_005541b0, in a room without FUN_0061ab00, and FUN_00554200. Callers FUN_005c3bcc and one more (unnamed-frontier.md)
 005c3de0	confuse_unit	per-unit Confuse: FUN_005c3d50 test, d2d_states_put_state, descriptor stats set, alignment 1 (FUN_005543b0), list 9, kind 3, event 10; monster-ai.md "Confuse and Attract"
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
+005c4430	raise_pet_look	ECX owner, EDX pet; skill id, level: class 363 -> FUN_005c4300, 364 -> FUN_005c43d0 (pet-ai.md)
 005c5f10	heal_unit_life	EAX amount (256ths), EBX unit: 0 when amount < 1, else stat 6 += amount capped at d2d_unit_max_life, returns the amount that fitted (skills.md "Iron Maiden's function"; cited)
 005c5f50	aura_event_iron_maiden	aura event function 4 (table 0x7325b0 slot 0x7325c0), ECX game, 5 stack args (wearer, struck, hit, skill, level): hits the wearer calc1 / 2 / 3 % of the hit's damage (skills.md "Iron Maiden's function"; cited)
 005c6cc0	skill_aurastats_apply	fastcall (unit ECX, stat list EDX; stack row or 0, id, level): per aurastat slot (row +0x54 / +0x68) a nonzero FUN_00646ca0 value added with FUN_006270b0, stat 0x44 also sets 0x45; then FUN_00623f50; missiles.md; skills_combat_helpers.py

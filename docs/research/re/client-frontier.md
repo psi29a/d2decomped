@@ -86,3 +86,28 @@ uv run python client_frontier.py --exe /path/to/game.exe --mutation-check
 Expected: `ok: 207 client frontier cases over 5 functions`, followed by five
 `failed as required` mutation lines. The oracle loads no MPQs; the text width
 and glyph draw callees of `FUN_004a7080` are the only hooks.
+
+## The hand cursor and the OS cursor
+
+Three helpers of the hand cursor's code (cursor_anim.hpp, `FUN_00468310`'s
+family). Read from the decompile; the two row getters also ran in
+`tools/emu/cursor_rows.py`. Rows in address order.
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00467e40` | `cursor_row_loops` | The row in EAX. Asserts the row count at `0x7120d4` is 7 (line 0x8f) and the row under it (line 0x90), then returns the row's `+4` in the table at `0x712010` (0x1c bytes a row): whether it loops. Callers the forward step `FUN_004681c0` and the backward one `FUN_004682c0`, at a row's end | matches: `row_loops` (cursor_anim.hpp), oracle `cursor_rows.py`, test `test_cursor_rows` |
+| `FUN_00467e90` | `cursor_row_length` | The same asserts (lines 0x9a, 0x9b); returns the row's `+8` (its frames) shifted left 8, the length in the 8.8 frames the position `0x7a6ae0` counts. Callers `FUN_004681c0`, `FUN_004682c0` and the mouse move `FUN_00468840` (ohand backward from its length less 0x100) | matches: `row_length`, the same oracle and test |
+| `FUN_004f59f0` | `os_cursor_hide` | One argument. Only when `DAT_007c8cb4` is set (fullscreen: `d2d_renderer_set_windowed` stores `windowed == 0` there) and the video mode `DAT_007c8cb0` isn't 4, 5 or 6 (Glide, OpenGL, Direct3D: bugs.md 106): a non-zero argument hides the Windows cursor (`FUN_004f5510`: `ShowCursor(0)` until its count is below 0), zero shows it (`FUN_004f5540`). The mouse move `FUN_00468840` calls it with 1, after the 3D driver's window clamp (`FUN_00407ff0`, runtime-support.md) | no counterpart: d2d draws the hand itself and hides or shows the OS cursor through SDL (`Window::show_cursor` / `hide_cursor`, window.hpp), by its own rules |
+
+The other callers of `FUN_004f59f0` (`FUN_00467ef0`, and `FUN_004fa4c0`,
+`FUN_004fa4f0`, `FUN_004fa6b0` in `.\Src\D2WinMain.cpp`) were not read.
+
+Re-check:
+
+```sh
+python3 tools/ghidra/fn.py 00467e40 00467e90 004f59f0 004f5510 004f5540 00468840
+cd tools/emu && uv run python cursor_rows.py
+```
+
+Expected from the oracle: the seven rows (Gaunt .. buysell) and
+`ok: 7 cursor rows`; `cursor_rows.py inc` writes `tests/cursor_rows_cases.inc`.

@@ -30,6 +30,7 @@
 #include "load.hpp"
 #include "lobby.hpp"
 #include "platform.hpp"
+#include "pointer_events.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
 #include "session.hpp"
@@ -936,7 +937,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         bool mouse_took_over = false;   // the mouse moved or clicked this frame: it ends the pad's field mode
         session.touch_input.frame();
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
+        // A press ends the frame's poll before the next pointer event (pointer_events.cpp, #545).
+        const auto press_waits = [&mouse] {
+            SDL_Event next;
+            return SDL_PeepEvents(&next, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) == 1 && waits_for_next_frame(mouse, next.type);
+        };
+        while (!press_waits() && SDL_PollEvent(&event)) {
             // SDL3 doesn't rescale event coords under logical presentation;
             // convert so the mouse lands in 800x600 game pixels.
             SDL_ConvertEventToRenderCoordinates(win.renderer, &event);

@@ -465,6 +465,16 @@ try:
     cmd("key Escape"); frames()
     assert state()["picker"] == "0" and state()["screen"] == "ingame"
 
+    # The synthetic saves have no stats section (life 0/0, level 0): the
+    # first blow outside is a hardcore death, and a dead player's attack
+    # never lands (#652); a level-0 save doesn't keep its gold. Only the
+    # patch steps above set a level, so give it one and life here.
+    if not real:
+        if state()["level"] == "0":
+            cmd("debug stat 12 10")                                       # the save header's level
+        cmd("debug stat 7 256000"); cmd("debug stat 6 256000"); frames(2)   # max life, life: 1000 (<<8)
+        assert state()["life"] == "1000/1000" and state()["level"] != "0", state()
+
     # Leaving camp (default map seed 3: the Blood Moor east of the town,
     # townE1): from the west end of the town's bridge (row 16), walk east
     # across it into the Blood Moor; its west edge leads back. On normal:
@@ -516,10 +526,9 @@ try:
     # Waypoint travel (C->S 0x49): Cold Plains' waypoint (index 1) active,
     # the town's sends the player to it once 10 s have passed since the
     # last level change; they arrive beside it.
-    # The synthetic saves have no stats section: life 0/0, so the first
-    # blow lands a (hardcore) death. Standing out the 10 s by the Cold
-    # Plains' waypoint, its monsters may walk up and strike, as game.exe's
-    # would; clear the ones in play on arrival (the player stands still,
+    # Standing out the 10 s by the Cold Plains' waypoint, its monsters may
+    # walk up and strike, as game.exe's would (a real save may be a low
+    # level one); clear the ones in play on arrival (the player stands still,
     # so no more rooms populate).
     cmd("debug wp 1")
     wp = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
