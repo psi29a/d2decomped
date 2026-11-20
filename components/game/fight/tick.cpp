@@ -15,7 +15,9 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <melee_reach.hpp>
+#include <merc.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -280,6 +282,14 @@ auto Fight::crowd(Crowd& crowd_out) -> void {
             if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
     }
 
+auto Fight::crowd_around(Crowd& crowd_out, float x, float y) -> void {
+        for (auto& monster : monsters)
+            if (monster.targetable() && std::abs(monster.unit.x - x) < 12 && std::abs(monster.unit.y - y) < 12) crowd_out.units.push_back(&monster.unit);
+        for (auto* hero : heroes)
+            for (auto& pet : hero->pets)
+                if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
+    }
+
 auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         Foe foe{ actor->player.x, actor->player.y, int(actor->character.stats.get(d2d::d2s::kLevel)), !dead(), actor->player.walking, actor->player_combat };
         foe.running = actor->owner_mode == 3;                   // RN (World: walking with run on and stamina)
@@ -432,7 +442,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players()))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players(), &spawning))
                     killed(i, now_ms);                           // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
@@ -482,7 +492,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
-            for (auto& monster : monsters) monster.in_aura = false;
+            for (auto& monster : monsters) { monster.in_aura = false; monster.res_cut = {}; }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 if (now_ms >= actor->curses[0].until) actor->curses[0] = {};   // its state's end (blood_mana asks for it gone)
@@ -492,6 +502,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 buff_tick(now_ms);
                 aura_pulse(now_ms);
                 for (auto& monster : monsters) monster.in_aura = monster.in_aura || (monster.alive() && in_aura(monster));   // its auratargetstate shows (states.md)
+                // Its resists as the client reads them (FUN_004526c0: GetUnitStat, the states' stats in): the curse
+                // and this side's auras; two sides' Convictions are one state, so the deepest cut stands.
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (auto& monster = monsters[i]; monster.alive() && (monster.in_aura || monster.curse.skill >= 0 || !monster.states.empty() || monster.self_state.skill >= 0)) {
+                        const auto base = monster.target(*game_data).res, now = target_of(i).res;
+                        for (std::size_t k = 0; k < 6; ++k) monster.res_cut[k] = std::min(monster.res_cut[k], now[k] - base[k]);
+                    }
                 for (std::size_t k = 0; k < actor->pets.size(); ++k) {
                     auto& pet = actor->pets[k];
                     const auto& foe = foes[side.pets + k];
@@ -500,14 +517,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
-                    if (foe.flashed >= 0) { pet.monster.flash_overlay = foe.flashed; pet.monster.flash_at = now_ms; }
+                    if (foe.flashed >= 0) d2d::rules::add_one_shot(pet.monster.one_shots, foe.flashed, now_ms);
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
             }
             missile_tick(now_ms);
             // The merc's arrows strike the first live monster they reach.
-            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y); };
+            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y, &spawning); };
             // A missile's sounds (FUN_004cd540, FUN_004d2d70): its TravelSound from its first frame,
             // on it while it flies; its HitSound where it struck (gone before its end).
             struct Flying { int sound; std::uint32_t dies; float x, y; int hit_sound; };
@@ -667,6 +684,14 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->merc_poison_rate = rate;
                 actor->merc_poison_until = now_ms + std::uint32_t(side[1].poison_ticks) * 40;
             }
+            // FUN_0057ac50 files a monster's event 3 (its regeneration) for the next frame, the merc's too.
+            if (actor->merc && actor->merc->hit_points > 0) actor->merc->stats.regen = d2d::rules::merc_life_regen(actor->merc_st.life);
+        }
+        // What the merc's gear absorb took off the blows is given back as life first, a blow at a time, capped at its max life
+        // (FUN_0057c6c0 -> FUN_0057a980, 0x57c844, as for the player below); the blows' totals come off after.
+        if (actor->merc && actor->merc->hit_points > 0 && actor->merc->mode != "DT" && !side[1].blows.empty()) {
+            const std::int64_t life = actor->merc->life_fine();
+            actor->merc->set_life_fine(int(life + d2d::rules::absorb_heal(side[1].blows, life, std::int64_t(merc_max_life()) << 8)));
         }
         if (actor->merc && actor->merc->mode != "DT")           // Crushing Blows, after the hits (monprop_hit)
             for (const int divisor : side[1].crushed) {
@@ -690,6 +715,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             actor->merc->hit_points -= side[1].damage;
             if (actor->merc->hit_points == 1 && actor->merc->life_frac > 0) actor->merc->hit_points = 0;   // under one whole point is dead (hurt, 0057c86c)
             if (actor->merc->hit_points <= 0) actor->merc->life_frac = 0;
+            // Still alive, a hurt unit with a regeneration (total stat 0x4a) files its event 3 for the
+            // next frame (FUN_0057c6c0, 0x57c8fd..0x57c92f): the merc's runs from its first hurt (apply_regen).
+            else if (const int regen = d2d::rules::merc_life_regen(actor->merc_st.life); regen + merc_gear().sum[d2d::d2s::kHitPointRegeneration] != 0)
+                actor->merc->stats.regen = regen;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
                             : actor->merc->mode != "KB" && d2d::rules::struck_big(side[1].blows, std::int64_t(merc_max_life()) << 8, actor->merc->seed) ? std::string_view("GH")
@@ -770,8 +799,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->curses[k] = curse;
                 d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }
-        if (side[0].flashed >= 0) { actor->flash_overlay = side[0].flashed; actor->flash_at = now_ms; }
-        if (side[1].flashed >= 0 && actor->merc) { actor->merc->flash_overlay = side[1].flashed; actor->merc->flash_at = now_ms; }
+        if (side[0].flashed >= 0) d2d::rules::add_one_shot(actor->one_shots, side[0].flashed, now_ms);
+        if (side[1].flashed >= 0 && actor->merc) d2d::rules::add_one_shot(actor->merc->one_shots, side[1].flashed, now_ms);
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(side[k].marked.skill)) {
                 if (now_ms >= actor->marks[k].until) d2d::log::info("{} marked: {}", k ? "the merc" : "the player", skill->auratarget);

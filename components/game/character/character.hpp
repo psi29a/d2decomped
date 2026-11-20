@@ -76,6 +76,10 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
 // A row's min / max are its property's own: a damage range (Vidala's Rig
 // dmg-cold 15-20), gethit-skill's chance and level (Cow King's 25, 5).
 // `only`: that Sets.txt row's alone (the hover text's, FUN_004e6680).
+// ponytail: game.exe's list goes on with the set piece that last refreshed
+// it (FUN_00663b40 -> FUN_00660120, the item in ESI), which picks a dmg-min /
+// dmg-max / dmg% bonus's hands; here with none (one-hand), as d2d keeps no
+// order of the pieces' changes.
 inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items, int only = -1) {
     std::vector<d2d::d2s::ItemProp> out;
     const auto& rules = game_data.rules;

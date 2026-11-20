@@ -79,6 +79,19 @@ The edit line starts with the last address used (registry
    `DAT_007795ec` = 2, and go to char-select (`FUN_0043b080`). The real
    join happens when a character is picked (net-join.md).
 
+### Connecting screen — FUN_0042f6e0
+
+The test connect first clears the current controls (`FUN_0042f3f0`) and
+sets `0x779954` to 1 and `0x779974` to 0.  On the Sky palette it makes
+records 0xde (PopUpOK), 0xdf (CANCEL) and 0xe0 (Font24 text); on the
+character palette they are 0xf7, 0xfa and 0xf9.  It hides the CANCEL,
+enables all three records, looks up string 0x147b ("PLEASE WAIT"), starts
+the text draw through `FUN_004fd060`, and installs callback `0x42f6c0` in
+`0x7795bc`.  The popup is 264x176 at (268, bottom 350); the Sky text box is
+264x100 at (268, bottom 300), and the character-palette one is 264x120 at
+(268, bottom 320).  Both sides of the palette branch have the same call
+and global-write order apart from those record ids.
+
 ## Join errors
 
 **The popup** (`FUN_00433380(text in ECX, on-OK in EDX, stack flag)`) is
@@ -129,9 +142,9 @@ For an expansion character (bit 0x20 at +0x1ef of `DAT_007a0438`), reasons
 - OPEN BATTLE.NET and HOST GAME do nothing. d2d has no Battle.net and only
   joins a game.exe host.
 - The address is kept in d2d.cfg as `last_tcp_ip`.
-- Step 3's test connect isn't done. A host that doesn't answer shows up when
-  char-select joins. Char-select shows the Sky popup with 0x145b, and its OK
-  goes back to TCP/IP Options (after a `--join`, it stays on char-select).
+- Step 3 first tries d2d's LAN port and then game.exe's port.  The stock
+  PLEASE WAIT popup is presented before those synchronous attempts.  A
+  failure shows the Sky popup with 0x145b, whose OK returns to TCP/IP Options.
 - A B4 refusal's message goes in the same popup on char-select. game.exe
   draws it over the game screen, because its join runs inside the game loop.
 - Anything game.exe never meets shows d2d's own words in that popup: a name

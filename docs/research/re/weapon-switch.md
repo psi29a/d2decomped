@@ -226,16 +226,35 @@ true when all hold:
 its itypea1 (short `+0x18`, skills.md) is above 0 and is ItemTypes row 0x30 or
 derives from it (`FUN_00629b50`), the record byte `+0x14` is 2 (the column is
 not mapped in structs.tsv), and `FUN_0055c4d0` says the skill is usable. Its
-only caller is `FUN_0055c5c0`. What ItemTypes row 0x30 is was not read from
-ItemTypes.txt here.
+only caller is `FUN_0055c5c0`. ItemTypes row 0x30 is thro (row 0x2d weap,
+0x2e mele).
+The record byte `+0x14` is Skills.txt's `range` (the loader's field table
+lists it at 0x14 with a keyword list FUN_00613f80 fills none, h2h, rng, both, loc), so 2
+is `rng`: the throws (Throw, Left Hand Throw, Double Throw) and the javelin
+skills (itypea1 jave derives from thro through comb).
 Evidence: `python3 tools/ghidra/fn.py 0055c560`, `python3 tools/ghidra/calls.py 0055c560`.
-d2d: not ported (no mention under `components/` or `apps/`).
+d2d: `World::hand_skills` (`components/game/world/commands.cpp`), `a_throw`.
 
 ## Dropping hand skills a change of gear made unusable (`FUN_0055c5c0` chain)
 
-Cited, not proven. Several of these take arguments in registers the
-decompile does not show (the asm was not read), so a hand's mapping to a
-local is read from the order of the calls only.
+Read from the asm (0x55c5c0..0x55c6d5). No wielded weapon: nothing. Else,
+the left hand by the wielded weapon (`[ebp-4]`), then the right by the other
+hand's (`[ebp-8]`): a hand item of ItemTypes 0x30 (thro) and not 0x2e (mele),
+which in 1.14d is only a throwing potion (tpot; the throwing knives, axes and
+javelins derive from comb, a mele), whose hand skill isn't a throw
+(`FUN_0055c560` with the skill in EDI) keeps that skill (`FUN_00622f10`
+left, player data `+0x74` / `+0x7c`; `FUN_00622ea0` right, `+0x70` /
+`+0x78`) and takes skill 2, Throw (`FUN_005701b0`, push 2 and -1, EDX 1
+left / 0 right). Then, the hand's skill refused (`FUN_00647960` status 2 or
+7) runs `FUN_0055c4f0` (EBX 1 left, 0 right): the kept skill back when the
+unit has it (`FUN_006439b0`), it isn't the hand's now and isn't refused.
+Callers: the mend `FUN_0055f900` (with an owner), a body slot's item off
+(`FUN_00560cd0`) or on (`FUN_005606b0`, `FUN_00560f00`, `FUN_00561220`,
+`FUN_00563d20`), the weapon switch `FUN_005616a0`, `FUN_00562a30`,
+`FUN_00562e00`, `FUN_00562f30`.
+d2d: `World::hand_skills`, run after a command that changes what's worn
+(`World::tick`), a repair that mends a broken item and `replenish_frame`'s
+mend; `tests/game/test_hand_skills.cpp`.
 
 ### The wielded weapon and the other hand's weapon (`FUN_0055c470`)
 
@@ -246,7 +265,7 @@ item in body slot 4 or 5 (`FUN_0063bde0`) that is not that weapon: slot 5's
 when the wielded one is slot 4's, else slot 4's. EBX is cleared unless
 it is of ItemTypes row 0x2d (`FUN_00629bb0`, weap).
 Evidence: `python3 tools/ghidra/fn.py 0055c470`, `python3 tools/ghidra/calls.py 0055c470`.
-d2d: not ported; no mention in `components/` or `apps/`.
+d2d: `World::hand_skills` (`wielded`, `other`).
 
 ### Is the skill still usable (`FUN_0055c4d0`)
 

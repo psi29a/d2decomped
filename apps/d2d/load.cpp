@@ -149,6 +149,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\MENU\dialogbackground.dc6)", scene.gold_dialog);
     sprite(R"(data\global\ui\MENU\spinner.dc6)", scene.spinner);
     sprite(R"(data\global\ui\MENU\upgrade.dc6)", scene.use_item_panel);
+    sprite(R"(data\global\ui\MENU\horadricback.dc6)", scene.horadric_panel);
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
         auto& graphics = scene.type_invgfx[code];
@@ -224,6 +225,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\menu\boxpieces.dc6)", scene.boxpieces);
     sprite(R"(data\global\ui\menu\textslid.dc6)", scene.textslid);
     sprite(R"(data\global\ui\Menu\800helpborder.dc6)", scene.help_border);
+    sprite(R"(data\global\ui\MENU\scroin.dc6)", scene.scroll);
+    sprite(R"(data\global\ui\MENU\scroin2.dc6)", scene.scroll_symbols);
+    sprite(R"(data\global\ui\MENU\scroin3.dc6)", scene.scroll_glow);
     sprite(R"(data\global\ui\PANEL\NPCInv.dc6)", scene.npc_inv);
     sprite(R"(data\global\ui\Menu\party.dc6)", scene.party_panel);
     sprite(R"(data\global\ui\Menu\partybuttons.dc6)", scene.party_buttons);

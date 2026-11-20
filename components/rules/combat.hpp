@@ -761,6 +761,36 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
     return dmg;
 }
 
+// Corpse Explosion's blow (do 55, FUN_005c4df0): the corpse's life, a
+// monster's FUN_006538a0 range at its level (stat 0xc) averaged, 256ths
+// ((min + max) << 7, 0x5c4ecd); calc1..calc2 % of it (FUN_00483360 with
+// the % as its value and the life as the times, 0x5c4f31 / 0x5c4f57: a life
+// over 0x10000 is cut to hundredths first), the
+// roll on the corpse's unit seed (+0x20, FUN_0045c3e0: high - low, none
+// when that's 0); a corpse above the caster's level cut to clvl / its level.
+inline int corpse_life_fine(const Monsters& monsters, int type, int difficulty, int level) {
+    const auto ranges = monster_ranges(monsters, type, difficulty, level);
+    return (ranges.min_hp + ranges.max_hp) << 7;
+}
+inline int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed, int corpse_level, int caster_level) {
+    const int low = mul_div(low_pct, life_fine, 100), high = mul_div(high_pct, life_fine, 100);
+    int fine = corpse_seed(high - low) + low;
+    if (corpse_level != 0 && caster_level < corpse_level) fine = mul_div(fine, caster_level, corpse_level);
+    return fine;
+}
+// calc3 % (0..100) of that blow goes to the skill's EType when it has one
+// (FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a): {physical,
+// element}, 256ths.
+inline std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental) {
+    element_pct = std::min(std::max(element_pct, 0), 100);
+    if (element_pct <= 0 || !elemental) return { fine, 0 };
+    return { mul_div(fine, 100 - element_pct, 100), mul_div(fine, element_pct, 100) };
+}
+// The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
+// subtiles of the corpse; the physical reaches only aurarange / 2
+// (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
+inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
+
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
 // element's mastery) in 256ths, the element (Skill::etype order: fire,
@@ -985,8 +1015,6 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         blow.stun_ticks = std::min(stun, 250);
         return blow;
     }
-    blow.life = leech_fine(fine, target, fighter.life_steal, target.life_steal_divisor);
-    blow.mana = leech_fine(fine, target, fighter.mana_steal, target.mana_steal_divisor);
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     const auto share = [&](int pct) { return int(target.paired(rolled * pct / 100)); };
     int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(target.paired(conv) >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
@@ -1015,20 +1043,27 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     }
     if (conv > 0 && swing.conv_type == 2)
         blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
-    // Crushing Blow (FUN_005bffc0): the life left after the hit / the
-    // divisor, less the raw damage resist's share (100 at most, none at 0
-    // or less: not resisted's).
-    int crushing_blow = 0;
+    // Crushing Blow (FUN_005bffc0, run by the strike event 5 or 6 of FUN_0057c6c0, before LAB_0057c852 takes the hit's damage):
+    // the life the target has BEFORE the hit, in 256ths, / the divisor, less the raw damage resist's share (100 at most, none
+    // at 0 or less: not resisted's).
+    int crushing_fine = 0;
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
         blow.crushing = true;
-        crushing_blow = std::max(target.hit_points - phys - elem, 0) / (target.crush_divisor * (swing.missile ? 2 : 1));
-        if (target.res[0] > 0) crushing_blow -= crushing_blow * std::min(target.res[0], 100) / 100;
+        crushing_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) / (target.crush_divisor * (swing.missile ? 2 : 1));
+        if (target.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(target.res[0], 100), 100);
     }
+    // The leech cuts the physical to the life the crush left: FUN_0057c6c0 reads stat 6 at 0x57c7f8, after the strike events.
+    Target after_crush = target;
+    after_crush.life_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) - crushing_fine;
+    blow.life = leech_fine(fine, after_crush, fighter.life_steal, target.life_steal_divisor);
+    blow.mana = leech_fine(fine, after_crush, fighter.mana_steal, target.mana_steal_divisor);
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
     if (blow.bleed) blow.bleed_fine = open_wounds_fine(clvl, target.special);
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(stun, 250);
-    blow.damage = phys + elem + crushing_blow;
+    const int fraction = blow.frac + crushing_fine;                // the physical's part under a point and the crush, in 256ths
+    blow.damage = phys + elem + (fraction >> 8);
+    blow.frac = fraction & 255;
     blow.elemental = marking > 0 || blow.poison > 0;
     return blow;
 }

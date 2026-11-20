@@ -39,7 +39,7 @@ keyboard.
 | Single player, softcore and hardcore | ✅ |
 | Gamepad (Xbox, PlayStation, Switch, Steam Deck) | ✅ remappable ([apps/d2d](apps/d2d/README.md)) |
 | Joining a game hosted by the original | 🚧 Acts I–IV checked live, Act V not yet |
-| Sound | 🚧 3,416 of 3,520 base-install sounds covered (104 remain); 3,416 of the 3,423 the original plays, as traced ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
+| Sound | ✅ every sound the original plays: 3,416 of the base install's 3,520 rows; the other 104 are traced as never played by stock 1.14d ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
 | Multiplayer with a d2d host | Not started |
 | Dedicated server | Not started |
 

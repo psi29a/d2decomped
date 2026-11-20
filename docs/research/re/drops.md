@@ -172,6 +172,15 @@ uses the area level for a chest, agreeing for a type-2 dropper (not
 verified here against `d2d_ai_area_monster_level`'s table); a player
 dropper (base stat 0xc) is not ported.
 
+A TC cell (FUN_00654440) is an item code when under 5 letters and Items has
+it; else a class name (flag 4); else a UniqueItems `index` name (flags 0x11,
+entry +0xa its row, +8 the row's base code), then a SetItems one (0x12). In
+1.14d only ROP (N) / ROP (H) name one: Annihilus (row 381, cm1). Its pick
+(FUN_0055a6d0) is quality 7 / 5 with the index + 1 to make, ahead of a forced
+quality (a chest's, param_5), which only the other items take. d2d: the
+loader's pass after SetItems (`gamedata_load.cpp`), `roll_class`,
+`Drop::special`; `tests/test_drops.cpp`, `tests/game/test_game_tables.cpp`.
+
 FUN_0055a550 (ECX item index, ESI dropper; game, quality, unique / set
 index + 1, flags) places it first (FUN_00555da0, no draws; none free →
 nothing made), then fills a 0x84-byte struct: +0xc ilvl (the dropper's
@@ -208,12 +217,13 @@ seed (FUN_00650e50 before them only reads it):
   (or an expansion item), enabled (flag 1), not ladder (flag 8) outside a
   ladder game (`game+0x6a` / `+0x74`), the item's code and lvl <= ilvl;
   weight rarity, at least 1. A forced index among them wins with no draw;
-  else rand(total). One found already (bit set in `game+0x1b24`) fails
+  else rand(total) (d2d: `generate_item`'s `special_wanted`). One found already (bit set in `game+0x1b24`) fails
   but for a quest item (Items `+0x12a`); FUN_00556530 sets the bit unless
   nolimit (flag 2).
 - Set: SetItems rows (`+0xc18`, stride 0x1b8), version as above, the
   code, lvl <= ilvl, set 29 (Cow King's Leathers) only with flag 1;
-  weight rarity, 0 counts 1; rand(total), then subtract.
+  weight rarity, 0 counts 1; a forced index among them wins with no draw
+  (FUN_005c25c0's `+0x40 - 1` test), else rand(total), then subtract.
 - A failed unique goes rare with durability x3, a failed set x2.
 
 ### The quality roll, expansion and classic — FUN_00556f60
@@ -459,6 +469,34 @@ A landed item marks 0x200, so the next lands elsewhere. Object footprints
 non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 0x400.
 
+When no spot is free (the 49 rings find none), FUN_0064dea0 keeps the start
+(`param_7` != 0: FUN_00555da0 hands it its own last argument, 1 from
+FUN_0055a550's call: its two `push 1` at 0x55a594 / 0x55a596 stay on
+the stack under FUN_00620bb0's `ret 4`, and FUN_00555da0 reads them at
+0x555dd7) and answers the room at it (FUN_00463740); with param_7 = 0 it
+answers 0. So FUN_00555da0 returns 0 only when the start (x + 2, y + 3, or
+(x, y) when that is off the rooms) is itself in no room and the search found
+none; FUN_0055a550 then returns 0 before the record is zeroed or any item
+unit made (no draw off the game seed), and FUN_0055a6d0 (the call at 0x55aee7, `je 0x55af5e`)
+skips the gold mul, the pointer store (0x55af46), the count (0x55af4c), the `max` stop and
+FUN_005589a0 (0x55af59): the pick is spent, the quality roll's draws already taken. The
+count is of items made (re-check: `python3 tools/ghidra/fn.py 0055a6d0
+0055a550 00555da0 0064dea0`; `python3 tools/emu/disasm.py 55a550`).
+The room FUN_00463740 is asked at 0x64e23f is the one in FUN_0064dea0's
+first argument slot (`[ebp+8]`), which each probe that finds a room
+overwrites (0x64e13c): the room of the last such probe, not always the
+dropper's. d2d asks the dropper's room and its near list (`automap_rooms`),
+so a start that only the last-probed room's list lacks (or has) is not
+matched; not traced past that.
+d2d: `drop_place` (gamedata.hpp) is `drop_spot` with that answer (nullopt);
+`rules::roll_drops` takes a `Placement` asked per drop after its quality roll;
+`Loot::drop` puts each drop as it is rolled and a refused one is not made,
+counted or given gold find. Not wired: chests (`chest_round`) and the other
+rollers, which count every drop, and the item's own put of the quest rings
+(`Loot::put` returns false there, unchecked). No oracle: the placement
+is read from the decompile and asm, the rule is tested on typed-in
+rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
+
 ## Checks
 
 - `cd tools/emu && uv run python drops.py 1-100000` runs FUN_0055a6d0 per
@@ -494,10 +532,7 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 
 ## Not ours yet
 
-- Unique / set item entries (flags 1 / 2; ROP only in 1.14d) force quality
-  7 / 5 in `roll_drops`, with no quality draw. Flag modifiers (bin +0x30 /
-  +0x32) are 0, so those draws do not run. Forced picks (struct +0x40, the
-  entry's unique / set index) are stored and not applied when the item is made.
+- Flag modifiers (bin +0x30 / +0x32) are 0, so those draws do not run.
 - `Loot::drop_at` reads the live walk grid (& 0x01), the items lying
   there (0x200), and on this level the Crowd's unit footprints
   (0x1000 / 0x2000, FUN_00555da0's mask 0x3e01). Those bits are not in

@@ -93,20 +93,18 @@ int main() try {
         assert(out.size() == 2 && out[0].quality == 4 && out[1].quality == 4);
     }
     // FUN_0055a6d0 step 4: a unique entry (flag 1) is quality 7 and a set
-    // entry (flag 2) is quality 5, neither drawing. The unique / set index
-    // (entry +0xa; 29 is Cow King's Leathers) is kept and does not draw:
-    // set 29 is chosen only later, from a Hell Bovine (flag 1 on the made
-    // item). A zero flag modifier (bin +0x30 / +0x32) does not change the
-    // roll: the seed matches the quality roll alone.
+    // entry (flag 2) is quality 5, neither drawing, even with a forced
+    // quality (a chest's). The unique / set index (entry +0xa; 29 is Cow
+    // King's Leathers) goes on the drop as row + 1 (struct +0x40) and does
+    // not draw: set 29 is chosen only later, from a Hell Bovine (flag 1 on
+    // the made item). A zero flag modifier (bin +0x30 / +0x32) does not
+    // change the roll: the seed matches the quality roll alone.
     {
-        const auto unique_cell = treasure_entry("\"rin,uni=4\"");
-        const auto set_cell = treasure_entry("hax,set=29");
         const auto gold_cell = treasure_entry("gld,mul=1280");
-        assert(unique_cell.code == "rin" && unique_cell.flags == 1 && unique_cell.index == 4);
-        assert(set_cell.code == "hax" && set_cell.flags == 2 && set_cell.index == 29);
         assert(gold_cell.code == "gld,mul=1280" && gold_cell.flags == 0 && gold_cell.index == 0);
-        tables.treasure["Uni"] = { .items = { { unique_cell.code, 1 } }, .entry_flags = { unique_cell.flags }, .entry_index = { unique_cell.index } };
-        tables.treasure["SetItem"] = { .items = { { set_cell.code, 1 } }, .entry_flags = { set_cell.flags }, .entry_index = { set_cell.index } };
+        assert(treasure_entry("\"rin,cu=4\"").code == "rin");
+        tables.treasure["Uni"] = { .items = { { "rin", 1 } }, .entry_flags = { 1 }, .entry_index = { 4 } };
+        tables.treasure["SetItem"] = { .items = { { "hax", 1 } }, .entry_flags = { 2 }, .entry_index = { 29 } };
         tables.treasure["UniOther"] = { .items = { { "rin", 1 } }, .entry_flags = { 1 }, .entry_index = { 0 } };
         Rng unique_seed{ 11 }, set_seed{ 11 }, other_seed{ 11 }, pick_only{ 11 };
         pick_only(1);                                                                    // the pick (NoDrop + total is 1); no quality draw
@@ -114,14 +112,13 @@ int main() try {
         roll_drops(tables, "Uni", 1, unique_seed, unique_out);
         roll_drops(tables, "SetItem", 1, set_seed, set_out);
         roll_drops(tables, "UniOther", 1, other_seed, other_out);
-        assert(unique_out.size() == 1 && unique_out[0].code == "rin" && unique_out[0].quality == 7 && unique_seed.low == pick_only.low);
-        assert(set_out.size() == 1 && set_out[0].code == "hax" && set_out[0].quality == 5 && set_seed.low == pick_only.low);
-        assert(other_out.size() == 1 && other_out[0].quality == 7 && other_seed.low == unique_seed.low);
-        assert(tables.treasure["SetItem"].entry_index[0] == 29);
+        assert(unique_out.size() == 1 && unique_out[0].code == "rin" && unique_out[0].quality == 7 && unique_out[0].special == 5 && unique_seed.low == pick_only.low);
+        assert(set_out.size() == 1 && set_out[0].code == "hax" && set_out[0].quality == 5 && set_out[0].special == 30 && set_seed.low == pick_only.low);
+        assert(other_out.size() == 1 && other_out[0].quality == 7 && other_out[0].special == 1 && other_seed.low == unique_seed.low);
         unique_out.clear();
         pick_only(1);
         roll_drops(tables, "Uni", 1, unique_seed, unique_out, 1, 0, 6, 4);
-        assert(unique_out.size() == 1 && unique_out[0].quality == 4 && unique_seed.low == pick_only.low);
+        assert(unique_out.size() == 1 && unique_out[0].quality == 7 && unique_seed.low == pick_only.low);
         tables.treasure["Plain"] = { .picks = -1, .items = { { "hax", 1 } } };
         tables.treasure["ZeroFlag"] = { .picks = -1, .items = { { "hax", 1 } }, .flag_mod = { 0, 0 } };
         Rng plain_seed{ 21 }, zero_seed{ 21 }, quality_seed{ 21 };
@@ -138,6 +135,16 @@ int main() try {
         std::vector<Drop> out;
         roll_drops(tables, "Lots", 1, rng, out);
         assert(out.size() == 6);
+    }
+    // A chest round places each drop as it's rolled (FUN_0055a550): one refused
+    // isn't made or counted, and the round's first quality is the first made one's.
+    {
+        tables.treasure["Chest A"] = { .picks = -2, .items = { { "hax", 1 }, { "rin", 1 } } };
+        Rng chest_seed{ 31 };
+        std::vector<Drop> out;
+        int asked = 0;
+        const int first = chest_round(tables, "Chest A", chest_seed, out, 2, [&](const Drop&, int) { return ++asked != 1; });
+        assert(asked == 2 && out.size() == 1 && out[0].code == "rin" && first == made_quality(tables, "rin", 2));
     }
     // More players: NoDrop 1 of 2 at /players 3 (n = 2) is 1 * 1/4 / (3/4)
     // = 0, so every pick drops.

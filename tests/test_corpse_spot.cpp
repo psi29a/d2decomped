@@ -11,9 +11,12 @@
 
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <fstream>
+#include <initializer_list>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -77,6 +80,18 @@ int main(int argc, char** argv) try {
     assert(spot(walls, kStartX, kStartY, true) == std::pair(kStartX, kStartY - 1));                       // ring 1: the nearest whose 3x3 misses the wall
     walls[{ kStartX, kStartY - 2 }] = 0x1;                                                     // ring 1's four all blocked now
     assert(spot(walls, kStartX, kStartY, true) == std::pair(kStartX, kStartY - 6));                       // ring 2 at radius 6 (step 5)
+    // Where the rings stop (tools/emu/corpse_spot.py limit): walls within 50 of the start but one
+    // hole; FUN_0064dea0 searches while the next ring's radius is under 50, whatever the step.
+    struct Limit { int step, hole_x, hole_y; bool found; };
+    for (const auto& [step, hole_x, hole_y, found] : { Limit{ 1, 149, 100, true }, Limit{ 1, 150, 100, false }, Limit{ 4, 149, 99, true },
+                                                       Limit{ 4, 153, 99, false }, Limit{ 5, 146, 99, true }, Limit{ 5, 151, 99, false } }) {
+        const auto clear = [&](int at_x, int at_y) {
+            return (at_x == hole_x && at_y == hole_y) || std::abs(at_x - kStartX) > 50 || std::abs(at_y - kStartY) > 50;
+        };
+        const auto spot_found = nearest_spot(kStartX, kStartY, clear, step);
+        assert(spot_found.has_value() == found);
+        assert(!found || *spot_found == std::pair(hole_x, hole_y));
+    }
     std::printf("OK: corpse_spot, twin_spot\n");
     return 0;
 } catch (const std::exception& error) {

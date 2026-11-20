@@ -62,6 +62,7 @@ auto Town::publish() -> void {
         if (!take_view(net.to_client, &out)) view_enc.reset();   // lost track: the next one is whole
     }
 
+// Applies a replicated View; a change in its quest-log state stands in for the log sends not made at their own sites (FUN_00544190).
 auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> bool {
         if (!apply_view(*scene, bytes, view)) {
             d2d::log::warn("a View didn't apply ({} bytes)", bytes.size());
@@ -88,10 +89,14 @@ auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> 
         character.panel = view.panel;
         // A quest's log state sent (S->C 0x5d, FUN_004a2cb0): the Quest Log
         // button, or the open log picks it.
-        // ponytail: a change in the View's log state stands in for each send
-        // (FUN_00544190); none at the game's first View (the join sends none).
+        // ponytail: acts 1 and 2 and a3q1 .. a3q5 (and a4q1's 0x18) aren't sent at their records' own
+        // FUN_00544300 flag-1 sites yet: a change in the View's log state stands in for each send of theirs,
+        // none at the game's first View (the join sends none). The others' sends are events
+        // (rules::quest_log_sent_by_event). FUN_00544190's act test (the player's level's act against the
+        // record's) isn't made for either.
         for (std::size_t quest = 1; !net_game && quest < view.quest_log.size(); ++quest)   // a joined game's come as 0x5d (net_quests)
-            if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest]) quest_log_notify(quest_log, int(quest));
+            if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest] && !d2d::rules::quest_log_sent_by_event(int(quest)))
+                quest_log_notify(quest_log, int(quest));
         quest_log.sent = view.quest_log;
         quest_log.sent_known = true;
         held = view.held;
@@ -131,6 +136,9 @@ auto Town::enter() -> void {
         entry_level = 0;                          // its first level shows no "entering" art
         entry_until = 0;
         mini = {};
+        light_quality.fps = 25;                   // a game's start sets 0x7a04a8 to 25 (lighting.md); the level carries over
+        light_quality.frames = 0;
+        light_quality.counting = false;
         if (!cfg_file.empty()) {                  // FUN_004567f0: open unless the registry's "Mini Panel" reads nonzero
             d2d::userdir::Config cfg;
             d2d::userdir::load_cfg(cfg_file, cfg);

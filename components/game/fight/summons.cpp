@@ -95,8 +95,9 @@ auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> c
 auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms) -> void {
         int type = game_data->monsters.row(skill.summon);
         const auto env = calc_env();
+        int corpse = -1;
         if (skill.target_corpse) {
-            const int corpse = corpse_near(x, y);
+            corpse = corpse_near(x, y);
             if (corpse < 0) return;
             monsters[std::size_t(corpse)].corpse_used = true;
             x = monsters[std::size_t(corpse)].unit.x; y = monsters[std::size_t(corpse)].unit.y;
@@ -141,18 +142,27 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
                     summon_one(skill, type, lvl, env, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
             return;
         }
-        summon_one(skill, type, lvl, env, x, y, now_ms);
+        summon_one(skill, type, lvl, env, x, y, now_ms, corpse);
     }
 
 // Makes one pet of monster row `type` for `skill` at a spot: its AI control
 // starts as the AI's init does (the traced inits in the body), returns its id.
-auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> int {
+auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse) -> int {
         const int max = std::max(d2d::rules::eval_calc(game_data->skills, skill.petmax, env, skill.id, lvl), 1);
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
         while (skill.pettype != "none" && std::ranges::count_if(actor->pets, same) >= max) actor->pets.erase(std::ranges::find_if(actor->pets, same));
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
-        const int bonus = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon ? d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl) : 0;
-        const int plvl = std::max(std::min(clvl, clvl * 3 / 4 + bonus), 1);
+        // FUN_005c49e0 (the level, then MonLvl's defense and attack rating added): Raise (0x5c4c5e), the golems
+        // (FUN_005c50c0), the Decoy (0x5dc149), the Valkyrie (0x5dc2c9) and the traps (FUN_005d5e10 0x5d5fc1) pass
+        // the skill level as the bonus; the Raven (0x5c6a29) and the Druid's summons (0x5c74c9) force max(calc2, 1).
+        // The summons whose do doesn't run it (Hydra's FUN_005ca910, Vines' FUN_005c6a80) keep the spawn's: their
+        // MonStats level, defense and to-hit (noRatio rows: as written, FUN_00573cb0).
+        const bool forced_calc2 = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon;
+        const bool levelled = forced_calc2 || skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem
+                              || skill.srvdofunc == ServerDoFunction::kIronGolem || skill.srvdofunc == ServerDoFunction::kDecoy || skill.srvdofunc == ServerDoFunction::kValkyrie
+                              || skill.srvdofunc == ServerDoFunction::kTrap;
+        const int forced = forced_calc2 ? std::max(d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl), 1) : 0;
+        const int plvl = d2d::rules::summon_level(clvl, forced, levelled ? lvl : 0);
         Pet pet;
         auto& monster = pet.monster;
         monster.type = type;
@@ -174,10 +184,17 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // The life roll is min + rand(max - min + 1) on the pet's unit seed
         // (+0x20, 0x573f83..0x573f8f), here rng.range on Fight::rng:
         // deviations.md approximation 18.
-        // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
-        // stats at its level, life and level brought down to the owner's
-        // when it's above it.
-        if (skill.srvdofunc != ServerDoFunction::kRevive) {
+        // Revive (do 58, FUN_005c56c0) raises the corpse itself: a life rolled
+        // at the corpse's level and, above the owner's, MulDiv'd down with
+        // the level to the owner's (rules::revive_life).
+        // ponytail: its other stats are the type's at its MonStats level here, not the corpse's own (the same unit in
+        // game.exe), and the roll is Fight::rng, not the corpse's unit seed (deviations.md approximation 18). A corpse
+        // whose start level is its MonStats Level of 0 is level 0 in game.exe (stat 0xc as read, FUN_00573cb0
+        // 0x573e18..0x573e70: rolled at MonLvl row 0, kept at 0) but 1 in monster_stats (rolled at row 1, kept at 1).
+        const bool revive = skill.srvdofunc == ServerDoFunction::kRevive;
+        const int corpse_level = revive && corpse >= 0 ? monsters[std::size_t(corpse)].stats.level : monster.stats.level;
+        const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, rng) : d2d::rules::RevivedLife{};
+        if (!revive) {
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
             monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
@@ -211,11 +228,16 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             pet.skill_damage = true;
             pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = summon_skill_to_hit;
         }
-        monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kDecoy ? clvl : plvl;
-        if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
+        if (revive) monster.stats.level = revived.level;
+        else if (skill.srvdofunc == ServerDoFunction::kMirrorImage) monster.stats.level = clvl;
+        else if (levelled) monster.stats.level = plvl;
+        if (levelled && !game_data->monsters.lvl.empty()) {
             const auto& level_row = game_data->monsters.lvl[std::min<std::size_t>(std::size_t(plvl), game_data->monsters.lvl.size() - 1)];
-            monster.stats.armor_class = level_row.armor_class[std::size_t(monster.difficulty)];
-            monster.stats.to_hit = level_row.to_hit[std::size_t(monster.difficulty)];
+            // It adds the row's defense to the pet's own (MonStats AC, 0x5c4ac6) and the row's attack rating to
+            // stat 0x13 (0x5c4adf). A swing (FUN_005a4f50) puts its mode's A1TH / A2TH / S1TH, as written (noRatio,
+            // FUN_006538a0), on the unit's swing list (FUN_00625760 list 1, 0x5a5190), so a hit's 0x13 is both.
+            monster.stats.armor_class += level_row.armor_class[std::size_t(monster.difficulty)];
+            for (int* mode_to_hit : { &monster.stats.to_hit, &monster.stats.to_hit2, &monster.stats.to_hit_s1 }) *mode_to_hit += level_row.to_hit[std::size_t(monster.difficulty)];
         }
         for (int* mode_to_hit : { &monster.stats.to_hit, &monster.stats.to_hit2, &monster.stats.to_hit_s1 }) *mode_to_hit += summon_skill_to_hit;
         // FUN_005c4470: the skill's passive stats (base) and aurastats (its
@@ -224,17 +246,17 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // come in that way — then life (with maxhp) + calc1 %, then its
         // sumskills at their sumsk calcs.
         std::unordered_map<int, int> pet_stats;
-        for (std::size_t k = 0; k < 5; ++k)
-            if (skill.passive_stat[k] >= 0) pet_stats[skill.passive_stat[k]] += calc(skill, skill.passive_calc[k], lvl);
-        for (std::size_t k = 0; k < 6; ++k)
-            if (skill.aurastat[k] >= 0) pet_stats[skill.aurastat[k]] += calc(skill, skill.aura_calc[k], lvl);
+        const auto summoned = d2d::rules::summon_stats(game_data->skills, skill, env, lvl);
+        for (const auto* stats : { &summoned.passive, &summoned.aura })
+            for (const auto& [stat_id, value] : *stats) pet_stats[stat_id] += value;
         // Last in FUN_005c4470 (0x5c49c7), FUN_005d6b60 at the skill's level:
         // the Valkyrie's MonEquip gear, the rows from her level down, made at
         // calc2 or min(max(3 x level, 1), the owner's level). Its stats join
         // hers; a two-handed weapon's damage replaces her A1 (FUN_0057b420).
         // ponytail: her unit seed (the walk) and the game seed (the items)
         // are the fight's rng; a Shadow's gear (the owner's items) isn't made,
-        // it fights with the owner's (pet.mirror).
+        // it fights with the owner's (pet.mirror). Its stats go in before the
+        // life below, so a gear maxhp would get calc1 % (game.exe makes it after).
         if (const int first = std::size_t(type) < game_data->mon_equip_first.size() ? game_data->mon_equip_first[std::size_t(type)] : -1;
             first >= 0 && skill.srvdofunc != ServerDoFunction::kMirrorImage) {
             std::uint32_t worn = 0;
@@ -261,9 +283,28 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         }
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
         using namespace d2d::d2s;
-        monster.stats.hit_points += stat(kMaxLife) >> 8;                                               // maxhp, 256ths
-        monster.stats.hit_points += int(std::int64_t(monster.stats.hit_points) * calc(skill, skill.calc[0], lvl) / 100);
-        monster.hit_points = monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
+        // Summon Resist (FUN_005c40d0): a raised skeleton or mage and a golem, after its stats.
+        // ponytail: Iron Golem's item (FUN_005606b0, before it) isn't made (fight.hpp), so its absorbs don't hold any back.
+        if (skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem || skill.srvdofunc == ServerDoFunction::kIronGolem) {
+            int owner_value = 0;
+            for (const auto& passive : d2d::rules::passive_stats(game_data->skills, env))
+                if (passive.stat == d2d::rules::kPassiveSummonResist) owner_value += passive.value;
+            for (const auto& [stat_id, value] : d2d::rules::summon_resist(owner_value, stat(kAbsorbFirePercent), stat(kAbsorbLightningPercent), stat(kAbsorbColdPercent)))
+                pet_stats[stat_id] += value;
+        }
+        // The Decoy's do (FUN_005dc000 0x5dc0ec..0x5dc12f) sets its life first: the owner's max life x calc3 / 100
+        // (FUN_00483360), 256ths; calc1 % then goes on that, as on Revive's (above).
+        const int base_fine = skill.srvdofunc == ServerDoFunction::kDecoy
+                                  ? d2d::rules::mul_div(int(actor->character.stats.values[kMaxLife]), calc(skill, skill.calc[2], lvl), 100)
+                              : revive ? revived.life_fine
+                                       : monster.stats.hit_points << 8;
+        // ponytail: a life that wraps to 0 or below (bugs.md 123) is held at one point; what game.exe's pet does then isn't traced.
+        int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
+        if (life_fine <= 0) life_fine = 256;
+        monster.stats.hit_points = int((std::int64_t(life_fine) + 255) >> 8);
+        monster.max_life_frac = monster.stats.hit_points * 256 - life_fine;
+        monster.hit_points = monster.stats.hit_points;
+        monster.life_frac = monster.max_life_frac;
         for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) *damage += stat(kNormalDamage);                          // item_normaldamage
         pet.a1_unscaled = { monster.stats.a1_min, monster.stats.a1_max };
         pet.damage_pct = stat(kDamagePercent);
@@ -276,12 +317,10 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         const auto& base_res = type_info.diff[std::size_t(monster.difficulty)].res;
         pet.res = { base_res[2] + stat(kFireResist), base_res[3] + stat(kLightningResist), base_res[4] + stat(kColdResist), base_res[5] + stat(kPoisonResist) };
         pet.thorns = stat(kThornsPercent); pet.fire_lo = stat(kFireMinDamage); pet.fire_hi = std::max(stat(kFireMaxDamage), pet.fire_lo); pet.speed_pct = stat(kVelocityPercent);
-        for (std::size_t k = 0; k < 5; ++k) {
-            const auto* k_s = skill_named(skill.sumskill[k]);
-            const int skill_level_value = k_s ? calc(skill, skill.sumsk_calc[k], lvl) : 0;
-            if (!k_s || skill_level_value < 1) continue;
-            if (k_s->aura) { pet.aura = k_s->id; pet.aura_level = skill_level_value; }
-            else if (pet_missile(*k_s) && skill.srvdofunc != ServerDoFunction::kVine && skill.srvdofunc != ServerDoFunction::kTrap) { pet.ranged = k_s->id; pet.ranged_level = skill_level_value; }
+        for (const auto& [given_id, given_level] : d2d::rules::summon_skill_levels(game_data->skills, skill, env, lvl)) {
+            const auto& given = *game_data->skills.get(given_id);
+            if (given.aura) { pet.aura = given.id; pet.aura_level = given_level; }
+            else if (pet_missile(given) && skill.srvdofunc != ServerDoFunction::kVine && skill.srvdofunc != ServerDoFunction::kTrap) { pet.ranged = given.id; pet.ranged_level = given_level; }
         }
         monster.unit.x = monster.home_x = x; monster.unit.y = monster.home_y = y;
         monster.unit.dir = actor->player.dir;
@@ -294,8 +333,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 pet.until = now_ms + std::uint32_t(std::max(skill.par[0], 1)) * 40;
                 if (const auto* hydra = skill_named("HydraMissile")) { pet.ranged = hydra->id; pet.ranged_level = lvl; }
                 break;
-            case ServerDoFunction::kDecoy:                                  // Decoy (FUN_005dc000): owner's life x calc3 %, calc2 frames, it stands
-                monster.hit_points = monster.stats.hit_points = std::max(int(actor->character.stats.fixed(d2d::d2s::kMaxLife) * calc(skill, skill.calc[2], lvl) / 100), 1);
+            case ServerDoFunction::kDecoy:                                  // Decoy (FUN_005dc000): its life above, calc2 frames, it stands
                 pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40;
                 pet.idle = true;
                 break;

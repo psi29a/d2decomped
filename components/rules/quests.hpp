@@ -136,18 +136,23 @@ struct DenQuest {
     // unless there).
     void took_part(int player) { if (state < 4 && active) participants.add(player); }
     // A monster died; `remaining` are the Den's left (level +0x2cc - +0x2d0)
-    // (FUN_00590260). 0: cleared (each player's credit follows). Only once
-    // `all_up`, every populatable Den room populated (its record +4 against
-    // FUN_00642be0's count); before that a death does nothing.
+    // (FUN_00590260, at each death). 0: cleared (each player's credit
+    // follows). Only once `all_up`, every populatable Den room populated (its
+    // record +4 against FUN_00642be0's count). Under 6 the count is sent
+    // (log 4, FUN_0058fbe0); at log 4 with 6 or more (a monster back up) it's
+    // sent again, populated or not.
     enum class Kill { none, few, cleared };
     Kill killed(int remaining, bool all_up) {
-        if (state >= 4 || !all_up) return Kill::none;        // its callback's gone once cleared
-        if (remaining > 0) {
-            if (remaining < 6) log = 4;            // "Monsters remaining: N"
-            return remaining < 6 ? Kill::few : Kill::none;
+        if (state >= 4) return Kill::none;                   // its callback's gone once cleared
+        if (all_up && remaining == 0) {
+            state = 4;
+            return Kill::cleared;
         }
-        state = 4;
-        return Kill::cleared;
+        if (all_up && remaining < 6) {
+            log = 4;                                         // "Monsters remaining: N"
+            return Kill::few;
+        }
+        return log == 4 && remaining > 5 ? Kill::few : Kill::none;
     }
     // The clear's credit for one player neither done nor due: a participant
     // bits 13 and 1, the reward due (FUN_005455f0), any other bit 14 (cleared
@@ -1984,6 +1989,13 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 18> kQuestLogRecords 
     { 935, 3725, 4, 995, 3725, 990, 628, 991, 628, 992, 628, 935, 628, 3729, 3725, 3730, 3725, 3725, 3725, 3725, 3725,
       3728, 3725, 3728, 3725, 3727, 3725, 3726, 3725 },
 } };
+// Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
+// FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
+// Those are a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
+// 0x23 .. 0x28. The others (acts 1 and 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
+[[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
+    return quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
+}
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
 // the open log picks that quest, FUN_004a3220).

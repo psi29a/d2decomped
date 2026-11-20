@@ -387,18 +387,32 @@ inline MonProps monster_props(const Tables& tables, const MonType& type, int dif
 }
 
 // FUN_006538a0's values before monster_stats' roll, at the type's own
-// Level: life min / max, A1 min / max (the skill tooltips' summon lines,
-// game::skill_text).
+// Level (or `level`): life min / max, A1 min / max (the skill tooltips'
+// summon lines, game::skill_text; Revive's life, revive_life).
 struct MonRanges { int min_hp = 0, max_hp = 0, a1_min = 0, a1_max = 0; };
-inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficulty) {
+inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficulty, int level = -1) {
     if (type < 0 || std::size_t(type) >= monsters.types.size() || monsters.lvl.empty()) return {};
     const auto& type_info = monsters.types[std::size_t(type)];
     const auto index = std::size_t(std::clamp(difficulty, 0, 2));
-    const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(std::max(type_info.level[index], 0)), monsters.lvl.size() - 1)];
+    const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(std::max(level < 0 ? type_info.level[index] : level, 0)), monsters.lvl.size() - 1)];
     const auto& per_difficulty = type_info.diff[index];
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     return { pct(level_row.hit_points[index], per_difficulty.min_hp), pct(level_row.hit_points[index], per_difficulty.max_hp),
              pct(level_row.damage[index], per_difficulty.a1_min), pct(level_row.damage[index], per_difficulty.a1_max) };
+}
+
+// Revive (do 58, FUN_005c56c0 0x5c5776..0x5c5830) raises the corpse with a
+// life rolled at its own level: FUN_006538a0's range there, min + rand(max -
+// min + 1) on its unit seed (FUN_0045c3e0), in 256ths. When that level is
+// above the owner's (and not 0), the life becomes MulDiv(life, clvl, level)
+// (FUN_00483360), 1 at least, and the level the owner's. FUN_005c4470's
+// calc1 % comes after.
+struct RevivedLife { int life_fine = 0, level = 0; };
+inline RevivedLife revive_life(const Monsters& monsters, int type, int difficulty, int level, int clvl, Rng& rng) {
+    const auto range = monster_ranges(monsters, type, difficulty, level);
+    RevivedLife revived{ int(std::uint32_t(range.min_hp + rng(range.max_hp - range.min_hp + 1)) << 8), level };
+    if (level != 0 && clvl < level) revived = { std::max(mul_div(revived.life_fine, clvl, level), 1), clvl };
+    return revived;
 }
 
 // The level a spawned monster starts at (FUN_00573cb0 0x573e15..0x573e70):
@@ -1073,6 +1087,17 @@ inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool ne
     if (nine >= 0 && pick.target < 0) { pick.target = nine; pick.best = nine_best; }
     pick.nine = nine; pick.nine_best = nine_best;
     return pick;
+}
+
+// A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think
+// (FUN_005fb5b0 / FUN_005fb900 / FUN_005fb9b0): FUN_005dd7f0 first picks
+// the nearest player-list unit under the AI's default distance 35, then the
+// think acts only when that picked unit is within aip1. A player entry starts
+// each list and its pets follow it; search_pick carries the dead-player and
+// list-skip rules.
+inline int trap_target(std::span<const SearchFoe> foes, int reach) {
+    const auto picked = search_pick(foes, 35, false);
+    return picked.target >= 0 && picked.best <= reach ? picked.target : -1;
 }
 
 // FUN_00650d70: friends by alignment (stat 0xac: 0 evil, 1 neutral, 2 good).

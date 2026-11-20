@@ -87,6 +87,8 @@ void DebugVerbs::add_fight() {
         if ((spare_at != args.end() && spare_at + 1 == args.end()) || (within_at != args.end() && within_at + 1 == args.end())) return std::string("err spare <MonStats id> / within <cells>\n");
         const std::string spare = spare_at != args.end() ? *(spare_at + 1) : "";
         const float within = within_at != args.end() ? float(std::atof((within_at + 1)->c_str())) : 1e9f;
+        // In town the fight still holds the last level's monsters (Fight::enter keeps them): not this level's.
+        if (town.world.fight.mon_level != town.level) return std::string("ok\n");
         auto& monsters = town.world.fight.monsters;
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].alive() && (spare.empty() || scene->monsters.types[std::size_t(monsters[i].type)].id != spare)
@@ -166,9 +168,9 @@ void DebugVerbs::add_fight() {
         for (const auto& state : town.hero.self_states) out += std::format("{}:{},", state.skill, state.level);
         out += "\n";
         for (const auto& monster : town.fight.monsters)
-            if (monster.curse.skill >= 0 || monster.cry.skill >= 0 || monster.stun_until > 0)
+            if (monster.curse.skill >= 0 || !monster.states.empty() || monster.stun_until > 0)
                 out += std::format("{} hp={} curse={} cry={} dmg%={} speed%={} reflect%={} align={} stun={} ai={}{} afraid={}\n", monster.npc.name, monster.hit_points,
-                                   monster.curse.skill, monster.cry.skill, monster.dmg_pct, monster.speed_pct, monster.reflect_pct, monster.align,
+                                   monster.curse.skill, monster.states.empty() ? -1 : monster.states.front().skill, monster.dmg_pct, monster.speed_pct, monster.reflect_pct, monster.align,
                                    monster.stun_until, monster.special, monster.other ? "/other" : "", int(monster.afraid));
         return out + "ok\n";
     });

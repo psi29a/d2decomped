@@ -14,6 +14,12 @@ stay on in Release builds); nothing fancier is warranted yet.
 scratch with `ThinkScratch` (think_scratch.hpp), or a checker reads a
 null write in another AI.
 
+A test of a rule rather than of the game's numbers builds its data with
+`test_data.hpp` (`d2d::test::TestData`: made-up MonStats, MonLvl, Levels,
+Skills and States rows, only the ones it reads), so CI, which has no game
+files, runs it (test_trap_level, test_horde_rise, test_curse_put). Load the
+real data only for a check that needs the real numbers.
+
 Tests that need real assets (D2 ISOs, extracted MPQs, game.exe) locate
 them at runtime; when they're absent the test prints a `SKIP:` line and
 returns `D2D_TEST_SKIPPED` (77, defined in `CMakeLists.txt`; the .py tests

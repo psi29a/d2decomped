@@ -103,10 +103,9 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         for (std::size_t k = 0; k < 4; ++k)
             res[k] = int(std::clamp<std::int64_t>(actor->merc_st.resist + sum[std::size_t(kResStat[k])] + penalty, -100, std::min<std::int64_t>(75 + sum[std::size_t(kResStat[k] + 1)], 95)));
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, stats, gains, int(defense), res);
-        // Not modelled for the merc yet: game.exe's absorb (FUN_0057bf10) and its heal-back (FUN_0057a980) read the struck unit's
-        // stats whatever its type, so a hireling's absorb gear would lower the hit and heal it too. The absorb without the heal on
-        // the merc's life would be half the rule, so the merc takes none, as before.
-        fighter.absorb_pct = {}; fighter.absorb_flat = {};
+        // The merc's gear absorb (stats 142 to 149) is read like its resistances: FUN_0057bf10 and the heal-back FUN_0057a980 read the
+        // struck unit's stats whatever its type (FUN_0057c6c0's type-1 test is a MonStats flag the hireling rows pass), so a
+        // hireling's absorb gear lowers an elemental or magic blow and heals it by what it took (Fight::hurt_side).
         fighter.block = 0;
         if (const auto found = shield && actor->merc_npc && actor->merc_npc->hc_idx != 0x167 ? game_data->rules.item_base.find(shield->code) : game_data->rules.item_base.end();
             found != game_data->rules.item_base.end())
@@ -219,13 +218,30 @@ bool room_teleport(const GameData& game_data, const Level& level, const Crowd& c
     return false;
 }
 
+auto Fight::merc_near(const Hero& hero) const -> bool {
+        const auto& unit = actor->merc->unit;
+        return std::abs(unit.x - hero.player.x) < 30 && std::abs(unit.y - hero.player.y) < 30;
+    }
+
+auto Fight::merc_gives() -> void {
+        const auto& unit = actor->merc->unit;
+        for (const Hero* hero : heroes) {
+            const bool given = std::ranges::contains(actor->merc_given, hero->id);
+            if (merc_near(*hero) && !given) {
+                actor->merc_given.push_back(hero->id);
+                actor->merc_pierce_idx = std::uint32_t(int(std::floor(unit.x * 5)) + int(std::floor(unit.y * 5))) & 0xffffu;
+            } else if (!merc_near(*hero) && given) std::erase(actor->merc_given, hero->id);
+        }
+    }
+
 // The merc's hireable_think, fed its view of its owner, footsteps and target.
 auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
+        merc_gives();
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
             // Stat 0x148 + 1 for each client sent its turn to NU (FUN_00597e20's mode 1 branch, a call a client from FUN_00598220).
-            if (mode == "NU") actor->merc_pierce_idx += std::uint32_t(std::ranges::count_if(heroes, [&](const Hero* hero) { return std::abs(unit.x - hero->player.x) < 30 && std::abs(unit.y - hero->player.y) < 30; }));
+            if (mode == "NU") actor->merc_pierce_idx += std::uint32_t(std::ranges::count_if(heroes, [&](const Hero* hero) { return merc_near(*hero); }));
             if (!unit.walking) unit.path.clear();
             // The merc's FHR is its items' (merc_fighter): no 1.14d Skills.txt aurastat or passivestat
             // is item_fastergethitrate (stat 99), so no state of its changes it.
@@ -431,7 +447,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) if (actor->merc_ids[k] == actor->merc_skill) actor->merc_skill_level = actor->merc_levels[k];
                 if (skill1 && actor->merc_skill == skill1->id && actor->merc_skill_level == 0) actor->merc_skill_level = type_info->sk_lvl[0];
                 if (const auto* started = game_data->skills.get(actor->merc_skill))   // its castoverlay (FUN_004c6140)
-                    start_cast_overlay(*started, false, actor->merc->flash_overlay, actor->merc->flash_at, now_ms);
+                    start_cast_overlay(*started, false, actor->merc->one_shots, now_ms);
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
                 unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
                 actor->merc_seq = nullptr;

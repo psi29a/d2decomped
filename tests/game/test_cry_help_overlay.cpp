@@ -3,7 +3,7 @@
 // Cry Help (do 128, FUN_005d1800) from an Overseer at the player: on S1's
 // action frame its srvoverlay (Skills.txt +0x4e: curseattract, Overlay.txt
 // row 133) goes on the unit (FUN_00621e40), played once: Foe::flashed, which
-// Fight keeps as the player's flash_overlay. Needs the data; SKIPs without it.
+// Fight keeps in the player's one_shots. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
 #include <ds1.hpp>

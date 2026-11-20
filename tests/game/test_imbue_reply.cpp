@@ -35,14 +35,14 @@ int main() try {
         GameData empty_data;
         View sent;
         sent.level = &empty_data.town;
-        sent.events = { ev::ServiceResult{ 4, true }, ev::ServiceResult{ 7, false } };
+        sent.events = { ev::ServiceResult{ 4, 6 }, ev::ServiceResult{ 7, 7 }, ev::ServiceResult{ 9, 0 } };
         ViewEncoder encoder;
         View received;
         assert(apply_view(empty_data, encode_view(empty_data, sent, encoder), received));
-        assert(received.events.size() == 2);
+        assert(received.events.size() == 3);
         const auto& done = std::get<ev::ServiceResult>(received.events[0]);
         const auto& refused = std::get<ev::ServiceResult>(received.events[1]);
-        assert(done.npc == 4 && done.done && refused.npc == 7 && !refused.done);
+        assert(done.npc == 4 && done.kind == 6 && refused.npc == 7 && refused.kind == 7 && std::get<ev::ServiceResult>(received.events[2]).kind == 0);
         std::printf("OK: ServiceResult round-trips the view codec\n");
     }
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
@@ -91,11 +91,11 @@ int main() try {
     // A rare isn't imbuable (FUN_0062c590): refused.
     hand(6, 9102);
     world.apply(cmd::Imbue{ charsi, 9102 }, 27 * kTickMs);
-    assert(answer() && answer()->npc == charsi && !answer()->done && world.actor->held->id == 9102);
+    assert(answer() && answer()->npc == charsi && answer()->kind == 7 && world.actor->held->id == 9102);
     // A normal axe with the reward due: done, made rare, the reward used.
     hand(2, 9103);
     world.apply(cmd::Imbue{ charsi, 9103 }, 27 * kTickMs);
-    assert(answer() && answer()->npc == charsi && answer()->done && !world.actor->held);
+    assert(answer() && answer()->npc == charsi && answer()->kind == 6 && !world.actor->held);
     // Off the cursor into the inventory (FUN_00560200).
     const auto& stored = world.actor->character.items.back();
     assert(stored.code == "axe" && stored.quality == 6 && stored.location == d2d::d2s::item_location::kStored && stored.panel == d2d::d2s::item_panel::kInventory);
@@ -103,7 +103,7 @@ int main() try {
     // Used: the next is refused.
     hand(2, 9104);
     world.apply(cmd::Imbue{ charsi, 9104 }, 27 * kTickMs);
-    assert(answer() && !answer()->done && world.actor->held->quality == 2);
+    assert(answer() && answer()->kind == 7 && world.actor->held->quality == 2);
     // No room: on the ground at the player (FUN_00555da0 / FUN_00558aa0).
     auto& items = world.actor->character.items;
     std::erase_if(items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
@@ -116,7 +116,7 @@ int main() try {
     const std::size_t on_ground = world.loot.ground.size(), carried = items.size();
     hand(2, 9105);
     world.apply(cmd::Imbue{ charsi, 9105 }, 27 * kTickMs);
-    assert(answer() && answer()->done && !world.actor->held && items.size() == carried);
+    assert(answer() && answer()->kind == 6 && !world.actor->held && items.size() == carried);
     assert(world.loot.ground.size() == on_ground + 1 && world.loot.ground.back().item.quality == 6);
     std::printf("OK: Charsi's imbue answers 0x58 done / refused, nothing for another item\n");
     return 0;

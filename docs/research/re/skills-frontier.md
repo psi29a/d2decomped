@@ -73,3 +73,13 @@ this note leaves that table untouched. Similarly, the repeated-frame loops in
 `FUN_005cdd30` and `FUN_005cf8c0` are instruction-level observations, not an
 assertion about intent or the impact in a particular animation. Both are exercised by the oracle with synthetic frame data and scripted sequence helpers. No row here says that
 d2d matches or that an observed quirk is safe to change.
+
+## A later frontier entry (2026-11-18)
+
+The map's one `SKILLS` frontier row left after the list above, read from
+the decompile and game.exe's data (no oracle). The d2d column is as in
+[game-frontier.md](game-frontier.md).
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_004c7c40` | `state_event_add` | (stat 0x15e, stat 0x15f, index, type, unit): for an index under 2 with a callback in the table `0x727db4` (index 0 null, index 1 `FUN_004e3d70`), `d2d_unit_event_add` with those values and returns its result; else 0. Only caller the client's state set `FUN_004d9e60`, for a States.txt row whose `+0x30` is set, with the row's `+0x32` as the index | not compared: d2d's 0xa8 reader runs only the setfuncs it ports (apps/d2d/netgame.cpp:587) |

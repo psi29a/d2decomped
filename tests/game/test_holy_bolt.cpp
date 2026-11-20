@@ -11,6 +11,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
@@ -81,14 +82,17 @@ int main() try {
     const int low_points = d2d::rules::eval_calc(data->skills, holy_skill->calc[0], world.fight.calc_env(), holy_skill->id, 1);
     const int high_points = d2d::rules::eval_calc(data->skills, holy_skill->calc[1], world.fight.calc_env(), holy_skill->id, 1);
     assert(low_points == 1 && high_points == 6);
-    world.rng = d2d::rules::Rng{ 99 };
-    d2d::rules::Rng expect = world.rng;
+    missile.seed = d2d::rules::Rng{ 99 };                  // the draw is on the missile's seed (+0x20, 0x5aa0a6)
+    d2d::rules::Rng expect = *missile.seed;
     const int span = (high_points << 8) - (low_points << 8);
     const int amount = int(expect(span)) + (low_points << 8);
     const int before = world.fight.monsters.back().life_fine();
     assert(world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == std::min(before + amount, world.fight.monsters.back().max_life_fine()));
     assert(world.actor->pets.back().monster.life_fine() == world.fight.monsters.back().life_fine());
+    const int healing = data->overlay_row(bolt->second.prog_overlay);   // ProgOverlay (+0x36) on the healed unit, a one-shot
+    assert(bolt->second.prog_overlay == "healing" && healing > 0);
+    assert(!world.fight.monsters.back().one_shots.empty() && (world.fight.monsters.back().one_shots[0] == d2d::rules::OneShot{ healing, 1000 }));
 
     world.actor->pets.clear();
     world.fight.monsters.back().hit_points = 10;
@@ -101,7 +105,7 @@ int main() try {
     missile.skill = fist->second;
     assert(!world.fight.skill_missile_hits(missile, 0, 1000));
     assert(world.fight.monsters.back().life_fine() == untouched);
-    std::printf("OK: Holy Bolt heals the caster's pet by calc1..calc2\n");
+    std::printf("OK: Holy Bolt heals the caster's pet by calc1..calc2, its ProgOverlay on it\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "holy bolt: %s\n", error.what());

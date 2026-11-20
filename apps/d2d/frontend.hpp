@@ -52,6 +52,13 @@ struct CharSelectUI {
     bool confirm_delete = false;
     std::string delete_text, yes_label, no_label;
     Button popup_no{}, popup_yes{};
+    // CONVERT TO EXPANSION's question on a classic pick (0x439be0):
+    // records 0xda..0xdd, PopUpOKCancel2 as DELETE's, the text box
+    // (268, 310 bottom, 264x120, Font8 in colour 4, margins 9 / 0) given
+    // 0x58ce, 0x58cf and 0x58d0, NO (0x439ca0) and YES (FUN_0043b520:
+    // d2s convert_to_expansion; its failure says 0x5570) on DELETE's buttons.
+    bool confirm_convert = false;
+    std::array<std::string, 3> convert_text;
     // OK on a save past Normal (FUN_00439840 -> FUN_00439780): records 0xac
     // DifficultyLevels at (237, 400 bottom), 0xab "SELECT DIFFICULTY"
     // (0x2723) at (264, 260), 0xa8..0xaa NORMAL / NIGHTMARE / HELL
@@ -215,6 +222,8 @@ struct TcpIpUI {
 TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip);
 void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms);
 void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip);
+// FUN_0042f6e0's Sky-palette popup while FUN_00434790 tests the connection.
+void render_connecting(std::vector<std::uint8_t>& framebuffer, const Scene& scene);
 
 // How many entries are unlocked, from what has been seen: game.exe's
 // chain (FUN_00431600) over its registry bits — 0x01 LoD ending: 7,

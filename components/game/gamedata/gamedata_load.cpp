@@ -355,6 +355,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.vel = number("Vel"); missile_info.range = number("Range"); missile_info.src_damage = number("SrcDamage"); missile_info.min = number("MinDamage"); missile_info.max = number("MaxDamage");
         missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
+        missile_info.prog_overlay = missiles_table.get(row_index, "ProgOverlay");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
         missile_info.damage_rate = number("DamageRate");
@@ -556,9 +557,10 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
         for (std::size_t prg = 0; prg < skill_row.clt_prg_func.size(); ++prg) skill_row.clt_prg_func[prg] = number("cltprgfunc" + std::to_string(prg + 1));
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
+        skill_row.st_success_only = text("stsuccessonly") == "1";   // FUN_004c6140: a failed cltstfunc mutes the start
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.noammo = number("noammo") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
-        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1"; skill_row.targetable_only = text("TargetableOnly") == "1"; skill_row.search_enemy_xy = text("SearchEnemyXY") == "1";
+        skill_row.summon = text("summon"); skill_row.summode = text("summode"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.sumumod = number("sumumod"); skill_row.target_ally = text("TargetAlly") == "1"; skill_row.target_corpse = text("TargetCorpse") == "1"; skill_row.target_pet = text("TargetPet") == "1"; skill_row.targetable_only = text("TargetableOnly") == "1"; skill_row.search_enemy_xy = text("SearchEnemyXY") == "1"; skill_row.search_enemy_near = text("SearchEnemyNear") == "1"; skill_row.search_open_xy = text("SearchOpenXY") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
             skill_row.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");
@@ -1461,6 +1463,23 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        // A TreasureClassEx cell that's no item code (under 5 letters) and no
+        // class names a unique, then a set, by its index (FUN_00654440: the
+        // name tables 0x96c850 / 0x96c844): flag 1 / 2, the row as the entry's
+        // index (+0xa) and the row's base code as its item (ROP's Annihilus).
+        for (auto& [class_name, treasure_class] : game_data.rules.treasure)
+            for (std::size_t entry = 0; entry < treasure_class.items.size(); ++entry) {
+                auto& code = treasure_class.items[entry].first;
+                if ((code.size() < 5 && game_data.rules.item_info.contains(code)) || game_data.rules.treasure.contains(code) || code.starts_with("gld")) continue;
+                for (const auto& [list, flag] : { std::pair{ &game_data.rules.uniques, 1 }, std::pair{ &game_data.rules.sets, 2 } }) {
+                    const auto named = std::ranges::find(*list, code, &d2d::rules::Special::index);
+                    if (named == list->end()) continue;
+                    treasure_class.entry_flags[entry] |= flag;
+                    treasure_class.entry_index[entry] = int(named - list->begin());
+                    code = named->code;
+                    break;
+                }
+            }
         {
             std::unordered_map<int, int> members;   // the loader's running count per set (at most 6)
             for (auto& set_item : game_data.rules.sets)

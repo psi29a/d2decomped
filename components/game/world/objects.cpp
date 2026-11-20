@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quest_clock.hpp>
 #include <quest_music.hpp>
 #include <quests.hpp>
@@ -84,6 +85,12 @@ auto World::blast(const Npc& object, float x, float y, int size, std::int64_t li
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
 }
 
+auto World::chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto) -> d2d::rules::Placement {
+    return [this, &object, here, now_ms, onto](const d2d::rules::Drop& dropped, int) {
+        return fight.remote_monsters || loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms, false, 0, onto);   // a joined game: the host drops them (S->C 0x9c)
+    };
+}
+
 auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {   // force (devctl): the shrine row / trap to play
         using namespace d2d::d2s;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -103,10 +110,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto treasure_class = d2d::rules::chest_tc(act, diff, here, alvl(low), alvl(high));
             std::vector<d2d::rules::Drop> drops;
             const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, fight.spawning.objects,
-                                                           [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced); });
-            for (const auto& code : opened.extra) drops.push_back({ .code = code });
-            if (!fight.remote_monsters)              // a joined game: the host drops the chest's items (S->C 0x9c)
-                for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+                                                           [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced, chest_place(object, here, now_ms)); });
+            for (const auto& code : opened.extra) {
+                const d2d::rules::Drop extra{ .code = code };
+                if (fight.remote_monsters || loot.put(extra, object.x, object.y, here, fight.spawning.game, now_ms)) drops.push_back(extra);
+            }
             return std::pair{ opened, drops.size() };
         };
         auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (Town::object_sounds)
@@ -258,9 +266,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             });
             const auto [low, high] = d2d::rules::kChestLevels[1];
             std::vector<d2d::rules::Drop> drops;
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
+            const auto rolled = drops.size();
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            for (auto index = rolled; index < drops.size(); ++index) loot.put(drops[index], object.x, object.y, here, fight.spawning.game, now_ms);
             d2d::log::info("The Horadric Staff: chest {} opened ({} drops)", operate_id, drops.size());
             return;
         }
@@ -298,9 +307,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             }
             const auto [low, high] = d2d::rules::kChestLevels[1];
             std::vector<d2d::rules::Drop> drops;
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
+            const auto rolled = drops.size();
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            for (auto index = rolled; index < drops.size(); ++index) loot.put(drops[index], object.x, object.y, here, fight.spawning.game, now_ms);
             d2d::log::info("The Tainted Sun: the altar, the sun's back ({} drops)", drops.size() + std::size_t(amulets));
             return;
         }
@@ -330,8 +340,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const char* part = operate_id == d2d::rules::operate_fn::kKhalimHeart ? K::kHeartCode : operate_id == d2d::rules::operate_fn::kKhalimEye ? K::kEyeCode : K::kBrainCode;
             each_player([&](Player&) { if (!carries(part) && !carries(K::kWillCode)) drops.push_back({ .code = part }); });
             const auto [low, high] = d2d::rules::kChestLevels[std::size_t(std::clamp(act(), 0, 2))];
-            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(act(), diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(act(), diff, here, alvl(low), alvl(high)), object.seed, drops, 4, chest_place(object, here, now_ms));
             d2d::log::info("Khalim's Will: chest {} opened ({} drops)", operate_id, drops.size());
             return;
         }
@@ -436,35 +446,16 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             arrive(fortress, fortress->start.first, fortress->start.second, "the hellgate");
             return;
         }
-        // The orifice (OperateFn 25, FUN_0059dc70): with the Horadric Staff
-        // carried it takes it (FUN_0059dd80: the staff and its parts gone,
-        // the Horadric Staff done, the way down to Duriel after its timer);
-        // without, "I can't" (voice).
-        // ponytail: game.exe opens the orifice (mode 1) and a drop panel (FUN_00554120 / FUN_0053d8d0) and takes
-        // the staff once it's placed (C->S 0x44 3 -> FUN_0059dd80); d2d has no panel and takes it on use.
+        // The orifice (OperateFn 25, FUN_0059dc70): in mode 0 with the Horadric Staff carried (FUN_00558110 'hst ')
+        // the player's busy with it (FUN_00554120(player, 2, it)), it opens (mode 1) and S->C 0x58 kind 0 opens
+        // the client's item panel (0x59dd6e); without, "I can't" (FUN_00553380). The staff goes in by C->S 0x44
+        // (object_item).
         if (object.operate_fn == d2d::rules::operate_fn::kOrifice) {
             if (operated.contains({ level, npc_index }) || hosted_quests) return;
             if (!carries("hst")) { d2d::log::info("I can't use this yet."); return; }
-            if (actor->held && actor->held->code == "hst") actor->held.reset();
-            for (const char* code : { "hst", "vip", "msf" })
-                if (const auto part = std::ranges::find(actor->character.items, std::string(code), &d2d::d2s::Item::code); part != actor->character.items.end()) actor->character.items.erase(part);
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
-            const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
-            tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
-            // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
-            const int placer = actor->id;
-            each_player([&](Player& player) {
-                auto& bits = quests();
-                if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
-                d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
-                for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
-            });
-            // FUN_0059dd80 sends S->C 0x89 event 3 to the game; its client entry
-            // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
-            // (object 152) near its player.
-            music_cue_near("music_quest_horadric", object.x, object.y);
-            d2d::log::info("The Horadric Staff: placed in the orifice");
+            actor->events.push_back(ev::ServiceResult{ npc_index, 0 });
             return;
         }
         // Horazon's Journal (OperateFn 42, FUN_0059b970): opened once (mode
@@ -636,10 +627,54 @@ auto World::reduced_prices() const -> int {
         return int(sum[d2d::d2s::kReducedPrices]);
     }
 
+// C->S 0x44 (FUN_005852e0): action 2, the panel cancelled: S->C 0x58 kind 1, the orifice back to mode 0, the
+// player free. Action 3 with the item a staff ('hst '): kind 5, mode 1 then 2 (ON) and FUN_0059dd80: the staff
+// and its parts gone, the Horadric Staff done, the way down to Duriel after its timer; another item: kind 4.
+auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> void {
+        if (hosted_quests || std::size_t(given.npc) >= level->npcs.size()) return;
+        const auto& object = level->npcs[std::size_t(given.npc)];
+        const auto used = operated.find({ level, given.npc });
+        if (object.operate_fn != d2d::rules::operate_fn::kOrifice || used == operated.end() || tombs.staff_placed || tombs.lair_open) return;
+        if (!given.place) {
+            operated.erase(used);
+            set_footprint(*level, object, object.collision & 1);
+            if (std::size_t(given.npc) < npc_states.size()) npc_states[std::size_t(given.npc)].mode = {};
+            actor->events.push_back(ev::ServiceResult{ given.npc, 1 });
+            return;
+        }
+        if (!actor->held || actor->held->id != given.item || actor->held->code != "hst") {
+            actor->events.push_back(ev::ServiceResult{ given.npc, 4 });
+            return;
+        }
+        actor->events.push_back(ev::ServiceResult{ given.npc, 5 });
+        actor->held.reset();
+        for (const char* code : { "hst", "vip", "msf" })
+            if (const auto part = std::ranges::find(actor->character.items, std::string(code), &d2d::d2s::Item::code); part != actor->character.items.end()) actor->character.items.erase(part);
+        const int on_ticks = object_op_ticks(object);
+        used->second = now_ms - std::uint32_t(std::max(on_ticks, 0)) * kTickMs;   // ON now (FUN_00624690(it, 2))
+        set_footprint(*level, object, object.collision >> 2 & 1);
+        const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
+        tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
+        // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
+        const int placer = actor->id;
+        each_player([&](Player& player) {
+            auto& bits = quests();
+            if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
+            d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
+            for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
+        });
+        // FUN_0059dd80 sends S->C 0x89 event 3 to the game; its client entry
+        // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
+        // (object 152) near its player.
+        music_cue_near("music_quest_horadric", object.x, object.y);
+        d2d::log::info("The Horadric Staff: placed in the orifice");
+    }
+
 // Rooms laid again (relevel) stamp every door as its preset left it; the
 // doors used since go back to their mode's footprint.
-// ponytail: every frame, a few doors; on relevel only if it shows.
+// Only after a relevel of this level (Level::lays moved on).
 auto World::reopen_doors() -> void {
+        if (std::exchange(doors_laid, std::pair{ level, level->lays }) == std::pair{ level, level->lays }) return;
         for (const auto& [key, door] : doors)
             if (key.first == level && std::size_t(key.second) < level->npcs.size())
                 set_footprint(*level, level->npcs[std::size_t(key.second)], level->npcs[std::size_t(key.second)].collision >> door.mode & 1);
@@ -659,12 +694,15 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
 // footprint ON's (HasCollision2). The time is object_op_ticks', as the
 // chests' tick: the sooner of that event and the client's OP counter's end.
-// ponytail: on this level's tick only; one left mid-OP goes ON when it's back in view.
+// An event comes only while the game runs the door's room (one near a
+// player: Fight::near_players, as the monsters'); one due while it wasn't
+// comes as it's run again. A level no player is on
+// runs no rooms.
 auto World::slime_doors_on(std::uint32_t now_ms) -> void {
         for (const auto& [key, state] : doors) {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
-            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor) continue;
+            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor || !fight.near_players(door.x, door.y)) continue;
             const int on_ticks = object_op_ticks(door);
             if (on_ticks < 0) continue;
             const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;
@@ -758,15 +796,20 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
 
 auto World::arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
         if (trap == 8 && d2d::rules::trap_undead(level->region[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))], 0) < 0) return;   // FUN_00582250
-        traps.push_back({ level, trap, x, y, alvl, now_ms + 35 * kTickMs });
+        traps.push_back({ level, trap, x, y, alvl, now_ms + 35 * kTickMs, false });
     }
 
 auto World::spring_traps(std::uint32_t now_ms) -> void {
+        std::vector<Trap> due_traps;
         for (auto armed = traps.begin(); armed != traps.end();) {
             if (now_ms < armed->due) { ++armed; continue; }
-            const Trap due = *armed;
+            due_traps.push_back(*armed);
             armed = traps.erase(armed);
-            if (due.level == level) spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, now_ms);
+        }
+        for (const Trap& due : due_traps) {
+            if (due.level != level) continue;
+            if (due.think) trap_think(due.trap, due.x, due.y, due.alvl, due.due);
+            else spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, due.due);
         }
     }
 
@@ -812,11 +855,42 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
-        // Traps 1..4 / 6: the trap monster's one act (objects.md "Trap monsters"):
-        // Trap-Missile (FUN_005fb5b0) its A1 missile, Trap-Poison / Trap-Nova
-        // (FUN_005fb900 / FUN_005fb9b0) its Skill1, then it dies (aip2 is 1).
-        // ponytail: shot at once, at the player wherever it stands; there only a target its search
-        // finds within aip1 (25 / 20) gets it, a think after it's made.
+        // FUN_00582420 makes the trap monster now. FUN_00573780 files its
+        // first think two frames on; its Trap-* AI acts once and then dies.
+        if (trap > 0 && trap < 7) {
+            traps.push_back({ level, trap, x, y, alvl, now_ms + 2 * kTickMs, true });
+            return;
+        }
+    }
+
+// Trap-Missile (FUN_005fb5b0) uses A1's missile; Trap-Poison and Trap-Nova
+// (FUN_005fb900 / FUN_005fb9b0) use Skill1. Their driver first runs
+// FUN_005dd7f0; the AI acts only on its picked target within aip1, then its
+// aip2 of one makes the following think kill it.
+auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
+        struct TargetPoint { float x = 0, y = 0; };
+        const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
+        std::vector<d2d::rules::SearchFoe> searched;
+        std::vector<TargetPoint> targets;
+        const int trap_x = int(std::floor(x * 5)), trap_y = int(std::floor(y * 5));
+        const auto add_target = [&](float target_x, float target_y, bool pet, bool dead) {
+            searched.push_back({ d2d::rules::ai_distance(int(std::floor(target_x * 5)) - trap_x, int(std::floor(target_y * 5)) - trap_y), pet, false, dead });
+            targets.push_back({ target_x, target_y });
+        };
+        each_player([&](Player& player) {
+            add_target(player.player.x, player.player.y, false, player.ghost || player.character.stats.values[d2d::d2s::kLife] <= 0);
+            if (player.merc) add_target(player.merc->unit.x, player.merc->unit.y, true, !player.merc->alive());
+            for (const auto& pet : player.pets)
+                if (pet.where == level) add_target(pet.monster.unit.x, pet.monster.unit.y, true, !pet.monster.alive());
+        });
+        static constexpr std::array<int, 3> kMissileReach{ 25, 30, 32 };
+        const int reach = trap == 1 || trap == 2 || trap == 6 ? kMissileReach[std::size_t(diff)] : 20;
+        const int target_index = d2d::rules::trap_target(searched, reach);
+        if (target_index < 0) {
+            d2d::log::info("trap {}: no target within {} subtiles", trap, reach);
+            return;
+        }
+        const TargetPoint target = targets[std::size_t(target_index)];
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
         const auto found = game_data->missiles.find(name);
         if (!*name || found == game_data->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }
@@ -839,6 +913,9 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             const float speed = missile_speed(int(vel * 256) * 75 / 100), distance = std::max(std::hypot(dx, dy), 0.01f);   // FUN_0059fa30's x 75 / 100
             Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
             missile.struck = struck;
+            // FUN_0059fa30 flag 2 (FUN_005ccd10, FUN_0056d400): a ring's offset in subtiles from
+            // the trap's; the missile at the player puts its own point below.
+            missile.to = offset_target(x, y, int(std::lround(dx)), int(std::lround(dy)));
             fight.missiles.push_back(std::move(missile));
         };
         const auto ring = std::make_shared<std::vector<int>>();
@@ -853,8 +930,8 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 shoot(float(aim_x), float(aim_y), float(missile_info.vel), ring);
             }
         } else {
-            shoot(actor->player.x - x, actor->player.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
-            fight.missiles.back().to = { actor->player.x, actor->player.y };
+            shoot(target.x - x, target.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
+            fight.missiles.back().to = { target.x, target.y };
         }
         d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
     }

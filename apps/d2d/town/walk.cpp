@@ -16,10 +16,12 @@
 #include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <ambient_dip.hpp>
 #include <automap_step.hpp>
+#include <cairn_effect.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
@@ -50,6 +52,25 @@
 #include <vector>
 
 namespace d2d::client {
+
+// S->C 0x89 event 1, LAB_0046aee0: find StoneAlpha (object 17) in the
+// client's room-near list, ask FUN_004cdb40 for client missile 0x120 at its
+// subtile, then start FUN_0046ae50 from that missile row's Param1 and Range.
+auto Town::cairn_opened(std::uint32_t frame_ms) -> void {
+    if (!level) return;
+    const auto stones = world.game_data->missiles.find("cairnstones");
+    if (stones == world.game_data->missiles.end()) return;
+    const auto rooms_near = d2d::game::near_rooms(*world.game_data, *level, hero.player.x, hero.player.y);
+    const auto stone = std::ranges::find_if(level->npcs, [&](const Npc& candidate) {
+        return candidate.object_id == 17 && std::ranges::any_of(rooms_near, [&](const auto& room) { return room.first == level && room.second == candidate.room; });
+    });
+    const auto spot = stone == level->npcs.end() ? std::optional<std::pair<int, int>>{}
+                                                 : std::pair{ int(std::lround(stone->x * 5.f - 0.5f)), int(std::lround(stone->y * 5.f - 0.5f)) };
+    const auto effect = d2d::rules::cairn_client_event(true, true, spot, stones->second.param1, stones->second.range);
+    if (!effect) return;
+    cairn_flash = View::Shot{ &stones->second, (float(effect->subtile_x) + 0.5f) / 5.f, (float(effect->subtile_y) + 0.5f) / 5.f, 0, frame_ms };
+    dip.start(effect->dip.fade_in, effect->dip.hold, effect->dip.back, d2d::rules::level_ids::kStonyField);
+}
 
 /**
  * Advance the client gameplay frame, synchronize joined-world state and drive player movement. Run
@@ -130,21 +151,13 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             for (const auto kind : std::exchange(net_game->quest_quakes, {}))
                 if (kind != d2d::rules::QuestQuake::diablo || level->id == d2d::rules::level_ids::kChaosSanctuary)
                     quest_quakes.push_back({ kind, frame_ms });
-            // 0x89 event 1 (0x46aee0): with a StoneAlpha (object 17) in the
+            // 0x89 event 1 (LAB_0046aee0): with a StoneAlpha (object 17) in the
             // rooms near the player's (FUN_0065a620(room, 2, 0x11)), the
             // ambient dips from missile cairnstones in level 4, as
-            // World::cain_operate's. ponytail: its client missile 0x120 at
-            // the stone (FUN_004cdb40, 0x46af25) isn't made, here or offline.
-            if (std::exchange(net_game->cairn_opened, false) && level)
-                if (const auto stones = world.game_data->missiles.find("cairnstones"); stones != world.game_data->missiles.end()) {
-                    const auto rooms_near = d2d::game::near_rooms(*world.game_data, *level, hero.player.x, hero.player.y);
-                    if (std::ranges::any_of(level->npcs, [&](const Npc& stone) {
-                            return stone.object_id == 17 && std::ranges::any_of(rooms_near, [&](const auto& room) { return room.first == level && room.second == stone.room; });
-                        })) {
-                        const auto frames = d2d::rules::cairn_dip(stones->second.param1, stones->second.range);
-                        dip.start(frames.fade_in, frames.hold, frames.back, d2d::rules::level_ids::kStonyField);
-                    }
-                }
+            // World::cain_operate's; FUN_004cdb40 at 0x46af25 also makes
+            // client missile 0x120 at that stone for the row's Range.
+            if (std::exchange(net_game->cairn_opened, false)) cairn_opened(frame_ms);
+            if (const auto order = std::exchange(net_game->stone_order, std::nullopt)) scroll.order = *order;   // S->C 0x50 subtype 4
             // State 153 on a unit (0xa8 / 0xaa): its setfunc (FUN_004d87e0) dips
             // the ambient in the level of the unit's room, one the act has.
             for (const auto& cast : std::exchange(net_game->cloak_casts, {}))
@@ -471,7 +484,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
         for (const auto& event : view.events) {
-            if (const auto* refused = std::get_if<ev::TradeRefused>(&event); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+            if (const auto* traded = std::get_if<ev::TradeResult>(&event)) trade_result(*traded, mouse.x, mouse.y);
             handle(event, audio, frame_ms);
         }
         // A partner's: a window to open (an NPC talked to, the stash) takes
@@ -522,6 +535,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             prev_x += float(level_changed->from->world_x - level->world_x);
             prev_y += float(level_changed->from->world_y - level->world_y);
             npc_menu = {}; store = {}; speech = {}; waypoint = {}; use_item = {}; menu_after_speech = -1;
+            cairn_flash.reset();
             shake = {}; quest_quakes.clear(); audio.stop_quake();
             level_ms = frame_ms;                                  // its song comes in 3 s later
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));   // the host's 0x15 for the warp
@@ -529,7 +543,12 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             return;
         }
         if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) { quest_quakes.push_back({ quake->kind, frame_ms }); return; }
-        if (const auto* ambient_dip = std::get_if<ev::AmbientDip>(&event)) { dip.start(ambient_dip->fade_in, ambient_dip->hold, ambient_dip->back, ambient_dip->level); return; }
+        if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { scroll.order = stones->order; return; }   // 0x7bf098, 0x7bf254 = 0
+        if (const auto* ambient_dip = std::get_if<ev::AmbientDip>(&event)) {
+            if (ambient_dip->level == d2d::rules::level_ids::kStonyField) cairn_opened(frame_ms);
+            else dip.start(ambient_dip->fade_in, ambient_dip->hold, ambient_dip->back, ambient_dip->level);
+            return;
+        }
         if (std::holds_alternative<ev::Lightning>(event)) { rain.set_off(); return; }
         if (std::holds_alternative<ev::Reassigned>(event)) {
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));
@@ -538,9 +557,17 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
-        if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
-        if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 kind 6 / 7 (FUN_004c0550)
-            if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
+        if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
+        if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 (FUN_004c0550)
+            if (service->kind == 0) {                                          // an object's panel opens (FUN_004c0380)
+                close_use_item();
+                use_item::open_object(use_item, service->npc, now_ms);
+                char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
+                waypoint = {};
+                inv_open = true;
+            } else if (service->npc == use_item.npc) {
+                use_item_reply(service->kind, &audio);
+            }
             return;
         }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once

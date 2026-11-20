@@ -8,6 +8,7 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <vector>
@@ -60,6 +61,25 @@ int main() try {
 
     apply_mod(tables, { "dmg-min", "", -5, -5 }, got, rng);   // no item: one-hand, as drawn
     assert(got.size() == 1 && got[0].stat == kMinDamage && got[0].value == -5);
+    // A magic item's affix goes on with its item (FUN_0065fec0, as a unique's): a pike's
+    // dmg-min prefix is the two-hand stat, not the one-hand one a bare mod takes.
+    {
+        Tables made = tables;
+        made.item_info["pik"] = { .width = 2, .height = 4, .type = "pole", .kind = 2 };
+        made.item_base["pik"] = pike;
+        made.types["pole"] = {};
+        made.prefixes = { {}, { .name = "Sharp", .level = 1, .group = 1, .frequency = 1, .spawnable = true, .itypes = { "pole" }, .mods = { { "dmg-min", "", 2, 2 } } } };
+        made.suffixes = { {} };
+        int sharp = 0;
+        for (std::uint32_t seed = 1; seed <= 40; ++seed) {   // the prefix only some rolls take (the coin: prefix, suffix or both)
+            Rng roll{ seed };
+            const auto magic = generate_item(made, "pik", 10, 4, roll);
+            if (magic.prefix != 1) continue;
+            ++sharp;
+            assert(stat_value_in(magic.props, kSecondaryMinDamage) == 2 && stat_value_in(magic.props, kMinDamage) == 0);
+        }
+        assert(sharp > 0);
+    }
     std::printf("mod damage hold: ok\n");
     return 0;
 } catch (const std::exception& error) {

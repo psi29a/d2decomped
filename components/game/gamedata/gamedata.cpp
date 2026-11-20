@@ -1055,6 +1055,7 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
     }
     level.drawn_laid = std::move(client);
     level.laid = std::move(order);
+    ++level.lays;
     level.laid_up = up_count;
     stamp_footprints(level);
     d2d::log::info("  {}: rooms laid again ({} ms)", level.name, d2d::log::ms() - start_ms);

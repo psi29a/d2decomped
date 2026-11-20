@@ -39,7 +39,7 @@ namespace d2d::game {
 // toggle at its end whatever the monster, then special AI 10 on one
 // swaps_ai lets.
 void cloak(const GameData& game_data, Monster& monster, int skill, int lvl, std::uint32_t until, std::uint32_t now_ms) {
-    if (put_state(game_data, monster, monster.cry, { skill, lvl, until, true }, now_ms) && swaps_ai(game_data, monster)) ai_toggle(game_data, monster, 10);
+    if (put_state(game_data, monster, { skill, lvl, until, true }, now_ms) && swaps_ai(game_data, monster)) ai_toggle(game_data, monster, 10);
 }
 
 // A state's end on a monster (its stat list off, FUN_006269f0: the
@@ -58,17 +58,29 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
     slot = {};
 }
 
-// A timed state put on a monster in its slot (FUN_0056e970): the same
-// skill at the same level only runs longer, one at a higher level stays
-// (the put fails); else the one there comes off (end_state).
-// ponytail: d2d keeps one curse and one other state; game.exe's other
-// states don't take each other's place.
-bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms) {
-    // A curse put on a unit with state 0x39 (Attract, a curse itself: d2d's curse slot) is refused,
-    // a re-cast of Attract included (FUN_0056e970 0x56ea40..0x56ea4a).
-    // ponytail: the curse states d2d keeps in its other slot (Taunt, Battle Cry, Cloak's) aren't refused yet.
-    if (&slot == &monster.curse && slot.skill >= 0 && now_ms < slot.until)
-        if (const auto* held = game_data.skills.get(slot.skill); held && held->auratarget == "attract") return false;
+// A timed state put on a monster (FUN_0056e970) in its state's node: the
+// same skill at the same level only runs longer, one at a higher level
+// stays (the put fails); else the one there comes off (end_state). Other
+// states keep their own nodes (keyed here by the skill's auratargetstate,
+// else its aurastate).
+bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms) {
+    // A curse state (States.txt curse, FUN_0063a420) goes in the unit's one curse node (FUN_00625760, kind
+    // 0x20) whoever puts it: Taunt's, Battle Cry's, Cloak's and the Overseer's Bloodlust share it with the
+    // curses (FUN_0056e970 0x56ea0a..0x56ead3).
+    // On a unit with state 0x39 (Attract) it's refused, a re-cast of Attract included (0x56ea40..0x56ea4a).
+    const auto* incoming = game_data.skills.get(next.skill);
+    const auto incoming_state = incoming ? game_data.states.find(incoming->auratarget) : game_data.states.end();
+    const bool curse = incoming_state != game_data.states.end() && incoming_state->second.curse;
+    if (curse && monster.curse.skill >= 0 && now_ms < monster.curse.until)
+        if (const auto* held = game_data.skills.get(monster.curse.skill); held && held->auratarget == "attract") return false;
+    const auto state_of = [&](int skill_id) -> std::string_view {
+        const auto* row = game_data.skills.get(skill_id);
+        return !row ? std::string_view{} : !row->auratarget.empty() ? std::string_view(row->auratarget) : std::string_view(row->aurastate);
+    };
+    const auto key = state_of(next.skill);
+    auto node = std::ranges::find_if(monster.states, [&](const Monster::SkillState& held) { return held.skill == next.skill || (!key.empty() && state_of(held.skill) == key); });
+    if (!curse && node == monster.states.end()) { monster.states.push_back(next); return true; }
+    auto& slot = curse ? monster.curse : *node;
     if (slot.skill >= 0 && now_ms < slot.until && slot.skill == next.skill) {
         if (slot.level == next.level) { slot.until = next.until; return true; }
         if (slot.level > next.level) return false;
@@ -370,7 +382,9 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
             monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = 0;
             monster.align = 0;                                // Confuse's / Attract's end (FUN_005c3db0 / 0x5c3b00), or another curse in its place
             monster.afraid = false;
-            for (auto* effect : { &monster.curse, &monster.cry, &monster.frenzy, &monster.self_state }) {
+            std::vector<Monster::SkillState*> effects{ &monster.curse, &monster.frenzy, &monster.self_state };
+            for (auto& held : monster.states) effects.push_back(&held);
+            for (auto* effect : effects) {
                 if (effect->skill < 0) continue;
                 if (now_ms >= effect->until) { end_state(*game_data, monster, *effect); continue; }
                 const auto* skill = game_data->skills.get(effect->skill);
@@ -387,6 +401,7 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "conversion") monster.align = 2;
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
+            std::erase_if(monster.states, [](const Monster::SkillState& held) { return held.skill < 0; });   // ended (end_state)
             // The enemy auras over it (the player's, the merc's): Holy Freeze's
             // velocitypercent and attackrate / other_animrate (one rate), -dm34.
             if (monster.alive())
@@ -515,7 +530,8 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 for (int k = 0; k < 64; ++k) {
                     const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                     const float length = std::hypot(float(aim_x), float(aim_y));
-                    missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)].struck = shared;
+                    auto& shot = missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)];
+                    shot.struck = shared; shot.to = offset_target(target_x, target_y, aim_x, aim_y);   // FUN_0056d400 round the target
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {

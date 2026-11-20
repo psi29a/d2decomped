@@ -2,15 +2,16 @@
 """A monster's curse slot in game.exe as the oracle: sequences of curse puts through the timed-state put.
 
     uv run python curse_put.py gen 100000 1 > cases.txt     # `seq skill level length frame`, one put a line
-    uv run python curse_put.py game < cases.txt > game.txt   # each put and `accepted skill level left`
-    ../../build/tests/test_curse_put --curse-put < cases.txt | grep -E '^[0-9]+( -?[0-9]+){8}$' > d2d.txt
+    uv run python curse_put.py game < cases.txt > game.txt   # each put and `accepted skill level left curses`
+    ../../build/tests/test_curse_put --curse-put < cases.txt | grep -E '^[0-9]+( -?[0-9]+){9}$' > d2d.txt
     uv run python curse_put.py compare game.txt d2d.txt      # `N puts, M differ`; exit 1 on a difference or a bad input
 
-A sequence (`seq`) is one monster, puts in frame order: a player's curse skill (Skills.txt srvdofunc 30, 59
-Attract, 61 Confuse, and 130 Howl's Terror) at `level` for `length` frames at game frame `frame`. Frames are
+A sequence (`seq`) is one monster, puts in frame order: a skill that puts a curse state (States.txt curse) on
+it (Skills.txt srvdofunc 30, 59 Attract, 61 Confuse, 130 Howl's Terror, and 71 Taunt, 68 Battle Cry, 47 Cloak
+of Shadows, 131 Overseer Whip's Bloodlust) at `level` for `length` frames at game frame `frame`. Frames are
 even and lengths odd, so no put lands on the frame a curse ends (the end event's order in that frame is left
 out). After each put: whether it was taken, then the curse the monster holds: its skill, level and the frames
-left (-1 -1 -1: none).
+left (-1 -1 -1: none), and how many curse states it holds.
 FUN_0056e970, the timed-state put, runs for real on its request record (+4 the target, +8 skill, +0xc level,
 +0x10 length, +0x1c the state: Skills.txt auratargetstate), with FUN_0063a420 (the States.txt curse bit) and
 FUN_00483360 on the loaded tables: a curse state is cut by the target's curse resistance (stat 0x6d, 0 here)
@@ -28,26 +29,29 @@ import random
 import sys
 
 USAGE = "usage: curse_put.py gen N SEED | game < CASES | compare GAME D2D"
-CURSE_DOS = {"30", "59", "61"}
+CURSE_DOS = {"30", "47", "59", "61", "68", "71", "131"}
 HOWL = 130
 ATTRACT_DO = "59"
 
 
 def tables(e):
-    """{skill id: state id} for the curse skills (Skills.txt auratargetstate -> its States.txt row)."""
+    """{skill id: (state id, Attract?)} for the skills above, and the curse states' ids."""
     def rows(name):
         text = e.mpq_file(f"data\\global\\excel\\{name}.txt").decode("latin-1").splitlines()
         head = text[0].split("\t")
         return [dict(zip(head, line.split("\t"))) for line in text[1:]]
-    states = {row["state"]: index for index, row in enumerate(r for r in rows("States") if r.get("state"))}
+    state_rows = [r for r in rows("States") if r.get("state")]
+    states = {row["state"]: index for index, row in enumerate(state_rows)}
+    curses = {index for index, row in enumerate(state_rows) if row.get("curse") == "1"}
     skills = {}
     for row in rows("Skills"):
         if not row.get("Id", "").isdigit():
             continue
         skill = int(row["Id"])
         if (row.get("srvdofunc") in CURSE_DOS or skill == HOWL) and row.get("auratargetstate") in states:
-            skills[skill] = (states[row["auratargetstate"]], row.get("srvdofunc") == ATTRACT_DO)
-    return skills
+            if states[row["auratargetstate"]] in curses:
+                skills[skill] = (states[row["auratargetstate"]], row.get("srvdofunc") == ATTRACT_DO)
+    return skills, curses
 
 
 def boot():
@@ -56,8 +60,9 @@ def boot():
 
 
 class Rig:
-    def __init__(self, e):
+    def __init__(self, e, curses):
         self.e = e
+        self.curses = curses
         self.frame = 0
         self.nodes = []
         self.info = {}
@@ -119,7 +124,7 @@ class Rig:
         self.nodes, self.info = [], {}
 
     def put(self, skill, state, level, length, frame):
-        """FUN_0056e970 at `frame`: (taken, skill, level, frames left) of the curse after it."""
+        """FUN_0056e970 at `frame`: (taken, skill, level, frames left) of the curse after it, and its curse states."""
         e = self.e
         self.frame = frame
         e.w32(self.game + 0xa8, frame)
@@ -135,15 +140,16 @@ class Rig:
         e.w32(r + 0x1c, state)
         taken = int(e.call(0x56e970, ecx=r) != 0)
         curse = next((n for n in self.nodes if self.info[n]["flags"] & 0x20), None)
+        held = sum(self.info[n]["state"] in self.curses for n in self.nodes)
         if curse is None:
-            return taken, -1, -1, -1
+            return taken, -1, -1, -1, held
         node = self.info[curse]
-        return taken, node["skill"], node["level"], node["end"] - frame
+        return taken, node["skill"], node["level"], node["end"] - frame, held
 
 
 def gen(count, seed):
     e = boot()
-    skills = tables(e)
+    skills, _ = tables(e)
     ids = sorted(skills)
     attracts = [s for s in ids if skills[s][1]]
     rng = random.Random(seed)
@@ -151,7 +157,7 @@ def gen(count, seed):
     while made < count:
         frame = rng.choice((0, 2 * rng.randint(0, 50)))
         for _ in range(min(rng.randint(1, 12), count - made)):
-            skill = rng.choice(attracts) if rng.random() < 0.3 else rng.choice(ids)
+            skill = rng.choice(attracts) if rng.random() < 0.15 else rng.choice(ids)
             level = rng.choice((1, 1, 2, 3, rng.randint(1, 4), rng.randint(1, 60)))
             length = 2 * rng.choice((rng.randint(12, 200), rng.randint(12, 3000))) + 1
             print(seq, skill, level, length, frame)
@@ -162,8 +168,8 @@ def gen(count, seed):
 
 def game():
     e = boot()
-    skills = tables(e)
-    rig = Rig(e)
+    skills, curses = tables(e)
+    rig = Rig(e, curses)
     last = None
     for line in sys.stdin:
         field = line.split()
@@ -173,8 +179,8 @@ def game():
         if seq != last:
             rig.reset()
             last = seq
-        taken, held, held_level, left = rig.put(skill, skills[skill][0], level, length, frame)
-        print(seq, skill, level, length, frame, taken, held, held_level, left)
+        taken, held, held_level, left, curses_held = rig.put(skill, skills[skill][0], level, length, frame)
+        print(seq, skill, level, length, frame, taken, held, held_level, left, curses_held)
 
 
 def rows(path):
@@ -184,7 +190,7 @@ def rows(path):
             field = line.split()
             if not field:
                 continue
-            if len(field) != 9 or not all(f.lstrip("-").isdigit() for f in field):
+            if len(field) != 10 or not all(f.lstrip("-").isdigit() for f in field):
                 sys.exit(f"malformed line in {path}: {line.strip()!r}")
             out.append(tuple(int(f) for f in field))
     return out
@@ -202,7 +208,8 @@ def compare(game_path, d2d_path):
             differ += 1
             if differ <= 20:
                 print(f"DIFF seq {g[0]} skill {g[1]} level {g[2]} length {g[3]} frame {g[4]}: "
-                      f"game taken {g[5]} holds {g[6]} level {g[7]} left {g[8]}, d2d taken {d[5]} holds {d[6]} level {d[7]} left {d[8]}")
+                      f"game taken {g[5]} holds {g[6]} level {g[7]} left {g[8]} curses {g[9]}, "
+                      f"d2d taken {d[5]} holds {d[6]} level {d[7]} left {d[8]} curses {d[9]}")
     print(f"{len(game_rows)} puts, {differ} differ")
     sys.exit(1 if differ else 0)
 

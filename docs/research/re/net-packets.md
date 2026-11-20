@@ -651,8 +651,9 @@ ids).
 - **0x63 waypoints** (21; `0x45e670`): +1 u32 waypoint object id, +5 the
   known waypoints' bits (`FUN_00661030`).
 - **0x4e / 0x4f / 0x50 hirelings**: 0x4e (7) +1 u16 name id, +3 u32
-  seed (one offer); 0x4f (1) clears the list; 0x50 (15) switch on the
-  u16 at +1 **(?)**.
+  seed (one offer); 0x4f (1) clears the list; 0x50 (15, "quest
+  special", `FUN_004b9210`) switch on the u16 at +1: 2 drops a hire
+  offer, 4 the Cairn Stones' order (quests-act1.md).
 - **0x81 assign merc** (20; `FUN_00478bb0`): +1 u8, +2 u16 MonStats row,
   +4 u32 owner id, +8 u32 merc id, +0xc u32, +0x10 u32. Live (2026-10-04):
   `81 07 52 01 0d 00 00 00 41 00 00 00 ...` for Tux (id 0x0d) and his

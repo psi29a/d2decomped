@@ -44,6 +44,20 @@ namespace {
 // Up, right, down, left: where a boss's ring of bolts leaves.
 constexpr std::pair<float, float> kCompass[] = { { 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } };
 
+// FUN_0064d870 with pattern 1 and mask 0x3c01 at the unit's subtile (FUN_005a3910's spot test, FUN_0064d100):
+// the subtile and its four neighbours clear of the level's walls (the five terrain probes) and of every other
+// unit's stamp (one plus-shaped crowd test at the corpse's subtile, as the grid holds every unit's stamp).
+bool rise_spot_blocked(const Level* level, const Crowd& crowd, std::span<const Foe> foes, const UnitState& self) {
+    const int sub_x = int(std::floor(self.x * 5)), sub_y = int(std::floor(self.y * 5));
+    for (const auto& [off_x, off_y] : { std::pair{ 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } })
+        if (level && level->blocked((float(sub_x + off_x) + 0.5f) / 5, (float(sub_y + off_y) + 0.5f) / 5, 0x0c01)) return true;
+    constexpr UnitShape kPlus{ 1, 2, 0x3c01 };
+    if (crowd.at((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, kPlus, &self)) return true;
+    return std::ranges::any_of(foes, [&](const Foe& foe) {
+        return foe.alive && !foe.of && std::abs(int(std::floor(foe.x * 5)) - sub_x) + std::abs(int(std::floor(foe.y * 5)) - sub_y) <= 1;
+    });
+}
+
 }  // namespace
 
 auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms) -> void {
@@ -60,6 +74,7 @@ auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int 
         }
     }
 
+// Each monster's mod hooks in the fight (monsters.md "Boss mods in the fight"), incl. mod 34's FUN_005a3840 / FUN_005a3910.
 auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
         using d2d::rules::Boss;
         for (auto& monster : monsters) {
@@ -98,6 +113,43 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // hook 1 0x5a3a80 puts state 107 (shatter) on it as it dies (mode
             // 0), whatever the kill: no corpse to raise or blow up.
             if (std::ranges::contains(family, d2d::rules::umod::shatter) && monster.mode != monster.fx_mode && monster.mode == "DT") monster.shatter = true;
+            // Ai_after_death (MonUMod 34, every reanimatedhorde1 by FUN_005b21b0). Hook 1 (FUN_005a3840) is in
+            // set_mode, as it dies. Hook 2 (FUN_005a3910, event 7, `rise_at`): a corpse in DD, no unique, not
+            // good, its spot free around the corpse (every hero's side), fewer than 2 rises (AI scratch +0x14),
+            // takes skill 0x125 in S1: life full, flags 0x4020000 off, scratch + 1, its think 0x33 frames on
+            // (`next_act`); a blocked spot tries again aip1 x 10 + 1 frames on. Srvstfunc 61 (0x5d1bf0)
+            // takes the unit flags 0xe off (`rising`); its think (FUN_005e1540) puts them back.
+            if (std::ranges::contains(family, d2d::rules::umod::ai_after_death) && monster.type >= 0) {
+                const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+                const auto& per_difficulty = type_info.diff[std::size_t(std::clamp(monster.difficulty, 0, 2))];
+                // A death animation that ran out while no hero was near (monster_update, which ends it, is not
+                // called out of range) is over before event 7 is delivered: the corpse is in DD, as FUN_005a3910 finds it.
+                if (monster.mode == "DT" && !monster.alive() && now_ms >= monster.mode_until) set_mode(*game_data, monster, "DD", now_ms);
+                if (monster.rise_at && now_ms >= monster.rise_at) {
+                    monster.rise_at = 0;
+                    Crowd crowd_now;
+                    crowd_around(crowd_now, monster.unit.x, monster.unit.y);
+                    const bool corpse = monster.mode == "DD" && !monster.corpse_used && !monster.shatter;
+                    const auto rise = d2d::rules::ai_after_death_rise({
+                        .dead = monster.mode == "DT" || monster.mode == "DD", .hidden = monster.corpse_used || monster.shatter,
+                        .unique = monster.boss == Boss::unique || monster.boss == Boss::superunique,
+                        .blocked = rise_spot_blocked(mon_level ? mon_level : level, crowd_now, foes, monster.unit),
+                        .can_raise = corpse && type_info.corpse_sel && type_info.velocity != 0,
+                        .alignment = monster.align, .scratch = monster.ai_state, .aip1 = per_difficulty.aip[0] });
+                    if (rise.kind == d2d::rules::RiseKind::again) monster.rise_at = now_ms + std::uint32_t(rise.frames) * 40;
+                    if (rise.kind == d2d::rules::RiseKind::rise) {
+                        d2d::log::info("{} rises again", monster.npc.name);
+                        monster.hit_points = monster.stats.hit_points;
+                        monster.life_frac = monster.max_life_frac;
+                        monster.no_exp = monster.no_drop = false;
+                        ++monster.ai_state;
+                        monster.rising = true;
+                        set_mode(*game_data, monster, "S1", now_ms);
+                        monster.thought_ms = now_ms;                       // its think (event 2): the rise's 0x33 frames on
+                        monster.next_act = now_ms + std::uint32_t(rise.frames) * 40;
+                    }
+                }
+            }
             // Partydead (MonUMod 15, boneprison1..4 by FUN_005b21b0): hook 1 FUN_005a2d10 as it dies,
             // with an owner (FUN_0058f0d0): each of the owner's minions leaves the group and dies
             // (FUN_0058f380 -> FUN_005a2cc0: FUN_005a7e60 mode 0, no credit), then the owner; the
@@ -186,7 +238,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                         const auto ring = std::make_shared<std::vector<int>>();
                         for (int k = 0; k < 64; ++k) {
                             const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                            const std::size_t had = pending.size();
                             boss_missile(monster, "coldunique", float(aim_x), float(aim_y), ring, now_ms);
+                            if (pending.size() > had) pending.back().to = offset_target(monster.unit.x, monster.unit.y, aim_x, aim_y);   // FUN_0056d400
                         }
                     }
                 }

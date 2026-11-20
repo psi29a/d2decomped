@@ -740,6 +740,24 @@ int main() try {
     assert(uni.props[0].stat == 188 && uni.props[0].param == (1 << 3 | 1) && uni.props[0].value == 2);   // sorc tab 1
     assert(uni.props[1].stat == 198 && uni.props[1].param == (3 | 44 << 6) && uni.props[1].value == 10);
     assert(generate_item(gamble_tables, "cap", 10, 5, roll).quality == 6);              // no set cap: rare instead
+    {   // A forced row (struct +0x40, row + 1) that fits wins with no draw (FUN_005566b0); one that doesn't fit rolls.
+        Tables two = gamble_tables;
+        two.uniques.push_back({ .code = "cap", .level = 1, .rarity = 1000 });
+        two.uniques.push_back({ .code = "rin", .level = 1 });
+        Rng forced{ 9 }, still{ 9 };
+        const auto made = generate_item(two, "cap", 10, 7, forced, nullptr, nullptr, false, 0, 1);
+        const auto same = generate_item(two, "cap", 10, 7, still, nullptr, nullptr, false, 0, 1);
+        assert(made.unique_id == 0 && same.unique_id == 0 && forced.low == still.low);
+        Rng plain{ 9 }, picked{ 9 };
+        const auto unforced = generate_item(two, "cap", 10, 7, plain);
+        const auto off_code = generate_item(two, "cap", 10, 7, picked, nullptr, nullptr, false, 0, 3);   // row 2 is a ring's: no fit
+        assert(unforced.unique_id == off_code.unique_id && plain.low == picked.low);
+        Rng drawn{ 9 }, skipped{ 9 };
+        (void)generate_item(gamble_tables, "cap", 10, 7, drawn);              // its one cap row, rand(1) drawn
+        (void)skipped.next();
+        (void)generate_item(two, "cap", 10, 7, skipped, nullptr, nullptr, false, 0, 1);
+        assert(drawn.low == skipped.low);                                     // the same mods after one step less
+    }
     const auto rare_cap = generate_item(gamble_tables, "cap", 10, 6, roll);
     for (const auto& prop : rare_cap.props) if (prop.stat == 43) assert(prop.value == 10); // res-all: func 3 repeats the value
     {   // apply_mod: min == max draws nothing; charges (FUN_0065f6a0) at a level off ilvl and reqlevel
@@ -835,12 +853,12 @@ int main() try {
     // none at or over its owner's level or at 98.
     assert(merc_kill_exp(1000, 300, false, 10, 20) == 1000 + 300 * 86 / 256 * 2 && merc_kill_exp(1000, 300, true, 10, 20) == 1600);
     assert(merc_kill_exp(1000, 300, true, 20, 20) == 1000 && merc_kill_exp(1000, 300, true, 98, 99) == 1000 && merc_kill_exp(1000, 2, false, 10, 20) == 1000);
-    assert(!resurrect_merc(5, merc_header, wallet2));                                  // alive
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::refused);                // alive
     merc_header.merc_dead = true;
     wallet2.values[kGold] = 100; wallet2.values[kGoldBank] = 100;
-    assert(resurrect_merc(5, merc_header, wallet2) && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::hireling && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
     merc_header.merc_dead = true;
-    assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
+    assert(resurrect_merc(5, merc_header, wallet2) == Trade::no_gold && merc_header.merc_dead);   // 20 < 180
 
     // Identify (FUN_0062a530): inventory, cube and worn items; not the stash or the belt.
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap"), stored("cap", 4, 0, 0), item("hp1") };

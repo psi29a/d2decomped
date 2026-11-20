@@ -231,6 +231,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
             Missile x{ &missile_info, shadow.unit.x, shadow.unit.y, float(aim_x) / distance * speed, float(aim_y) / distance * speed,
                        missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
+            x.to = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
             pending.push_back(std::move(x));
         }
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
@@ -780,8 +781,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 const bool charged = !row->aurastate.empty() && (held != pet.charges.end() || buffed);   // in its aurastate: a buff on, or a charge-up's charges
                 bool target_in = false;                                      // the driver's target in its auratargetstate (its curse / cry's)
                 if (found >= 0 && !row->auratarget.empty())
-                    for (const auto* effect : { &monsters[std::size_t(found)].curse, &monsters[std::size_t(found)].cry })
-                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && effect_skill->auratarget == row->auratarget && now_ms < effect->until) target_in = true;
+                    for (const auto& effect : monsters[std::size_t(found)].curse_and_states())
+                        if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && effect_skill->auratarget == row->auratarget && now_ms < effect.until) target_in = true;
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
                                                             charged, target_in, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
@@ -860,8 +861,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 }
             for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
                 if (monster_of[k] >= 0)
-                    for (const auto* effect : { &monsters[std::size_t(monster_of[k])].curse, &monsters[std::size_t(monster_of[k])].cry })
-                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect->until)
+                    for (const auto& effect : monsters[std::size_t(monster_of[k])].curse_and_states())
+                        if (const auto* effect_skill = game_data->skills.get(effect.skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect.until)
                             for (const auto& [id, row] : master.rows)
                                 if (const auto* listed_row = game_data->skills.get(id); row.state2 > 0 && listed_row && listed_row->auratarget == effect_skill->auratarget) units[k].states.push_back(row.state2);
             for (const auto& buff : pet.buffs)                              // its self states' aurastates on it
@@ -965,7 +966,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                               ? kMonsterModes[std::size_t(act.mode)] : "A1";
             monster.next_act = now_ms + std::uint32_t(std::max(act.frames, 0)) * 40;
             if (const auto* started = game_data->skills.get(pet.cast))         // its castoverlay (FUN_004c6140)
-                start_cast_overlay(*started, false, monster.flash_overlay, monster.flash_at, now_ms);
+                start_cast_overlay(*started, false, monster.one_shots, now_ms);
             if (!game_data->npc_timing(monster.npc, mode).directions) {   // no frames for it (a trap): at once
                 if (pet.cast >= 0) pet_cast(pet, now_ms, crowd);
                 pet.cast = -1;
@@ -1156,7 +1157,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             if (pet_skill)
                 for (std::size_t k = 0; k < 5; ++k)
                     if (const auto* bone_skill = skill_named(pet_skill->sumskill[k]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion && !monsters[std::size_t(target)].corpse_used) {
-                        corpse_blast(*bone_skill, pet.shot_level, std::size_t(target), now_ms);
+                        corpse_blast(*bone_skill, pet.shot_level, std::size_t(target), pet.monster.stats.level, 0, now_ms);
                         // Its client do, cltdofunc 78 (FUN_004f0cd0): the prgsound on the cltmissile it makes
                         // (FUN_004cdb40: corpseexplosion, which d2d doesn't draw), at the corpse.
                         if (bone_skill->clt_do_func == 78)

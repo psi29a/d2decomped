@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 namespace filesystem = std::filesystem;
@@ -67,7 +68,7 @@ int main() try {
     knives.quantity = most - 5;
     knives.durability = knives.max_durability = 6;
     knives.props = { { .stat = d2d::rules::kReplenishQuantity, .param = 0, .value = 25 } };
-    character.items.push_back(knives);
+    character.items.push_back(std::move(knives));
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
     Item cap;
     cap.code = "cap";
@@ -126,7 +127,7 @@ int main() try {
     Item dropped = held();
     items.erase(items.begin() + std::ptrdiff_t(index()));
     dropped.quantity = 0; dropped.flags |= 0x100u; dropped.replenish_in = 3;
-    world.loot.place(dropped, world.actor->player.x, world.actor->player.y, now_ms);
+    world.loot.place(std::move(dropped), world.actor->player.x, world.actor->player.y, now_ms);
     assert(world.loot.ground.size() == 1);
     assert(frames_until([&] { return world.loot.ground[0].item.quantity > 0; }) == 3);
     assert(d2d::rules::broken(world.loot.ground[0].item) && world.loot.ground[0].item.replenish_in == 125);
@@ -137,9 +138,9 @@ int main() try {
     assert(merc_cap.durability == 6 && merc_cap.replenish_in == 125);
     std::printf("OK: the merc's items run their timers\n");
 
-    Item sold = cap;
+    Item sold = std::move(cap);
     sold.replenish_in = 2;
-    world.stocks[{ 1, 0 }].tabs[0].push_back(sold);
+    world.stocks[{ 1, 0 }].tabs[0].push_back(std::move(sold));
     assert(frames_until([&] { return world.stocks[{ 1, 0 }].tabs[0][0].durability > 5; }) == 2);
     std::printf("OK: a vendor's stock runs its timers\n");
     return 0;

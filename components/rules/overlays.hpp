@@ -26,16 +26,32 @@ constexpr int overlay_frame(std::uint32_t elapsed_ms, int rate, int frames, bool
     return int(frame % std::uint32_t(frames));
 }
 
+// A unit's one-shot overlays (FUN_00470390 kind 2, played once), newest first as its list at
+// unit +0x2c: a new one takes the one of its row off first (FUN_0046f0c0, the first found),
+// but rows 0x8c..0x8e and 0x9e, which stack; other rows play together. {Overlay.txt row, start}.
+struct OneShot {
+    int row = -1;
+    std::uint32_t start = 0;
+    bool operator==(const OneShot&) const = default;
+};
+using OneShots = std::vector<OneShot>;
+inline void add_one_shot(OneShots& list, int row, std::uint32_t start) {
+    if (row < 0) return;
+    if (row < 0x8c || (row > 0x8e && row != 0x9e))
+        if (const auto found = std::ranges::find(list, row, &OneShot::row); found != list.end()) list.erase(found);
+    list.insert(list.begin(), OneShot{ row, start });
+}
+
 // A skill start's cast overlay (FUN_004c6140): its castoverlay, or its ItemCastOverlay when cast
 // from an item and that is set (row > 0); played (FUN_00470390 kind 2, once) when the row is in
-// the table (0 < row) and the caster has no overlay of that row yet (FUN_0046e100). `shown` is
-// the caster's one-shot, `shown_ms` since it began, `rate` / `frames` that row's.
+// the table (0 < row) and the caster has no overlay of that row playing (FUN_0046e100). `shown`
+// is the caster's one-shots, `now_ms` the time, `rate` / `frames` that row's.
 constexpr int cast_overlay_row(int cast_row, int item_row, bool from_item) {
     const int row = from_item && item_row > 0 ? item_row : cast_row;
     return row > 0 ? row : -1;
 }
-constexpr bool cast_overlay_starts(int row, int shown, std::uint32_t shown_ms, int rate, int frames) {
-    return row > 0 && !(row == shown && overlay_frame(shown_ms, rate, frames, true) >= 0);
+inline bool cast_overlay_starts(int row, const OneShots& shown, std::uint32_t now_ms, int rate, int frames) {
+    return row > 0 && std::ranges::none_of(shown, [&](const OneShot& shot) { return shot.row == row && overlay_frame(now_ms - shot.start, rate, frames, true) >= 0; });
 }
 
 // A unit's kind-8 overlays: a state in the `aura` list (States.txt bit 1,

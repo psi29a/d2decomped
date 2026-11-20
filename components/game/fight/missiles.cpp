@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -412,7 +413,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             for (int k = 0; k < 64; ++k) {
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                 auto& shot = send(float(aim_x), float(aim_y), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
-                shot.struck = shared; shot.to.reset();                              // a way, not a point
+                // FUN_0056d400 passes an explicit target offset in subtiles.
+                shot.to = { (std::floor(caster.x * 5) + float(aim_x) + 0.5f) / 5,
+                            (std::floor(caster.y * 5) + float(aim_y) + 0.5f) / 5 };
+                shot.struck = shared;
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) {
                 start_state(skill, lvl, now_ms);   // its allies as the nova reaches them (missile_tick)
@@ -450,9 +454,13 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (skill.srvdofunc == ServerDoFunction::kBreath) actor->burning = now_ms + 20 * 40;   // state inferno (FUN_005c8e30)
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
-            auto& missile = send(dx, dy, range);
-            missile.target_x = caster.x; missile.target_y = caster.y;
-            missile.turn = int(std::atan2(dy, dx) * 1000);
+            // Its path ignores the aim; a click on the caster aims one subtile on each axis (FUN_0059fa30's
+            // target = start moves + (1, 1)), so it still has a speed and flies. The aim still sets path flag 1
+            // (the room follows it, missile.follow) as game.exe's does: FUN_00648cf0(path, 0xe) keeps bits 0..7
+            // and type 0xe's set-up (FUN_00649760 -> FUN_0067a140) doesn't run FUN_006492f0 again.
+            const bool on_caster = dx == 0 && dy == 0;
+            auto& missile = send(on_caster ? 0.2f : dx, on_caster ? 0.2f : dy, range);
+            missile.route = d2d::rules::hammer_route(level->world_x * 5 + int(std::floor(missile.x * 5)), level->world_y * 5 + int(std::floor(missile.y * 5)));
             // FUN_006461d0: the caster's state 0x2a (Concentration), its damagepercent x Param1 / 8. The unit
             // holds one list per state: each aura's put (FUN_005cedc0 -> FUN_0056e970) fails under a higher
             // stored level and only extends an equal one, so of two sources the higher level's stands.
@@ -476,9 +484,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
-            // ponytail: do 44 (FUN_005d6020) moves a trap monster between
-            // the caster and the point; here its missile row does, hitting
-            // as it passes (NextHit).
+            // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
+            // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
+            // the missile row does, hitting as it passes (NextHit). Needs the pet's think dispatched
+            // (summons.cpp, pets.cpp), not this file alone.
             auto& missile = send(dx, dy, std::max(range, skill.par[0]));
             missile.origin_x = caster.x; missile.origin_y = caster.y;
             const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
@@ -539,6 +548,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         if (frame == missile_frame) return;
         missile_frame = frame;
         burned.clear();
+        // ponytail: seeded at the frame's first missile tick, not as each is made, so a drop in the
+        // frame it was made comes before its step. A visual-only one takes none: some are the
+        // server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
+        for (auto& missile : missiles)
+            if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
         for (std::size_t k = 0; k < missiles.size(); ++k) {
             auto& missile = missiles[k];
             if (!missile.friendly || missile.skill < 0 || !missile.info) continue;   // the player's side's (a monster's carries its skill too)
@@ -605,7 +619,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
-                        burn(i, damage, now_ms, soft_hit(missile_info, rng));
+                        burn(i, damage, now_ms, soft_hit(missile, rng));
                     }
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
@@ -629,7 +643,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // Param2 on.
             if (missile_info.srv_do == 15 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(missile.turn & 63)];
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms);
+                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms).to
+                    = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_0059fa30 flag 2, from the orb
                 missile.turn += missile_info.param2;
             }
             // 14 (Grim Ward's totem): every Param1 frames the monsters within
@@ -672,15 +687,6 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
                 const float offset_x = float(int(rng(2 * radius + 1)) - radius) / 5, offset_y = float(int(rng(2 * radius + 1)) - radius) / 5;
                 launch(sub->second, *skill, missile.level, missile.x, missile.y, offset_x, offset_y, land_range(sub->second, offset_x, offset_y), now_ms);
-            }
-            // Blessed Hammer (do 73's path 14): round its caster's spot and out.
-            // ponytail: the client path's shape isn't traced: a turn each 1.6
-            // s, out at a fifth of its speed.
-            if (skill->srvdofunc == ServerDoFunction::kBlessedHammer && missile_info.srv_do <= 1) {
-                const float seconds = float(now_ms - missile.born) / 1000, radius = seconds * missile_speed(missile_info, missile.level) * 0.2f;
-                const float ang = float(missile.turn) / 1000 + seconds * 2 * 3.14159265f / 1.6f;
-                missile.x = missile.target_x + radius * std::cos(ang); missile.y = missile.target_y + radius * std::sin(ang);
-                missile.velocity_x = missile.velocity_y = 0;
             }
         }
         merc_blow = casting_merc = false;
@@ -726,8 +732,9 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // x 256 (FUN_00646ca0, FUN_0045c3e0), capped at max life. At 0 or
         // less, FUN_005a8910 of missile stats 0x16 and 0x15; those stats are
         // not on the missile, so that roll is 0. Returns 1: it ends and does
-        // not strike. ponytail: the draw is the fight rng. The missile seed
-        // (+0x20) and ProgOverlay (+0x36) are not kept.
+        // not strike. The draw is on the missile's seed (+0x20, 0x5aa0a6).
+        // Healed, whatever the amount, it gets the row's ProgOverlay (+0x36,
+        // over 0) as a one-shot (FUN_00621e40): Holy Bolt's healing.
         if (missile_info.hit_func == 7) {
             const bool players_bolt = missile.friendly && !missile.by_merc;
             const int struck_id = monsters[monster_index].id;
@@ -738,19 +745,19 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const int low_points = calc(*skill, skill->calc[0], missile.level);
                 const int high_points = calc(*skill, skill->calc[1], missile.level);
                 const int span = (high_points << 8) - (low_points << 8);
-                const int amount = (span > 0 ? int(rng(span)) : 0) + (low_points << 8);
-                const auto mend = [](Monster& monster, int added) {
+                const int amount = (missile.seed ? (*missile.seed)(span) : 0) + (low_points << 8);
+                const int overlay = game_data->overlay_row(missile_info.prog_overlay);
+                const auto mend = [&](Monster& monster, int added) {
+                    if (overlay > 0) d2d::rules::add_one_shot(monster.one_shots, overlay, now_ms);
                     if (added <= 0) return;
                     int life = monster.life_fine() + added;
                     const int cap = monster.max_life_fine();
                     if (life > cap) life = cap;
                     monster.set_life_fine(life);
                 };
-                if (amount > 0) {
-                    mend(monsters[monster_index], amount);
-                    for (auto& pet : actor->pets)
-                        if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
-                }
+                mend(monsters[monster_index], amount);
+                for (auto& pet : actor->pets)
+                    if (pet.monster.id == struck_id && &pet.monster != &monsters[monster_index]) mend(pet.monster, amount);
                 return true;
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monsters[monster_index].type)];
@@ -769,15 +776,15 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // gone.
         if (missile_info.hit_func == 18) return false;
         if (missile_info.hit_func == 21) {
-            if (monsters[monster_index].cry.skill != skill->id || now_ms >= monsters[monster_index].cry.until)
-                put_state(*game_data, monsters[monster_index], monsters[monster_index].cry,
+            if (monsters[monster_index].curse.skill != skill->id || now_ms >= monsters[monster_index].curse.until)   // a curse state: put_state's curse slot
+                put_state(*game_data, monsters[monster_index],
                           { skill->id, missile.level, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, missile.level), 1)) * 40 }, now_ms);
             return false;
         }
         if (missile_info.hit_func == 17) {
             const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
             if (auto& howled = monsters[monster_index]; howled.stats.level < clvl + skill->par[1] + missile.level && howled.alive() && swaps_ai(*game_data, howled)) {
-                put_state(*game_data, howled, howled.curse, { kTerror, 1, now_ms + std::uint32_t(std::max(skill->par[4] + (std::max(missile.level, 1) - 1) * skill->par[5], 1)) * 40 }, now_ms);
+                put_state(*game_data, howled, { kTerror, 1, now_ms + std::uint32_t(std::max(skill->par[4] + (std::max(missile.level, 1) - 1) * skill->par[5], 1)) * 40 }, now_ms);
                 ai_toggle(*game_data, howled, 11);
                 howled.next_act = now_ms + 40;
             }
@@ -1058,7 +1065,7 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (sub)
                     for (int k = 0; k < 64; k += std::max(missile_info.hit_par1, 1)) {
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
-                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y));
+                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y)).to = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_005abb00: flag 2
                     }
                 break;
             case 48: if (sub) sub_at(missile.x, missile.y, missile.target_x - missile.x, missile.target_y - missile.y); break;
@@ -1148,14 +1155,21 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
                                                    .elo = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, false, 0, true),
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, skill, env, lvl) };
-        const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        const auto radius = std::int64_t(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        if (radius <= 0) return;
+        // FUN_0056b7e0 compares squared integer-subtile distance (FUN_006492a0).
+        const auto subtile = [](float cells) { return std::int64_t(std::floor(cells * 5)); };
+        const auto origin_x = subtile(x), origin_y = subtile(y);
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
-        for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach && aura_takes(skill, monsters[i], x, y)) {
+        for (std::size_t i = 0; i < monsters.size(); ++i) {
+            const auto& unit = monsters[i].unit;
+            const auto offset_x = subtile(unit.x) - origin_x, offset_y = subtile(unit.y) - origin_y;
+            if (offset_x * offset_x + offset_y * offset_y <= radius * radius && aura_takes(skill, monsters[i], x, y)) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
+        }
     }
 
 auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const -> bool {
@@ -1193,7 +1207,10 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
         // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
         // Armor's skill_armor_percent): their aurastats as the aura's.
-        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry, &monsters[monster_index].self_state })
+        std::vector<const Monster::SkillState*> effects{ &monsters[monster_index].curse };
+        for (const auto& held : monsters[monster_index].states) effects.push_back(&held);
+        effects.push_back(&monsters[monster_index].self_state);   // after the cries, as before: its % on their flat armor
+        for (const auto* effect : effects)
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).

@@ -25,7 +25,11 @@ its EDX, run after the path is set.
 - No target unit and target = start: target + (1, 1). Over 99 subtiles
   off on an axis: no missile.
 - The unit (FUN_00555230, type 3) stands at the start subtile; mode =
-  CollideType. Range + LevRange × lvl frames (+0x10 of the missile data,
+  CollideType. Its seed (+0x20) is {a game seed step, 666} (FUN_00552df0 ->
+  FUN_00650e40, after the range checks above): every server missile steps
+  the game seed once, so later drops roll on. Hit function 7's heal draw
+  (FUN_005a9fb0, 0x5aa0a6) is on that seed. d2d: `Missile::seed`, given at
+  the frame's first `Fight::missile_tick` (the Cairn Stones' where made). Range + LevRange × lvl frames (+0x10 of the missile data,
   a short) and Range − Activate (+8).
 - Path: type 4 with flag 0x40000 (FUN_00649760 → FUN_006492f0): one point,
   the target; position (16.16) the start subtile's centre; unit vector
@@ -210,6 +214,12 @@ and coldunique aim their 64 at
 circle of 30 rounded to whole subtiles, so the angles step 3.9, 5.9, 6.1 ...
 degrees, not 5.625. Frozen Orb's burst (FUN_005abb00: 0x6e2738 / 0x6e2638)
 and spin (0x6e2b78 / 0x6e2a78) hold the same rows. d2d: `rules::kNovaRing`.
+Each call is FUN_0059fa30 with flag 2 (target = start subtile + [7] / [8]),
+so every missile has its own target point; d2d gives it one with
+`offset_target` (`test_ring_targets`). Without one, `missile_fly` aims at
+the start plus (1, 1) and the whole ring flies off down-screen together.
+The player's own Nova, Frost Nova and war cries (`Fight::fire`) still do:
+their fix is #583.
 PrimePoisonNova (do 99, FUN_005ccd10) has its own 16 (0x6e31e8 / 0x6e31a8,
 `rules::kPoisonNova`): the even 8 at Param1 << 6, then every calc2th from
 the second at Param2 << 6. Re-check: `cd tools/emu && uv run python -c
@@ -392,8 +402,15 @@ firewall, immolationfire, meteorfire, the vampires' two), dParam1 19.
 
 d2d: the burner on a foe (`missiles_update`: `Foe::soft_hits`, the blow's
 `landed` off) and on a monster (`Fight::burn`'s `soft`: `Monster::got_hit`,
-`soft_hit`); `test_burn_fraction`. Rolled on d2d's rng: its missiles keep no
-seed.
+`soft_hit`); `test_burn_fraction`. The draw is on the missile's own seed
+(`Missile::seed`, `test_missile_seed`): the step above, kept pass or fail,
+the fight's rng no part of it. The caller is the missile (second operand),
+not a monster. Its first value is `{step, 666}` of the game seed
+(FUN_00555230 -> FUN_00552df0, a missile too: its type is not 0):
+`Fight::missile_tick` gives it from `spawning.game`; a missile it has not
+seeded (a bare or client-made one) takes one step of the fight's rng for it
+(`soft_hit`). Oracle:
+`tools/emu/missmode.py` case `5ad220`.
 
 ## Server damage function 10 — FUN_005ad2b0
 

@@ -126,8 +126,13 @@ The environment lookup was hooked; no d2d parity claim is made.
   0 (LAB_004757a7). Then the frame rate, 0x7a04a8, the frames of the last 3 s over 3
   (`FUN_0044cce0`): 9 or less 0, 10 to 12 gives 1, 13 to 15 keeps a level of 1 or more
   (LAB_004757ba) or gives 1, more keeps the option's. A change waits 2000 ms from the
-  last (LAB_004757da). Read from the code, no oracle. d2d has the row (`gamemenu.cpp`), which
-  changes nothing here, and no drop by frame rate.
+  last (LAB_004757da). The count is the game loop's (`FUN_0044efa0`: a frame drawn adds one
+  to 0x7a04ac; a game's start sets 0x7a04a8 to 25). Medium and High differ only in 0x72a348,
+  which this reads only under Low. Read from the code, no oracle. d2d: `rules::LightQuality`,
+  fed by Town::draw with the row and the frames it draws (test_light).
+- **At quality 0** (`FUN_004748d0`'s head, after a radius outside 1..255 returns): another
+  player's type 0 light (owner +4 not the player's unit) of 16 eighths or more is 16, every
+  type 1 light 8, type 3 not stamped (`rules::light_radius8`).
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
@@ -156,8 +161,15 @@ and the day's:
   setfunc 2 (`FUN_004d87e0`, from the state's table at 0x72a690), which only
   `cloak_of_shadows` (state 153) has: in 5, hold 3/5 of the skill's auralen,
   back 2/5, so level 1's 200 frames are about 5 s black then 3 s back. And
-  event 1 in level 4 (0x46aee0, sent by `FUN_00593710` as the Cairn Stones
-  open): in 40, hold 220, back 40, from missile `cairnstones` (288).
+  event 1 in level 4 (`LAB_0046aee0`, sent by `FUN_00593710` as the Cairn
+  Stones open): the current client player (`FUN_00463de0`) and its room
+  (`FUN_00620bb0`) must exist. `FUN_0065a620(room, 2, 0x11)` walks the room's
+  near list for StoneAlpha; none ends the handler. Its x and y from
+  `FUN_0045adf0` / `FUN_0045ae20` go to `FUN_004cdb40` as client missile
+  request 0x120, flags 1. Then the dip is in 40, hold 220, back 40, from
+  missile `cairnstones` (288). `tools/emu/cairn_event.py` runs this entry and
+  those boundaries for real; `test_cairn_client_event` freezes its six
+  gate, position, row and lifetime cases against `rules::cairn_client_event`.
 - **The dip, frame by frame** (`FUN_0046ad10`, from `FUN_0046beb0` while
   0x7a742c is set): the fill with no event (`FUN_00474550` flag 0: the
   level's light, else the day's) times the cosine (the table at 0x707800)
@@ -189,7 +201,7 @@ sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
 `rules::cairn_dip` from Missiles.txt's row: a player in Stony Field with a
 StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
 0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's
-S->C 0x89 event 1 starts it the same way (0x46aee0: the client player's room,
+S->C 0x89 event 1 starts it the same way (`LAB_0046aee0`: the client player's room,
 that test, then `FUN_0046ae50(Param1, Range - 2 x Param1, Param1, 4, 1)`;
 `Town`'s net step). A joined game's state 153 starts one too: S->C 0xa8 and
 0xaa run each state's setfunc as it's read (`FUN_004d9e60`), and
@@ -382,16 +394,20 @@ from the code, no oracle.
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
   after every floor; players', NPCs'
   and monsters' composites cast shadows after the floor pass
-  (`shadow_composite`), each pixel once however many layers cover it.
+  (`shadow_composite`), each shadow layer on its own as `FUN_00471620`
+  draws them (`FUN_004db090`: the COF layer record's shadow byte; per layer
+  `FUN_004f6540` -> `FUN_00608d60`, `*dst = T0[*dst][0]`), so two layers
+  over one pixel darken it twice.
 
 - Walls shadow the player's and objects' lights (`stamp_shadowed`, as
   `FUN_00474d70`: the rings, the blend toward the light, 16 behind a
   blocked subtile); monsters' and missiles' lights (type 1) aren't.
-  Light Quality is taken as high.
+  At quality 1 or 0 the player's light is a plain stamp too (Light Quality above).
 - Light types from their callers of `FUN_00474160`: the player
   (0x460cf0) and a monster's light-radius stat (0x4ae2ee,
-  `FUN_004ae210`: a hireling with a light-radius item) type 0; missiles
-  (0x470555) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
+  `FUN_004ae210`: a hireling with a light-radius item) type 0; overlays
+  (0x470555 in `FUN_00470390`: Overlay.txt InitRadius +0x70, Radius +0x74,
+  Red / Green / Blue +0x7d..+0x7f), a client missile (0x4f3630) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
   (0x4bc5bc, `FUN_004bc580`) and 0x4d6f85 type 2 (cached shadows,
   `FUN_004750f0`). `FUN_004d6d40`'s 0x4d6f85 wasn't followed; 0x4accef, 0x4acd2c (type 0) and
   0x4f3630 (type 1) are three more callers, not followed.

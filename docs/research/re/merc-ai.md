@@ -144,6 +144,52 @@ a merc whose level a kill raises (`FUN_0057e860`) has its new level-up
 life, its items' max life left out, and one above that loses the rest
 (d2d `Fight::merc_share`; `tools/emu/merc_levelup.py`).
 
+## Its life regeneration
+
+The level-up (`FUN_00572840`; its callers: the save's merc `FUN_00533c70`,
+`FUN_0056aa50`, `FUN_00573270` and the experience `FUN_0057e860`) also sets
+stat 0x4a to the base stat 7 it has just set, in 256ths, / 2000, 0 at least
+(0x572ac2..0x572af2): its level-up life, not its items'. A Rogue at level 1
+(40 life) gets 5 256ths a frame. A merc is unit type 1, so its unit event 3
+is a monster's (`FUN_005417d0` files it in list 1, `FUN_005a7f80` runs
+table 0x6e2490[3]): `FUN_005a6920` (combat.md "Regeneration"). Once a
+frame it takes the total stat 0x4a (`FUN_00625480`: with its items'
+Replenish Life, stat 74), files itself for the next frame; a total of 0
+removes it; a negative total under one point of life does nothing in a
+town room or with no room (`FUN_00620bb0`, `FUN_0061ab00`); else life
+(stat 6) += it: over the max life (`FUN_00625d10`) the max, and the event
+removed; under 1 it's 0 and, out of mode 0 / 12, the kill (`FUN_0057ccb0`).
+Nothing files the event when the merc is made. The damage path does when a
+hurt leaves a monster-type unit alive with a total stat 0x4a (`FUN_0057c6c0`,
+0x57c8fd..0x57c92f), a poison does (`FUN_0057ac50`), and so does a healing
+potion's state on a non-player (`FUN_005be3f0`, 0x5be62b..0x5be659): so the
+merc regenerates from a hurt, poison or potion until it's full again. A
+poison's −rate is stat 0x4a in state 2's own list, on top of this, and a
+healing potion's rate is stat 0x4a in its own state's list (0x5be559),
+filing the event only when that list is new (0x5be5e2).
+`tools/emu/merc_regen.py` runs `FUN_00572840` and `FUN_005a6920` against
+`test_merc_regen --merc-regen`, from a filed event.
+
+d2d: `rules::merc_life_regen`, the merc's `stats.regen` (set while the event
+is filed) by `Fight::hurt_side` on a hurt or a poison and by
+`Fight::merc_drinks` on a healing potion (again at a level-up,
+`merc_level_stats`), added with its items' Replenish Life once a frame by
+`Fight::apply_regen`, which ends it as `FUN_005a6920` does.
+ponytail: the event's frame isn't kept: a hurt re-files it for the next
+frame, so each frame with a hurt may cost game.exe one add (by the order of
+the event and the damage in a frame, not traced), and the first comes the
+frame after the first hurt; d2d adds in every frame from the hurt's own.
+The merc's poison and healing potion stay their own rates
+(merc_poison_rate, merc_heal_rate), not parts of stat 0x4a; d2d files on
+every timed drink. A state of the States group at datatables +0x14c (`FUN_0063a750`,
+which states not traced) takes the level-up's part off, and state 0x34
+holds back a gain and ends the event: neither is modelled. Burning
+(`FUN_0057add0`, state 0x73, 0x57ae28) files it too, and d2d's merc takes no
+burning; the barrel's and a shrine's damage (World) don't start it;
+`FUN_005beac0` (rejuvenation) files it only for a timed potion, and
+Misc.txt's rvs / rvl have no length; the filers at 0x54d11f, 0x534b02 and
+0x54fba7 aren't read (the 0x55xxxx / 0x56xxxx ones look like item timers).
+
 ## Its gear
 
 The save's "jf" list (after the corpse list): a hired merc's "JM" item list,

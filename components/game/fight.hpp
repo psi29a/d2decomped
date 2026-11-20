@@ -15,6 +15,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shadows.hpp>
@@ -268,16 +269,19 @@ struct Fight {
         // skill's auratargetstate for auralen frames, at least 5, with its
         // aurastats): the finger mage's fingermagecurse (0x54).
         std::array<Curse, 2> marks{};
-        // A one-shot overlay a monster's skill put on the player (Cry Help's
-        // srvoverlay, FUN_00621e40: an Overlay.txt row), from flash_at; the
-        // merc's and pets' are their Monster::flash_overlay.
-        int flash_overlay = -1;
-        std::uint32_t flash_at = 0;
+        // The player's one-shot overlays: its casts' and a monster's skill's
+        // (Cry Help's srvoverlay, FUN_00621e40); the merc's and pets' are
+        // their Monster::one_shots.
+        d2d::rules::OneShots one_shots;
         std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
         // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, kept
         // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
         // the last skill's do plus its delay.
         std::uint32_t burning = 0, skill_delay = 0;
+        // The client's own state-inferno list (LAB_004e3060: FUN_006251f0 flags 2, +0x18 timeout 0x15 frames, on the
+        // unit), counted down a frame at a time (FUN_00627460 from FUN_00480810) and set to 7 by each later start;
+        // the frame it runs out (0 none). It clears the state as it goes (LAB_004e3050).
+        std::uint32_t inferno_list = 0;
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
         // It stops nothing; a hit while it runs is a get-hit (FUN_0057cee0), unless one is already running (FUN_0057edd0).
         std::uint32_t stunned = 0;
@@ -387,7 +391,7 @@ struct Fight {
         // A skill that moves the player (Whirlwind, Charge, Leap Attack):
         // toward (tx, ty) at `speed` cells/s while `on`; `fly` ignores walls
         // (a leap); whirl_next is Whirlwind's next hit time (FUN_005d9320).
-        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; };
+        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; std::vector<std::pair<float, float>> route; };   // route: Whirlwind's points, cells
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
@@ -425,10 +429,11 @@ struct Fight {
         int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
         // Stat 0x148 (FUN_0059f940's seed for a merc's Pierce missiles): FUN_00597e20 adds 1 as
         // it sends a client the merc's turn to NU (mode 1), so 1 for each player it's near.
-        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y (merc_joins).
-        // ponytail: only the merc's own owner's give is kept (another player coming near
-        // isn't one), and whether the give's own NU send (FUN_00571cd0's queue) adds 1 isn't traced.
+        // Giving a client the unit (FUN_00571f90) sets it to its subtile x + y: the owner's
+        // at merc_joins, another player's as it comes near (merc_turn, `merc_given`). The
+        // give's queue replay (FUN_00571cd0) sends no mode, so it adds nothing.
         std::uint32_t merc_pierce_idx = 0;
+        std::vector<int> merc_given;          // the heroes (Hero::id) whose clients have it now
         // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
         // its MonStats Sk*mode), and the sequence frames already past.
         const std::vector<GameData::MonSeqFrame>* merc_seq = nullptr;
@@ -557,6 +562,10 @@ struct Fight {
     void new_game(int difficulty);
     // The save's merc joins: its fighting stats at its experience.
     void merc_joins();
+    // A player coming near the merc: its client is given it (FUN_00571f90),
+    // SetStat(0x148, (x + y) & 0xffff); one gone off forgets it (merc_given).
+    void merc_gives();
+    [[nodiscard]] bool merc_near(const Hero& hero) const;   // within the 30-cell window a client is sent it in
     // The merc's stats and skill levels for its experience (FUN_00572840).
     void merc_level_stats();
     // Back in camp after dying: full life, mana and stamina, no potions or poison working.
@@ -595,8 +604,8 @@ struct Fight {
     // its chance) and weapon, get-hit, death, each after its delay in ticks.
     void monster_sounds(Monster& monster, std::uint32_t now_ms);
     // A skill start's cast overlay (FUN_004c6140, rules::cast_overlay_starts) on its caster's
-    // one-shot, `shown` from `shown_at`: the player's, a monster's, the merc's or a pet's.
-    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, int& shown, std::uint32_t& shown_at, std::uint32_t now_ms) const;
+    // one-shots `shown`: the player's, a monster's, the merc's or a pet's.
+    void start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, d2d::rules::OneShots& shown, std::uint32_t now_ms) const;
     // What the character wears (the save's appearance, else the class's starting gear).
     [[nodiscard]] const GameData::Appearance& gfx() const;
     [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const;
@@ -684,15 +693,14 @@ struct Fight {
     void start_sequence(std::uint32_t now_ms);
     [[nodiscard]] std::span<const d2d::rules::SeqFrame> skill_sequence() const;   // the swing skill's frames for the weapon, none for a plain mode
     // The movement a moving skill starts with (its srvstfunc):
-    // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
-    // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
+    // Whirlwind (FUN_005d8f50) at the class's walk velocity (FUN_0056e5b0:
+    // CharStats +0x40) along a type 7 path to the point found with mask
+    // 0xc01 (FUN_00648ce0: walls, no units) and walked with 0x401 to its
+    // last point, its sequence over and over; no path, no whirl (FUN_00571b70);
     // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
     // percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
-    // Burst of Speed, Holy Freeze's slow, ...); Leap Attack (FUN_005da540)
-    // waits for its takeoff event.
-    // ponytail: a chill's slow and the run bonus (FUN_00620e80) aren't in
-    // Charge's velocitypercent; Whirlwind's path is a straight line
-    // (FUN_0064ea90's pathing isn't traced).
+    // FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
+    // slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
     void start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Where the frames stand: the frame index (looping or held on the
     // last) and how many event-1 frames have passed since the start.
@@ -759,9 +767,10 @@ struct Fight {
     // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
-    // sentry'): its max life x calc1..calc2 %, half fire and half physical,
-    // on everything within half the skill's aurarange of it.
-    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, std::uint32_t now_ms);
+    // sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
+    // physical, on what its aurafilter takes within half the aurarange.
+    // `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
+    void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms);
     // Skills that act where they're cast, with no missile of their own:
     // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
     // monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
@@ -769,8 +778,7 @@ struct Fight {
     // and stun within aurarange of the point), Static Field (20,
     // FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
     // aurarange of the caster, as lightning), Corpse Explosion (55,
-    // FUN_005c4df0: a corpse's max life x calc1..calc2 %, half fire and half
-    // physical, within half its aurarange), Poison Explosion (63,
+    // FUN_005c4df0: corpse_blast), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
     // FUN_005ca360: to the point, where it's open; not in town).
     // Static Field's walk takes its aurafilter (0x8783) from the caster: a
@@ -778,8 +786,7 @@ struct Fight {
     // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
     // enemy player: FUN_0056b3e0 type 0), Mind Blast's
     // conversion (Param3 / 4 through FUN_005d7680) and the knockback
-    // guards aren't applied; Corpse Explosion takes its corpse's life from
-    // the MonStats roll, not FUN_006538a0's.
+    // guards aren't applied.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with
@@ -1286,7 +1293,7 @@ struct Fight {
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
-    int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);   // the pet's id
+    int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
@@ -1412,6 +1419,9 @@ struct Fight {
     [[nodiscard]] bool melee_reach_to(const Monster& target, bool blow) const;
     // The monsters around the player, in the crowd that blocks walkers.
     void crowd(Crowd& crowd_out);
+    // The same about (x, y): the monsters within 12 of it and every hero's pets on the level (FUN_0064d870's
+    // grid holds every unit's stamp, wherever the acting player stands).
+    void crowd_around(Crowd& crowd_out, float x, float y);
     // One frame of the fight outside town (`in_moor`: in the level whose
     // monsters these are), and the merc's turn (following, in town).
     void world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd);

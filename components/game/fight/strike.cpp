@@ -33,6 +33,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -365,15 +366,20 @@ auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         actor->whirl_next = 0;
         const auto cls = std::size_t(std::max(actor->character.character_class, 0));
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
-            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(game_data->walk_velocity[cls])), true, false };
+            UnitState walker = actor->player;
+            walker.shape.mask = 0xc01;
+            auto route = player_walk(*level, actor->player.x, actor->player.y, actor->move_x, actor->move_y, false, Crowd{}, &walker, nullptr);
+            const auto end = route.empty() ? std::pair{ float(actor->player.x), float(actor->player.y) } : route.back();
+            actor->smove = { end.first, end.second, cells_per_sec(float(game_data->walk_velocity[cls])), true, false, std::move(route) };
             actor->seq_loop = true;
             actor->pmode_until = ~0u;
             actor->whirl_next = now_ms;
         } else if (skill.srvdofunc == ServerDoFunction::kCharge) {
-            // FUN_005cf6b0 (0x5cf833..0x5cf864): MulDiv(RunVelocity << 8, max(stat 0x43, 50) + Param1, 100);
-            // a player's stat 0x43 is 100 + its velocitypercent bonuses.
-            const int velocity = std::max(100 + actor->player_combat.velocity_pct, 50);
-            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(game_data->run_velocity[cls])) * float(velocity + skill.par[0]) / 100.f, true, false };
+            // FUN_005cf6b0 (0x5cf833..0x5cf864): the 8.8 MulDiv after
+            // FUN_00620e80's run bonus and the chill state's -50.
+            const int velocity = d2d::rules::charge_velocity(game_data->walk_velocity[cls], game_data->run_velocity[cls], actor->player_combat.velocity_pct,
+                                                             now_ms < actor->chilled, skill.par[0]);
+            actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(velocity) / 256.f), true, false };
             actor->seq_loop = true;                                 // the run starts over until it reaches (FUN_005cf900)
             actor->pmode_until = ~0u;
         }
@@ -725,7 +731,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             auto& turned = monsters[target];
             if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)
-                && put_state(*game_data, turned, turned.cry, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms)) {
+                && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms)) {
                 turned.align = 2; turned.set_kind = 0; turned.chase = -1;
                 if (const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel)); turned.stats.level > clvl && turned.own_level == 0) {
                     turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
@@ -776,19 +782,31 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         launch(found->second, skill, lvl, x, y, next_target.unit.x - x, next_target.unit.y - y, found->second.range, now_ms).hops = calc(skill, skill.calc[1], lvl);
     }
 
-auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, std::uint32_t now_ms) -> void {
+auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms) -> void {
         auto& corpse = monsters[corpse_index];
         corpse.corpse_used = true;
-        const int low = calc(skill, skill.calc[0], lvl), high = std::max(calc(skill, skill.calc[1], lvl), low);
-        const int dmg = int(std::int64_t(corpse.stats.hit_points) * rng.range(low, high) / 100);
-        const int radius = std::max(calc(skill, skill.aurarange, lvl) / 2, 1);
-        for (std::size_t j = 0; j < monsters.size(); ++j)
-            if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - corpse.unit.x, monsters[j].unit.y - corpse.unit.y) * 5 <= float(radius)) {
-                const auto target = target_of(j);
-                d2d::rules::Blow blow{ .hit = true };
-                blow.damage = d2d::rules::resisted(dmg / 2, target.res[0]) + d2d::rules::resisted(dmg - dmg / 2, target.res[2]);
-                land(j, blow, true, now_ms, player_foe_id());
-            }
+        const int life_fine = d2d::rules::corpse_life_fine(game_data->monsters, corpse.type, corpse.difficulty, corpse.stats.level);
+        int fine = d2d::rules::corpse_blast_fine(life_fine, calc(skill, skill.calc[0], lvl), calc(skill, skill.calc[1], lvl), corpse.seed, corpse.stats.level, caster_level);
+        // calc3 % of it to the skill's EType (fire in 1.14d's rows), the rest physical; the walk's radius and the
+        // physical's reach (rules::corpse_blast_split, corpse_blast_reach).
+        int element_fine = 0;
+        std::tie(fine, element_fine) = d2d::rules::corpse_blast_split(fine, calc(skill, skill.calc[2], lvl), skill.etype == 0);
+        const auto [walk, phys_reach] = d2d::rules::corpse_blast_reach(calc(skill, skill.aurarange, lvl));
+        const int corpse_x = int(std::floor(corpse.unit.x * 5)), corpse_y = int(std::floor(corpse.unit.y * 5));
+        for (std::size_t j = 0; j < monsters.size(); ++j) {
+            if (j == corpse_index || !monsters[j].targetable()) continue;
+            const int off_x = int(std::floor(monsters[j].unit.x * 5)) - corpse_x, off_y = int(std::floor(monsters[j].unit.y * 5)) - corpse_y;
+            const int apart = off_x * off_x + off_y * off_y;
+            if (apart > walk * walk || !filter_takes(skill.aura_filter, monsters[j], corpse.unit.x, corpse.unit.y)) continue;
+            const auto target = target_of(j);
+            const int got = (apart <= phys_reach * phys_reach ? d2d::rules::resisted_fine(fine, target.res[0]) : 0)
+                            + d2d::rules::resisted_fine(element_fine, target.res[2] < 100 ? std::max(target.res[2] - fire_pierce, -100) : target.res[2]);
+            d2d::rules::Blow blow{ .hit = true };
+            blow.damage = got >> 8;
+            blow.frac = got & 255;
+            blow.elemental = element_fine > 0;
+            land(j, blow, true, now_ms, player_foe_id());
+        }
     }
 
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
@@ -859,7 +877,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                         launch(found->second, skill, lvl, corpse.unit.x, corpse.unit.y, 0, 0, found->second.range, now_ms);
                     break;
                 }
-                corpse_blast(skill, lvl, std::size_t(corpse_index), now_ms);
+                corpse_blast(skill, lvl, std::size_t(corpse_index), int(actor->character.stats.get(d2d::d2s::kLevel)), pierce()[0], now_ms);
                 break;
             }
             case ServerDoFunction::kTeleport: case ServerDoFunction::kLeap: case ServerDoFunction::kDragonFlight: {
@@ -912,7 +930,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // Teleport (do 27, FUN_005ca360 -> FUN_00554ea0 -> FUN_00463740): only a point in the caster's room or its near list.
                 if (teleporting) {
                     const int sub_x = level->world_x * 5 + int(std::floor(target_x * 5)), sub_y = level->world_y * 5 + int(std::floor(target_y * 5));
-                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y);
+                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y, &spawning);
                     if (!std::ranges::any_of(rects, [&](const std::array<int, 4>& rect) {
                             return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; })) break;
                     // Then the nearest free spot to it (FUN_0064e7b0), the point itself when it is free.
@@ -969,7 +987,6 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                                      || (skill.srvdofunc == ServerDoFunction::kCurse && (skill.auratarget == "dimvision" || skill.auratarget == "terror"))))
                     length /= divisor;
                 const std::uint32_t until = now_ms + std::uint32_t(std::max(length, 25)) * 40;
-                const bool curse = skill.srvdofunc == ServerDoFunction::kCurse || skill.srvdofunc == ServerDoFunction::kConfuse || skill.srvdofunc == ServerDoFunction::kAttract;
                 const auto set = [&](Monster& monster, int kind, int id) {
                     if (game_data->monsters.types[std::size_t(monster.type)].switch_ai) monster.set_kind = kind, monster.set_id = id, monster.set_until = until;
                 };
@@ -979,7 +996,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     // Confuse (FUN_005c3d50): evil, hostile, alive, and FUN_0056e2f0's test.
                     if (skill.srvdofunc == ServerDoFunction::kConfuse && (monster.align || !monster.alive() || !swaps_ai(*game_data, monster))) return;
                     if (special && (monster.align == 1 || !swaps_ai(*game_data, monster))) return;
-                    if (!put_state(*game_data, monster, curse ? monster.curse : monster.cry, { skill.id, lvl, until, special != 0 }, now_ms)) return;
+                    if (!put_state(*game_data, monster, { skill.id, lvl, until, special != 0 }, now_ms)) return;
                     if (special) ai_toggle(*game_data, monster, special);
                     if (skill.srvdofunc == ServerDoFunction::kConfuse) { monster.align = 1; set(monster, 3, 0); }
                 };
@@ -1117,12 +1134,19 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         if (skill && skill->srvdofunc == ServerDoFunction::kCharge && actor->attack_mon >= 0) {
             actor->smove.target_x = monsters[std::size_t(actor->attack_mon)].unit.x; actor->smove.target_y = monsters[std::size_t(actor->attack_mon)].unit.y;
         }
-        const float dx = actor->smove.target_x - actor->player.x, dy = actor->smove.target_y - actor->player.y, distance = std::hypot(dx, dy);
         const bool whirl = skill && skill->srvdofunc == ServerDoFunction::kWhirlwind;
+        if (whirl) {                                                    // on to its route's next point
+            auto& route = actor->smove.route;
+            while (!route.empty() && std::hypot(route.front().first - actor->player.x, route.front().second - actor->player.y) < 0.05f) route.erase(route.begin());
+            if (!route.empty()) std::tie(actor->smove.target_x, actor->smove.target_y) = route.front();
+        }
+        const float dx = actor->smove.target_x - actor->player.x, dy = actor->smove.target_y - actor->player.y, distance = std::hypot(dx, dy);
         if (distance < 0.05f || (!whirl && !actor->smove.fly && distance <= kMeleeReach)) { if (whirl) actor->pmode_until = now_ms; return; }
         actor->player.dir = direction16(dx, dy);
         const float step = std::min(actor->smove.speed * elapsed, distance), next_x = actor->player.x + dx / distance * step, next_y = actor->player.y + dy / distance * step;
-        if (!actor->smove.fly && level->unit_blocked(next_x, next_y)) { if (whirl) actor->pmode_until = now_ms; return; }
+        auto walk_shape = actor->player.shape;
+        if (whirl) walk_shape.mask = 0x401;                             // FUN_00648ce0(path, 0x401) once the path is made
+        if (!actor->smove.fly && (whirl ? level->unit_blocked(next_x, next_y, walk_shape) : level->unit_blocked(next_x, next_y))) { if (whirl) actor->pmode_until = now_ms; return; }
         actor->player.x = next_x; actor->player.y = next_y;
     }
 

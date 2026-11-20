@@ -84,7 +84,7 @@ int main() try {
     assert(actor->player.dir == direction16(3, 0));
     click(3.f, false);                                             // out of reach, no shift: walks up to it
     assert(actor->attack_mon == 0 && actor->player.walking && actor->pmode < 0);
-    click(1.f, true);                                              // in reach, shift: at the monster
+    click(0.4f, true);                                             // in reach (FUN_00622c40: 2 subtiles), shift: at the monster
     assert(actor->attack_mon == 0 && actor->pmode == kModeA1);
     // Bash with shift out of reach while a walk goes on, to an item and an NPC queued: the walk stops and
     // both go (FUN_00461700(0) is a skill at the spot, in their place); Bash itself at a spot isn't

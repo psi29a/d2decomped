@@ -322,6 +322,22 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
     }
 
 auto World::make_corpse(std::uint32_t now_ms) -> void {
+        // With 16 corpses already (rules::death_makes_corpse) there is no new
+        // one: FUN_0057f540 takes the item in hand, then each body slot's
+        // item in slot order, onto the ground at the nearest free spot
+        // (FUN_00555da0, FUN_00558aa0). No item event: that is the corpse's
+        // (FUN_00543d80). The purse is already empty (death_penalty).
+        if (!d2d::rules::death_makes_corpse(int(actor->corpses.size()))) {
+            loot.enter(level);
+            if (actor->held) { loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms); actor->held.reset(); }
+            std::vector<d2d::d2s::Item> worn;
+            for (auto item_it = actor->character.items.begin(); item_it != actor->character.items.end();)
+                if (item_it->location == d2d::d2s::item_location::kEquipped) { worn.push_back(std::move(*item_it)); item_it = actor->character.items.erase(item_it); }
+                else ++item_it;
+            std::ranges::stable_sort(worn, {}, &d2d::d2s::Item::slot);
+            for (auto& item : worn) loot.place(std::move(item), actor->player.x, actor->player.y, now_ms);
+            return;
+        }
         Corpse corpse{ level, actor->player.x, actor->player.y, actor->player.dir, {}, actor->exp_lost * 75 / 100, fight.gfx() };
         for (auto item_it = actor->character.items.begin(); item_it != actor->character.items.end();)
             if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = actor->character.items.erase(item_it); }
@@ -337,7 +353,6 @@ auto World::make_corpse(std::uint32_t now_ms) -> void {
         }
         // Each item put on it raises event 4 with the corpse as its player (0x57f9c3).
         for (const auto& item : corpse.items) item_event(item.code, now_ms, true);
-        if (actor->corpses.size() >= 16) actor->corpses.erase(actor->corpses.begin());
         actor->corpses.push_back(std::move(corpse));
     }
 

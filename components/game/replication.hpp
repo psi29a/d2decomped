@@ -20,8 +20,10 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
+#include <overlays.hpp>
 #include <uniques.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -129,6 +131,9 @@ inline void monster_look(Out& out, const Monster& monster) {
     for (const int mod : monster.mods) out.u8(mod);
     npc(out, monster.npc);
     out.i32(monster.anim_pct).i32(monster.aura_rate).i32(monster.props.ias).i32(monster.props.fcr);
+    // Its resists' sources (Monster::target): the hover bar's immunity lines (rules::immunity_lines).
+    out.u8(monster.difficulty);
+    for (const int resist : monster.boss_res) out.i32(resist);
 }
 inline void monster_look(In& input, Monster& monster) {
     monster.type = input.get<std::int32_t>(); monster.stats.hit_points = input.get<std::int32_t>(); monster.stats.level = input.get<std::int32_t>();
@@ -140,26 +145,49 @@ inline void monster_look(In& input, Monster& monster) {
     monster.aura_rate = input.get<std::int32_t>();
     monster.props.ias = input.get<std::int32_t>();
     monster.props.fcr = input.get<std::int32_t>();
+    monster.difficulty = std::clamp(int(input.get<std::uint8_t>()), 0, 2);
+    for (auto& resist : monster.boss_res) resist = input.get<std::int32_t>();
+}
+// One-shot overlays (rules::OneShots): a count, then {row, start} each.
+inline void one_shots(Out& out, const d2d::rules::OneShots& list) {
+    const auto count = std::min<std::size_t>(list.size(), 255);
+    out.u8(int(count));
+    for (std::size_t k = 0; k < count; ++k) out.i32(list[k].row).u32(list[k].start);
+}
+inline d2d::rules::OneShots one_shots(In& input) {
+    d2d::rules::OneShots list(input.get<std::uint8_t>());
+    for (auto& shot : list) { shot.row = input.get<std::int32_t>(); shot.start = input.get<std::uint32_t>(); }
+    return list;
 }
 inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
     unit(out, monster.unit);
     // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
-    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
-    out.u8(monster.align);   // a converted one: no hover, no pick (Monster::ally_not_interact)
+    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until);
+    out.u8(int(std::min<std::size_t>(monster.states.size(), 255)));
+    for (std::size_t k = 0; k < std::min<std::size_t>(monster.states.size(), 255); ++k) out.i32(monster.states[k].skill).u32(monster.states[k].until);
+    out.i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
+    for (const int cut : monster.res_cut) out.i32(cut);   // the hover's immunity lines (Fight::target_of)
+    out.u8(monster.align).u8(monster.rising);   // a converted one: no hover, no pick (Monster::ally_not_interact); a Horde in its rise's S1: not targetable
+    one_shots(out, monster.one_shots);   // its one-shot overlays (its thinks', its casts')
 }
 inline void monster_state(In& input, Monster& monster) {
     monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
     monster.unit = unit(input);
     monster.poison_until = input.get<std::uint32_t>(); monster.chill_until = input.get<std::uint32_t>(); monster.stun_until = input.get<std::uint32_t>();
     monster.curse.skill = input.get<std::int32_t>(); monster.curse.until = input.get<std::uint32_t>();
-    monster.cry.skill = input.get<std::int32_t>(); monster.cry.until = input.get<std::uint32_t>(); monster.aura = input.get<std::int32_t>();
+    monster.states.resize(input.get<std::uint8_t>());
+    for (auto& held : monster.states) { held.skill = input.get<std::int32_t>(); held.until = input.get<std::uint32_t>(); }
+    monster.aura = input.get<std::int32_t>();
     monster.in_aura = input.get<std::uint8_t>() != 0;
     monster.buried = input.get<std::uint8_t>() != 0;
     monster.aloft = input.get<std::uint8_t>() != 0;
     monster.riding = input.get<std::uint8_t>() != 0;
     monster.seq_mode = intern(input.str()); monster.seq_frame = input.get<std::int32_t>();
+    for (auto& cut : monster.res_cut) cut = input.get<std::int32_t>();
     monster.align = input.get<std::uint8_t>();
+    monster.rising = input.get<std::uint8_t>() != 0;
+    monster.one_shots = one_shots(input);
 }
 }  // namespace wire
 
@@ -177,13 +205,15 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::Out chunk;
         wire::unit(chunk, view.player);
         chunk.u8(view.running).u8(view.dead).u8(view.poisoned).u8(view.chilled).u8(view.stamina_blue).u8(view.stamina_shrine).i32(view.life_preview).i32(view.mana_preview).i32(view.curse).u8(view.stunned).i32(view.pmode).f32(view.prate).i32(view.walk_percent).u32(view.seq_frame_ms).u8(view.seq_loop);
+        wire::one_shots(chunk, view.one_shots);   // its one-shot overlays (its casts': FUN_004c6140)
+        chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (town/draw.cpp, FUN_00463390)
         chunk.u16(int(view.seq.size()));
         for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
         for (const auto look_byte : view.gfx) chunk.u8(look_byte);
         std::string merc_type;
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
-        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); }
+        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); wire::one_shots(chunk, view.merc->one_shots); }
         chunk.u8(view.merc_sheet.has_value());             // the Hireling screen's numbers
         if (const auto& sheet = view.merc_sheet) {
             chunk.i32(sheet->level).i32(sheet->str).i32(sheet->dex).i32(sheet->min).i32(sheet->max).i32(sheet->defense).i32(sheet->life).i32(sheet->max_life).i32(sheet->cls);
@@ -217,7 +247,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::Out chunk;
         for (const auto* pets : { &view.pets, &view.party_pets }) {
             chunk.u16(int(pets->size()));
-            for (const auto& pet : *pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life); }
+            for (const auto& pet : *pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life); wire::one_shots(chunk, pet.one_shots); }
         }
         chunk.u16(int(view.others.size()));
         for (const auto& other : view.others) {
@@ -226,7 +256,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
             for (const auto look_byte : other.gfx) chunk.u8(look_byte);
             chunk.u16(int(other.states.size()));
             for (const auto state : other.states) chunk.str(state);
-            chunk.u8(other.ghost).i32(other.walk_percent);
+            chunk.u8(other.ghost).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
         }
         chunk.u8(view.ghost).u8(view.all_dead).u16(int(view.bodies.size()));
         for (const auto& body : view.bodies) {
@@ -362,10 +392,11 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (std::holds_alternative<ev::Reassigned>(event)) out.u8(5);
         else if (std::holds_alternative<ev::Lightning>(event)) out.u8(6);
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
-        else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
+        else if (const auto* refused = std::get_if<ev::TradeResult>(&event)) out.u8(8).u8(int(refused->result)).i32(refused->npc);
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
-        else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->done ? 1 : 0);
+        else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->kind);
         else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
+        else if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { out.u8(12); for (const int stone : stones->order) out.u8(stone); }
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -400,6 +431,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
     body([&] {
         view.player = wire::unit(input);
         view.running = byte(); view.dead = byte(); view.poisoned = byte(); view.chilled = byte(); view.stamina_blue = byte(); view.stamina_shrine = byte(); view.life_preview = i32(); view.mana_preview = i32(); view.curse = i32(); view.stunned = byte(); view.pmode = i32(); view.prate = f32(); view.walk_percent = i32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
+        view.one_shots = wire::one_shots(input);
+        view.pmode_until = u32(); view.knocked = byte() != 0; view.fhr = i32();
         view.seq.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {
             const auto mode = std::uint8_t(byte()), frame = std::uint8_t(byte()), event = std::uint8_t(byte());
@@ -412,7 +445,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
             const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (town/view.cpp)
-            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr };
+            auto shots = wire::one_shots(input);
+            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, std::move(shots) };
         }
         view.merc_sheet.reset();
         if (byte()) {
@@ -454,7 +488,9 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
                 const auto unit = wire::unit(input);
                 const auto mode = wire::intern(input.str());
                 const auto pettype = wire::intern(input.str());
-                pets->push_back({ std::move(npc), unit, mode, pettype, input.get<std::uint8_t>() });
+                const int life = input.get<std::uint8_t>();
+                auto shots = wire::one_shots(input);
+                pets->push_back({ std::move(npc), unit, mode, pettype, life, std::move(shots) });
             }
         }
         view.others.clear();
@@ -465,6 +501,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             for (auto& look_byte : other.gfx) look_byte = std::uint8_t(byte());
             for (int states = u16(); states > 0 && input.ok; --states) other.states.push_back(wire::intern(input.str()));
             other.ghost = byte() != 0; other.walk_percent = i32();
+            other.one_shots = wire::one_shots(input);
             view.others.push_back(std::move(other));
         }
         view.ghost = byte() != 0; view.all_dead = byte() != 0;
@@ -613,14 +650,18 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             view.events.push_back(ev::QuestQuake{ d2d::rules::QuestQuake::Kind(kind) });
         } else if (kind_byte == 8) {
             const auto result = d2d::rules::Trade(byte());
-            if (result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
-            view.events.push_back(ev::TradeRefused{ result });
+            if (result != d2d::rules::Trade::hireling && result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
+            view.events.push_back(ev::TradeResult{ result, i32() });
         } else if (kind_byte == 9) {
             const int fade_in = i32(), hold = i32(), back = i32();
             view.events.push_back(ev::AmbientDip{ fade_in, hold, back, i32() });
         } else if (kind_byte == 10) {
             const int npc = i32();
-            view.events.push_back(ev::ServiceResult{ npc, byte() != 0 });
+            view.events.push_back(ev::ServiceResult{ npc, byte() });
+        } else if (kind_byte == 12) {
+            ev::StoneOrder stones;
+            for (auto& stone : stones.order) stone = byte();
+            view.events.push_back(stones);
         } else if (kind_byte == 11) {
             const auto kind = byte();
             if (kind > ev::Message::slain) return false;

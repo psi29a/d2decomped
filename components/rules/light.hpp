@@ -120,6 +120,51 @@ constexpr int border_room_light(int level_id, int level_light, int day_light, in
     return day_light;
 }
 
+// Light Quality (FUN_00475780, each frame from FUN_00475800). `option`: the
+// Video Options row, 0 Low (0x72da50 set, 0x72a348 clear: always 0), 1 Medium
+// and 2 High (0x72da50 clear: both start at 2; LAB_0047cfcf / cfc1 / cfb1).
+// Then the frame rate, the frames drawn over the last 3 s over 3 (0x7a04a8,
+// FUN_0044cce0 from the game loop FUN_0044efa0, 25 as a game starts): 9 or
+// less 0, 10..12 1, 13..15 keeps a level of 1 or more, else 1, more keeps 2.
+// A change waits until 2000 ms after the last (0x7b5678, GetTickCount: the
+// first is never held here).
+struct LightQuality {
+    int level = 0;                         // 0x7b567c
+    std::uint32_t changed_ms = 0;          // 0x7b5678
+    bool changed = false;
+    int fps = 25, frames = 0;              // 0x7a04a8, 0x7a04ac
+    std::uint32_t since_ms = 0;            // 0x7a04b8
+    bool counting = false;
+    // A frame drawn at `now_ms`: the quality to light it with.
+    int frame(int option, std::uint32_t now_ms) {
+        if (!counting) { counting = true; since_ms = now_ms; }
+        if (now_ms - since_ms > 3000) { fps = frames / 3; since_ms = now_ms; frames = 0; }
+        ++frames;
+        int wanted = option > 0 ? 2 : 0;
+        if (option > 0) {
+            if (fps <= 9) wanted = 0;
+            else if (fps <= 12) wanted = 1;
+            else if (fps <= 15) { if (level >= 1) return level; wanted = 1; }
+        }
+        if (wanted != level) {
+            if (changed && now_ms - changed_ms <= 2000) return level;
+            changed = true; changed_ms = now_ms; level = wanted;
+        }
+        return wanted;
+    }
+};
+
+// A light's radius in eighths at quality 0 (FUN_004748d0's head): another
+// player's (type 0, not the player's own unit) over 15 is 16, a type 1 one
+// (monsters', missiles') 8, a type 3 one 0 (not stamped). Other qualities
+// and types keep it.
+[[nodiscard]] inline int light_radius8(int quality, int type, bool own, int radius8) {
+    if (quality != 0 || radius8 <= 0) return radius8;              // 0: not stamped at all (radius - 1 over 0xfe)
+    if (type == 0 && !own && radius8 > 15) return 16;
+    if (type == 1) return 8;
+    return type == 3 ? 0 : radius8;
+}
+
 // One near room, in act tiles, and the light its subtiles take.
 struct BorderRoom { int x = 0, y = 0, width = 0, height = 0, light = 0; };
 

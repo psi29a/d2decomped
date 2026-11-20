@@ -706,6 +706,10 @@ inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
 
 // A broken item (item flag 0x100, set by FUN_0055f850): its stats and
 // defense are off until a repair (FUN_0055f900) clears it.
+// Item flag 0x200, "repaired": FUN_0055f900 sets it as it clears 0x100. Nothing
+// in game.exe's rules reads it back (the one reader, FUN_0053d440's caller in
+// InvMode.cpp, tells a client); the item's save writer keeps it (FUN_006312b0).
+inline constexpr std::uint32_t kItemRepaired = 0x200;
 inline bool broken(const d2d::d2s::Item& item) { return (item.flags & 0x100) != 0; }
 inline void wield_enters(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item);
 // A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
@@ -872,10 +876,13 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
 
 // Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
 // restocking stack back to its max, durability to its max, charges full.
+// A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off; its
+// hand-skill pass (FUN_0055c5c0) is World::hand_skills, run by the repair.
 inline bool mend(const Tables& tables, d2d::d2s::Item& item) {
     if (!repairable(tables, item)) return false;
     if (restocks(tables, item)) item.quantity = stack_most(tables, item);   // FUN_006295b0
     item.durability = max_durability(item);
+    if (broken(item)) item.flags |= kItemRepaired;   // FUN_0055f900
     item.flags &= ~0x100u;
     recharge(item);
     return true;
@@ -908,6 +915,11 @@ inline int repair_all_cost(const Tables& tables, const Store& store, const std::
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return std::int32_t(std::uint32_t(cost));
 }
+// Whether a death makes a corpse (FUN_0057f700): the live corpse count
+// (FUN_0063d5f0) against 0xf, unsigned (jbe at 0x57f730). Over 15,
+// FUN_0057f540 drops the gear instead and there is no corpse.
+// tools/emu/corpse_cap.py.
+constexpr bool death_makes_corpse(int corpses) { return unsigned(corpses) <= 15; }
 // Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
 // them oldest first, one with items scores 1 + each non-gold item's repair
 // cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at
@@ -960,7 +972,7 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
 // done, or the client's box (FUN_004b53f0: 9 string 0xd21 "I cannot complete
 // that request.", 10 string 0xd1c "You do not have enough free space to do
 // that.", 12 string 0xd22 "You do not have enough gold for that.").
-enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
+enum class Trade : std::uint8_t { done = 0, hireling = 5, refused = 9, no_room = 10, no_gold = 12 };   // S->C 0x2a's result (5: a merc back)
 inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, int boxes);
 inline bool stacks_with(const d2d::d2s::Item& one, const d2d::d2s::Item& other);
 // The vendor's perm items (FUN_00576ed0): its PermStoreItems, and in an
@@ -1823,8 +1835,8 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
 // ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
 // -max levels past req). Codes match whatever their case.
-// ponytail: without `on` (affixes) damage is one-hand, charges full and
-// 11 / 19 off ilvl 1.
+// Without `on` (no item: set bonuses, a monster's gear) damage is one-hand,
+// charges full and 11 / 19 off ilvl 1.
 struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
 inline std::string lower_case(std::string_view text) {
     std::string out(text);
@@ -2028,19 +2040,20 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // seed's first low % the most + 1, the most = gemsockets / MaxSock by
 // ilvl / 3, 4, 6 by difficulty) and the AutoMagic class affix (FUN_005c1560
 // off the base's auto prefix group).
+// `special_wanted`: a unique / set row + 1 that wins with no draw when it
+// fits (struct +0x40: FUN_005566b0, FUN_005c25c0).
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
-// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules and
-// forced picks (struct +0x40) aren't here; without a unit seed everything
+// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules aren't here; without a unit seed everything
 // comes off `rng` (stores, gambling, imbue) and none of the above is
 // rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
 // and dmg%'s +1 max damage on a weak weapon only reach its props.
 inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                                     Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                                    int difficulty = 0) {
+                                    int difficulty = 0, int special_wanted = 0) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
-    item.ilvl = std::clamp(ilvl, 1, 99);
+    item.ilvl = std::max(ilvl, 1);                         // FUN_00628220: at least 1, no cap (Uber Diablo's are 110)
     const auto* info = info_of(tables, item);
     const auto found = tables.item_base.find(code);
     const int qlvl = found != tables.item_base.end() ? found->second.level : 1;
@@ -2201,6 +2214,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         int total = 0, pick = -1;
         for (const auto& row : list) if (fits(row)) total += std::max(1, row.rarity);
         if (total == 0) return -1;
+        // The forced row (struct +0x40, row + 1: a TC's unique / set entry) when it fits, no draw.
+        if (special_wanted > 0 && std::size_t(special_wanted - 1) < list.size() && fits(list[std::size_t(special_wanted - 1)])) return special_wanted - 1;
         int roll = rng(total);
         for (std::size_t i = 0; i < list.size() && pick < 0; ++i) {
             if (!fits(list[i])) continue;
@@ -2256,7 +2271,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng, magic_lvl != 0);
         if (affix_row <= 0) return 0;
         groups.push_back(list[std::size_t(affix_row)].group);
-        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng);
+        const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };   // FUN_0065fec0 with the item, as a unique's
+        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng, base ? &target : nullptr);
         return affix_row;
     };
     if (quality == 6) {
@@ -2762,17 +2778,18 @@ inline int merc_resurrect_cost(int merc_level) {
 inline constexpr std::array kMercNpcs = { 150, 198, 252, 367, 515 };   // hcIdx: Kashya, Greiz, Asheara, Tyrael (act 4), Qual-Kehk
 
 // Resurrects the save's dead merc at a hire NPC (FUN_00579c00): pays as
-// FUN_00576d90 (carried gold, then the stash). False with no dead merc or
-// not enough gold.
-inline bool resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
+// FUN_00576d90 (carried gold, then the stash). Its S->C 0x2a result: 5
+// (hireling) back, 9 (refused) with no dead merc, 0xc (no_gold) short.
+inline Trade resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;
     const int cost = merc_resurrect_cost(merc_level);
-    if (!header.merc_seed || !header.merc_dead || stats.get(kGold) + stats.get(kGoldBank) < cost) return false;
+    if (!header.merc_seed || !header.merc_dead) return Trade::refused;
+    if (stats.get(kGold) + stats.get(kGoldBank) < cost) return Trade::no_gold;
     const auto from_inv = std::min<std::int64_t>(stats.get(kGold), cost);
     stats.values[kGold] -= from_inv;
     stats.values[kGoldBank] -= cost - from_inv;
     header.merc_dead = false;
-    return true;
+    return Trade::hireling;
 }
 
 // Drinks the potion at the bottom of belt column `col` (box col, 0..3):
