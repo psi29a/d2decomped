@@ -33,7 +33,7 @@ struct GlyphShape {
 inline GlyphShape glyph_shape(Glyph glyph) {
     using P = GlyphPoint;
     GlyphShape shape;
-    const auto line = [&](P from, P to) { shape.strokes.push_back({ from, to }); };
+    const auto line = [&](P from, P destination) { shape.strokes.push_back({ from, destination }); };
     switch (glyph) {
     case Glyph::Inventory:
         // Handled bag: folded top, sides, base, and clasp.
