@@ -252,6 +252,12 @@ The same bar for everyone, people and agents alike.
 - Code: C++ in `components/<name>` (engine and rules) and `apps/` (d2d, the
   launcher), with tests in `tests/`. No one- or two-letter names (clang-tidy
   checks). A known gap gets a `// ponytail:` note saying what's missing.
+- **Headers stay lean.** An edit to a header recompiles every file that
+  includes it; an edit to a .cpp, that file. A declaration's comment says
+  in a line or two what a caller needs; the research behind it (addresses,
+  tables, why) and its `// ponytail:` note go above the definition in the
+  .cpp. A function's body goes in the .cpp too, unless it is constexpr, a
+  template or one line.
 - **No counts by hand** in docs (notes left, rows open): name the command
   that prints them. A count from a tool's run keeps that run's date.
 - Research notes go in `docs/research/re/<subsystem>.md`: addresses,
