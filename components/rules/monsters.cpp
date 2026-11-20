@@ -634,4 +634,41 @@ Think other_think(std::string_view ai_name, const ThinkIn& input) {
     return { MonAct::untraced };
 }
 
+// The AI driver's first step (FUN_005b10e0 -> FUN_005b0ff0), on the unit
+// its AI control names at +0xc / +0x10. FUN_005dd330 sets them: a unique's
+// minions their leader (FUN_005a0c00, 0x5a0cb9), a revived monster its owner
+// (FUN_005c55c0, 0x5c561b), item_reanimate's (FUN_005c07a0, 0x5c08ca) and
+// Taunt's (FUN_005d8570) their player. None (+0xc -1):
+// nothing. The monster without a WL mode (FUN_0046c140(row, 2)), the leader
+// not found (FUN_00552f60) or dead or dying (FUN_005541b0): +0xc cleared, so
+// never again. Within 1 (FUN_005dc380) of a player (+0x10 0): a back-off of
+// 0x13 from it (FUN_005defe0); that failing, the walk below. Over 0x14: the
+// path set (FUN_005de190(7, 0, 0x28)) and a walk to a spot 0x13 about it
+// (FUN_005df530). Either way the step acted and the search and think wait.
+LeaderStep leader_follow(int leader_id, int leader_type, bool can_walk, bool found, bool dying, int gap, bool backed) {
+    LeaderStep step;
+    if (leader_id == -1) return step;
+    if (!can_walk || !found || dying) { step.cleared = true; return step; }
+    if (gap <= 1 && leader_type == 0) {
+        step.back = true;
+        step.acted = true;
+        step.walk = !backed;
+        return step;
+    }
+    if (gap > 0x14) step.acted = step.path = step.walk = true;
+    return step;
+}
+
+// FUN_005df530 (0x5df5b9..0x5df634): a draw's low bit picks the axis that
+// gets the whole reach, the other rand(reach) (FUN_0045c3e0); a draw each
+// for the x and y signs.
+std::pair<int, int> spot_about(Rng& seed, int x, int y, int reach) {
+    int off_x = 0, off_y = 0;
+    if ((seed.next() & 1) == 0) { off_x = seed(reach); off_y = reach; }
+    else { off_x = reach; off_y = seed(reach); }
+    if (seed.next() & 1) off_x = -off_x;
+    if (seed.next() & 1) off_y = -off_y;
+    return { x + off_x, y + off_y };
+}
+
 }

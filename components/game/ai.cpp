@@ -1009,6 +1009,30 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (FUN_00648eb0: what its last path's steps met, on_door), its door
     // (OpenDoor) operated, it stands 5.
     if (type_info.open_doors && on_door(level, unit, type_info.velocity != 0) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    // Then FUN_005b0ff0: a unique's minion (its AI control's +0xc the leader, FUN_005a0c00 -> FUN_005dd330)
+    // over 0x14 from its leader (FUN_005dc380, its own size off) walks to a spot 0x13 about it (FUN_005df530 on
+    // its seed) on path type 7 with 0x28 steps (FUN_005de190(7, 0, 0x28)), before any search or think; the
+    // leader gone or dead, or itself without WL, and it never does again.
+    // ponytail: d2d's leader is its group's spawn index, which a pack grown since (births, trap risers) can
+    // shift: a leader that isn't a boss is taken as not known, not as gone; a minion without one (the act 4
+    // seal bosses', act 3's Blade fetishes: leader -1) doesn't follow. FUN_005dd330's other units (a revived
+    // monster's owner, item_reanimate's FUN_005c07a0, Taunt's taunter) aren't monsters with that leader here.
+    if (monster.boss == d2d::rules::Boss::minion && !monster.leader_lost && monster.leader >= 0 && std::size_t(monster.leader) < pack.size()
+        && &pack[std::size_t(monster.leader)] != &monster && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::none
+        && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::minion) {
+        const auto& lead = pack[std::size_t(monster.leader)];
+        const int lead_x = subtile(lead.unit.x), lead_y = subtile(lead.unit.y), own_x = subtile(unit.x), own_y = subtile(unit.y);
+        const int gap = d2d::rules::near_distance(lead_x - own_x, lead_y - own_y, type_info.size);
+        const auto step = d2d::rules::leader_follow(0, 1, type_info.can_walk, true, !lead.alive(), gap, false);
+        if (step.cleared) monster.leader_lost = true;
+        if (step.walk) {
+            const auto [spot_x, spot_y] = d2d::rules::spot_about(monster.seed, lead_x, lead_y, 0x13);
+            unit.goal_x = (float(spot_x) + 0.5f) / 5; unit.goal_y = (float(spot_y) + 0.5f) / 5;
+            monster.next_path_type = 7;
+            ctx.set_off(false, nullptr, false, 0x28);
+        }
+        if (step.acted) return true;
+    }
     // ReanimatedHorde's think (FUN_005e1540) first puts the unit flags 0xe back
     // (|= 0xe at 0x5e156c), whatever it then does: its rise (Monster::rising) is over.
     if (type_info.ai_name == "ReanimatedHorde") monster.rising = false;
