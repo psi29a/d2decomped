@@ -138,9 +138,10 @@ EOF
 
 ## Testing Sentry crash reporting
 
-For an intentional end-to-end crash test, start d2d with crash reporting
-enabled, set `SENTRY_DSN` to the project's DSN, and explicitly enable the
-crash-test command:
+For an intentional end-to-end crash test, build with crash reports
+(`cmake -DD2D_SENTRY=ON`: a development build leaves them out), start d2d
+with crash reporting enabled, set `SENTRY_DSN` to the project's DSN, and
+explicitly enable the crash-test command:
 
 ```
 SENTRY_DSN='https://<public-key>@<sentry-host>/<project-id>' \

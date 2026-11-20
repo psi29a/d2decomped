@@ -118,6 +118,10 @@ option(D2D_FLATPAK "Install apps using Flatpak's runtime and filesystem layout" 
 # d2d and nothing else: no launcher, d2proxy, Sentry, tools or tests. The
 # builds for D2Vita (Win32 Game.exe, PS Vita) are this; docs/d2vita.md.
 option(D2D_GAME_ONLY "Build d2d alone, without crash reports" OFF)
+# Crash reports (Sentry Native and its Crashpad handler) are for a tagged
+# release: CI turns this on for tags. A development build leaves them out,
+# and with them a few hundred objects in the build and in ccache.
+option(D2D_SENTRY "Build crash reports (Sentry Native, Crashpad): release builds" OFF)
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)

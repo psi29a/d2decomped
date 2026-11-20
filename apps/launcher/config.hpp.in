@@ -6,6 +6,6 @@ namespace d2 {
 inline constexpr auto kAppVersion   = "@D2D_VERSION@";
 inline constexpr auto kUpdateApiUrl = "@D2LAUNCHER_UPDATE_URL@";
 inline constexpr auto kPatchUrl     = "@D2_PATCH_URL@";
-inline constexpr auto kSentryDsn    = "@D2D_SENTRY_DSN@";
+inline constexpr auto kSentryDsn    = "@d2d_sentry_dsn@";
 
 }  // namespace d2

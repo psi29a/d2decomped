@@ -67,7 +67,9 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#ifdef D2D_WITH_SENTRY
 #include <condition_variable>
+#endif
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
@@ -84,7 +86,9 @@
 #include <ios>
 #include <iterator>
 #include <map>
+#ifdef D2D_WITH_SENTRY
 #include <mutex>
+#endif
 #include <optional>
 #include <random>
 #include <span>

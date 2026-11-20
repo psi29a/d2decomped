@@ -17,6 +17,12 @@ set(D2_PATCH_URL "" CACHE STRING
 set(D2D_SENTRY_DSN
     "https://f1260fbca28bc7dbe3d72401699586dc@o4512265415098368.ingest.de.sentry.io/4512265453240400"
     CACHE STRING "Public Sentry client DSN")
+# The launcher offers crash reports only when d2d is built with them (an empty
+# DSN greys the box out): a release, or the Flatpak's prebuilt Sentry.
+set(d2d_sentry_dsn "")
+if(D2D_SENTRY OR D2D_SENTRY_PREFIX)
+    set(d2d_sentry_dsn "${D2D_SENTRY_DSN}")
+endif()
 
 configure_file(config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/config.hpp @ONLY)
 

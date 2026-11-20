@@ -50,7 +50,7 @@ if(D2D_FLATPAK)
     configure_file("${PROJECT_SOURCE_DIR}/assets/flatpak/metainfo.xml.in" "${_flatpak_metainfo}" @ONLY)
 
     install(TARGETS d2d-launcher d2d RUNTIME DESTINATION bin)
-    if(NOT D2D_SENTRY_PREFIX)   # a prebuilt Sentry put its handler in bin itself
+    if(TARGET crashpad_handler)   # a prebuilt Sentry put its handler in bin itself
         install(TARGETS crashpad_handler RUNTIME DESTINATION bin)
     endif()
     install(FILES "${_flatpak_desktop}" DESTINATION share/applications)
@@ -81,7 +81,10 @@ foreach(tool mpq-cat drlg-dump)
         list(APPEND tools ${tool})
     endif()
 endforeach()
-set(beside_d2d d2d crashpad_handler ${tools})
+set(beside_d2d d2d ${tools})
+if(TARGET crashpad_handler)   # a release build's crash reports
+    list(INSERT beside_d2d 1 crashpad_handler)
+endif()
 install(TARGETS d2d-launcher BUNDLE DESTINATION . RUNTIME DESTINATION .)
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" DESTINATION .)
 

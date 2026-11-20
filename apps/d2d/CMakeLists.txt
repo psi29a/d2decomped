@@ -6,12 +6,13 @@ find_package(SDL3 CONFIG REQUIRED)
 find_package(OpenAL REQUIRED)
 
 # Crash reports: Sentry Native with its Crashpad handler, built here from
-# source, or (the Flatpak) prebuilt as its own module, which flatpak-builder
-# then caches between builds; that module installs the licenses itself.
+# source (-DD2D_SENTRY=ON: a release), or (the Flatpak) prebuilt as its own
+# module, which flatpak-builder then caches between builds; that module
+# installs the licenses itself.
 set(D2D_SENTRY_PREFIX "" CACHE PATH
     "Use the static crashpad Sentry Native installed here instead of building it (Flatpak)")
-if(D2D_GAME_ONLY)
-    # d2d alone: no Sentry, so no crashpad_handler beside it.
+if(D2D_GAME_ONLY OR NOT (D2D_SENTRY OR D2D_SENTRY_PREFIX))
+    # d2d alone, or a development build: no Sentry, so no crashpad_handler beside it.
 elseif(D2D_SENTRY_PREFIX)
     if(NOT D2D_FLATPAK)
         message(FATAL_ERROR "D2D_SENTRY_PREFIX is for the Flatpak: the packages ship crashpad_handler from this build")
@@ -345,7 +346,7 @@ target_link_libraries(d2d PRIVATE
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
 target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
-if(NOT D2D_GAME_ONLY)
+if(TARGET sentry)
     target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
     target_link_libraries(d2d PRIVATE sentry)
 endif()

@@ -269,7 +269,9 @@ jobs:
       # over days, so two runs get two images and miss each other's cache.
       # ponytail: an image whose system headers are newer than the cache
       # rebuilds Sentry every run; delete the sentry-* cache if that shows.
+      # Only a tag builds crash reports (-DD2D_SENTRY=ON), so only a tag needs it.
       - name: Sentry cache key
+        if: startsWith(github.ref, 'refs/tags/')
         id: sentry-key
         shell: bash
         run: |
@@ -286,6 +288,7 @@ jobs:
           echo "key=${key:0:16}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Sentry (all platforms)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/cache@v4
         with:
           path: |
@@ -306,6 +309,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }} \
             "${EXTRA_ARGS[@]}"
 
       - name: Configure (Windows)
@@ -333,6 +337,7 @@ jobs:
             -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
             -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
             -DD2D_CHECK_HEADERS=OFF `
+            -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }} `
             "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
             "-DSDL3_DIR=$sdl\cmake" `
             "-DOPENAL_INCLUDE_DIR=$al_include" `
@@ -546,7 +551,8 @@ jobs:
       # A cache miss leaves an ffmpeg_build target: build it for its headers.
       - name: Configure and generate
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          # With crash reports, as a release builds: their code is checked too (configured, not compiled).
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DD2D_SENTRY=ON
           targets=(d2d-launcher_autogen)
           if ninja -C build -t targets all | grep -q '^ffmpeg_build:'; then targets+=(ffmpeg_build); fi
           cmake --build build --target "${targets[@]}"
