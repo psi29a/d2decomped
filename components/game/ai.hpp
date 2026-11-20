@@ -84,6 +84,7 @@ struct UnitState {
     // unit at the head as it's made or comes into a room, so each room's list
     // runs by room_stamp, highest first (Fight::restamp; rules::room_order).
     int room_seen = -2;
+    const Level* room_level = nullptr;        // the level room_seen is a room of: crossing to another restamps
     std::uint32_t room_stamp = 0;
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made

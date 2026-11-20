@@ -386,8 +386,9 @@ auto Fight::restamp() -> void {
         if (!level) return;
         const auto seen = [&](UnitState& unit) {
             const int room = room_of(*level, unit.x, unit.y);
-            if (room == unit.room_seen) return;
+            if (room == unit.room_seen && unit.room_level == level) return;   // the same room of the same level
             unit.room_seen = room;
+            unit.room_level = level;
             unit.room_stamp = ++room_stamps;
         };
         for (Hero* hero : heroes) {

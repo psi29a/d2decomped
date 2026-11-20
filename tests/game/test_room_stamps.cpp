@@ -4,7 +4,8 @@
 // FUN_0064c2c0 puts a unit at its head as it's made or comes into the room.
 // Fight::restamp gives a unit seen in a new room the next stamp, and
 // rules::room_order lists each room by stamp, highest first (the index on a
-// tie, newest first). No game data: the rooms are built here.
+// tie, newest first). A unit that crosses to another level is stamped anew
+// there, whatever room index it lands in. No game data: the rooms are built here.
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
@@ -57,6 +58,17 @@ int main() try {
     fight.monsters[0].unit.x = 9.5f;
     fight.restamp();
     assert(fight.monsters[0].unit.room_stamp == stamp);
+    // The player crosses to another level and lands in a room of the same index: a new room, a new
+    // stamp (UnitState::room_level), not the old level's kept.
+    auto& hero = *world.actor;
+    hero.player.x = 2; hero.player.y = 2;
+    fight.restamp();
+    const auto here = hero.player.room_stamp;
+    Level next = field;
+    world.level = &next;
+    fight.monsters.clear();
+    fight.restamp();
+    assert(hero.player.room_stamp > here && hero.player.room_level == &next);
     std::puts("OK: each room's units newest first by when they came in (FUN_0064c2c0)");
     return 0;
 } catch (const std::exception& error) {
