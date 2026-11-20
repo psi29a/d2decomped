@@ -670,14 +670,24 @@ auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> v
         d2d::log::info("The Horadric Staff: placed in the orifice");
     }
 
-// Rooms laid again (relevel) stamp every door as its preset left it; the
-// doors used since go back to their mode's footprint.
+// Rooms laid again (relevel) stamp every door and object as its preset left
+// it; the doors and the shrines / chests used since go back to their mode's
+// footprint.
 // Only after a relevel of this level (Level::lays moved on).
 auto World::reopen_doors() -> void {
         if (std::exchange(doors_laid, std::pair{ level, level->lays }) == std::pair{ level, level->lays }) return;
         for (const auto& [key, door] : doors)
             if (key.first == level && std::size_t(key.second) < level->npcs.size())
                 set_footprint(*level, level->npcs[std::size_t(key.second)], level->npcs[std::size_t(key.second)].collision >> door.mode & 1);
+        // The used shrines and chests (World::operated) too: relevel stamps
+        // the preset mode's footprint, and tick_level re-stamps one only when
+        // its mode changes, so one already OP / ON is put back here.
+        for (const auto& [key, when_ms] : operated) {
+            const auto npc_index = std::size_t(key.second);
+            if (key.first != level || npc_index >= level->npcs.size() || npc_index >= npc_states.size() || npc_states[npc_index].mode.empty()) continue;
+            const auto& npc = level->npcs[npc_index];
+            set_footprint(*level, npc, npc.collision >> mode_index(npc_states[npc_index].mode) & 1);
+        }
     }
 
 auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void {

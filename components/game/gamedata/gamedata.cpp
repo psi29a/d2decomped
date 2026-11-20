@@ -43,6 +43,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -553,6 +554,7 @@ std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameDat
             if (!std::ranges::contains(held, key)) held.push_back(key);
         }
     }
+    std::vector<const Level*> changed_levels;
     for (auto& [level, state] : spawning.levels) {
         if (!level || state.live.empty()) continue;
         bool changed = false;
@@ -562,7 +564,16 @@ std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameDat
                 changed = true;
             }
         }
-        if (changed) relevel(const_cast<Level&>(*level), state.order, &game_data, &spawning);
+        if (changed) changed_levels.push_back(level);
+    }
+    // Lay each changed level once, after every retirement: a level's shared
+    // edge comes from its neighbours' current lay orders (camp_rooms), so it
+    // is laid again too when one of its nearby levels changed.
+    for (auto& [level, state] : spawning.levels) {
+        if (!level || state.live.empty()) continue;
+        const bool stale = std::ranges::contains(changed_levels, level) ||
+                           std::ranges::any_of(level->nearby, [&](const Level::Near& near_level) { return std::ranges::contains(changed_levels, near_level.level); });
+        if (stale) relevel(const_cast<Level&>(*level), state.order, &game_data, &spawning);
     }
     return released;
 }

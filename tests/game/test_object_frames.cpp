@@ -34,5 +34,19 @@ int main() {
     assert(object_frame_delta(object, 1) == second);      // a mode set consumes the next client-seed draw
     assert(object_frame_delta(object, 1) == second);
     assert(object_frame_delta(object, 0) == 240 + client_seed(32));
+
+    // A timing query (object_op_ticks) peeks: it neither changes the cached
+    // mode nor steps the seed, however often it is asked.
+    Npc timed = object;
+    timed.client_seeded = false;
+    timed.client_mode = -1;
+    const int peeked = object_frame_delta_peek(timed, 1);
+    assert(object_frame_delta_peek(timed, 1) == peeked);
+    assert(!timed.client_seeded && timed.client_mode == -1);
+    assert(object_frame_delta(timed, 1) == peeked);        // the draw that follows is the rate it peeked
+    assert(object_frame_delta_peek(timed, 1) == peeked);
+    const auto seed_after = timed.client_seed.low;
+    (void)object_frame_delta_peek(timed, 2);
+    assert(timed.client_mode == 1 && timed.client_seed.low == seed_after);
     return 0;
 }

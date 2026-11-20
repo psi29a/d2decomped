@@ -68,7 +68,7 @@ int object_op_ticks(const Npc& npc) {
     int client = -1;
     if (npc.frames[1] != 1) {
         const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
-        const int rate = object_frame_delta(npc, 1);
+        const int rate = object_frame_delta_peek(npc, 1);
         if (need <= 0) client = 0;
         else if (rate) client = (need + rate - 1) / rate;
     }
@@ -329,7 +329,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             std::vector<RoomPosition> room_positions;
             room_positions.reserve(players.size());
             for (const auto& player : players)
-                room_positions.push_back({ player->on_level, player->player.x, player->player.y });
+                room_positions.push_back({ level_of(*player), player->player.x, player->player.y });
             for ([[maybe_unused]] const auto frame_at : day_frames)
                 sweep_idle_rooms(*game_data, fight.spawning, room_positions);
         };

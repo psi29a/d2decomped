@@ -1235,6 +1235,17 @@ inline int object_frame_delta(const Npc& npc, std::size_t mode) {
     }
     return npc.client_frame_delta;
 }
+// The rate object_frame_delta(npc, mode) would give, without drawing: the
+// cached one while the unit is in that mode, else the roll its seed makes
+// next. A timing query (object_op_ticks) uses it so asking about a mode the
+// unit is not in neither changes the animation cache nor steps the seed.
+inline int object_frame_delta_peek(const Npc& npc, std::size_t mode) {
+    if (npc.sync) return npc.frame_delta[mode];
+    if (npc.client_seeded && npc.client_mode == int(mode)) return npc.client_frame_delta;
+    auto seed = npc.client_seeded ? npc.client_seed : d2d::rules::Rng{ std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5) };
+    const int delta = npc.frame_delta[mode];
+    return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
+}
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
 inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {

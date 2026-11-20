@@ -6,6 +6,7 @@
 #include <gamedata.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <vector>
 
 using namespace d2d::game;
