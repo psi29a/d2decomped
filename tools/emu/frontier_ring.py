@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Runs 47 of the functions in docs/research/re/frontier-ring.md in stock
+"""Runs 80 of the functions in docs/research/re/frontier-ring.md in stock
 game.exe and checks each against the reading written there.
 
     uv run python frontier_ring.py
@@ -16,6 +16,7 @@ Two findings the checks pin down:
   of the room's left edge and right of its right edge at once.
 - FUN_004c9d70 tests the same byte (+5 of the first record) on every pass
   of its loop, so it answers -1 or 7, never 0..6.
+- FUN_00573ae0 reads address 0 for a unit that isn't a monster with data.
 """
 import struct
 import sys
@@ -30,6 +31,10 @@ import emu
 # gaps-runs: 004c9d70 00501690 00534a50 0053ca90 0053dfb0 00552a40 00552db0 005530f0 00557f10
 # gaps-runs: 00573640 0059f840 0063e8d0 0064a4e0 0064a510 0064a540 0064a570 0064c260 0064fe10
 # gaps-runs: 006617b0 006c8a50
+# gaps-runs: 00407970 004091b0 0042e5d0 0044b220 0044bba0 00466dd0 004673c0 0046d750 00473ce0
+# gaps-runs: 0047f210 00481840 00488e10 0048a680 004aa8f0 004b8920 004f5270 004f5280 004f54f0
+# gaps-runs: 004f5990 00500b20 00514d00 0051a480 00573ae0 005a0380 00609020 0060aaf0 0060ac60
+# gaps-runs: 0060aee0 0060b200 0060b530 0060cd70 00661210 006b1b60
 
 TABLES_PTR = 0x744304           # PTR_DAT_00744304: the data tables block
 MONSTATS_ROWS, MONSTATS_COUNT, MONSTATS_SIZE = 0xA78, 0xA80, 0x1A8
@@ -411,11 +416,209 @@ def code_pad(machine):
         check(0x6617B0, repr(text), machine.read(out, 4), want)
 
 
+def second_globals(machine):
+    for address, global_address, value in ((0x44B220, 0x799308, 0x31), (0x481840, 0x7BC9CC, 0x32)):
+        machine.call(address, ecx=value)
+        check(address, f"ECX to {global_address:#x}", machine.r32(global_address), value)
+    machine.call(0x4F5990, 0x33)
+    check(0x4F5990, "stack arg to 0x7c933c", machine.r32(0x7C933C), 0x33)
+    for address, global_address in ((0x44BBA0, 0x7A0460), (0x466DD0, 0x711F94)):
+        machine.w32(global_address, 0x4455)
+        check(address, f"returns {global_address:#x}", machine.call(address), 0x4455)
+    for address, cleared in ((0x46D750, range(0x7A7470, 0x7A7490, 4)), (0x48A680, (0x7BCAF0,)), (0x4AA8F0, (0x7C0C3C,)), (0x4F5280, (0x72DA7C,))):
+        for item in cleared:
+            machine.w32(item, 0x99)
+        machine.call(address)
+        check(address, "clears", [machine.r32(item) for item in cleared], [0] * len(cleared))
+    machine.w32(0x7C0E78, 5)
+    machine.w32(0x7C0E68, 6)
+    w8(machine, 0x7C0E80, 0)
+    machine.call(0x4B8920)
+    check(0x4B8920, "trade reset", (machine.r32(0x7C0E78), machine.r32(0x7C0E68), r8(machine, 0x7C0E80)), (0, 0, 1))
+    machine.w32(0x72DA58, 0)
+    machine.call(0x4F5270)
+    check(0x4F5270, "DAT_0072da58 = 1 (-vsync)", machine.r32(0x72DA58), 1)
+    for before in (0, 1, 7):
+        machine.w32(0x72DA50, before)
+        machine.call(0x4F54F0)
+        check(0x4F54F0, f"toggle from {before} (-lq)", machine.r32(0x72DA50), int(before == 0))
+    for address in (0x473CE0, 0x51A480):
+        before = machine.read(0x700000, 0x100000)
+        machine.call(address)
+        check(address, "empty", machine.read(0x700000, 0x100000) == before, True)
+    try:
+        machine.call(0x407970)
+        faulted = False
+    except RuntimeError:
+        faulted = True
+    check(0x407970, "writes address 0 (-crash)", faulted, True)
+
+
+def small_math(machine):
+    for size in (0, 0x10, 0x11, 0x20, 0x21, 0x40, 0x41, 0x1000, 0x1001):
+        want = 0 if size <= 0x10 else (size - 1).bit_length() - 4
+        check(0x4091B0, f"size {size:#x}", signed(machine.call(0x4091B0, regs={"eax": size})), want)
+    words = machine.put(struct.pack("<4H", 0x1234, 0xABCD, 0x00FF, 0x8001))
+    machine.call(0x42E5D0, ecx=words, edx=3)
+    check(0x42E5D0, "swaps the bytes of 3 words", struct.unpack("<4H", machine.read(words, 8)), (0x3412, 0xCDAB, 0xFF00, 0x8001))
+    for value_a, value_b, value_c in ((1, 2, 3), (0x40, 0x7F, 0x10), (0xFF, 0x80, 0x01), (0, 0, 0)):
+        got = machine.call(0x60CD70, value_c, ecx=value_a, edx=value_b)
+        check(0x60CD70, f"({value_a}, {value_b}, {value_c})", got & 0xFF, (2 * value_a - value_c + value_b) & 0x7F)
+    for value in (0, 3, 9):
+        for index, address in enumerate((0x7BC9EE, 0x7BCA02, 0x7BCA16, 0x7BCA2A)):
+            w16(machine, address, (3, 9, 3, 1)[index])
+        machine.call(0x488E10, regs={"eax": value})
+        got = [machine.r32(address) for address in (0x7BC9E4, 0x7BC9F8, 0x7BCA0C, 0x7BCA20)]
+        check(0x488E10, f"value {value}", got, [int(word == value) for word in (3, 9, 3, 1)])
+
+
+def distance_and_minipanel(machine):
+    positions = {0x1000: (10, 20), 0x2000: (13, 16)}
+    machine.hook(0x620650, lambda emulator: positions[emulator.arg(0)][0], 1)
+    machine.hook(0x6206B0, lambda emulator: positions[emulator.arg(0)][1], 1)
+    check(0x4673C0, "squared distance (EAX, EBX)", machine.call(0x4673C0, regs={"eax": 0x1000, "ebx": 0x2000}), 9 + 16)
+    state = {}
+    machine.hook(0x468730, lambda emulator: state["x"], 0)
+    machine.hook(0x468740, lambda emulator: state["y"], 0)
+    machine.hook(0x4538D0, lambda emulator: state["open"], 0)
+    width, height = signed(machine.r32(0x71146C)), signed(machine.r32(0x711470))
+    for single in (0, 1):
+        machine.w32(0x7BC978, single)
+        left = width // 2 + (0x38 if single else 0x23)
+        right = left + (7 if single else 8) * 0x14
+        for x_pos in (left, left + 1, right - 1, right):
+            for y_pos in (height - 0x4C, height - 0x4B, height - 0x33, height - 0x32):
+                for panel_open in (0, 1):
+                    state.update(x=x_pos, y=y_pos, open=panel_open)
+                    want = int(bool(panel_open) and left < x_pos < right and height - 0x4C < y_pos < height - 0x32)
+                    check(0x47F210, f"single {single} ({x_pos},{y_pos}) open {panel_open}", machine.call(0x47F210), want)
+
+
+def controls_and_units(machine):
+    control = machine.alloc(0x80)
+    machine.w32(control, 6)
+    machine.call(0x500B20, ecx=control, edx=0x1234)
+    check(0x500B20, "+0x5c of a type 6 control", machine.r32(control + 0x5C), 0x1234)
+    record = machine.alloc(0x20)
+    machine.call(0x661210, record, 0x77)
+    check(0x661210, "+0xc", machine.r32(record + 0xC), 0x77)
+    for address, size in ((0x60AAF0, 0x10000), (0x60AEE0, 0x1000)):
+        block = machine.put(b"\xAA" * (size + 4))
+        machine.call(address, ecx=block)
+        check(address, f"zeroes {size:#x} bytes", (machine.read(block, size) == bytes(size), r8(machine, block + size)), (True, 0xAA))
+    monster = unit(machine, 1)
+    data = machine.alloc(0x40)
+    machine.w32(monster + 0x14, data)
+    for offset, want in ((None, 0), (4, 1), (0x13, 1), (0x14, 0), (3, 0)):
+        machine.mu.mem_write(data, bytes(0x40))
+        if offset is not None:
+            w8(machine, data + offset, 1)
+        check(0x573AE0, f"byte at data +{offset}", machine.call(0x573AE0, ecx=monster), want)
+    try:
+        machine.call(0x573AE0, ecx=unit(machine, 0))
+        faulted = False
+    except RuntimeError:
+        faulted = True
+    check(0x573AE0, "a player reads address 0", faulted, True)
+    for value, want in ((0, 0), (5, 1)):
+        machine.mu.mem_write(data, bytes(0x40))
+        w8(machine, data + 0x1C, value)
+        check(0x5A0380, f"data +0x1c = {value}", machine.call(0x5A0380, ecx=monster), want)
+    check(0x5A0380, "not a monster", machine.call(0x5A0380, ecx=unit(machine, 2)), 0)
+    fields = (0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
+    for globals_at, value in zip((0x74C028, 0x74C030, 0x74C034, 0x74C038, 0x74C03C, 0x74C040), fields):
+        machine.w32(globals_at, value)
+    for differ in (None, 0, 3):
+        record = machine.alloc(0x20)
+        for index, offset in enumerate((4, 0xC, 0x10, 0x14, 0x18, 0x1C)):
+            machine.w32(record + offset, fields[index] + (index == differ))
+        flags = machine.alloc(4)
+        machine.w32(flags, 1)
+        got = machine.call(0x6B1B60, record, flags)
+        check(0x6B1B60, f"field {differ} differs", (got, machine.r32(flags)), (1, 1 if differ is not None else 0x201))
+
+
+def registry_and_cache(machine):
+    written = []
+    machine.hook(0x4150E0, lambda emulator: written.append((emulator.cstr(emulator.arg(0)), emulator.cstr(emulator.arg(1)), emulator.arg(3))) or 1, 4)
+    got = machine.call(0x514D00, ecx=0x50)
+    check(0x514D00, "Music Volume", (got, machine.r32(0x8817B4), written[-1]), (0x50, 0x50, ("Diablo II", "Music Volume", 0x50)))
+    allocated = []
+
+    def allocate(emulator):
+        size = emulator.mu.reg_read(UC_X86_REG_EDX)
+        allocated.append((emulator.cstr(emulator.arg(0)), emulator.arg(1), size))
+        return emulator.put(b"\xCC" * size)
+    machine.hook(0x40B430, allocate, 3)
+    cache = machine.alloc(0x40)
+    machine.call(0x609020, 0x11, 0x22, 3, ecx=cache, edx=0x5000)
+    entries = machine.r32(cache + 0x10)
+    links = [(machine.r32(entries + 0x14 * index + 0xC), machine.r32(entries + 0x14 * index + 0x10)) for index in range(3)]
+    want_links = [(entries + 0x14, 0), (entries + 0x28, entries), (0, entries + 0x14)]
+    head = [machine.r32(cache + 4 * index) for index in (0, 1, 2, 5, 8, 9, 10)]
+    check(0x609020, "LRU entries", (allocated[-1], links), ((".\\SRC\\LRUCache.cpp", 0x30, 3 * 0x14), want_links))
+    check(0x609020, "LRU header", head, [0x5000, 0x11, 0, 3, entries, entries + 0x28, 0x22])
+
+
+def gfx_hash_and_bits(machine):
+    first = {}
+    machine.hook(0x60AB80, lambda emulator: first["value"], 1)
+    machine.hook(0x413CE0, lambda emulator: 0x1234, 3)
+    out = machine.alloc(4)
+    record = machine.alloc(0x40)
+
+    def fold(value):
+        return ((value >> 8 ^ value) >> 16 ^ value >> 8 ^ value) & 0x1FFF
+    for kind, flags, want_named in ((6, 2, True), (6, 0, False), (3, 0, True), (4, 0, True), (1, 0, False)):
+        machine.w32(record + 4, flags)
+        machine.w32(record + 8, kind)
+        for index, offset in enumerate((0x18, 0x1C, 0x20, 0x24, 0x28)):
+            machine.w32(record + offset, 0x100 * (index + 1))
+        machine.w32(record + 0x2C, machine.put(b"name\0"))
+        first["value"] = 0xABCDE
+        got = machine.call(0x60AC60, ecx=record, regs={"eax": 0x77, "edi": out})
+        total = 0xABCDE + (0x1234 if want_named else 0x100 + 0x200 + 0x300 + 0x400 + 0x500)
+        check(0x60AC60, f"kind {kind} flags {flags}", (got, machine.r32(out)), (fold(total & 0xFFFFFFFF), 0xABCDE))
+    data = [0x89ABCDEF, 0x01234567, 0xDEADBEEF]
+    stream = machine.put(struct.pack("<3I", *data))
+    reader = machine.alloc(0x10)
+    machine.w32(reader + 4, stream)
+    machine.w32(reader + 0xC, 0)
+    bits = int.from_bytes(struct.pack("<3I", *data), "little")
+    position = 0
+    for count in (0, 4, 12, 16, 8, 20, 32, 4):
+        got = machine.call(0x60B200, edx=reader, regs={"edi": count})
+        want = (bits >> position) & ((1 << count) - 1) if count else 0
+        check(0x60B200, f"{count} bits at {position}", got, want)
+        position += count
+        check(0x60B200, f"position after {position}", (machine.r32(reader + 4) - stream) * 8 + machine.r32(reader + 0xC), position)
+
+
+def frame_bounds(machine):
+    frames = [(10, 20, -5, 7, 0), (4, 30, 3, -2, 1), (16, 8, 0, 40, 0)]
+    block = machine.alloc(0x2C * len(frames))
+    for index, (width, height, x_off, y_off, flipped) in enumerate(frames):
+        base = block + 0x2C * index
+        for offset, value in ((4, width), (8, height), (0xC, x_off), (0x10, y_off), (0x28, flipped)):
+            machine.w32(base + offset, value)
+    header = machine.alloc(0x10)
+    machine.w32(header + 0xC, len(frames))
+    out = machine.alloc(0x20)
+    machine.call(0x60B530, 0x99, ecx=header, regs={"eax": block, "edi": out})
+    tops = [y_off - (0 if flipped else height) for width, height, x_off, y_off, flipped in frames]
+    x_min = min(x_off for _, _, x_off, _, _ in frames)
+    x_max = max(x_off + width for width, _, x_off, _, _ in frames)
+    y_min, y_max = min(tops), max(top + height for top, (_, height, _, _, _) in zip(tops, frames))
+    got = [signed(machine.r32(out + 4 * index)) for index in range(8)]
+    check(0x60B530, "frame bounds", got, [header, block, x_min, y_min, x_max - x_min, y_max - y_min, 0x99, len(frames)])
+
+
 def main():
     machine = emu.Emu()
     for case in (globals_getters, ui_flags, hover_unit_find, npc_item_watchers, palshift_find, waypoint_tab,
                  sound_handles, room_reach, percent_and_size, sequence_byte, font_glyph, free_all, packets,
-                 monster_base, missile_words, room_units, aim_keeps, code_pad):
+                 monster_base, missile_words, room_units, aim_keeps, code_pad, second_globals, small_math,
+                 distance_and_minipanel, controls_and_units, registry_and_cache, gfx_hash_and_bits, frame_bounds):
         case(machine)
     for line in failures:
         print(line)
