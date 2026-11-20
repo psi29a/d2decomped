@@ -30,6 +30,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/gaps.py --issues --history --out site
 
+      # Posts to Discord when "% done" (the page's number, to one decimal) goes up.
+      # Compares against the gaps.json still live on Pages; skipped with no secret set.
+      - name: Announce progress on Discord
+        if: github.event_name == 'push'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          [ -n "$DISCORD_WEBHOOK" ] || exit 0
+          python3 - <<'EOF'
+          import json, os, urllib.request
+          def done(summary):
+              t = summary["totals"]
+              levels = ("untouched", "cited", "oracle", "ported", "verified")
+              return round(100 * (t["verified"]["bytes"] + t["ported"]["bytes"]) / sum(t[s]["bytes"] for s in levels), 1)
+          try:
+              with urllib.request.urlopen("https://psi29a.github.io/d2decomped/gaps.json", timeout=30) as r:
+                  old = done(json.load(r))
+          except Exception as error:
+              print(f"no live gaps.json to compare: {error}"); raise SystemExit
+          new_summary = json.load(open("site/gaps.json"))
+          new = done(new_summary)
+          print(f"done: {old}% -> {new}%")
+          if new <= old:
+              raise SystemExit
+          commit = new_summary["generated"]["commit"]
+          body = {"content": f"D2Decomp is now **{new}% done** (was {old}%) as of `{commit}`. "
+                             "https://psi29a.github.io/d2decomped/gaps.html"}
+          request = urllib.request.Request(os.environ["DISCORD_WEBHOOK"], json.dumps(body).encode(),
+                                           {"Content-Type": "application/json", "User-Agent": "d2decomped-gaps"})
+          urllib.request.urlopen(request, timeout=30)
+          EOF
+
       - name: Add the landing page
         run: |
           cp tools/site/index.html assets/icon/hero.png assets/icon/d2d.png site/
