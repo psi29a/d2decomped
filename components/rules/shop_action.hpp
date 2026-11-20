@@ -70,23 +70,15 @@ struct RepairGate {
 };
 
 // FUN_004b1f80: does the item want a repair (the repair button's click, and
-// whether FUN_004b3870 goes on). A gold item or one FUN_0062e660 refuses:
-// no. Durability under its max (signed, so a value above it doesn't count,
-// as Repair All's `!=` does), a stack under its max, or a missing charge
-// with the second answer 0: yes.
+// whether FUN_004b3870 goes on).
 bool repair_gate(const RepairGate& gate);
 
 // The gate for one of d2d's items: FUN_0062e660 is `repairable`, the
 // durability reads are the item's, a stack is Items.txt's stackable.
-// FUN_0062a840 reads up to 0x40 of the item's stat 0xcc entries
-// (FUN_006261d0): its answer is whether there are any, its second 1 unless
-// one's charges left (the low byte) are below its most (value >> 8).
 bool repair_click_gate(const Tables& tables, const d2d::d2s::Item& item);
 
 // The NPC window's selected line (+0x44; the line count +0x50, each line's
-// selectable word at +0x174 + 0x110 * line). FUN_004b82f0 sets it to -1 or
-// to a selectable line; any other index halts game.exe (an index past the
-// lines 0x4ed, below -1 0x513, a header 0x50f). Returns false for a halt,
+// selectable word at +0x174 + 0x110 * line). Returns false for a halt,
 // leaving `selected` as it was.
 bool select_line(int& selected, const std::vector<bool>& selectable, int index);
 

@@ -11,6 +11,8 @@ int stack_cap(StackKind kind, bool enabled, StackGrid grid, int max_per_stack) {
     return max_per_stack < kStackMax ? max_per_stack : kStackMax;
 }
 
+// Different kinds never join, and neither do two codes (a health potion
+// and a mana potion, or two gems).
 StackMerge merge_counts(StackKind have_kind, std::string_view have_code, int have_count,
                         StackKind add_kind, std::string_view add_code, int add_count, int cap) {
     if (cap > kStackMax) cap = kStackMax;

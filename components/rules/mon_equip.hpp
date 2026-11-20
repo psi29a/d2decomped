@@ -43,18 +43,15 @@ struct MonGear {
     bool owners = false;
 };
 
-// FUN_005d6b60(owner, unit, skill, level, ilvl, oninit): from the monster's
-// first row (MonStats +0x2a, `first`; none when negative), which must be
-// oninit when `oninit` is set (a monster as it's made, FUN_00573cb0), rows
-// whose level is above `level` skipped, then each following row of that
-// monster: its items up to the first slot outside 1..10 counted (3 at
-// most), one picked on the unit seed (FUN_00573b20 is called only when its
-// body slot is empty). Quality outside 0..7 is 0. A "    " code with an
-// owner takes the owner's item in that slot (skipped when it has none);
-// without one it goes to FUN_00573b20 as "    ", which makes nothing.
+// FUN_005d6b60(owner, unit, skill, level, ilvl, oninit): from the
+// monster's first row (MonStats +0x2a, `first`; none when negative), which
+// must be oninit when `oninit` is set (a monster as it's made,
+// FUN_00573cb0), rows whose level is above `level` skipped, then each
+// following row of that monster: its items up to the first slot outside
+// 1..10 counted (3 at most), one picked on the unit seed (FUN_00573b20 is
+// called only when its body slot is empty). Quality outside 0..7 is 0.
 // `filled` / `owner`: body slots already worn (bit n for slot n). Every
 // item the caller makes fills its slot; one that names an item does here.
-// A unit without an inventory (+0x60) gets nothing: the caller's check.
 std::vector<MonGear> monster_gear(std::span<const MonEquipRow> rows, int first, int monster, int level, bool oninit, std::uint32_t filled,
                                   std::optional<std::uint32_t> owner, Rng& own);
 

@@ -91,15 +91,7 @@ NpcAct npc_think(NpcBrain& brain, Rng& seed, std::span<const NpcPoint> path, int
 // of the unit seed, under 20 in 100 S1 (FUN_005ddfc0 mode 8), else stand 30.
 NpcAct vendor_think(Rng& seed);
 
-// MonAI JarJar (81, FUN_005e7590: the palace guard, act2guard2). Its home
-// (AI control command 10: +0xc, +0x10; +0x18 the frame it last moved or
-// heeded). Till he stands aside (FUN_0059b8b0: record 0xb's data+0x40 is
-// 2, +0x18 / +0x19 clear): once 200 frames, back home from over 1 off, else
-// heed the player; stand 20. Aside (or no record): to 3 north of home when
-// over 7 off (over 2 once data+0x40 is 2); else heed the player; stand 120.
-// Checked against game.exe by tools/emu jarjar.py.
-// FUN_0059b8f0's other spot (data +0x18 / +0x19, +0x30 / +0x34) is dead:
-// nothing writes them (stubs.md).
+// MonAI JarJar (81, FUN_005e7590: the palace guard, act2guard2).
 NpcAct jarjar_think(NpcBrain& brain, int x, int y, int frame, bool aside, bool stood_aside, const NpcVisitor& visitor);
 
 // The town NPCs' return line (FUN_004e0590 kind 2). The first trip out of an act

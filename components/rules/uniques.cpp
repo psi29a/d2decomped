@@ -17,6 +17,8 @@
 namespace d2d::rules {
 namespace unique_detail {
 
+// An exclusion matches the type or a parent (FUN_005a0070, MonType equiv);
+// the type alone is exact: the only one shipped, sandleaper, is no parent.
 bool can_take(const UMod& mod, const MonType& type) {
     if (!mod.enabled) return false;
     if (!mod.exclude1.empty() && mod.exclude1 == type.montype) return false;
@@ -87,6 +89,11 @@ std::optional<ActBoss> act_boss(int monstats_row, int base) {
     }
 }
 
+// In Nightmare the code is its record's ubercode (+0x88), in Hell its
+// ultracode (+0x8c); the ring's are 0 (Misc.txt has neither column), so no
+// ring is made past Normal (FUN_00573b20: FUN_00633640 finds no item). Each
+// is magic (quality 4) at the unit's level, made as a drop (FUN_00559ce0:
+// two game seed steps).
 std::vector<std::pair<std::string, int>> ancient_gear(const Tables& tables, int monstats_row, int difficulty) {
     struct Worn { std::string_view code; int loc; };
     static constexpr std::array<std::array<Worn, 4>, 3> kGear{ {
@@ -235,6 +242,15 @@ BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, const s
     return stats;
 }
 
+// Fire enchanted's death blast (FUN_005a2620): v = max life x
+// MonsterCEDamagePercent (DifficultyLevels +0x3c: 50 / 35 / 20) / 100,
+// then 3/4, 2/3 or 1/8 by difficulty; rolled from 60 % of v to v (the
+// monster's seed), 64ths of it both physical and fire, within difficulty
+// + 4 subtiles. Returns {lo, hi} before the roll.
+// FUN_005b21b0 (from the spawn, FUN_005b2a00): the mods a whole family
+// carries, boss or not (FUN_005a4850 with 0: not counted as a boss), by
+// MonStats BaseId. Built: scarab (20) and poisondead (10); the rest have
+// no hooks d2d needs yet (rage, 13, has none in 0x73c0b8 at all).
 std::vector<int> family_mods(int base_id) {
     switch (base_id) {
         case 0x18: return { umod::rage };                              // brute2: Yeti, Crusher, Brute, Wailing / Gargantuan Beast
@@ -299,6 +315,8 @@ std::pair<int, int> fire_blast(int max_life, int difficulty) {
     return { value * 60 / 100, value };
 }
 
+// FUN_0057c6c0 then takes it off the player's mana (FUN_0057aa60). tools/emu/mana_burn.py checks it
+// against game.exe.
 int mana_burn_fine(int least, int most, Rng& rng) {
     const int low = least << 16, high = most << 16;
     return high > low ? low + rng(high - low) : low;

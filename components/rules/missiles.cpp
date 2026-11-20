@@ -17,6 +17,8 @@
 
 namespace d2d::rules {
 
+// A frame moves it velocity / 4096 subtiles (FUN_006502d0: x 0x400 >> 6,
+// then x the unit vector >> 12).
 int missile_velocity(int vel, int vel_lev, int level) {
     return ((vel + vel_lev * level / 8) << 8) * 75 / 100;
 }
@@ -25,6 +27,8 @@ int missile_range(int range, int lev_range, int level) {
     return std::clamp(range + lev_range * level, -0x8000, 0x7fff);
 }
 
+// Draws on {the owner's stat 0x148 (pierce_idx), 666} count while each
+// lands under `chance` (skill_pierce + item_pierce), 4 at most.
 int pierce_charges(int chance, std::uint32_t seed) {
     Rng roll{ seed };
     int charges = 0;
@@ -48,6 +52,7 @@ std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t 
     return { aim.west ? -aim_x : aim_x, aim.north ? -aim_y : aim_y };
 }
 
+// tools/emu/facing.py; tests/test_facing.cpp.
 int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
     const auto aim = aim_row(x, y, to_x, to_y);
     int dir = kAimEighth[std::size_t(aim.row)];
@@ -56,6 +61,8 @@ int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uin
     return aim.west ? (dir + 8) & 0x3f : (((-dir - 1) & 0x3f) + 8) & 0x3f;
 }
 
+// Each axis is a step of `seed` modulo 0x28, then less 0x14, so
+// -20..19. A (0, 0) pair is stored as x = 0x14.
 std::pair<int, int> release_spread_offset(Rng& seed) {
     const int offset_x = seed(0x28) - 0x14;
     const int offset_y = seed(0x28) - 0x14;
@@ -69,6 +76,7 @@ std::pair<int, int> release_scatter_offset(Rng& seed, int radius) {
     return { offset_x, offset_y };
 }
 
+// The seed is {target x + the bolt's index, 666} (FUN_00650e40).
 std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, int to_y, int steps, Rng seed) {
     const int dx = to_x - x, dy = to_y - y;
     int aim_x = dx, aim_y = dy;
@@ -107,6 +115,7 @@ std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, 
     return points;
 }
 
+// tools/emu/hammer_route.py.
 std::vector<std::pair<int, int>> hammer_route(int x, int y) {
     constexpr int kOut = 0x2580, kRound = 16, kPoints = 0x4d;
     const std::int64_t from_x = (std::int64_t(x) << 16) + 0x8000, from_y = (std::int64_t(y) << 16) + 0x8000;

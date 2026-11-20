@@ -149,6 +149,14 @@ NpcAct vendor_think(Rng& seed) {
     return NpcAct{ .frames = 30 };
 }
 
+// Its home (AI control command 10: +0xc, +0x10; +0x18 the frame it last
+// moved or heeded). Till he stands aside (FUN_0059b8b0: record 0xb's
+// data+0x40 is 2, +0x18 / +0x19 clear): once 200 frames, back home from
+// over 1 off, else heed the player; stand 20. Aside (or no record): to 3
+// north of home when over 7 off (over 2 once data+0x40 is 2); else heed
+// the player; stand 120. Checked against game.exe by tools/emu jarjar.py.
+// FUN_0059b8f0's other spot (data +0x18 / +0x19, +0x30 / +0x34) is dead:
+// nothing writes them (stubs.md).
 NpcAct jarjar_think(NpcBrain& brain, int x, int y, int frame, bool aside, bool stood_aside, const NpcVisitor& visitor) {
     auto stand = [](int frames) { return NpcAct{ .frames = frames }; };
     auto walk = [](int to_x, int to_y) { return NpcAct{ .kind = NpcAct::Kind::walk, .x = to_x, .y = to_y, .fail = 15 }; };

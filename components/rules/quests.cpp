@@ -46,6 +46,7 @@ PalaceSpots palace_spots(const QuestBits& game_bits, bool tombs_open, int tombs_
     return spots;
 }
 
+// The first join runs it from quest 1 (FUN_00546270).
 void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, TowerQuest& tower, ToolsQuest& tools, AndyQuest& andy) {
     for (;;) {
         switch (quest) {
@@ -121,6 +122,9 @@ int quest_log_pick(const std::vector<QuestLogPick>& entries, int pending, int re
     return remembered >= 0 ? remembered : under_way;
 }
 
+// A message below row 100's (164) is looked for in rows 0..99, any other in
+// rows 100 on, so 164 is found at row 100 (bugs.md 46: the old reading,
+// 0xe8c, was wrong; tools/emu/quest_name.py).
 int quest_name(int message) {
     struct Run { int first, last, name; };
     static constexpr std::array<Run, 32> kRuns{ {

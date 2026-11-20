@@ -36,10 +36,7 @@ struct ClickSpot { int x = 0, y = 0; };
 
 // The spot a click at (spot_x, spot_y) walks to from (unit_x, unit_y), or
 // none: nothing goes when the spot is 0x100 or more away on an axis, or on
-// the unit's own subtile (LAB_00462482). Nearer than click_least_distance
-// (by approx_distance, taken as 1 under 2), the step is scaled out to it:
-// the scale is a 32-bit float (FSTP at 0x4624e3) and each axis is truncated
-// (FUN_00682fd0, CVTTSD2SI).
+// the unit's own subtile (LAB_00462482).
 [[nodiscard]] std::optional<ClickSpot> click_spot(int unit_x, int unit_y, int spot_x, int spot_y, std::uint32_t flags) noexcept;
 
 // A player's modes that walk: 2 walk, 3 run, 6 walk in town.

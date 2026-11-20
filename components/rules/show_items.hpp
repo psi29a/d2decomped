@@ -38,12 +38,7 @@ struct ShownLabel { std::size_t item = 0; LabelRect rect; bool lit = false; };
 // FUN_004c0810's labels, `items` in its walk: the player's room's near list
 // (FUN_00619790) in order, each room's units from its list's head (the
 // newest: FUN_0064c2c0 adds at the head), the drawn items (type 4, +0xc8
-// bit 7). Past 0x20 labels the rest get none. The rect: left = x - (w + 8)
-// / 2 (sar), right = left + w + 8, top = y - h + 4, bottom = y; then
-// label_place in the columns an open panel leaves (`open_side` 1 right, 2
-// left: FUN_0045ae90). While none is lit, a label goes lit when the mouse
-// is within left..right, top..bottom + 4 (inclusive), or else when its
-// item is the one under the cursor (FUN_00467a10).
+// bit 7).
 std::vector<ShownLabel> show_items(const std::vector<LabelItem>& items, int screen_width, int screen_height, int open_side, int mouse_x, int mouse_y,
                                    std::ptrdiff_t cursor_item);
 

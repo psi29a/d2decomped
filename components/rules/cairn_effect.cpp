@@ -10,6 +10,8 @@
 
 namespace d2d::rules {
 
+// Otherwise FUN_004cdb40 requests client missile 0x120 at the stone and
+// FUN_0046ae50 starts the row's dip.
 std::optional<CairnClientEvent> cairn_client_event(bool has_player, bool has_room,
                                                    std::optional<std::pair<int, int>> stone,
                                                    int param1, int range) {

@@ -17,6 +17,8 @@ std::optional<int> replenish_first(int rate, int timer) {
     return kReplenishFrames / rate + 1;
 }
 
+// A point that leaves the value at 1 or more mends a broken item whose
+// owner is told (0x562cbd .. 0x562ce2).
 bool replenish_point(int rate, int& value, int most, bool broken, bool owned, Replenished& out) {
     if (rate == 0) return false;
     const int next = int(std::uint32_t(value) + 1u);   // add esi, 1: wraps
@@ -27,6 +29,9 @@ bool replenish_point(int rate, int& value, int most, bool broken, bool owned, Re
     return true;
 }
 
+// An unbroken item with durability takes a durability point; when its
+// rate (stat 0xfc) is set that is all, at its max too. Else a stackable
+// item takes one of quantity.
 Replenished replenish_step(const Replenishing& item) {
     Replenished out{ item.durability, item.quantity, std::nullopt, false };
     if (!item.broken && item.wears
@@ -53,6 +58,11 @@ void replenish_arm(const Tables& tables, d2d::d2s::Item& item) {
     replenish_arm(tables, item, kReplenishQuantity);
 }
 
+// True when the point mended it (FUN_0055f900: flag 0x200 on and 0x100
+// off, durability back to its max when it has one); its stats then go
+// back on (wield_enters, settle_requirements). FUN_0055f900 ends with
+// the hand-skill pass FUN_0055c5c0, which needs the character's skills:
+// World::hand_skills, run by replenish_frame on a mend, as by a repair.
 bool replenish_fire(const Tables& tables, d2d::d2s::Item& item, bool owned) {
     const auto base = tables.item_base.find(item.code);
     const Replenishing now{ broken(item), has_durability(tables, item), base != tables.item_base.end() && base->second.stackable, owned,

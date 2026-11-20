@@ -18,8 +18,7 @@ struct CairnClientEvent {
 };
 
 // LAB_0046aee0: no local player, no room or no StoneAlpha (object 17) in
-// that room's near list does nothing. Otherwise FUN_004cdb40 requests client
-// missile 0x120 at the stone and FUN_0046ae50 starts the row's dip.
+// that room's near list does nothing.
 std::optional<CairnClientEvent> cairn_client_event(bool has_player, bool has_room,
                                                    std::optional<std::pair<int, int>> stone,
                                                    int param1, int range);

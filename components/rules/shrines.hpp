@@ -26,27 +26,21 @@ struct ShrineRow { int code = 0, arg0 = 0, arg1 = 0, duration = 0, reset = 0, ef
 
 // FUN_0054f9d0: which shrine an objects.txt shrine is, on the game's
 // object seed (`rgn`, as every InitFn: FUN_0054f5d0 hands them
-// FUN_00546fa0's). Parm0 0: any row (1 + rand(count - 1)); 1 health
-// (class 2), 2 mana (class 3); else a step, one in ten magic (1), the rest
-// boosts (4). A class picks rand(n) of its rows (FUN_0054f770;
-// FUN_00546c60 lists them in row order). Both re-roll, 8 tries at most,
-// while `level_id` is under the row's LevelMin. The exchanges become
-// boosts (5 -> 3, 4 -> 2), Enirhs a gem shrine.
+// FUN_00546fa0's). The exchanges become boosts (5 -> 3, 4 -> 2), Enirhs
+// a gem shrine.
 int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_id, Rng& rgn);
 
 // A preset shrine 574..579 (FUN_0054f0d0, its row of the table at
 // 0x6e1080: object 136, low, high): made as object 136 (its InitFn's
-// roll_shrine first), then its kind low + rand(high - low) on the unit's
-// own seed (+0x20, FUN_0045c3e0), so high never; 4 and 5 become 2.
-// tools/emu/preset_shrines.py checks it against game.exe. -1: not one.
+// roll_shrine first), then its kind low + rand(high - low) on the
+// unit's own seed (+0x20, FUN_0045c3e0), so high never; 4 and 5 become
+// 2. -1: not one.
 int preset_shrine(int id, Rng& unit_seed);
 
 // A booster's stats (FUN_00583b30 through the table at 0x6e1850: Arg0 on
 // its stat; combat FUN_005839b0: Arg0 % of the attack rating as tohit (19)
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,
 // staminarecoverybonus (28) 1000), by Code. `ar`: the player's rating.
-// Skills FUN_00583bf0: state 0x86 alone, its +2 hard-coded (FUN_00644150,
-// added to every skill's level with item_allskills in FUN_00644180).
 std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, int attack_rating);
 
 // The recharges (FUN_005828e0 .. FUN_005829a0) on life / mana / their
@@ -83,9 +77,7 @@ inline std::uint32_t shrine_reset_frames(int reset) { return reset > 0 ? std::ui
 std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed);
 
 // FUN_00585b90: a chest's treasure class, "Act %d%s Chest %s" (FUN_0065a2c0:
-// "", " (N)", " (H)"; A..C). The act's two marker levels (0x6e1988: act 1
-// Blood Moor and Catacombs 4, 2 Lut Gholein .. , by area level) split a
-// third each way: under lo + third A, under lo + 2 thirds B, else C.
+// "", " (N)", " (H)"; A..C).
 std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int hi_alvl);
 // A chest as its init makes it (InitFn 3, FUN_0054fcb0, on the game's
 // object seed): first the trap (FUN_0054fbb0: rand(100) < MonLvl1 / 8 + 5, then
@@ -179,23 +171,20 @@ Opened open_container(int operate, int object_id, bool locked, bool sparkle, Rng
 // opens (2); open, or stuck (5), it closes (0) when no one stands in it
 // (FUN_0064d800, mask 0x8180), else it sticks at 5, or goes to 4 when what
 // stands in it is an 0x8000 object (`blocker`: SubClass & 4, Npc::stamp).
-// Locked (6), it opens (2) when the operator had a key (`key`: FUN_0055f140
-// takes one) and otherwise stays. -1: no change; 4 never changes again.
+// -1: no change; 4 never changes again.
 int door_mode(int mode, bool occupied, bool blocker = false, bool key = false);
 // Whether a unit with collision pattern `pattern` at subtile (unit_x, unit_y)
 // stands in a door's doorway, the size_x x size_y rect centred on (door_x,
 // door_y) (FUN_0064d800, mask 0x8180): the own bit it stamps (FUN_0064ea90)
-// meets the rect. Patterns 1 / 3 / 5 stamp the plus (FUN_0064dc80), 2 / 4
-// the 3x3 square round it (FUN_0064ddf0), 0 nothing (collision.md).
+// meets the rect.
 bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int size_x, int size_y);
 // An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
 // weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area
 // level, less one above 1), on its room's seed (room +0x6c): of the
 // armor.txt / weapons.txt rows (Tables::stand_bases) up to ilvl (at least
-// 1), one whose rarity is past the act of level id ilvl (sic, FUN_006427f0)
-// takes rand(rarity - act) == 0 (FUN_00555e00); then rand(count) of them.
-// A rack tries 6 times for a base with bitfield1 & 2 (FUN_00629cc0), else
-// keeps the last. "" when there's none.
+// 1), one whose rarity is past the act of level id ilvl (sic,
+// FUN_006427f0) takes rand(rarity - act) == 0 (FUN_00555e00); then
+// rand(count) of them. "" when there's none.
 std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& room);
 // A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
 // Parm1 / 256 of their maxima, stamina always; false when none was short
@@ -221,13 +210,8 @@ inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", 
 // act 1 are trap 2 (trap-firebolt) instead.
 int trap_on_level(int trap, int level_id);
 // An object's blast on a unit (FUN_005dfa00 on the object's unit seed):
-// the gas / exploding traps, the trap object (30) and the exploding barrel.
-// From the unit's life (256ths), low = life / 32 (at least 1), high = life
-// / 8 (at least low + 1); the hit: (rand(level / 4) + level as a byte) -
-// 5 x (dexterity / 2) - level, twice, less defense, + 125, at least 65 %,
-// against a step % 100; a hit does objects.txt Damage % (100 on every row)
-// of low + rand(high - low + 256) (FUN_005df990). 0: a miss. Not in town,
-// nor through a wall (FUN_00622b50, mask 0x804): the caller's.
+// the gas / exploding traps, the trap object (30) and the exploding
+// barrel. 0: a miss.
 int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& seed);
 // What a blast's damage comes to (FUN_0057c1e0 -> FUN_0057bf80, the
 // resist table at 0x732980): less the flat reduction (physical stat 34,
@@ -244,8 +228,7 @@ inline constexpr std::array<std::pair<int, int>, 16> kPoisonNova{ { { 0, 2 }, { 
 // Trap 8's family (FUN_005474c0): the first of the level's region monsters
 // (MonStats rows = game ids below the Expansion row) that's a zombie
 // (mummy in act 2, `act` 0-based) or a skeleton, archer or skeleton mage:
-// that family's first id. None: 234, a flying scimitar — and in act 1
-// (FUN_00582250) no trap at all (-1).
+// that family's first id.
 int trap_undead(const std::vector<int>& region, int act);
 
 // A level's act (Levels.txt Act, FUN_006427f0): its id range.

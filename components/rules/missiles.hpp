@@ -60,16 +60,14 @@ inline constexpr std::array<std::array<int, 2>, 64> kNovaRing{ {
 } };
 
 // The path velocity FUN_0059fa30 gives every missile it makes:
-// ((Vel + VelLev x lvl / 8) << 8) x 75 / 100. A frame moves it velocity /
-// 4096 subtiles (FUN_006502d0: x 0x400 >> 6, then x the unit vector >> 12).
+// ((Vel + VelLev x lvl / 8) << 8) x 75 / 100.
 int missile_velocity(int vel, int vel_lev, int level);
 
 // Its life in frames, Range + LevRange x lvl (FUN_0064a330 keeps it a short).
 int missile_range(int range, int lev_range, int level);
 
 // FUN_0059f940: a Pierce row's charges as FUN_0059fa30 makes it (its stat
-// 0x148). Draws on {the owner's stat 0x148 (pierce_idx), 666} count while
-// each lands under `chance` (skill_pierce + item_pierce), 4 at most.
+// 0x148).
 int pierce_charges(int chance, std::uint32_t seed);
 
 // The direction within an eighth for each of those rows (the third word,
@@ -96,7 +94,7 @@ std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t 
 
 // The 64-step direction FUN_0064fc60 writes with it (through EDX), 0 screen
 // south, clockwise: the row's eighth folded by the larger axis and the
-// sides. tools/emu/facing.py; tests/test_facing.cpp.
+// sides.
 int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y);
 
 // DIFFDIRECTIONS (0x6eb548): a turn's step a frame by how far round its
@@ -129,8 +127,7 @@ struct Facing {
 };
 
 // Royal Strike's third release (FUN_005d5080): one missile's aim, in
-// subtiles, off the target. Each axis is a step of `seed` modulo 0x28,
-// then less 0x14, so -20..19. A (0, 0) pair is stored as x = 0x14.
+// subtiles, off the target.
 std::pair<int, int> release_spread_offset(Rng& seed);
 
 // A charge-up's scatter release (srvprgfunc 39, FUN_005d3f90): one try's
@@ -143,7 +140,6 @@ std::pair<int, int> release_scatter_offset(Rng& seed, int radius);
 // subtile (x, y), steps / 2 hops of two subtiles, each the 8-way way
 // toward (to_x, to_y) (FUN_00678c10 -> DAT_006f1518's first) turned -1, 0
 // or +1 by a draw on `seed` (low & 31 into -1, 0, 1, -1, ... with 31 at +1).
-// The seed is {target x + the bolt's index, 666} (FUN_00650e40).
 std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, int to_y, int steps, Rng seed);
 
 // Do 143's missiles' route (FUN_005d4870's path callback FUN_005d4680, path
@@ -159,7 +155,7 @@ std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, 
 // -> FUN_0067a140): from subtile (x, y)'s centre, each step 0x2580 (16.16)
 // further out and 16 further round on the 512-step sine table (0x707800)
 // from angle 0, whatever the aim; a point each time the subtile changes, 77
-// (0x4d) of them. tools/emu/hammer_route.py.
+// (0x4d) of them.
 std::vector<std::pair<int, int>> hammer_route(int x, int y);
 
 // A missile of `missile_size` (Missiles.txt Size) at subtile (x, y)

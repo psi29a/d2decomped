@@ -10,6 +10,9 @@
 
 namespace d2d::rules {
 
+// The caller tests the game type (FUN_0044db30: single player or a host)
+// and stores the count (FUN_00535780); the line then goes out as "players
+// set to N".
 std::optional<int> players_command(std::string_view line) {
     constexpr std::string_view kCommand = "/players";
     if (line.size() < kCommand.size()) return std::nullopt;

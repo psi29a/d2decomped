@@ -35,31 +35,20 @@ using Placement = std::function<bool(const Drop&, int made)>;
 // The item's quality at item level ilvl (FUN_00558640, all draws off the
 // dropper's seed): a type flagged Normal stays normal; a base that only
 // drops unique (Items +0x129), or a quest item of a Magic type, is unique.
-// Then unique, set, rare (Rare types) in turn: odds (base - (ilvl - qlvl) /
-// divisor) * 128, with magic find times 100 / (mf + 100, diminished past
-// 10 with k 250 / 500 / 600: FUN_00558610), at least `min`, less the TC's
-// modifier in 1024ths; odds <= 0 or rand(odds) < 128 wins. A Magic type is
-// magic past those; else magic (mf undiminished), superior, normal, low.
-// The ItemRatio row is by the base's class (type Class, FUN_00629f70) and
-// uber (an exceptional or elite weapon or armor, FUN_0062b4d0).
-// mod: Unique, Set, Rare, Magic.
+// A Magic type is magic past those; else magic (mf undiminished),
+// superior, normal, low. mod: Unique, Set, Rare, Magic.
 int roll_quality(const Tables& tables, const std::string& code, int ilvl, const std::array<int, 4>& mod, Rng& rng, int magic_find = 0);
 
 // The quality an item asked for at `quality` is made at (FUN_00557450):
 // an always-magic type's quest base unique, else magic at least; no rare
 // where the type can't be; an only-unique base unique; an always-normal
 // type (or none) normal.
-// A unique / set answers as asked even with no row; game.exe makes it rare /
-// magic (FUN_005573f0 / FUN_00557380), and the only reader (open_container:
-// FUN_00585f60's FUN_0062a0f0, quality 4..9) counts both alike. It falls
-// under 4 only when no affix fits the base, not checked base by base.
 int made_quality(const Tables& tables, const std::string& code, int quality);
 
 // A stand's item's quality (FUN_00556f60, nothing asked for), the first
-// draw on its own seed: unique, rare, set, magic, superior, normal in turn,
-// each won at rand(base - past / divisor) == 0 (odds under 1 win), past
-// being ilvl - qlvl, at least 1. None: superior (args +0x80 & 0x40,
-// set by FUN_005594c0 / FUN_00559630). A quest base is normal. Then made.
+// draw on its own seed: unique, rare, set, magic, superior, normal in
+// turn, each won at rand(base - past / divisor) == 0 (odds under 1 win),
+// past being ilvl - qlvl, at least 1. A quest base is normal.
 int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed);
 
 // One TreasureClassEx item cell (FUN_00654440): the code, then comma
@@ -72,13 +61,10 @@ TreasureEntry treasure_entry(std::string cell);
 // A gold pile's coins (FUN_00557ab0, the first draw on the new item's
 // unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
 // a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
-// Gold find (FUN_005589a0: times 100 + the killer's stat 0x4f, / 100) is
-// the caller's (Loot::put).
 int gold_amount(int ilvl, int mul, Rng& item_seed);
 
 // A monster's class moved on by level (FUN_00654e00): while the next row
-// of its group has a level <= lvl. lvl 0 (normal difficulty, a MonStats
-// noRatio or boss row: FUN_0055afa0) keeps it.
+// of its group has a level <= lvl.
 std::string tc_upgrade(const Tables& tables, std::string name, int lvl);
 
 namespace detail {
@@ -130,14 +116,7 @@ void add_auto_treasure(Tables& tables, const std::vector<std::string>& type_orde
 // 25 rand(100000) on the proxy seed under ilvl * 64 + 4000 takes the
 // ubercode, else the NightmareUpgrade; in Hell an expansion game's roll under
 // ilvl * 16 + 1000 the ultracode, else under ilvl * 128 + 5000 the ubercode,
-// then the HellUpgrade wins. Made as a drop (FUN_00559ce0 -> FUN_00558d90:
-// two game seed steps, the type flags, generate_item); a "Cracked" low one
-// (LowQualityItems row 1) is thrown away and made again, five tries.
-// FUN_00576330's other remake (the item came out another code: made again
-// normal, once) can't happen: only a unique changes the code, and an ask
-// (1 .. 4) turns unique only for a quest or unique-only base (made_quality),
-// which no 1.14d vendor stocks (Weapons / Armor / Misc <Vendor>Max and
-// MagicMax rows: none has quest or unique set).
+// then the HellUpgrade wins.
 std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreAsk& ask, int difficulty, int clvl, bool expansion,
                                               Rng& proxy, Rng& game, std::vector<bool>* found_uniques);
 

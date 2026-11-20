@@ -319,9 +319,7 @@ struct DiabloPick {
 // mask 4) 75, plus 100 when Diablo is past 0x55 from his point and the
 // player inside it (FUN_005dc480), both x 5; (the hands' level x attackrank
 // / 4, state 0xb 200, the max damages / 2) x 2; 300 under 20 % life; all
-// / 22, at least 1. `cold_in_reach`: false for Baal's own copy (FUN_005fbb00,
-// chooser_pick's point_far 0x4b), which counts cold whether or not the
-// player is in reach (a mismatch traced against stock 1.14d).
+// / 22, at least 1.
 int diablo_score(const DiabloPick& pick, int life_pct, bool reach, bool line_clear, bool point_bonus, bool cold_in_reach = true);
 
 inline constexpr std::array<std::array<int, 8>, 8> kNear{ {
@@ -801,10 +799,7 @@ std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, i
 // either axis from where it stood when pathed (`moved`: SP2 +0x14 less its
 // spot now), or when the path has run out (`idx` +0x24 at `count` +0x28)
 // short of its end (SP3 +0x18); else 1. With no target only the last test
-// counts. A monster's re-path (FUN_00650350) is refused (0) when the budget
-// (+0x94, 0x14 at each mode start: FUN_005a7c20 -> FUN_006490e0) is 0; else
-// the points reached come off it (FUN_00649140, floor 0).
-// tools/emu/moves.py checks it against game.exe.
+// counts.
 int chase_check(bool target, int distance, int stop, bool mover, int moved_x, int moved_y, int idx, int count, bool at_end, int& budget);
 
 // A hostile monster's target search over the player lists (FUN_005dd7f0,
@@ -831,9 +826,7 @@ SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sigh
 // A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think
 // (FUN_005fb5b0 / FUN_005fb900 / FUN_005fb9b0): FUN_005dd7f0 first picks
 // the nearest player-list unit under the AI's default distance 35, then the
-// think acts only when that picked unit is within aip1. A player entry starts
-// each list and its pets follow it; search_pick carries the dead-player and
-// list-skip rules.
+// think acts only when that picked unit is within aip1.
 int trap_target(std::span<const SearchFoe> foes, int reach);
 
 // FUN_00650d70: friends by alignment (stat 0xac: 0 evil, 1 neutral, 2 good).
@@ -1189,12 +1182,11 @@ inline constexpr std::array<std::array<int, 2>, 8> kTurretStep{ { { 1, 1 }, { 0,
 inline constexpr std::array<std::array<int, 8>, 8> kTurretTurn{ { { 0, 0, 1, 2, 5, 6, 7, 0 }, { 1, 1, 1, 2, 3, 6, 7, 0 }, { 1, 2, 2, 2, 3, 4, 7, 0 }, { 1, 2, 3, 3, 3, 4, 5, 6 },
                                                                   { 1, 2, 3, 4, 4, 4, 5, 6 }, { 7, 2, 3, 4, 5, 5, 5, 6 }, { 7, 0, 3, 4, 5, 6, 6, 6 }, { 7, 0, 1, 4, 5, 6, 7, 7 } } };
 
-// The desert turret's fan (srvdofunc 105, FUN_005cd6a0): `count` missiles
-// from (x, y) at the point (to_x, to_y), side by side 2 subtiles apart
-// across the way (by the offset's signs), centred on it. Each starts the
-// offset / 6 out on both axes from the x offset (bugs.md), and flies the
-// offset on (FUN_0059fa30 flags 3). None when the point is its spot.
-// {from x, from y, offset x, offset y} each.
+// The desert turret's fan (srvdofunc 105, FUN_005cd6a0): `count`
+// missiles from (x, y) at the point (to_x, to_y), side by side 2
+// subtiles apart across the way (by the offset's signs), centred on it.
+// None when the point is its spot. {from x, from y, offset x, offset y}
+// each.
 std::vector<std::array<int, 4>> turret_fan(int x, int y, int to_x, int to_y, int count);
 
 // A search that found no one. FUN_005de890 (search type 1): with a WL
@@ -1225,23 +1217,8 @@ Think countess_think(const ThinkIn& input, const CountessIn& where, std::span<co
 
 // The AI toggle (FUN_005b0e00(ctrl, special)): the think special names
 // (FUN_005b15d0: the special table 0x73d358's row, 0 the MonStats AI's
-// MonAI row). On that row's think already with an other think (the row's
-// fourth word) it swaps to that, ctrl[0] = special; else the scratch words
-// (+0x14..+0x1c) are cleared and the row's think set (its init run). Only
-// a MonAI row has an other think, so it's reached by toggling 0 on a
-// monster on its own think: an AI-swapping state (Dim Vision, Terror,
-// Cloak of Shadows) whose end (FUN_005c3370, on expiry or when another
-// curse takes its place, FUN_006269f0) comes while it's back on its own.
-// `special`: the monster's special AI (0 its own think), `other`: on its
-// row's other think. True on a full toggle, where FUN_0058ede0 also frees
-// the AI command list (AI control +0x20: Monster::ai_command, the caller's).
-// The inits (row +4) a toggle can reach: a monster swaps only as
-// game::swaps_ai allows (it walks, SwitchAI, not unique), and of the MonAI
-// rows with an init (0x73ca18) only Imp's walks with SwitchAI in 1.14d
-// MonStats (the rest are summons, the act 5 barbarians, or don't walk).
-// Its FUN_005e2fd0 sets +0x14 to -1, which the Imp's inputs (game/ai/act5.cpp) take for 0;
-// special 16's (FUN_005e2cd0) is imp_ride_pick, run by its caller; special
-// 11's is terror_think's note; 10 and 12 have none.
+// MonAI row). `special`: the monster's special AI (0 its own think),
+// `other`: on its row's other think.
 bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other);
 
 // The riding imp's init (special 16's, FUN_005e2cd0): one draw on its seed;
@@ -1316,13 +1293,7 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
     return think_wander(rng, 6);
 }
 
-// The other thinks (the MonAI row's fourth word; ai_toggle). BatDemon's
-// (FUN_005f4fd0): in S4 it waits 1 (state 1); at state 4 it rises (S3,
-// FUN_005ddf90(10, none); state 1); else it toggles back (FUN_005b0e00(ctrl,
-// ctrl[0])) and stands 1. SandMaggot's (FUN_005f1750): with its AI command
-// 14's +0x18 at 1 and a Skill1 it casts Skill1 at the target (event 30; the
-// word 0); else it toggles back keeping the third scratch word, event 1.
-// Nothing sets that word (stubs.md: FUN_005f1750's cast branch), so it stays 0.
+// The other thinks (the MonAI row's fourth word; ai_toggle).
 Think other_think(std::string_view ai_name, const ThinkIn& input);
 
 }  // namespace d2d::rules

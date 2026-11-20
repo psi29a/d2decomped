@@ -1903,8 +1903,7 @@ struct ToolsQuest {
 };
 
 // The chain from `quest` (its +0xf0, on through +0x10 while one passes
-// on): 1 → 2 → 4 → 3 → 6, 5 → 3 (the records' +0x10). The first join runs
-// it from quest 1 (FUN_00546270).
+// on): 1 → 2 → 4 → 3 → 6, 5 → 3 (the records' +0x10).
 void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, TowerQuest& tower, ToolsQuest& tools, AndyQuest& andy);
 
 // The quest log (client side, QuestLog.cpp).
@@ -1988,9 +1987,7 @@ struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
 [[nodiscard]] int quest_log_pick(const std::vector<QuestLogPick>& entries, int pending, int remembered);
 // The quest a message is about, for the Talk submenu's label (FUN_0049f910):
 // its name's string id from the {u16 message, u16 name} table at 0x722678
-// (0x20f rows, as runs here), else 0xe8c. A message below row 100's (164) is
-// looked for in rows 0..99, any other in rows 100 on, so 164 is found at row
-// 100 (bugs.md 46: the old reading, 0xe8c, was wrong; tools/emu/quest_name.py).
+// (0x20f rows, as runs here), else 0xe8c.
 [[nodiscard]] int quest_name(int message);
 
 // The class's "find" lines (the client's FUN_004cc270, rows at 0x72a2c4):

@@ -24,11 +24,7 @@ struct MiniatureCell { int cel, x, y; };   // list 3: cel, and x, y in automap p
 // The cells FUN_004591a0 adds for `level` (0x28, 0x67 or 0x6d; none for
 // another), its preset's file `preset_file` (Lut Gholein's: 1 LutW, cels
 // 0..19; else LutN, 20..39) and its middle `centre_x`, `centre_y` in act
-// tiles (the level's x + w / 2, y + h / 2: FUN_00668100). The middle goes
-// to client px (FUN_00643310: (x - y) * 80, (x + y) * 40) and over 10;
-// the grid's top left sits half the grid up and left of it, less an offset
-// per town; each cel one step on. Lut Gholein skips the cels listed at
-// 0x6d6608 (its blank corners), keeping their place.
+// tiles (the level's x + w / 2, y + h / 2: FUN_00668100).
 std::vector<MiniatureCell> automap_miniature(int level, int preset_file, int centre_x, int centre_y);
 
 }  // namespace d2d::rules

@@ -19,6 +19,12 @@
 
 namespace d2d::rules {
 
+// Then unique, set, rare (Rare types) in turn: odds (base - (ilvl - qlvl)
+// / divisor) * 128, with magic find times 100 / (mf + 100, diminished past
+// 10 with k 250 / 500 / 600: FUN_00558610), at least `min`, less the TC's
+// modifier in 1024ths; odds <= 0 or rand(odds) < 128 wins. The ItemRatio
+// row is by the base's class (type Class, FUN_00629f70) and uber (an
+// exceptional or elite weapon or armor, FUN_0062b4d0).
 int roll_quality(const Tables& tables, const std::string& code, int ilvl, const std::array<int, 4>& mod, Rng& rng, int magic_find) {
     const auto info = tables.item_info.find(code);
     const auto base = tables.item_base.find(code);
@@ -53,6 +59,11 @@ int roll_quality(const Tables& tables, const std::string& code, int ilvl, const 
     return normal < 1 || rng(normal) < 128 ? 2 : 1;
 }
 
+// A unique / set answers as asked even with no row; game.exe makes it rare
+// / magic (FUN_005573f0 / FUN_00557380), and the only reader
+// (open_container: FUN_00585f60's FUN_0062a0f0, quality 4..9) counts both
+// alike. It falls under 4 only when no affix fits the base, not checked
+// base by base.
 int made_quality(const Tables& tables, const std::string& code, int quality) {
     const auto info = tables.item_info.find(code);
     const auto base = tables.item_base.find(code);
@@ -66,6 +77,8 @@ int made_quality(const Tables& tables, const std::string& code, int quality) {
     return type.always_normal ? 2 : quality;
 }
 
+// None: superior (args +0x80 & 0x40, set by FUN_005594c0 / FUN_00559630).
+// Then made.
 int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed) {
     const auto info = tables.item_info.find(code);
     const auto base = tables.item_base.find(code);
@@ -93,12 +106,16 @@ TreasureEntry treasure_entry(std::string cell) {
     return entry;
 }
 
+// Gold find (FUN_005589a0: times 100 + the killer's stat 0x4f, / 100) is
+// the caller's (Loot::put).
 int gold_amount(int ilvl, int mul, Rng& item_seed) {
     ilvl = std::max(ilvl, 1);
     const int gold = std::max(ilvl + item_seed(5 * ilvl), 1);
     return mul ? gold * mul >> 8 : gold;
 }
 
+// lvl 0 (normal difficulty, a MonStats noRatio or boss row:
+// FUN_0055afa0) keeps it.
 std::string tc_upgrade(const Tables& tables, std::string name, int lvl) {
     for (std::size_t guard = 0; lvl > 0 && guard < tables.treasure.size(); ++guard) {   // the whole group (Super: 90 rows)
         const auto here = tables.treasure.find(name);
@@ -217,6 +234,14 @@ void add_auto_treasure(Tables& tables, const std::vector<std::string>& type_orde
     }
 }
 
+// Made as a drop (FUN_00559ce0 -> FUN_00558d90: two game seed steps, the
+// type flags, generate_item); a "Cracked" low one (LowQualityItems row 1) is
+// thrown away and made again, five tries. FUN_00576330's other remake (the
+// item came out another code: made again normal, once) can't happen: only a
+// unique changes the code, and an ask (1 .. 4) turns unique only for a quest
+// or unique-only base (made_quality), which no 1.14d vendor stocks (Weapons
+// / Armor / Misc <Vendor>Max and MagicMax rows: none has quest or unique
+// set).
 std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreAsk& ask, int difficulty, int clvl, bool expansion,
                                               Rng& proxy, Rng& game, std::vector<bool>* found_uniques) {
     std::string code = ask.code;

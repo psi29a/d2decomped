@@ -46,16 +46,12 @@ struct Replenished {
     friend bool operator==(const Replenished&, const Replenished&) = default;
 };
 
-// FUN_00562c40: a point of `value` up to `most`, false when the rate is 0.
-// Past `most` nothing happens and the timer isn't queued again. A point
-// that leaves the value at 1 or more mends a broken item whose owner is
-// told (0x562cbd .. 0x562ce2). The next timer is 2500 / rate + 1 frames
-// on, 125 at least.
+// FUN_00562c40: a point of `value` up to `most`, false when the rate is
+// 0. Past `most` nothing happens and the timer isn't queued again. The
+// next timer is 2500 / rate + 1 frames on, 125 at least.
 bool replenish_point(int rate, int& value, int most, bool broken, bool owned, Replenished& out);
 
-// Timer 3 (FUN_00562d30). An unbroken item with durability takes a
-// durability point; when its rate (stat 0xfc) is set that is all, at its
-// max too. Else a stackable item takes one of quantity.
+// Timer 3 (FUN_00562d30).
 [[nodiscard]] Replenished replenish_step(const Replenishing& item);
 
 // The item's own stat (FUN_00625480 on the item unit): its lists, what
@@ -71,12 +67,7 @@ void replenish_arm(const Tables& tables, d2d::d2s::Item& item, int stat);
 // (FUN_00562f30).
 void replenish_arm(const Tables& tables, d2d::d2s::Item& item);
 
-// The item's timer 3 has come (FUN_00562d30). True when the point mended
-// it (FUN_0055f900: flag 0x200 on and 0x100 off, durability back to its max
-// when it has one); its stats then go back on (wield_enters,
-// settle_requirements). FUN_0055f900 ends with the hand-skill pass
-// FUN_0055c5c0, which needs the character's skills: World::hand_skills,
-// run by replenish_frame on a mend, as by a repair.
+// The item's timer 3 has come (FUN_00562d30).
 bool replenish_fire(const Tables& tables, d2d::d2s::Item& item, bool owned);
 
 }  // namespace d2d::rules

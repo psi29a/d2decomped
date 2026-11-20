@@ -53,30 +53,6 @@ struct CalcNames {
 // Compiles one calc cell the way game.exe's FUN_006c1ae0 does (skills.md
 // "The calc-text compiler"): a shunting-yard over FUN_006c11c0's tokens.
 // - Whitespace and '"' are skipped; a character it doesn't know (or `=`,
-//   `!` alone) ends the expression there.
-// - A name is looked up by its first four characters among the operands
-//   (FUN_006119f0), so Bone Wall's calc2 "par34" reads par3; an unknown
-//   name is 0. Directly inside skill() / sklvl() a name (quoted or not)
-//   is first a skill, inside stat() a stat (then `base` 1, `mod` 2, else
-//   0), as constants; `.name` is the same lookup but always a constant,
-//   and an unknown one ends the expression.
-// - Precedence is the in-stack table at 0x6fc874 against the incoming
-//   op's byte: comparisons all one level, then + -, * /, ^ (power), unary
-//   minus, then `?`, which only an operator after its third operand pops:
-//   `lvl < 4 ? 1 : 2` is lvl < (4 ? 1 : 2); `:` does nothing; `,` only
-//   flushes. `-` is unary unless an operand or a function's "(" came
-//   last, where a "," or "?" doesn't count.
-// - At the end, a "(" still open stops the program there (the VM ends on
-//   its mark byte), so "1+(2" is 2; a function left open drops the rest.
-// - Too few operands for an op, a ")" with no "(", or more than 64
-//   pending ops: game.exe stores no calc (0xffffffff); here an empty
-//   calc, which evaluates to 0, and `error` says why.
-// Constant folding (literal-only text runs through the VM once) isn't
-// done: it doesn't change a value. Checked against game.exe's own
-// compiler in tools/emu on every Skills.txt / SkillDesc.txt calc and 4000
-// random strings (skills.md).
-// - Inside miss() (FUN_006119f0 function 4) a name is first a Missiles.txt
-//   row, as a constant, else a misscalc.txt operand by its first four.
 Calc compile_calc(std::string_view src, const CalcNames& names, std::string* error = nullptr);
 
 // ---- skill functions
@@ -427,9 +403,8 @@ inline constexpr bool client_start_succeeds(int clt_st_func, const ClientStartCo
 }
 
 // Charge's FUN_005cf6b0 reads stat 0x43 after RN's FUN_00620e80 has added
-// RunVelocity * 100 / WalkVelocity - 100 and chill has added -50. It floors
-// that whole stat at 50, adds Param1, then uses FUN_00483360 MulDiv on the
-// class's 8.8 RunVelocity. The result is the path velocity in 8.8 units.
+// RunVelocity * 100 / WalkVelocity - 100 and chill has added -50. The
+// result is the path velocity in 8.8 units.
 int charge_velocity(int walk_velocity, int run_velocity, int velocity_percent, bool chilled, int param1);
 
 struct SkillTables {
@@ -461,9 +436,7 @@ int mana_formula(const Skill& skill, int lvl);
 int mana_cost(const Skill& skill, int lvl);
 // What the payment takes off `mana` (FUN_0056bfe0): nothing for a row with
 // no mana and no lvlmana, nothing when the mana is short of mana_cost (the
-// cast has happened by then), else mana_cost. A unit in state 0x72 pays
-// through FUN_005d2b60 instead (Fight::blood_pay); srvdofunc 116 passes the
-// check at once (not modelled).
+// cast has happened by then), else mana_cost.
 int mana_paid(const Skill& skill, int lvl, std::int64_t mana);
 
 // What calcs may ask of the unit using the skill.
@@ -486,10 +459,7 @@ int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& 
 // Elemental damage in 256ths (FUN_00644d50 / FUN_00644e40): (EMin + brackets)
 // << HitShift, plus EDmgSymPerCalc percent of that (MulDiv); with `mastery`
 // (the flag), plus the element's mastery % of the sum (FUN_00644c90: fire
-// 329, lightning 330, cold 331, poison 332; env.stat). The min takes its
-// synergy only above one point or with an EMinLev1 (FUN_00644d50 at
-// 0x644db3; the max always): a lightning skill's 1-x stays 1 whatever its
-// synergies.
+// 329, lightning 330, cold 331, poison 332; env.stat).
 int elem_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, bool max, int depth = 0,
                 bool mastery = false);
 // Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels
@@ -577,8 +547,6 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
-// skpt (+0x170, the skill points calc) reads 0: no 1.14d calc (Skills.txt,
-// Missiles.txt) names it.
 int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth);
 
 // ---- passives
@@ -673,10 +641,6 @@ ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, co
 // page - 1) and 97 oskill at most 3, another class's 97 in full; 126
 // +elemental skills (param = game.exe's EType: 1 fire, 2 lightning, 3
 // magic, 4 cold, 5 poison) and 107 +single skill (param = skill id).
-// Its other two terms: the skill record's +0x2c, which only the client fills
-// (the bonus the server sends: FUN_004c6140 / FUN_004d88a0 -> FUN_00647aa0),
-// and FUN_00644150's 2 under state 0x86 (the skill shrine), which d2d adds
-// as stat 127 (World's fight.skill_level, the client's skillbar.extra).
 int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props);
 
 // Whether worn items give the character a skill it has no points in

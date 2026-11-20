@@ -8,6 +8,10 @@
 
 namespace d2d::rules {
 
+// The middle goes to client px (FUN_00643310: (x - y) * 80, (x + y) * 40)
+// and over 10; the grid's top left sits half the grid up and left of it,
+// less an offset per town; each cel one step on. Lut Gholein skips the
+// cels listed at 0x6d6608 (its blank corners), keeping their place.
 std::vector<MiniatureCell> automap_miniature(int level, int preset_file, int centre_x, int centre_y) {
     struct Town { int columns, rows, offset_x, offset_y, step_x, step_y; };
     Town town{};

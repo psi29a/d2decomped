@@ -18,6 +18,11 @@
 
 namespace d2d::rules {
 
+// Parm0 0: any row (1 + rand(count - 1)); 1 health (class 2), 2 mana
+// (class 3); else a step, one in ten magic (1), the rest boosts (4). A
+// class picks rand(n) of its rows (FUN_0054f770; FUN_00546c60 lists
+// them in row order). Both re-roll, 8 tries at most, while `level_id`
+// is under the row's LevelMin.
 int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_id, Rng& rgn) {
     Rng& obj = rgn;
     if (rows.size() < 2) return 0;
@@ -35,6 +40,7 @@ int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_id, Rng
     return id == 5 ? 3 : id == 4 ? 2 : id == 16 ? 18 : id;
 }
 
+// tools/emu/preset_shrines.py checks it against game.exe.
 int preset_shrine(int id, Rng& unit_seed) {
     static constexpr std::array<std::pair<int, int>, 6> kRanges{ { { 2, 6 }, { 7, 7 }, { 8, 11 }, { 12, 12 }, { 1, 5 }, { 14, 14 } } };
     if (id < 574 || id > 579) return -1;
@@ -43,6 +49,8 @@ int preset_shrine(int id, Rng& unit_seed) {
     return kind == 4 || kind == 5 ? 2 : kind;
 }
 
+// Skills FUN_00583bf0: state 0x86 alone, its +2 hard-coded (FUN_00644150,
+// added to every skill's level with item_allskills in FUN_00644180).
 std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, int attack_rating) {
     switch (shrine.code) {
     case 6:  return { { 171, shrine.arg0 } };                  // skill_armor_percent
@@ -82,6 +90,9 @@ std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng&
     return kChipped[seed(6)];
 }
 
+// The act's two marker levels (0x6e1988: act 1 Blood Moor and Catacombs 4, 2
+// Lut Gholein .. , by area level) split a third each way: under lo + third
+// A, under lo + 2 thirds B, else C.
 std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int hi_alvl) {
     const int third = (std::abs(hi_alvl - lo_alvl) + 1) / 3;
     const int cls = alvl < lo_alvl + third ? 0 : alvl < lo_alvl + 2 * third ? 1 : 2;
@@ -97,12 +108,16 @@ ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
     return chest;
 }
 
+// Locked (6), it opens (2) when the operator had a key (`key`: FUN_0055f140
+// takes one) and otherwise stays.
 int door_mode(int mode, bool occupied, bool blocker, bool key) {
     if (mode == 0 || (mode == 6 && key)) return 2;
     if (mode != 2 && mode != 5) return -1;
     return !occupied && !blocker ? 0 : blocker ? 4 : mode == 5 ? -1 : 5;
 }
 
+// Patterns 1 / 3 / 5 stamp the plus (FUN_0064dc80), 2 / 4 the 3x3 square
+// round it (FUN_0064ddf0), 0 nothing (collision.md).
 bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int size_x, int size_y) {
     if (pattern <= 0 || pattern > 5) return false;
     const int left = door_x - size_x / 2, top = door_y - size_y / 2;
@@ -116,6 +131,8 @@ bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int
     return inside(unit_x, unit_y) || inside(unit_x - 1, unit_y) || inside(unit_x + 1, unit_y) || inside(unit_x, unit_y - 1) || inside(unit_x, unit_y + 1);
 }
 
+// A rack tries 6 times for a base with bitfield1 & 2 (FUN_00629cc0), else
+// keeps the last.
 std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& room) {
     ilvl = std::max(ilvl, 1);
     const int act = ilvl < 40 ? 0 : ilvl < 75 ? 1 : ilvl < 103 ? 2 : ilvl < 109 ? 3 : ilvl < 137 ? 4 : 0;
@@ -146,6 +163,12 @@ int trap_on_level(int trap, int level_id) {
     return trap;
 }
 
+// From the unit's life (256ths), low = life / 32 (at least 1), high = life
+// / 8 (at least low + 1); the hit: (rand(level / 4) + level as a byte) - 5
+// x (dexterity / 2) - level, twice, less defense, + 125, at least 65 %,
+// against a step % 100; a hit does objects.txt Damage % (100 on every row)
+// of low + rand(high - low + 256) (FUN_005df990). Not in town, nor through
+// a wall (FUN_00622b50, mask 0x804): the caller's.
 int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& seed) {
     const int low = std::max(int(life >> 5), 1), high = std::max(int(life >> 3), low + 1);
     const int roll = std::uint8_t(seed(level >> 2) + level);
@@ -154,6 +177,8 @@ int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& 
     return low + seed(high - low + 256);
 }
 
+// None: 234, a flying scimitar — and in act 1 (FUN_00582250) no trap at
+// all (-1).
 int trap_undead(const std::vector<int>& region, int act) {
     const int chance = act == 1 ? 96 : 5;
     for (const int id : region) {

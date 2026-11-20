@@ -63,6 +63,10 @@ ShopResult shop_click(const ShopClick& request) {
     return out;
 }
 
+// A gold item or one FUN_0062e660 refuses: no. Durability under its max
+// (signed, so a value above it doesn't count, as Repair All's `!=` does),
+// a stack under its max, or a missing charge with the second answer 0:
+// yes.
 bool repair_gate(const RepairGate& gate) {
     if (gate.gold || !gate.repairable) return false;
     if (gate.has_durability && gate.max_durability != 0 && gate.durability < gate.max_durability) return true;
@@ -70,6 +74,10 @@ bool repair_gate(const RepairGate& gate) {
     return gate.charge_missing && !gate.charge_zero;
 }
 
+// FUN_0062a840 reads up to 0x40 of the item's stat 0xcc entries
+// (FUN_006261d0): its answer is whether there are any, its second 1
+// unless one's charges left (the low byte) are below its most (value
+// >> 8).
 bool repair_click_gate(const Tables& tables, const d2d::d2s::Item& item) {
     RepairGate gate;
     gate.gold = item.code == "gld";
@@ -86,6 +94,9 @@ bool repair_click_gate(const Tables& tables, const d2d::d2s::Item& item) {
     return repair_gate(gate);
 }
 
+// FUN_004b82f0 sets it to -1 or to a selectable line; any other index
+// halts game.exe (an index past the lines 0x4ed, below -1 0x513, a header
+// 0x50f).
 bool select_line(int& selected, const std::vector<bool>& selectable, int index) {
     if (index >= int(selectable.size())) return false;
     if (index == -1) { selected = -1; return true; }

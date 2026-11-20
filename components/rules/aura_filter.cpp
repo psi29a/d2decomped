@@ -6,6 +6,10 @@
 
 namespace d2d::rules {
 
+// kEnemies and kAllies read the same FUN_00650d70 and take opposite
+// answers, so a monster that is not the caster's ally never gets a
+// friendly aura (0x12003), nor does an npc. No bit here has side effects,
+// so the order is game.exe's for reading only.
 bool aura_filter_takes(std::uint32_t filter, const AuraFilterMonster& monster) {
     using namespace aura_filter;
     if ((filter & kMonsters) == 0) return false;

@@ -61,8 +61,6 @@ namespace unique_detail {
 // FUN_005a03e0: can monster `t` take mod `u`? Enabled; not an excluded
 // MonType; fPick 2 (multishot) not for melee or nomultishot monsters; fPick 1 (teleport)
 // needs MonStats2 mA1 and fPick 3 (fast) mWL (FUN_0046c140 bits 4 / 2).
-// An exclusion matches the type or a parent (FUN_005a0070, MonType equiv);
-// the type alone is exact: the only one shipped, sandleaper, is no parent.
 bool can_take(const UMod& mod, const MonType& type);
 
 // Weighted pick among the rows that pass (FUN_005a0500 champion weights,
@@ -116,11 +114,7 @@ std::optional<ActBoss> act_boss(int monstats_row, int base);
 // The ancients' gear (FUN_005b1c50, from FUN_005b1cf0 for base 0x21c): four
 // items each from the table at 0x6e2c90 (8 bytes a row per class, rows 0x18
 // apart: the code, then the BodyLocs row it's worn on), by MonStats row
-// 0x21c..0x21e (Talic, Madawc, Korlic). In Nightmare the code is its
-// record's ubercode (+0x88), in Hell its ultracode (+0x8c); the ring's are
-// 0 (Misc.txt has neither column), so no ring is made past Normal
-// (FUN_00573b20: FUN_00633640 finds no item). Each is magic (quality 4) at
-// the unit's level, made as a drop (FUN_00559ce0: two game seed steps).
+// 0x21c..0x21e (Talic, Madawc, Korlic).
 std::vector<std::pair<std::string, int>> ancient_gear(const Tables& tables, int monstats_row, int difficulty);
 
 // The label under a boss's name (client FUN_004adea0, from FUN_00452580):
@@ -207,16 +201,6 @@ BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, const s
 // What a unique's mods do in the fight (the event hooks at 0x73c0b8, six
 // a mod, run by FUN_005a4270; docs/research/re/monsters.md "Boss mods in
 // the fight"). Only for the boss itself (flag 8), not its minions.
-//
-// Fire enchanted's death blast (FUN_005a2620): v = max life x
-// MonsterCEDamagePercent (DifficultyLevels +0x3c: 50 / 35 / 20) / 100,
-// then 3/4, 2/3 or 1/8 by difficulty; rolled from 60 % of v to v (the
-// monster's seed), 64ths of it both physical and fire, within difficulty
-// + 4 subtiles. Returns {lo, hi} before the roll.
-// FUN_005b21b0 (from the spawn, FUN_005b2a00): the mods a whole family
-// carries, boss or not (FUN_005a4850 with 0: not counted as a boss), by
-// MonStats BaseId. Built: scarab (20) and poisondead (10); the rest have
-// no hooks d2d needs yet (rage, 13, has none in 0x73c0b8 at all).
 std::vector<int> family_mods(int base_id);
 
 // What MonUMod 14 (spcdamage) sets on a trap monster (FUN_005a3b50, hook 0):
@@ -287,8 +271,7 @@ std::pair<int, int> fire_blast(int max_life, int difficulty);
 // What a Mana Burn monster's landed hit takes off a player's mana, in 256ths: the damage build (FUN_0057b7d0, a plain
 // monster) rolls FUN_0057a8e0 over stats 62 / 63, which FUN_005a1f90 stores as `x << 8` and the roll shifts by 8 again,
 // so `(least << 16)` up to (not including) `(most << 16)` on the unit's seed (`least` and `most` the whole points of
-// Monster::mana_lo / mana_hi): 256 times the points the stat looks like. FUN_0057c6c0 then takes it off the player's
-// mana (FUN_0057aa60). tools/emu/mana_burn.py checks it against game.exe.
+// Monster::mana_lo / mana_hi): 256 times the points the stat looks like.
 int mana_burn_fine(int least, int most, Rng& rng);
 // Spectral hit (FUN_005a3040 / FUN_005a21d0): each attack, one of five
 // elements (0x6e21b8: fire, lightning, magic, cold, poison; as Skill::etype

@@ -12,9 +12,7 @@ namespace d2d::rules {
 // docs/research/re/chat-commands.md "/players"): the line past its leading
 // blanks starts with "/players" in any case (_strnicmp, 8 characters), and
 // the count is MSVC's atol of what follows (blanks, a sign, the digits, held
-// to 32 bits) clamped to 1..8. Any other line: none. The caller tests the
-// game type (FUN_0044db30: single player or a host) and stores the count
-// (FUN_00535780); the line then goes out as "players set to N".
+// to 32 bits) clamped to 1..8. Any other line: none.
 std::optional<int> players_command(std::string_view line);
 
 // The players a monster's life, experience (FUN_00573930) and NoDrop

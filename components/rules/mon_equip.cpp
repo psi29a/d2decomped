@@ -16,6 +16,10 @@
 
 namespace d2d::rules {
 
+// A "    " code with an owner takes the owner's item in that slot (skipped
+// when it has none); without one it goes to FUN_00573b20 as "    ", which
+// makes nothing. A unit without an inventory (+0x60) gets nothing: the
+// caller's check.
 std::vector<MonGear> monster_gear(std::span<const MonEquipRow> rows, int first, int monster, int level, bool oninit, std::uint32_t filled,
                                   std::optional<std::uint32_t> owner, Rng& own) {
     std::vector<MonGear> out;

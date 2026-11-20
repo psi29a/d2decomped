@@ -260,6 +260,9 @@ int point_apart(int dx, int dy, int less) {
     return (dx <= dy ? dx + dy * 2 : dy + dx * 2) / 2;
 }
 
+// `cold_in_reach`: false for Baal's own copy (FUN_005fbb00, chooser_pick's
+// point_far 0x4b), which counts cold whether or not the player is in reach
+// (a mismatch traced against stock 1.14d).
 int diablo_score(const DiabloPick& pick, int life_pct, bool reach, bool line_clear, bool point_bonus, bool cold_in_reach) {
     const int resists = ((pick.damage_resist + pick.magic_resist * 2) * 4 + (reach || !cold_in_reach ? pick.cold_resist : 0) + pick.light_resist + pick.fire_resist) / 15;
     const int closeness = (reach ? 100 : line_clear ? 75 : 0) + (point_bonus ? 100 : 0);
@@ -301,6 +304,10 @@ bool object_reach(int dx, int dy, int size, int size_x, int size_y) {
     return dx >= left - 1 && dx <= left + size_x + 1;
 }
 
+// A monster's re-path (FUN_00650350) is refused (0) when the budget
+// (+0x94, 0x14 at each mode start: FUN_005a7c20 -> FUN_006490e0) is 0;
+// else the points reached come off it (FUN_00649140, floor 0).
+// tools/emu/moves.py checks it against game.exe.
 int chase_check(bool target, int distance, int stop, bool mover, int moved_x, int moved_y, int idx, int count, bool at_end, int& budget) {
     const bool ran_out = idx >= count && !at_end;
     if (target && distance <= stop) return 0;
@@ -337,6 +344,8 @@ SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sigh
     return pick;
 }
 
+// A player entry starts each list and its pets follow it; search_pick
+// carries the dead-player and list-skip rules.
 int trap_target(std::span<const SearchFoe> foes, int reach) {
     const auto picked = search_pick(foes, 35, false);
     return picked.target >= 0 && picked.best <= reach ? picked.target : -1;
@@ -450,6 +459,8 @@ std::array<int, 4> gargoyle_shot(int x, int y, int target_x, int target_y) {
     return { x + off_x / 6 - 1, y + off_y / 6 - 1, off_x, off_y };
 }
 
+// Each starts the offset / 6 out on both axes from the x offset
+// (bugs.md), and flies the offset on (FUN_0059fa30 flags 3).
 std::vector<std::array<int, 4>> turret_fan(int x, int y, int to_x, int to_y, int count) {
     const int dx = to_x - x, dy = to_y - y;
     if (dx == 0 && dy == 0) return {};
@@ -501,6 +512,22 @@ Think countess_think(const ThinkIn& input, const CountessIn& where, std::span<co
     return roll < input.aip[0] ? Think{ MonAct::run } : Think{ MonAct::idle, input.aip[1] };
 }
 
+// On that row's think already with an other think (the row's fourth word)
+// it swaps to that, ctrl[0] = special; else the scratch words
+// (+0x14..+0x1c) are cleared and the row's think set (its init run). Only
+// a MonAI row has an other think, so it's reached by toggling 0 on a
+// monster on its own think: an AI-swapping state (Dim Vision, Terror,
+// Cloak of Shadows) whose end (FUN_005c3370, on expiry or when another
+// curse takes its place, FUN_006269f0) comes while it's back on its own.
+// True on a full toggle, where FUN_0058ede0 also frees the AI command list
+// (AI control +0x20: Monster::ai_command, the caller's). The inits (row
+// +4) a toggle can reach: a monster swaps only as game::swaps_ai allows
+// (it walks, SwitchAI, not unique), and of the MonAI rows with an init
+// (0x73ca18) only Imp's walks with SwitchAI in 1.14d MonStats (the rest
+// are summons, the act 5 barbarians, or don't walk). Its FUN_005e2fd0 sets
+// +0x14 to -1, which the Imp's inputs (game/ai/act5.cpp) take for 0;
+// special 16's (FUN_005e2cd0) is imp_ride_pick, run by its caller; special
+// 11's is terror_think's note; 10 and 12 have none.
 bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {
     if (next == 0 && special == 0 && !other && has_other) { other = true; return false; }
     special = next; other = false;
@@ -553,6 +580,13 @@ Think dim_vision_think(const ThinkIn& input, Rng& rng) {
     return { MonAct::idle, 10 };
 }
 
+// BatDemon's (FUN_005f4fd0): in S4 it waits 1 (state 1); at state 4 it rises
+// (S3, FUN_005ddf90(10, none); state 1); else it toggles back
+// (FUN_005b0e00(ctrl, ctrl[0])) and stands 1. SandMaggot's (FUN_005f1750):
+// with its AI command 14's +0x18 at 1 and a Skill1 it casts Skill1 at the
+// target (event 30; the word 0); else it toggles back keeping the third
+// scratch word, event 1. Nothing sets that word (stubs.md: FUN_005f1750's
+// cast branch), so it stays 0.
 Think other_think(std::string_view ai_name, const ThinkIn& input) {
     // Diablo's (FUN_005e8480): state 0xc (his lightning's) off, back to his
     // own think (FUN_005b0e00), stands 1; his kept point stays.

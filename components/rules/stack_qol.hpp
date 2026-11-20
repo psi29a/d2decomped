@@ -37,9 +37,7 @@ struct StackMerge {
 
 // Move `add_count` onto `have_count` while both are the same kind, the
 // item codes match, and the pile has room under `cap`. A cap above 50 is
-// read as 50. Different kinds never join, and neither do two codes (a
-// health potion and a mana potion, or two gems). An empty pile, a cap of
-// 1, or a full pile stays as it was.
+// read as 50. An empty pile, a cap of 1, or a full pile stays as it was.
 [[nodiscard]] StackMerge merge_counts(StackKind have_kind, std::string_view have_code, int have_count,
                                       StackKind add_kind, std::string_view add_code, int add_count, int cap);
 

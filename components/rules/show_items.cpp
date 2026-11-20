@@ -37,6 +37,12 @@ int label_place(LabelRect& rect, std::vector<LabelRect>& placed, int x, int y, i
     return tries;
 }
 
+// Past 0x20 labels the rest get none. The rect: left = x - (w + 8) / 2
+// (sar), right = left + w + 8, top = y - h + 4, bottom = y; then
+// label_place in the columns an open panel leaves (`open_side` 1 right, 2
+// left: FUN_0045ae90). While none is lit, a label goes lit when the mouse
+// is within left..right, top..bottom + 4 (inclusive), or else when its
+// item is the one under the cursor (FUN_00467a10).
 std::vector<ShownLabel> show_items(const std::vector<LabelItem>& items, int screen_width, int screen_height, int open_side, int mouse_x, int mouse_y,
                                    std::ptrdiff_t cursor_item) {
     constexpr std::size_t kMaxLabels = 0x20;
