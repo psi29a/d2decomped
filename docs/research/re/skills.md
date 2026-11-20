@@ -1612,8 +1612,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   do 30's curses whose auratargetstate is 23 dimvision or 56 terror
   (FUN_005c3400); the other curses keep auralen.
 - Aura event functions (FUN_0056e740 -> table 0x7325b0 by auraeventfunc,
-  registered with FUN_005c0ad0; ECX the wearer, then the other unit, the
-  hit, skill, level):
+  registered with FUN_005c0ad0). The dispatcher FUN_005c0c30 (ECX game,
+  EDX event, stack unit / other / hit) calls each matching node's function
+  (+0x14) with ECX the game, EDX still the event id, and five stack
+  arguments: the unit that holds the list, the other unit, the hit record,
+  the node's +0xc and +0x10 (0x5c0c73..0x5c0c8e); each handler ends `ret
+  0x14`. For a skill, +0xc / +0x10 are the skill id and level:
   - **1** Chilling Armor (FUN_005cab40, hitbymissile): the missile's owner
     (FUN_00552fd0: unit +0x98 when +0xc8 bit 10), hostile (FUN_00554200),
     and the missile's row ReturnFire (flag bit 9, +5 & 2; checked against
