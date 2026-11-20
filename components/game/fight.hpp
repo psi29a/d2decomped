@@ -343,6 +343,7 @@ struct Fight {
             int skill_low = 0, skill_high = 0, skill_to_hit = 0;
             const Level* where = nullptr;              // the level it's on (pets follow the player across)
             std::uint32_t until = 0;                   // it goes then (Decoy, Revive, Hydra; 0 never)
+            bool homing = false;                       // a revived monster on its walk back to its owner (FUN_005b0ff0)
             int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
             int hits = 0;                              // a Raven's attacks left (0: no count)
             bool idle = false, mirror = false;         // Decoy stands; a Shadow Warrior swings the owner's blow
