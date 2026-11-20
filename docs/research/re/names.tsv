@@ -222,7 +222,7 @@ address	name	evidence
 00469aa0	keyconfig_key_of	ECX function, EDX slot: the key (low word) of the first of the 114 records at 0x7a6f90 that matches, else 0xffff (controls.md; ui_client_helpers.py)
 0046a530	keyconfig_key_label	ECX function, EDX slot: 32 keys tail-jump to FUN_00524a30 with a string id, any other key or none to FUN_00469de0 with ECX, EDX kept (controls.md; ui_client_helpers.py)
 0046ac70	keys_start	FUN_0046aae0 (key bindings load), DAT_007a7418 = 1; the first time (0x7a7428 was 0) installs the four key-message handler rows at 0x712944 on window [0x7c8cbc] (FUN_00451db0, count 4). Only caller FUN_00456970 (ui-module-frontier.md)
-0046acb0	hint_reset	DAT_007a7418 = 0; with DAT_007a7428 1, cleared and window control 4 released. Only caller FUN_00456d80 (unnamed-frontier.md)
+0046acb0	keys_stop	DAT_007a7418 = 0; with DAT_007a7428 1, cleared and the four key-message handler rows at 0x712944 removed (FUN_00451e10, count 4), undoing FUN_0046ac70. Only caller FUN_00456d80 (unnamed-frontier.md)
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
