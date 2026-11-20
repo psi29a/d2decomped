@@ -6,6 +6,7 @@
 
 #include "merc.hpp"
 #include "montypes.hpp"
+#include "uniques.hpp"
 
 #include <algorithm>
 #include <array>
@@ -293,6 +294,10 @@ struct CorpseState {
 [[nodiscard]] bool raise_takes(const MonType& type, const CorpseState& corpse);
 [[nodiscard]] bool blast_takes(const MonType& type, const CorpseState& corpse);
 [[nodiscard]] bool revive_takes(const MonType& type, const CorpseState& corpse);
+// FUN_005dd480 (through FUN_0056e2f0): whether a skill may swap the unit's think; Revive's test runs it too.
+[[nodiscard]] bool ai_swappable(const MonType& type, const CorpseState& unit);
+// Monster data +0x16's bits 2 and 8 for a boss kind: a champion's 0xd, a unique's 9, a superunique's 0xb.
+[[nodiscard]] int monster_data_flags(Boss boss);
 
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).

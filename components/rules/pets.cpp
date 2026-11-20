@@ -4,6 +4,7 @@
 
 #include "montypes.hpp"
 #include "rules.hpp"
+#include "uniques.hpp"
 
 #include <algorithm>
 #include <array>
@@ -63,14 +64,33 @@ bool blast_takes(const MonType& type, const CorpseState& corpse) {
 }
 // Revive (srvstfunc 21, LAB_005c3350 -> FUN_005c3300; a town too): MonStats2
 // revive (bit 8), dead or dying (FUN_005541b0), FUN_00645510, and
-// FUN_0056e2f0 -> FUN_005dd480: not an imp (BaseId 0x1ec) attached (state
-// 0x8f), not uninterruptable (state 0x36), MonStats2 mWL, not a MonStats boss
-// (+0xc & 0x40), switchai (+0xe & 1), targetable or dying, not a champion,
-// unique or superunique (+0x16 & 0xa).
+// FUN_0056e2f0(unit, 7): ai_swappable.
 bool revive_takes(const MonType& type, const CorpseState& corpse) {
-    const bool dying = corpse.dying || corpse.mode == 0 || corpse.mode == 0xc;
-    return type.revive && dying && corpse_raisable(type, corpse) && !(type.base == 0x1ec && corpse.attached) && !corpse.uninterruptable && type.can_walk
-        && !type.boss_column && type.switch_ai && (corpse.targetable || dying) && (corpse.flags & 0xa) == 0;
+    return type.revive && (corpse.dying || corpse.mode == 0 || corpse.mode == 0xc) && corpse_raisable(type, corpse) && ai_swappable(type, corpse);
+}
+
+// FUN_0056e2f0 -> FUN_005dd480, the same for every argument its eight
+// callers pass (7 Revive FUN_005c3300; 0xa or 0xc FUN_005c35c0; 0xa
+// FUN_005d6520; 0xb Confuse FUN_005c3d50, Conversion FUN_005d02b0,
+// FUN_005d72b0; 0xc FUN_005d8510; 0x13 FUN_005c31f0): not an imp
+// (BaseId 0x1ec) attached (state 0x8f), not uninterruptable (state 0x36),
+// FUN_00623470 (MonStats2 mWL, not a MonStats boss +0xc & 0x40, switchai
+// +0xe & 1), targetable (+0xc4 & 4) or dead or dying (FUN_005541b0: +0xc6 & 1,
+// mode 0 or 0xc), and monster data +0x16 & 0xa clear (0x5dd4ce, before the
+// argument's FUN_005b0da0 test, which adds nothing to these): no champion,
+// unique or superunique.
+bool ai_swappable(const MonType& type, const CorpseState& unit) {
+    const bool dying = unit.dying || unit.mode == 0 || unit.mode == 0xc;
+    return !(type.base == 0x1ec && unit.attached) && !unit.uninterruptable && type.can_walk && !type.boss_column && type.switch_ai
+        && (unit.targetable || dying) && (unit.flags & 0xa) == 0;
+}
+
+// FUN_005a48c0 makes a champion: FUN_005a0320 sets 8 (0x5a0375), then | 5
+// (0x5a4905); FUN_005a4940 a unique: | 1 (0x5a4967), then FUN_005a0320. A
+// superunique carries 2 (FUN_005a0180's other tests). Bits 1 / 4 / 0x10.. aren't
+// read here.
+int monster_data_flags(Boss boss) {
+    return boss == Boss::champion ? 0xd : boss == Boss::unique ? 9 : boss == Boss::superunique ? 0xb : 0;
 }
 
 BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town) {
