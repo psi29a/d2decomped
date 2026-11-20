@@ -554,14 +554,15 @@ struct Monster {
     }
     // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling
     // (FUN_0063ee90's classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8
-    // for a MonStats boss (+0xc & 0x40, FUN_0063e9f0) or a unique (data
-    // +0x16 & 2, FUN_005a0180), raised by its monster_playercount share
-    // (FUN_005738f0: 0 for one player, +50 % each after).
+    // for a MonStats boss (+0xc & 0x40, FUN_0063e9f0) or a superunique (data
+    // +0x16 & 2, FUN_005a0180: only the superunique branches of the creators
+    // set the bit; a unique has 1 | 8, a champion 1 | 4 | 8), raised by its
+    // monster_playercount share (FUN_005738f0: 0 for one player, +50 % each after).
     [[nodiscard]] int crush_divisor(const GameData& game_data) const {
         if (type == 0x10f || type == 0x152 || type == 0x167 || type == 0x230 || type == 0x231) return 10;
         const auto& type_info = game_data.monsters.types[std::size_t(type)];
-        const bool unique = boss == d2d::rules::Boss::unique || boss == d2d::rules::Boss::superunique;
-        const int divisor = type_info.boss_column || unique ? 8 : 4;
+        const bool superunique = boss == d2d::rules::Boss::superunique;
+        const int divisor = type_info.boss_column || superunique ? 8 : 4;
         return divisor + divisor * d2d::rules::player_life_pct(std::max(players, 1)) / 100;
     }
 };

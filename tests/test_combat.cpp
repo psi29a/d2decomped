@@ -420,7 +420,7 @@ int main(int argc, char** argv) try {
     auto blow = player_blow(hit, target, 99, rng);
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng);   // 95 % to hit
     assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400 / 4 = 100 before the hit, less 50 %
-    target.crush_divisor = 8;                                        // a boss or unique; a missile doubles it
+    target.crush_divisor = 8;                                        // a boss or superunique; a missile doubles it
     blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
     assert(blow.hit && blow.damage == 50 + 12 && blow.frac == 128);   // 400 / 16 = 25, less 50 % = 12.5

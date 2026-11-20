@@ -15,7 +15,7 @@
     uv run python crush.py compare-pair pair.tsv game_pair.tsv d2d_pair.tsv
 
 A case line is `id life phys res div`: life = the defender's current life (256ths), phys = the record's damage (256ths), res
-= the defender's stat 0x24 (percent), div = 4 (a plain monster), 8 (boss or unique), 10 (hireling): the branch of FUN_005bffc0.
+= the defender's stat 0x24 (percent), div = 4 (a plain monster), 8 (boss or superunique), 10 (hireling): the branch of FUN_005bffc0.
 
 `game` runs FUN_005bffc0 natively (event 5: a melee strike) on a defender whose stat 6 is `life`: the handler takes
 life / divisor (256ths, whole division), less MulDiv(that, min(res, 100), 100) when res > 0, and sets stat 6 (a life that
