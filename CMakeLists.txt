@@ -13,6 +13,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # No C++ modules here. Scanning for them (CMake's default at C++20+) puts
 # -fmodules-ts & co. on GCC's compile lines, which ccache won't cache.
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+# ccache when it's installed: a branch switch, a pull or a fresh build dir
+# compiles from its cache. Not when a launcher is given (CI passes its own),
+# the compiler already is ccache (Flatpak's --ccache) or under MSVC (its /Zi
+# debug info can't be cached). -DD2D_CCACHE=OFF turns it off.
+option(D2D_CCACHE "Compile through ccache when it's installed" ON)
+get_filename_component(d2d_compiler_real "${CMAKE_CXX_COMPILER}" REALPATH)
+if(D2D_CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER AND NOT MSVC AND NOT d2d_compiler_real MATCHES "ccache")
+    find_program(D2D_CCACHE_PROGRAM ccache)
+    if(D2D_CCACHE_PROGRAM)
+        set(CMAKE_C_COMPILER_LAUNCHER "${D2D_CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${D2D_CCACHE_PROGRAM}")
+        message(STATUS "ccache: ${D2D_CCACHE_PROGRAM}")
+    endif()
+endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
