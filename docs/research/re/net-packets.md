@@ -1285,9 +1285,9 @@ Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
 
 ## Verified in the emulator: server packet builders (SCmd.cpp)
 
-`tools/emu/scmd_senders.py` runs 33 server-to-client packet builders of
+`tools/emu/scmd_senders.py` runs 37 server-to-client packet builders of
 `GAME/SCmd.cpp` and the queue they hand their packet to (`FUN_0053b280`) for real in the
-emulator against stock game.exe 1.14d: 2263 cases, 37 deliberate model defects
+emulator against stock game.exe 1.14d: 2503 cases (run of 2026-11-19), 37 deliberate model defects
 planted and caught (`--mutation-check`). A builder takes the client in ECX
 (copied to EDI for the queue), the packet id or a pointer in EDX and the rest
 on the stack (`ret 4 * n`); the oracle hooks the queue to log EDI, the buffer
@@ -1330,6 +1330,9 @@ words `a0`, `a1` ... are the arguments in order, each read at its field width):
 | `FUN_0053bcd0` | 0xb | id (DL; 9 at its one call site `005721e2` in `FUN_00571f90`), u8 a0 (+1, the unit type), u32 a1 (+2), u8 a2 (+6), u16 a3 (+7), u16 a4 (+9): the 0x09 assign warp packet (the caller passes the type byte of its record, the id at +0xc, the warp class byte at +4 and two words); no lookup, no checks |
 | `FUN_0053bd10` | 0xe | id (DL; `0x51` at its one call site `0x572067`, in `FUN_00571f90`), u8 a0 (unit type, 2 there), u32 a1 (+2, the unit id), u16 a2 (+6), u16 a3 (+8), u16 a4 (+0xa), u8 a5 (+0xc), u8 a6 (+0xd): the assign object packet. It first finds the unit (a0, a1) in the client's game (`FUN_005387c0`, `FUN_00552f60`) and takes the fatal report (line 0x341) when there is none |
 | `FUN_0053bda0` | 6 | id (DL; 0x0a at its three call sites `0052e03d`, `0053a7fe`, `0057160e`), u8 a0 (+1, the unit type), u32 a1 (+2, the id): the 0x0a remove unit packet. A type of 3 (a missile) queues nothing |
+| `FUN_0053c0e0` | 0x18 | 0xa3 (a constant), DL (+1), u16 a0 (+2), u16 a1 (+4), u8 a2 (+6), u32 a3 (+7), u8 a4 (+0xb), u32 a5 (+0xc), u32 a6 (+0x10), u32 a7 (+0x14); eight stack words, `ret 0x20`. Its one caller, the unit-queue drain `FUN_00571cd0` (`0x571dc5..0x571dec`), passes the 0xa3 record's byte +8 in DL and its u16 +0xa, u16 +0xc, dwords +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24 (below, "The server's per-unit outbound queue") |
+| `FUN_0053c150` | 7 | 0xab (a constant), DL (+1), u32 a0 (+2), u8 a1 (+6): health update. `FUN_00571cd0` (`0x571e2a..0x571e38`) passes the record's byte +8, dword +0xc, byte +0x10 |
+| `FUN_0053c190` | 8 | 0xa5 (a constant), DL (+1), u32 a0 (+2), u16 a1 (+6). `FUN_00571cd0` (`0x571e3f..0x571e4d`) passes the record's byte +8, dword +0xc, u16 +0x10 |
 | `FUN_0053c520` | 0xc | 0x22 (a constant), u8 EDX (+1, unit type), u32 a0 (+3, unit id), u16 a1 (+7, skill), low byte of a2 (+9, count), +0xa not written, +0xb flag: 1 when `FUN_00552f60` finds the unit (type EDX, id a0) in the client's game and `FUN_00639df0(unit, 7)` is nonzero, else 0. Callers `FUN_0055c070`, `FUN_0055c110`, `FUN_0055e0d0`, `FUN_0055e170`, `FUN_0055f9c0` |
 | `FUN_0053c590` | 0xd | 0x23, EDX byte, u32 a0 (+2), u8 a1 (+6), u16 a2 (+7), u32 a3 (+9): set skill |
 | `FUN_0053cb30` | 0xd | 0x7a, EDX byte, u8 a0, u16 a3 (+3), u32 a2 (+5), u32 a1 (+9): pet list |
@@ -1337,6 +1340,7 @@ words `a0`, `a1` ... are the arguments in order, each read at its field width):
 | `FUN_0053d4d0` | 0x11 | 0x4d, or 0x9a when a6 != 0; EDX byte, u32 a0 (+2), u32 a3 (+6), u8 a5 (+0xa), u16 a1 (+0xb), u16 a2 (+0xd), u16 a4 (+0xf): skill at x, y |
 | `FUN_0053d2e0` | 6 | 0x42, the byte at EDX+0 (6 when EDX is null), u32 at EDX+0xc (0xffffffff when null): clear cursor |
 | `FUN_0053e020` | 0x21 | 0x8f then 32 zero bytes: the pong |
+| `FUN_0053e1a0` | 3 | 0xa4 (a constant), u16 DX (+1); no stack words (`ret`). `FUN_00571cd0` (`0x571db5`) passes the record's u16 +8 |
 
 **Struct copies**: the packet is the first n bytes of the structure EDX points
 at (its first byte is the id the caller set): `FUN_0053c900` 10 (0x53,
