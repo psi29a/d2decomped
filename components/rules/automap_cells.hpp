@@ -23,11 +23,7 @@ inline constexpr int kAutomapCelGroups[][2] = {
     {520,16},{521,16},{522,16},{533,17},{534,17} };
 
 // FUN_0045a4c0's table at `cel`: its group, -1 for none (or past 0x7ff).
-inline int automap_cel_group(int cel) {
-    for (const auto& pair : kAutomapCelGroups)
-        if (pair[0] == cel) return pair[1];
-    return -1;
-}
+int automap_cel_group(int cel);
 
 struct AutomapNode {
     int cel = 0, cell_x = 0, cell_y = 0, group = -1;   // FUN_00457b00 reads +4 cel, +6 x, +8 y, and the group table at the cel

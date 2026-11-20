@@ -28,11 +28,7 @@ inline constexpr std::array<std::string_view, 5> kShatterRows = { "monglacialspi
 inline constexpr int kShatterSmokeRow = 0x113;
 inline constexpr std::array<int, 2> kUberShatterRows = { 0x1ab, 0x1aa };
 struct ShatterRows { int first = -1, second = -1; };
-inline ShatterRows shatter_rows(int unit_type, int height, bool uberminion, bool frozen) {
-    if (unit_type != 1) return {};
-    if (uberminion && !frozen) return { kUberShatterRows[0], kUberShatterRows[1] };
-    return { kShatterFirstRow + (height & 0xff), kShatterSmokeRow };
-}
+ShatterRows shatter_rows(int unit_type, int height, bool uberminion, bool frozen);
 // FUN_004cd540 under flags 0x2020: no 1, so it starts on the unit (+8);
 // 0x20 with +0x1c / +0x20 zero, so it aims at subtile (0, 0); no 4, so
 // its speed is the row's at level 1 (+0x30), as missile_velocity. With a
@@ -43,9 +39,6 @@ inline ShatterRows shatter_rows(int unit_type, int height, bool uberminion, bool
 // seed (flag 0x2000, 0x4cd9a5).
 inline bool shatter_row_made(int vel, int vel_lev) { return missile_velocity(vel, vel_lev, 1) == 0; }
 // A row's name in kShatterRows, empty past it.
-inline std::string_view shatter_row_name(int row) {
-    const int index = row - kShatterFirstRow;
-    return index >= 0 && std::size_t(index) < kShatterRows.size() ? kShatterRows[std::size_t(index)] : std::string_view{};
-}
+std::string_view shatter_row_name(int row);
 
 }  // namespace d2d::rules

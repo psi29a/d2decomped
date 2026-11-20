@@ -294,6 +294,8 @@ int facing16(int dir64) {
 
 }  // namespace
 
+// World files the states its rooms grow in a frame; npc_patrol files the
+// rest the first time it meets them.
 void file_first_think(UnitState& state, std::uint32_t now_ms) {
     constexpr std::uint32_t kFrameMs = 40;
     state.filed = true;

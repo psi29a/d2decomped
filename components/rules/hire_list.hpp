@@ -18,13 +18,7 @@ namespace d2d::rules {
 
 // A row's number: "%2u" (wsprintfA), widened at most 9 characters
 // (FUN_00526f20: a longer one is cut to 8).
-inline std::string hire_number(std::uint32_t value) {
-    std::array<char, 16> text{};
-    std::snprintf(text.data(), text.size(), "%2u", value);
-    std::string number(text.data());
-    if (number.size() > 9) number.resize(8);
-    return number;
-}
+std::string hire_number(std::uint32_t value);
 
 // A row's label: its first 20 characters (FUN_00526790(.., 0x14)).
 inline std::string hire_label(std::string_view label) { return std::string(label.substr(0, 20)); }

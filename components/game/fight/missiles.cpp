@@ -54,6 +54,9 @@ auto Fight::other_target() -> void {
         actor->player.dir = direction16(monsters[std::size_t(actor->attack_mon)].unit.x - actor->player.x, monsters[std::size_t(actor->attack_mon)].unit.y - actor->player.y);
     }
 
+// Its index in the items with some left, or -1; at -1 the cast is
+// refused and a spent stack in hand swapped out (FUN_005da8b0 ->
+// FUN_00580310, cast_missile).
 auto Fight::ammo_index() const -> int {
         using namespace d2d::d2s;
         const auto& tables = game_data->rules;
@@ -77,6 +80,8 @@ auto Fight::ammo_index() const -> int {
         return found >= 0 && d2d::rules::quantity_left(tables, actor->character.items[std::size_t(found)]) ? found : -1;
     }
 
+// The plain attack (do 1, FUN_0056f070) fires it from where the player
+// stands.
 auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
         using namespace d2d::d2s;
         const auto& tables = game_data->rules;
@@ -184,6 +189,8 @@ auto Fight::reequip() -> bool {
         return true;
     }
 
+// At 0 armour breaks; a stack loses one of its quantity and comes back
+// whole (its last: out of ammo); any other weapon stays at 0.
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         auto& item = actor->character.items[index];
@@ -247,6 +254,7 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
         }
     }
 
+// At 0 durability the weapon breaks (FUN_0055f850).
 auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
@@ -297,6 +305,10 @@ auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const
 
 auto Fight::missile_skill(const d2d::rules::Skill& skill) const -> bool { return skill_missile(skill) != nullptr; }
 
+// A cast sequence (anim SQ, seqtrans SC: Lightning) holds SC for its
+// steps (rules::cast_sequence_ticks).
+// ponytail: its action frame and drawing are SC's scaled over that
+// hold, not the sequence's own steps.
 auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
@@ -712,6 +724,15 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
 
 auto Fight::pierce() const -> std::array<int, 4> { return { int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) }; }
 
+// True: it's spent — a CollideKill missile is, unless it may pierce
+// (Missiles.txt Pierce) and stat 328's chance lets it fly on. Hit
+// function 1 (FUN_005a9a70) explodes instead: every monster within
+// sHitPar1 subtiles (else the skill's calc1) of the missile takes the
+// skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
+// distance against the radius squared). A row with no Skill takes its
+// own damage (FUN_0064b860: Fight::row_damage), its physical columns
+// and DmgSymPerCalc (FUN_0064af20 / FUN_0064aff0) with its element and
+// EDmgSymPerCalc.
 auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !missile.info) return true;
@@ -1080,6 +1101,12 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
         }
     }
 
+// Cast by the player (FUN_005cf010 on a player unit), it needs its
+// FUN_00644b10 cost in mana (Prayer: (16 + 3 x (lvl - 1)) << 4, 256ths)
+// or heals nothing, and takes the cost off it (FUN_0056c110) when it
+// healed someone; the merc's costs nothing. A player's pulse with a
+// cost sets state 0x55 (nomanaregen, FUN_00639db0) when it healed, else
+// clears it (Hero::no_mana_regen).
 auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast) -> void {
         using namespace d2d::d2s;
         auto& values = actor->character.stats.values;
@@ -1113,6 +1140,8 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
         if (cost > 0) actor->no_mana_regen = changed > 0;
     }
 
+// Redemption's callback (FUN_005d0d70) is aura_pulse's own; the rest of
+// do 66 share FUN_005cf2a0.
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         // The merc's own (an Act 2 merc's Prayer), on its own clock.
         if (const auto* merc_skill = actor->merc && actor->merc->alive() && actor->merc_aura > 0 ? game_data->skills.get(actor->merc_aura) : nullptr;
@@ -1200,10 +1229,17 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         }
     }
 
+// A monster here is no side of the player's, so a friendly aura's never
+// does (0x12003 needs an ally: FUN_00554de0). (from_x, from_y): the
+// walk's own unit, where the line (0x200) starts.
 auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const -> bool {
         return filter_takes(skill.aura_filter, monster, from_x, from_y);
     }
 
+// 0x20000 (in melee, FUN_00622c40) and 0x80000 (not in state 0x56)
+// aren't filled in: none of 1.14d's 357 Skills.txt rows has either in
+// its aurafilter, nor do the two filters written out here (0xa783,
+// 0x8783).
 auto Fight::filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const -> bool {
         if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
@@ -1229,6 +1265,9 @@ auto Fight::in_aura(const Monster& monster) -> bool {
             && aura_takes(*skill, monster, actor->player.x, actor->player.y);
     }
 
+// A cut to a resistance of 100 or more counts a fifth
+// (FUN_005c3540, apply_target_stats); Holy Freeze's slow is the
+// monster's (monster_states).
 auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         auto target = monsters[monster_index].target(*game_data);
         const auto base = target.res;

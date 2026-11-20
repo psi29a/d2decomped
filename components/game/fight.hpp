@@ -583,15 +583,11 @@ struct Fight {
     // of double: rules::potion_amount) over their length, joined with
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
-    // The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
-    // on d2d's rng here (rules::potion_amount): deviations.md approximation 18.
     void drink(int col, std::uint32_t now_ms);
     // Shift with the key: the merc drinks it (FUN_00562390 with the merc
     // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
     // counts as hpot; anything else stays in the belt). A healing potion
-    // heals it over its length, a rejuvenation its % at once.
-    // An antidote ends its poison; either puts its state (+50 resist, +10
-    // max) on it as on the player (FUN_005bef90, FUN_005beda0). d2d keeps
+    // heals it over its length, a rejuvenation its % at once. d2d keeps
     // no merc chill for thawing to end. Healing as rules::potion_amount
     // has it for a non-player (x2; doubled on its gear's vitality).
     void feed_merc(int col, std::uint32_t now_ms);
@@ -603,9 +599,7 @@ struct Fight {
     void potion(const std::string& code, std::uint32_t now_ms);
     // Potions and poison, then the steady regeneration: replenish life
     // (hpregen, N/256 a tick) and mana (rules::mana_per_frame, FUN_005806f0:
-    // max mana over CharStats ManaRegen seconds, a frame at a time). Poison
-    // is negative hpregen, and the player's regen tick (FUN_00580610) never
-    // takes life below 1: poison can't kill a player (docs/research/re/combat.md).
+    // max mana over CharStats ManaRegen seconds, a frame at a time).
     void apply_regen(std::uint32_t now_ms, std::uint32_t last_ms);
     // A monster's new mode sounds off (MonSounds.txt): an attack's cry (at
     // its chance) and weapon, get-hit, death, each after its delay in ticks.
@@ -642,8 +636,6 @@ struct Fight {
     // when the weapon is its type, the best one (FUN_00645830), Weapon Block
     // (348) with two claws when either hand is (FUN_0057dca0, class HT2);
     // the set bonuses (set_bonus_props, set_props); nothing from a broken item.
-    // Throwing a throwable with Throw, Left Hand Throw or Double Throw, the
-    // throw masteries (345..347) count in the melee ones' place (FUN_00645720).
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
@@ -652,19 +644,6 @@ struct Fight {
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
     // of the panel defense (the override after), damageresist to DR %;
     // every other aurastat but life joins the stat sum (below).
-    // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
-    // aurastats on the player (and allies within aurarangecalc subtiles)
-    // the same way; its hitpoints (Prayer) heal on each pulse instead.
-    // The merc's (an Act 2 merc's Prayer, Defiance, Might, ...) does the
-    // same for the player and itself, and the player's and a totem's for the
-    // merc (friendly_auras); a resist aura's cap is the panel's max resist.
-    // The self states' aurastats are stats on the player (FUN_005c6cc0):
-    // they join the item stats, so toblock (20), damageresist (36) and
-    // the rest go through make_fighter; defense % (171 skill_armor_percent,
-    // 182 armor_override_percent after it) applies to the panel defense.
-    // attackrate (68) is SIAS (Fighter::sias, raw) and velocitypercent (67)
-    // is added after the FRW's diminishing (FUN_00623f50).
-    // ponytail: other stats make_fighter doesn't read do nothing.
     void update_fighters(std::uint32_t now_ms);
 
     // What calcs ask of the player (skills.hpp).
@@ -672,11 +651,9 @@ struct Fight {
     // The merc's: its level, no skills or stats behind it (mercs have no synergies).
     [[nodiscard]] d2d::rules::CalcEnv merc_calc_env();
     // A swing starts: the skill in use when it's built, paid for from mana
-    // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana swings
-    // a plain attack instead, any other doesn't swing. Its animation (A1,
-    // KK for the kicks) at the swing's speed; Dragon Talon's kick count is
-    // calc1 (FUN_005d5970).
-    // The host's swing in a joined game (shown) is for show: not asked.
+    // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana
+    // swings a plain attack instead, any other doesn't swing. The host's
+    // swing in a joined game (shown) is for show: not asked.
     bool start_swing(std::uint32_t now_ms, bool shown = false);
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
     // FUN_00647540's cost, FUN_006440f0's startmana) the class says so: message
@@ -725,13 +702,7 @@ struct Fight {
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
     // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
     // physical damage, the last kick knocking back (100% on normal
-    // monsters, FUN_005d5a30). A finisher's charges add their stat 325
-    // to-hit (add_charges), Dragon Flight's too (progressive_tohit).
-    // Their states and conversion come too: an EType stun skill (Stun) its
-    // elemental length as the stun, calc4 % of the physical to the element
-    // (Concentrate's magic; skill_swing), and a do-2 skill's aurastate on
-    // the player for the swing (FUN_0056f1f0, self_state: Concentrate's
-    // skill_armor_percent, Berserk's).
+    // monsters, FUN_005d5a30).
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
     // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
@@ -769,14 +740,11 @@ struct Fight {
 
     // Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
     // monster struck, on away from the player (to twice its spot less the
-    // player's), each wandering as Charged Bolt's (FUN_005c9290). Lightning
-    // Strike (do 14, FUN_005dbe50): from the monster struck at another within
-    // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
+    // player's), each wandering as Charged Bolt's (FUN_005c9290).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
     // sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
     // physical, on what its aurafilter takes within half the aurarange.
-    // `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
     void corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms);
     // Skills that act where they're cast, with no missile of their own:
     // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
@@ -788,12 +756,6 @@ struct Fight {
     // FUN_005c4df0: corpse_blast), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
     // FUN_005ca360: to the point, where it's open; not in town).
-    // Static Field's walk takes its aurafilter (0x8783) from the caster: a
-    // clear line (0x200), out of town.
-    // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
-    // enemy player: FUN_0056b3e0 type 0), Mind Blast's
-    // conversion (Param3 / 4 through FUN_005d7680) and the knockback
-    // guards aren't applied.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with
@@ -846,13 +808,7 @@ struct Fight {
     void monster_return_fire(std::size_t monster_index, const Missile& missile, bool by_merc, std::uint32_t now_ms);
     void buff_tick(std::uint32_t now_ms);
     // The skill states on the monsters (their curse and cry slots): what
-    // they add up to this frame. Aurastats damagepercent (25) and
-    // velocitypercent (67) go on its damage and pace; Iron Maiden returns
-    // calc1 % of its melee damage (event domeleedamage), Terror sends it
-    // running, Dim Vision and Cloak of Shadows blind it, Confuse and
-    // Attract make it neutral (align 1) for as long: it then fights other
-    // monsters, by the target kind 3 / 2 its cast set (FUN_005c3de0,
-    // FUN_005c3b90; ai.cpp's FUN_005dd610).
+    // they add up to this frame.
     void monster_states(std::uint32_t now_ms);
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
     // ticks more (FUN_005d3320), and its prgsound row for the count on the
@@ -893,8 +849,7 @@ struct Fight {
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
     // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0); the
-    // mastery is the player's stat 329 (psum: items, passives). The blast is
-    // centred on the unit kicked (FUN_00553540's, esi at 0x5d71f7), so it's in it.
+    // mastery is the player's stat 329 (psum: items, passives).
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
@@ -903,8 +858,7 @@ struct Fight {
     // wandering as Charged Bolt's) at
     // most every 10 frames; 4 frames after it dies (the event 7 its death
     // queues), Fire Enchanted's blast and Cold Enchanted's nova
-    // (FUN_005a2bd0: coldunique, level mlvl / 2). A hit taken in GH fires
-    // the bolts 2 frames on (event 7, FUN_005a37d0).
+    // (FUN_005a2bd0: coldunique, level mlvl / 2).
     void boss_events(std::span<Foe> foes, std::uint32_t now_ms);
     // A boss's missile from where it stands, at level mlvl / 2 (at least
     // 1), the row's own element (FUN_0064b100 ..).
@@ -971,14 +925,9 @@ struct Fight {
     // Its maximum life with its gear.
     [[nodiscard]] int merc_max_life() const;
 
-    // The merc's turn. Standing, at its think (MonAI Hireable,
-    // rules::hireable_think) it follows the player, wanders, stands or
-    // fights the foe its search finds (FUN_005ddc30): the attack think and
-    // its skill pick (rules::merc_attack, FUN_005e5050 / FUN_005e4d30). A
-    // walk or run ends with a think at once (FUN_005a8030). Hits use its
-    // attack rating against the monster's defense and its damage. Killed,
-    // it plays its death and is gone (the save's merc is dead until
-    // resurrected).
+    // The merc's turn. Hits use its attack rating against the monster's
+    // defense and its damage. Killed, it plays its death and is gone (the
+    // save's merc is dead until resurrected).
     void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);
 
     // The player's combat modes this frame: dead, the death plays out
@@ -986,9 +935,7 @@ struct Fight {
     // ends — `held` (the left skill sent again), the next follows; a
     // flinch or block ends.
     bool player_modes(bool held, std::uint32_t now_ms, float elapsed);
-    // A step of a moving skill. Whirlwind ends where it was sent (or at a
-    // wall); Charge follows its monster; a leap flies over whatever's
-    // below and lands on its landing event.
+    // A step of a moving skill.
     void skill_step(std::uint32_t now_ms, float elapsed);
     // A moving skill's event frame (its srvdofunc):
     // Whirlwind (FUN_005d9580): when its hit timer allows (FUN_005d9320:
@@ -998,8 +945,6 @@ struct Fight {
     // sequence to its attack; the attack's event hits (knockback);
     // Leap Attack (FUN_005da7e0): takeoff, landing beside the monster, the
     // strike (FUN_005da660: knockback, a stun on it ends).
-    // ponytail: FUN_0062a710's attack frames taken as attack_ticks of the
-    // class's A1; FUN_005d92d0 (two weapons) as a weapon in each hand.
     void move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // FUN_0056bd10 handed the last target: the enemy in reach with the next
     // higher unit id, else the lowest (round the ring; the same one when
@@ -1007,20 +952,16 @@ struct Fight {
     void other_target();
     // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
-    // its quantity (stat 70, FUN_0056c3f0) instead. At 0 durability the
-    // weapon breaks (FUN_0055f850).
+    // its quantity (stat 70, FUN_0056c3f0) instead.
     void impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
     // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
     // throwable in either hand (right first), else the weapon itself when
-    // it's a throwable. Its index in the items with some left, or -1; at
-    // -1 the cast is refused and a spent stack in hand swapped out
-    // (FUN_005da8b0 -> FUN_00580310, cast_missile).
+    // it's a throwable.
     [[nodiscard]] int ammo_index() const;
     // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
     // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
-    // for any other weapon. The plain attack (do 1, FUN_0056f070) fires it
-    // from where the player stands.
+    // for any other weapon.
     [[nodiscard]] const GameData::MissileInfo* weapon_missile() const;
     // Whether the shot takes ammo: the plain attack's (not a magic arrow:
     // FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
@@ -1047,9 +988,7 @@ struct Fight {
     void wear_weapon(std::uint32_t now_ms);
     void wear_armor(std::uint32_t now_ms);
     // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
-    // other weapon 4 % to lose 1 durability. At 0 armour breaks; a stack
-    // loses one of its quantity and comes back whole (its last: out of ammo);
-    // any other weapon stays at 0.
+    // other weapon 4 % to lose 1 durability.
     void wear(std::size_t index, std::uint32_t now_ms);
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
@@ -1068,10 +1007,7 @@ struct Fight {
     // Casting one at (tx, ty): its mana, then its animation (A1 at the
     // attack's speed for the bow skills, else SC with FCR); the missiles
     // leave on the action frame (fire), which starts the skill's delay
-    // (+400, FUN_0056ef90: start_delay). A cast sequence (anim SQ, seqtrans
-    // SC: Lightning) holds SC for its steps (rules::cast_sequence_ticks).
-    // ponytail: its action frame and drawing are SC's scaled over that
-    // hold, not the sequence's own steps.
+    // (+400, FUN_0056ef90: start_delay).
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
@@ -1148,21 +1084,11 @@ struct Fight {
     // weapon share (the skill's SrcDam, or a row with no Skill its
     // SrcDamage) the weapon's blow at that share, attack rating rolled;
     // else a sure hit (ToHit missiles roll the attack rating); then the
-    // skill's damage (missile_blow). True: it's spent — a CollideKill
-    // missile is, unless it may pierce (Missiles.txt Pierce) and stat 328's
-    // chance lets it fly on.
-    // Hit function 1 (FUN_005a9a70) explodes instead: every monster within
-    // sHitPar1 subtiles (else the skill's calc1) of the missile takes the
-    // skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
-    // distance against the radius squared). With no unit it goes off at a
-    // wall or where its Range runs out too (burst, kNoUnitHit). A row with
-    // no Skill takes its own damage (FUN_0064b860: Fight::row_damage), its
-    // physical columns and DmgSymPerCalc (FUN_0064af20 / FUN_0064aff0) with
-    // its element and EDmgSymPerCalc.
+    // skill's damage (missile_blow). With no unit it goes off at a wall or
+    // where its Range runs out too (burst, kNoUnitHit).
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A missile with no skill on monster i: the merc's plain arrow, its bow's
-    // blow. A LastCollide row passes the unit it struck last (FUN_005a8730);
-    // a Pierce row with a charge left flies on, as skill_missile_hits'.
+    // blow.
     bool plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
     // A skill missile's damage on monster i: with a weapon share (the
     // skill's SrcDam, or a row with no Skill its SrcDamage) the weapon's
@@ -1208,8 +1134,8 @@ struct Fight {
     // `struck`: the monster the missile struck (FUN_005adf10's unit), -1 none.
     void burst(Missile& missile, std::uint32_t now_ms, int struck = -1);
     static constexpr std::array<int, 15> kNoUnitHit{ 1, 2, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 51, 56 };
-    // The aura's pulse, every perdelay ticks while it's on: a friendly one's
-    // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
+    // The aura's pulse, every perdelay ticks while it's on: a friendly
+    // one's hitpoints heal the player (Prayer: edns, 256ths); an enemy one
     // (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster
     // within aurarangecalc subtiles that its aurafilter takes (FUN_0056b7e0
     // -> FUN_0056b3e0, aura_takes: Sanctuary undead only, Holy Freeze no
@@ -1217,10 +1143,9 @@ struct Fight {
     // Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
     // target state (+0x82) and target_of (and monster_states, Holy Freeze's
     // slow) applies them while the monster is in range and its aurafilter
-    // takes it (enemy_auras).
-    // A pulse's next is aura_due (rules::aura_next_frame). Redemption's
-    // callback (FUN_005d0d70) is aura_pulse's own; the rest of do 66 share
-    // FUN_005cf2a0. A cost (Sanctuary's) is paid only for a target state put.
+    // takes it (enemy_auras). A pulse's next is aura_due
+    // (rules::aura_next_frame). A cost (Sanctuary's) is paid only for a
+    // target state put.
     void aura_pulse(std::uint32_t now_ms);
     // When an aura pulsing now (at level `lvl`) pulses next, ms (FUN_0056cda0).
     [[nodiscard]] std::uint32_t aura_due(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) {
@@ -1228,26 +1153,14 @@ struct Fight {
     }
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
-    // Cast by the player (FUN_005cf010 on a player unit), it needs its
-    // FUN_00644b10 cost in mana (Prayer: (16 + 3 x (lvl - 1)) << 4, 256ths)
-    // or heals nothing, and takes the cost off it (FUN_0056c110) when it
-    // healed someone; the merc's costs nothing.
-    // A player's pulse with a cost sets state 0x55 (nomanaregen,
-    // FUN_00639db0) when it healed, else clears it (Hero::no_mana_regen).
     void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y, bool player_cast = false);
-    // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
-    // monster here is no side of the player's, so a friendly aura's never
-    // does (0x12003 needs an ally: FUN_00554de0). (from_x, from_y): the
-    // walk's own unit, where the line (0x200) starts.
+    // Whether the skill's aurafilter takes the monster (aura_filter.hpp).
     [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster, float from_x, float from_y) const;
     // Whether FUN_0056b7e0's walk with a FUN_0056b3e0 filter, centred on a
     // unit at (from_x, from_y), takes the monster (aura_filter.hpp): its
     // mode (DD a corpse, any other without life dying), MonStats npc, unit
     // flags 4 and 8 as `targetable` (flags 0xe), the level a town, and a
     // clear line, mask 4, when the filter asks.
-    // 0x20000 (in melee, FUN_00622c40) and 0x80000 (not in state 0x56) aren't
-    // filled in: none of 1.14d's 357 Skills.txt rows has either in its
-    // aurafilter, nor do the two filters written out here (0xa783, 0x8783).
     [[nodiscard]] bool filter_takes(std::uint32_t filter, const Monster& monster, float from_x, float from_y) const;
     // The player's aura over the monster: in range and taken by its filter,
     // so its auratargetstate shows (Conviction's; never Might's).
@@ -1255,9 +1168,7 @@ struct Fight {
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;
     // resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
-    // 45 poison, 171 defense %). A cut to a resistance of 100 or more
-    // counts a fifth (FUN_005c3540, apply_target_stats); Holy Freeze's
-    // slow is the monster's (monster_states).
+    // 45 poison, 171 defense %).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
     // The same under the merc's blow: a MonStats boss (+0xc & 0x40) takes the game's
     // HireableBossDamagePercent (FUN_0057c060).
@@ -1280,21 +1191,13 @@ struct Fight {
     [[nodiscard]] int corpse_near(float x, float y) const;
     // The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
     // as its MonStats row at the row's level, then set to its level
-    // (rules::summon_level: Raven's and the Druid's forced to max(calc2, 1),
-    // else min(max(clvl x 3 / 4 + the skill level, 1), clvl) for Raise, the
-    // golems, the Decoy, the Valkyrie and the traps), with MonLvl's defense
-    // and attack rating at it added (stats 31 / 19), life + calc1 %.
-    // Past petmax of its pettype the oldest goes.
-    // The skill's passive stats, aurastats and sumskills land on it as
-    // summons.cpp has them (FUN_005c4470; the masteries come in that way),
-    // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
-    // Iron Golem wears the metal item it's cast at (golem_item_at).
-    // Blood Golem's life steal is pet_strike's (rules::blood_golem_steal); its
-    // damaged events (func 26, FUN_005c6690) pass Param5 % of a hit on it to
-    // the owner, the skill being its MonStats +0x170 one (BloodGolem): 0 in
-    // 1.14d's Skills.txt, so nothing.
-    // A skill by its name as the tables write it (Fire Golem's sumskill
-    // says 'holy fire').
+    // (rules::summon_level: Raven's and the Druid's forced to max(calc2,
+    // 1), else min(max(clvl x 3 / 4 + the skill level, 1), clvl) for Raise,
+    // the golems, the Decoy, the Valkyrie and the traps), with MonLvl's
+    // defense and attack rating at it added (stats 31 / 19), life + calc1
+    // %. Past petmax of its pettype the oldest goes. Iron Golem wears the
+    // metal item it's cast at (golem_item_at). A skill by its name as the
+    // tables write it (Fire Golem's sumskill says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
     // The missile row a pet's skill shoots: its srvmissile, else
     // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
@@ -1331,10 +1234,6 @@ struct Fight {
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
     // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
-    // Of the 1.14d player summons only a revived monster reaches this think
-    // (its own MonStats AI): every other summon's AI is traced, and Decoy's
-    // (Idle, 0x5b0cd0) and Bone Wall's / Prison's (BoneWall, FUN_005e0400)
-    // only stand (pet.idle).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     // A SkillDamage pet's swing damage and to-hit at its owner's level in the
     // summoning skill now (FUN_0056e000: FUN_00644aa0, FUN_00647bc0 /
@@ -1359,10 +1258,8 @@ struct Fight {
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
-    // ticks, its aurastats (toblock dm56) on the player.
-    // Its row has no auraevent and no passivestat, so the aura events
-    // (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
-    // Without a shield it is refused before this (weapon_gate: itypea1 shld).
+    // ticks, its aurastats (toblock dm56) on the player. Without a shield
+    // it is refused before this (weapon_gate: itypea1 shld).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.
@@ -1379,20 +1276,14 @@ struct Fight {
     // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
     // 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
     // and the skill's delay above 0.
-    // In state 0x72 (Blood Mana's curse, curses[0]) the cost is asked of life (FUN_00647540: stat 6, not 8).
-    // FUN_00647840's status 2 (an entry's item at 0 charges) never comes: the stat hook takes the entry
-    // away at 0 (SKILLS_AddOrRemoveItemSkill, skills.md "Item charges"), as charged_skills does.
     [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
     // The player in state 0x72: a succubus witch's Blood Mana (srvdofunc 30) as its curse, while it lasts.
     [[nodiscard]] bool blood_mana() const;
-    // FUN_005d2b60, a cost paid in state 0x72 (FUN_0056bfe0, FUN_0056c110): `cost` 256ths off life. Short of
-    // it the state goes and life is set to 1 (0x100), false; paid, the state goes once life is under the
-    // curse's Param5 (+0x158) points.
+    // FUN_005d2b60, a cost paid in state 0x72 (FUN_0056bfe0, FUN_0056c110): `cost` 256ths off life.
     bool blood_pay(std::int64_t cost);
     // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
     // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
-    // the skill that goes. Else -1 and the status's line (0x711ddc): 1 needmana, 2..4
-    // impossible, 6..8 none.
+    // the skill that goes.
     int ask(int skill, std::uint32_t now_ms);
     // The end of the swing skill's do (FUN_0056f7f0 at LAB_0056fa93): its delay (Skills.txt
     // `delay`, frames) above 0 puts the player in skilldelay till now plus it (FUN_0056ef90).
@@ -1465,17 +1356,12 @@ struct Fight {
     // to the monsters there; Conviction cuts the foes' resistances and
     // defense; Holy Fire, Shock and Freeze strike the foes every perdelay,
     // less magic damage reduction as a monster's element (monster_blow).
-    // Fanaticism's attackrate speeds their attacks (Monster::aura_rate);
-    // Holy Freeze's slow is the player's stats (update_fighters).
     void monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms);
     // A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
     // Storm Shrine's 16 fireballs (FUN_00582da0, missile 62) toward x = +-5k
     // subtiles (k 1..4, + for odd k), y 5, -10, 15, -20; the Exploding and
     // Poison Shrines' 6 potions (FUN_005830e0 / FUN_00583410, missiles 45 /
     // 48) toward (-6, 6), (-6, -6), (0, 6), (0, -6), (6, 6), (6, -6).
-    // ponytail: they hit monsters only (game.exe's are the shrine's own and
-    // may hit players too: other players wait for networking); the poison potion's cloud is a burst of its
-    // row's poison.
     void shrine_missiles(int code, float x, float y, int clvl, std::uint32_t now_ms);
     // The player went to `to`: an outdoor level's monsters come back, the
     // last one's are kept as they were; nothing in flight follows.

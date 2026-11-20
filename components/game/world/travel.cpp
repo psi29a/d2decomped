@@ -176,6 +176,9 @@ auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> 
         fight.start_swing(now_ms, true);
     }
 
+// Close (FUN_00548b00 case 5): warp_close, tested when the click comes
+// and when the walk ends (LAB_00580e73), not on the way; a click
+// further off walks toward its tile unit (drlg.md "Taking a warp").
 auto World::use_warp() -> void {
         if (actor->take_warp < 0 || std::size_t(actor->take_warp) >= level->warps.size()) return;
         const auto warp = level->warps[std::size_t(actor->take_warp)];
@@ -294,6 +297,13 @@ auto World::owe_returns(const Level& town) -> void {
         if (in_town(&town)) actor->returning = d2d::rules::NpcReturns::due(congrats(), d2d::rules::level_ids::act_of(town.id));
     }
 
+//   level's span (0 / 5 / 10), never below the level's start + 1;
+// - gold (FUN_005357d0): min(level, 20) % of carried and stashed gold,
+//   in single player at most what leaves level x 500, and only from the
+//   purse; the rest of the purse falls where the player dies
+//   (FUN_00535510: one pile, FUN_0055a090 splits only past 2,000,000,000;
+//   the player owns it), the purse is emptied, goldlost (175) is set
+//   (Player::gold_lost: the death screen's line, FUN_00453100).
 auto World::death_penalty(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         auto& stat_values = actor->character.stats.values;
@@ -358,6 +368,8 @@ auto World::make_corpse(std::uint32_t now_ms) -> void {
         actor->corpses.push_back(std::move(corpse));
     }
 
+// The body slots in order, 1..12 (FUN_00562f30's walk). It goes once
+// it's empty.
 auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         auto& corpse = actor->corpses[corpse_index];
@@ -406,6 +418,8 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         cues.cue("item_pickup", now_ms, actor->player.x, actor->player.y);
     }
 
+// The old pair goes first; the scroll's used up, or the tome's quantity
+// goes down, only when the new one opened.
 auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms) -> void {
         // FUN_005be290 opens none in town nor in Uber Tristram (level 0x88),
         // FUN_0057eec0's mode gate none in state 0x36; held: FUN_0055e170's

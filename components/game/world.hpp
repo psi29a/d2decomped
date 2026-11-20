@@ -813,21 +813,9 @@ struct World {
     [[nodiscard]] bool wall_to(const Npc& object, int x, int y, int size) const;
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
-    // "Trap monsters"). The trap monster acts once and is gone, so its
-    // shot goes straight from the chest at the target its monster search
-    // picks: missile level 1 / 4
-    // / 8 by difficulty; a row with a Skill (chainlightning) carries that
-    // skill's damage, the others their own columns. 5 / 7 leave two fires
-    // (no damage traced); 8 raises the level's undead.
-    // trapfirebolt bursts into its fireexplode as any missile does (its
-    // ExplosionMissile, missiles_update).
-    // Its first think is two frames after FUN_00582420 makes it; only a
-    // searched target within aip1 (Trap-Missile 25 / 30 / 32 by
-    // difficulty; Trap-Poison / Trap-Nova 20) gets the act.
-    // Trap 1's chainlightning doesn't hop: its hops (missile data +0x28) are set only through
-    // FUN_0064a710, which the mode's missile path (FUN_005a6d50, FUN_0056ecb0, FUN_0059fa30) never
-    // calls, so hit function 12 (FUN_005aa730: hops over 1) finds none.
-    // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
+    // "Trap monsters"). 5 / 7 leave two fires (no damage traced); 8
+    // raises the level's undead. `undead`: 8's count (0: 1 or 2); a
+    // casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
     // A container's trap as it opens (FUN_00582510): trap 8 with no undead
     // family in act 1 is nothing (FUN_00582250); else its event 4 springs
@@ -842,15 +830,10 @@ struct World {
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
-    // A player enters with their character (a save loaded, or made): the
-    // World takes its copy, the merc comes along, a fresh game; the Act 1
-    // quest-gated NPCs (Cain) are there once their quest is done.
     void enter(const Character& entering);
     // Another player joins the game under way (docs/design/local-coop.md):
     // their character (full life, as entering), beside the first player,
     // their merc along. The one acting stays.
-    // The quests hear of them through their +0xd8s (join_more), not the
-    // +0xd4s the game's first player ran (FUN_00546270).
     Player& join(const Character& entering);
     // A later player's quest joins (FUN_00546270's +0xd8 loop), each act's.
     void join_more();
@@ -905,9 +888,6 @@ struct World {
     // it, the player goes to the level it leads to and stands at that
     // level's warp back, at its ExitWalk. Everything with the player
     // (merc, pets) comes along; the automap and monsters are the new level's.
-    // Close (FUN_00548b00 case 5): warp_close, tested when the click comes
-    // and when the walk ends (LAB_00580e73), not on the way; a click
-    // further off walks toward its tile unit (drlg.md "Taking a warp").
     void use_warp();
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
@@ -1019,13 +999,6 @@ struct World {
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
     // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the
-    //   level's span (0 / 5 / 10), never below the level's start + 1;
-    // - gold (FUN_005357d0): min(level, 20) % of carried and stashed gold,
-    //   in single player at most what leaves level x 500, and only from the
-    //   purse; the rest of the purse falls where the player dies
-    //   (FUN_00535510: one pile, FUN_0055a090 splits only past 2,000,000,000;
-    //   the player owns it), the purse is emptied, goldlost (175) is set
-    //   (Player::gold_lost: the death screen's line, FUN_00453100).
     void death_penalty(std::uint32_t now_ms);
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
     // corpse where the player lies with what they wore and held, and 75% of
@@ -1036,17 +1009,14 @@ struct World {
     // (FUN_0062eaf0: rules::can_wear) and held with the other hand's
     // (FUN_0055f2d0: its own slot taken and the other side free, it goes
     // there, rules::corpse_slot), else to the inventory; what doesn't fit
-    // stays on it. The body slots in order, 1..12 (FUN_00562f30's walk).
-    // It goes once it's empty.
+    // stays on it.
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
-    // item, FUN_0055e170 -> books.txt pSpell 2, FUN_005be290): the pair opens
-    // on this tick, no cast, whatever the player is doing; not dead, not in
-    // town, not with an item in hand. The old pair goes first; the scroll's
-    // used up, or the tome's quantity goes down, only when the new one
-    // opened. The skill bar's Town Portal (skill 220, srvdofunc 113) is the
-    // cast.
+    // item, FUN_0055e170 -> books.txt pSpell 2, FUN_005be290): the pair
+    // opens on this tick, no cast, whatever the player is doing; not dead,
+    // not in town, not with an item in hand. The skill bar's Town Portal
+    // (skill 220, srvdofunc 113) is the cast.
     void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
     // Town Portal's action frame: a portal by the player and its twin at the
     // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
@@ -1084,9 +1054,7 @@ struct World {
     // Each player's Player::hand_status, at the end of a level's tick (what FUN_00467880 asks).
     void hand_statuses(std::uint32_t now_ms);
 
-    // A command from the player, checked and applied. game.exe's dispatcher
-    // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state
-    // 0x36, or mode 0 / 0x11; walking passes (network.md).
+    // A command from the player, checked and applied.
     void apply(const Command& command, std::uint32_t now_ms);
 
     // One step of the game: the player's commands, then the world. The

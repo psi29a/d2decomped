@@ -377,6 +377,13 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         }
     }
 
+// Aurastats damagepercent (25) and velocitypercent (67) go on its
+// damage and pace; Iron Maiden returns calc1 % of its melee damage
+// (event domeleedamage), Terror sends it running, Dim Vision and
+// Cloak of Shadows blind it, Confuse and Attract make it neutral
+// (align 1) for as long: it then fights other monsters, by the target
+// kind 3 / 2 its cast set (FUN_005c3de0, FUN_005c3b90; ai.cpp's
+// FUN_005dd610).
 auto Fight::monster_states(std::uint32_t now_ms) -> void {
         for (auto& monster : monsters) {
             monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = 0;

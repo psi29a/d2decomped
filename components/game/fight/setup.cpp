@@ -154,10 +154,15 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
         if (actor->merc) { actor->merc->unit.x = actor->player.x + 1; actor->merc->unit.y = actor->player.y + 1; actor->merc->unit.path.clear(); actor->merc->mode = "NU"; actor->merc_target = -1; }
     }
 
+// The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
+// on d2d's rng here (rules::potion_amount): deviations.md
+// approximation 18.
 auto Fight::drink(int col, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_belt(game_data->rules, actor->character.items, col), now_ms);
     }
 
+// An antidote ends its poison; either puts its state (+50 resist, +10
+// max) on it as on the player (FUN_005bef90, FUN_005beda0).
 auto Fight::feed_merc(int col, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         if (dead() || !actor->merc || actor->merc->hit_points <= 0) return;
@@ -258,6 +263,9 @@ auto Fight::cure(std::uint32_t now_ms, bool well) -> bool {
         return counts;
     }
 
+// Poison is negative hpregen, and the player's regen tick (FUN_00580610)
+// never takes life below 1: poison can't kill a player
+// (docs/research/re/combat.md).
 auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         using namespace d2d::d2s;
         double life = 0, mana = 0;

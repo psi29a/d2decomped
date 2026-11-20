@@ -40,10 +40,7 @@ struct ScreenShake {
 
 // FUN_004769d0: x255 / 20 (not /10), capped; move six volume units
 // per rendered frame, including the fade to silence after the shake ends.
-inline int quake_volume(int current, int strength) {
-    const int target = int(std::clamp<std::int64_t>(std::int64_t(strength) * 255 / 20, 0, 255));
-    return current + std::clamp(target - current, -6, 6);
-}
+int quake_volume(int current, int strength);
 
 // Client-only parts of the quest control missiles (29, 37). Process crossed
 // frames once even when rendering skips a game tick. Time starts on receipt,

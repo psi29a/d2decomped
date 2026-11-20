@@ -6,7 +6,7 @@ against stock 1.14d; act5.cpp used `dist >= 25` to reject, one off).
 From the worktree root with GAME_EXE set to stock 1.14d:
     mkdir -p build/ai-baal-portal
     uv run --no-sync --project tools/emu python tools/emu/ai_baal_portal_probe.py --cpp > build/ai-baal-portal/cases.cpp
-    c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-baal-portal/cases.cpp -o build/ai-baal-portal/cases
+    c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-baal-portal/cases.cpp build/components/rules/librules.a -o build/ai-baal-portal/cases
     build/ai-baal-portal/cases > build/ai-baal-portal/cases.txt
     uv run --no-sync --project tools/emu python tools/emu/ai_baal_portal_probe.py --cases build/ai-baal-portal/cases.txt --exe "$GAME_EXE"
 

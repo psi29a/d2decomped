@@ -42,7 +42,7 @@ tools/emu/boss_level.py hook it to record stat writes.
 
 Re-check: `python3 tools/ghidra/fn.py 00627260`.
 
-d2d: reads the same, cited from the decompile, no oracle run. components/rules/monsters.hpp:1190 and d2s_write.hpp:60 cite
+d2d: reads the same, cited from the decompile, no oracle run. components/rules/monsters.hpp:880 and d2s_write.hpp:60 cite
 it only as "stat set"; d2d has no player-only queue (no net-sync of stats).
 
 ## Capped gold set — FUN_00530ea0 (ECX unit, EDX stat, stack value)
@@ -208,7 +208,7 @@ entries whose row +4 bit 2 is clear are pushed up (`FUN_00626920`);
 `enable` nonzero: the flag is cleared and the entries are pushed up.
 Callers include `FUN_00643620`, `FUN_00570590`, `FUN_005aae10`,
 `FUN_005ab110` and `FUN_00557ab0`, each with enable 1.
-d2d: reads the same, cited from the decompile, no oracle run, as `components/rules/rules.hpp:682` (a socketed item's
+d2d: reads the same, cited from the decompile, no oracle run, as `components/rules/rules.cpp:319` (a socketed item's
 properties count as the parent's own); d2d has no flag 0x40000000.
 Re-check: `python3 tools/ghidra/fn.py 00626e10`, `python3 tools/ghidra/calls.py 00626e10`.
 
@@ -218,7 +218,7 @@ Re-check: `python3 tools/ghidra/fn.py 00626e10`, `python3 tools/ghidra/calls.py 
 function that only mirrors its last step; the 1071 bytes do much more.)
 Cited, read from the decompile; the random draws (`FUN_0045c390`,
 `FUN_0045c3e0`) are not checked here.
-- Item class `FUN_0062b400(unit) == 4` (gold, per `drops.hpp:114`):
+- Item class `FUN_0062b400(unit) == 4` (gold, per `drops.cpp:90`):
   stat 0xe = `FUN_0045c390() + drop[+0xc]`, at least 1, replaced by
   `drop[+0x54]` when that is positive; set through `FUN_00627260`. A branch
   that zeroes the stat for a unit of type 0 above `FUN_00622e70` cannot
@@ -237,9 +237,9 @@ Cited, read from the decompile; the random draws (`FUN_0045c390`,
   (`FUN_006251f0(unit +8, 0x40, 0, 4, unit +0xc)` attached by
   `FUN_00626e10`), stat 0x164 (356, d2d `kQuestItemDifficulty`) = byte
   `ctx +0x6d` (`FUN_00627150`), and item flag 0x10 (`FUN_006280d0`).
-d2d: reads the same, cited from the decompile, no oracle run, on the quest difficulty stat (`rules.hpp:1850`) and the
-gold draw (`drops.hpp:114`); the other branches are described in
-`rules.hpp:1715-1730` and not re-checked here.
+d2d: reads the same, cited from the decompile, no oracle run, on the quest difficulty stat (`rules.hpp:886`) and the
+gold draw (`drops.cpp:90`); the other branches are described in
+`rules.cpp:1103-1111` and not re-checked here.
 Re-check: `python3 tools/ghidra/fn.py 00557ab0`, `git grep -n 00557ab0 components`.
 
 ### Switch a state's list on or off — FUN_00643620 (stack on, EDI unit, EBX state)
@@ -303,7 +303,7 @@ floor of 5, the list found or made as for hit 16 (flags 2, callback
 `FUN_0056e900`), aurastats by `FUN_005c6cc0`, expiry renewed by
 `FUN_006260b0`, event 0xc queued, and it returns 3; a missing skill,
 source unit, target or an out-of-range state returns 1. The points read in
-`skills.md:955` and `ai.hpp:969` (`foe.marked`, hit 19) read the same, cited from the decompile, no
+`skills.md:955` and `ai.hpp:968` (`foe.marked`, hit 19) read the same, cited from the decompile, no
 oracle run. What the
 doc leaves out and this adds: the state's stat list is flagged 2, has the
 removal callback `FUN_0056e900`, and the new state bit is also set in a

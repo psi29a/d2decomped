@@ -15,7 +15,7 @@ Act 1 / Act 2 shooter row (MissA1, MissA2, MissS1, MissC and the srvmissilea of 
      (physical, 256ths) and the element stats 0x30..0x3b with FUN_00625480,
   4. prints  diff mon mode source missile | owner_min owner_max (points) | game_min game_max (256ths) | table_min table_max (the monstats column) |
      read_min read_max (the reading: owner << 8 * SrcDamage / 128 + MinDamage << HitShift) | d2d_min d2d_max (d2d's expression, whole points
-     src * SrcDamage / 128 + MinDamage, ai.cpp:2016) | elements (stat, value) pairs.
+     src * SrcDamage / 128 + MinDamage, ai.cpp:2018) | elements (stat, value) pairs.
 
 The "reading" and "d2d" columns are line-for-line ports (Python), not the real d2d binary: tag V run for game.exe, port for d2d.
 """
@@ -143,10 +143,10 @@ def main():
             rmin = trunc7((omin << 8) * S) + (num(r["MinDamage"]) << sh) if S else (num(r["MinDamage"]) << sh)
             rmax = trunc7((omax << 8) * S) + (num(r["MaxDamage"]) << sh) if S else (num(r["MaxDamage"]) << sh)
             cast = mode == "SC"
-            dmin = (0 if cast else omin * S // 128) + num(r["MinDamage"])     # d2d ai.cpp:2016 (whole points, row min raw)
+            dmin = (0 if cast else omin * S // 128) + num(r["MinDamage"])     # d2d ai.cpp:2018 (whole points, row min raw)
             dmax = (0 if cast else omax * S // 128) + num(r["MaxDamage"])
             elems = [(hex(s_), g.stat(mu, s_)) for s_ in ELEM if g.stat(mu, s_)]
-            # elements: d2d's MissA path carries only the monster's own El1..3 whose mode is the shot's (ai.cpp:2019-2020), never the row's EType;
+            # elements: d2d's MissA path carries only the monster's own El1..3 whose mode is the shot's (ai.cpp:2021-2022), never the row's EType;
             # fire / lightning / magic / cold min-max stat pairs (poison per-frame stats not compared)
             want, chance = {}, False
             for k in (1, 2, 3):

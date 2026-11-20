@@ -55,7 +55,7 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | fight/deaths.cpp | `killed`: all kill exp goes to the one character, then `loot.drop` | Party exp split (see below). The merc takes its own share. |
 | fight/merc.cpp | merc_turn picks targets relative to `player` | Relative to the merc's owner. |
 | fight/ | foes = {player, merc} at fixed indices 0 and 1, pets at 2+. Monsters update only within 30 cells of the player. | Foe list with owner ids. Update radius covers any player on the level. |
-| ai.hpp:174-191, ai.cpp:502-510 | `Foe`. monster_update picks the nearest live foe. `aware` is a bool (ai.hpp:121). | Nearest-foe is already N-ready. `aware` stays a bool. Nothing is gained until an AI trace shows per-player awareness. |
+| ai.hpp:173-190, ai.cpp:504-512 | `Foe`. monster_update picks the nearest live foe. `aware` is a bool (ai.hpp:121). | Nearest-foe is already N-ready. `aware` stays a bool. Nothing is gained until an AI trace shows per-player awareness. |
 | loot.hpp:33-35 | bound to the single character/player/rng | Takes a player argument. |
 | loot.hpp:39,48 | GroundItem ids come from `next_id`, separate from `World::next_item_id` | One id space. Both are type-4 units on the wire, so ids must be unique across ground items and inventories. |
 | loot.hpp:57-62 | floors keyed by the player's level | Keyed by level, independent of players. |
@@ -63,8 +63,8 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | loot.hpp:146-167 | `take` puts items into the single character | Takes a player id. Gold split (see below). |
 | gamedata.hpp:636-651,656; gamedata.cpp:487-527 | `Spawning` has a single `room_level` / `room`, and a single `player_moved` | One per player. Spawning feeds the room refcount. |
 | gamedata (set_map_seed) | the act layout is process-global. Levels are mutated by `set_footprint` (doors). | Fine for one game per process. Doors are already per game. |
-| rules/monsters.hpp:362-380 | `monster_stats`: HP and exp have no player scaling | Add the scaling tables (see below). |
-| rules/drops.hpp:96-110 | the `players` param uses `1+(players-1)/2`, i.e. near=1 | Pass `near` and `players` separately (drops.md:45-75). |
+| rules/monsters.cpp:197-247 | `monster_stats`: HP and exp have no player scaling | Add the scaling tables (see below). |
+| rules/drops.cpp:75-86 | the `players` param uses `1+(players-1)/2`, i.e. near=1 | Pass `near` and `players` separately (drops.md:45-75). |
 
 ### Transport and replication
 

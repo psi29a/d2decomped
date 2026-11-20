@@ -28,16 +28,8 @@ using QuestLogStates = std::array<std::uint8_t, kQuestLogCount>;
 using QuestGameFlags = std::array<std::uint16_t, kQuestFlagCount>;
 // Quest word `quest`'s flag `bit`: tested, set or cleared.
 namespace quest {
-[[nodiscard]] inline bool bit(const QuestBits& quest_bits, int quest, int bit) {
-    const int bit_index = quest * 16 + bit;
-    return quest_bits[std::size_t(bit_index >> 3)] >> (bit_index & 7) & 1;
-}
-inline void set(QuestBits& quest_bits, int quest, int bit, bool set = true) {
-    const int bit_index = quest * 16 + bit;
-    const auto mask = std::uint8_t(1u << (bit_index & 7));
-    auto& byte = quest_bits[std::size_t(bit_index >> 3)];
-    byte = std::uint8_t(set ? byte | mask : byte & ~mask);
-}
+[[nodiscard]] bool bit(const QuestBits& quest_bits, int quest, int bit);
+void set(QuestBits& quest_bits, int quest, int bit, bool set = true);
 // A record's list of players by unit id (game.exe: up to 32 ids, the count
 // at +0x80; FUN_005452c0 looks one up, FUN_00545240 drops one).
 struct Players {
@@ -59,13 +51,7 @@ struct QuestMsg { int string = 0; bool greet = false; };
 // The quest log's state the server sends a player for a quest whose record
 // has no log function of its own (+0xe8 0, FUN_00543f90): `done` is the
 // record's +0xd, the state it's over from; 12 reads "another player's".
-[[nodiscard]] inline int quest_log(const QuestBits& quest_bits, int quest, int state, int log, int done) {
-    const bool b13 = quest::bit(quest_bits, quest, 13), b14 = quest::bit(quest_bits, quest, 14);
-    if (state < done) return b14 || (quest == 4 && log == 6 && !b13) ? 12 : log;
-    if (b13) return log;
-    if (quest == 4 && b14) return state == 6 ? 12 : log;
-    return quest == 10 ? (log != 4 ? 12 : 4) : 12;
-}
+[[nodiscard]] int quest_log(const QuestBits& quest_bits, int quest, int state, int log, int done);
 
 // The Den of Evil, one game's (the quest record at FUN_00590720). Quest 1
 // in the flags; bits: 0 done, 1 reward due, 2 given, 3 / 4 in the Den,
@@ -440,15 +426,7 @@ struct PalaceSpots {
     bool outside = false, palace = false, guard = false;
     bool palace_west = false;          // the palace spot is x - 10 (else x + 15)
 };
-[[nodiscard]] inline PalaceSpots palace_spots(const QuestBits& game_bits, bool tombs_open, int tombs_state) {
-    const bool tombs_early = tombs_open && tombs_state < 2;
-    PalaceSpots spots;
-    spots.outside = !quest::bit(game_bits, 8, 13) && !quest::bit(game_bits, 12, 13) && tombs_early;
-    spots.guard = !quest::bit(game_bits, 14, 13);
-    spots.palace = !(!quest::bit(game_bits, 8, 13) && !quest::bit(game_bits, 9, 13) && tombs_early);
-    spots.palace_west = tombs_early;
-    return spots;
-}
+[[nodiscard]] PalaceSpots palace_spots(const QuestBits& game_bits, bool tombs_open, int tombs_state);
 
 // Act 2's opening (a2q0.cpp, the record at FUN_00598810): quest 8. Jerhyn
 // greets (253, FUN_005986b0) with his "!" (FUN_00598780) until the player
@@ -1925,20 +1903,8 @@ struct ToolsQuest {
 };
 
 // The chain from `quest` (its +0xf0, on through +0x10 while one passes
-// on): 1 → 2 → 4 → 3 → 6, 5 → 3 (the records' +0x10). The first join runs
-// it from quest 1 (FUN_00546270).
-inline void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, TowerQuest& tower, ToolsQuest& tools, AndyQuest& andy) {
-    for (;;) {
-        switch (quest) {
-        case 1: if (!den.chain()) return; quest = 2; break;
-        case 2: if (!burial.chain()) return; quest = 4; break;
-        case 4: if (!cain.open()) return; quest = 3; break;
-        case 5: if (!tower.chain()) return; quest = 3; break;
-        case 3: if (!tools.open()) return; quest = 6; break;
-        default: andy.chain(); return;
-        }
-    }
-}
+// on): 1 → 2 → 4 → 3 → 6, 5 → 3 (the records' +0x10).
+void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, TowerQuest& tower, ToolsQuest& tools, AndyQuest& andy);
 
 // The quest log (client side, QuestLog.cpp).
 // What the log says about a quest (FUN_004a1950): its record (0x7237a4 on,
@@ -2006,89 +1972,23 @@ struct QuestState {
     int den_left = 0;                      // DAT_007bf2a4
     bool multiplayer = false;              // DAT_007a0610 != 0: any game type but single player's (a joined game)
 };
-inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
-    if (quest < 1 || quest > 22 || quest == 7 || quest == 8 || quest == 15 || quest == 16) return {};
-    const auto& rec = kQuestLogRecords[std::size_t(quest - (quest < 7 ? 1 : quest < 15 ? 3 : 5))];
-    auto flag = [&](int bit) { return d2d::rules::quest::bit(quest_bits, quest, bit); };
-    auto game = [&](int bit) { return (quest_state.game[std::size_t(quest)] >> bit & 1) != 0; };
-    auto entry = [&](int string, int speech, int shown, int state, bool marks) {
-        return QuestText{ string == 3725 ? 0 : string, -1, speech == 3725 ? 0 : speech, shown, state, marks };
-    };
-    const bool bit0 = flag(0), bit1 = flag(1), b13 = flag(13);
-    int log_state = quest_state.log[std::size_t(quest)];
-    if (bit0) {                                               // done: 13 in this game, 11 before
-        log_state = b13 ? 13 : 11;
-        return entry(rec[std::size_t(2 * log_state + 1)], rec[1], flag(12) ? 1 : 0, log_state, false);
-    }
-    if (quest == 14 && !b13) {                                // the Seven Tombs' own case (record 0x723a64)
-        const bool summoner = d2d::rules::quest::bit(quest_bits, 12, 0) || d2d::rules::quest::bit(quest_bits, 12, 13);
-        const int tomb = summoner && log_state == 1 ? 7 : flag(3) ? 5 : flag(4) ? 6 : 0;
-        if (tomb) return entry(rec[std::size_t(2 * tomb + 1)], rec[std::size_t(2 * tomb + 2)], 3, tomb, false);
-    }
-    if (b13 && bit1 && rec[2] != 0xffff) {                    // the reward's due
-        log_state = rec[2] + 1;
-        return entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], 3, log_state, true);
-    }
-    if (bit1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
-    if (log_state == 0)
-        return (game(13) || game(15)) && !b13 && !bit1 ? entry(3729 + quest_state.multiplayer, 3725, 3, -1, false) : QuestText{};
-    if (log_state > 13) return {};
-    if (quest == 1) {                                       // the Den (name 3714): its count
-        QuestText text = entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
-        if (log_state == 3 || log_state == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
-        return text;
-    }
-    int line = rec[std::size_t(2 * log_state + 1)];
-    if ((!b13 && !bit1 && game(13)) || flag(14)) line = 3729 + quest_state.multiplayer;   // "done by another player"
-    else if (line == 3727 && !quest_state.multiplayer) line = 3729;
-    return entry(line, rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
-}
+QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state);
 // The quest log's acts (FUN_004a2220): an act's tab is there once the act
 // before it is over (quests 7, 15, 23, 26 done; the fifth only in the
 // expansion); a tab asked for that isn't falls back to the last that is.
-[[nodiscard]] inline bool quest_act_open(const QuestBits& quest_bits, int act, bool expansion) {
-    static constexpr std::array<int, 5> kActDone = { 0, 7, 15, 23, 26 };
-    if (act <= 0) return act == 0;
-    return act < 5 && (act < 4 || expansion) && quest::bit(quest_bits, kActDone[std::size_t(act)], 0);
-}
-[[nodiscard]] inline int quest_log_act(const QuestBits& quest_bits, int act) {
-    act = act > 4 ? 0 : act;
-    while (act > 0 && !quest_act_open(quest_bits, act, true)) --act;
-    return act;
-}
+[[nodiscard]] bool quest_act_open(const QuestBits& quest_bits, int act, bool expansion);
+[[nodiscard]] int quest_log_act(const QuestBits& quest_bits, int act);
 // Which quest the log opens on in a tab (FUN_004a3220): the one the Quest
 // Log button was for (`pending`), else, in the table's order, the first
 // with news (QuestText::marks with a changed state) or its done animation
 // to play; else the one last clicked in this tab (`remembered`), else the
 // first under way (shown 3). -1 none.
 struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
-[[nodiscard]] inline int quest_log_pick(const std::vector<QuestLogPick>& entries, int pending, int remembered) {
-    if (pending >= 0) return pending;
-    int listed = 0, under_way = -1;
-    for (const auto& entry : entries) {
-        if (entry.fresh || entry.shown == 0) return entry.slot;
-        if (entry.shown == 3 && under_way < 0) under_way = entry.slot;
-        ++listed;
-    }
-    if (!listed) return -1;
-    return remembered >= 0 ? remembered : under_way;
-}
+[[nodiscard]] int quest_log_pick(const std::vector<QuestLogPick>& entries, int pending, int remembered);
 // The quest a message is about, for the Talk submenu's label (FUN_0049f910):
 // its name's string id from the {u16 message, u16 name} table at 0x722678
-// (0x20f rows, as runs here), else 0xe8c. A message below row 100's (164) is
-// looked for in rows 0..99, any other in rows 100 on, so 164 is found at row
-// 100 (bugs.md 46: the old reading, 0xe8c, was wrong; tools/emu/quest_name.py).
-[[nodiscard]] inline int quest_name(int message) {
-    struct Run { int first, last, name; };
-    static constexpr std::array<Run, 32> kRuns{ {
-        { 64, 80, 3714 }, { 81, 96, 3715 }, { 97, 126, 3717 }, { 127, 145, 3718 }, { 146, 165, 3716 }, { 166, 184, 3719 },
-        { 304, 334, 923 }, { 335, 339, 924 }, { 340, 372, 925 }, { 373, 395, 926 }, { 397, 407, 926 }, { 408, 429, 927 }, { 430, 452, 928 },
-        { 527, 542, 933 }, { 543, 548, 931 }, { 549, 570, 930 }, { 571, 593, 932 }, { 594, 627, 934 }, { 628, 635, 935 }, { 637, 663, 935 },
-        { 670, 677, 937 }, { 678, 680, 939 }, { 681, 685, 938 }, { 20000, 20001, 938 }, { 20002, 20002, 22641 }, { 20077, 20095, 22618 },
-        { 20096, 20115, 22622 }, { 20116, 20136, 22627 }, { 20137, 20137, 22633 }, { 20139, 20152, 22633 }, { 20153, 20168, 22637 }, { 20169, 20180, 22641 } } };
-    const auto run = std::ranges::find_if(kRuns, [&](const Run& entry) { return message >= entry.first && message <= entry.last; });
-    return run != kRuns.end() ? run->name : 0xe8c;
-}
+// (0x20f rows, as runs here), else 0xe8c.
+[[nodiscard]] int quest_name(int message);
 
 // The class's "find" lines (the client's FUN_004cc270, rows at 0x72a2c4):
 // the first time in a game the player is in one of a row's levels, the
@@ -2117,10 +2017,6 @@ inline constexpr std::array<FindLine, 14> kFindLines{ {
     { { 132 }, 40, "act5_find_worldstone", 0x4f },
 } };
 // The row whose levels hold `level`, or none.
-[[nodiscard]] inline const FindLine* find_line(int level) {
-    for (const auto& row : kFindLines)
-        if (std::ranges::find(row.levels, level) != row.levels.end() && level != 0) return &row;
-    return nullptr;
-}
+[[nodiscard]] const FindLine* find_line(int level);
 
 }  // namespace d2d::rules

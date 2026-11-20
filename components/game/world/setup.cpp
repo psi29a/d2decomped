@@ -261,6 +261,8 @@ auto World::lay_save_corpse(const Character& entering) -> void {
         actor->corpses.push_back({ town, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
     }
 
+// The quests hear of them through their +0xd8s (join_more), not the
+// +0xd4s the game's first player ran (FUN_00546270).
 auto World::join(const Character& entering) -> Player& {
         Player& was = *actor;
         Player& player = add_player();
@@ -315,6 +317,9 @@ auto World::leave(int id) -> std::string {
         return why;
     }
 
+// A player enters with their character (a save loaded, or made): the
+// World takes its copy, the merc comes along, a fresh game; the Act
+// 1 quest-gated NPCs (Cain) are there once their quest is done.
 auto World::enter(const Character& entering) -> void {
         act_as(lead());                               // a new game: its first player alone
         players.resize(1);

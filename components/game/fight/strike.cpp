@@ -40,6 +40,9 @@
 
 namespace d2d::game {
 
+// Throwing a throwable with Throw, Left Hand Throw or Double Throw, the
+// throw masteries (345..347) count in the melee ones' place
+// (FUN_00645720).
 auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
@@ -130,6 +133,20 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         return fighter;
     }
 
+// A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
+// aurastats on the player (and allies within aurarangecalc subtiles)
+// the same way; its hitpoints (Prayer) heal on each pulse instead.
+// The merc's (an Act 2 merc's Prayer, Defiance, Might, ...) does the
+// same for the player and itself, and the player's and a totem's for
+// the merc (friendly_auras); a resist aura's cap is the panel's max
+// resist. The self states' aurastats are stats on the player
+// (FUN_005c6cc0): they join the item stats, so toblock (20),
+// damageresist (36) and the rest go through make_fighter; defense %
+// (171 skill_armor_percent, 182 armor_override_percent after it)
+// applies to the panel defense. attackrate (68) is SIAS
+// (Fighter::sias, raw) and velocitypercent (67) is added after the
+// FRW's diminishing (FUN_00623f50).
+// ponytail: other stats make_fighter doesn't read do nothing.
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return now_ms >= state.until; });
@@ -300,6 +317,8 @@ auto Fight::impossible(std::uint32_t now_ms) -> void {
         class_voice(kImpossible[std::size_t(std::clamp(actor->character.character_class, 0, 6))], now_ms);
     }
 
+// Its animation (A1, KK for the kicks) at the swing's speed; Dragon
+// Talon's kick count is calc1 (FUN_005d5970).
 auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
         actor->swing_skill = 0;
         actor->kicks_left = 0;
@@ -413,6 +432,13 @@ auto Fight::swing_mode() const -> int {
         return skill->anim == "KK" ? kModeKK : skill->anim == "S1" ? kModeS1 : skill->anim == "S3" ? kModeS3 : skill->anim == "S4" ? kModeS4 : kModeA1;
     }
 
+// A finisher's charges add their stat 325 to-hit (add_charges), Dragon
+// Flight's too (progressive_tohit). Their states and conversion come
+// too: an EType stun skill (Stun) its elemental length as the stun,
+// calc4 % of the physical to the element (Concentrate's magic;
+// skill_swing), and a do-2 skill's aurastate on the player for the
+// swing (FUN_0056f1f0, self_state: Concentrate's skill_armor_percent,
+// Berserk's).
 auto Fight::swing() -> d2d::rules::Swing {
         const auto* skill = game_data->skills.get(actor->swing_skill);
         if (!skill || actor->swing_skill == 0) return {};
@@ -752,6 +778,9 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         if (!monsters[target].alive()) actor->attack_mon = -1;
     }
 
+// Lightning Strike (do 14, FUN_005dbe50): from the monster struck at
+// another within calc1 subtiles (FUN_0056bd10), carrying calc2 hops
+// (Chain Lightning's hit 12).
 auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms) -> void {
         const auto found = game_data->missiles.find(skill.srvmissilea);
         if (found == game_data->missiles.end()) return;
@@ -780,6 +809,7 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         launch(found->second, skill, lvl, x, y, next_target.unit.x - x, next_target.unit.y - y, found->second.range, now_ms).hops = calc(skill, skill.calc[1], lvl);
     }
 
+// `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
 auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms) -> void {
         auto& corpse = monsters[corpse_index];
         corpse.corpse_used = true;
@@ -807,6 +837,12 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
         }
     }
 
+// Static Field's walk takes its aurafilter (0x8783) from the
+// caster: a clear line (0x200), out of town.
+// ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
+// enemy player: FUN_0056b3e0 type 0), Mind Blast's conversion
+// (Param3 / 4 through FUN_005d7680) and the knockback guards aren't
+// applied.
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
         return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
             ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,
@@ -1127,6 +1163,9 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
         return false;
     }
 
+// Whirlwind ends where it was sent (or at a wall); Charge follows its
+// monster; a leap flies over whatever's below and lands on its
+// landing event.
 auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto* skill = game_data->skills.get(actor->swing_skill);
         if (skill && skill->srvdofunc == ServerDoFunction::kCharge && actor->attack_mon >= 0) {
@@ -1148,6 +1187,9 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         actor->player.x = next_x; actor->player.y = next_y;
     }
 
+// ponytail: FUN_0062a710's attack frames taken as attack_ticks of
+// the class's A1; FUN_005d92d0 (two weapons) as a weapon in each
+// hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;

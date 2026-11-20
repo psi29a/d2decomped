@@ -41,16 +41,7 @@ constexpr bool speech_row(int row) { return row >= 0xb76 && row <= 0x1230; }
 // Compound: a live instance of the same group started at most `compound`
 // ticks ago (any, when < 0) takes the play instead of a new one
 // (FUN_004b9760). Its index, if any.
-inline std::optional<std::size_t> compound_into(std::span<const SoundInstance> playing, const SoundRule& rule, std::int64_t now) {
-    if (rule.compound == 0) return std::nullopt;
-    for (std::size_t k = 0; k < playing.size(); ++k) {
-        const auto& other = playing[k];
-        if (other.group_base != rule.group_base || other.stopping) continue;
-        // unsigned as game.exe compares (jbe): one not started yet never matches
-        if (rule.compound < 0 || std::uint64_t(now - other.start_tick) <= std::uint64_t(rule.compound)) return k;
-    }
-    return std::nullopt;
-}
+std::optional<std::size_t> compound_into(std::span<const SoundInstance> playing, const SoundRule& rule, std::int64_t now);
 
 // At the start: the playing instance this one clashes with, and whether the
 // new one plays (Stop Inst: the old one stops) or is dropped.
@@ -59,27 +50,7 @@ struct SoundClash {
     bool play = true;                   // false: the new one is dropped
     bool stop_other = false;
 };
-inline SoundClash start_clash(std::span<const SoundInstance> playing, const SoundRule& rule, std::uint64_t unit, bool positioned) {
-    SoundClash clash;
-    if (rule.defer || rule.stop_inst) {   // the oldest of its group, on its unit when it has one (FUN_004b9690)
-        for (std::size_t k = 0; k < playing.size(); ++k) {
-            const auto& other = playing[k];
-            if (other.group_base != rule.group_base || (unit != 0 && !other.plays_on(unit))) continue;
-            if (!clash.other || other.start_tick < playing[*clash.other].start_tick) clash.other = k;
-        }
-    }
-    if (unit != 0 && speech_row(rule.row)) {   // a unit's speech: any of its lines playing (FUN_004b9700)
-        clash.other.reset();
-        for (std::size_t k = 0; k < playing.size() && !clash.other; ++k)
-            if (playing[k].plays_on(unit) && speech_row(playing[k].row)) clash.other = k;
-    }
-    if (rule.defer && unit == 0 && positioned) clash.other.reset();   // plays over whatever plays
-    if (clash.other) {
-        clash.stop_other = rule.stop_inst;
-        clash.play = rule.stop_inst;
-    }
-    return clash;
-}
+SoundClash start_clash(std::span<const SoundInstance> playing, const SoundRule& rule, std::uint64_t unit, bool positioned);
 
 // The ducks, percent of a sound's volume, stepped once a tick.
 // Solo (DAT_00727568): 2 down to 70 while a Solo row plays and isn't fading
@@ -117,8 +88,6 @@ constexpr int ducked_volume(int volume, int row, bool solo_row, int menu_percent
 // A world sound's mix under the ducks, in FUN_004dfc20's order: the row's
 // 0..255 volume is ducked first (whole percent steps, each truncated), and
 // the distance and pan mix (sound_mix_pixels) works on what's left.
-inline SoundMix ducked_mix(int volume, int falloff, float screen_x, float screen_y2, int row, bool solo_row, int menu_percent, int solo_percent) {
-    return sound_mix_pixels(ducked_volume(volume, row, solo_row, menu_percent, solo_percent), falloff, screen_x, screen_y2);
-}
+SoundMix ducked_mix(int volume, int falloff, float screen_x, float screen_y2, int row, bool solo_row, int menu_percent, int solo_percent);
 
 }  // namespace d2d::rules

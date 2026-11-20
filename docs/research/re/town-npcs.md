@@ -142,7 +142,7 @@ with `GAME_EXE` pointing to stock 1.14d:
 ```sh
 mkdir -p build/ai-town-path
 uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --cpp > build/ai-town-path/cases.cpp
-c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-path/cases.cpp -o build/ai-town-path/cases
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-path/cases.cpp build/components/rules/librules.a -o build/ai-town-path/cases
 build/ai-town-path/cases > build/ai-town-path/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_town_path_actions.py --cases build/ai-town-path/cases.txt --exe "$GAME_EXE"
 ```
@@ -164,7 +164,7 @@ not checked; distance and command allocation are hooked.
 ```sh
 mkdir -p build/ai-town-home
 uv run --no-sync --project tools/emu python tools/emu/ai_town_return_home.py --cpp > build/ai-town-home/cases.cpp
-c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-home/cases.cpp -o build/ai-town-home/cases
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-home/cases.cpp build/components/rules/librules.a -o build/ai-town-home/cases
 build/ai-town-home/cases > build/ai-town-home/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_town_return_home.py --cases build/ai-town-home/cases.txt --exe "$GAME_EXE"
 ```
@@ -177,7 +177,7 @@ the function are not checked.
 ```sh
 mkdir -p build/ai-town-linger
 uv run --no-sync --project tools/emu python tools/emu/ai_town_linger.py --cpp > build/ai-town-linger/cases.cpp
-c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-linger/cases.cpp -o build/ai-town-linger/cases
+c++ -std=c++20 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-town-linger/cases.cpp build/components/rules/librules.a -o build/ai-town-linger/cases
 build/ai-town-linger/cases > build/ai-town-linger/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_town_linger.py --cases build/ai-town-linger/cases.txt --exe "$GAME_EXE"
 ```

@@ -53,10 +53,7 @@ struct MercAct {
 
 // FUN_005dc380: each axis less the merc's size (not under 0); (short + 2 x
 // long) / 2.
-[[nodiscard]] inline int merc_gap(int x, int y, int size, int to_x, int to_y) {
-    const int across = std::max(std::abs(x - to_x) - size, 0), down = std::max(std::abs(y - to_y) - size, 0);
-    return (across > down ? down + across * 2 : across + down * 2) / 2;
-}
+[[nodiscard]] int merc_gap(int x, int y, int size, int to_x, int to_y);
 
 // The think (FUN_005e52d0). Moving already, it does nothing. Then by its
 // distance to the owner (merc_gap; 16 and 24 unless the AI control's +0x14
@@ -174,15 +171,7 @@ MercAct hireable_think(const MercView& view, Rng& seed, AreaAt&& area_at, TryMov
 // The hireling.txt row a merc of Id `id` at `level` reads (FUN_006562f0):
 // the LoD rows (Version 100) of its Id in file order, the last whose Level
 // isn't over its own (the first if all are).
-[[nodiscard]] inline const Hireling* hireling_row(const Tables& tables, int id, int level) {
-    const Hireling* found = nullptr;
-    for (const auto& row : tables.hirelings) {
-        if (row.version != 100 || row.id != id) continue;
-        if (found && level < row.level) return found;
-        found = &row;
-    }
-    return found;
-}
+[[nodiscard]] const Hireling* hireling_row(const Tables& tables, int id, int level);
 
 // Its skills' levels (the level-up FUN_00572840): Level + (LvlPerLvl x
 // (level - the row's Level) >> 5), 1..32, each skill from its required
@@ -305,23 +294,6 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
 // barbarians also a primal helm; then its strength, dexterity and level
 // against the item's (FUN_0062eaf0, meets_stats). Where it goes: the head,
 // the torso, a shield the left hand, the rest the right.
-[[nodiscard]] inline int merc_slot(const Tables& tables, const d2d::d2s::Item& item, int merc_class, int str, int dex, int level) {
-    namespace body = d2d::d2s::body_location;
-    const auto* info = info_of(tables, item);
-    if (!info || !item.identified || (item.max_durability > 0 && item.durability == 0)) return 0;
-    const auto of_type = [&](std::string_view type) { return type_is(tables, info->type, type); };
-    int slot = 0;
-    if (of_type("helm")) slot = body::kHead;
-    else if (of_type("tors")) slot = body::kTorso;
-    else if (merc_class == 271 && of_type("bow")) slot = body::kRightArm;
-    else if (merc_class == 338 && (of_type("spea") || of_type("pole"))) slot = body::kRightArm;
-    else if (merc_class == 359 && of_type("shie")) slot = body::kLeftArm;
-    else if (merc_class == 359 && of_type("swor") && !info->two_handed) slot = body::kRightArm;
-    else if (merc_class == 560 && of_type("axe") && !info->two_handed) slot = body::kRightArm;
-    else if (merc_class == 561 && of_type("swor")) slot = body::kRightArm;
-    if ((merc_class == 560 || merc_class == 561) && of_type("phlm")) slot = body::kHead;
-    if (slot == 0 || !meets_stats(*info, item, str, dex, level, -1, &tables)) return 0;
-    return slot;
-}
+[[nodiscard]] int merc_slot(const Tables& tables, const d2d::d2s::Item& item, int merc_class, int str, int dex, int level);
 
 }  // namespace d2d::rules

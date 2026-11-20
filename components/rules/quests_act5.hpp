@@ -28,24 +28,14 @@ inline constexpr int kHarrogath = 109, kBloodyFoothills = 110, kFrigidHighlands 
 inline constexpr int kCrystallinePassage = 113, kFrozenRiver = 114, kNihlathaksTemple = 121, kHallsOfVaught = 124;
 // The records' log callbacks (FUN_00586c80 and kin): the log goes to a
 // player unless done (bit 0 or 15) without 13 / 14.
-inline bool told(const QuestBits& quest_bits, int quest) {
-    return !(quest::bit(quest_bits, quest, 0) || quest::bit(quest_bits, quest, 15)) || quest::bit(quest_bits, quest, 13) || quest::bit(quest_bits, quest, 14);
-}
+bool told(const QuestBits& quest_bits, int quest);
 // FUN_0065c3e0: bits 2..11 cleared.
 inline void clear_steps(QuestBits& quest_bits, int quest) { for (int bit = 2; bit <= 11; ++bit) quest::set(quest_bits, quest, bit, false); }
 struct Entry { int npc, string; bool greet; };
-inline std::vector<QuestMsg> block_for(const std::vector<Entry>& block, int npc) {
-    std::vector<QuestMsg> out;
-    for (const auto& entry : block) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
-    return out;
-}
+std::vector<QuestMsg> block_for(const std::vector<Entry>& block, int npc);
 // Each record's per-player marks of its state (LAB_00586de0 and kin): 2 →
 // bit 2, 3 → bit 3 (a5q1: bit 4 with the log at 2).
-inline void mark(QuestBits& quest_bits, int quest, int state, bool four = false) {
-    if (quest::bit(quest_bits, quest, 0) || quest::bit(quest_bits, quest, 1)) return;
-    if (state == 2) quest::set(quest_bits, quest, 2);
-    if (state == 3) quest::set(quest_bits, quest, four ? 4 : 3);
-}
+void mark(QuestBits& quest_bits, int quest, int state, bool four = false);
 }  // namespace act5_detail
 
 // a5q0 (FUN_0058ea50, word 0x2a): the town's introductions, kept in the

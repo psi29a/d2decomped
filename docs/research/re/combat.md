@@ -124,7 +124,7 @@ the game pointer. Client units use +0x80 differently (a sound time: the
 Neutral timer and the Gibbet's call frame, unit-sounds.md "Monsters" and
 "Objects"), so `structs.tsv`'s `unit 0x80 neutral_time` row (and 0x7c / 0x84)
 describes the client layout, not this one; the table has no server/client
-column yet, and its `components/game/ai.hpp:187` citation no longer shows
+column yet, and its `components/game/ai.hpp:186` citation no longer shows
 those names.
 Re-check: `python3 tools/ghidra/fn.py 00554010 0057c420 00558200`.
 

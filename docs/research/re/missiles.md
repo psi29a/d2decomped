@@ -346,7 +346,7 @@ paths I read in the decompile return 1.
 d2d: not ported as a hit function (`git grep` for hit_func 23 finds no
 case). The general FUN_0056d810 table dispatch is not ported either. d2d
 handles one case only: `srv_do == 14` with Param2 = the curse function
-(fight/missiles.cpp:535); no other table index is dispatched.
+(fight/missiles.cpp:547); no other table index is dispatched.
 
 ## Server damage functions 1, 2, 4 and 12 — FUN_005ad050, FUN_005ad1b0, FUN_005ad290, FUN_005ad0f0
 
@@ -432,7 +432,7 @@ FUN_0063e990(unit) (undead) and for dParam2 (+0x7c) > 0 and FUN_0063e940(unit)
 (demon) FUN_005a9270 adds FUN_00483360(100) (roll × dParam / 100) more.
 
 d2d: reads the same, cited from the decompile, no oracle run in this pass
-(ported at fight/missiles.cpp:718 and components/rules/combat.hpp:699; an existing
+(ported at fight/missiles.cpp:739 and components/rules/combat.cpp:536; an existing
 tools/emu/hammer_hit.py and tests/game/test_hammer_hit.cpp are not part of
 this change). The
 slot-13 wrapper (FUN_005ad5c0) is not ported.
@@ -785,7 +785,7 @@ Returns **0** when the filter passed, else 1.
 
 Re-check: `python3 tools/ghidra/fn.py 005ab500`.
 
-d2d: reads the same in part, cited from the decompile, no oracle run. `Fight::skill_missile_hits` hit_func 21 (fight/missiles.cpp:629)
+d2d: reads the same in part, cited from the decompile, no oracle run. `Fight::skill_missile_hits` hit_func 21 (fight/missiles.cpp:641)
 puts the auratargetstate for auralen frames (at least 1) on the monster
 and no damage (returns 0; game.exe's decompile also returns 0 on the filter-passed path, cited, no oracle run). Whether d2d's state carries the
 aurastats of `FUN_005c6cc0` was not checked, and game.exe's decompile shows
@@ -995,7 +995,7 @@ not settled. Which Missiles.txt row uses hit function 5 was not checked.
 Re-check: `python3 tools/ghidra/fn.py 005abc40`, and compare with
 `python3 tools/ghidra/fn.py 005abb00`.
 
-d2d: not ported. `Fight::burst` has no case 5 (fight/missiles.cpp:799).
+d2d: not ported. `Fight::burst` has no case 5 (fight/missiles.cpp:820).
 
 ## Client missile spawn: FUN_0046b680
 
@@ -1179,7 +1179,7 @@ Re-check: `python3 tools/ghidra/fn.py 005a8910`,
 d2d: **not ported** for the bonus term (a gap, not shown to disagree: whether a
 missile unit carries the mastery stats, or the skill calc already adds them, is
 not settled here). The min / max / zero rules read the same as `missile_blow`
-(components/rules/combat.hpp:694), cited from the decompile, no oracle run.
+(components/rules/combat.hpp:388), cited from the decompile, no oracle run.
 
 ## Monster class test: demon — FUN_0063e940
 
@@ -1194,8 +1194,8 @@ decompile, below).
 Re-check: `python3 tools/ghidra/fn.py 0063e940`,
 `python3 tools/ghidra/calls.py 0063e940`.
 
-d2d: reads the same, cited from the decompile, no oracle run. `Target::demon` (components/rules/combat.hpp:531, "MonStats
-demon") is the same bit; components/game/fight/missiles.cpp:626 uses it for the
+d2d: reads the same, cited from the decompile, no oracle run. `Target::demon` (components/rules/combat.hpp:341, "MonStats
+demon") is the same bit; components/game/fight/missiles.cpp:638 uses it for the
 dParam2 bonus.
 
 ## Monster class test: undead — FUN_0063e990
@@ -1209,10 +1209,10 @@ FUN_0056b3e0, FUN_0057b660; FUN_005a8c70 also calls it.
 Re-check: `python3 tools/ghidra/fn.py 0063e990`,
 `python3 tools/ghidra/calls.py 0063e990`.
 
-d2d: reads the same, cited from the decompile, no oracle run. `Target::undead` (components/rules/combat.hpp:530) and
+d2d: reads the same, cited from the decompile, no oracle run. `Target::undead` (components/rules/combat.hpp:340) and
 `kUndead` (components/rules/aura_filter.hpp:17) are the same two bits; the
-dParam1 bonus (components/game/fight/missiles.cpp:626) and the AI check at
-components/game/ai.cpp:1041 use it.
+dParam1 bonus (components/game/fight/missiles.cpp:638) and the AI check at
+components/game/ai.cpp:1043 use it.
 
 ## The record fill — FUN_005a8c70 (ECX game, EDX the missile, stack unit, record)
 
@@ -1249,7 +1249,7 @@ Re-check: `python3 tools/ghidra/fn.py 005a8c70`,
 `python3 tools/ghidra/calls.py 005a8c70`.
 
 d2d: **not ported** for the physical case. `rules::missile_blow`
-(components/rules/combat.hpp:677) rolls the physical from `phys_lo` / `phys_hi`
+(components/rules/combat.hpp:371) rolls the physical from `phys_lo` / `phys_hi`
 and applies neither the 0x19 / 0x79 / 0x7a percent nor the 0x8d doubling; the
 undead / demon bonus d2d has is the Blessed Hammer slot's (FUN_005ad2f0). Whether a
 missile unit carries those stats (they would have to be copied from the

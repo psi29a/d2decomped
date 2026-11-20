@@ -44,10 +44,7 @@ inline constexpr std::array<int, 7> kClassDeselect = { 18, 26, 22, 24, 20, 0, 0 
 // one (Skills.txt and Missiles.txt write the number).
 inline constexpr std::array<std::string_view, 14> kHitClassCodes = { "", "hth", "1hss", "1hsl", "2hss", "2hsl", "1ht", "2ht",
                                                                      "club", "staf", "bow", "xbow", "claw", "over" };
-inline int hit_class(std::string_view code) {
-    for (std::size_t i = 1; i < kHitClassCodes.size(); ++i) if (code == kHitClassCodes[i]) return int(i);
-    return 0;
-}
+int hit_class(std::string_view code);
 
 // The swing a player's A1 / A2 plays (FUN_004cb6a0, the table at 0x727ed8):
 // weapon_* by the weapon's hit class, `frames` into the attack (FUN_004ca500:
@@ -77,10 +74,7 @@ inline constexpr std::array<Greeting, 35> kGreetings = { {
     { 0x101, 3989, 3991, 0, 3989 }, { 0x109, 3644, 3647, 3649, 3644 }, { 0x129, 4217, 4219, 4221, 4220 }, { 0x195, 4043, 4045, 0, 4043 },
     { 0x1ff, 0, 4449, 4453, 4452 }, { 0x200, 0, 4382, 4386, 4385 }, { 0x201, 0, 4489, 4493, 4492 }, { 0x202, 0, 4533, 4537, 4536 },
     { 0x203, 0, 4563, 4567, 4566 }, { 0x208, 3644, 3647, 3649, 3644 }, { 0x209, 4303, 4305, 4306, 4303 } } };
-inline const Greeting* greeting_of(int monster_class) {
-    const auto found = std::ranges::find(kGreetings, monster_class, &Greeting::monster_class);
-    return found != kGreetings.end() ? &*found : nullptr;
-}
+const Greeting* greeting_of(int monster_class);
 // The row a greeting starts from (FUN_004e0590), before its group member is
 // drawn: `kind` 2 its return one; else its greeting, as kind 0 its inactive
 // one a time in 2; and its time of day's (Day::phase 1: the first, 2 or 3:
@@ -112,14 +106,10 @@ inline void group_played(std::array<int, 2>& last, int row) { last = { row, last
 
 // A footstep's row (FUN_004caeb0): its first, + 4 a floor material past dirt
 // (1 dirt, 2 indoor stone, 3 outdoor stone, 4 sand, 5 snow, 6 wood), + 24 running.
-inline int footstep(int first, int material, bool running) {
-    return first <= 0 ? 0 : first + 4 * (std::clamp(material, 1, 6) - 1) + (running ? 24 : 0);
-}
+int footstep(int first, int material, bool running);
 // A floor tile's material by its DT1 material flags (FUN_004cad60), 0 none:
 // the level's SoundEnviron Material 1 then (FUN_004cadb0).
-inline int floor_material(unsigned flags) {
-    return flags & 0x20 ? 1 : flags & 0x08 ? 2 : flags & 0x10 ? 3 : flags & 0x40 ? 4 : flags & 0x80 ? 6 : flags & 0x400 ? 5 : 0;
-}
+int floor_material(unsigned flags);
 // The first floor tile in one room's list (FUN_004cace0's match): its flags,
 // or `level_material` when they name none. -1 when the list has no tile there.
 template <class Floors>
@@ -160,56 +150,20 @@ int floor_material_near(const Steps& steps, int cell_x, int cell_y, int level_ma
 // `rate` a tick) is nearer a footfall than the ticks either side (FUN_004caf60):
 // footfalls `offset` + k x `length` / `count` apart, distances round the
 // period (FUN_004e4180).
-inline int around(int from, int point, int period) {
-    if ((period & (period - 1)) == 0) { from &= period - 1; point &= period - 1; }
-    else { from %= period; point %= period; }
-    const int apart = point - from;
-    return std::min({ std::abs(apart), std::abs(apart - period), std::abs(-apart - period) });
-}
-inline bool footfall(int pos, int rate, int length, int count, int offset) {
-    if (rate <= 0 || count <= 0 || length / count <= 0) return false;
-    const int period = length / count, here = around(pos, offset, period);
-    return here < around(pos + rate, offset, period) && here < around(pos - rate, offset, period);
-}
+int around(int from, int point, int period);
+bool footfall(int pos, int rate, int length, int count, int offset);
 
 // What a unit struck plays as it goes into GH, KB or DT (FUN_004cc410 ->
 // FUN_004ca560): impact_* by the hit class, and the element's layer
 // (`dying`: DT, whose cold and ice layers are left out).
 struct Impact { int impact = 0, element = 0; };
-inline Impact impact(int hit_class, bool dying) {
-    Impact out;
-    switch (hit_class & 0xf) {
-    case 1: out.impact = 321; break;                   // impact_punch
-    case 2: case 3: case 4: case 5: out.impact = 341; break;   // impact_blade_swing
-    case 6: case 7: out.impact = 335; break;           // impact_blade_thrust
-    case 8: case 9: out.impact = 329; break;           // impact_blunt
-    case 10: case 11: out.impact = 347; break;         // impact_arrow
-    case 12: out.impact = 325; break;                  // impact_claw
-    default: break;
-    }
-    switch (hit_class & 0xf0) {
-    case 0x10: if (out.impact) out.element = 0x17b; break;
-    case 0x20: out.element = out.impact ? 0x164 : 0x161; break;   // impact_fire_layer / impact_fire
-    case 0x30: if (!out.impact) out.element = 0x167; else if (!dying) out.element = 0x16a; break;
-    case 0x40: out.element = out.impact ? 0x174 : 0x170; break;
-    case 0x50: if (!out.impact || !dying) out.element = 0x178; break;
-    case 0x60: out.element = 0x17e; break;
-    case 0x70: out.element = 0x18b; break;
-    case 0x80: out.element = 0x956; break;
-    case 0xb0: out.element = 0x187; break;
-    default: break;
-    }
-    return out;
-}
+Impact impact(int hit_class, bool dying);
 
 // A player's block (FUN_004cb860 -> FUN_004ca810): block_weapon for hit
 // classes 1..9, block_arrow for bow and crossbow, none for the rest (claw,
 // overhead, none).
 inline constexpr int kBlockWeapon = 398, kBlockArrow = 401;
-inline int block(int hit_class) {
-    const int low = hit_class & 0xf;
-    return low >= 1 && low <= 9 ? kBlockWeapon : low == 10 || low == 11 ? kBlockArrow : 0;
-}
+int block(int hit_class);
 // A player's kick (KK, FUN_004cc5b0): weapon_kick, an Assassin's 4 ticks on.
 inline constexpr int kKick = 255;
 inline constexpr std::uint32_t kKickDelayMs = 4 * 40;   // FUN_004b9a00's delay, 4 ticks
@@ -225,18 +179,7 @@ inline constexpr std::uint32_t kKickDelayMs = 4 * 40;   // FUN_004b9a00's delay,
 // A cue's sound 0 plays nothing.
 struct SkillStart { int st_sound = 0, st_sound_class = 0, item_cast_sound = 0, char_class = -1; bool delay = false, weapon = false; };
 struct StartCue { int sound = 0, ticks = 0; };
-inline std::array<StartCue, 3> skill_start(const SkillStart& skill, int unit_type, int unit_class, int hit_class, int rate, bool from_item, bool refused) {
-    std::array<StartCue, 3> cues{};
-    if (refused) return cues;
-    const auto& swing = kSwing[std::size_t(hit_class & 0xf) < kSwing.size() ? std::size_t(hit_class & 0xf) : 0];
-    const int swing_ticks = (swing.frames * 256 + 128) / (rate != 0 ? rate : 1);
-    const int held = skill.delay ? swing_ticks - 3 : 0;
-    const bool item = from_item && skill.item_cast_sound > 0;
-    if (const int sound = item ? skill.item_cast_sound : skill.st_sound; sound > 0) cues[0] = { sound, held };
-    if (skill.weapon && swing.sound != 0) cues[1] = { swing.sound, swing_ticks };
-    if (!item && skill.st_sound_class > 0 && unit_type == 0 && unit_class == skill.char_class) cues[2] = { skill.st_sound_class, held };
-    return cues;
-}
+std::array<StartCue, 3> skill_start(const SkillStart& skill, int unit_type, int unit_class, int hit_class, int rate, bool from_item, bool refused);
 
 // A charge-up's charge landing (FUN_004c6ac0 runs the skill's cltprgfunc for
 // the count): cltprgfunc 12 (FUN_004f30a0, Tiger Strike) and 13
@@ -248,10 +191,6 @@ inline std::array<StartCue, 3> skill_start(const SkillStart& skill, int unit_typ
 // (FUN_004b9a00). `untargeted`: cltprgfunc 12 without a target (FUN_004648f0):
 // nothing at all.
 struct ChargeUp { int prg_sound = 0; bool progressive = false; int state = -1, states = 0, stat = -1, stats = 0; bool listed = false; int count = 0; bool untargeted = false; };
-inline std::optional<int> charge_up(const ChargeUp& skill) {
-    if (skill.untargeted) return std::nullopt;
-    const bool counted = skill.progressive && skill.state >= 0 && skill.state < skill.states && skill.stat >= 0 && skill.stat < skill.stats && skill.listed;
-    return skill.prg_sound + (counted ? std::clamp(skill.count, 1, 3) - 1 : 0);
-}
+std::optional<int> charge_up(const ChargeUp& skill);
 
 }  // namespace d2d::rules::sound_ids

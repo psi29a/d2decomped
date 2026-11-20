@@ -4,7 +4,7 @@
 
     uv run python open_wounds.py gen 20000 7 > cases.tsv
     uv run python open_wounds.py game cases.tsv > g.tsv           # game.exe, under the emulator
-    g++ -O2 -std=c++23 -I../../components/rules -I../../components -I../../components/d2s -I../../components/txt -o open_wounds_harness open_wounds_harness.cpp \\
+    g++ -O2 -std=c++23 -I../../components/rules -I../../components -I../../components/d2s -I../../components/txt -o open_wounds_harness open_wounds_harness.cpp ../../build/components/rules/librules.a \\
         && ./open_wounds_harness < cases.tsv > d.tsv
     uv run python open_wounds.py compare cases.tsv g.tsv d.tsv     # exit 1 on a difference, an empty file or a malformed line
 

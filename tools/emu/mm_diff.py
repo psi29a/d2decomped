@@ -6,7 +6,7 @@ Copy this file next to mm_launch.py in a checkout of upstream tools/emu (mm_diff
     mm_diff.py game TABLES_DIR N SEED OUTDIR      game.exe side: writes OUTDIR/cases.txt and OUTDIR/game.tsv
     mm_diff.py cmp  OUTDIR D2D_OUTPUT             compares game.tsv with `test_monster_missile --monster-missile cases.txt`
 
-Cases: every Act 1 / 2 shooter row whose source is MissA1 / MissA2 / MissS1 / MissC (the path ai.cpp:2014 area builds inline; the srvmissilea
+Cases: every Act 1 / 2 shooter row whose source is MissA1 / MissA2 / MissS1 / MissC (the path ai.cpp:2016 area builds inline; the srvmissilea
 rows of a monster's skills go through andariel_missile and are not on it), for each difficulty (a fresh game: the game's difficulty byte),
 each missile level 1..40, owner damage pairs (boundaries and 32-bit masked xorshift32 draws). game.exe: the real monster is spawned
 (FUN_00555230), its mode stat overlay set (FUN_005a4f50), its stats 0x15 / 0x16 (the owner's damage in points) REWRITTEN in its stat list to the

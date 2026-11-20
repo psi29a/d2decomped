@@ -301,7 +301,7 @@ stock 1.14d:
 ```sh
 mkdir -p build/ai-object-blast
 uv run --no-sync --project tools/emu python tools/emu/ai_object_blast_damage.py --cpp > build/ai-object-blast/cases.cpp
-c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-object-blast/cases.cpp -o build/ai-object-blast/cases
+c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-object-blast/cases.cpp build/components/rules/librules.a -o build/ai-object-blast/cases
 build/ai-object-blast/cases > build/ai-object-blast/cases.txt
 uv run --no-sync --project tools/emu python tools/emu/ai_object_blast_damage.py --cases build/ai-object-blast/cases.txt --exe "$GAME_EXE"
 ```

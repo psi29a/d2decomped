@@ -94,6 +94,13 @@ auto Fight::golem_item_at(float x, float y) const -> int {
         return best;
     }
 
+// The skill's passive stats, aurastats and sumskills land on it as
+// summons.cpp has them (FUN_005c4470; the masteries come in that way),
+// and its sumumod (0x5c4934: a trap's 32, a Shadow's 42). Blood Golem's
+// life steal is pet_strike's (rules::blood_golem_steal); its damaged
+// events (func 26, FUN_005c6690) pass Param5 % of a hit on it to the
+// owner, the skill being its MonStats +0x170 one (BloodGolem): 0 in
+// 1.14d's Skills.txt, so nothing.
 auto Fight::skill_named(std::string_view name) const -> const d2d::rules::Skill* {
         if (name.empty()) return nullptr;
         if (const auto found = game_data->skills.by_name.find(std::string(name)); found != game_data->skills.by_name.end()) return game_data->skills.get(found->second);

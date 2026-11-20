@@ -35,12 +35,7 @@ struct OneShot {
     bool operator==(const OneShot&) const = default;
 };
 using OneShots = std::vector<OneShot>;
-inline void add_one_shot(OneShots& list, int row, std::uint32_t start) {
-    if (row < 0) return;
-    if (row < 0x8c || (row > 0x8e && row != 0x9e))
-        if (const auto found = std::ranges::find(list, row, &OneShot::row); found != list.end()) list.erase(found);
-    list.insert(list.begin(), OneShot{ row, start });
-}
+void add_one_shot(OneShots& list, int row, std::uint32_t start);
 
 // A skill start's cast overlay (FUN_004c6140): its castoverlay, or its ItemCastOverlay when cast
 // from an item and that is set (row > 0); played (FUN_00470390 kind 2, once) when the row is in
@@ -50,9 +45,7 @@ constexpr int cast_overlay_row(int cast_row, int item_row, bool from_item) {
     const int row = from_item && item_row > 0 ? item_row : cast_row;
     return row > 0 ? row : -1;
 }
-inline bool cast_overlay_starts(int row, const OneShots& shown, std::uint32_t now_ms, int rate, int frames) {
-    return row > 0 && std::ranges::none_of(shown, [&](const OneShot& shot) { return shot.row == row && overlay_frame(now_ms - shot.start, rate, frames, true) >= 0; });
-}
+bool cast_overlay_starts(int row, const OneShots& shown, std::uint32_t now_ms, int rate, int frames);
 
 // A unit's kind-8 overlays: a state in the `aura` list (States.txt bit 1,
 // data tables +0xd0) makes its overlay1 / overlay2 so (FUN_004d9920), one
@@ -64,27 +57,11 @@ struct AuraOverlay { int state = 0, row = 0; bool shown = false; int count = 0; 
 // FUN_0046def0, a new one at the head: the first other with its state lends
 // it its shown and count; else, past one of another state that's shown, it
 // starts hidden; else shown from 0.
-inline void aura_overlay_made(std::vector<AuraOverlay>& list, AuraOverlay made) {
-    made.shown = true; made.count = 0;
-    for (const auto& other : list) {
-        if (other.state == made.state) { made.shown = other.shown; made.count = other.count; break; }
-        if (other.shown) { made.shown = false; break; }
-    }
-    list.insert(list.begin(), made);
-}
+void aura_overlay_made(std::vector<AuraOverlay>& list, AuraOverlay made);
 // FUN_0046df40 from state `from`: its overlays hidden (count -1), then those
 // of the next higher state shown from 0, or the lowest's when none is higher
 // (0 counts as none). The unit's state off / on around it changes nothing here.
-inline void aura_overlays_rotate(std::span<AuraOverlay> list, int from) {
-    int next = 0, low = 0;
-    for (auto& overlay : list) {
-        if (overlay.state == from) { overlay.shown = false; overlay.count = -1; }
-        if ((next == 0 || overlay.state < next) && overlay.state > from) next = overlay.state;
-        if (low == 0 || overlay.state < low) low = overlay.state;
-    }
-    if (next == 0) next = low;
-    for (auto& overlay : list) if (overlay.state == next) { overlay.shown = true; overlay.count = 0; }
-}
+void aura_overlays_rotate(std::span<AuraOverlay> list, int from);
 // One client tick of them (FUN_00470c30 case 8, in list order): one whose
 // state is off is removed (FUN_0046e040, which rotates from its state); a
 // shown one counts to 50, then rotates.

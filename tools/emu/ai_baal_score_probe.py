@@ -10,7 +10,7 @@ the comparison; stats, reach, skills and line-of-sight are scripted.
 From the worktree root with GAME_EXE set to stock 1.14d:
     mkdir -p build/ai-baal-score
     uv run --no-sync --project tools/emu python tools/emu/ai_baal_score_probe.py --cpp > build/ai-baal-score/cases.cpp
-    c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-baal-score/cases.cpp -o build/ai-baal-score/cases
+    c++ -std=c++23 -Icomponents -Icomponents/d2s -Icomponents/txt build/ai-baal-score/cases.cpp build/components/rules/librules.a -o build/ai-baal-score/cases
     build/ai-baal-score/cases > build/ai-baal-score/cases.txt
     uv run --no-sync --project tools/emu python tools/emu/ai_baal_score_probe.py --cases build/ai-baal-score/cases.txt --exe "$GAME_EXE"
 """

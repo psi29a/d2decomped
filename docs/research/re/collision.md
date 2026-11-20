@@ -261,7 +261,7 @@ were not read in the asm); cited, no oracle run.
   `0x6f1648 + 3 * i + 0 / 1 / 2`, widened to dwords. `FUN_00678cd0` reads
   the first of those bytes alone; `FUN_00678d70` fills the same three from
   the dword table `0x6f1518` (12 bytes a row, 25 rows: d2d's `kTry`,
-  monsters.hpp:567). So 0x6f1648 is a byte table of the same shape that
+  monsters.cpp:294). So 0x6f1648 is a byte table of the same shape that
   follows it (0x6f1518 + 25 * 12 = 0x6f1644). Its rows are not `kTry`'s:
   read, they hold straight ways only (0, 2, 4, 6) and 0xff for a missing
   third (`rules::kBackTry`). A third entry of 0xff is skipped by
@@ -1200,7 +1200,7 @@ EAX); read the asm for them.
   one whose owner type is 0 line 0x861; the memset path type is 0, so these
   are not reachable here. Callers `FUN_00460bf0`, `FUN_004ae8d0`,
   `FUN_004cd0a0`, `FUN_00554850`, `FUN_00554a30`. d2d: reads the same, cited from the decompile, no oracle run, on what
-  collision.md and monsters.hpp:909 already cite (player mask 0x1c09, steps
+  collision.md and monsters.hpp:676 already cite (player mask 0x1c09, steps
   0x49, type 7); monster steps 0xe, +0x92 = 0x46 and the missile row are
   not ported, no disagreement found.
 
@@ -1230,7 +1230,7 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   the node as 4610c0 left it (it can swap in the Attack node, `FUN_006439f0`) and, when
   that id differs from the old one, slot[1] = -1 (the item guid is dropped). Returns 1.
   d2d: agrees with skills.md "Attack's entry kept in the slot when it fell back"
-  (`strike.cpp:300`, `Fight::ask`); the guid dropped when the id changes is not stated
+  (`strike.cpp:317`, `Fight::ask`); the guid dropped when the id changes is not stated
   there, and d2d's side of it (`attack_charge`) was not compared.
 - **`FUN_004647d0`** (unit in ECX; callers `FUN_00453910`, `FUN_0045d4b0`, `FUN_0045d9b0`,
   `FUN_0045db20` and `FUN_00461250` command 7): unit `+0xc4 &= ~0x10000`, stored; then
@@ -1313,7 +1313,7 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
   ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
   Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
-  `strike.cpp:300` and `world/tick.cpp:441` already read (commands 0, 1, 2, 8, 0x15, 0x16, the
+  `strike.cpp:317` and `world/tick.cpp:441` already read (commands 0, 1, 2, 8, 0x15, 0x16, the
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
@@ -1426,13 +1426,13 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
 - **`FUN_004807c0`** (fastcall ECX unit, 67 bytes; only caller `FUN_00463390`
   above, class 1 and class-2-over): `FUN_00480420(unit)` first (the stale
   path-target clear, already traced above). Then two state checks, both
-  `FUN_00639df0(unit, state)` (already verified, `ai.cpp:1222`): state 0xd
+  `FUN_00639df0(unit, state)` (already verified, `ai.cpp:1224`): state 0xd
   set calls `FUN_004e3ab0(unit)`, state 0x16 set calls `FUN_004e2d40(unit)`
   — both read a queued skill's Skills.txt range fields (0x15e / 0x15f) and
   the current node, and end in `FUN_004cd540` (not read here; their own
   effect, a quest or sound trigger tied to standing still with a skill
   queued, is not traced). Last, `FUN_00650840(unit, FUN_0044db10())`
-  (already verified, `ai.cpp:357` — the real per-frame path-motion step,
+  (already verified, `ai.cpp:359` — the real per-frame path-motion step,
   `DAT_007a04c4` the second argument) runs the walk; `FUN_004807c0` answers
   true ("over") exactly when that step answers 0 (no more steps queued
   this frame). d2d: not ported as a function; `FUN_00650840`'s own port
@@ -1866,7 +1866,7 @@ out-of-range falls through to a bare `RET`. In call order:
   `missiles.md:905`, `stubs.md:18`); the exact argument plumbing between
   the three calls was not fully resolved from the disassembly here.
   `0x19d` only, a non-null result also runs `FUN_00621ce0(result, unit)`
-  (already ported, `components/game/ai.cpp:1460`/`:2075`,
+  (already ported, `components/game/ai.cpp:1462`/`:2075`,
   `monster-ai.md:426`).
 - `0x1f1`, `0x1f2`, `499`, `500` (four codes, one shared body): tail-calls
   `FUN_004ae400` (untouched, 0xef bytes, not read in this commit).
@@ -2188,7 +2188,7 @@ confirmed in disassembly by the `RET 0x4` and a fallback path that reads
 the unit straight from `[EBP+8]` rather than any register. It loops over
 every States.txt-shaped row (count at `0x744304+0xc4`, rows at `+0xbc`,
 stride 0x3c) that's active on the unit (`FUN_00639df0`, already verified,
-`ai.cpp:993`), keeping the one whose own `+0x20` byte (a priority) is
+`ai.cpp:995`), keeping the one whose own `+0x20` byte (a priority) is
 strictly the highest seen. With a winner: its `+0x21` byte becomes the
 unit's `+0x6c` field — unless that byte is the ASCII char `h` (0x68) and
 the unit is the local player (`FUN_00463dd0`, already verified) and
@@ -2264,7 +2264,7 @@ ECX/EDX register arguments here.
 unchanged into whatever handler matches (confirmed in disassembly: `MOV
 EDI,EDX` / `MOV EBX,ECX` at entry). With a null unit it returns 0. It
 walks the unit's own event list (`+0x90`, already in `structs.tsv`, the
-same list the already-`d2d verified` `FUN_005c0c30` — `ai.hpp:590` —
+same list the already-`d2d verified` `FUN_005c0c30` — `ai.hpp:589` —
 walks): for each node whose own `+0` field equals the ECX match value, it
 calls the node's own callback (node `+0x14`, a function pointer) with
 **ECX** the original match value, **EDX** the unit, and the two stack
@@ -2289,7 +2289,7 @@ Not traced: what event type 0 means to a caller elsewhere, and whether any
 unit ever registers a handler for it (no handler-registration call was
 read here). d2d: not ported as a function; `FUN_005c0c30`'s own raise
 behaviour is the part of this system with a d2d equivalent
-(`components/game/ai.hpp:590`); no disagreement found with how
+(`components/game/ai.hpp:589`); no disagreement found with how
 `FUN_004d2d70` uses this lighter dispatch.
 
 Re-check: `python3 tools/ghidra/fn.py 004dc210 005c0c30 004d2d70`;
@@ -2385,7 +2385,7 @@ convention and the `RET 0x1c` cleanup.
 
 Three UNIT functions clustered right after the client missile spawn
 helper above, all three called only from the already-`d2d verified`
-`FUN_004d5310` (**andycontrol0**, `shake.hpp:63`, `unit-sounds.md:479`) or
+`FUN_004d5310` (**andycontrol0**, `shake.hpp:60`, `unit-sounds.md:479`) or
 its untraced sibling `FUN_004d4f20` — both of which read a Missiles.txt
 row's own `+0x1e`/`+0x20`/`+0x58`/`+0x5c` fields the same way
 `FUN_004cc950`'s write-up (batch 9) already describes for `andycontrol0`.
@@ -2568,7 +2568,7 @@ to confirm the ECX/EDX argument order above.
 `FUN_004cace0` (0x74 bytes, `004cace0`..`004cad54`, plain `RET`, no stack
 args) sits right after the sound cluster above and is the only caller's
 dependency of `FUN_004cadb0` (already `d2d verified`:
-`fight.hpp:469`, `sound_ids.hpp:118,122`, `unit-sounds.md:252,256`), which
+`fight.hpp:469`, `sound_ids.hpp:110,122`, `unit-sounds.md:252,256`), which
 calls it in a loop over near rooms when its own room lookup misses. Its
 three arguments are register-passed in the same EAX/EDX/ECX order as the
 getters above (confirmed in disassembly): **EAX** a y subtile, **EDX** the
@@ -2606,18 +2606,18 @@ and a value under 0xe (14) returns the dword at `DAT_00727ed8 + (EDX &
 0xf) * 8`; 0xe or above is fatal too (message `0xb60`). `0x727ed8` is the
 8-byte `{sound, frames}` table "The swing, FUN_004cb6a0" already names
 (`unit-sounds.md:51`, ported whole as `kSwing` in
-`components/rules/sound_ids.hpp:52`) — this function returns only the
+`components/rules/sound_ids.hpp:49`) — this function returns only the
 `sound` half of the pair, given the hit class directly rather than
 computing it. Its three callers (`FUN_004c6140` Skills.cpp's skill-start
 dispatcher, ported; `FUN_004c7d50`, `FUN_004c8ed0`, `FUN_004f4c20`, all
 `SKILLS` module) each call `FUN_00623c20` (the weapon's hit class,
-`sound_ids.hpp:51`) immediately before, then feed this function's result
+`sound_ids.cpp:18`) immediately before, then feed this function's result
 as the sound id into `FUN_004b9a00` (queue a Sounds.txt row,
 `unit-sounds.md:17`) — the `weaponsnd` swing play `unit-sounds.md:138`
 already describes as reading "the 0x727ed8 table".
 
 d2d: the `0x727ed8` table itself is already ported as `kSwing`
-(`sound_ids.hpp:52`); this accessor (an index into the table's `sound`
+(`sound_ids.hpp:49`); this accessor (an index into the table's `sound`
 field alone, with a redundant unit-null check) has no separate d2d
 function and nothing here disagrees with `kSwing`'s contents.
 
@@ -2629,7 +2629,7 @@ Re-check: `python3 tools/ghidra/fn.py 004ca4c0 004c6140`; disassemble
 Two UNIT functions a short distance after batch 8's sound-node pair,
 both gated on `FUN_004ca320` (**GetSndUnitType**, `unit-sounds.md:38`)
 returning 1 (monster) and then `d2d_uniques_boss_sound(unit)`
-(`components/rules/uniques.hpp:196`, already ported) returning a non-null
+(`components/rules/uniques.cpp:112`, already ported) returning a non-null
 MonSounds.txt row pointer (0x94-byte stride, confirmed via that function's
 own tail calls `FUN_00656f90`/`FUN_00656fc0`, which compute `row * 0x94 +
 DAT_0096c6b4`):
@@ -2735,7 +2735,7 @@ on the branch that needs it, at `+0x96`, a signed 16-bit field):
   default: 1.
 
 Its only caller, `FUN_004d5310` (`andycontrol0`, client function 29,
-already `d2d verified`: `components/rules/shake.hpp:63`,
+already `d2d verified`: `components/rules/shake.hpp:60`,
 `unit-sounds.md:570`, with a committed oracle,
 `tools/emu/shake.py`/`tests/quake_control_cases.inc`), passes the
 MissileTypeTxt-shaped record it already holds (stride `0x1a4`,
@@ -2887,7 +2887,7 @@ stack x, y, skill, level); the difference between the two was not traced.
   makes missile 0x1ab (`suicidefireexplode`) at level 1, value 2 or more
   makes 0x1ac (`suicideiceexplode`) at level 1, and also, whatever the value
   (0 or less included), missile 0x1aa (`suicidecorpseexplode`) is made at
-  its spot. The server (`monsters.md`, `deaths.cpp:234`) picks only one of
+  its spot. The server (`monsters.md`, `deaths.cpp:238`) picks only one of
   the three; the client adds the corpse one in addition. A visual-only
   difference between halves, nothing for d2d to change.
 
@@ -3722,7 +3722,7 @@ switch: the table address `0x724de0` is entry `(0x724de0 - 0x724d78) / 4 =
 `FUN_00644340(FUN_006439f0(unit, 0xb8), 4)` (skill by id, then mode 4,
 which that function accepts only up to 0x20). A monster without the unique
 bit does not get the client-side `0xb8` skill from this handler, whatever the
-mod list says. `components/game/ai.cpp:687` already names skill `0xb8` as
+mod list says. `components/game/ai.cpp:689` already names skill `0xb8` as
 MonTeleport.
 
 d2d: renders its own effects, so the client skill row is not mirrored; the
@@ -4629,7 +4629,7 @@ dead code; a pointer-table use was not searched.
   signature calls the third argument `pDamage`; the disassembly shows ESI is
   the record (`ADD [ESI+0xc], EAX` at `0057b64e`). d2d's live
   demon bonus is the missile one (`FUN_005ad2f0`, `damage.demon_pct`,
-  components/rules/combat.hpp:708); the item stat 0x79 term here is not
+  components/rules/combat.cpp:432); the item stat 0x79 term here is not
   in d2d, and since the function has no caller the live game may not use it
   either (the live function, `FUN_0057b7d0`, was not re-read in this pass).
 - **`FUN_0057c3e0`** (`0057c3e0`..`0057c41a`, **ECX** monster unit, one
