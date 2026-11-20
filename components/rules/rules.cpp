@@ -1388,9 +1388,8 @@ int books_row(const Tables& tables, const std::string& code, bool scroll) {
 // FUN_005566b0, FUN_005c25c0).
 // ponytail: without a unit seed (an imbue, tests) a rare's affixes are
 // 3..6 alternating prefix / suffix, a magic's 1/4 prefix, 1/4 suffix, 1/2
-// both; the classic (version < 100) rules aren't here; an elixir's base
-// roll (FUN_0065e8e0: its kind off the own seed; no treasure class or
-// recipe makes one) isn't either; without a unit seed everything comes
+// both; the classic (version < 100) rules aren't here (an elixir's base
+// roll, FUN_0065e8e0, is in stubs.md: nothing makes one); without a unit seed everything comes
 // off `rng` and none of the above is rolled; base damage isn't kept on
 // the item, so low's 75%, ethereal's 3/2 and dmg%'s +1 max damage on a
 // weak weapon only reach its props.
@@ -1512,11 +1511,10 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     // quality doesn't take: FUN_00556e80 on an item of version 100+): a scroll's
     // (ItemTypes row 0x16) or a tome's (0x12) Books row into suffix slot
     // 0, the save's 5 bits (FUN_005c2540; the tome's test runs last).
-    // ponytail: a charm's affix (row 0xd, FUN_00556a60: reached only after
-    // its magic roll found no affix, its two rolls fail the same way and
-    // the game exits, string 0x372) and a body part's monster (rows 0x28 /
-    // 7, FUN_00629df0; no drop makes one) aren't set; a classic item
-    // (version 0) takes FUN_00556d80 (the same Books row, by its own type).
+    // A charm's affix (FUN_00556a60) and a body part's monster (FUN_00629df0)
+    // aren't set: stubs.md, suspected unreachable.
+    // ponytail: a classic item (version 0) takes FUN_00556d80 (the same Books
+    // row, by its own type).
     auto fix_ups = [&] {
         if (item.quality != 2) return;
         if (type_is(tables, type, "scro")) item.tome = books_row(tables, code, true);
