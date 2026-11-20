@@ -47,6 +47,22 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   read here), and so what each mode runs is untraced.
 - d2d: not ported; it has no application mode (switches.md).
 
+## WinMain (`FUN_004066e0`)
+
+- **`FUN_004066e0`** (`hInstance`, `hPrevInstance`, `lpCmdLine`,
+  `nCmdShow` on the stack, by the CRT's call at `0x6827a5`, tools/emu/emu.py
+  "___tmainCRTStartup"): keeps `hInstance` at `0x0074c718` and `nCmdShow` at
+  `0x0074c71c`, then asks `FUN_00406650` whether the process was started
+  as the `DIABLO2SRV` service (it opens the service and, when it exists,
+  runs `StartServiceCtrlDispatcherA` with `FUN_004065e0`). Not one: the
+  process's ACL gets an access-denied entry (`FUN_004061c0`; the decompile
+  shows the string `"d2server"` and `lpCmdLine` passed to it, dropped from
+  its own signature, so what it does with them was not read) and the game
+  runs (`FUN_004064c0`, the start-up switches.md describes). Returns 0
+  either way.
+- d2d: no counterpart. Its `main` parses the switches itself
+  (switches.md) and never runs as a Windows service.
+
 ## The per-user folder path (`FUN_00406d30`, with `FUN_004067d0` / `FUN_00406b20`)
 
 - **`FUN_00406d30`** (buffer in ESI, size in EDI; both registers as the
