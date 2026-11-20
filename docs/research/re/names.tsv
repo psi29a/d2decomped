@@ -488,7 +488,7 @@ address	name	evidence
 0049af60	party_tip_text	One tip box (FUN_0049aaf0) with one or two lines, by whether the short is 0. Only caller FUN_0049b330 (ui-module-frontier.md)
 0049c170	party_level_text	A label, two strings and the level (%2u) drawn at y EAX − the panel y. Only caller FUN_0049c270 (ui-module-frontier.md)
 0049c6a0	waypoint_ui_init	DAT_007bf081 = FUN_00660f30(0) (the client's waypoint record), DAT_007bf085 = 0. Only caller FUN_00456970 (ui-module-frontier.md)
-0049c700	party_ui_end	Once (DAT_007bf085), with the player in a room, FUN_004786a0(0); frees DAT_007bf081 (FUN_00660fd0); FUN_0049c650. Only caller FUN_00456d80 (ui-module-frontier.md)
+0049c700	waypoint_ui_end	Once (DAT_007bf085), with the player in a room, FUN_004786a0(0); frees the waypoint record DAT_007bf081 (FUN_00660fd0); FUN_0049c650 frees the waypoint panel cels. Only caller FUN_00456d80 (ui-module-frontier.md)
 0049d3c0	text_list_measure	EDI record: maximum linked-line width + 20, row count * 15 + 6, and copied fields; ui-text-frontier.md and ui_text_frontier.py
 0049d440	text_state_init	Clears 0x9f bytes at 0x7bf1b0; 0x7bf1f6 = registry Diablo II\Text Display Beta, else 1. Only caller FUN_00456970 (ui-module-frontier.md)
 0049db10	text_lines_copy	Fastcall source: a 0x9d0-byte record of up to the source's +0x18 lines, each a 0x9d4-byte copy (FUN_0040b380); copies +0x18 and +0x1a. Only caller FUN_0049dbc0 (ui-text-frontier.md) (ui-module-frontier.md)
