@@ -1,7 +1,7 @@
 # Weather (rain) — game.exe 1.14d
 
 The client's weather, 0x472320..0x473fc3. d2d: `components/rules/weather.hpp`
-(`Rain`, test_weather), `Town::update` (the tick and sound), `draw_rain`
+(`Rain`, test_weather), `ClientSession::update` (the tick and sound), `draw_rain`
 (ingame.hpp) and the splashes in `render_world`.
 
 ## Where and when

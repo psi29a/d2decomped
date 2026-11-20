@@ -102,7 +102,7 @@ and sound.
 | Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | skill use in `fight.hpp` | `skillbar.hpp` (HUD buttons, picker, hotkeys) |
 | Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `gamedata.hpp` (`build_level`, `build_outdoor`) | |
 | The game server: levels, units, commands, the 25 Hz tick | | `world.hpp` (`World`), `protocol.hpp` (`Command`), `replication.hpp` (`View`) | |
-| The client: input, panels, camera, drawing | | | `town.hpp` (`Town`), `world_view.hpp` (drawing the level and units) |
+| The client: input, panels, camera, drawing | | | `session.hpp` (`ClientSession`), `world_view.hpp` (drawing the level and units) |
 | Scripted-test verbs | | | `devctl/verbs.hpp`, `debug`'s sub-verbs in `devctl/debug_*.cpp` (+ info/screenshot/quit in `main.cpp`) |
 | World sounds | | `cues.hpp` (`Cues`, queued by the World) | `audio.hpp` (`play_cues`) |
 
@@ -158,9 +158,9 @@ walk flags.
 
 `World` (world.hpp) owns the game's state (level, player, merc, NPCs,
 rng) and hands references to its subsystems (`Fight`, `Loot`); the client
-(`Town`) only sends it commands (protocol.hpp) and reacts to its events
+(`ClientSession`) only sends it commands (protocol.hpp) and reacts to its events
 (docs/design/multiplayer.md). A new game system goes into the World or a
-subsystem it owns; a new panel or input into `Town`.
+subsystem it owns; a new panel or input into `ClientSession`.
 
 ## Code style
 
@@ -292,7 +292,7 @@ C. **Levels from stamps** — done: the generator builds one `ds1::Map`
    for the level; `finish_level` gives it the town's lookup + collision.
 D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
    so collision, pathing and drawing carry on across the edge; walk over
-   the town's bridge and `Town::cross_level` hands the player (path,
+   the town's bridge and `ClientSession::cross_level` hands the player (path,
    merc, automap, music) to the Blood Moor. Walking toward a level that
    isn't built (Stony Field) logs "not implemented". ponytail: the
    neighbour's NPCs aren't drawn across the edge.
@@ -471,7 +471,7 @@ below, so new features land on the new structure:
    0x730dc0 and handlers 0x6e0d18; S → C table 0x7114d0; game frames
    at 1000 / fps in FUN_0052fc20 → FUN_0052d870, flush every 40 ms).
 2. The split: done (2026-09-27). `World` (world.hpp) owns the game and
-   steps at 25 Hz; `Town` is its client: input → `Command` (protocol.hpp:
+   steps at 25 Hz; `ClientSession` is its client: input → `Command` (protocol.hpp:
    Move, UseSkill, Interact, Pickup, Resurrect), `Event`s back (level
    changed, open UI); monsters have unit ids; the camera slides between
    ticks; devctl `cmd` sends commands and the smoke test walks and
@@ -1103,7 +1103,7 @@ Next: missile synergies in the fight; then the hero's quest lines.
 Branch `sounds`, after Bret's Steam Deck playtest (no hit or miss sounds,
 A did nothing on a waypoint or a town portal):
 
-- The pad: an open waypoint counted as the field (`Town::pad_field`), so A
+- The pad: an open waypoint counted as the field (`ClientSession::pad_field`), so A
   never reached its rows; the cursor now starts on its first row. A also
   takes town portals and corpses. `tests/pad_use_d2d.py`.
 - Sounds, traced in game.exe's client (UnitSnd.cpp, Skills.cpp) and

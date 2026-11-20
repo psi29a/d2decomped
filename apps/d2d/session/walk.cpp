@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): walking, and handling the frame's events. The rest is in this directory.
-#include "town.hpp"
+// ClientSession (session.hpp): walking, and handling the frame's events. The rest is in this directory.
+#include "session.hpp"
 
 #include "audio.hpp"
 #include "automap_reveal.hpp"
@@ -56,7 +56,7 @@ namespace d2d::client {
 // S->C 0x89 event 1, LAB_0046aee0: find StoneAlpha (object 17) in the
 // client's room-near list, ask FUN_004cdb40 for client missile 0x120 at its
 // subtile, then start FUN_0046ae50 from that missile row's Param1 and Range.
-auto Town::cairn_opened(std::uint32_t frame_ms) -> void {
+auto ClientSession::cairn_opened(std::uint32_t frame_ms) -> void {
     if (!level) return;
     const auto stones = world.game_data->missiles.find("cairnstones");
     if (stones == world.game_data->missiles.end()) return;
@@ -76,7 +76,7 @@ auto Town::cairn_opened(std::uint32_t frame_ms) -> void {
  * Advance the client gameplay frame, synchronize joined-world state and drive player movement. Run
  * controller and optional touch commands through the existing world dispatch path.
  */
-auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
+auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         frame_now = frame_ms;
         if (net_game) {
             net_game->pump(frame_ms, frame_ms - last_ms);
@@ -505,7 +505,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         if (frame_ms - world_ms >= kTickMs) world_ms = frame_ms - (frame_ms - world_ms) % kTickMs;
     }
 
-auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> void {
+auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> void {
         if (const auto* message = std::get_if<ev::Message>(&event)) {   // a LAN game's line for everyone, as game.exe words them
             auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
             auto named = [&](std::uint16_t id) { auto pattern = text(id); if (const auto spot = pattern.find("%s"); spot != std::string::npos) pattern.replace(spot, 2, message->name); return pattern; };

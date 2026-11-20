@@ -230,7 +230,7 @@ inline int skill_level(const GameData& game_data, const Character& character, in
 
 struct Fight {
     const GameData* game_data;
-    const Level* const& level;             // Town's: where the player is
+    const Level* const& level;             // ClientSession's: where the player is
     d2d::rules::Rng& rng;
     Loot& loot;
     Cues& cues;
@@ -313,7 +313,7 @@ struct Fight {
         // FUN_00549d00), the seed of its missiles' pierce charges (FUN_0059f940).
         std::uint32_t pierce_idx = 0;
         float cast_x = 0, cast_y = 0;          // where a missile skill was sent
-        int aura = 0;                          // the aura on (Town: the right skill when it's one)
+        int aura = 0;                          // the aura on (ClientSession: the right skill when it's one)
         // State 0x55 (nomanaregen): on while the player's Prayer pays for a
         // pulse that heals (prayer_pulse); a right skill picked clears it.
         bool no_mana_regen = false;
@@ -516,7 +516,7 @@ struct Fight {
         return found == heroes.end() ? nullptr : *found;
     }
     // The acting player's level in a skill: points, and with item bonuses
-    // (Town points these at its SkillBar).
+    // (ClientSession points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
     // Chill's -50 attackrate / velocitypercent (FUN_0057af80 -> FUN_00623f50).
     [[nodiscard]] int chill_rate(std::uint32_t now_ms) const { return now_ms < actor->chilled ? -50 : 0; }

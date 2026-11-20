@@ -90,7 +90,7 @@ References:
 - `apps/d2d/window.cpp` converts SDL mouse, keyboard, and text events into a
   `Mouse` snapshot and a list of pressed keys. The main window initializes
   video only.
-- `Town::input` converts the cursor's 800×600 screen position to an
+- `ClientSession::input` converts the cursor's 800×600 screen position to an
   isometric world point. A left press attacks a hovered monster, picks up a
   hovered item, interacts with a hovered NPC/object, or moves to the clicked
   point. Holding left mouse repeats the attack or re-aims movement. Right
@@ -98,12 +98,12 @@ References:
 - `R` toggles running. The game command model already has `Move`, `UseSkill`,
   `Pickup`, `Interact`, and `Run`, which are useful endpoints for a controller
   action layer.
-- `Town::update` currently owns a large part of in-game UI interaction. A
+- `ClientSession::update` currently owns a large part of in-game UI interaction. A
   controller implementation must account for inventory, skills, belt, store,
   dialogs, trade, quest log, automap, and game menus, not only combat.
 
 Relevant code: [window event translation](../../apps/d2d/window.cpp),
-[Town input and actions](../../apps/d2d/town/input.cpp),
+[Session input and actions](../../apps/d2d/session/input.cpp),
 [game commands](../../components/game/protocol.hpp).
 
 ## Steam Deck installation and update path

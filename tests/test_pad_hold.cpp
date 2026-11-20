@@ -2,7 +2,7 @@
 // test-links: rules
 // test-includes: apps/d2d
 // Which hold A confirms (apps/d2d/pad_hold.hpp), and that a full belt
-// refuses another potion. It does not run Town.
+// refuses another potion. It does not run ClientSession.
 #include "pad_hold.hpp"
 
 #include <d2s_items.hpp>

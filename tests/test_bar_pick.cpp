@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // The life-bar choice (apps/d2d/bar_pick.hpp). The caller supplies only
-// monsters the frame is drawing. This does not run Town.
+// monsters the frame is drawing. This does not run ClientSession.
 #include "bar_pick.hpp"
 
 #include <cassert>

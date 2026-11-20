@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The in-game client (town.hpp): Town, the view to units, the frame's
+// The in-game client (session.hpp): ClientSession, the view to units, the frame's
 // light, the HUD overlays.
 // This part: publishing the world, entering, saving, the game menu and the quest log. The rest
-// of Town (town.hpp) is in this directory, by subsystem.
-#include "town.hpp"
+// of ClientSession (session.hpp) is in this directory, by subsystem.
+#include "session.hpp"
 
 #include "common.hpp"
 #include "controls.hpp"
@@ -42,12 +42,12 @@
 
 namespace d2d::client {
 
-// Town
+// ClientSession
 /**
  * Publish the focused player world snapshot to the client view. Preserve client-owned hotkey
  * metadata when replacing the display character header.
  */
-auto Town::publish() -> void {
+auto ClientSession::publish() -> void {
         auto& owner = focused();                        // local co-op: the screen's player
         world.act_as(owner);
         auto out = world.view();
@@ -63,7 +63,7 @@ auto Town::publish() -> void {
     }
 
 // Applies a replicated View; a change in its quest-log state stands in for the log sends not made at their own sites (FUN_00544190).
-auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> bool {
+auto ClientSession::take_view(std::span<const std::uint8_t> bytes, const View* local) -> bool {
         if (!apply_view(*scene, bytes, view)) {
             d2d::log::warn("a View didn't apply ({} bytes)", bytes.size());
             return false;
@@ -121,14 +121,14 @@ std::filesystem::path automap_dir(const World& world) { return world.characters 
  * Initialize the client view and input presentation when entering the current world. Refresh the
  * controller panel shortcuts alongside other screen state.
  */
-auto Town::enter() -> void {
+auto ClientSession::enter() -> void {
         shake = {}; quest_quakes.clear(); shake_rng = d2d::rules::Rng{ 666 };
         automap.cells.clear();                    // a new game: what the files beside the save kept
         for (auto& tree : automap.trees) tree.clear();
         automap_reveal.new_game();                // its rooms' tiles come with clear flags
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
-        alert_clocks.clear();                      // Town is reused when a second game starts on the same level
+        alert_clocks.clear();                      // ClientSession is reused when a second game starts on the same level
         spark_trail.clear();                       // ... and the trails were the last game's
         alert_level = nullptr;
         critters.clear();                         // a new game's map: its own critters
@@ -165,7 +165,7 @@ auto Town::enter() -> void {
 
 // The automap's new cells go out with the save, as on leaving a game
 // (FUN_0045a5c0).
-auto Town::save() -> std::string {
+auto ClientSession::save() -> std::string {
         if (scene && level) save_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
         if (lan_client) { lan_leave(); return ""; }      // a joined game: the host's Save is ours
         for (auto& lan_player : lan_players) lan_send_save(lan_player);
@@ -178,25 +178,25 @@ auto Town::save() -> std::string {
         return world.save();
     }
 
-auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
+auto ClientSession::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
 /**
  * Reset session state for a newly started game, including skill-assignment state that must not
  * survive the previous session.
  */
-auto Town::new_game() -> void {
+auto ClientSession::new_game() -> void {
         tree_close_down = false;
         world.new_game();
         skillbar.new_game();
         hand_items.clear();
     }
 
-auto Town::game_ended() -> void {
+auto ClientSession::game_ended() -> void {
         if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, { { "mini_panel", mini_panel::saved(game_menu.restore_mini) } }))
             d2d::log::warn("d2d.cfg: mini_panel not saved");
     }
 
-auto Town::open_game_menu() -> void {
+auto ClientSession::open_game_menu() -> void {
         skill_strip = -1;                             // Esc or the mini-panel must not leave the pad on a hidden strip
         if (help.open) toggle_help();                 // first: it may have brought the mini-panel up
         game_menu.restore_automap = automap.open;
@@ -208,21 +208,21 @@ auto Town::open_game_menu() -> void {
         game_menu.show(0);
     }
 
-auto Town::close_game_menu() -> void {
+auto ClientSession::close_game_menu() -> void {
         game_menu.open = false;
         automap.open = game_menu.restore_automap;
         mini.open = game_menu.restore_mini;
     }
 
-auto Town::quest_bits() const -> const d2d::rules::QuestBits& {
+auto ClientSession::quest_bits() const -> const d2d::rules::QuestBits& {
         return character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
     }
 
 // The player's act (0-based): the act of the level the View has them on
 // (acts 1 and 2 so far; a joined game's too).
-auto Town::view_act() const -> int { return view.level ? d2d::rules::level_ids::act_of(view.level->id) : 0; }
+auto ClientSession::view_act() const -> int { return view.level ? d2d::rules::level_ids::act_of(view.level->id) : 0; }
 
-auto Town::toggle_quest_log() -> void {
+auto ClientSession::toggle_quest_log() -> void {
         if (quest_log.open) { quest_log.open = false; return; }
         quest_log_open(quest_log, quest_bits(), quest_state(), view_act());
         char_open = stash_open = cube_open = false;
@@ -233,30 +233,30 @@ auto Town::toggle_quest_log() -> void {
 // The inventory stays drawn beside them all; a store passes UI 1, whose
 // flag then toggles unseen under it (not modelled: d2d shuts the
 // inventory with the store).
-auto Town::toggle_inventory() -> void {
+auto ClientSession::toggle_inventory() -> void {
         if (d2d::client::panel_key_refused(d2d::client::kUiInventory, stash_open, cube_open, store.npc >= 0) || store.npc >= 0) return;
         inv_open = !inv_open;
         if (inv_open) tree_open = false;
     }
 
-auto Town::toggle_character() -> void {
+auto ClientSession::toggle_character() -> void {
         if (d2d::client::panel_key_refused(d2d::client::kUiCharacter, stash_open, cube_open, store.npc >= 0)) return;
         char_open = !char_open;
         if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false;
     }
 
-auto Town::toggle_skill_tree() -> void {
+auto ClientSession::toggle_skill_tree() -> void {
         if (d2d::client::panel_key_refused(d2d::client::kUiSkillTree, stash_open, cube_open, store.npc >= 0)) return;
         tree_open = !tree_open;
         if (tree_open) inv_open = false;
     }
 
-auto Town::quest_log_button_now() const -> QuestLogButton {
+auto ClientSession::quest_log_button_now() const -> QuestLogButton {
         const bool left_open = left_panel_open();
         return quest_log_button(quest_log, left_open, inv_open || tree_open, char_open);
     }
 
-auto Town::level_buttons_now() const -> LevelButtons {
+auto ClientSession::level_buttons_now() const -> LevelButtons {
         const bool left_open = left_panel_open();
         auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
         out.stats_down = stats_down;
@@ -264,11 +264,11 @@ auto Town::level_buttons_now() const -> LevelButtons {
         return out;
     }
 
-auto Town::hovered_monster() const -> int {
+auto ClientSession::hovered_monster() const -> int {
         return hovered_npc <= -10 && hovered_npc > -1000 && std::size_t(-10 - hovered_npc) < view.monsters.size() ? -10 - hovered_npc : -1;
     }
 
-auto Town::hovered_ground() const -> int {
+auto ClientSession::hovered_ground() const -> int {
         return hovered_npc <= -1000 && std::size_t(-1000 - hovered_npc) < view.ground.size() ? -1000 - hovered_npc : -1;
     }
 

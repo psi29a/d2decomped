@@ -132,7 +132,7 @@ y, and a fourth, `param_4`. The steps above end with +0xc8 bit 7 and
   and passes.
 
 d2d keeps this as `selectable` / `ally_not_interact` plus its own bounds
-(`town/view.cpp`); the layered test, the object special cases and the
+(`session/view.cpp`); the layered test, the object special cases and the
 MonStats2 box are not ported.
 
 ## Unit flag test (`FUN_00451f30`)
@@ -282,8 +282,8 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   (2000). In 1.14d's Skills.txt SearchOpenXY is on Fire Wall, Meteor,
   Blizzard, Eruption and Volcano, and the monster rows SkeletonRaise,
   VampireRaise, Resurrect, RegurgitatorEat and Resurrect2 (all but
-  RegurgitatorEat have SearchEnemyNear too, which goes first). d2d: `Town::open_spot`
-  (apps/d2d/town/input.cpp) on each cast from the mouse.
+  RegurgitatorEat have SearchEnemyNear too, which goes first). d2d: `ClientSession::open_spot`
+  (apps/d2d/session/input.cpp) on each cast from the mouse.
 - The right click (kind 3 of `FUN_00462d00`) with a converted monster is
   the same null target as the left: `FUN_00466fe0` (not `FUN_00467a70`),
   then `FUN_00462ba0`: `FUN_00462930` (a press arms 0x7a526c to 1 for a
@@ -312,7 +312,7 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   is one for both buttons, `0x7a6a94`: a left or right press sets it
   (`FUN_00467a70`) or, with nothing under the cursor, clears it
   (`FUN_00466fe0`), and `FUN_00467a10` checks it each frame. d2d:
-  `apps/d2d/hand_hold.hpp`, used by `Town::input` for both hands.
+  `apps/d2d/hand_hold.hpp`, used by `ClientSession::input` for both hands.
 
 Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
 `FUN_00462a20` and `FUN_00462d00` itself (read from the code only; that
@@ -350,7 +350,7 @@ the mask table at 0x6ce268 (1, 2, 4, ..., 0x80): TargetableOnly +6 & 0x10
    walks or runs (`FUN_00622d00`: mode 2, 3 or 6) keeps the target.
 3. The skill's status (`FUN_004d9fc0`) not 0 keeps it. d2d: the World leaves
    each hand's status in the View (`World::hand_statuses`,
-   `View::hand_status`), and `Town::input`'s `use_hand` searches only at 0.
+   `View::hand_status`), and `ClientSession::input`'s `use_hand` searches only at 0.
 4. SearchEnemyNear: `FUN_00467490`. Else SearchEnemyXY with no target and
    `near`: `FUN_00467660`. Else SearchOpenXY: `FUN_004677b0` (above).
    Else the target as it was.
@@ -396,7 +396,7 @@ every type, mode and size round the five spots, collision words with and
 without the unit bits); `tests/test_search_enemy_xy.cpp` gives d2d's
 `rules::search_enemy_xy` the same cases (fixture
 `search_enemy_xy_cases.inc`, 2000; `gen 20000 3`: 20000 cases, 4965 picks,
-no difference). d2d: `Town::shift_pick` (apps/d2d/town/input.cpp) runs it on
+no difference). d2d: `ClientSession::shift_pick` (apps/d2d/session/input.cpp) runs it on
 a click with stand still held and no unit under the cursor, with the units'
 own bits from the players' and live monsters' collision shapes.
 
@@ -442,7 +442,7 @@ natively on generated rooms (the hit test and `FUN_00629cc0` hooked to the
 case's answers); `tests/test_search_enemy_near.cpp` gives d2d's
 `rules::search_enemy_near` the same cases (fixture
 `search_enemy_near_cases.inc`, 2000; `gen 20000 3`: 20000 cases, 9571
-picks, no difference). d2d: `Town::near_pick` (apps/d2d/town/input.cpp) on
+picks, no difference). d2d: `ClientSession::near_pick` (apps/d2d/session/input.cpp) on
 each cast of such a skill from the mouse, with the client's monsters (and
 for Iron Golem its ground items) in view order.
 
@@ -617,7 +617,7 @@ cursor's unit. Who draws the kept text was not read. d2d: not ported.
 
 Not a label either (neighbour address). `FUN_00453100()` is the last
 call of the frame's `FUN_00456ee0` but one (0x4572ce, unconditional).
-Read from the disassembly against `apps/d2d/town/view.cpp:292`, no
+Read from the disassembly against `apps/d2d/session/view.cpp:292`, no
 oracle run:
 
 1. No local player (`FUN_00463dd0`): nothing. Not dead (`FUN_00464820`:
@@ -649,7 +649,7 @@ ids and their conditions, the colour (red) and font match line for line.
 Differences, none of which d2d shows: the
 game's "dead" test also takes +0xc4 bit 16 and a monster's modes
 (d2d: `pmode == kModeDD` only; d2d plays its death animation as mode 0
-while `pmode` is DD, `town/draw.cpp:229`, so the screen shows during
+while `pmode` is DD, `session/draw.cpp:229`, so the screen shows during
 the animation as in the game, but when `pmode` becomes DD was not
 checked); d2d keeps the images for ENG only (`load.cpp:210`); and it has
 no 0x7a2890 (who reads it was not traced). The `ghost` / `all_dead`

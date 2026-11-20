@@ -12,7 +12,7 @@
 //   ceil(frames x 256 / (256 + floor(256 E / 100)))); len = shown x
 //   ms_per_frame (gamedata.hpp:393: 40 x 256 / speed, integer); pmode_until =
 //   now + len; the player's frame ends the mode at the first tick with now >=
-//   pmode_until (components/game/fight/), ticks 40 ms (apps/d2d/town/).
+//   pmode_until (components/game/fight/), ticks 40 ms (apps/d2d/session/).
 // - monster (components/game/ai.cpp:172, set_mode): mode_until = now +
 //   length_ms x 100 / (100 + anim_rate_pct) with length_ms = ms_per_frame x
 //   frames (gamedata.hpp:396) and anim_rate_pct = anim_pct for GH (ai.hpp:379);

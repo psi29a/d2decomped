@@ -35,7 +35,7 @@ Done (2026-09-27, docs/PLAN.md "Networking-shaped core"):
 | Was | Now |
 |---|---|
 | The simulation stepped on the frame clock (~60 fps, variable `dt`) | `World::tick` at 25 Hz (`kTickMs` 40); the camera and the units slide between ticks (deviations.md #16; game.exe draws them at the tick rate) |
-| `Town` mixed input, UI, simulation and drawing | `World` (world.hpp: levels, units, monsters, missiles, ground items, objects, rng) and `Town`, its client |
+| `ClientSession` mixed input, UI, simulation and drawing | `World` (world.hpp: levels, units, monsters, missiles, ground items, objects, rng) and `ClientSession`, its client |
 | Monsters and ground items were vector indices | Unit ids (`Monster::id`, `GroundItem::id`, the character's items' runtime `Item::id`); objects and NPCs by their level index (the same list on every machine) |
 | Clicks called game code directly | `Command`s (protocol.hpp), applied in the tick; a busy player's movement and skills dropped, as game.exe's dispatcher does. Movement, skills, interact, pick-up, resurrect; stat / skill points, select skill, belt potions; the cursor (item moves); NPC deals (trade, gamble, buy, sell, repair, identify, hire) |
 | The client read the World's state to draw (monsters, the player, the ground, the character) | The World fills a `View` after each tick (world.hpp: units, missiles, ground, fires, NPC states, the player's mode and look, its own character in its save form with unit ids, the item in hand, the store's stock, the hire list, sounds, events); it crosses as bytes (replication.hpp) and the client reads nothing else. The World owns its own character copy (`World::enter`) |
@@ -119,7 +119,7 @@ structures), OpenD2.
    - `World` (the server side: levels, units with stable ids, monsters,
      missiles, ground items, objects, the tick, server rng)
    - a command queue in (`Command`), events and state out
-   - `Town` becomes the client: input, panels, camera, drawing, sounds
+   - `ClientSession` becomes the client: input, panels, camera, drawing, sounds
    - the devctl verbs send commands too
 3. Single player as `GameSession` with one player and `.d2s` persistence
    (saving is part of this).
@@ -160,7 +160,7 @@ faithful:
 2. **Unit ids** instead of vector indices.
 3. **A command layer** between input and the World (click → command),
    which the devctl verbs and tests can use too.
-4. **World / client split** of `Town`: the `Fight`, `Loot` and monster AI
+4. **World / client split** of `ClientSession`: the `Fight`, `Loot` and monster AI
    subsystems already hold the simulation side; panels, camera and drawing
    are the client side.
 5. **Per-unit and per-room seeds** instead of one shared `Rng`.

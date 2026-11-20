@@ -138,7 +138,7 @@ The whole-line tests take no trailing blank: `/fps ` is chat.
   ground. Read, not run.
 
 **Chat.** The packet starts as C→S 0x15, type 1, the language byte at
-0x7bb5dc. `FUN_0047bad0` (ported in apps/d2d/town/update.cpp) matches the
+0x7bb5dc. `FUN_0047bad0` (ported in apps/d2d/session/update.cpp) matches the
 line's start against its table at 0x712f7c: three 14-byte rows of a
 string pointer, a u16 type, a u32 "a name follows" and a u32 "in game
 type 0 too".
@@ -236,7 +236,7 @@ and Storm's string helpers run for real.
 
 ## d2d
 
-`/players N`: the box's Enter (apps/d2d/town/update.cpp) tests the line
+`/players N`: the box's Enter (apps/d2d/session/update.cpp) tests the line
 past its leading blanks with `rules::players_command` (rules/chat_commands.hpp)
 in single player or as the LAN host, not when joined; the count goes into
 `Fight::players_setting`, which `new_game` leaves, and the line goes out as

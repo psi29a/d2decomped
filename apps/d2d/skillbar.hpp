@@ -14,7 +14,7 @@
 // (scene.font): game.exe's picker sets no font, and just before it in its
 // draw order (FUN_00456ee0) the belt key labels set font16 (FUN_00499040,
 // SetFont(1) at 0x499053).
-// The name is keys::label_key's (slot 1's only, FUN_004a8df0). Town sets `hotkey_names` from the key config.
+// The name is keys::label_key's (slot 1's only, FUN_004a8df0). ClientSession sets `hotkey_names` from the key config.
 // Charged items (SpellSel's skill grid, FUN_004aa7e0's top row): one entry
 // per item and skill (game::charged_skills), its charges left drawn on the
 // icon and the button (SPELLSEL_DrawSkillLevel: at x + 4, the icon's bottom
@@ -230,7 +230,7 @@ struct SkillBar {
     int last_slot = 0;                             // 0x7c0708: the hotkey last used
     std::array<int, 16> hotkey_items = [] { std::array<int, 16> none{}; none.fill(-1); return none; }();   // each slot's charged entry item, -1 none
     std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
-    // The opt-in skill-button mode, filled by Town::present_skill_pad. The
+    // The opt-in skill-button mode, filled by ClientSession::present_skill_pad. The
     // mouse fan (picking 1 and 2) does not use these.
     bool panel_shortcuts_open = false;
     bool mode_on = false, mode_modifier = false, wheel_on = false, strip_on = false, legend_on = false;

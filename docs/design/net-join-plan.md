@@ -51,7 +51,7 @@ apps/d2d/               --join <host>, the TCP/IP join screen, devctl "net"
 ```
 
 `ClientModel` replaces `apply_view` for network games (net-host.md §3);
-`Town` takes its `View` from either source, and the in-process `World` /
+`ClientSession` takes its `View` from either source, and the in-process `World` /
 `LocalTransport` / `ViewEncoder` path is untouched.
 
 ## Milestones
@@ -155,7 +155,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 ### M8. Own movement: prediction and 0x5f — 3 days
 
-- Files: `components/net/client_model`, `d2gs/c2s`, `apps/d2d/town/`
+- Files: `components/net/client_model`, `d2gs/c2s`, `apps/d2d/session/`
   (a network `Command` sink beside `LocalTransport`).
 - Walk / run start locally, then 01 / 03 (u16 subtiles) and 53 / 54;
   repeats inside 200 ms are dropped. 0x95 / 0x96 / 0x18 carry the host's
@@ -169,7 +169,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 - Files: `d2gs/c2s`, `components/net/client_model`,
   `components/game/protocol.hpp` (targets as unit type + id),
-  `apps/d2d/town/`, `store.cpp`, `panels.cpp`.
+  `apps/d2d/session/`, `store.cpp`, `panels.cpp`.
 - 0x13 interact and NPC menus (talk 0x2f / 0x30, trade, hire, waypoint),
   0x3c select skill then 05.. skills, 0x16 pick up, item moves (grid,
   body, belt, cursor, drop, use), 0x32 buy with item id and cost, sell,
@@ -181,7 +181,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 ### M10. Act 1 playable together — 4 days
 
 - Files: `components/net/client_model`; `apps/d2d/ingame.cpp`,
-  `panels.cpp`, `ui.cpp` (chat line, party screen), `town/`.
+  `panels.cpp`, `ui.cpp` (chat line, party screen), `session/`.
 - Casts built on the client from 0x4c / 0x4d (Fight's missile rules for
   display only), life bytes (0xab), deaths and corpses (0x8e), other
   players (0x5b / 0x5c / 0x75 / 0x7f), chat and events (0x26 / 0x5a; send

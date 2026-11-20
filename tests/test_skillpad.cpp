@@ -94,7 +94,7 @@ int main() try {
     const Sheet actions = d2d::client::skillpad::read(d2d::client::skillpad::write(sheet));
     assert(actions.slot(false, 2) == kInteract && actions.main == kShowItems);
     // Resurrect's sentinel (0x7ffe) is not a Skills.txt id. The sidecar keeps it.
-    // This does not run Town::apply_skill_pad or body_near.
+    // This does not run ClientSession::apply_skill_pad or body_near.
     sheet.set_slot(true, 4, 0x7ffe);
     const Sheet raised = d2d::client::skillpad::read(d2d::client::skillpad::write(sheet));
     assert(raised.slot(true, 4) == 0x7ffe);

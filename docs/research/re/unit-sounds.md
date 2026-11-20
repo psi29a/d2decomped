@@ -264,7 +264,7 @@ weaponsnd.
     0x15e) has its prgsound played on the unit as the state comes on, and
     stopped as it goes when `FUN_004ca900` finds it still on the unit
     (`FUN_004ba790`). Only state hurricane has them: druid_hurricane, a loop.
-    d2d: `Town::state_loops`, the player's own (draw.cpp). Cited.
+    d2d: `ClientSession::state_loops`, the player's own (draw.cpp). Cited.
   Nothing else reads +0x10e as a skill's: `FUN_00466870` and `FUN_005a3d20`
   read other records.
 - Not ported: a monster's Charge start sound (FUN_004f4f40).
@@ -523,7 +523,7 @@ player is under 0x14 off by FUN_006416d0 (the subtile deltas less both half
 sizes, FUN_00620510: a player 2, an object its objects.txt SizeX; then the
 smaller plus twice the larger, halved) and its +0x80 is still 0, then sets
 +0x80 to the game frame (FUN_004cabc0): once per client unit. d2d:
-`rules::unit_range`, `rules::object_call`, played by `Town::object_sounds`
+`rules::unit_range`, `rules::object_call`, played by `ClientSession::object_sounds`
 once per level visit.
 
 ## Items in the panels (client, UI\inv.cpp)
@@ -697,10 +697,10 @@ blow's, a melee monster's MonStats2 HitClass or a missile's HitClass),
 TravelSound cued with it as owner, stopped by the client when it's gone from
 the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
 `World::footstep_frame`, `Fight::monster_sounds`. Objects: the client's
-`Town::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
+`ClientSession::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
 `Fight::sound_rng`, apart from the game's. In a joined game the host sends no
 MonSounds (game.exe's client makes them from the unit's mode), so
-`Town::net_overlay` runs each host monster through `Fight::monster_sounds`
+`ClientSession::net_overlay` runs each host monster through `Fight::monster_sounds`
 too: its mode from the host's unit command, its Init (not a corpse's: one
 already dead as it comes waits), Neutral and footsteps. A monster the host
 removes is dropped, so one that comes back plays its Init again.
@@ -721,7 +721,7 @@ so their attack timing and sound dispatcher run as for A1 / KK / S1.
 `rules/shake.hpp` implements FUN_00476a80 / FUN_00476d40: a ramp, hold
 and fade in milliseconds; a zero hold leaves the current shake alone.
 Each rendered frame draws two random offsets in [-strength, strength),
-using a client seed apart from gameplay. `Town::draw_view` applies their
+using a client seed apart from gameplay. `ClientSession::draw_view` applies their
 inverse isometric projection to the camera, including the player's sprite.
 FUN_004769d0 starts an unplaced `andariel_quake_loop`, sets its instance
 volume toward min(strength × 255 / 20, 255) by six units per rendered frame,

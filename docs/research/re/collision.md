@@ -531,7 +531,7 @@ d2d (`World::use_warp`):
   once). `tests/game/test_warp_walk_end.cpp`: from 3 cells off each Blood Moor warp in 8
   directions, every walk that came into reach walked on and took the warp at its end, and
   each start in reach took it in the click's tick.
-- The client's gates, before a move is sent (`Town::click_goes`): on a warp, a held
+- The client's gates, before a move is sent (`ClientSession::click_goes`): on a warp, a held
   frame sends nothing while the player walks (`rules::held_frame_goes`); stopped, it
   goes as a fresh click, so a held button clicks again after a stop. A warp's click,
   a press too, goes at most each 500 ms (`rules::warp_click_goes`, `kWarpClickWaitMs`).
@@ -997,14 +997,14 @@ Read from the code, no oracle or packet log.
     (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
   - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
 
-d2d's `input.cpp` makes a `cmd::Move` each drawn frame, and `Town::click_goes` lets a held one of a
+d2d's `input.cpp` makes a `cmd::Move` each drawn frame, and `ClientSession::click_goes` lets a held one of a
 walking player go once 7 ticks (`kTickMs`, 40 ms) have passed since the last ground move that went,
 a press too (`rules::held_walk_goes`; the tick difference unsigned, as LAB_00462542). **Verified**:
 `tools/emu/click_gates.py` runs FUN_004623c0 for each of the 8 first modes, five flag sets and ten
 clock pairs (the 6 / 7 edges and a wrap), with its stamp read back; `test_click_gates` matches all
 400. Its spot is `rules::click_spot`'s, the least distance and the dead zone as above, with
 the run bit `view.running` and stamina left (FUN_0044bec0: the run key `0x7a065c` or the
-toggle `0x7a0660`; FUN_00462d00 tests stat 10). `Town::send` passes each that goes to `NetGame::move_to`,
+toggle `0x7a0660`; FUN_00462d00 tests stat 10). `ClientSession::send` passes each that goes to `NetGame::move_to`,
 so a joined game sends C→S 0x01 or 0x03 as game.exe's client does: each 280 ms while the player walks,
 each drawn frame while it stands. `NetGame::send` still drops a packet the same as the last one sent
 within 200 ms, as FUN_00478350 does. d2d's frame time over 40 ms stands in for 0x7a0498, a count of
@@ -1738,7 +1738,7 @@ modifier list) — `structs.tsv`'s `monster_data` rows at `0x28`
   disassembly — it hands back a pointer into the struct, not a
   dereferenced value, the same shape `ai-control.md:8`'s `FUN_0058f000`
   uses for control `+0x38`). Its two callers, `FUN_0046ce40` and
-  `FUN_0046d110` (both already ported, `apps/d2d/town/ambient.cpp:195` and
+  `FUN_0046d110` (both already ported, `apps/d2d/session/ambient.cpp:195` and
   `:173`, `critters.md:47`-`48`), are outside the UNIT module; what either
   does with the returned address is not traced here.
 - **`FUN_004ae0a0`** (0x40 bytes, `004ae0a0`..`004ae0e0`, fastcall ECX

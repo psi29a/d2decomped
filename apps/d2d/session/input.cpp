@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): input: the mouse, gamepads, local co-op seats and focus. The rest is in
+// ClientSession (session.hpp): input: the mouse, gamepads, local co-op seats and focus. The rest is in
 // this directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "audio.hpp"
 #include "belt_popup.hpp"
@@ -68,7 +68,7 @@
 
 namespace d2d::client {
 
-auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command> {
+auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command> {
         std::vector<Command> out;
         if (view.dead && (!view.ghost || view.all_dead)) {   // a click, once the death has played, respawns
             if (mouse.press_this_frame) out.push_back(cmd::Resurrect{});
@@ -167,7 +167,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 // ponytail: a walking player faces its path's target there (FUN_006238c0), the units go in the
 // near rooms' list order (FUN_00641cb0), pets aren't among the units (view.monsters), and the
 // press flag 2 that also asks for the search isn't made.
-auto Town::shift_pick(int skill) const -> int {
+auto ClientSession::shift_pick(int skill) const -> int {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_xy) return -1;
         const auto subtile = [](d2d::game::Fine fine) { return int(fine.raw >> 16); };
@@ -213,7 +213,7 @@ auto Town::shift_pick(int skill) const -> int {
 // hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
 // target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
 // as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
-auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
+auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_near) return false;
@@ -253,7 +253,7 @@ auto Town::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bo
 // ponytail: FUN_00467880 doesn't search on a held frame
 // of a walking player (flags 8 and 1 without shift, FUN_00622d00); a dead target becomes the
 // ground first unless the skill is TargetCorpse (FUN_00466de0).
-auto Town::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {
+auto ClientSession::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_open_xy || !level) return std::nullopt;
         int spot_x = int(std::floor(click_x * 5)), spot_y = int(std::floor(click_y * 5));
@@ -274,7 +274,7 @@ auto Town::open_spot(int skill, int unit, float click_x, float click_y) const ->
 // each 500 ms (FUN_00461dc0's type 5), a held one after a stop as a fresh
 // click. On the ground a held frame of a walking player goes each 7 ticks
 // (FUN_004623c0). The World tells a warp's click by its spot, so this does.
-auto Town::click_goes(cmd::Move& move, std::uint32_t frame_ms) -> bool {
+auto ClientSession::click_goes(cmd::Move& move, std::uint32_t frame_ms) -> bool {
         const int mode = view.player.walking ? 2 : 1;
         if (level && std::ranges::any_of(level->warps, [&](const auto& warp) { return d2d::game::World::warp_clicked(warp, move.x, move.y); })) {
             if (!move.fresh && !d2d::rules::held_frame_goes(d2d::rules::kUnitWarp, mode)) return false;
@@ -293,14 +293,14 @@ auto Town::click_goes(cmd::Move& move, std::uint32_t frame_ms) -> bool {
  * Report whether gameplay input owns the field. Open panels, assignment editors, held items,
  * dialogs and chat prevent field actions from leaking through UI interaction.
  */
-auto Town::pad_field() const -> bool {
+auto ClientSession::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && skill_strip < 0 && touch_assign == skillpad::kUnset && touch_bind == TouchBindPhase::Off && !chat_typing && !gold_box
             && !(net_game && net_game->trade.state != 0);
     }
 
-auto Town::mini_right() const -> bool {
+auto ClientSession::mini_right() const -> bool {
         if (inv_open || tree_open) return true;
         if (!scene) return false;
         const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
@@ -310,7 +310,7 @@ auto Town::mini_right() const -> bool {
 // What the pad's A would act on now: a monster in reach in the facing (the
 // held target first), else, with `uses` (a fresh press), the ground item,
 // then the NPC, object, town portal or corpse in reach there.
-auto Town::pad_aim(int skill, bool steering) const -> pad::Aim {
+auto ClientSession::pad_aim(int skill, bool steering) const -> pad::Aim {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         // Skills.txt's range is none / h2h / range / both; spells (Fire Ball: none) fire a missile.
         const bool ranged = info && (!info->srvmissile.empty() || info->range == "range");
@@ -318,7 +318,7 @@ auto Town::pad_aim(int skill, bool steering) const -> pad::Aim {
         return { 12.f, 14.f, steering ? pad::Aim{}.cone_cos : -2.f };   // the stick left alone: any way round
     }
 
-auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim, bool monsters) const -> PadPick {
+auto ClientSession::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim, bool monsters) const -> PadPick {
         const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
         if (monsters) {
             std::vector<pad::Candidate> foes;
@@ -353,7 +353,7 @@ auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool use
 // pick up / talk to what is, else swing that way. Nothing is latched: a
 // released button forgets its target. The aiming stick turns the facing
 // (and so the target) without walking; else the walk does.
-auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item, int right_item) -> void {
+auto ClientSession::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item, int right_item) -> void {
         const auto& move = player_pad.move;
         if (move.aim || move.active) {
             const auto face = move.aim ? pad::world_step(move.aim_x, move.aim_y, kIsoW, kIsoH, 1.f) : pad::world_step(move.x, move.y, kIsoW, kIsoH, 1.f);
@@ -390,7 +390,7 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
             out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
     }
 
-auto Town::pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out) -> void {
+auto ClientSession::pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out) -> void {
         const bool walk = field && player_pad.move.active && !dead;
         if (walk) {
             const auto step = pad::world_step(player_pad.move.x, player_pad.move.y, kIsoW, kIsoH, 6.f);
@@ -402,7 +402,7 @@ auto Town::pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, boo
         player_pad.walking = walk;
     }
 
-auto Town::coop_seat(int seat, int colour, const pad::Sample& pad_now) -> void {
+auto ClientSession::coop_seat(int seat, int colour, const pad::Sample& pad_now) -> void {
         if (!scene || std::ranges::contains(coop, seat, &CoopPlayer::seat)) return;
         std::vector<std::string> playing;
         for (const auto& in_game : world.players) playing.push_back(in_game->character.name);
@@ -414,7 +414,7 @@ auto Town::coop_seat(int seat, int colour, const pad::Sample& pad_now) -> void {
         waiting.roster = open_roster(*scene, playing, world.lead().character.header);
     }
 
-auto Town::lead_leaves() -> int {
+auto ClientSession::lead_leaves() -> int {
         // World::leave makes slot [1] the lead: the seat of whoever plays it, so their own pad keeps them.
         if (world.players.size() < 2) return -1;
         const auto next = std::ranges::find(coop, world.players[1]->id, &CoopPlayer::id);
@@ -444,7 +444,7 @@ auto Town::lead_leaves() -> int {
 // branch): the row a mode plays as an object enters it (none as it first
 // shows), and its looping row while it's in that mode in sight (the 14 cells
 // view_units draws: the unit is there), started again when it ends.
-auto Town::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y) -> void {
+auto ClientSession::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y) -> void {
         object_loops.clear();
         if (!level || !scene) return;
         if (object_level != level) { object_modes.assign(level->npcs.size(), {}); object_called.assign(level->npcs.size(), 0); object_level = level; }   // a new level: nothing has changed yet
@@ -473,13 +473,13 @@ auto Town::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight
         }
     }
 
-auto Town::set_pad_config(const pad::Config& config) -> void {
+auto ClientSession::set_pad_config(const pad::Config& config) -> void {
         pad_config = config;
         lead_mapper = pad::Mapper{ config };
         for (auto& coop_player : coop) coop_player.mapper = pad::Mapper{ config };
     }
 
-auto Town::coop_join(int seat, const Character& joining) -> void {
+auto ClientSession::coop_join(int seat, const Character& joining) -> void {
         auto found = std::ranges::find(coop, seat, &CoopPlayer::seat);
         if (found == coop.end()) { coop.emplace_back().seat = seat; found = coop.end() - 1; found->mapper = pad::Mapper{ pad_config }; }
         found->id = world.join(joining).id;
@@ -487,16 +487,16 @@ auto Town::coop_join(int seat, const Character& joining) -> void {
         load_skill_sheet(joining.name);
     }
 
-auto Town::coop_text(std::string_view text, bool backspace) -> void {
+auto ClientSession::coop_text(std::string_view text, bool backspace) -> void {
         for (auto& coop_player : coop)
             if (coop_player.roster && roster_typing(*coop_player.roster)) { roster_text(*coop_player.roster, text, backspace); return; }
     }
 
-auto Town::coop_typing() const -> bool {
+auto ClientSession::coop_typing() const -> bool {
         return std::ranges::any_of(coop, [](const CoopPlayer& coop_player) { return coop_player.roster && roster_typing(*coop_player.roster); });
     }
 
-auto Town::coop_enter() -> void {
+auto ClientSession::coop_enter() -> void {
         if (!scene) return;
         for (auto& coop_player : coop)
             if (coop_player.roster && roster_typing(*coop_player.roster)) {
@@ -505,7 +505,7 @@ auto Town::coop_enter() -> void {
             }
     }
 
-auto Town::coop_leave(int seat) -> void {
+auto ClientSession::coop_leave(int seat) -> void {
         const auto found = std::ranges::find(coop, seat, &CoopPlayer::seat);
         if (found == coop.end()) return;
         if (found->id == focus_id()) take_focus(hero.id);   // their screen goes back first
@@ -514,7 +514,7 @@ auto Town::coop_leave(int seat) -> void {
         coop.erase(found);
     }
 
-auto Town::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void {
+auto ClientSession::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void {
         const auto found = std::ranges::find(coop, seat, &CoopPlayer::seat);
         if (found == coop.end()) return;
         auto& coop_player = *found;
@@ -540,7 +540,7 @@ auto Town::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void 
 // A seat's roster choice made (in the game or the lobby): a save joins, a
 // new character is made and saved at once (as char-create's OK). False
 // for a name a player in the game or a save on disk has (char-create's).
-auto Town::coop_choose(int seat, const RosterChoice& choice) -> bool {
+auto ClientSession::coop_choose(int seat, const RosterChoice& choice) -> bool {
         if (!scene) return false;
         const auto& lead = world.lead().character.header;
         if (choice.save >= 0) {
@@ -560,7 +560,7 @@ auto Town::coop_choose(int seat, const RosterChoice& choice) -> bool {
         return true;
     }
 
-auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
+auto ClientSession::lead_pad(const pad::Sample& sample, float seconds) -> void {
         (void)field_play(lead_field, lead_mapper, hero, sample, seconds, [&](const Command& command) { lead_orders.push_back(command); });
         lead_field.wants_strip = false;            // the lead's Start does not take the screen back
     }
@@ -569,7 +569,7 @@ auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
  * Resolve controller movement and field action commands for the selected player. A fresh press
  * permits interaction/pickup; held combat does not acquire loot after a kill.
  */
-auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
+auto ClientSession::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
                       const Send& out) -> std::vector<pad::Key> {
         const auto actions = mapper.step(sample, pad::Context::Game, seconds);
         player_pad.move = { actions.move_x, actions.move_y, actions.move_active, actions.click_press, actions.click_down, actions.rclick_press,
@@ -614,38 +614,38 @@ auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::P
         return opens;
     }
 
-auto Town::focus_id() const -> int { return focus > 0 ? focus : hero.id; }
+auto ClientSession::focus_id() const -> int { return focus > 0 ? focus : hero.id; }
 
-auto Town::body_near(float x, float y, float reach) const -> const View::Body* {
+auto ClientSession::body_near(float x, float y, float reach) const -> const View::Body* {
         const View::Body* best = nullptr;
         for (const auto& body : view.bodies)
             if (const float apart = std::hypot(body.x - x, body.y - y); apart <= reach && (!best || apart < std::hypot(best->x - x, best->y - y))) best = &body;
         return best;
     }
 
-auto Town::focused() -> World::Player& {
+auto ClientSession::focused() -> World::Player& {
         const auto found = std::ranges::find(world.players, focus_id(), [](const auto& each) { return each->id; });
         return found == world.players.end() ? hero : **found;
     }
 
-auto Town::focus_free() const -> bool { return focus_id() == hero.id && pad_field() && !game_menu.open && !automap.open; }
+auto ClientSession::focus_free() const -> bool { return focus_id() == hero.id && pad_field() && !game_menu.open && !automap.open; }
 
-auto Town::focus_seat() const -> int {
+auto ClientSession::focus_seat() const -> int {
         const auto found = std::ranges::find(coop, focus_id(), &CoopPlayer::id);
         return found == coop.end() ? 0 : found->seat;
     }
 
-auto Town::focus_colour() const -> int {
+auto ClientSession::focus_colour() const -> int {
         const auto found = std::ranges::find(coop, focus_id(), &CoopPlayer::id);
         return found == coop.end() ? lead_colour : found->colour;
     }
 
-auto Town::load_hands(int id) -> void {
+auto ClientSession::load_hands(int id) -> void {
         const auto kept = hand_items.contains(id) ? hand_items.at(id) : HandItems{};
         skillbar.left_item = kept.left; skillbar.right_item = kept.right; skillbar.hotkey_items = kept.hotkeys;
     }
 
-auto Town::take_focus(int id) -> void {
+auto ClientSession::take_focus(int id) -> void {
         if (id == focus_id()) return;
         hand_items[focus_id()] = { skillbar.left_item, skillbar.right_item, skillbar.hotkey_items };   // the last owner's charged entries, kept
         // Whatever the last owner had open shuts (it's theirs, not the next one's).
@@ -672,7 +672,7 @@ auto Town::take_focus(int id) -> void {
  * Return the current panel control for controller focus, or no focus for a self-highlighting
  * radial. Prefer a skill icon when entering the skill tree.
  */
-auto Town::pad_focus() const -> std::optional<PadFocus> {
+auto ClientSession::pad_focus() const -> std::optional<PadFocus> {
         if (controls.open) {                                            // Configure Controls: the selected row's column
             const auto [focus_x, focus_y] = controls.focus();
             return PadFocus{ 9000 + controls.sel * 2 + controls.column + (controls.pad_page ? 1000 : 0), focus_x, focus_y };
@@ -718,7 +718,7 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
  * Collect valid controller cursor destinations for the currently open panel. Skill-tree entries and
  * its close button share the same geometry as drawing and hit testing.
  */
-auto Town::pad_snap_points() const -> std::vector<pad::Point> {
+auto ClientSession::pad_snap_points() const -> std::vector<pad::Point> {
         std::vector<pad::Point> points;
         if (!scene) return points;
         const auto centre = [&](int x, int y, int width, int height) { points.push_back({ x + width / 2, y + height / 2 }); };
@@ -810,7 +810,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
     }
 
 // The inventory item under the cursor, or nullptr. Not the stash, the cube or the belt.
-auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
+auto ClientSession::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
         if (!scene || !inv_open) return nullptr;
         const auto& inventory = touch_enabled ? touch_inv_layout() : scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         for (const auto& item : character.items) {
@@ -822,7 +822,7 @@ auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
     }
 
 // A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
-auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
+auto ClientSession::pad_trade(int mouse_x, int mouse_y) -> void {
         if (store.npc < 0 || !scene) return;
         if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
@@ -831,7 +831,7 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
  * Resolve the hovered item availability using the shared item-use policy and current player state.
  * The result supplies both inventory prompts and item dispatch.
  */
-auto Town::item_use(const d2d::d2s::Item& item) const -> ItemUse {
+auto ClientSession::item_use(const d2d::d2s::Item& item) const -> ItemUse {
     const bool potion = potion_code(item.code) || (scene && scene->rules.potions.contains(item.code));
     const bool unidentified = std::ranges::any_of(character.items, [&](const auto& carried) { return carried.id != item.id && !carried.identified; });
     return item_use_action(item.code, item.quantity, potion, level && d2d::rules::level_ids::is_town(level->id), view.dead, unidentified);
@@ -840,7 +840,7 @@ auto Town::item_use(const d2d::d2s::Item& item) const -> ItemUse {
 // Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
 // A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
 // A joined game skips that pair. The drop packet needs a cursor the pickup has not filled yet.
-auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
+auto ClientSession::pad_drop(int mouse_x, int mouse_y) -> void {
         if (!pad_config.skill_buttons || store.npc >= 0 || !inv_open) return;
         if (held) { send(cmd::Drop{ held->id }); return; }
         if (!pad_drops_from_bag(net_game != nullptr)) return;
@@ -854,7 +854,7 @@ auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
  * Update controller hold actions and contextual inventory/shop hints. Hold-to-sell and field-use
  * state are handled separately so prompts describe the available action.
  */
-auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
+auto ClientSession::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         pad_hold_text.clear();
         pad_hold_fraction = 0.f;
         const d2d::d2s::Item* item = bag_at(mouse.x, mouse.y);
@@ -947,7 +947,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         }
     }
 
-auto Town::tip_env() const -> d2d::rules::CalcEnv {
+auto ClientSession::tip_env() const -> d2d::rules::CalcEnv {
         d2d::rules::CalcEnv env{ [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
                                  [this](int id) { return skillbar.level(id); },   // with the skill shrine's +all skills
                                  {}, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
@@ -958,7 +958,7 @@ auto Town::tip_env() const -> d2d::rules::CalcEnv {
         return env;
     }
 
-auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
+auto ClientSession::pad_back(int mouse_x, int mouse_y) const -> bool {
         if (gold_box) return true;                                   // the gold box: B is its Cancel
         if (!scene || held || !(stash_open || cube_open)) return false;
         const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
@@ -972,7 +972,7 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
  * Open the controller skill-assignment editor in Skill Buttons mode, or the existing hand picker in
  * the classic mode.
  */
-auto Town::pad_open_picker() -> void {
+auto ClientSession::pad_open_picker() -> void {
         if (pad_config.skill_buttons) {
             if (skillbar.picking == 3) { close_assignment(); return; }
             if (!pad_field() && skillbar.picking != 0) return;
@@ -986,7 +986,7 @@ auto Town::pad_open_picker() -> void {
 /**
  * Return the active panel in shoulder-navigation order, or -1 when none of those panels is open.
  */
-auto Town::pad_panel() const -> int {
+auto ClientSession::pad_panel() const -> int {
         if (controls.open || stash_open || cube_open || store.npc >= 0 || waypoint.open || npc_menu.npc >= 0 || speech.npc >= 0 || help.open || skillbar.picking) return -1;
         if (game_menu.open) return 5;
         if (tree_open) return 4;
@@ -1001,7 +1001,7 @@ auto Town::pad_panel() const -> int {
  * Cycle open gameplay panels with the shoulder inputs, preserving classic/store tab behavior.
  * Refuse a panel switch while item, identification, imbue or gold transactions are pending.
  */
-auto Town::pad_tab(int step) -> void {
+auto ClientSession::pad_tab(int step) -> void {
         if (store.npc < 0) {
             const int current = pad_panel();
             if (current < 0 || held || identify_with >= 0 || use_item.open() || gold_box) return;

@@ -332,7 +332,7 @@ act's two marker levels at 0x6e1988: (2, 37), (41, 73), (76, 102),
 (104, 108), (109, 136). With `third = (|hi - lo| + 1) / 3`: under
 `lo + third` A, under `lo + 2 third` B, else C.
 
-In d2d: `components/rules/shrines.hpp`, `Town::operate`.
+In d2d: `components/rules/shrines.hpp`, `ClientSession::operate`.
 
 - Proven: the tables and branches above, read from the decompile. The
   opening (`open_container`) is emulator-checked; the traps aren't.
@@ -345,7 +345,7 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   first inventory gem with a misc.txt BetterGem goes up one, else a
   chipped gem, `rand(6)`: gcw gcr gcg gcb gcy gcv), warping (20: see
   monsters.md), locked chests and keys, the empty quarter, and all eight
-  traps (`Town::spring_trap`; rules in shrines.hpp: `kTrapMissile`,
+  traps (`ClientSession::spring_trap`; rules in shrines.hpp: `kTrapMissile`,
   `kTrapLevel`, `kPoisonNova`, `trap_undead`). The trap monster isn't
   made: its one shot leaves the chest at once. A ring's missiles strike
   each foe once.
@@ -410,7 +410,7 @@ burst, and "everyone" means everyone within 30 cells.
   else's keeps it, as does a red portal (0x3c).
 
 d2d: `World::read_portal` / `open_portal_at` / `use_portal` (server.hpp),
-the View's `portals`, drawn and lit as object 59 (town.hpp `view_units`,
+the View's `portals`, drawn and lit as object 59 (session.hpp `view_units`,
 `frame_light`); the client names them -2000 - which for Interact.
 ponytail: the caster-side spot is the nearest free 0.6 cells south of the
 player, not game.exe's search; hover names are the destination level's

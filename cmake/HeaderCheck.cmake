@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # d2d_check_headers(<name> [SUBDIRS <dirs...>] LINK <libs...>): every .hpp
-# in the calling directory, and in each of SUBDIRS (fight/, town/, ...),
+# in the calling directory, and in each of SUBDIRS (fight/, session/, ...),
 # compiles on its own (one generated .cpp each), so a header includes what
 # it uses. Built with the rest when D2D_CHECK_HEADERS is on.
 option(D2D_CHECK_HEADERS "Compile each d2d/game header on its own" ON)

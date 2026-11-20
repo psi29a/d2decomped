@@ -74,7 +74,7 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | protocol.hpp:231-242 | `LocalTransport`: a single client | Stays for single player. Network clients get a socket transport. |
 | world.hpp:62-120 | `View` is a one-player view (player, merc, own character) | Not used for network clients. See below. |
 | replication.hpp:110-142,305 | `ViewEncoder` / `encode_view` / `apply_view`: one encoder per client, d2d-private deltas | Stays for the in-process path only. |
-| apps/d2d/town.hpp:120-139, town/ | `Town` owns `World`, `LocalTransport` and `ViewEncoder`, and drives the tick | The host owns a `GameSession`. `Town` becomes one client of it. |
+| apps/d2d/session.hpp:120-139, session/ | `ClientSession` owns `World`, `LocalTransport` and `ViewEncoder`, and drives the tick | The host owns a `GameSession`. `ClientSession` becomes one client of it. |
 | apps/d2d/main.cpp:12,714-732,827 | `--headless` needs `--devctl` and uses the SDL dummy driver | See section 4 (dedicated server). |
 
 ## 2. What game.exe does with several players
@@ -201,7 +201,7 @@ components/net/tcp_transport.{hpp,cpp}   socket, used by both
 ```
 
 - Every packet gets a round-trip test: `decode(encode(x)) == x`, plus fixtures captured from real game.exe sessions. Fixtures must not contain Blizzard data bytes. Record ids and unit fields only.
-- **Client side (step 1):** a `ClientModel` folds the S→C stream into the state that `Town` renders. It replaces `apply_view` for network games.
+- **Client side (step 1):** a `ClientModel` folds the S→C stream into the state that `ClientSession` renders. It replaces `apply_view` for network games.
 - **Host side (step 2):** one `PacketEmitter` per client. It walks the rooms that client has loaded, the same way FUN_0053b000 does, and turns World changes into S→C packets. It replaces `ViewEncoder` for network clients.
 - A d2d client joining a d2d host uses exactly the same `ClientModel`. Nothing on that path is d2d-specific.
 - The single-player path is untouched until the N-player World lands.
@@ -225,7 +225,7 @@ components/net/tcp_transport.{hpp,cpp}   socket, used by both
   - A lobby supervisor that spawns `d2ds` per game is enough for step 3 (Battle.net).
 - Saves: the joining client supplies its character at join time (net-join.md), as open games do. The host writes nothing back beyond what game.exe's open host does (open question 4).
 - Admin: reuse the devctl socket for kick, say, `/players` and state dumps. There is no separate admin protocol.
-- The listen server is `d2d --host`: the same `GameSession` with `Town` connected as a local client over `LocalTransport`.
+- The listen server is `d2d --host`: the same `GameSession` with `ClientSession` connected as a local client over `LocalTransport`.
 - `--headless` stays a testing tool for the client and is not the server.
 
 ## 5. Work items (in order, rough sizes)

@@ -19,7 +19,7 @@ or changes, list where else the same rule applies and check each one:
 
 - unit kinds: player, co-op partner (`OtherPlayer`, replicated state), merc, pet/summon, monster, minion, boss/unique/superunique, skills a Shadow or Valkyrie owns;
 - hit paths: melee strike, missile (the shooter's `shot_by`), skill, burner/aura, thorns, crush/knock;
-- net roles: host, joined client, single player. Every send goes through the one sender (e.g. `Town::send`), not a raw `net.send`;
+- net roles: host, joined client, single player. Every send goes through the one sender (e.g. `ClientSession::send`), not a raw `net.send`;
 - acts 1–5, every difficulty, town and wild, expansion and classic;
 - every consumer of a table, constant or slot range the diff widens (e.g. a portal slot range: town bounds, host lookup, the Esc chain);
 - every mode a sequence or animation table covers (A1/A2/S1/SQ/KK/BL/...);

@@ -130,7 +130,7 @@ struct Audio {
     // spins at the machine's speed, so its fade is quicker (deviations.md
     // approximation 20).
     int solo_percent = 100, menu_percent = 100;
-    bool menu_paused = false;                    // a local game paused under the game menu (Town)
+    bool menu_paused = false;                    // a local game paused under the game menu (ClientSession)
     std::int64_t sound_tick = 0;                 // DAT_007bc9bc: +1 each 40 ms
     std::uint64_t tick_mark_ms = 0;
     // A placed sound takes them in its integer volume (apply_mix,

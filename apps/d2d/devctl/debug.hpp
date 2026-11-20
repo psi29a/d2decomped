@@ -6,7 +6,7 @@
 #pragma once
 
 #include "scene.hpp"
-#include "town.hpp"
+#include "session.hpp"
 #include "ui.hpp"
 
 #include <functional>
@@ -27,7 +27,7 @@ public:
 
     // The references are main()'s loop locals; the channel that holds this
     // is pumped only inside that loop.
-    DebugVerbs(CharCreateUI& character_ui, Town& in_game, std::optional<Scene>& loaded_scene);
+    DebugVerbs(CharCreateUI& character_ui, ClientSession& in_game, std::optional<Scene>& loaded_scene);
     DebugVerbs(const DebugVerbs&) = delete;
     DebugVerbs& operator=(const DebugVerbs&) = delete;
     DebugVerbs(DebugVerbs&&) = delete;
@@ -46,7 +46,7 @@ private:
 
     std::map<std::string, Verb, std::less<>> verbs_;
     CharCreateUI& character;
-    Town& town;
+    ClientSession& session;
     std::optional<Scene>& scene;
 };
 

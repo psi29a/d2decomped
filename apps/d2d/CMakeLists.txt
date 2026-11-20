@@ -287,7 +287,7 @@ else()
 endif()
 target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem
-    # split over several files keeps them in its own directory (devctl/, town/).
+    # split over several files keeps them in its own directory (devctl/, session/).
     automap_reveal.cpp
     common.cpp
     controls.cpp
@@ -314,28 +314,28 @@ target_sources(d2d PRIVATE
     scene.cpp
     scene/render.cpp
     scroll.cpp
+    session/ambient.cpp
+    session/controls.cpp
+    session/draw.cpp
+    session/input.cpp
+    session/lan.cpp
+    session/net.cpp
+    session/setup.cpp
+    session/skillpad.cpp
+    session/touch.cpp
+    session/update.cpp
+    session/use_item.cpp
+    session/view.cpp
+    session/walk.cpp
     skilltree.cpp
     store.cpp
     tile_blit.cpp
-    town/ambient.cpp
-    town/controls.cpp
-    town/draw.cpp
-    town/input.cpp
-    town/lan.cpp
-    town/net.cpp
-    town/setup.cpp
-    town/skillpad.cpp
-    town/touch.cpp
-    town/update.cpp
-    town/use_item.cpp
-    town/view.cpp
-    town/walk.cpp
     ui.cpp
     use_item.cpp
     window.cpp
     world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
-# The source dir too: a file in a subdirectory (devctl/, town/) includes
+# The source dir too: a file in a subdirectory (devctl/, session/) includes
 # the client's headers by name, as the files here do.
 target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 # The version reaches main.cpp through build_info.hpp, not a define: a
@@ -378,7 +378,7 @@ if(NINTENDO_SWITCH)
     nx_generate_nacp(d2d.nacp NAME "d2d" AUTHOR "D2: Decomped" VERSION "${D2D_VERSION}")
     nx_create_nro(d2d NACP d2d.nacp)
 endif()
-d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
+d2d_check_headers(d2d_headers SUBDIRS devctl session LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})

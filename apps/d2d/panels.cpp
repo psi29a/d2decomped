@@ -956,7 +956,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     // The marks (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
     // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
     // - 8), in the palette colour nearest FUN_004fb180(r, g, b) of each
-    // mark's (Town::automap_frame picks them as FUN_00459bc0 does). Names
+    // mark's (ClientSession::automap_frame picks them as FUN_00459bc0 does). Names
     // in font6, centred, 10 above the mark (FUN_0045a760).
     const auto nearest = [&](int want_r, int want_g, int want_b) {
         const auto colour = pal[pal.nearest(want_r, want_g, want_b)];

@@ -13,7 +13,7 @@
 #include "panels.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
-#include "town.hpp"
+#include "session.hpp"
 #include "ui.hpp"
 #include "window.hpp"
 
@@ -61,7 +61,7 @@ const char* screen_name(Screen screen) {
  * loop-owned state by reference and must only be pumped while that state is alive.
  */
 void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& screen, CharSelectUI& csu, CharCreateUI& character,
-                         Town& town, std::optional<Scene>& scene, Audio& audio) {
+                         ClientSession& session, std::optional<Scene>& scene, Audio& audio) {
     auto click_verb = [&window = win](const std::vector<std::string>& args, std::uint8_t button) {
         if (args.size() < 3) return std::string("err click <x> <y> [down|up]\n");
         if (args.size() > 4 || (args.size() > 3 && args[3] != "down" && args[3] != "up")) return std::string("err click <x> <y> [down|up]\n");
@@ -93,7 +93,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     // Save the character now (character_store.hpp), as leaving the game does.
     channel.on("save", [&](const std::vector<std::string>&) {
         if (screen != Screen::InGame) return std::string("err not in a game\n");
-        const auto err = town.save();
+        const auto err = session.save();
         return err.empty() ? std::string("ok\n") : "err " + err + "\n";
     });
     // A command straight to the World, as a client sends one (protocol.hpp);
@@ -102,30 +102,30 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         auto float_arg = [&](std::size_t index) { return index < verb_args.size() ? std::stof(verb_args[index]) : 0.f; };
         auto int_arg = [&](std::size_t index, int fallback = -1) { return index < verb_args.size() ? std::atoi(verb_args[index].c_str()) : fallback; };
         const std::string verb = verb_args.size() > 1 ? verb_args[1] : "";
-        if (verb == "move" && verb_args.size() >= 4) town.send(cmd::Move{ float_arg(2), float_arg(3), true });
-        else if (verb == "skill" && verb_args.size() >= 5) town.send(cmd::UseSkill{ int_arg(2, 0), float_arg(3), float_arg(4), int_arg(5), int_arg(6, 0) != 0, int_arg(7) });
-        else if (verb == "interact" && verb_args.size() >= 3) town.send(cmd::Interact{ int_arg(2) });
-        else if (verb == "pickup" && verb_args.size() >= 3) town.send(cmd::Pickup{ int_arg(2) });
-        else if (verb == "resurrect") town.send(cmd::Resurrect{});
-        else if (verb == "stat" && verb_args.size() >= 3) town.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
-        else if (verb == "skillpt" && verb_args.size() >= 3) town.send(cmd::SkillPoint{ int_arg(2, 0) });
-        else if (verb == "select" && verb_args.size() >= 4) town.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
-        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0), verb_args.size() >= 4 && verb_args[3] == "merc" });
-        else if (verb == "waypoint" && verb_args.size() >= 4) town.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
-        else if (verb == "caravan" && verb_args.size() >= 3) town.send(cmd::Caravan{ int_arg(2) });
-        else if (verb == "imbue" && verb_args.size() >= 3) town.send(cmd::Imbue{ int_arg(2), int_arg(3, town.held ? town.held->id : -1) });   // [item]: the held one
-        else if (verb == "place" && verb_args.size() >= 3) town.send(cmd::ObjectItem{ int_arg(2), int_arg(3, town.held ? town.held->id : -1), true });   // into an object's panel (the orifice)
-        else if (verb == "hand" && verb_args.size() >= 3) town.send(cmd::ToCursor{ int_arg(2) });
-        else if (verb == "use" && verb_args.size() >= 3) town.send(cmd::UseItem{ int_arg(2) });
+        if (verb == "move" && verb_args.size() >= 4) session.send(cmd::Move{ float_arg(2), float_arg(3), true });
+        else if (verb == "skill" && verb_args.size() >= 5) session.send(cmd::UseSkill{ int_arg(2, 0), float_arg(3), float_arg(4), int_arg(5), int_arg(6, 0) != 0, int_arg(7) });
+        else if (verb == "interact" && verb_args.size() >= 3) session.send(cmd::Interact{ int_arg(2) });
+        else if (verb == "pickup" && verb_args.size() >= 3) session.send(cmd::Pickup{ int_arg(2) });
+        else if (verb == "resurrect") session.send(cmd::Resurrect{});
+        else if (verb == "stat" && verb_args.size() >= 3) session.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
+        else if (verb == "skillpt" && verb_args.size() >= 3) session.send(cmd::SkillPoint{ int_arg(2, 0) });
+        else if (verb == "select" && verb_args.size() >= 4) session.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
+        else if (verb == "belt" && verb_args.size() >= 3) session.send(cmd::UseBelt{ int_arg(2, 0), verb_args.size() >= 4 && verb_args[3] == "merc" });
+        else if (verb == "waypoint" && verb_args.size() >= 4) session.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "caravan" && verb_args.size() >= 3) session.send(cmd::Caravan{ int_arg(2) });
+        else if (verb == "imbue" && verb_args.size() >= 3) session.send(cmd::Imbue{ int_arg(2), int_arg(3, session.held ? session.held->id : -1) });   // [item]: the held one
+        else if (verb == "place" && verb_args.size() >= 3) session.send(cmd::ObjectItem{ int_arg(2), int_arg(3, session.held ? session.held->id : -1), true });   // into an object's panel (the orifice)
+        else if (verb == "hand" && verb_args.size() >= 3) session.send(cmd::ToCursor{ int_arg(2) });
+        else if (verb == "use" && verb_args.size() >= 3) session.send(cmd::UseItem{ int_arg(2) });
         else if (verb == "grid" && verb_args.size() >= 4)    // the held item into the inventory (or "cube") at col, row
-            town.send(cmd::ToGrid{ verb_args.size() >= 5 && verb_args[4] == "cube" ? d2d::d2s::item_panel::kCube : d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
-        else if (verb == "transmute") town.send(cmd::Transmute{});
-        else if (verb == "said" && verb_args.size() >= 4) town.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
-        else if (verb == "chat" && verb_args.size() >= 3) town.send(cmd::Chat{ int_arg(2) });
-        else if (verb == "trade" && verb_args.size() >= 3) town.send(cmd::OpenTrade{ int_arg(2), int_arg(3, 0) != 0 });
-        else if (verb == "buy" && verb_args.size() >= 3) town.send(cmd::Buy{ int_arg(2), town.store.tab });
-        else if (verb == "sell" && verb_args.size() >= 3) town.send(cmd::Sell{ int_arg(2) });
-        else if (verb == "close") town.send(cmd::CloseTrade{});
+            session.send(cmd::ToGrid{ verb_args.size() >= 5 && verb_args[4] == "cube" ? d2d::d2s::item_panel::kCube : d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
+        else if (verb == "transmute") session.send(cmd::Transmute{});
+        else if (verb == "said" && verb_args.size() >= 4) session.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "chat" && verb_args.size() >= 3) session.send(cmd::Chat{ int_arg(2) });
+        else if (verb == "trade" && verb_args.size() >= 3) session.send(cmd::OpenTrade{ int_arg(2), int_arg(3, 0) != 0 });
+        else if (verb == "buy" && verb_args.size() >= 3) session.send(cmd::Buy{ int_arg(2), session.store.tab });
+        else if (verb == "sell" && verb_args.size() >= 3) session.send(cmd::Sell{ int_arg(2) });
+        else if (verb == "close") session.send(cmd::CloseTrade{});
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
                                 " | caravan <npc> | imbue <npc> [item] | place <object> [item] | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>"
@@ -237,7 +237,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         return std::string("ok\n");
     });
     // `debug <sub-verb>`: debug_*.cpp, one handler each.
-    channel.on("debug", [debug = std::make_shared<DebugVerbs>(character, town, scene)](const std::vector<std::string>& args) {
+    channel.on("debug", [debug = std::make_shared<DebugVerbs>(character, session, scene)](const std::vector<std::string>& args) {
         return debug->run(args);
     });
     // Every item of the in-game character with its hover text, one item
@@ -261,16 +261,16 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("npcs", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
-        for (std::size_t i = 0; i < town.level->npcs.size(); ++i) {
-            const auto& npc = town.level->npcs[i];
-            const auto& states = town.view.npc_states;            // as drawn (a LAN joiner's are the host's)
+        for (std::size_t i = 0; i < session.level->npcs.size(); ++i) {
+            const auto& npc = session.level->npcs[i];
+            const auto& states = session.view.npc_states;            // as drawn (a LAN joiner's are the host's)
             if (npc.name.empty() || (i < states.size() && states[i].hidden)) continue;
             const bool live = i < states.size() && !npc.path.empty();
-            const float dx = (live ? states[i].x : npc.x) - town.player.x, dy = (live ? states[i].y : npc.y) - town.player.y;
+            const float dx = (live ? states[i].x : npc.x) - session.player.x, dy = (live ? states[i].y : npc.y) - session.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            out += std::format("{}\t{}\t{}\t{}\t{}\t{:.1f}\t{:.1f}\n", npc.name, screen_x, screen_y, menu ? 1 : 0, i, dx + town.player.x, dy + town.player.y);
+            out += std::format("{}\t{}\t{}\t{}\t{}\t{:.1f}\t{:.1f}\n", npc.name, screen_x, screen_y, menu ? 1 : 0, i, dx + session.player.x, dy + session.player.y);
         }
         return out + "ok\n";
     });
@@ -280,9 +280,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("monsters", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
-        for (const auto& monster : town.net_game ? town.view.monsters : town.fight.monsters) {   // a joined game: the host's
+        for (const auto& monster : session.net_game ? session.view.monsters : session.fight.monsters) {   // a joined game: the host's
             if (monster.gone) continue;                                                        // left the game (the Dark Wanderer)
-            const float dx = monster.unit.x - town.player.x, dy = monster.unit.y - town.player.y;
+            const float dx = monster.unit.x - session.player.x, dy = monster.unit.y - session.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             static constexpr std::array<const char*, 5> kBoss = { "-", "champion", "unique", "superunique", "minion" };
@@ -298,8 +298,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     // Loot on the ground: "<code>\t<label>\t<sx>\t<sy>" (feet on screen, game pixels).
     channel.on("ground", [&](const std::vector<std::string>&) {
         std::string out;
-        for (const auto& ground_item : town.net_game ? town.view.ground : town.loot.ground) {   // a joined game: the host's
-            const float dx = ground_item.x - town.player.x, dy = ground_item.y - town.player.y;
+        for (const auto& ground_item : session.net_game ? session.view.ground : session.loot.ground) {   // a joined game: the host's
+            const float dx = ground_item.x - session.player.x, dy = ground_item.y - session.player.y;
             out += std::format("{}\t{}\t{}\t{}\t#{}\t{:.1f}\t{:.1f}\n", ground_item.item.code, ground_item.label,
                                int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
                                kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), ground_item.id, ground_item.x, ground_item.y);
@@ -310,15 +310,15 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     // each (game pixels), header first; then its list box's rows shown.
     channel.on("menu", [&](const std::vector<std::string>&) {
         std::string out;
-        int base = town.npc_menu.y;
-        for (const auto& line : town.npc_menu.lines) {
+        int base = session.npc_menu.y;
+        for (const auto& line : session.npc_menu.lines) {
             base += line.height;
-            out += line.text + "\t" + std::to_string(town.npc_menu.x + town.npc_menu.box_width / 2) + "\t"
+            out += line.text + "\t" + std::to_string(session.npc_menu.x + session.npc_menu.box_width / 2) + "\t"
                  + std::to_string(base - 4) + "\n";
         }
-        if (const auto& list = town.npc_menu.list) {   // the list box's rows shown, after the lines: each row's first line
-            const auto counts = town.npc_menu.list_lines();
-            const int first = town.npc_menu.scroll;
+        if (const auto& list = session.npc_menu.list) {   // the list box's rows shown, after the lines: each row's first line
+            const auto counts = session.npc_menu.list_lines();
+            const int first = session.npc_menu.scroll;
             int top = 0;
             const int shown = d2d::rules::list_rows_shown(list->box, counts, first);   // all fitting: the whole count, not the count from `first`
             for (int row = first; row < first + shown && row < int(list->rows.size()); ++row) {
@@ -340,41 +340,41 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " difficulty=" + std::to_string((screen == Screen::CharSelect && scene && csu.selected >= 0 && std::size_t(csu.selected) < scene->saves.size()
                                                 ? scene->saves[std::size_t(csu.selected)] : character.header).active_difficulty())
              + (csu.pick_difficulty ? "?" : "")
-             + " cam=" + std::format("{:.2f},{:.2f}", town.player.x, town.player.y)
-             + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
+             + " cam=" + std::format("{:.2f},{:.2f}", session.player.x, session.player.y)
+             + " walking=" + (session.player.walking ? "1" : "0") + " dir=" + std::to_string(session.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
-             + " aura=" + std::to_string(town.view.aura)
+             + " aura=" + std::to_string(session.view.aura)
              + " hotkeys=" + [&] {
                  std::string out;
-                 for (const auto binding : town.character.header.hotkeys) {
+                 for (const auto binding : session.character.header.hotkeys) {
                      if (!out.empty()) out += ",";
                      out += std::to_string(binding);
                  }
                  return out;
              }()
-             + " character_panel=" + std::to_string(town.char_open)
-             + " quests=" + std::to_string(town.quest_log.open)
-             + " touch_page=" + std::to_string(town.touch_input.alternate)
-             + " touch_aiming=" + std::to_string(town.touch_input.aiming)
-             + " touch_item_finger=" + std::to_string(town.touch_item_finger)
-             + " touch_skill=" + std::to_string(town.touch_input.preview.skill)
-             + " touch_target=" + std::to_string(town.touch_input.preview.unit)
-             + " touch_point=" + std::to_string(town.touch_input.preview.x) + "," + std::to_string(town.touch_input.preview.y)
-             + " touch_move=" + std::to_string(town.touch_input.move_x) + "," + std::to_string(town.touch_input.move_y)
+             + " character_panel=" + std::to_string(session.char_open)
+             + " quests=" + std::to_string(session.quest_log.open)
+             + " touch_page=" + std::to_string(session.touch_input.alternate)
+             + " touch_aiming=" + std::to_string(session.touch_input.aiming)
+             + " touch_item_finger=" + std::to_string(session.touch_item_finger)
+             + " touch_skill=" + std::to_string(session.touch_input.preview.skill)
+             + " touch_target=" + std::to_string(session.touch_input.preview.unit)
+             + " touch_point=" + std::to_string(session.touch_input.preview.x) + "," + std::to_string(session.touch_input.preview.y)
+             + " touch_move=" + std::to_string(session.touch_input.move_x) + "," + std::to_string(session.touch_input.move_y)
              + " pad_south=" + [&] {
-                   const auto found = town.skill_sheets.find(town.sheet_key(character.name));
-                   return std::to_string(found == town.skill_sheets.end() ? 0 : found->second.slot(false, 0));
+                   const auto found = session.skill_sheets.find(session.sheet_key(character.name));
+                   return std::to_string(found == session.skill_sheets.end() ? 0 : found->second.slot(false, 0));
                }()
-             + " panel_tab=" + std::to_string(town.pad_panel())
-             + " radial_skill=" + std::to_string(town.wheel_at >= 0 && town.wheel_at < int(town.wheel_ids.size()) ? town.wheel_ids[std::size_t(town.wheel_at)] : -1)
-             + " radial_at=" + std::to_string(town.wheel_at)
-             + " assignment=" + town.assignment_feedback
-             + " inventory=" + (town.inv_open ? "1" : "0")
-             + " identify=" + std::to_string(town.identify_with)
-             + " pad_field=" + (town.pad_field() ? "1" : "0")
-             + " stash=" + (town.stash_open ? "1" : "0")
-             + " cube=" + (town.cube_open ? "1" : "0")
-             + " store=" + std::to_string(town.store.npc >= 0 ? town.store.vendor : -1) + " store_tab=" + std::to_string(town.store.tab)
+             + " panel_tab=" + std::to_string(session.pad_panel())
+             + " radial_skill=" + std::to_string(session.wheel_at >= 0 && session.wheel_at < int(session.wheel_ids.size()) ? session.wheel_ids[std::size_t(session.wheel_at)] : -1)
+             + " radial_at=" + std::to_string(session.wheel_at)
+             + " assignment=" + session.assignment_feedback
+             + " inventory=" + (session.inv_open ? "1" : "0")
+             + " identify=" + std::to_string(session.identify_with)
+             + " pad_field=" + (session.pad_field() ? "1" : "0")
+             + " stash=" + (session.stash_open ? "1" : "0")
+             + " cube=" + (session.cube_open ? "1" : "0")
+             + " store=" + std::to_string(session.store.npc >= 0 ? session.store.vendor : -1) + " store_tab=" + std::to_string(session.store.tab)
              + " gold=" + std::to_string(character.stats.get(d2d::d2s::kGold))
              + " statpts=" + std::to_string(character.stats.get(d2d::d2s::kStatPts))
              + " str=" + std::to_string(character.stats.get(d2d::d2s::kStr))
@@ -382,33 +382,33 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " mana=" + std::to_string(character.stats.fixed(d2d::d2s::kMana)) + "/" + std::to_string(character.stats.fixed(d2d::d2s::kMaxMana))
              + " stamina=" + std::to_string(character.stats.values[d2d::d2s::kStamina]) + "/" + std::to_string(character.stats.values[d2d::d2s::kMaxStamina])
              + " level=" + std::to_string(character.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(character.stats.get(d2d::d2s::kExp))
-             + " pmode=" + (town.hero.pmode >= 0 ? kModeCode[town.hero.pmode] : "-")
-             + " missiles=" + std::to_string(town.fight.missiles.size())
-             + " pets=" + [&] { std::string list; for (const auto& pet : town.hero.pets) list += (list.empty() ? "" : ",") + std::to_string(pet.monster.hit_points) + "/" + std::to_string(pet.monster.stats.hit_points) + ":" + std::string(pet.monster.mode); return list.empty() ? std::string("-") : list; }()
-             + " lskill=" + std::to_string(town.skillbar.left) + " rskill=" + std::to_string(town.skillbar.right)
-             + " picker=" + std::to_string(town.skillbar.picking) + " hover=" + std::to_string(town.hovered_npc) + " hireling=" + std::to_string(int(town.hireling.open)) + " help=" + std::to_string(int(town.help.open)) + " wset=" + std::to_string(character.header.weapon_set)
-             + " gamemenu=" + std::to_string(town.game_menu.open ? town.game_menu.menu + 1 : 0) + ":" + std::to_string(town.game_menu.sel)
-             + " mini=" + (town.mini.open ? "1" : "0") + " volume=" + std::to_string(audio.master_volume) + "," + std::to_string(audio.music_volume)
+             + " pmode=" + (session.hero.pmode >= 0 ? kModeCode[session.hero.pmode] : "-")
+             + " missiles=" + std::to_string(session.fight.missiles.size())
+             + " pets=" + [&] { std::string list; for (const auto& pet : session.hero.pets) list += (list.empty() ? "" : ",") + std::to_string(pet.monster.hit_points) + "/" + std::to_string(pet.monster.stats.hit_points) + ":" + std::string(pet.monster.mode); return list.empty() ? std::string("-") : list; }()
+             + " lskill=" + std::to_string(session.skillbar.left) + " rskill=" + std::to_string(session.skillbar.right)
+             + " picker=" + std::to_string(session.skillbar.picking) + " hover=" + std::to_string(session.hovered_npc) + " hireling=" + std::to_string(int(session.hireling.open)) + " help=" + std::to_string(int(session.help.open)) + " wset=" + std::to_string(character.header.weapon_set)
+             + " gamemenu=" + std::to_string(session.game_menu.open ? session.game_menu.menu + 1 : 0) + ":" + std::to_string(session.game_menu.sel)
+             + " mini=" + (session.mini.open ? "1" : "0") + " volume=" + std::to_string(audio.master_volume) + "," + std::to_string(audio.music_volume)
              + " charges=" + [&] {
                    std::string charges;
-                   for (const auto& charge : town.hero.charges) charges += std::format("{}{}:{}", charges.empty() ? "" : ",", charge.skill, charge.count);
+                   for (const auto& charge : session.hero.charges) charges += std::format("{}{}:{}", charges.empty() ? "" : ",", charge.skill, charge.count);
                    return charges.empty() ? std::string("-") : charges;
                }()
              + " skillpts=" + std::to_string(character.stats.get(d2d::d2s::kSkillPts))
-             + " tree=" + (town.tree_open ? std::to_string(town.tree_tab) : "0")
-             + " waypoint=" + std::to_string(town.waypoint.open ? int(scene->waypoint_levels[std::size_t(town.waypoint.tab)].size()) : 0)
+             + " tree=" + (session.tree_open ? std::to_string(session.tree_tab) : "0")
+             + " waypoint=" + std::to_string(session.waypoint.open ? int(scene->waypoint_levels[std::size_t(session.waypoint.tab)].size()) : 0)
              + " items=" + std::to_string(character.items.size())
-             + " held=" + (town.held ? town.held->code : "-")
-             + " useitem=" + std::to_string(int(town.use_item.state))
+             + " held=" + (session.held ? session.held->code : "-")
+             + " useitem=" + std::to_string(int(session.use_item.state))
              + " unid=" + std::to_string(d2d::rules::unidentified(character.items))
-             + " merc=" + (town.merc ? std::format("{:.1f},{:.1f}", town.merc->unit.x, town.merc->unit.y) + ":" + town.hero.merc_npc->code : std::string("-"))
-             + " menu=" + std::to_string(town.npc_menu.npc >= 0 ? int(town.npc_menu.lines.size()) : 0)
-             + " automap=" + std::to_string(town.automap.open ? int(town.automap.cells.size()) : 0)
-             + " speech=" + std::to_string(town.speech.npc >= 0 ? int(town.speech.lines.size()) : 0)
+             + " merc=" + (session.merc ? std::format("{:.1f},{:.1f}", session.merc->unit.x, session.merc->unit.y) + ":" + session.hero.merc_npc->code : std::string("-"))
+             + " menu=" + std::to_string(session.npc_menu.npc >= 0 ? int(session.npc_menu.lines.size()) : 0)
+             + " automap=" + std::to_string(session.automap.open ? int(session.automap.cells.size()) : 0)
+             + " speech=" + std::to_string(session.speech.npc >= 0 ? int(session.speech.lines.size()) : 0)
              + " voice=" + std::to_string(audio.voice_sound())
              + " music=" + std::to_string(audio.music.sound)
              + " music_old=" + std::to_string(audio.music_old.sound)
-             + " quake=" + std::format("{},{},{},{},{}", town.shake.envelope(town.now_ms), town.shake.offset.first, town.shake.offset.second,
+             + " quake=" + std::format("{},{},{},{},{}", session.shake.envelope(session.now_ms), session.shake.offset.first, session.shake.offset.second,
                                          audio.quake_loop.sound, audio.quake_level)
              + " sfx=" + [&] {   // world sounds on: Sounds.txt index:owner:gain (left/right when split), p = paused
                    std::string playing;

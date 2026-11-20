@@ -50,7 +50,7 @@ struct PadHoldQuery {
 }
 
 // EquipFromBag stays on this machine. A joined game must not classify, cue,
-// or perform it: Town::send drops the command before the World applies it.
+// or perform it: ClientSession::send drops the command before the World applies it.
 [[nodiscard]] inline bool pad_hold_can_equip(bool joined, bool equippable) { return !joined && equippable; }
 
 // The drop packet is built from the cursor. A bag pickup has not filled that

@@ -610,7 +610,7 @@ ids).
   opens, 2 a topic under Talk) and u16 message at +10; the client keeps
   the list (`FUN_00661510`, sorted by `FUN_006616e0`). A lone line of
   kind 3 is a number over the NPC (`FUN_00661110`), not quest lines.
-  d2d: `NetGame::npc_quests` → `Town::net_quests` / `take_npc_quest`. The server's `FUN_005456a0` (the
+  d2d: `NetGame::npc_quests` → `ClientSession::net_quests` / `take_npc_quest`. The server's `FUN_005456a0` (the
   Moldy Tome's message 127) sends mode 2, the object's unit id, +8 byte
   0, +10 u16 the message; the client's mode 2 (+8 not 3) keeps the id
   (0x7bf206) and opens the speech box (`FUN_004a1320`, 0x145 wide at
@@ -1062,7 +1062,7 @@ rest, and a d2d client talking to it must too.
   buffer: a correcting form re-paths from where the unit is.
   d2d plays a host monster's (or its merc's) act mode for that mode's
   animation length (`Scene::npc_anim`), then stands or walks again
-  (`Town::net_overlay`).
+  (`ClientSession::net_overlay`).
 - **Animation is the client's.** Modes come as commands; the frame
   pacing, the COF / AnimData timing, where an attack's frame falls are
   local (d2d already does this from its tables). The host's hits come as

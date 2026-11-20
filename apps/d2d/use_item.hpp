@@ -7,7 +7,7 @@
 // "Imbue"). Kind 0, opened by S->C 0x58 kind 0 (FUN_004c0550: the
 // Horadric Staff's orifice), is the same panel on MENU\horadricback that
 // takes only `hst` and sends C->S 0x44 instead. The rules are here;
-// use_item.cpp draws it, Town drives it.
+// use_item.cpp draws it, ClientSession drives it.
 #pragma once
 
 #include <array>
@@ -60,7 +60,7 @@ inline constexpr int kCharsi = 0x9a, kLarzuk = 0x1ff, kAnya = 0x200;
 
 // Sounds.txt rows the panel plays (FUN_004b9a00): cursor_pass,
 // cursor_select, cursor_error. Placing plays the item's dropsound
-// (FUN_004c1d60), which Town looks up.
+// (FUN_004c1d60), which ClientSession looks up.
 inline constexpr int kPass = 1, kSelect = 2, kError = 3;
 
 struct Panel {
@@ -76,7 +76,7 @@ struct Panel {
     [[nodiscard]] bool placed() const { return state == State::kPlaced || state == State::kWaiting; }
 };
 
-// What a press, release or key asks Town to do.
+// What a press, release or key asks ClientSession to do.
 enum class Act : std::uint8_t {
     kNone,
     kInventory,      // the inventory's own click (state 1: FUN_004922a0)

@@ -82,7 +82,7 @@ PC or Mac with pads works the same way.
   level.
 - Panels (inventory, stash, store, skill tree, roster): one player owns the
   open panel until it closes; the others keep playing.
-  A partner takes the screen (`Town::take_focus`) by opening a panel, the
+  A partner takes the screen (`ClientSession::take_focus`) by opening a panel, the
   game menu or the skill picker, or by an NPC or the stash opening to them,
   while the first player has nothing open: the UI shows their character and
   their pad drives the cursor, while the first player's pad plays the field.
@@ -93,7 +93,7 @@ PC or Mac with pads works the same way.
   other, in widescreen's spare width when there is some (clear of the
   800x600 UI), each with a life and a mana bar, the class icon and the
   name in the seat's colour; a 16:9 TV's ~133 px leaves room beside them
-  for more, the Deck's own 1280x800 80 px (`Town::coop_hud_hidden`, `Town::draw_coop_portraits`). A joined game's
+  for more, the Deck's own 1280x800 80 px (`ClientSession::coop_hud_hidden`, `ClientSession::draw_coop_portraits`). A joined game's
   portraits stay game.exe's row along the top. The Party screen (P)
   lists them as members of the screen's player's party; there's nothing
   to invite, leave or set hostile (`PartyPanel::Own::fixed`).

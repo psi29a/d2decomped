@@ -99,7 +99,7 @@ name order. A new sub-verb goes in its area's file where its name sorts.
 | `debug netsend <hex…>`     | `ok` | A joined game: sends the bytes to the host as one C->S packet (live checks). |
 | `debug tomb`               | `ok <level>` | The true Tal Rasha's Tomb of this map seed (`roll_act2_tombs`). |
 | `debug tradestate <n>`      | `ok` | A joined game: sets the trade's state (0 none, 1 asked, 2 asked of us, 3 open, 5 they accepted, 7 we did) to look at its box or window; the host isn't told. |
-| `debug operate <i> [n]`     | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (town.hpp operate) without walking to it; `n` plays that Shrines.txt row / chest trap type instead. |
+| `debug operate <i> [n]`     | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (session.hpp operate) without walking to it; `n` plays that Shrines.txt row / chest trap type instead. |
 | `debug enter <i>`           | `ok` / `err no such warp` | Stand by warp i as if it was clicked; the next frame takes it (`debug level` shows where). |
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `text <words>`              | `ok`                   | Pushes the words as typed text (SDL text input), e.g. into the chat box. |

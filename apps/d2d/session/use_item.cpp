@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): the item panel an NPC's service opens (use_item.hpp,
+// ClientSession (session.hpp): the item panel an NPC's service opens (use_item.hpp,
 // game.exe's .\UI\UseItem.cpp): its clicks, keys and answer. The rest is in
 // this directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "audio.hpp"
 #include "platform.hpp"
@@ -23,7 +23,7 @@ namespace d2d::client {
 // Charsi's, Larzuk's or Anya's menu entry (0x4b35b0 / its twins): the menu
 // shuts, the panel opens (0x4c0620 -> FUN_004c0380: Esc's close-all first,
 // FUN_00456300) with the inventory beside it. The talk goes on while it's up.
-auto Town::open_use_item(int npc) -> void {
+auto ClientSession::open_use_item(int npc) -> void {
     if (!level || std::size_t(npc) >= level->npcs.size()) return;
     use_item::open(use_item, npc, level->npcs[std::size_t(npc)].hc_idx, now_ms);
     char_open = stash_open = cube_open = tree_open = quest_log.open = party.open = hireling.open = false;
@@ -34,7 +34,7 @@ auto Town::open_use_item(int npc) -> void {
 // FUN_004c0090: shut; a held item back on the cursor (FUN_00468070).
 // The inventory goes with it: the open sets UI 0xe alone (FUN_004c0380, after the close-all), whose
 // flag is what draws the inventory beside the panel (FUN_00456ee0), and the close clears it.
-auto Town::close_use_item() -> void {
+auto ClientSession::close_use_item() -> void {
     if (use_item.open()) inv_open = false;
     use_item = {};
 }
@@ -43,7 +43,7 @@ auto Town::close_use_item() -> void {
 // 0x727950): every press and release is its own, the inventory's only in
 // state 1; Esc and Space shut it. The right button's press and release
 // (0x204 / 0x205) are the left's (FUN_004bfc50 / FUN_004c04e0).
-auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio) -> void {
+auto ClientSession::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio) -> void {
     if (!use_item.open() || !scene) return;
     const auto play = [&](const use_item::Outcome& out) {
         for (const int sound : out.sounds)
@@ -96,7 +96,7 @@ auto Town::drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& a
 
 // S->C 0x58 for the panel (FUN_004c0550): 6 / 7 shut it, the talk ends with it; 5 plays
 // Sounds.txt row 5 (the orifice's +6 set) as the staff goes in.
-auto Town::use_item_reply(int kind, Audio* audio) -> void {
+auto ClientSession::use_item_reply(int kind, Audio* audio) -> void {
     if (kind == 5 && scene && audio) audio->play_sfx(*scene, 5, 1.f, 0);
     if (use_item::reply(use_item, kind)) close_use_item();
 }
