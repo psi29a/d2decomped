@@ -352,7 +352,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // A life that wraps to 0 or below (bugs.md 123) is set as it is (stats 7 and 6, 0x5c4816 / 0x5c4821);
         // the dead test is the mode (FUN_005541b0), so the pet lives and thinks till a landed hit, which
         // kills it (life <= 0 after it, 0x57c8e2): a zero-life monster's `lifeless` (make_monster).
-        int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife), calc(skill, skill.calc[0], lvl));
+        // The max life it reads is the unit's whole (FUN_00625d10): the items' maxhp and their
+        // item_maxhp_percent (76, op 11) of the base, as a merc's and a made monster's (gear_life_fine).
+        int life_fine = d2d::rules::summon_life(base_fine + stat(kMaxLife) + d2d::rules::mul_div(base_fine, stat(kMaxLifePercent), 100), calc(skill, skill.calc[0], lvl));
         monster.lifeless = life_fine <= 0;
         if (life_fine <= 0) life_fine = 256;
         monster.stats.hit_points = int((std::int64_t(life_fine) + 255) >> 8);
