@@ -72,6 +72,23 @@ below it, so the call order is bottom to top. Top line first (d2d
 
 Not yet: charged skill details.
 
+**The name's colour.** `FUN_0048dd90` keeps it in `[ebp-4]` and puts it in
+front of the name's buffer (ebp-0x3c34) with `FUN_004521c0` at 0x48ebf7. By
+quality (`FUN_00627e70`, jump table 0x48edd8): 4 magic 3 (blue), 5 set 2
+(green), 6 rare 9 (yellow), 7 unique 4 (gold), 8 crafted 8 (orange), 9
+tempered 10; any other quality 5 (grey) when socketed (flag 0x800, 0x48e87d)
+or ethereal (0x400000, 0x48e89c), else 0 (white). Then (0x48e9b0..0x48ea15)
+it is 8 (orange) when the items.txt code (+0x80) is `ceh` `bet` `tes` `fed`
+(the essences), `toa` (Token of Absolution), `dhn` `bey` `mbr` (the organs),
+`pk1` `pk2` `pk3` (the keys), or the item is of itemtype 0x4a (rune,
+`FUN_00629bb0`), whatever its quality. Last, item flag 0x100 makes it 1 (red,
+0x48ebe7). The floor label (`FUN_004527d0`, UI\ui.cpp) maps quality the same
+way, then puts 4 (gold) on a quest item (items.txt +0x12a, not `leg `), then
+the same orange list. d2d: `item_lines` gives the orange (test_orange_names,
+cited from the asm, no oracle run). Not ported: the red flag, the floor
+label's quest gold. Not traced: the flag-0x10 branch at 0x48e8b2 that can
+set `[ebp-4]` to 0.
+
 **A set item** (`FUN_0048d1d0`, UI\inv.cpp; `FUN_0048dd90` hands it an
 identified quality-5 item, 0x48d1c4): its own lines as above, then, appended
 in this order to the bottom-up string (so shown in the reverse, last on top):
