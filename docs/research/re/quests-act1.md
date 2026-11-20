@@ -1031,7 +1031,9 @@ For Cain, G bit 13 is the game flag that `FUN_00544720(4, 13)` sets, both on the
 |---|---|
 | 1 | the u16 counts at +3/+5/+7 → `DAT_007bf2a4/a8/ac`; the Den's "Monsters remaining" reads `DAT_007bf2a4` |
 | 2 | remove the hire offer whose id is the u16 at +3 from the client's list at 0x7c0c85 (16-byte entries), then `FUN_004939b0` (see Kashya below) |
+| 3 | while the NPC being talked to still exists, `0x7c0d39` = 1 and the u16 at `0x7c0d3d` = 3 (`FUN_004b25c0`, unnamed-frontier.md); nothing reads them directly |
 | 4 | the Cairn Stones' order, five u16 at +3 (each 0..4), into 0x7bf098; 0x7bf254 = 0 (the deciphered scroll draws it) |
+| 6 | passed to `FUN_004b25c0` as 3 is, which acts only on 3: nothing |
 
 ## Deckard Cain in town
 
