@@ -134,9 +134,9 @@ int main(int argc, char** argv) try {
     }
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("no game data: the strike check skipped"); return 0; }
+    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    if (!data || !data->patched) { std::puts("no 1.14d data: the strike check skipped"); return 0; }
+    if (!data || !data->patched) { std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)"); return D2D_TEST_SKIPPED; }
     return strike_check(*data);
 } catch (const std::exception& error) {
     std::printf("test_blood_golem: %s\n", error.what());
