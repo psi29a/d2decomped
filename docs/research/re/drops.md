@@ -401,8 +401,10 @@ on the item's own seed:
 - the affix level: max(ilvl, qlvl), then + MagicLvl, or without one − qlvl
   / 2 (2·level − 99 from 99 − qlvl / 2 up), clamped 1..99;
 - the rows (0x90 bytes) of its section: spawnable, version < 100 or an
-  expansion item, level ≤ alvl ≤ maxlevel (0: none), rare-capable or the
-  item not rare / normal / superior, the type test (FUN_0065e620: an
+  expansion item, level ≤ alvl ≤ maxlevel (0: none), rare-capable (row
+  `+0x64`) or the item not rare / crafted / tempered (quality 6, 8, 9:
+  `piVar7 + -2` in the decompile is int-pointer arithmetic, quality - 8),
+  the type test (FUN_0065e620: an
   expansion item skips the stack / throw test; a first mod setting stat
   0xc2 (sockets) needs an item with an inventory and a socket count; no
   etype, an itype), frequency > 0, classspecific none / the item type's
@@ -423,8 +425,10 @@ at least 1, at most the grid (6) and FUN_0062bc20; flag 0x800, stat 0xc2.
 
 d2d: `generate_item` (quality 4 with a unit seed); the affix loader
 trims type codes. `drops.py items 1-10000` (magic now through
-FUN_00557450 too): 9994 / 9995 (the `elx` code, which `drops.py` skips: the row 0xd (Charm)
-magic path, FUN_00556a60, not ported; whether `elx` is of that row is not traced).
+FUN_00557450 too): 9994 / 9995. The `elx` code differs: FUN_00557ab0's
+base roll for an elixir (FUN_0065e8e0, its only caller) draws its kind off
+the own seed; not ported, as no treasure class or recipe makes one (it is
+not of row 0xd, Charm: `tools/emu/books_row.py` shows no charm path for it).
 
 ## Rare — FUN_005c21a0, FUN_005c1bf0
 
