@@ -4,7 +4,8 @@
 // game.exe's FUN_005b0ff0: `--leader-follow` reads its cases (`id type pick
 // found dying gap backed`, the row `pick` modulo the MonStats rows) and prints
 // each with `| acted id back path walk`: rules::leader_follow.
-// Without arguments, with the game data: a unique zombie's minion 8 cells off
+// Without arguments: rules::leader_follow's branches and spot_about, then,
+// with the game data: a unique zombie's minion 8 cells off
 // it, a player beside the minion, walks back to its leader through
 // monster_update; one cell off it goes for the player; its leader dead, it
 // never walks back.
@@ -18,6 +19,7 @@
 #include <rules.hpp>
 #include <uniques.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -53,6 +55,25 @@ int follow_cases(const GameData& data) {
                     step.walk ? 1 : 0);
     }
     return 0;
+}
+
+// rules::leader_follow's branches and spot_about's reach, no game data.
+void rule_check() {
+    using d2d::rules::leader_follow;
+    const auto none = leader_follow(-1, 1, true, true, false, 40, false);
+    assert(!none.acted && !none.cleared && !none.walk);
+    assert(leader_follow(5, 1, false, true, false, 40, false).cleared && leader_follow(5, 1, true, false, false, 40, false).cleared
+           && leader_follow(5, 1, true, true, true, 40, false).cleared);
+    const auto walk = leader_follow(5, 1, true, true, false, 0x15, false);
+    assert(walk.acted && walk.path && walk.walk && !walk.back && !leader_follow(5, 1, true, true, false, 0x14, false).acted);
+    const auto backed = leader_follow(5, 0, true, true, false, 1, true), stuck = leader_follow(5, 0, true, true, false, 1, false);
+    assert(backed.acted && backed.back && !backed.walk && stuck.back && stuck.walk && !stuck.path && !leader_follow(5, 1, true, true, false, 1, false).acted);
+    d2d::rules::Rng seed{ 9 };
+    for (int draw = 0; draw < 200; ++draw) {
+        const auto [spot_x, spot_y] = d2d::rules::spot_about(seed, 100, 100, 0x13);
+        const int off_x = std::abs(spot_x - 100), off_y = std::abs(spot_y - 100);
+        assert(std::max(off_x, off_y) == 0x13 && std::min(off_x, off_y) < 0x13);
+    }
 }
 
 int walk_check(const GameData& data) {
@@ -95,18 +116,19 @@ int walk_check(const GameData& data) {
 
 int main(int argc, char** argv) try {
     const bool cases = argc > 1 && std::string_view(argv[1]) == "--leader-follow";
+    if (!cases) rule_check();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) {
         if (cases) { std::fputs("--leader-follow needs D2_MPQ_DIR\n", stderr); return 1; }
-        std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)");
-        return D2D_TEST_SKIPPED;
+        std::puts("OK: the rule's branches; SKIP: the walk check, no d2data.mpq (D2_MPQ_DIR)");
+        return 0;
     }
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data || !data->patched) {
         if (cases) { std::fputs("--leader-follow needs the 1.14d data (D2_PATCH_INSTALLER)\n", stderr); return 1; }
-        std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)");
-        return D2D_TEST_SKIPPED;
+        std::puts("OK: the rule's branches; SKIP: the walk check, needs the 1.14d data (D2_PATCH_INSTALLER)");
+        return 0;
     }
     return cases ? follow_cases(*data) : walk_check(*data);
 } catch (const std::exception& error) {
