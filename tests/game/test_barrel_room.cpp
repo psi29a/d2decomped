@@ -57,6 +57,13 @@ int main() try {
     assert(fight.monsters[0].life_fine() < 400 * 256);
     assert(fight.monsters[1].life_fine() == 400 * 256);
     assert(world.operated.contains({ &field, 1 }));                // the second barrel went off too
+    // A unit that walked into the room since the last restamp is listed as its newest: the walk
+    // restamps first (FUN_0064c2c0 re-files a unit as it changes rooms).
+    const auto stamp = fight.monsters[1].unit.room_stamp;
+    fight.monsters[1].unit.x = 7.4f;                               // into room 0, no restamp
+    world.operated.clear();
+    world.explode(0, 2000);
+    assert(fight.monsters[1].unit.room_stamp > stamp && fight.monsters[1].unit.room_stamp > fight.monsters[0].unit.room_stamp);
     std::puts("OK: a barrel's blast walks its own room's list (FUN_00584240)");
     return 0;
 } catch (const std::exception& error) {

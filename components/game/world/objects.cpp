@@ -553,6 +553,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             std::vector<int> rooms;
             for (const auto& [room_level, room] : near_rooms(*game_data, *level, actor->player.x, actor->player.y))
                 if (room_level == level) rooms.push_back(room);
+            fight.restamp();                                         // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
             std::vector<d2d::rules::RoomUnit> units;
             for (const auto& monster : fight.monsters) {
                 const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
@@ -762,6 +763,7 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         const auto in_room = [&](float x, float y) { return level->rooms.empty() || room_of(*level, x, y) == room; };
         enum class Kind { player, merc, pet, monster, other_barrel };
         struct Listed { Kind kind; Player* player = nullptr; Fight::Pet* pet = nullptr; std::size_t index = 0; };
+        fight.restamp();                                             // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
         std::vector<Listed> listed;
         std::vector<d2d::rules::RoomUnit> order;
         const auto add = [&](Listed entry, float x, float y, std::uint32_t stamp) {

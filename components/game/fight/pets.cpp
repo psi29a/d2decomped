@@ -180,6 +180,7 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, golem.unit.x, golem.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
         }
+        restamp();                                                   // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(monsters.size());
         for (const auto& other : monsters) {
@@ -469,6 +470,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         std::vector<int> rooms;
         for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
             if (room_level == level) rooms.push_back(near_room);
+        restamp();                                                   // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
         std::vector<d2d::rules::RoomUnit> listed;
         listed.reserve(monsters.size());
         for (const auto& other : monsters) listed.push_back({ room_of(*level, other.unit.x, other.unit.y), true, other.unit.room_stamp });
@@ -815,6 +817,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             std::vector<int> rooms;
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
+            restamp();                                               // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
             std::vector<d2d::rules::RoomUnit> room_units;                   // the monsters, then the owner, then the fellow pets
             for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT", other.unit.room_stamp });
             const auto owner_slot = room_units.size();

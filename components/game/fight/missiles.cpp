@@ -1035,6 +1035,7 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (level) {
                     for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, from.x, from.y))
                         if (room_level == level) rooms.push_back(near_room);
+                    restamp();                                       // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
                     units.reserve(monsters.size());
                     for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable(), monster.unit.room_stamp });
                 }
