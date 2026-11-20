@@ -549,7 +549,14 @@ Findings along the way:
   own column, not a count of the layers present.
 - Blood Raven's and the flying scimitar's oninit MonEquip items
   (FUN_005d6b60, skills.md "Summons"): one own-seed roll a row, then two
-  game-seed steps for each item made (`FUN_00559ce0`).
+  game-seed steps for each item made (`FUN_00559ce0`). Made with the
+  monster (FUN_00573cb0, oninit), so every stat the items carry is the
+  unit's (FUN_00625480 sums the lists): resistances, max life and its
+  percent, the attack rating and its percent, elemental damage on each
+  blow, poison. A boss's life scaling (FUN_005a0d20, from hpmultiply and
+  the champion kinds) then reads the whole max life (FUN_00625d10), the
+  items' share in it, writes it back scaled as the base stat 7, and the
+  items' list still adds on top. d2d: `wear_gear_stats`, `boss_life_fine`.
 - A MonPlace champion (FUN_0054e1e0): the leader and its MonStats party
   (FUN_005b2830), one unused own roll (FUN_005a48c0 -> FUN_005a0c00),
   then own(3) + 1 more champions at radius 4, each with its own party.

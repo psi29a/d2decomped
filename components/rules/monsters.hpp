@@ -293,7 +293,7 @@ struct MonStats {
     // A boss's enchants (MonUMod fire / lightning / cold, ghostly's cold): fire, lightning and cold
     // min / max on its own stats, apart from a swing's (FUN_005a4f50 sets those on the hit's list),
     // so each comes on every A1 / A2 blow; the cold's length in frames.
-    std::array<std::optional<std::pair<int, int>>, 3> enchants{};
+    std::array<std::optional<std::pair<int, int>>, 5> enchants{};   // by element type: fire, lightning, cold, (poison: its own), magic
     int enchant_len = 0;
     bool prime_evil = false;                  // MonStats primeevil (+0xc & 0x80, FUN_0063edc0): FUN_0057c060's pair percent
 };

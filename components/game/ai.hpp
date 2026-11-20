@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <format>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -266,6 +267,7 @@ struct Monster {
     int super = -1;                           // SuperUniques row
     int name_seed = 0;                        // a boss's name seed (make_boss: the 0xac packet's, unit data +0x14)
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
+    std::array<int, 6> gear_res{};            // what its MonEquip gear adds to them (stats 36, 37, 39, 41, 43, 45: wear_gear_stats)
     std::array<int, 6> res_cut{};             // what its curse, cry and the auras on it add to them (Fight::target_of): the hover's immunity lines
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
@@ -542,7 +544,7 @@ struct Monster {
         const auto& type_info = game_data.monsters.types[std::size_t(type)];
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         auto res = per_difficulty.res;
-        for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
+        for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i] + gear_res[i];
         d2d::rules::Target built{ hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
                                   crush_divisor(game_data), type_info.undead, type_info.demon, life_fine(),
                                   game_data.life_steal_divisor[std::size_t(difficulty)], game_data.mana_steal_divisor[std::size_t(difficulty)] };
@@ -1283,6 +1285,13 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // mode's blow as FUN_0057b420 reads it, its defence (stat 31).
 [[nodiscard]] d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::rules::SpawnGear> gear, int difficulty);
 void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear);
+// The rest of its gear's stats, after a boss's mods (its life scaling read the
+// gear's life too, make_boss; the items' list adds on top): see ai.cpp.
+void wear_gear_stats(Monster& monster, const d2d::rules::GearSum& gear);
+[[nodiscard]] int gear_life_fine(const d2d::rules::GearSum& gear, int base_fine);
+// A boss's base life (256ths) after FUN_005a0d20 for each of `pcts` (hpmultiply, the champion
+// kind; 0: that mod isn't there, no call): each reads the whole max life, its gear's included.
+[[nodiscard]] int boss_life_fine(int life, std::initializer_list<int> pcts, const d2d::rules::GearSum* gear);
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
