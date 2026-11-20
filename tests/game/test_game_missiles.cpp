@@ -816,8 +816,11 @@ int main() try {
         assert(row.pierce && row.collide_kill);
         d2d::rules::Rng pierce_rng{ 3 };
         world.fight.monsters.push_back(make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 3, world.actor->player.y, pierce_rng, 0));
-        const std::size_t fallen = world.fight.monsters.size() - 1;
-        world.fight.monsters[fallen].hit_points = world.fight.monsters[fallen].stats.hit_points = 1 << 20;   // the hits leave it standing
+        world.fight.monsters.push_back(make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 3, world.actor->player.y, pierce_rng, 0));
+        // Two monsters struck in turn: a missile passes the unit it struck last (FUN_005a8730, LastCollide on every
+        // Pierce row), so the same one twice running isn't a hit.
+        const std::array<std::size_t, 2> fallen{ world.fight.monsters.size() - 2, world.fight.monsters.size() - 1 };
+        for (const auto index : fallen) world.fight.monsters[index].hit_points = world.fight.monsters[index].stats.hit_points = 1 << 20;   // the hits leave them standing
         const auto psum = world.actor->psum;
         world.actor->psum[d2d::d2s::kSkillPierce] = 40;
         world.actor->psum[d2d::d2s::kItemPierce] = 20;
@@ -825,12 +828,14 @@ int main() try {
         Missile arrow = world.fight.launch(row, skill, 1, world.actor->player.x, world.actor->player.y, 1.f, 0.f, row.range, 7000);
         world.fight.pending.pop_back();
         assert(arrow.pierce == 3 && d2d::rules::pierce_charges(60, 1) == 3);
-        for (int left = 2; left >= 0; --left) assert(!world.fight.skill_missile_hits(arrow, fallen, 7000) && arrow.pierce == left);
-        assert(world.fight.skill_missile_hits(arrow, fallen, 7000));
+        for (int left = 2; left >= 0; --left) assert(!world.fight.skill_missile_hits(arrow, fallen[std::size_t(left & 1)], 7000) && arrow.pierce == left);
+        assert(!world.fight.skill_missile_hits(arrow, fallen[0], 7000) && arrow.pierce == 0);   // struck last: passed, nothing spent
+        assert(world.fight.skill_missile_hits(arrow, fallen[1], 7000));
         world.actor->psum[d2d::d2s::kSkillPierce] = world.actor->psum[d2d::d2s::kItemPierce] = 0;   // none: the charges stay unspent
         arrow.pierce = 2;
-        assert(world.fight.skill_missile_hits(arrow, fallen, 7000) && arrow.pierce == 2);
+        assert(world.fight.skill_missile_hits(arrow, fallen[0], 7000) && arrow.pierce == 2);
         world.actor->psum = psum;
+        world.fight.monsters.pop_back();
         world.fight.monsters.pop_back();
         world.fight.pending.clear(); world.fight.missiles.clear();
         world.level = before;

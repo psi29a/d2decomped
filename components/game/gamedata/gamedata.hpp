@@ -836,9 +836,9 @@ struct GameData {
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
                          // The one-unit-a-frame, skip-the-last-unit rule (FUN_005ae1f0, FUN_005a8730) for a srvdofunc 1 or 3 row (3: the standing
-                         // clouds, FUN_005ae480 -> FUN_005ae1f0; tools/emu/standing_rehit.py) with LastCollide and neither NextHit nor Pierce.
-                         // Pierce rows keep the struck list.
-                         bool last_unit_rule() const { return last_collide && !next_hit && !pierce && (srv_do == 1 || srv_do == 3); }
+                         // clouds, FUN_005ae480 -> FUN_005ae1f0; tools/emu/standing_rehit.py) with LastCollide and not NextHit, Pierce rows
+                         // too: FUN_005a8730 doesn't test the Pierce flag (+4 bit 2), and every Pierce row has LastCollide.
+                         bool last_unit_rule() const { return last_collide && !next_hit && (srv_do == 1 || srv_do == 3); }
                          std::string sub, sub2, hit_sub;
                          std::array<const MissileInfo*, 2> subs{}; const MissileInfo* hit_sub_info = nullptr;   // those rows, loaded
                          // The client's: CltSubMissile1 (+0x1e) and InitSteps (+0x135), the row client do 8 lays
