@@ -10,6 +10,7 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <level_ids.hpp>
 #include <mon_equip.hpp>
 #include <monsters.hpp>
 #include <pets.hpp>
@@ -56,7 +57,7 @@ auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
 auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || !summon_skill(*skill_row)) return false;
-        if (skill_row->target_corpse && corpse_near(target_x, target_y) < 0) return false;
+        if (skill_row->target_corpse && corpse_near(target_x, target_y, skill_row->srvstfunc) < 0) return false;
         if (skill_row->srvdofunc == ServerDoFunction::kIronGolem && golem_item_at(target_x, target_y) < 0) return false;   // start 20 (FUN_005c32a0)
         if (ask(skill, now_ms) != skill) return false;
         const int lvl = cast_level(skill);
@@ -70,10 +71,25 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
         return true;
     }
 
-auto Fight::corpse_near(float x, float y) const -> int {
+auto Fight::corpse_takes(d2d::rules::ServerStartFunction start, const Monster& corpse) const -> bool {
+        using d2d::rules::Boss;
+        using Start = d2d::rules::ServerStartFunction;
+        if (start != Start::kRaiseSkeleton && start != Start::kCorpseBlast && start != Start::kRevive) return true;
+        const auto& type_info = game_data->monsters.types[std::size_t(corpse.type)];
+        // Monster data +0x16: 8 on a champion, unique or superunique, 2 on a superunique (ai.hpp's crush_divisor).
+        const int flags = corpse.boss == Boss::superunique ? 0xb : corpse.boss == Boss::champion ? 0xd : corpse.boss == Boss::unique ? 9 : 0;
+        const d2d::rules::CorpseState state{ .mode = 0xc, .flags = flags, .targetable = false, .dying = false, .hidden = false,
+                                             .uninterruptable = corpse.uninterruptable(), .attached = corpse.riding,
+                                             .town = level && d2d::rules::level_ids::is_town(level->id) };
+        return start == Start::kRaiseSkeleton ? d2d::rules::raise_takes(type_info, state)
+             : start == Start::kCorpseBlast   ? d2d::rules::blast_takes(type_info, state)
+                                              : d2d::rules::revive_takes(type_info, state);
+    }
+
+auto Fight::corpse_near(float x, float y, d2d::rules::ServerStartFunction start) const -> int {
         int best = -1; float best_distance = 2.f;
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const auto& corpse = monsters[i]; !corpse.alive() && !corpse.corpse_used && corpse.mode == "DD")
+            if (const auto& corpse = monsters[i]; !corpse.alive() && !corpse.corpse_used && corpse.mode == "DD" && corpse_takes(start, corpse))
                 if (const float distance = std::hypot(corpse.unit.x - x, corpse.unit.y - y); distance < best_distance) { best_distance = distance; best = int(i); }
         return best;
     }
@@ -122,7 +138,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         const auto env = calc_env();
         int corpse = -1;
         if (skill.target_corpse) {
-            corpse = corpse_near(x, y);
+            corpse = corpse_near(x, y, skill.srvstfunc);
             if (corpse < 0) return;
             monsters[std::size_t(corpse)].corpse_used = true;
             x = monsters[std::size_t(corpse)].unit.x; y = monsters[std::size_t(corpse)].unit.y;

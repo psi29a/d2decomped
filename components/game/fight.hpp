@@ -1187,8 +1187,11 @@ struct Fight {
     // Casting one at (tx, ty) (the corpse there for Raise Skeleton): its
     // mana and SC, the summon on the action frame.
     bool cast_summon(int skill, float target_x, float target_y, std::uint32_t now_ms);
-    // The unraised corpse within 2 cells of (x, y) nearest it, or -1.
-    [[nodiscard]] int corpse_near(float x, float y) const;
+    // The unraised corpse within 2 cells of (x, y) nearest it, or -1; with
+    // Raise's, the explosions' or Revive's start function, one its corpse
+    // test passes (corpse_takes: rules::raise_takes, blast_takes, revive_takes).
+    [[nodiscard]] int corpse_near(float x, float y, d2d::rules::ServerStartFunction start = d2d::rules::ServerStartFunction::kNone) const;
+    [[nodiscard]] bool corpse_takes(d2d::rules::ServerStartFunction start, const Monster& corpse) const;
     // The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
     // as its MonStats row at the row's level, then set to its level
     // (rules::summon_level: Raven's and the Druid's forced to max(calc2,
