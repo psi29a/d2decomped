@@ -7,9 +7,11 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 #include <vector>
 
-int main() {
+int main() try {
     using namespace d2d::client::touch;
     constexpr std::array glyphs{ Glyph::Inventory, Glyph::Skills, Glyph::Quest,
                                  Glyph::Bind, Glyph::Map, Glyph::More, Glyph::Hand, Glyph::Talk,
@@ -53,5 +55,8 @@ int main() {
     std::vector<std::uint8_t> short_buffer(3, 17);
     draw_glyph(short_buffer, 32, 32, 0, 0, 48, 48, Glyph::Map);
     assert(short_buffer == std::vector<std::uint8_t>(3, 17));
-
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_touch_glyph: %s\n", error.what());
+    return 1;
 }

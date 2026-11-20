@@ -6,8 +6,10 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using namespace d2d::client;
     touch::BindingPicker picker;
     const int count = skillpad::kWheelShown + 3;
@@ -37,4 +39,8 @@ int main() {
     assert(picker.finger == -1 && !picker.hit);
     assert(!touch::kBindingPrevious.contains(touch::kBindingNext.x, touch::kBindingNext.y));
     assert(touch::kBindingPrevious.width >= 64 && touch::kBindingNext.height >= 64);
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_touch_binding: %s\n", error.what());
+    return 1;
 }
