@@ -211,19 +211,24 @@ class Functions:
         self.starts = [r[0] for r in self.rows]
         # Each body's address ranges, inclusive: game-ranges.tsv's for a body Ghidra split (a
         # tail moved away), else one run of `size` bytes from the entry.
+        # A split body's own ranges win over another entry's inferred run (pr_guard.body_holding).
         ranges = ranges or {}
-        spans = []
+        split, inferred = [], []
         for start, _, size in self.rows:
-            for low, high in ranges.get(start, [(start, start + max(size, 1) - 1)]):
-                spans.append((low, high, start))
-        spans.sort()
-        self.spans = spans
-        self.span_lows = [span[0] for span in spans]
+            if start in ranges:
+                split.extend((low, high, start) for low, high in ranges[start])
+            else:
+                inferred.append((start, start + max(size, 1) - 1, start))
+        self.split = sorted(split)
+        self.split_lows = [span[0] for span in self.split]
+        self.spans = sorted(inferred)
+        self.span_lows = [span[0] for span in self.spans]
 
     def holding(self, address):
-        i = bisect.bisect_right(self.span_lows, address) - 1
-        if i >= 0 and address <= self.spans[i][1]:
-            return self.spans[i][2]
+        for spans, lows in ((self.split, self.split_lows), (self.spans, self.span_lows)):
+            i = bisect.bisect_right(lows, address) - 1
+            if i >= 0 and address <= spans[i][1]:
+                return spans[i][2]
         return None
 
 
