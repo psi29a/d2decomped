@@ -908,7 +908,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 break;
             }
             case ServerDoFunction::kCorpseExplosion: case ServerDoFunction::kPoisonExplosion: {
-                const int corpse_index = corpse_near(actor->cast_x, actor->cast_y);
+                const int corpse_index = corpse_near(actor->cast_x, actor->cast_y, skill.srvstfunc);
                 if (corpse_index < 0) break;
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;

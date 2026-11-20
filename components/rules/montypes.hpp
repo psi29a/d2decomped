@@ -64,6 +64,7 @@ struct MonType {
     bool al_sel = false, no_sel = false;        // MonStats2 alSel / noSel (flags +4 bits 4 / 5, FUN_004638a0): the cursor outside town
     bool shift_sel = false;                     // MonStats2 shiftSel (bit 6): a shift-click's SearchEnemyXY takes it (FUN_00467660)
     bool corpse_sel = false;                    // MonStats2 corpseSel (flag 7): Nihlathak's Corpse Explosion can target it (FUN_00645680)
+    bool revive = false;                        // MonStats2 revive (flag 8): Revive can raise it (FUN_005c3300)
     bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)
     int hit_class = 0;                          // MonStats2 HitClass (FUN_00623c20): the impact on what it strikes
