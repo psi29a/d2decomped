@@ -480,7 +480,13 @@ and the merc's struck frame). Its oracle, `tools/emu/hit_rule.py`, runs
 game.exe's `FUN_0057cee0` on each record (`FUN_0057ce30`, `FUN_0057cb00` and
 the seed's `FUN_00472210` inside it) against `test_combat --get-hit`, the
 decision and the unit's seed after each frame: no difference on 100,000
-cases each for seeds 1 and 7. An armor's pool
+cases each for seeds 1 and 7. A Crushing Blow's life is not in the record's total: `FUN_0057c6c0`
+reads the total (+0x4c, summed by `FUN_0057c1e0` before the strike events,
+`FUN_005bffc0` among them) at 0x57c852 and takes it off the life the crush
+left, so the get-hit's size is the blow without the crush. d2d's `hurt` takes
+the crush off the size (`Blow::crush_fine`, `blow_hurt`); its oracle,
+`tools/emu/crush_hit.py`, runs `FUN_005bffc0`, `FUN_0057c1e0`, `FUN_0057c6c0`
+and `FUN_0057cee0` on the same record against `test_crush_get_hit`. An armor's pool
 works record by record too: `FUN_0057c1e0` raises state event 0xb
 (`FUN_005c0c30`, 0x57c2fc) on each record before its resistances and its
 total +0x4c, and Bone Armor (`FUN_005c6370`) takes from that record's

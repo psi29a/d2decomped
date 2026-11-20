@@ -1384,7 +1384,11 @@ int mode_end_event(const GameData& game_data, const Monster& monster, std::strin
 // True when this killed it.
 // `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
 // its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false);
+// `crush` (256ths) is a Crushing Blow's share of the damage: the life it takes
+// is not in the record's total (+0x4c), which is the get-hit's size (FUN_0057cb00).
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false, int crush = 0);
+// A landed player blow on a monster (Fight::land): Bone Armor's pool takes the physical, then `hurt`, the crush kept out of the get-hit's size.
+bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms);
 // Life back (FUN_0057a980): `points` whole points, capped at max life; a heal
 // the cap cuts leaves it at full life, no 256ths taken off.
 void heal(Monster& monster, int points);
