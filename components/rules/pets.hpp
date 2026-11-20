@@ -294,6 +294,14 @@ inline GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys
     return lives;
 }
 
+// Iron Golem's target (its srvstfunc 20, FUN_005c32a0): an item (unit type 4)
+// on the ground (mode 3) of a metal base (Items bitfield1 & 2, FUN_00629cc0),
+// identified (item flags & 0x10, FUN_006280a0) and that nothing holds
+// (FUN_00625820). Else no golem.
+[[nodiscard]] constexpr bool iron_golem_takes(int type, int mode, int bitfield1, std::uint32_t flags, bool held) noexcept {
+    return type == 4 && mode == 3 && (bitfield1 & 2) != 0 && (flags & 0x10) != 0 && !held;
+}
+
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).
 // Bone Wall's makers (FUN_005c58b0, do 60), in subtiles: none in a town or when calc2 / 2 (C division) is 1 or less; else two

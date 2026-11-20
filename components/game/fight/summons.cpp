@@ -86,7 +86,8 @@ auto Fight::golem_item_at(float x, float y) const -> int {
         for (std::size_t i = 0; i < loot.ground.size(); ++i) {
             const auto& lying = loot.ground[i];
             const auto base = game_data->rules.item_base.find(lying.item.code);
-            if (base == game_data->rules.item_base.end() || !(base->second.bitfield1 & 2) || !lying.item.identified) continue;
+            // A ground item, held by none (rules::iron_golem_takes, FUN_005c32a0).
+            if (base == game_data->rules.item_base.end() || !d2d::rules::iron_golem_takes(4, 3, base->second.bitfield1, lying.item.identified ? 0x10 : 0, false)) continue;
             if (subtile(lying.x) == subtile(x) && subtile(lying.y) == subtile(y)) return int(i);
             if (const float distance = std::hypot(lying.x - x, lying.y - y); distance < best_distance) { best_distance = distance; best = int(i); }
         }
