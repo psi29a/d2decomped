@@ -434,23 +434,9 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         const auto& image = sprite.frame(0, std::uint32_t(frame_index));
         blit_sprite(framebuffer, image, pal, left, bottom - int(image.height));
     };
-    // FUN_00452e50: a box of boxpieces round {x0, y0, x1, y1}.
-    const auto box = [&](int left, int top, int last_x, int last_y) {
-        const auto& pieces = scene.boxpieces;
-        const int right = last_x + 1, bottom = last_y + 1;
-        int piece = 0;
-        for (int along = left + 12; along < right - 13; along += 12) cel(pieces, ++piece % 6 + 2, along, top + 12);
-        for (int along = left + 13; along < right - 13; along += 12) cel(pieces, ++piece % 6 + 0x10, along, bottom + 10);
-        for (int down = top + 0x16; down < bottom - 1; down += 12) cel(pieces, ++piece % 3 + 10, left - 4, down);
-        for (int down = top + 24; down < bottom - 1; down += 12) cel(pieces, ++piece % 3 + 0xd, right - 7, down);
-        cel(pieces, 0, left, top + 12);
-        cel(pieces, 1, right - 12, top + 12);
-        cel(pieces, 8, left, bottom + 1);
-        cel(pieces, 9, right - 12, bottom + 1);
-    };
     darken(kLeft, kTop, kWidth - 2 * kLeft, 0x171);
-    box(kLeft, kTop + 3, kWidth - kLeft - 3, kTop + 0x170);
-    box(kLeft, kTop + 0x143, kWidth - kLeft - 3, kTop + 0x170);
+    draw_box_frame(framebuffer, scene, kLeft, kTop + 3, kWidth - kLeft - 3, kTop + 0x170);       // FUN_00452e50
+    draw_box_frame(framebuffer, scene, kLeft, kTop + 0x143, kWidth - kLeft - 3, kTop + 0x170);
     for (int i = 0; i < 3; ++i) text(string_id(scene, std::uint16_t(0xf51 + i)), kLeft + 0x12 + kColumn * i, kTop + 0x1e, 4);
     const auto key_text = [&](std::uint16_t key) -> std::string {
         const std::uint16_t id = keys::name_id(key);

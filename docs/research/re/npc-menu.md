@@ -286,12 +286,36 @@ camp"). d2d stands him on FUN_00545340's size-2 spot there.
 
 ## Drawing (`FUN_004b8100`)
 
-- The box: `FUN_004f6300(x, y, x+w, y+h, colour 0, draw mode 1)`, black
-  at half transparency.
+- The box, while the window's +0xc is 0 (`FUN_004b7eb0` zeroes it):
+  `FUN_004f6300(x, y, x+w, y+h, colour 0, draw mode 1)`, black at half
+  transparency (`FUN_0046efd0`), then its frame, `FUN_00452e50` on the
+  rect {x, y, x + w − 1, y + h − 1}. With +0xc set it draws the cel at +8
+  instead (not traced: which window sets it).
+- The frame (`FUN_00452e50`): `UI\menu\boxpieces` (handle 0x7a2798, loaded
+  at 0x456d24), each cel by its bottom-left (`FUN_004f6480`, mode 5); with
+  right = last x + 1, bottom = last y + 1 and one counter n running on
+  through the four edges: the top, frame n % 6 + 2 at x = left + 12, + 24
+  … while under right − 13, bottom y top + 12; the bottom, n % 6 + 0x10
+  from left + 13, bottom y bottom + 10; the left side, n % 3 + 10 at x
+  left − 4, bottom y top + 0x16, + 12 … while under bottom − 1; the right,
+  n % 3 + 0xd at right − 7 from top + 24; then the corners 0 (left, top +
+  12), 1 (right − 12, top + 12), 8 (left, bottom + 1), 9 (right − 12,
+  bottom + 1). Configure Controls draws the same frame.
 - Line i's baseline = `y + (heights of lines before it) + its own height`.
-- The hovered entry (menu mode 2) gets `UI\CURSOR\focus16` frame
-  `(draw counter % 7)`, bottom-anchored at `(textX - 24, baseline + 4)`
-  and `(textX + textW + 2, baseline + 4)`.
+- The selected line (+0x44) by the window's menu mode (+0x5c,
+  `FUN_004b8370`): mode 1 draws its text in colour 3; mode 2, the
+  default `FUN_004b7eb0` sets, puts `UI\CURSOR\focus16` frame
+  `(draw counter % 7)` bottom-anchored at `(textX - 24, baseline + 4)`
+  and `(textX + textW + 2, baseline + 4)`. These set mode 1 as the
+  window opens (`MOV EDX, 1` before the call): the menu (`0x4b4927`),
+  talk (`0x4b58fa`), the respec box (`0x4b5b44`), a refused trade
+  (`0x4b55c1`), hire (`0x4b5d26`), and `0x4b4e72`, `0x4b5721`. Not
+  read: the other ten callers' argument.
+
+d2d: `rules::box_piece_cels` (rules/box_pieces.hpp), `draw_box_frame`,
+`draw_npc_menu`. Oracle: `tools/emu/box_pieces.py` runs `FUN_00452e50`
+over 2000 rectangles; `test_box_pieces` gives d2d the same (fixture
+`box_pieces_cases.inc`).
 
 ## Hover names
 

@@ -6,6 +6,7 @@
 #include "scene.hpp"
 #include "touch_input.hpp"
 
+#include <box_pieces.hpp>
 #include <dc6.hpp>
 #include <hire_list.hpp>
 #include <monster_ids.hpp>
@@ -246,10 +247,11 @@ void draw_speech(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
 }
 
 void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const NpcMenuState& menu,
-                   std::uint32_t now_ms) {
+                   std::uint32_t /*now_ms*/) {
     if (menu.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     shade_box(framebuffer, menu.x, menu.y, menu.box_width, menu.box_height);
+    draw_box_frame(framebuffer, scene, menu.x, menu.y, menu.x + menu.box_width - 1, menu.y + menu.box_height - 1);
     const int hover = menu.selected;                       // +0x44: the first line on opening, then what the mouse moved to (FUN_004b7200)
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     int base = menu.y;
@@ -260,8 +262,7 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
         const int x = menu.x + line.x;
         if (line.header && line.red) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 255, 77, 77);
         else if (line.header) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 199, 179, 119);
-        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, int(i) == hover && menu.blue_hover ? blue : pal, x, base - cell + 1, line.text);
-        if (int(i) == hover && !menu.blue_hover) draw_focus(framebuffer, scene, x, base, line.width, now_ms);
+        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, int(i) == hover ? blue : pal, x, base - cell + 1, line.text);
     }
     // The hire window's list box (FUN_004bee90): the rows that fit from the
     // first shown, each line at x + 0x20 on rules::list_line_y, white, the
@@ -304,12 +305,14 @@ void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, 
         }
 }
 
-void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int x, int base, int width, std::uint32_t now_ms) {
-    if (scene.focus16.frames_per_direction() == 0) return;
+void draw_box_frame(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int left, int top, int last_x, int last_y) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    const auto& frame = scene.focus16.frame(0, (now_ms / 40) % std::min<std::uint32_t>(7, scene.focus16.frames_per_direction()));
-    blit_sprite(framebuffer, frame, pal, x - 24, base + 4 - int(frame.height) + 1);
-    blit_sprite(framebuffer, frame, pal, x + width + 2, base + 4 - int(frame.height) + 1);
+    const auto& pieces = scene.boxpieces;
+    d2d::rules::box_piece_cels(left, top, last_x, last_y, [&](d2d::rules::BoxCel piece) {   // each by its bottom-left (FUN_004f6480, mode 5)
+        if (std::uint32_t(piece.frame) >= pieces.frames_per_direction()) return;
+        const auto& image = pieces.frame(0, std::uint32_t(piece.frame));
+        blit_sprite(framebuffer, image, pal, piece.left, piece.bottom - int(image.height));
+    });
 }
 
 std::vector<std::string> parse_credits_utf16(std::span<const std::byte> bytes) {
