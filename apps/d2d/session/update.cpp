@@ -338,7 +338,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             // 0x469170: UI 0x24, an expansion game with a merc; a left-hand panel.
             if (fires(keys::kHireling) && character.expansion && view.merc_sheet) {
                 hireling.open = !hireling.open;
-                if (hireling.open) char_open = stash_open = cube_open = quest_log.open = false;
+                if (hireling.open) char_open = stash_open = cube_open = quest_log.open = party.open = false;
             }   // 0x468980: UI 0x18, which 1.14d never draws
             // The automap's (0x468a60..0x468ad0), the same values as Options -> Automap.
             auto& automap_values = game_menu.value[4];
