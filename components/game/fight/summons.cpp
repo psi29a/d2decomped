@@ -71,6 +71,8 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
         return true;
     }
 
+// Raise's, the explosions' and Revive's corpse tests (rules::raise_takes, blast_takes, revive_takes) by the
+// skill's srvstfunc; any other start takes any corpse.
 auto Fight::corpse_takes(d2d::rules::ServerStartFunction start, const Monster& corpse) const -> bool {
         using d2d::rules::Boss;
         using Start = d2d::rules::ServerStartFunction;

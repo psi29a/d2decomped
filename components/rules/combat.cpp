@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <tuple>
 #include <utility>
@@ -884,6 +885,34 @@ std::int64_t stamina_regen(std::int64_t cur, std::int64_t max, int mode, int bon
     std::int64_t add = max >> shift;
     if (bonus) add += add * bonus / 100;
     return std::min(max, cur + add);
+}
+
+// Life Tap (damagedinmelee / damagedbymissile, aura event func 5,
+// FUN_005c61e0): FUN_0057c6c0 raises it on the cursed unit once
+// FUN_0057c1e0 has filled the hit (0x57c7f3), before the unit's life goes
+// down. Whoever dealt it heals MulDiv(the hit's +8, calc1, 100)
+// (FUN_00483360, 0x5c62d7), 256ths: +8 is the physical after resistance,
+// the total at +0x4c adds the elements (0x57c3a5..0x57c3c7), so an
+// elemental hit heals nothing. Its life (stat 6) is then held
+// between 1 and its max (FUN_00625d10); nothing on a hit of 0 or less, or
+// when the striker's life or max is 0 or below.
+std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct) {
+    if (damage_fine <= 0 || life_fine <= 0 || max_fine <= 0) return life_fine;
+    const int life = int(std::uint32_t(life_fine) + std::uint32_t(mul_div(damage_fine, pct, 100)));
+    return life < 1 ? 1 : std::min<std::int64_t>(life, max_fine);
+}
+
+// Iron Maiden (domeleedamage, aura event func 4, FUN_005c5f50): FUN_0057c6c0
+// raises it on the cursed unit as its own hit lands (0x57c7e3). Nothing when
+// the hit's +8 (its physical after the struck unit's reduction) is 0 or less;
+// else a hit back on the cursed unit whose +8 is MulDiv(that, pct, 100)
+// (FUN_00483360, 0x5c607e), 256ths: pct is calc1 for a monster that isn't a
+// hireling (FUN_0063ee90), else calc2 when it struck a player and calc3 when
+// not. Its record carries the skill's ResultFlags | 0x20 and HitClass;
+// FUN_0057c6c0 (flag 1) then resists it on the cursed unit (FUN_0057c1e0).
+std::optional<int> iron_maiden_fine(bool monster, bool hireling, bool struck_player, int phys_fine, int calc1, int calc2, int calc3) {
+    if (phys_fine <= 0) return std::nullopt;
+    return mul_div(phys_fine, monster && !hireling ? calc1 : struck_player ? calc2 : calc3, 100);
 }
 
 }
