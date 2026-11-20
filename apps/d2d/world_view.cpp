@@ -171,13 +171,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
         const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
-        // A wall's block y counts from the cell's bottom corner (iso_y + 80):
-        // upper walls rise above it, lower walls (16..19: Act 5's cliffs) hang below.
-        // Walls sit 16 px higher than a floor's frame would put them
-        // (measured live against game.exe in Lut Gholein: floors, roofs,
-        // units and walls each on game.exe's pixels; not traced).
-        const int wall_lift = layer == 0 ? 16 : 0;
-        const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
+        // Walls: one origin for upper and lower walls (16..19: the Arcane
+        // Sanctuary's walkway sides, Act 5's cliffs), wall_screen_y. Every
+        // upper wall of LvlTypes' DT1s (4,454) has y_shift = |height| - 32,
+        // so they stay where they were measured.
+        const int screen_y = layer == 0 ? wall_screen_y(iso_y, tile) : iso_y - (tile_height - kIsoH);
         const bool drawn = layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile);
         if (drawn) g_drawn.cells.push_back({ cell_x, cell_y, source });
         if (layer == 1) { floors.push_back({ &tile, screen_x, screen_y, cell_x, cell_y }); return drawn; }   // drawn after the sweep, below

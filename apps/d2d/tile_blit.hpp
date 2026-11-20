@@ -25,6 +25,16 @@ struct Rows {
     int end = INT_MAX;
 };
 
+// The screen row of a wall's packed buffer (its top, block y -y_shift) for
+// a cell whose tile point is at row `iso_y` (world_view's iso): every wall's
+// signed block y counts from one origin, upper and lower walls alike
+// (FUN_004df1c0 / FUN_004dedf0 -> FUN_004f6920; dt1.md), iso_y + 48 less
+// the 16 px walls sit higher (measured live in Lut Gholein, not traced).
+[[nodiscard]] constexpr int wall_screen_y(int iso_y, const d2d::dt1::Tile& tile) noexcept {
+    constexpr int kWallOrigin = 48, kWallLift = 16;
+    return iso_y + kWallOrigin - kWallLift - tile.y_shift;
+}
+
 // A see-through hole in what's drawn (the roof cut-out round each player).
 struct Hole {
     std::vector<std::pair<int, int>> centres;       // screen centres (a player each: local co-op's several), pixels
