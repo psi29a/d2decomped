@@ -284,3 +284,16 @@ the 2x2 chips, thins chrome, scales the Attack icon, centres belt art, places
 held items on finger up with grid snap, keeps last-device handoff (Touch vs
 keyboard/mouse vs gamepad), adds Confirm before identify, and gives the field
 belt a Use/Fill sheet with double-tap to use.
+
+## Touch HUD and binding navigation
+
+Menu controls use distinct pictograms with their text captions, including a
+curved Back arrow and a More glyph. Their existing hit boxes and gameplay
+commands are retained.
+
+The touch binding wheel has explicit 64-unit Prev/Next buttons and a page
+counter. Pages wrap, including a short final page; changing pages retains the
+destination button and cancels the previous finger's selection. A cancelled
+gesture cannot save an assignment. Taps must hit a displayed icon; dragging
+from the hub can select a wedge. The controller wheel keeps its existing
+sliding-window behavior. This is touch UI work, not traced retail behavior.

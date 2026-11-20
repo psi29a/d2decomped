@@ -14,6 +14,8 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
+#include "touch_binding.hpp"
+#include "touch_glyph.hpp"
 #include "touch_input.hpp"
 #include "use_item.hpp"
 
@@ -92,16 +94,15 @@ void ClientSession::touch_rebuild_bind_wheel() {
             if (skillpad::assignable_name(info.name) && skill_known(character.name, info.id))
                 wheel_ids.push_back(info.id);
     if (wheel_at < 0 || wheel_at >= int(wheel_ids.size())) wheel_at = 0;
-    touch_bind_wheel_at = wheel_at;
-    touch_bind_wheel_page = skillpad::wheel_page(int(wheel_ids.size()), touch_bind_wheel_at, skillpad::kWheelShown, 0).start;
-    touch_bind_hit = false;
+    touch_bind_wheel_page = 0; touch_bind_wheel_at = -1;
+    touch_bind_finger = -1; touch_bind_hit = false;
 }
 
 void ClientSession::touch_open_bind() {
     const bool page = touch_input.alternate;
     touch_bind = TouchBindPhase::PickSlot;
     touch_bind_slot = -1;
-    touch_bind_finger = -1;
+    touch_bind_finger = -1; touch_bind_hit = false;
     touch_input.clear();
     touch_input.alternate = page;
     touch_feedback = "Tap a skill button";
@@ -111,7 +112,7 @@ void ClientSession::touch_open_bind() {
 void ClientSession::touch_close_bind() {
     touch_bind = TouchBindPhase::Off;
     touch_bind_slot = -1;
-    touch_bind_finger = -1;
+    touch_bind_finger = -1; touch_bind_hit = false;
     touch_feedback.clear();
     save_touch_sheet(character.name);
 }
@@ -366,51 +367,54 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         return true;
     }
     if (touch_bind == TouchBindPhase::PickSkill) {
+        touch::BindingPicker touch_binding{ touch_bind_wheel_page, touch_bind_wheel_at, touch_bind_finger,
+            touch_bind_hit, std::hypot(touch_bind_origin_x, touch_bind_origin_y) <= skillpad::kBindWheelHub };
+        struct SaveBinding {
+            touch::BindingPicker& binding;
+            int& page;
+            int& selected;
+            std::int64_t& finger;
+            bool& hit;
+            ~SaveBinding() { page = binding.page; selected = binding.selected; finger = binding.finger; hit = binding.hit; }
+        } save_binding{ touch_binding, touch_bind_wheel_page, touch_bind_wheel_at, touch_bind_finger, touch_bind_hit };
         constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
         const int count = int(wheel_ids.size());
         const auto track_wheel = [&](float point_x, float point_y) {
-            const auto pick = skillpad::bind_wheel_pick(point_x - wheel_cx, point_y - wheel_cy, count, touch_bind_wheel_at,
-                                                        touch_bind_wheel_page);
-            touch_bind_wheel_page = pick.page_start;
-            if (!pick.hit) return;
-            touch_bind_hit = true;
-            touch_bind_wheel_at = pick.index;
-            touch_bind_wheel_page = skillpad::wheel_page(count, touch_bind_wheel_at, skillpad::kWheelShown,
-                                                        touch_bind_wheel_page).start;
+            touch_binding.track(point_x - wheel_cx, point_y - wheel_cy, count);
         };
+        if (phase == touch::Phase::Down && touch::BindingPicker::pages(count) > 1
+            && (touch::kBindingPrevious.contains(x, y) || touch::kBindingNext.contains(x, y))) {
+            touch_binding.turn(count, touch::kBindingPrevious.contains(x, y) ? -1 : 1);
+            touch_feedback = "Tap or drag a skill; choose Prev/Next for more";
+            return true;
+        }
         if (phase == touch::Phase::Down) {
             const int slot = touch::bind_slot_at(chrome, x, y);
             if (slot >= 0) {
                 touch_bind_slot = slot;
-                touch_bind_finger = -1;
+                touch_binding = {};
                 touch_rebuild_bind_wheel();
                 touch_feedback = "Drag or tap a skill on the wheel";
                 return true;
             }
-            touch_bind_finger = finger;
-            touch_bind_origin_x = x - wheel_cx;
-            touch_bind_origin_y = y - wheel_cy;
+            touch_bind_origin_x = x - wheel_cx; touch_bind_origin_y = y - wheel_cy;
+            touch_binding.begin(finger, touch_bind_origin_x, touch_bind_origin_y);
             track_wheel(x, y);
             return true;
         }
-        if (finger == touch_bind_finger) {
+        if (finger == touch_binding.finger) {
+            if (phase == touch::Phase::Cancel) { touch_binding.clear_press(); return true; }
             if (phase == touch::Phase::Move) track_wheel(x, y);
             if (phase == touch::Phase::Up && touch_bind_slot >= 0) {
                 track_wheel(x, y);
-                if (touch_bind_hit && count > 0) {
-                    const int index = std::clamp(touch_bind_wheel_at, 0, count - 1);
+                if (touch_binding.hit && count > 0) {
+                    const int index = std::clamp(touch_binding.selected, 0, count - 1);
                     touch_apply_bind(touch_bind_slot, wheel_ids[std::size_t(index)]);
                     touch_bind = TouchBindPhase::PickSlot;
-                    touch_bind_finger = -1;
-                    touch_bind_hit = false;
+                    touch_binding.clear_press();
                     touch_feedback = "Tap another button, I/II, or Done";
-                } else if (!touch_bind_hit && count > skillpad::kWheelShown
-                           && std::hypot(x - wheel_cx, y - wheel_cy) <= skillpad::kBindWheelHub) {
-                    touch_bind_wheel_at = skillpad::next_page(touch_bind_wheel_at, count, 1);
-                    touch_bind_wheel_page = skillpad::wheel_page(count, touch_bind_wheel_at, skillpad::kWheelShown,
-                                                                touch_bind_wheel_page).start;
-                    touch_feedback = "Next skills";
                 }
+                touch_binding.clear_press();
             }
             return true;
         }
@@ -1080,11 +1084,19 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto origin = touch::centred_blit_origin(box, float(frame.width), float(frame.height));
         blit_sprite(framebuffer, frame, palette, int(origin.first), int(origin.second));
     };
+    const auto glyph_button = [&](touch::Box box, touch::Glyph glyph, const std::string& caption, bool active = false) {
+        button(box, "", active, true);
+        touch::draw_glyph(framebuffer, int(kScreenWidth), int(kScreenHeight), box.x, box.y,
+                          box.width, box.height, glyph, active);
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette,
+                         int(box.x + (box.width - float(font.measure(caption))) * .5f), int(box.y + box.height * .72f),
+                         caption, active ? 255 : 199, active ? 220 : 179, 119);
+    };
     const auto draw_left_chips = [&] {
-        button(chrome.menu, "Inv", false, true);
-        button(chrome.skills_bar, "Skl", false, true);
-        button(chrome.quest, quest_log.open ? "Q*" : "Quest", false, true);
-        button(chrome.bind, touch_bind != TouchBindPhase::Off ? "Done" : "Bind", touch_bind != TouchBindPhase::Off, true);
+        glyph_button(chrome.menu, touch::Glyph::Inventory, "Inv", inv_open);
+        glyph_button(chrome.skills_bar, touch::Glyph::Skills, "Skl", tree_open);
+        glyph_button(chrome.quest, touch::Glyph::Quest, "Quest", quest_log.open);
+        glyph_button(chrome.bind, touch::Glyph::Bind, touch_bind != TouchBindPhase::Off ? "Done" : "Bind", touch_bind != TouchBindPhase::Off);
     };
     const auto draw_sheet = [&] {
         if (!touch_sheet.open) return;
@@ -1095,11 +1107,13 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         button(touch_sheet.confirm, touch_sheet.identifying_target ? "Identify" : "Confirm", touch_sheet.confirming);
         button(touch_sheet.cancel, "Cancel");
     };
-    button(chrome.done, touch_bind != TouchBindPhase::Off || touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done"
-                      : pad_field() ? "..." : "Back", false, false);
+    glyph_button(chrome.done, pad_field() && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
+                              && skillbar.picking != 3 ? touch::Glyph::More : touch::Glyph::Back,
+                 touch_bind != TouchBindPhase::Off || touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done"
+                      : pad_field() ? "..." : "Back");
     if (touch_bind != TouchBindPhase::Off) {
         draw_left_chips();
-        button(chrome.map, automap.open ? "M*" : "Map", false, true);
+        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
         const auto bound = touch_sheets.find(sheet_key(character.name));
         for (int index = 0; index < 4; ++index) {
             const touch::Box& skill_box = chrome.skills[std::size_t(index)];
@@ -1124,18 +1138,25 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         }
         if (touch_bind == TouchBindPhase::PickSkill && !wheel_ids.empty()) {
             constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
-            const skillpad::WheelPage page = skillpad::wheel_page(int(wheel_ids.size()), touch_bind_wheel_at,
-                                                                 skillpad::kWheelShown, touch_bind_wheel_page);
+            const touch::BindingPicker touch_binding{ touch_bind_wheel_page, touch_bind_wheel_at };
+            const auto page = touch_binding.visible(int(wheel_ids.size()));
             for (int slot = 0; slot < page.shown; ++slot) {
                 const int index = std::clamp(page.start + slot, 0, int(wheel_ids.size()) - 1);
                 const float angle = skillpad::wedge_center(slot, page.shown);
                 const int icon_x = int(wheel_cx + std::cos(angle) * skillpad::kBindWheelRx);
                 const int icon_y = int(wheel_cy + std::sin(angle) * skillpad::kBindWheelRy);
                 const int id = wheel_ids[std::size_t(index)];
-                if (index == touch_bind_wheel_at) ring(float(icon_x), float(icon_y), 22.f, false);
+                if (index == touch_binding.selected) ring(float(icon_x), float(icon_y), 22.f, false);
                 blit_skill_icon(id, icon_x - 12, icon_y - 12);
             }
             ring(wheel_cx, wheel_cy, 18.f, true);
+            const int pages = touch::BindingPicker::pages(int(wheel_ids.size()));
+            if (pages > 1) {
+                button(touch::kBindingPrevious, "Prev", false, true);
+                button(touch::kBindingNext, "Next", false, true);
+            }
+            const std::string page_label = std::to_string(touch_binding.page + 1) + "/" + std::to_string(pages);
+            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 322 - font.measure(page_label) / 2, 474, page_label);
         }
         button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 280, 90, touch_feedback);
@@ -1171,7 +1192,7 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (tree_open) {
         draw_left_chips();
-        button(chrome.map, automap.open ? "M*" : "Map", false, true);
+        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
         if (touch_learn_skill >= 0) {
             button(touch::kTreeLearnConfirm, "Confirm");
@@ -1188,7 +1209,7 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 75,
             identify_with >= 0 ? "Tap an unidentified item . Back cancels" : touch_item_hint);
         draw_left_chips();
-        button(chrome.map, automap.open ? "M*" : "Map", false, true);
+        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
         draw_sheet();
         if (touch_hold_fraction > 0.f && touch_item_finger != -1)
             ring(touch_item_x, touch_item_y, 22.f + 18.f * touch_hold_fraction, false);
@@ -1275,11 +1296,11 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (!touch_shows_field_controls()) {
         draw_left_chips();
-        button(chrome.map, automap.open ? "M*" : "Map", false, true);
+        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
         return;
     }
     draw_left_chips();
-    button(chrome.map, automap.open ? "M*" : "Map", false, true);
+    glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
     const touch::Box& move_pad = chrome.move_visual;
     const float stick_x = move_pad.x + move_pad.width * .5f;
     const float stick_y = move_pad.y + move_pad.height * .55f;
