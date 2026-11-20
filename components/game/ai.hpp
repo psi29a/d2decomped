@@ -1084,7 +1084,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // off (x the first draw, y the second), the start x then y by the
         // third and fourth's bit 0: four steps of the missile's seed (+0x20).
         // ponytail: the update's rng, not the missile's seed: the client unit's
-        // first seed (FUN_004cd540 -> FUN_00466730) isn't traced.
+        // first seed (FUN_00465fd0 via FUN_00466730) is {1, 666}, then, with a room
+        // at its spot, that room's seed (+0x6c / +0x70) stepped once and its low
+        // word as {low, 666} (FUN_00650e40, 0x46606a..0x466093); d2d keeps no
+        // client room seeds.
         if (missile.info && missile.info->clt_do == 55 && missile.sub && missile.frame != frame && (int(now_ms - missile.born) / 40) % 3 == 0) {
             missile.frame = frame;
             const int off_x = int(rng.next() % 20) - 10, off_y = int(rng.next() % 20) - 10;

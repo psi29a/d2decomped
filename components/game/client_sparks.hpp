@@ -37,8 +37,11 @@ struct ClientSpark {
 };
 
 // The client's trails. ponytail: one client rng for all; game.exe rolls the
-// z from the parent unit's seed (+0x20) and the frame from the child's,
-// whose first seed (FUN_004cd540 -> FUN_00466730) isn't traced.
+// z from the parent unit's seed (+0x20) and the frame from the child's:
+// the client unit's first seed (FUN_00465fd0 via FUN_00466730) is {1, 666},
+// then, with a room at its spot, that room's seed (+0x6c / +0x70) stepped
+// once and its low word as {low, 666} (FUN_00650e40, 0x46606a..0x466093);
+// d2d keeps no client room seeds.
 struct SparkTrail {
     std::vector<ClientSpark> sparks;
     d2d::rules::Rng rng{ 0x1234 };
