@@ -238,6 +238,19 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
     }
 
+// A pet's own swing (FUN_0057b420 on its stats 21 / 22): its damagepercent, stat 25, is one sum of its own
+// (summons.cpp, baked into A1 on the unscaled range) and a curse's (Weaken), floored at -90 (0x57b5a8), and
+// scales both ends before the roll (0x57b5c1..0x57b5dc), so the record's physical (+8) carries it.
+// ponytail: game.exe scales in 256ths, x + MulDiv(x, pct, 100) on one sum, and rolls on the pet's own seed;
+// here whole points, its own percent already in A1 and the curse's x unscaled / 100 truncated on top, rolled on
+// the fight's rng (base 8, own +25 %, Weaken -33 %: 7.36 points there, 8 here).
+auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
+        const auto swung = pet.monster.classic_stats();
+        const int curse = std::max(pet_buff_stat(pet, d2d::d2s::kDamagePercent), -90 - pet.damage_pct);
+        const auto& base = pet.a1_unscaled[1] > 0 ? pet.a1_unscaled : std::array<int, 2>{ swung.a1_min, swung.a1_max };
+        return d2d::rules::simple_fighter(std::max(swung.a1_min + base[0] * curse / 100, 0), std::max(swung.a1_max + base[1] * curse / 100, 0), swung.to_hit);
+    }
+
 auto Fight::pet_skill_damage(Pet& pet) -> void {
         const auto* skill = pet.skill_damage && skill_level ? game_data->skills.get(pet.skill) : nullptr;
         if (!skill) return;
@@ -306,8 +319,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
-                        auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
-                                                         target, monster.stats.level, rng);
+                        auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : pet_swing(pet), target, monster.stats.level, rng);
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
                         pet_strike(pet, monster_index, blow, now_ms);
                     }
