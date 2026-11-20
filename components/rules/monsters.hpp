@@ -836,6 +836,11 @@ inline bool friends(int mine, int theirs) { return mine == 0 ? theirs == 0 : min
 
 // FUN_005dc380: ai_distance less the candidate's size on each axis (FUN_00620510).
 int near_distance(int dx, int dy, int size);
+// The AI driver's first step FUN_005b0ff0: what a monster whose AI control names a leader does (rules::leader_follow).
+struct LeaderStep { bool acted = false, cleared = false, back = false, path = false, walk = false; };
+[[nodiscard]] LeaderStep leader_follow(int leader_id, int leader_type, bool can_walk, bool found, bool dying, int gap, bool backed);
+// FUN_005df530: a spot `reach` about (x, y) on the unit's seed (one axis reach, the other rand(reach), random signs).
+[[nodiscard]] std::pair<int, int> spot_about(Rng& seed, int x, int y, int reach);
 
 // FUN_005dd0b0 mode 1 (FUN_005dce60): the eligible units in the near
 // rooms' order, each room's units newest first; `units` is oldest first.
