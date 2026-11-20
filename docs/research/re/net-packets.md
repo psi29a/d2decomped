@@ -330,9 +330,10 @@ network flush.
 | `FUN_00571840` | 0x9a skill at x, y | 0x14 | skill id, skill level, x, y, a byte |
 | `FUN_005718c0` | 0x9e unit stat set | 0x14 | unit GUID, stat id (asserts ≤ 0xfe), value |
 | `FUN_00571960` | 0xa1 unit stat delta | 0x18 | unit GUID, stat id (asserts ≤ 0xfe), old value, new value — queued only when old != new |
-| `FUN_00571aa0` | 0xa3 progressive-skill overlay | 0x28 | wArg1/wArg2/byParam, source unit type+GUID, target unit type+GUID (or -1 with no target), dwParam1/dwParam2 |
-| `FUN_00571a10` | 0xab health update | 0x14 | unit type, unit GUID, hp % 128 |
-| `FUN_00571b70` | 0xa5 force-stop skill | 0x14 | unit type, unit GUID, skill id; also clears `STATE_skill_move` on the unit immediately (`D2Common::DATATBLS::ItemStats::SetState`), not only when the queued packet is later sent |
+| `FUN_00571aa0` | 0xa3 a skill's effect | 0x28 | ECX source unit, EDX target unit (null allowed), five stack words (`ret 0x14`): +8 u8 a4, +0xa u16 a0 (the Skills.txt row), +0xc u16 a1 (the skill level the do function was given, at `FUN_005c8080`; 1 at `FUN_005d2a10`), +0x10 source type, +0x14 source id, +0x18 target type, +0x1c target id (−1 with no target; the type stays 0), +0x20 u32 a2, +0x24 u32 a3. Line 0x2ea. Callers: `FUN_005c8080` (srvdofunc 123, Volcano; a2, a3 are the two words `FUN_0056d2c0` fills, a4 `FUN_0045c390`), `FUN_005c8520` (States.txt srvactivefunc 146, Armageddon), `FUN_005ca4d0` (srvdofunc 29, Thunder Storm), `FUN_005d2a10` (passes 1, 0, 0, 0 after the skill), `FUN_005d5220` (a finisher's release) |
+| `FUN_00571a10` | 0xab health update | 0x14 | ECX unit, DL: +8 u8 unit type (6 with no unit), +0xc u32 id (−1), +0x10 u8 DL (life / 128 on the client, below). Line 0x2d9 |
+| `FUN_00571b70` | 0xa5 stop a skill's move | 0x14 | ECX unit, u16 DX: +8 u8 unit type (6 with no unit), +0xc u32 id (−1), +0x10 u16 DX (the Skills.txt row). First clears state 0x12 on the unit (`FUN_00639db0(unit, 0x12, 0)`), at queue time, not at send. Line 0x30f. Callers `FUN_005cf900`, `FUN_005d8f50`, `FUN_005d9460`, `FUN_005da120` |
+| `FUN_00571c00` | 0xa4 load a monster class | 0xc | ECX unit, u16 DX: +8 u16 DX (a MonStats row). Line 0x322. One caller, BaalThrone (`FUN_005ef320`), with the next wave's class (quests-act5.md) |
 
 `SERVER_UnitQueuePacketSend` (`FUN_00571cd0`, 443 bytes) drains the list
 per client and dispatches on `nOpcode` to the real S→C builders:
@@ -342,8 +343,11 @@ per client and dispatches on `nOpcode` to the real S→C builders:
 here, is the "last argument set" flag of line 287 above that turns 0x4c
 / 0x4d into 0x99 / 0x9a), `..._0x9E_0x9F_0xA0_MercAttribute`,
 `..._0xA1_0xA2_0xA0_MercExperience`, `..._0xA3_PROGRESSIVE_SKILL`,
-`..._0xA4_PRELOAD_MONSTER` (0xa4 is queued elsewhere, not in this
-batch), `..._0xA5_FORCESTOPSKILL`, `..._0xAB_HEALTH_UPDATE`.
+`..._0xA4_PRELOAD_MONSTER`, `..._0xA5_FORCESTOPSKILL`,
+`..._0xAB_HEALTH_UPDATE` (names from D2MOO). In game.exe the 0xa3,
+0xa4, 0xa5 and 0xab cases call `FUN_0053c0e0`, `FUN_0053e1a0`,
+`FUN_0053c190` and `FUN_0053c150` ("Verified in the emulator: server
+packet builders" below has their layouts).
 
 Call site `0x571dab` (inside this function) is the second caller of
 `FUN_0053bfd0`'s wrapper named in bugs.md #94: it passes (stat id, old
@@ -358,6 +362,35 @@ target (`D2Game::UNIT::SUnit::UNITS_CheckIfCanAttackTarget`) — rechecked
 on every drain, not only when the 0xab message was queued. Not ported
 (d2d has no server-side per-client attack-legality gate for this
 packet).
+
+**What the client does with 0xa3, 0xa4 and 0xa5** (the table at
+`0x7114d0`: 0xa3 `0x45d5e0` size 0x18, 0xa4 `0x45d760` size 3, 0xa5
+`0x45d6a0` size 8; 0xab is in "Units: movement and modes"):
+
+- **0xa3** (`0x45d5e0`): finds the source unit (type +6, id +7,
+  `FUN_00463990`); none drops the packet. Then the target (type +0xb, id
+  +0xc), which may be missing. The skill is the i16 at +2, dropped when
+  negative or not below the Skills count (data tables +0xba0; rows of
+  0x23c at +0xb98). With the row's flag byte +4 & 4 (the mask byte at
+  `0x6ce270`) it calls `FUN_004c6ac0`, else `FUN_004c6930`, both with
+  ECX source, EDX target, then skill, the i16 at +4, u32 +0x10,
+  u32 +0x14, u8 +1.
+- **0xa4** (`0x45d760`): the u16 at +1, if below the MonStats count (data
+  tables +0xa80), goes to `FUN_0046f870(class, 0)` (a tail jump). That
+  takes the class's MonStats2 row (MonStats +0x18; rows of 0x134 at
+  +0xa90) and, for each mode in the list at `0x712ac4` (count
+  `0x712b00`) whose bit is set in MonStats2 +0xf0, calls
+  `FUN_0046f650(row, mode, 0)`, which walks the mode's components
+  (`FUN_004dbcf0`, `FUN_006001f0`); what it builds is not traced
+  further. Its one sender is BaalThrone, before the next wave.
+- **0xa5** (`0x45d6a0`): finds the unit (type +1, id +2); none drops it.
+  The u16 skill at +6 must be below the Skills count. By the row's i16
+  at +0x2e (`0x45d6df`; a 12-entry byte table at `0x45d748`, jumps at
+  `0x45d738`): 0x43 calls `FUN_004ca000`, 0x4c `FUN_004c9420`, 0x4d and
+  0x4e `FUN_004c8b80` (the same split as `FUN_004c7890`, skills.md),
+  any other does nothing. Every path that passes the checks then clears
+  state 0x12 on the unit (`FUN_00639db0(unit, 0x12, 0)`), as the server
+  did when it queued it.
 
 ### Life, mana, stamina and the own player's position
 
