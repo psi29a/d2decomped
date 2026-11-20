@@ -1433,9 +1433,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   damage %); the pet's time is calc2 frames. It is the corpse itself
   (FUN_00553540: the unit cast at) on its own MonStats think:
   FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
-  15 frames on) and swaps no AI (no FUN_005b0e00). d2d runs a stand-in
-  (`Fight::pets_turn`'s untraced branch): monster thinks don't take
-  monsters as targets yet. Being the same unit, it keeps every stat it was
+  15 frames on) and swaps no AI (no FUN_005b0e00); FUN_005dd330 points
+  its AI control's +0xc / +0x10 at the owner (0x5c561b) and FUN_005543b0
+  gives it alignment 2. So its driver's first step (FUN_005b0ff0,
+  `rules::leader_follow`) walks it back to a spot 0x13 about the owner
+  when over 0x14 off, and backs it off 0x13 when within 1. d2d runs that
+  step (`Fight::pets_turn`, `test_revive_follow`), then a stand-in for
+  the think: monster thinks don't take monsters as targets yet. Being the same unit, it keeps every stat it was
   made with (its level, damage, defence, to-hit, MonProp stats: an
   expansion Nightmare or Hell corpse's are its area's level's) and its
   unit seed, which the life roll steps. d2d: `Fight::summon_one` copies

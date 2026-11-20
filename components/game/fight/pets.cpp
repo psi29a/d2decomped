@@ -336,10 +336,44 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             // at) on its own MonStats think: FUN_005c55c0 sets its owner
             // (FUN_0058f030) and its next think, and swaps no AI (no
             // FUN_005b0e00).
-            // ponytail: d2d has no monster think aimed at monsters, so a
-            // stand-in: the nearest foe chased at max(Run, Velocity), else a
-            // follow at the owner's RunVelocity x 1.1. Port when monster thinks
-            // can take monsters for their targets.
+            // Its AI driver's first step (FUN_005b0ff0) has its owner (FUN_005c55c0 sets AI control +0xc / +0x10 to
+            // the player, 0x5c561b): rules::leader_follow with a player leader, before anything else. Over 0x14
+            // (its own size off) a walk to a spot 0x13 about the owner (FUN_005df530); within 1 a back-off 0x13
+            // (FUN_005defe0), failing that the walk; the owner dead, never again.
+            // ponytail: d2d has no monster think aimed at monsters, so past that step a stand-in: the nearest foe
+            // chased at max(Run, Velocity), else a follow at the owner's RunVelocity x 1.1. Port when monster
+            // thinks can take monsters for their targets.
+            {
+                const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
+                const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+                const int own_x = sub(unit.x), own_y = sub(unit.y), owner_x = sub(actor->player.x), owner_y = sub(actor->player.y);
+                const int gap = d2d::rules::near_distance(owner_x - own_x, owner_y - own_y, kind.size);
+                const auto walk_speed = cells_per_sec(float(kind.velocity)) * float(100 + pet.speed_pct) / 100;
+                const int stride = int(std::lround(walk_speed * elapsed * 5 * 4096));
+                if (pet.homing && !unit.path.empty()) {       // the walk the step set going: on to its end
+                    if (!walk_on(*level, unit, stride, crowd)) pet.homing = false;
+                    if (monster.mode != "WL") set_mode(*game_data, monster, "WL", now_ms);
+                    continue;
+                }
+                pet.homing = false;
+                bool backed = false;
+                if (!monster.leader_lost && kind.can_walk && !dead() && gap <= 1) {   // FUN_005defe0: 0x13 off on each axis, away
+                    const int away_x = own_x < owner_x ? -1 : owner_x < own_x ? 1 : 0, away_y = own_y < owner_y ? -1 : owner_y < own_y ? 1 : 0;
+                    backed = set_off(*level, unit, (float(own_x + 0x13 * away_x) + 0.5f) / 5, (float(own_y + 0x13 * away_y) + 0.5f) / 5, false, crowd);
+                }
+                const auto step = d2d::rules::leader_follow(monster.leader_lost ? -1 : 0, 0, kind.can_walk, true, dead(), gap, backed);
+                if (step.cleared) monster.leader_lost = true;
+                if (step.walk) {
+                    const auto [spot_x, spot_y] = d2d::rules::spot_about(monster.seed, owner_x, owner_y, 0x13);
+                    set_off(*level, unit, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, false, crowd);
+                }
+                if (step.acted) {
+                    pet.target = -1;
+                    pet.homing = !unit.path.empty() && walk_on(*level, unit, stride, crowd);
+                    if (monster.mode != (pet.homing ? "WL" : "NU")) set_mode(*game_data, monster, pet.homing ? "WL" : "NU", now_ms);
+                    continue;
+                }
+            }
             if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) pet.target = -1;
             if (pet.target < 0) {
                 float best = 1e9f;
