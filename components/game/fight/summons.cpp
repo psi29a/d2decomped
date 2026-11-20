@@ -324,6 +324,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             const auto item_type = info == game_data->rules.item_info.end() ? game_data->rules.types.end() : game_data->rules.types.find(info->second.type);
             item.location = d2d::d2s::item_location::kEquipped;
             item.slot = item_type == game_data->rules.types.end() ? 0 : item_type->second.body[0];
+            // Its sockets' stats go with it, as a worn item's do (socket_props, panel_stats).
+            for (const auto& socketed : item.socketed_items)
+                for (const auto& prop : socket_props(*game_data, item, socketed)) item.props.push_back(prop);
             const auto worn_gear = d2d::rules::gear_sum(game_data->rules, std::span(&item, 1));
             for (std::size_t stat_id = 0; stat_id < worn_gear.sum.size(); ++stat_id)
                 if (worn_gear.sum[stat_id] != 0) pet_stats[int(stat_id)] += int(stat_id == d2d::d2s::kMaxLife ? worn_gear.sum[stat_id] << 8 : worn_gear.sum[stat_id]);

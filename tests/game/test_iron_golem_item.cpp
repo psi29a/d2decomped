@@ -74,11 +74,17 @@ int main() try {
     assert(fight.golem_item_at(14.1f, 14.1f) < 0);   // not identified
     loot.ground.back().item.identified = true;
     loot.ground.back().item.props.push_back({ d2d::d2s::kMaxDamage, 0, 3 });
+    d2d::d2s::Item jewel;                                            // a socketed jewel's stats go with the axe
+    jewel.code = "jew";
+    jewel.props.push_back({ d2d::d2s::kMaxDamage, 0, 2 });
+    loot.ground.back().item.socketed = true;
+    loot.ground.back().item.sockets = 1;
+    loot.ground.back().item.socketed_items.push_back(jewel);
     assert(fight.golem_item_at(14.1f, 14.1f) == 1);
     fight.summon(skill, 1, 14.1f, 14.1f, 2000);
     assert(hero.pets.size() == 1 && loot.ground.size() == 1 && loot.ground[0].id == 1);   // the axe left the floor
     const auto& golem = hero.pets.front().monster;
-    assert(golem.stats.a1_min == 5 + 4 && golem.stats.a1_max == 10 + 11 + 3);   // a one-hand weapon's damage and its max damage on its own
+    assert(golem.stats.a1_min == 5 + 4 && golem.stats.a1_max == 10 + 11 + 3 + 2);   // a one-hand weapon's damage, its max damage and the jewel's
     assert(!fight.golem_item);
     std::puts("OK: Iron Golem takes a metal ground item and wears it (FUN_005c5250)");
     return 0;
