@@ -97,7 +97,10 @@ def rows(path):
             if "|" not in line:
                 sys.exit(f"malformed line in {path}: {line.strip()!r}")
             case, result = line.split("|", 1)
-            out.append((case.split(), result.split()))
+            case, result = case.split(), result.split()
+            if len(case) != 5 or len(result) != 1 or not all(f.lstrip("-").isdigit() for f in case + result):
+                sys.exit(f"malformed row in {path}: {line.strip()!r}")
+            out.append((case, result))
     return out
 
 
