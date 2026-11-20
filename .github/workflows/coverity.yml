@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build build-essential pkg-config libcurl4-openssl-dev \
+          sudo apt-get install -y cmake ninja-build build-essential pkg-config \
             libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev
 
       - name: Download Coverity Build Tool
@@ -40,13 +40,14 @@ jobs:
 
       # Header checks off: 55 one-#include TUs re-emit headers the real .cpps
       # already cover, and only grow the tarball (470M, near the upload limit).
+      # No Sentry: crash reports aren't ours to scan, and Sentry/Crashpad was
+      # ~300 of the ~430 TUs (the tarball hit 545M, refused with a 413).
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DD2D_CHECK_HEADERS=OFF
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DD2D_CHECK_HEADERS=OFF -DD2D_SENTRY=OFF
 
-      # Sentry/Crashpad is ~300 of the ~430 TUs; captured, the tarball hit 545M
-      # and scan.coverity.com refused it (413). Built first, cov-build skips it.
-      - name: Build FFmpeg and Sentry (not scanned)
-        run: cmake --build build --config RelWithDebInfo --target ffmpeg_build sentry crashpad_handler
+      # Built first, so cov-build skips it.
+      - name: Build FFmpeg (not scanned)
+        run: cmake --build build --config RelWithDebInfo --target ffmpeg_build
 
       - name: Build with cov-build
         run: cov-build --dir cov-int cmake --build build --config RelWithDebInfo -- -k 0
