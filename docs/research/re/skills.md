@@ -707,7 +707,7 @@ stands: its start, srvstfunc 1 `FUN_0056ca40`, sets the animation's first
 frame, takes the state 0x26 branch (`FUN_005c8980`), checks a missile
 weapon's ammo (`FUN_0056c4e0`) and asks for no target; d2d
 `World::apply`'s `attack_spot`. A shift click first picks a monster beside
-the player (SearchEnemyXY, `FUN_00467660`; d2d `Town::shift_pick`). Not
+the player (SearchEnemyXY, `FUN_00467660`; d2d `ClientSession::shift_pick`). Not
 kept: another melee skill at a spot, and a joined game asks only the
 weapon (the host asks the rest).
 
@@ -782,7 +782,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Joined game: the hand's select (C->S 0x3c) carries the entry's item as
   the host knows it, -1 for the character's own skill.
 - Local co-op: each player's hands and hotkeys keep their entries while
-  another player has the screen (`Town::hand_items`).
+  another player has the screen (`ClientSession::hand_items`).
 - Load: the save keeps skill ids only and a loaded game selects the
   character's own entry (SelectSkill(id, -1)), so a saved charged hand
   falls back.
@@ -2833,7 +2833,7 @@ Cited from the decompile (no oracle run); re-check with
 
 ## Keyboard assignment ownership and hotkey packet follow-up
 
-The keyboard picker wrote the display character's hotkeys, but Town::publish
+The keyboard picker wrote the display character's hotkeys, but ClientSession::publish
 then copied the World's stale header over them. The client now retains its
 binding array when applying gameplay state and updates the local save owner
 immediately when a binding changes, including clearing the former duplicate.

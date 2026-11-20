@@ -247,7 +247,7 @@ identical, the game seed after too.
   (FUN_004b4830); 7..0x10 go to state 0xc and the store's refusal box.
 - d2d: `rules::merc_resurrect_cost` / `resurrect_merc`, `cmd::ResurrectMerc`,
   `ui.cpp resurrect_line`, `ev::TradeResult` (with the NPC) and
-  `Town::trade_result`. Not ported: the wait box; a joined game doesn't send 0x62. The stat relink
+  `ClientSession::trade_result`. Not ported: the wait box; a joined game doesn't send 0x62. The stat relink
   (`FUN_00577470`) and the spawn/reposition helpers aren't ported; d2d's
   stats presumably stay attached since nothing detaches them, so no
   disagreement is expected, just unported.

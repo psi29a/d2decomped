@@ -259,7 +259,7 @@ See npc-talk.md: string → sound table at `0x72b0e0` (`FUN_004e0650`).
 SoundEnviron.txt's record is 0x58 bytes (`FUN_00481920`): +0 Song, +4 / +8
 Day / Night Ambience, +0xc / +0x10 Day / Night Event, +0x14 Event Delay,
 +0x18 Indoors. Day is time-of-day phases 1..3 (`FUN_0061c220` returns the
-phase index), 0° to 180°; else night. d2d plays both (town.hpp).
+phase index), 0° to 180°; else night. d2d plays both (session.hpp).
 
 In sound ticks (25 Hz), with the client's rng (`FUN_004e40a0`;
 `spread(n)` = rand(2n+1) − n, `range(lo, hi)` = rand(hi−lo+1) + lo):
@@ -280,7 +280,7 @@ Sounds.txt Block past the play position: [0, Block 1) → Block 1, [1, 2) →
 22050 Hz, blocks 3457024 and 6755328 = 157 s and 306 s). The song starts
 there next time (`FUN_004b9a00`'s offset).
 
-d2d: town.hpp plays the events (pan = x / 750), audio.hpp keeps
+d2d: session.hpp plays the events (pan = x / 750), audio.hpp keeps
 `song_resume` and seeks with AL_SAMPLE_OFFSET.
 
 Screen shake uses its own unplaced quake loop and instance-volume envelope;

@@ -162,7 +162,7 @@ inline d2d::rules::OneShots one_shots(In& input) {
 inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
     unit(out, monster.unit);
-    // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
+    // What its states draw from (session.hpp monster_states): the timers change only as a state starts.
     out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until);
     out.u8(int(std::min<std::size_t>(monster.states.size(), 255)));
     for (std::size_t k = 0; k < std::min<std::size_t>(monster.states.size(), 255); ++k) out.i32(monster.states[k].skill).u32(monster.states[k].until);
@@ -206,7 +206,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         wire::unit(chunk, view.player);
         chunk.u8(view.running).u8(view.dead).u8(view.poisoned).u8(view.chilled).u8(view.stamina_blue).u8(view.stamina_shrine).i32(view.life_preview).i32(view.mana_preview).i32(view.curse).u8(view.stunned).i32(view.pmode).f32(view.prate).i32(view.walk_percent).u32(view.seq_frame_ms).u8(view.seq_loop);
         wire::one_shots(chunk, view.one_shots);   // its one-shot overlays (its casts': FUN_004c6140)
-        chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (town/draw.cpp, FUN_00463390)
+        chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (session/draw.cpp, FUN_00463390)
         chunk.u16(int(view.seq.size()));
         for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
         for (const auto look_byte : view.gfx) chunk.u8(look_byte);
@@ -445,7 +445,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto type = input.str();
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
-            const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (town/view.cpp)
+            const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (session/view.cpp)
             auto shots = wire::one_shots(input);
             if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, std::move(shots) };
         }

@@ -37,7 +37,7 @@ namespace d2d::game {
 
 struct Loot {
     const GameData* game_data;
-    const Level* const& level;             // Town's: where drops land
+    const Level* const& level;             // ClientSession's: where drops land
     d2d::rules::Rng& rng;
     Cues& cues;
     Character* character = nullptr;        // the acting player's (World::act_as)

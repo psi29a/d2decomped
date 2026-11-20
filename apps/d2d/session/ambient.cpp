@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): the Den's ambience, the client's own fill and critters. The rest is in this directory.
-#include "town.hpp"
+// ClientSession (session.hpp): the Den's ambience, the client's own fill and critters. The rest is in this directory.
+#include "session.hpp"
 
 #include "common.hpp"
 #include "ingame.hpp"
@@ -32,25 +32,25 @@
 
 namespace d2d::client {
 
-auto Town::den_ambient() const -> int {
+auto ClientSession::den_ambient() const -> int {
         if (!level || level->id != d2d::rules::DenQuest::kDen || !view.den_cleared || den_lit) return -1;
         return den_flash < 0 ? 80 : int(d2d::rules::cos512(den_flash * 128 / 30) * 80.0f);
     }
 
-auto Town::event_ambient() const -> int {
+auto ClientSession::event_ambient() const -> int {
         if (const int den = den_ambient(); den >= 0) return den;
         if (!level) return -1;
         if (const int red = d2d::rules::release_light(level->id, view.diablo_red || (net_game && net_game->diablo_red)); red >= 0) return red;
         return dip.light(level->id);
     }
 
-// A joined game's 0x89 event 1 starts one (Town's net step, 0x46aee0), as
+// A joined game's 0x89 event 1 starts one (ClientSession's net step, 0x46aee0), as
 // does state 153 set on a unit (0xa8 / 0xaa, FUN_004d87e0).
-auto Town::dip_tick() -> void {
+auto ClientSession::dip_tick() -> void {
         if (level) dip.step(level->light >= 0 ? level->light : view.day.intensity(), level->id);   // FUN_00474550 flag 0
     }
 
-auto Town::den_tick(std::uint32_t frame_ms) -> void {
+auto ClientSession::den_tick(std::uint32_t frame_ms) -> void {
         if (view.den_cleared && !den_seen && level && level->id == d2d::rules::DenQuest::kDen) den_flash = 0;
         den_seen = view.den_cleared;
         if (!view.den_cleared) { den_flash = -1; den_lit = false; den_beams.clear(); return; }
@@ -70,7 +70,7 @@ auto Town::den_tick(std::uint32_t frame_ms) -> void {
         d2d::log::info("Den of Evil: {} light beams in {} rooms", den_beams.size(), level->rooms.size());
     }
 
-auto Town::critter_tick(std::uint32_t frame_ms) -> void {
+auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
         namespace ids = d2d::rules::monster_ids;
         const auto& game_data = *world.game_data;
         if (!level) return;

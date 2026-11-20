@@ -45,7 +45,7 @@ std::vector<std::uint32_t> ids(int own_word, bool by_sort_key = false) {
         { .id = 3, .name = "Cid", .party = 1 },                   { .id = 2, .name = "Zed", .party = 2, .sort_key = 7 },
         { .id = 1, .name = "amy", .party = 0xffff },               { .id = 6, .name = "Bob", .party = 0xffff },
     };
-    PartyPanel::regroup(rows, 99, own_word, by_sort_key);     // our own record isn't among them (Town::party_rows)
+    PartyPanel::regroup(rows, 99, own_word, by_sort_key);     // our own record isn't among them (ClientSession::party_rows)
     std::vector<std::uint32_t> order;
     for (const auto& row : rows) order.push_back(row.id);
     return order;

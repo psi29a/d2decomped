@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // The merc's faster hit recovery crosses the view codec, so a joined game
-// draws its get-hit with the host's FHR (town/view.cpp), not 0.
+// draws its get-hit with the host's FHR (session/view.cpp), not 0.
 
 #include <gamedata.hpp>
 #include <replication.hpp>

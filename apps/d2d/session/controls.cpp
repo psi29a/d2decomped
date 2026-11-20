@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): keys, hotkeys, speech, the party rows and help. The rest is in this
+// ClientSession (session.hpp): keys, hotkeys, speech, the party rows and help. The rest is in this
 // directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "common.hpp"
 #include "controls.hpp"
@@ -51,7 +51,7 @@ namespace d2d::client {
  * Load character key bindings with the shared/default fallback, then load independent controller
  * and touch sheets. Reset transient touch state so gestures cannot cross character sessions.
  */
-auto Town::load_keys() -> void {
+auto ClientSession::load_keys() -> void {
         const auto read = [](const std::filesystem::path& path) {
             std::ifstream file(path, std::ios::binary);
             return std::vector<std::uint8_t>{ std::istreambuf_iterator<char>(file), {} };
@@ -75,7 +75,7 @@ auto Town::load_keys() -> void {
 
 // <name>.key, and with `shared` the save folder's default.key (Accept,
 // FUN_00469780).
-auto Town::save_keys(bool shared) const -> void {
+auto ClientSession::save_keys(bool shared) const -> void {
         if (key_dir.empty()) return;
         const auto write = [](const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
             std::ofstream file(path, std::ios::binary);
@@ -86,7 +86,7 @@ auto Town::save_keys(bool shared) const -> void {
         if (shared) write(key_dir / "default.key", keys::write_default(key_table));
     }
 
-auto Town::update_hotkey_names() -> void {
+auto ClientSession::update_hotkey_names() -> void {
         auto name = [&](int action, bool either) {
             const auto key = keys::label_key(key_table, action, either);
             if (!key) return std::string{};
@@ -105,7 +105,7 @@ auto Town::update_hotkey_names() -> void {
     }
 
 // Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.
-auto Town::accept_controls() -> void {
+auto ClientSession::accept_controls() -> void {
         key_table = controls.table;
         save_keys(true);
         if (controls.click_rows && controls.clicks != click_keys) {   // d2d's click keys: d2d.cfg, not the .key
@@ -128,7 +128,7 @@ auto Town::accept_controls() -> void {
  * Apply a keyboard picker assignment and immediately copy changed hotkeys to the local save owner.
  * In a joined game, send only changed slots using host item IDs for item-granted bindings.
  */
-auto Town::skill_hotkey(int slot, int mouse_x, int mouse_y) -> void {
+auto ClientSession::skill_hotkey(int slot, int mouse_x, int mouse_y) -> void {
         const auto previous = character.header.hotkeys;
         skillbar.hotkey(slot, mouse_x, mouse_y);
         if (previous == character.header.hotkeys) return;
@@ -151,7 +151,7 @@ auto Town::skill_hotkey(int slot, int mouse_x, int mouse_y) -> void {
         if (!packets.empty()) net_game->send_items(packets);
     }
 
-auto Town::function_held(int action) const -> bool {
+auto ClientSession::function_held(int action) const -> bool {
         return key_held(keys::key_of(key_table, action, 0)) || key_held(keys::key_of(key_table, action, 1));
     }
 
@@ -160,18 +160,18 @@ auto Town::function_held(int action) const -> bool {
 // voice (FUN_004cb9c0: its sound table's +0x20, - 0x32 + phrase * 2: one
 // of the phrase's two takes). English shows no text with it (FUN_004a0200
 // only does for languages 6, 7 and 9).
-auto Town::say_sound(int cls, int phrase) -> int {
+auto ClientSession::say_sound(int cls, int phrase) -> int {
         static constexpr std::array<int, 7> kChatSound = { 0xb79, 0xcb1, 0xc15, 0xc63, 0xbc7, 0xd4d, 0xcff };   // amazon_chat_a_1 ...
         return kChatSound[std::size_t(std::clamp(cls, 0, 6))] + 2 * std::clamp(phrase, 0, 7);
     }
 
-auto Town::say(int phrase) -> void {
+auto ClientSession::say(int phrase) -> void {
         audio_say = say_sound(int(character.header.cls), phrase);
         if (net_game) net_game->phrase(std::uint16_t(0x19 + phrase));
     }
 
 // Clear Screen (FUN_0044c6b0): every closable panel shuts, and the automap.
-auto Town::clear_screen() -> void {
+auto ClientSession::clear_screen() -> void {
         inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = belt_open = hireling.open = party.open = false;
         if (help.open) toggle_help();
         automap.open = false;
@@ -184,7 +184,7 @@ auto Town::clear_screen() -> void {
 // joined game, from the roster's own records in the list's order, which NetGame
 // regroups as game.exe does (NetGame::roster, PartyRoster::regroup). A player
 // whose unit the host removed (0x0a) keeps its row until 0x5c.
-auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
+auto ClientSession::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
             if (!scene || area <= 0) return {};
@@ -214,7 +214,7 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
  * Build the local player row for the Party panel. Offline and local-co-op membership is fixed; a
  * joined game supplies the host-reported party ID.
  */
-auto Town::party_own() const -> PartyPanel::Own {
+auto ClientSession::party_own() const -> PartyPanel::Own {
         PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
         if (coop_hud_hidden()) { own.party = 1; own.fixed = true; }   // the screen's player (`character`), in local co-op's one party
         if (!net_game) own.fixed = true;  // offline controller Party page is informational
@@ -223,13 +223,13 @@ auto Town::party_own() const -> PartyPanel::Own {
         return own;
     }
 
-auto Town::toggle_help() -> void {
+auto ClientSession::toggle_help() -> void {
         help.open = !help.open;
         if (help.open && !mini.open) { mini.open = true; help_opened_mini = true; }
         if (!help.open && help_opened_mini) { mini.open = false; help_opened_mini = false; }
     }
 
-auto Town::pad_field_or_free() const -> bool {
+auto ClientSession::pad_field_or_free() const -> bool {
         return have_world && !game_menu.open && !controls.open && npc_menu.npc < 0 && store.npc < 0 && !inv_open && !stash_open && !cube_open;
     }
 

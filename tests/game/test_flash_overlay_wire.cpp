@@ -2,7 +2,7 @@
 // test-links: game
 // A unit's one-shot overlay (a skill start's castoverlay, FUN_004c6140; a
 // monster think's, FUN_00621e40) crosses the view codec. Every View goes
-// through it, a local game's too (Town::publish), so without it no flash
+// through it, a local game's too (ClientSession::publish), so without it no flash
 // ever reached the draw.
 
 #include <ai.hpp>

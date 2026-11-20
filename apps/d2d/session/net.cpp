@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): a joined game: what's sent, and the host's NPCs, items, overlays and
+// ClientSession (session.hpp): a joined game: what's sent, and the host's NPCs, items, overlays and
 // quests. The rest is in this directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "common.hpp"
 #include "ingame.hpp"
@@ -53,7 +53,7 @@ namespace d2d::client {
 // d2d's.
 // NPC talk and trade stay local (the host's gold and items don't follow);
 // belt, item moves, stat and skill points aren't sent: net-join-plan.md M9.
-auto Town::send(const Command& command) -> void {
+auto ClientSession::send(const Command& command) -> void {
         if (lan_client) { if (!lan_client->send_command(d2d::game::encode(command))) lan_lost = "the host stopped answering"; return; }
         if (!net_game || !level) { net.send(command); return; }
         // No D2GS form. Applying it here would equip on this machine while the host kept the old gear.
@@ -315,7 +315,7 @@ auto Town::send(const Command& command) -> void {
 // The host's NPC for d2d's NPC `index`: a unit of the same MonStats Id
 // (Akara for Akara), the nearest if several (rogues); nullptr while the
 // host hasn't sent it (out of range).
-auto Town::net_npc(int index) const -> const NetGame::Unit* {
+auto ClientSession::net_npc(int index) const -> const NetGame::Unit* {
         if (!net_game || !level || index < 0 || std::size_t(index) >= level->npcs.size()) return nullptr;
         const auto& npc = level->npcs[std::size_t(index)];
         const float at_x = (npc.x + float(level->world_x)) * 5.f, at_y = (npc.y + float(level->world_y)) * 5.f;
@@ -331,7 +331,7 @@ auto Town::net_npc(int index) const -> const NetGame::Unit* {
 // Our item moves and uses to the host, by its ids for d2d's items (the
 // same code in the same place: NetGame::host_item); d2d still makes the
 // move here. An item the host doesn't know is skipped and logged.
-auto Town::net_items(const Command& command) -> bool {
+auto ClientSession::net_items(const Command& command) -> bool {
         using namespace d2d::d2s;
         namespace c2s = d2d::net::d2gs::c2s;
         auto local = [&](int id) -> const Item* {
@@ -425,7 +425,7 @@ auto Town::net_items(const Command& command) -> bool {
 // none: Fight::remote_monsters) and its other players are drawn; act
 // subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
 // walk the camp (ponytail: matched by class and position later, M6).
-auto Town::net_overlay() -> void {
+auto ClientSession::net_overlay() -> void {
         if (!level || !scene) return;
         auto cell_x = [&](float subtile_x) { return (subtile_x + 0.5f) / 5.f - float(level->world_x); };
         auto cell_y = [&](float subtile_y) { return (subtile_y + 0.5f) / 5.f - float(level->world_y); };
@@ -574,7 +574,7 @@ auto Town::net_overlay() -> void {
 
 // A quest message for the player plays at once (FUN_004a10e0 on the first
 // kind-0 one; hearing it is what the server acts on), the menu after it.
-auto Town::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std::uint32_t frame_ms) -> void {
+auto ClientSession::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std::uint32_t frame_ms) -> void {
         npc_quest = std::move(lines);
         for (const auto& message : npc_quest)
             if (message.greet) {
@@ -595,7 +595,7 @@ auto Town::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std:
 // ponytail: the alert expires locally after 16 * 111 ms, and the guard's
 // harem blocker check (object 318 in mode 2, LAB_004b3360) is taken as
 // shut: the client keeps no host object's mode but a door's.
-auto Town::net_quests(std::uint32_t frame_ms) -> void {
+auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;
             if (host_npc && host_npc->id == host_quest.id) take_npc_quest(npc_menu.npc, std::move(host_quest.lines), frame_ms);

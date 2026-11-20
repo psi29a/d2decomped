@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The controller hold (apps/d2d/hold_confirm.hpp). It does not run Town.
+// The controller hold (apps/d2d/hold_confirm.hpp). It does not run ClientSession.
 #include "hold_confirm.hpp"
 
 #include <cassert>

@@ -3,7 +3,7 @@
 #include "debug.hpp"
 
 #include "scene.hpp"
-#include "town.hpp"
+#include "session.hpp"
 #include "ui.hpp"
 
 #include <cassert>
@@ -13,8 +13,8 @@
 
 namespace d2d::client {
 
-DebugVerbs::DebugVerbs(CharCreateUI& character_ui, Town& in_game, std::optional<Scene>& loaded_scene)
-    : character(character_ui), town(in_game), scene(loaded_scene) {
+DebugVerbs::DebugVerbs(CharCreateUI& character_ui, ClientSession& in_game, std::optional<Scene>& loaded_scene)
+    : character(character_ui), session(in_game), scene(loaded_scene) {
     add_fight();
     add_hero();
     add_level();

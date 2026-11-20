@@ -1,7 +1,7 @@
 # Lighting and time of day — game.exe 1.14d
 
 d2d: `components/rules/light.hpp` (`Day`, `LightGrid`, test_light),
-`frame_light` (town.hpp) and `Lighting` / `blit_dt1_tile_lit` (tile_blit.hpp).
+`frame_light` (session.hpp) and `Lighting` / `blit_dt1_tile_lit` (tile_blit.hpp).
 
 ## The day (ENVIRONMENT\Env.cpp)
 
@@ -129,7 +129,7 @@ The environment lookup was hooked; no d2d parity claim is made.
   last (LAB_004757da). The count is the game loop's (`FUN_0044efa0`: a frame drawn adds one
   to 0x7a04ac; a game's start sets 0x7a04a8 to 25). Medium and High differ only in 0x72a348,
   which this reads only under Low. Read from the code, no oracle. d2d: `rules::LightQuality`,
-  fed by Town::draw with the row and the frames it draws (test_light).
+  fed by ClientSession::draw with the row and the frames it draws (test_light).
 - **At quality 0** (`FUN_004748d0`'s head, after a radius outside 1..255 returns): another
   player's type 0 light (owner +4 not the player's unit) of 16 eighths or more is 16, every
   type 1 light 8, type 3 not stamped (`rules::light_radius8`).
@@ -192,9 +192,9 @@ and the day's:
 `tools/emu/level_ambient.py` runs events 12 and 13 and Cloak's dip with Levels.txt's
 values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
 from the level's light (`frame_light`), ahead of it the Den's case and
-Diablo's release (`Town::event_ambient`, `rules::release_light`: the View's
+Diablo's release (`ClientSession::event_ambient`, `rules::release_light`: the View's
 `diablo_red`, or a joined game's 0x89 12 / 13); its colour is dropped, as
-every light's. The dip (`rules::AmbientDip`, `Town::dip_tick` each client
+every light's. The dip (`rules::AmbientDip`, `ClientSession::dip_tick` each client
 frame) starts from Cloak of Shadows' state on the player or a Shadow
 (`Fight::cloaks`, `World::cloak_dips`: every player gets it, as each client
 sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
@@ -203,7 +203,7 @@ StoneAlpha, object 17, in the rooms near theirs, as game.exe's client tests at
 0x46aefc with `FUN_0065a620(room, 2, 0x11)`; `test_cairn_dip`). A joined game's
 S->C 0x89 event 1 starts it the same way (`LAB_0046aee0`: the client player's room,
 that test, then `FUN_0046ae50(Param1, Range - 2 x Param1, Param1, 4, 1)`;
-`Town`'s net step). A joined game's state 153 starts one too: S->C 0xa8 and
+`ClientSession`'s net step). A joined game's state 153 starts one too: S->C 0xa8 and
 0xaa run each state's setfunc as it's read (`FUN_004d9e60`), and
 `FUN_004d87e0` takes the state's stat list's skill (0x15e) and level
 (0x15f), none for a skill past Skills.txt, its auralencalc at that level

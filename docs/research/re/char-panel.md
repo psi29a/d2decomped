@@ -462,7 +462,7 @@ drain / 100, at least 1; at 0 it returns 0 and `FUN_0057f090` walks
 d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
 `World::stamina_frame`, each 40 ms frame; `draw_hud` (panels.cpp) with
 the poison frame, bars, run button and texts; the button's press /
-release in `Town::update`. The potion preview from `View::life_preview` /
+release in `ClientSession::update`. The potion preview from `View::life_preview` /
 `mana_preview` (`World::view`: what `rules::life_update_frame`, run
 each 40 ms frame by `World::life_update_frame`, last sent, plus the gear's
 regen);

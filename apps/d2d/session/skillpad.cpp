@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The opt-in skill-button mode: casts, the wheel, the panel strip and the
 // per-character .padskills file. The default pad path stays in input.cpp.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "common.hpp"
 #include "gamepad_map.hpp"
@@ -33,14 +33,14 @@ std::filesystem::path sheet_path(const std::filesystem::path& directory, const s
 
 }  // namespace
 
-auto Town::sheet_key(const std::string& name) const -> std::string {
+auto ClientSession::sheet_key(const std::string& name) const -> std::string {
     // The folder is part of the key, so two saves with one name do not share
     // a sheet. --no-save has no folder and never touches a file.
     if (key_dir.empty()) return "nosave/" + name;
     return key_dir.generic_string() + "/" + name;
 }
 
-auto Town::load_skill_sheet(const std::string& name) -> void {
+auto ClientSession::load_skill_sheet(const std::string& name) -> void {
     if (key_dir.empty() || name.empty()) return;
     const auto key = sheet_key(name);
     std::ifstream file(sheet_path(key_dir, name));
@@ -53,7 +53,7 @@ auto Town::load_skill_sheet(const std::string& name) -> void {
  * Seed eligible hand skills and saved hotkeys only on first activation of Skill Buttons. Existing,
  * cleared or unreadable sidecars are preserved; persist a new sheet when saving is enabled.
  */
-auto Town::ensure_skill_sheet(std::string_view name) -> void {
+auto ClientSession::ensure_skill_sheet(std::string_view name) -> void {
     if (!pad_config.skill_buttons || !scene || name.empty() || skill_sheets.contains(sheet_key(std::string(name)))) return;
     if (!key_dir.empty()) {
         std::error_code error;
@@ -87,7 +87,7 @@ auto Town::ensure_skill_sheet(std::string_view name) -> void {
     save_skill_sheet(std::string(name));
 }
 
-auto Town::save_skill_sheet(const std::string& name) const -> void {
+auto ClientSession::save_skill_sheet(const std::string& name) const -> void {
     if (key_dir.empty() || name.empty()) return;
     const auto found = skill_sheets.find(sheet_key(name));
     if (found == skill_sheets.end()) return;
@@ -110,7 +110,7 @@ auto Town::save_skill_sheet(const std::string& name) const -> void {
  * Rebuild radial entries from eligible learned skills or action shortcuts. Keep the highlight in
  * range after the available entries change.
  */
-auto Town::rebuild_wheel() -> void {
+auto ClientSession::rebuild_wheel() -> void {
     wheel_ids.clear();
     if (wheel_actions) wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
     else if (scene)
@@ -123,7 +123,7 @@ auto Town::rebuild_wheel() -> void {
  * Prepare the controller tray, radial labels, bank preview and contextual action hint. Resolve
  * shown skills against the current character and configured button destinations.
  */
-auto Town::present_skill_pad() -> void {
+auto ClientSession::present_skill_pad() -> void {
     ensure_skill_sheet(focused().character.name);
     skillbar.panel_shortcuts_open = mini.open && !(left_panel_open() && mini_right());
     skillbar.portal_available = portal_tome(focused().character.name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
@@ -204,7 +204,7 @@ auto Town::present_skill_pad() -> void {
  * Describe a resolved field target for the shared Attack / Use prompt. Use the available monster,
  * loot, NPC or object name, with a generic fallback when no target is resolved.
  */
-auto Town::pick_label(const PadPick& pick) const -> std::string {
+auto ClientSession::pick_label(const PadPick& pick) const -> std::string {
     if (pick.kind == PadPick::kMonster) {
         const auto found = std::ranges::find(view.monsters, pick.id, &Monster::id);
         if (scene && found != view.monsters.end() && found->type >= 0 && std::size_t(found->type) < scene->monsters.types.size()) {
@@ -233,7 +233,7 @@ auto Town::pick_label(const PadPick& pick) const -> std::string {
  * Open the controller assignment editor with the requested skill or action selected. Remember
  * whether Done should return to the skill tree and start on the selected entry page.
  */
-auto Town::open_assignment(int skill) -> void {
+auto ClientSession::open_assignment(int skill) -> void {
     assignment_from_tree = tree_open;
     tree_open = false;
     wheel_actions = skill < 0;
@@ -248,7 +248,7 @@ auto Town::open_assignment(int skill) -> void {
 /**
  * Close the controller editor and restore the skill tree only when that panel launched assignment.
  */
-auto Town::close_assignment() -> void {
+auto ClientSession::close_assignment() -> void {
     skillbar.picking = 0;
     if (assignment_from_tree) tree_open = true;
     assignment_from_tree = false;
@@ -258,7 +258,7 @@ auto Town::close_assignment() -> void {
  * Consume controller assignment, panel-menu or respawn actions before field input. Return true when
  * this UI path handled the sample.
  */
-auto Town::drive_skill_ui(const pad::Actions& actions, int mouse_x, int mouse_y) -> bool {
+auto ClientSession::drive_skill_ui(const pad::Actions& actions, int mouse_x, int mouse_y) -> bool {
     if (!pad_config.skill_buttons) return false;
     if (actions.assign_skill && tree_open && scene) {
         const int cls = std::max(character.character_class, 0);
@@ -286,7 +286,7 @@ auto Town::drive_skill_ui(const pad::Actions& actions, int mouse_x, int mouse_y)
  * Handle radial paging, stick selection, destination assignment and Done. Save changed bindings and
  * retain the editor for repeated assignments.
  */
-auto Town::drive_wheel(const pad::Actions& actions) -> void {
+auto ClientSession::drive_wheel(const pad::Actions& actions) -> void {
     if (actions.wheel_tab != 0) { wheel_actions = !wheel_actions; wheel_at = wheel_page = 0; }
     rebuild_wheel();
     const int count = int(wheel_ids.size());
@@ -327,7 +327,7 @@ auto Town::drive_wheel(const pad::Actions& actions) -> void {
     save_skill_sheet(who.name);
 }
 
-auto Town::drive_strip(const pad::Actions& actions) -> void {
+auto ClientSession::drive_strip(const pad::Actions& actions) -> void {
     const int count = int(skillpad::kPanels.size());
     if (actions.cancel) { skill_strip = -1; return; }
     if (actions.strip_step != 0) skill_strip = (skill_strip + (actions.strip_step > 0 ? 1 : count - 1) + count) % count;
@@ -363,7 +363,7 @@ auto Town::drive_strip(const pad::Actions& actions) -> void {
  * targeting with touch, toggle auras through skill selection, and keep pickup restricted to a fresh
  * press.
  */
-auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
+auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                            bool expansion, const pad::Actions& actions, const Send& out) -> void {
     ensure_skill_sheet(name);
     if (!field || dead) return;
@@ -482,7 +482,7 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
  * Find a carried portal tome for the named player, returning its item ID or -1. Require charges
  * only when charged is true; field restrictions are checked by the caller.
  */
-auto Town::portal_tome(std::string_view name, bool charged) const -> int {
+auto ClientSession::portal_tome(std::string_view name, bool charged) const -> int {
     const Character* owner = name == character.name ? &character : nullptr;
     if (!owner)
         for (const auto& candidate : world.players)
@@ -498,7 +498,7 @@ auto Town::portal_tome(std::string_view name, bool charged) const -> int {
  * unavailable, passive and excluded inventory-action entries. Portal entries require a carried tome,
  * while ordinary skills require a learned or granted skill level.
  */
-auto Town::skill_known(std::string_view name, int skill) const -> bool {
+auto ClientSession::skill_known(std::string_view name, int skill) const -> bool {
     if (!scene || skill < 0 || name.empty()) return false;
     const Character* who = name == character.name ? &character : nullptr;
     if (!who)

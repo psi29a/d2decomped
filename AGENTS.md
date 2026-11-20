@@ -274,7 +274,7 @@ The same bar for everyone, people and agents alike.
   check before each push (`python3 tools/pr_guard.py --sorted`).
 - **New code goes where its subsystem lives.** A subsystem split over
   several files has its own directory beside its header
-  (`components/game/fight/`, `components/game/world/`, `apps/d2d/town/`,
+  (`components/game/fight/`, `components/game/world/`, `apps/d2d/session/`,
   `apps/d2d/devctl/`, `tests/game/`, `tests/monsters/`). Add to the file that
   matches, or start a new one there; don't grow a file past about 1,500
   lines. A new test is a new `test_*.cpp` with a `// test-links:` line

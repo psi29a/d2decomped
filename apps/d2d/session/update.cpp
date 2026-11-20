@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): the frame's update. The rest is in this directory.
-#include "town.hpp"
+// ClientSession (session.hpp): the frame's update. The rest is in this directory.
+#include "session.hpp"
 
 #include "audio.hpp"
 #include "automap_reveal.hpp"
@@ -77,7 +77,7 @@ namespace d2d::client {
  * Skill-tree close hits and controller Identify confirmation use the same geometry/state as their
  * displayed controls.
  */
-auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
+auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
         pad_show_items = false;
@@ -144,7 +144,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
             std::erase_if(keys_this_frame, [](const auto key) { return key != SDLK_ESCAPE; });   // the Enter it closed on hires nothing, opens no chat
         }
-        // An NPC's item panel (UI 0xe) takes the clicks and Esc first (town/use_item.cpp).
+        // An NPC's item panel (UI 0xe) takes the clicks and Esc first (session/use_item.cpp).
         if (!gold_box && !game_menu.open) drive_use_item(mouse, keys_this_frame, audio);
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
         if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
@@ -617,7 +617,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && !pad_a_edge && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
-                send(cmd::Sell{ held->id });               // Town::send: a joined game's host makes the sale
+                send(cmd::Sell{ held->id });               // ClientSession::send: a joined game's host makes the sale
                 item_click = true;
             } else {
                 const auto mods = SDL_GetModState();
@@ -625,7 +625,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                     { inv_open, stash_open, cube_open, belt_up.shown, character.expansion, (mods & SDL_KMOD_SHIFT) != 0,
                                                       (mods & SDL_KMOD_CTRL) != 0, store.npc >= 0 },
                                                     mouse.x, mouse.y);
-                if (click.cmd) {                              // a Ctrl sale through Town::send, as above
+                if (click.cmd) {                              // a Ctrl sale through ClientSession::send, as above
                     if (std::holds_alternative<cmd::Sell>(*click.cmd)) send(*click.cmd);
                     else net.send(*click.cmd);
                 }
@@ -985,7 +985,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kCaravan) {
-                send(cmd::Caravan{ who });                      // a joined game: the host's NPC (Town::send)
+                send(cmd::Caravan{ who });                      // a joined game: the host's NPC (ClientSession::send)
             } else if (action == NpcMenuState::kResurrectMerc) {
                 net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {

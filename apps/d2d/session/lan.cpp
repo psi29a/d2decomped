@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): hosting d2d players over the LAN (docs/design/lan-host.md). A joiner
+// ClientSession (session.hpp): hosting d2d players over the LAN (docs/design/lan-host.md). A joiner
 // is a World player like a local co-op partner; its commands come over the socket and
 // its own View goes back each tick. The rest is in this directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "audio.hpp"
 #include "load.hpp"
@@ -44,7 +44,7 @@ auto steady_ms() -> std::uint32_t {
 }
 }  // namespace
 
-auto Town::lan_poll() -> void {
+auto ClientSession::lan_poll() -> void {
         if (!lan_host || !scene) return;
         d2d::net::lan::Bytes info(9);
         for (int shift = 0; shift < 32; shift += 8) info[std::size_t(shift / 8)] = std::uint8_t(scene->map_seed >> shift);
@@ -97,7 +97,7 @@ auto Town::lan_poll() -> void {
             if (now - lan_player.saved_ms >= lan_save_ms()) lan_send_save(lan_player);
     }
 
-auto Town::lan_send_save(LanPlayer& lan_player) -> bool {
+auto ClientSession::lan_send_save(LanPlayer& lan_player) -> bool {
         lan_player.saved_ms = steady_ms();
         const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; });
         if (found == world.players.end()) return false;
@@ -111,7 +111,7 @@ auto Town::lan_send_save(LanPlayer& lan_player) -> bool {
         return sent;
     }
 
-auto Town::lan_remove(LanPlayer& lan_player, const std::string& why) -> void {
+auto ClientSession::lan_remove(LanPlayer& lan_player, const std::string& why) -> void {
         const auto* saved_store = std::exchange(world.characters, nullptr);   // their save is theirs: none written here
         if (const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; }); found != world.players.end())
             world.announce({ ev::Message::left, (*found)->character.name, {} });
@@ -120,7 +120,7 @@ auto Town::lan_remove(LanPlayer& lan_player, const std::string& why) -> void {
         d2d::log::info("lan: player {} left ({})", lan_player.id, why);
     }
 
-auto Town::lan_leave() -> void {
+auto ClientSession::lan_leave() -> void {
         if (!lan_client || !lan_client->connected()) return;
         lan_client->leave();
         // The host answers with our last save and closes; wait a little for it.
@@ -136,7 +136,7 @@ auto Town::lan_leave() -> void {
         lan_client.reset();
     }
 
-auto Town::lan_publish() -> void {
+auto ClientSession::lan_publish() -> void {
         if (!lan_host || !scene) return;
         for (auto& lan_player : lan_players) {
             const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; });
@@ -172,7 +172,7 @@ auto Town::lan_publish() -> void {
 // anims are loaded), the rest is made as the host made it: an NPC from its
 // MonStats recipe, an object from objects.txt at the host's spot. A shrine's
 // kind or a chest's lock aren't the host's rolls (the host resolves them).
-auto Town::lan_take_npcs() -> void {
+auto ClientSession::lan_take_npcs() -> void {
         const GameData& game_data = *world.game_data;
         const auto same = [](const Npc& npc, const View::NpcKey& key) {
             const bool who = npc.root == "objects" ? key.object_id == npc.object_id && key.hc_idx < 0 : key.object_id == 0 && key.hc_idx == npc.hc_idx;
@@ -213,7 +213,7 @@ auto Town::lan_take_npcs() -> void {
         }
     }
 
-auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms) -> void {
+auto ClientSession::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms) -> void {
         if (!lan_client) return;
         for (auto& event : lan_client->poll()) {
             using Type = d2d::net::lan::Client::Event::Type;

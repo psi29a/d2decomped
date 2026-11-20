@@ -312,7 +312,7 @@ int talk_topic(const NpcTalk& talk, bool intro, int cls, d2d::rules::Rng& rng,
 // (lines-1)*18 + 112. A line that meets the box is drawn for the glyph
 // rows inside it (FUN_00501df0); one clear of the box is not drawn.
 // The voice is the string's sound in the table at 0x72b0e0 (FUN_004e0650,
-// speech_sound.hpp), started with the speech (town/update.cpp).
+// speech_sound.hpp), started with the speech (session/update.cpp).
 struct Speech {
     int npc = -1;
     std::vector<std::string> lines;

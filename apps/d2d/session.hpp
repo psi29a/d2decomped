@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The town: the in-game character's world state (position, walking,
-// panels, NPC menus, store, merc, ...) and one frame of play — input,
-// movement, NPCs, then the render.
+// The client's end of a game, in town or out (multiplayer.md's GameSession / PlayerSession
+// are the server's): the in-game character's state (position, walking, panels, NPC menus,
+// store, merc, ...) and one frame of play — input, movement, NPCs, then the render.
 #pragma once
 
 #include "audio.hpp"
@@ -87,7 +87,7 @@ struct StateClock {
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
     std::uint32_t now = 0;
     struct Sound { int sound; float x, y; };
-    std::vector<Sound> sounds;             // its states' onsound as they come (Town::frame plays them, and the offsounds)
+    std::vector<Sound> sounds;             // its states' onsound as they come (ClientSession::frame plays them, and the offsounds)
     struct Auras { std::vector<d2d::rules::AuraOverlay> list; std::uint32_t ticked = 0; };
     std::map<int, Auras> auras;            // a unit's kind-8 overlays (row: overlay1 0, overlay2 1), by unit key
 };
@@ -198,13 +198,13 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // A light's radius moves toward a new one 8 eighths (a subtile) a frame
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
-// `quality`: Light Quality (rules::LightQuality, FUN_00475780), Town::light_quality's.
+// `quality`: Light Quality (rules::LightQuality, FUN_00475780), ClientSession::light_quality's.
 // `player_at`: where the player stands when it isn't the camera's point (local co-op's camera).
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0,
                      const std::pair<float, float>* player_at = nullptr, int quality = 2);
 
-struct Town {
+struct ClientSession {
     const Scene* scene = nullptr;
     CharCreateUI& character;                      // the in-game character (save, items, stats)
     World world;                           // the game server's side (in-process: single player)
@@ -380,7 +380,7 @@ struct Town {
     const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
     bool lan_resyncing = false;                   // asked the host for a whole View, none applied since
     int lan_views = 0;                            // Views from the host so far
-    // Goodbye to the host: its last Save of our character written, then out (Town::save on leaving).
+    // Goodbye to the host: its last Save of our character written, then out (ClientSession::save on leaving).
     void lan_leave();
     void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);
     // Our Level::npcs laid out as the host's (View::npc_keys): our rooms never come up
@@ -671,8 +671,8 @@ struct Town {
     bool pad_show_items = false;           // a skill slot bound to Show Items is held this frame
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
     std::vector<d2d::rules::OverlayClock> alert_clocks;
-    const Level* alert_level = nullptr;     // reset on a level change and on enter (Town is reused between games)
-    // The level's objects' modes as last seen (Town::object_sounds), by level->npcs index: "" not seen.
+    const Level* alert_level = nullptr;     // reset on a level change and on enter (ClientSession is reused between games)
+    // The level's objects' modes as last seen (ClientSession::object_sounds), by level->npcs index: "" not seen.
     std::vector<std::string_view> object_modes;
     std::vector<char> object_called;          // an object's call has played (unit +0x80: rules::object_call), by level->npcs index
     const Level* object_level = nullptr;
@@ -691,7 +691,7 @@ struct Town {
     MiniPanel mini;                        // the mini-panel (UI 0x15) and the HUD's button for it
     std::filesystem::path cfg_file;        // where the menu's volumes are kept (d2d.cfg; empty: not kept)
 
-    Town(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
+    ClientSession(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
         : scene(game_scene), character(player_character), world(game_scene, start_x, start_y) {
         have_world = world.level && !world.level->dt1s.empty();
         view = world.view();

@@ -270,7 +270,7 @@ the three pushed arguments for the draw `FUN_00502320`, `ret 0xc`) less 0x10;
 `FUN_0045a190` draws nothing for difficulty 0 and for 1 / 2 formats 0x1057
 with 0x1423 / 0x1422 (`FUN_00526800` its lengths, 299 or more is the assert
 at 0xb2a). The string table, the difficulty read and the two text calls are
-stubbed; d2d's lines (`town/view.cpp`) agree. `FUN_0045a050` (the level
+stubbed; d2d's lines (`session/view.cpp`) agree. `FUN_0045a050` (the level
 name) and `FUN_0045a120` (the host's IP) are not traced beyond the callees
 above.
 
@@ -447,7 +447,7 @@ dropped, otherwise the cel decides.
     within an octagon of 150 round the centre draw mode 2 / 1 / 0 (from
     100 / 50 in). Everything is mode 1. Auto is 2 in town (mini: 1).
     Mini takes Centre as Everything.
-  - Marks (`Town::automap_frame`) as the table above: the player's
+  - Marks (`ClientSession::automap_frame`) as the table above: the player's
     corpses, our merc and pets (PetType automap), interacting NPCs with
     their names in gold (Names on), town portals and red ones, the other
     players. Party names (Names and Party on) are in font6, centred, 10
@@ -477,7 +477,7 @@ dropped, otherwise the cel decides.
   - The top right's lines (above), but the game name / password and the
     game type 6 / 8 line.
 - The town miniatures: `rules::automap_miniature` (test_automap_miniature)
-  and `automap_town` (panels.cpp). Each frame (`Town::automap_frame`), a
+  and `automap_town` (panels.cpp). Each frame (`ClientSession::automap_frame`), a
   town on the current layer adds its grid to list 3 once its level is
   built, as game.exe adds it when the level comes up. Lut Gholein's
   preset file is `drlg::lut_gholein_file`. The layer's cel file goes

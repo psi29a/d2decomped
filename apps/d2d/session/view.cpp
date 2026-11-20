@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): the view to units: life bars, overlays, the frame's light, the automap's
+// ClientSession (session.hpp): the view to units: life bars, overlays, the frame's light, the automap's
 // frame. The rest is in this directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "bar_pick.hpp"
 #include "common.hpp"
@@ -357,7 +357,7 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
     return { frame.mode, now_ms - mpf * frame.frame - mpf / 2 };
 }
 
-// The frame's light (FUN_00475800, town.hpp), with the environment's
+// The frame's light (FUN_00475800, session.hpp), with the environment's
 // intensity the raised roofs take.
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects , int ambient ,
                      std::span<const Unit> units , const Unit* player_look , std::uint32_t now, const std::pair<float, float>* player_at, int quality) {
@@ -492,7 +492,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
 
 // The automap's options from Options -> Automap (kept in d2d.cfg, as
 // game.exe keeps them in the registry) and this frame's marks.
-auto Town::automap_frame() -> void {
+auto ClientSession::automap_frame() -> void {
         const auto& values = game_menu.value[4];
         automap.mini = character.expansion ? values[1] : 0;
         automap.fade = values[2];
@@ -601,7 +601,7 @@ auto Town::automap_frame() -> void {
 
 // The weather at the join (FUN_00472890): its colours as the palette's
 // nearest now, full's base by the act, snow or not.
-auto Town::rain_join() -> void {
+auto ClientSession::rain_join() -> void {
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
         for (int tone = 0; tone < 12; ++tone) {
             for (int kind = 0; kind < 3; ++kind) {

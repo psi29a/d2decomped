@@ -117,7 +117,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             }
             return std::pair{ opened, drops.size() };
         };
-        auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (Town::object_sounds)
+        auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (ClientSession::object_sounds)
             set_footprint(*level, object, object.collision >> mode & 1);
         };
         // Wirt's body (FUN_00583e70) drops the leg once and starts event 7.

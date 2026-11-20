@@ -32,8 +32,8 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "session.hpp"
 #include "touch_input.hpp"
-#include "town.hpp"
 #include "ui.hpp"
 #include "video.hpp"
 #include "watchdog.hpp"
@@ -805,48 +805,48 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
-    Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
-    town.set_pad_config(g_pad_config);
-    town.touch_enabled = g_touch_controls;
-    if (g_touch_controls) town.last_device = touch::LastDevice::Touch;
+    ClientSession session(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
+    session.set_pad_config(g_pad_config);
+    session.touch_enabled = g_touch_controls;
+    if (g_touch_controls) session.last_device = touch::LastDevice::Touch;
     if (g_lan_host_port > 0) {
         if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
-            town.lan_host.emplace(std::move(*listening));
+            session.lan_host.emplace(std::move(*listening));
             d2d::log::info("lan: hosting on port {} ({})", g_lan_host_port, d2d::net::own_address());
         } else d2d::log::warn("lan: can't host on port {}: {}", g_lan_host_port, listening.error());
     }
     // The left button is down while a source holds it: the physical button or an Attack / Use key.
-    const auto attack_key_held = [&] { return std::ranges::any_of(town.click_keys[keys::kClickAttack], key_held); };
-    // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
+    const auto attack_key_held = [&] { return std::ranges::any_of(session.click_keys[keys::kClickAttack], key_held); };
+    // A pad's seat; a new seat's player picks their character (ClientSession::coop_seat's roster).
     const auto take_seat = [&](const Gamepads::Pad& pad) {
-        if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) town.coop_seat(seat, seats.colour(seat), gamepads.sample(pad.id));
+        if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) session.coop_seat(seat, seats.colour(seat), gamepads.sample(pad.id));
     };
     // The characters' saves (character_store.hpp): the World writes through
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
-    town.world.characters = g_no_save ? nullptr : &characters;
-    town.world.autoloot_gold = g_autoloot;
+    session.world.characters = g_no_save ? nullptr : &characters;
+    session.world.autoloot_gold = g_autoloot;
     if (!g_no_save) {
-        town.cfg_file = g_user_dir / "d2d.cfg";
+        session.cfg_file = g_user_dir / "d2d.cfg";
         d2d::userdir::Config cfg;
-        d2d::userdir::load_cfg(town.cfg_file, cfg);
-        town.hireling_hint = cfg["popup_hireling"] != "1";   // FUN_004939b0 reads the registry's PopupHireling each game
+        d2d::userdir::load_cfg(session.cfg_file, cfg);
+        session.hireling_hint = cfg["popup_hireling"] != "1";   // FUN_004939b0 reads the registry's PopupHireling each game
     }
-    if (g_click_keys) town.click_keys = g_click_bindings;
-    if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
-    town.pad_controls_page = g_pad_controls;
-    town.click_keys_on = g_click_keys;
-    town.shot_dir = g_user_dir / "screenshots";
-    for (int option = 0; option < 5; ++option) town.game_menu.value[4][std::size_t(option) + 1] = g_automap_options[std::size_t(option)];
-    town.automap.left = g_automap_options[5] != 0;
+    if (g_click_keys) session.click_keys = g_click_bindings;
+    if (!g_no_save) session.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
+    session.pad_controls_page = g_pad_controls;
+    session.click_keys_on = g_click_keys;
+    session.shot_dir = g_user_dir / "screenshots";
+    for (int option = 0; option < 5; ++option) session.game_menu.value[4][std::size_t(option) + 1] = g_automap_options[std::size_t(option)];
+    session.automap.left = g_automap_options[5] != 0;
     // A joined game: the host keeps the character and sends its save back
     // (B3) now and then and on leaving; each whole one goes to disk
     // (FUN_0045c520 writes <save dir><name>.d2s).
     auto write_save_back = [&] {
-        if (!town.net_game) return;
-        auto bytes = town.net_game->session.take_save_back();
+        if (!session.net_game) return;
+        auto bytes = session.net_game->session.take_save_back();
         if (!bytes || g_no_save) return;
-        const auto& name = town.net_game->session.name();
+        const auto& name = session.net_game->session.name();
         if (auto error = characters.save_bytes(name, std::as_bytes(std::span(*bytes))); !error.empty())
             d2d::log::warn("net: {}'s save from the host not written: {}", name, error);
         else d2d::log::info("net: wrote {}'s save from the host ({} bytes)", name, bytes->size());
@@ -855,9 +855,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         // --start-screen ingame: a new character of the class and name given,
         // made as char-create's OK makes one (unsaved until the game saves).
         static_cast<Character&>(character) = made_character(*scene, kUiToSaveClass[std::size_t(std::max(character.selected, 0))],
-                                                            character.name.empty() ? std::string("Tester") : character.name, character.hardcore, character.expansion, town.rng);
+                                                            character.name.empty() ? std::string("Tester") : character.name, character.hardcore, character.expansion, session.rng);
         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
-        town.enter();
+        session.enter();
     }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
@@ -886,7 +886,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     });
 
     // Input, debug and state verbs for scripted tests (devctl/verbs.hpp).
-    register_game_verbs(channel, win, screen, csu, character, town, scene, audio);
+    register_game_verbs(channel, win, screen, csu, character, session, scene, audio);
 
     while (!quit) {
         // Signal-driven quit — Ctrl-C / SIGTERM. The atomic write from
@@ -897,7 +897,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         const std::uint32_t frame_start_ms = std::uint32_t(frame_start_ns / 1'000'000);
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
-        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.gold_box))
+        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (session.chat_typing || session.coop_typing() || session.gold_box))
                                || (screen == Screen::CharSelect && lobby.typing())
                            || (screen == Screen::TcpIp && tcpip.box_open); want != text_active) {
             if (want) {
@@ -905,7 +905,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const int side = screen == Screen::InGame ? (win.view_w - int(kScreenWidth)) / 2 : 0;
                 const SDL_Rect field = screen == Screen::CharCreate ? SDL_Rect{ 319, rec_top(519, 26), 169, 26 }
                                      : screen == Screen::TcpIp      ? SDL_Rect{ 300, rec_top(268, 20), 200, 20 }
-                                     : town.gold_box                 ? SDL_Rect{ 258 + side, 212, 100, 16 }        // the gold box's amount
+                                     : session.gold_box                 ? SDL_Rect{ 258 + side, 212, 100, 16 }        // the gold box's amount
                                      : SDL_Rect{ 0x7f + side, int(kScreenHeight) - 0x67, int(kScreenWidth) - 0xff, 0x2f };   // the chat line
                 float left = 0, top = 0, right = 0, bottom = 0;
                 SDL_RenderCoordinatesToWindow(win.renderer, float(field.x), float(field.y), &left, &top);
@@ -930,7 +930,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
         bool mouse_took_over = false;   // the mouse moved or clicked this frame: it ends the pad's field mode
-        town.touch_input.frame();
+        session.touch_input.frame();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             // SDL3 doesn't rescale event coords under logical presentation;
@@ -944,34 +944,34 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             }
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
-            if (town.touch_enabled && screen == Screen::InGame) {
+            if (session.touch_enabled && screen == Screen::InGame) {
                 if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
-                    town.touch_input.clear(); town.touch_item_finger = -1; town.touch_fingers = 0;
-                    town.touch_pointer = {}; town.touch_sheet = {}; town.touch_item_drag = false;
+                    session.touch_input.clear(); session.touch_item_finger = -1; session.touch_fingers = 0;
+                    session.touch_pointer = {}; session.touch_sheet = {}; session.touch_item_drag = false;
                 }
                 if ((event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
                     ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID)) continue;
                 // Sidecar/Pencil may arrive as a single pointer rather than SDL fingers.
                 // While touch is last, keep those packets as owner -2 so a leftover mouse
                 // packet cannot hand the seat to keyboard/mouse.
-                const bool touch_last = town.last_device == touch::LastDevice::Touch;
-                const bool pointer_held = town.touch_input.owns(-2);
+                const bool touch_last = session.last_device == touch::LastDevice::Touch;
+                const bool pointer_held = session.touch_input.owns(-2);
                 if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.button == SDL_BUTTON_LEFT) {
                     const bool down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
                     if ((down && touch_last) || (!down && (touch_last || pointer_held))) {
                         const auto phase = down ? touch::Phase::Down : touch::Phase::Up;
-                        if (town.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                        if (session.touch_event(-2, phase, event.button.x, event.button.y)) continue;
                     }
                 }
                 if ((touch_last || pointer_held) && event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
-                    if (town.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
+                    if (session.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
                 if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
                     event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
-                    town.last_device = touch::LastDevice::Touch;
+                    session.last_device = touch::LastDevice::Touch;
                     const auto phase = event.type == SDL_EVENT_FINGER_DOWN ? touch::Phase::Down : event.type == SDL_EVENT_FINGER_UP ? touch::Phase::Up
                                      : event.type == SDL_EVENT_FINGER_MOTION ? touch::Phase::Move : touch::Phase::Cancel;
                     const float touch_x = event.tfinger.x - view_off, touch_y = event.tfinger.y;
-                    if (town.touch_event(std::int64_t(event.tfinger.fingerID), phase, touch_x, touch_y)) continue;
+                    if (session.touch_event(std::int64_t(event.tfinger.fingerID), phase, touch_x, touch_y)) continue;
                     mouse.x = int(touch_x); mouse.y = int(touch_y);
                     if (phase == touch::Phase::Down) { mouse.down = true; mouse.press_this_frame = true; }
                     if (phase == touch::Phase::Up) { mouse.down = false; mouse.release_this_frame = true; }
@@ -982,22 +982,22 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             gamepads.handle_event(event);
             const bool touch_mouse = (event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID)
                 || ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID);
-            const bool touch_busy = town.touch_enabled && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
+            const bool touch_busy = session.touch_enabled && (session.touch_fingers > 0 || session.touch_pointer.active || session.touch_sheet.open);
             if ((event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
                 && !touch_mouse && !touch_busy) {
                 pad_in_use = false; mouse_took_over = true;
-                town.last_device = touch::LastDevice::MouseKeyboard;
+                session.last_device = touch::LastDevice::MouseKeyboard;
             }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
                 pad_in_use = false;
-                town.last_device = touch::LastDevice::MouseKeyboard;
+                session.last_device = touch::LastDevice::MouseKeyboard;
             }
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
             // the right; not while typing or in Configure Controls, where it's a key to bind.
-            if (bool down = false; screen == Screen::InGame && town.click_keys_on) {
-                if (const int click = click_event(event, town.click_keys, down); click >= 0) {
-                    const bool live = !text_active && !town.controls.open;
+            if (bool down = false; screen == Screen::InGame && session.click_keys_on) {
+                if (const int click = click_event(event, session.click_keys, down); click >= 0) {
+                    const bool live = !text_active && !session.controls.open;
                     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) { mouse.x = int(event.button.x); mouse.y = int(event.button.y); }
                     if (click == keys::kClickAttack && !down && mouse.down && !attack_key_held()
                         && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_LMASK)) { mouse.down = false; mouse.release_this_frame = true; }
@@ -1008,49 +1008,49 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (live || !down) continue;
                 }
             }
-            const bool keep_down = screen == Screen::InGame && town.click_keys_on && event.type == SDL_EVENT_MOUSE_BUTTON_UP
+            const bool keep_down = screen == Screen::InGame && session.click_keys_on && event.type == SDL_EVENT_MOUSE_BUTTON_UP
                                 && event.button.button == SDL_BUTTON_LEFT && attack_key_held();
             handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
             if (keep_down) { mouse.down = true; mouse.release_this_frame = false; }   // an Attack / Use key still holds it
         }
         // The right button is held while a source holds it: the physical button or a Right-hand Skill key.
-        if (mouse.rdown && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK) && !(town.click_keys_on && std::ranges::any_of(town.click_keys[keys::kClickSkill], key_held)))
+        if (mouse.rdown && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK) && !(session.click_keys_on && std::ranges::any_of(session.click_keys[keys::kClickSkill], key_held)))
             mouse.rdown = false;
         // A partner's roster name and the keyboard's Enter (Steam's keyboard
         // on a Deck): their character is made, and the Enter is theirs, not
         // player 1's (character select's Enter plays, the game's opens chat).
-        if (const bool partner_typing = scene && ((screen == Screen::CharSelect && lobby.typing()) || (screen == Screen::InGame && town.coop_typing()));
+        if (const bool partner_typing = scene && ((screen == Screen::CharSelect && lobby.typing()) || (screen == Screen::InGame && session.coop_typing()));
             partner_typing && std::erase_if(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER; }) > 0) {
             if (screen == Screen::CharSelect) lobby.enter(*scene);
-            else town.coop_enter();
+            else session.coop_enter();
             // A name refused (taken, or not one D2 takes) is still being typed: Steam's keyboard, closed by its Enter, opens again.
-            if (screen == Screen::CharSelect ? lobby.typing() : town.coop_typing()) { SDL_StopTextInput(win.window); text_active = false; }
+            if (screen == Screen::CharSelect ? lobby.typing() : session.coop_typing()) { SDL_StopTextInput(win.window); text_active = false; }
         }
         {
             // The pad plays as a cursor, clicks and keys through the same paths as the mouse and keyboard.
             const std::uint32_t pad_now = std::uint32_t(SDL_GetTicks());
             const float pad_dt = std::min(float(pad_now - pad_last_ms) / 1000.f, 0.1f);
             pad_last_ms = pad_now;
-            const pad::Context pad_context = screen == Screen::InGame && town.controls.open ? pad::Context::Menu   // Configure Controls: a menu's layout
-                                           : screen == Screen::InGame ? (town.store.npc >= 0 ? pad::Context::Shop : town.pad_dialog() ? pad::Context::Dialog
-                                                                         : town.pad_field() ? pad::Context::Game : pad::Context::Panel)
+            const pad::Context pad_context = screen == Screen::InGame && session.controls.open ? pad::Context::Menu   // Configure Controls: a menu's layout
+                                           : screen == Screen::InGame ? (session.store.npc >= 0 ? pad::Context::Shop : session.pad_dialog() ? pad::Context::Dialog
+                                                                         : session.pad_field() ? pad::Context::Game : pad::Context::Panel)
                                            : screen == Screen::Title  ? pad::Context::Title : pad::Context::Menu;
             const auto pad_changes = gamepads.changes();
             if (screen == Screen::InGame) {                      // hotplug, shown: a pad in or out mid-game (not the Deck's own controls: docked, they play no one)
-                for (const auto& pad : pad_changes.came) if (!pad.built_in) town.add_chat(pad.name + " connected");
-                for (const auto& pad : pad_changes.went) if (!pad.built_in) town.add_chat(pad.name + " disconnected");
+                for (const auto& pad : pad_changes.came) if (!pad.built_in) session.add_chat(pad.name + " connected");
+                for (const auto& pad : pad_changes.went) if (!pad.built_in) session.add_chat(pad.name + " disconnected");
             }
             const bool in_game = screen == Screen::InGame;
             if (in_game && !was_in_game) {                       // a game begins: co-op or not, for its length
-                coop_game = gamepads.external() && !town.net_game;
+                coop_game = gamepads.external() && !session.net_game;
                 seats.clear();
                 if (coop_game) {
                     d2d::log::info("co-op: a game with {} pads", gamepads.pads().size());
                     for (const auto& pad : gamepads.pads()) if (!pad.built_in) take_seat(pad);
                     // The lobby's choices join at once; a seat still choosing gets its roster in the game.
                     for (const auto& lobby_seat : lobby.seats)
-                        if (lobby_seat.choice && !town.coop_choose(lobby_seat.seat, *lobby_seat.choice)) d2d::log::warn("co-op: seat {}'s character couldn't join", lobby_seat.seat);
+                        if (lobby_seat.choice && !session.coop_choose(lobby_seat.seat, *lobby_seat.choice)) d2d::log::warn("co-op: seat {}'s character couldn't join", lobby_seat.seat);
                 }
                 lobby.seats.clear();
             } else if (in_game && coop_game) {
@@ -1060,24 +1060,24 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (seat < 0) continue;
                     // Steam's unnamed virtual pad (no real ids yet) can't come back by its key: a seat it
                     // took (the Deck's own controls, found out late) goes now, not after the hold.
-                    if (seat > 0 && gone.key.starts_with("28de:11ff:")) { d2d::log::info("co-op: seat {} freed (an unnamed pad)", seat); seats.release(seat); town.coop_leave(seat); continue; }
+                    if (seat > 0 && gone.key.starts_with("28de:11ff:")) { d2d::log::info("co-op: seat {} freed (an unnamed pad)", seat); seats.release(seat); session.coop_leave(seat); continue; }
                     d2d::log::info("co-op: seat {} held", seat);
                 }
                 for (const auto& pad : pad_changes.came) if (!pad.built_in) take_seat(pad);
                 for (const int seat : seats.expire(pad_now)) {
-                    if (seat > 0) { town.coop_leave(seat); continue; }
+                    if (seat > 0) { session.coop_leave(seat); continue; }
                     // The first player's pad gone for good: the next player leads (or they play on alone).
-                    if (const int next = town.lead_leaves(); next > 0) { seats.swap(0, next); seats.release(next); }
+                    if (const int next = session.lead_leaves(); next > 0) { seats.swap(0, next); seats.release(next); }
                 }
             }
-            if (town.handed_over > 0) {                          // Save and Exit handed the game on: the next player's pad to seat 0, the leaver's logged out
-                seats.swap(0, town.handed_over);
-                seats.release(town.handed_over);
-                town.handed_over = -1;
+            if (session.handed_over > 0) {                          // Save and Exit handed the game on: the next player's pad to seat 0, the leaver's logged out
+                seats.swap(0, session.handed_over);
+                seats.release(session.handed_over);
+                session.handed_over = -1;
             }
-            if (town.partner_left > 0) {                         // a partner's Save and Exit: their pad logged out
-                seats.release(town.partner_left);
-                town.partner_left = -1;
+            if (session.partner_left > 0) {                         // a partner's Save and Exit: their pad logged out
+                seats.release(session.partner_left);
+                session.partner_left = -1;
             }
             // A pad logged out (or past the four seats) comes back with Start: a seat and its roster.
             if (coop_game)
@@ -1087,14 +1087,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (!pad.built_in && start && !was && seats.seat_of(int(pad.id)) < 0) take_seat(pad);
                 }
             if (!in_game) coop_game = false;
-            if (!in_game && was_in_game) town.game_ended();
+            if (!in_game && was_in_game) session.game_ended();
             was_in_game = in_game;
             if (coop_game)
-                for (const auto& coop_player : town.coop)
-                    town.coop_pad(coop_player.seat, gamepads.sample(SDL_JoystickID(std::max(seats.pad(coop_player.seat), 0))), pad_dt);
+                for (const auto& coop_player : session.coop)
+                    session.coop_pad(coop_player.seat, gamepads.sample(SDL_JoystickID(std::max(seats.pad(coop_player.seat), 0))), pad_dt);
             // The screen's pad (a partner's while they have it) plays the UI; the first player's plays their field meanwhile.
-            const int ui_seat = coop_game ? town.focus_seat() : 0;
-            if (coop_game && ui_seat != 0) town.lead_pad(gamepads.sample(SDL_JoystickID(std::max(seats.pad(0), 0))), pad_dt);
+            const int ui_seat = coop_game ? session.focus_seat() : 0;
+            if (coop_game && ui_seat != 0) session.lead_pad(gamepads.sample(SDL_JoystickID(std::max(seats.pad(0), 0))), pad_dt);
             // Character select with two or more external pads: the lobby. The
             // first is player 1's (it alone plays the screen and starts the
             // game); the others choose their characters (Lobby).
@@ -1114,26 +1114,26 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 (void)pad_mapper.step(first, pad_context, 0);
                 last_ui_seat = ui_seat;
             }
-            if (town.pad_config_changed) {                       // Configure Controls' Accept: its pad settings
-                g_pad_config = town.pad_config;
+            if (session.pad_config_changed) {                       // Configure Controls' Accept: its pad settings
+                g_pad_config = session.pad_config;
                 pad_mapper = pad::Mapper{ g_pad_config };
-                town.pad_config_changed = false;
+                session.pad_config_changed = false;
             }
             // The pad page's edit takes the next button pressed, not what it does.
-            const bool pad_capture = screen == Screen::InGame && town.controls.open && town.controls.editing && town.controls.pad_page;
+            const bool pad_capture = screen == Screen::InGame && session.controls.open && session.controls.editing && session.controls.pad_page;
             if (pad_capture)
                 for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button) {
                     const bool now_down = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
                                         : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
-                    if (now_down && !pad_capture_held[button]) town.controls_pad_press = pad::Button(button);
+                    if (now_down && !pad_capture_held[button]) session.controls_pad_press = pad::Button(button);
                 }
             for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button)
                 pad_capture_held[button] = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
                                          : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
-            const bool controls_pad = screen == Screen::InGame && town.controls.open;
-            const pad::SkillUi skill_ui = controls_pad || !town.pad_config.skill_buttons ? pad::SkillUi::None
-                                         : town.skillbar.picking == 3 ? pad::SkillUi::Wheel
-                                         : town.skill_strip >= 0 ? pad::SkillUi::Strip : pad::SkillUi::None;
+            const bool controls_pad = screen == Screen::InGame && session.controls.open;
+            const pad::SkillUi skill_ui = controls_pad || !session.pad_config.skill_buttons ? pad::SkillUi::None
+                                         : session.skillbar.picking == 3 ? pad::SkillUi::Wheel
+                                         : session.skill_strip >= 0 ? pad::SkillUi::Strip : pad::SkillUi::None;
             pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt, skill_ui)), pad::Actions{})
                                                          : pad_mapper.step(first, pad_context, pad_dt, skill_ui);
             const int pad_side = (win.view_w - int(kScreenWidth)) / 2;   // widescreen's world beyond the 800x600 UI
@@ -1144,10 +1144,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) {
                 pad_in_use = true;
-                town.last_device = touch::LastDevice::Gamepad;
+                session.last_device = touch::LastDevice::Gamepad;
             }
-            town.skill_actions = pad_actions;
-            if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
+            session.skill_actions = pad_actions;
+            if (session.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
                 pad_actions.click_press = false;
                 pad_actions.click_down = false;
                 pad_actions.click_release = false;
@@ -1158,30 +1158,30 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 pad_actions.skill_picker = false;
                 pad_actions.trade_press = false;
                 pad_actions.tab_step = 0;
-            } else if (pad_actions.skill_picker) town.pad_open_picker();
-            if (town.menu_handoff.drop(pad_capture_held[std::size_t(pad::Button::South)])) {
+            } else if (pad_actions.skill_picker) session.pad_open_picker();
+            if (session.menu_handoff.drop(pad_capture_held[std::size_t(pad::Button::South)])) {
                 pad_actions.click_press = false;
                 pad_actions.click_down = false;
                 pad_actions.click_release = false;
             }
-            // In the field a pad plays without a cursor: its buttons hit what is in reach (Town::pad_act).
-            if (town.touch_pointer.active || town.touch_pointer.press || town.touch_pointer.release) {
-                mouse.x = int(town.touch_pointer.x);
-                mouse.y = int(town.touch_pointer.y);
-                if (town.touch_pointer.press) { mouse.down = true; mouse.press_this_frame = true; }
-                if (town.touch_pointer.release) { mouse.down = false; mouse.release_this_frame = true; }
-                town.touch_pointer.press = town.touch_pointer.release = false;
+            // In the field a pad plays without a cursor: its buttons hit what is in reach (ClientSession::pad_act).
+            if (session.touch_pointer.active || session.touch_pointer.press || session.touch_pointer.release) {
+                mouse.x = int(session.touch_pointer.x);
+                mouse.y = int(session.touch_pointer.y);
+                if (session.touch_pointer.press) { mouse.down = true; mouse.press_this_frame = true; }
+                if (session.touch_pointer.release) { mouse.down = false; mouse.release_this_frame = true; }
+                session.touch_pointer.press = session.touch_pointer.release = false;
             }
-            const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field()
-                && (!town.touch_enabled || town.last_device == touch::LastDevice::Gamepad);
-            const bool touch_owns_pointer = town.touch_enabled && town.last_device == touch::LastDevice::Touch
-                && (town.touch_fingers > 0 || town.touch_pointer.active || town.touch_sheet.open);
-            if (pad_field != pad_was_field && !mouse_took_over && !touch_owns_pointer && town.last_device != touch::LastDevice::Touch)
+            const bool pad_field = screen == Screen::InGame && pad_in_use && session.pad_field()
+                && (!session.touch_enabled || session.last_device == touch::LastDevice::Gamepad);
+            const bool touch_owns_pointer = session.touch_enabled && session.last_device == touch::LastDevice::Touch
+                && (session.touch_fingers > 0 || session.touch_pointer.active || session.touch_sheet.open);
+            if (pad_field != pad_was_field && !mouse_took_over && !touch_owns_pointer && session.last_device != touch::LastDevice::Touch)
                 { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
             pad_was_field = pad_field;
             // A menu opening puts the pad's cursor on the choice to start from.
-            const auto pad_focus = screen == Screen::InGame && pad_in_use && town.last_device == touch::LastDevice::Gamepad
-                && !mouse_took_over && !touch_owns_pointer ? town.pad_focus() : std::nullopt;
+            const auto pad_focus = screen == Screen::InGame && pad_in_use && session.last_device == touch::LastDevice::Gamepad
+                && !mouse_took_over && !touch_owns_pointer ? session.pad_focus() : std::nullopt;
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             if (screen != Screen::CharSelect || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || pad_actions.focus_step != 0) roster_navigation = false;
@@ -1189,12 +1189,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 for (const auto key : pad_actions.keys)
                     if (key == pad::Key::Up || key == pad::Key::Down || key == pad::Key::Left || key == pad::Key::Right) roster_navigation = true;
             pad_cursor_hidden = pad_field || roster_navigation
-                || (town.touch_enabled && town.last_device == touch::LastDevice::Touch && !town.held);
-            town.pad_playing = pad_in_use && town.last_device == touch::LastDevice::Gamepad;
-            town.pad_cue = pad_field && !town.pad_config.skill_buttons && town.last_device == touch::LastDevice::Gamepad;
+                || (session.touch_enabled && session.last_device == touch::LastDevice::Touch && !session.held);
+            session.pad_playing = pad_in_use && session.last_device == touch::LastDevice::Gamepad;
+            session.pad_cue = pad_field && !session.pad_config.skill_buttons && session.last_device == touch::LastDevice::Gamepad;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
             const int label_pad = seats.label_pad(coop_game, ui_seat);
-            town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
+            session.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
                             : gamepads.primary() ? gamepads.primary()->family : pad::Family::Xbox;
             if (pad_actions.recentre_cursor) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }
             if (!pad_field) {
@@ -1227,17 +1227,17 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (csu.confirm_delete || csu.confirm_convert) buttons({ &csu.popup_no, &csu.popup_yes });
                     else if (csu.pick_difficulty) buttons({ &csu.difficulty_btn[0], &csu.difficulty_btn[1], &csu.difficulty_btn[2] });
                     else buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
-                } else if (screen == Screen::InGame && town.controls.open && scene) {
-                    for (const auto& [point_x, point_y] : town.controls.buttons(*scene)) points.push_back({ point_x, point_y });
+                } else if (screen == Screen::InGame && session.controls.open && scene) {
+                    for (const auto& [point_x, point_y] : session.controls.buttons(*scene)) points.push_back({ point_x, point_y });
                 }
                 return points;
             };
             if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
                 // Char select's d-pad steps its roster by key instead.
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
-                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
-                const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
-                if (const int pick = (town.tree_open && screen == Screen::InGame ? pad::tree_pick : pad::snap_pick)(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
+                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty) || (screen == Screen::InGame && session.controls.open);
+                const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? session.pad_snap_points() : menu_buttons();
+                if (const int pick = (session.tree_open && screen == Screen::InGame ? pad::tree_pick : pad::snap_pick)(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
                 }
             }
@@ -1251,23 +1251,23 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     mouse.x = points[std::size_t(next)].x; mouse.y = points[std::size_t(next)].y;
                 }
             }
-            town.pad_a_edge = town.pad_a_down = town.pad_a_up = false;
-            town.pad_south_down = town.pad_south_edge = town.pad_rt_down = town.pad_rt_edge = false;
+            session.pad_a_edge = session.pad_a_down = session.pad_a_up = false;
+            session.pad_south_down = session.pad_south_edge = session.pad_rt_down = session.pad_rt_edge = false;
             if (!mouse_took_over && !pad_field) {
-                town.pad_a_edge = pad_actions.click_press;
-                town.pad_a_down = pad_actions.click_down;
-                town.pad_a_up = pad_actions.click_release;
-                town.pad_south_down = pad_actions.south_down;
-                town.pad_south_edge = pad_actions.south_press;
-                town.pad_rt_down = pad_actions.right_trigger_down;
-                town.pad_rt_edge = pad_actions.right_trigger_press;
+                session.pad_a_edge = pad_actions.click_press;
+                session.pad_a_down = pad_actions.click_down;
+                session.pad_a_up = pad_actions.click_release;
+                session.pad_south_down = pad_actions.south_down;
+                session.pad_south_edge = pad_actions.south_press;
+                session.pad_rt_down = pad_actions.right_trigger_down;
+                session.pad_rt_edge = pad_actions.right_trigger_press;
             }
-            if (pad_actions.trade_press) town.pad_trade(mouse.x, mouse.y);
-            if (pad_actions.drop_press) town.pad_drop(mouse.x, mouse.y);
-            if (pad_actions.tab_step != 0) town.pad_tab(pad_actions.tab_step);
+            if (pad_actions.trade_press) session.pad_trade(mouse.x, mouse.y);
+            if (pad_actions.drop_press) session.pad_drop(mouse.x, mouse.y);
+            if (pad_actions.tab_step != 0) session.pad_tab(pad_actions.tab_step);
             if (pad_actions.click_press && !pad_field)   { mouse.down = true;  mouse.press_this_frame = true; }
             if (pad_actions.click_release && mouse.down) { mouse.down = false; mouse.release_this_frame = true; }
-            if (pad_actions.rclick_press && screen == Screen::InGame && !pad_field && town.pad_back(mouse.x, mouse.y)) {
+            if (pad_actions.rclick_press && screen == Screen::InGame && !pad_field && session.pad_back(mouse.x, mouse.y)) {
                 pad_actions.rclick_press = false;
                 pad_actions.keys.push_back(pad::Key::Escape);
             }
@@ -1281,12 +1281,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 key_event.key.key = pad_keycode(pad_key);
                 handle_sdl_events(key_event, mouse, screen, text_this_frame, backspace_this_frame, keys_this_frame, quit);
             }
-            town.pad.move = screen == Screen::InGame
-                ? Town::PadMove{ pad_actions.move_x, pad_actions.move_y, pad_actions.move_active,
+            session.pad.move = screen == Screen::InGame
+                ? ClientSession::PadMove{ pad_actions.move_x, pad_actions.move_y, pad_actions.move_active,
                                 pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press,
                                 pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y }
-                : Town::PadMove{};
-            if (town.touch_enabled && town.last_device == touch::LastDevice::Touch && town.pad_field()) town.pad.move = {};
+                : ClientSession::PadMove{};
+            if (session.touch_enabled && session.last_device == touch::LastDevice::Touch && session.pad_field()) session.pad.move = {};
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
@@ -1326,7 +1326,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         last_screen = screen;
         // Out of the game (to the menus): its world sounds, ambience and rain
         // stop. Under a cinematic they hold (the game goes on after it; the
-        // Town's frame picks them up again).
+        // ClientSession's frame picks them up again).
         const bool game_screen = screen == Screen::InGame || screen == Screen::Video;
         if ((prev_screen == Screen::InGame || prev_screen == Screen::Video) && !game_screen) audio.stop_world();
         if (screen == Screen::Video && prev_screen == Screen::InGame) audio.pause_world(true);
@@ -1342,7 +1342,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 R"(data\global\music\act2\sewer.wav)", R"(data\global\music\act3\kurast.wav)",
                 R"(data\global\music\act3\kurastsewer.wav)", R"(data\global\music\act4\diablo.wav)" };
             if (std::ranges::all_of(frontend_played, std::identity{})) frontend_played.fill(false);
-            int pick = town.rng(8);
+            int pick = session.rng(8);
             while (frontend_played[std::size_t(pick)]) pick = (pick + 1) % 8;
             frontend_played[std::size_t(pick)] = true;
             audio.play_music_path(*scene, kFrontendMusic[pick], -(pick + 1), 1.f, false);
@@ -1400,7 +1400,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             case Screen::Endgame:
                 // FUN_0044e770: OK pressed and released on it (FUN_0044e460 /
                 // FUN_0044e4f0) -> the main menu.
-                if (prev_screen != Screen::Endgame || !endgame.background.frames_per_direction()) endgame = endgame_ui(*scene, town.hero.character.header);
+                if (prev_screen != Screen::Endgame || !endgame.background.frames_per_direction()) endgame = endgame_ui(*scene, session.hero.character.header);
                 if (mouse.press_this_frame && endgame_on_ok(mouse.x, mouse.y)) endgame.pressed = true;
                 if (mouse.release_this_frame) {
                     if (endgame.pressed && endgame_on_ok(mouse.x, mouse.y)) screen = Screen::Title;
@@ -1614,7 +1614,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                 }
                 csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
-                const bool pad_start = town.pad_a_edge && csu.popup.empty() && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty;
+                const bool pad_start = session.pad_a_edge && csu.popup.empty() && !csu.confirm_delete && !csu.confirm_convert && !csu.pick_difficulty;
                 if (pad_start) {
                     const auto over = [&](const Button& button) {
                         return mouse.x >= button.x && mouse.x < button.x + button.width && mouse.y >= button.y && mouse.y < button.y + button.height;
@@ -1726,21 +1726,21 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             set_map_seed(*scene, seed, difficulty);
                             character.header.difficulty = {};
                             character.header.difficulty[std::size_t(difficulty)] = 0x80;
-                            town.lan_store = town.world.characters;  // the host's Saves of the character go here
-                            town.world.characters = nullptr;          // the host writes the save
-                            town.lan_client = std::move(*joined);
-                            town.lan_client->send_resync();   // Views that came while we joined were dropped: a whole one, once we're in
-                            town.enter();
+                            session.lan_store = session.world.characters;  // the host's Saves of the character go here
+                            session.world.characters = nullptr;          // the host writes the save
+                            session.lan_client = std::move(*joined);
+                            session.lan_client->send_resync();   // Views that came while we joined were dropped: a whole one, once we're in
+                            session.enter();
                         }
                     } else if (g_join_host.empty()) {
                         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
-                        if (g_lan_host_port > 0 && !town.lan_host) {   // TCP/IP's HOST GAME
+                        if (g_lan_host_port > 0 && !session.lan_host) {   // TCP/IP's HOST GAME
                             if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
-                                town.lan_host.emplace(std::move(*listening));
+                                session.lan_host.emplace(std::move(*listening));
                                 d2d::log::info("lan: hosting on port {} ({})", g_lan_host_port, d2d::net::own_address());
                             } else d2d::log::warn("lan: can't host on port {}: {}", g_lan_host_port, listening.error());
                         }
-                        town.enter();                            // the World takes the character
+                        session.enter();                            // the World takes the character
                     } else {
                         // --join: the host's game, at its map seed. d2d's World saves
                         // nothing from it: the host keeps the character and its
@@ -1768,19 +1768,19 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             set_map_seed(*scene, net.map_seed, net.difficulty);
                             character.header.difficulty = {};              // the host's game's difficulty, Act 1
                             character.header.difficulty[std::size_t(std::clamp(net.difficulty, 0, 2))] = 0x80;
-                            town.world.characters = nullptr;
-                            town.world.fight.remote_monsters = true;
+                            session.world.characters = nullptr;
+                            session.world.fight.remote_monsters = true;
                             for (const auto& type_info : scene->monsters.types) net.monster_velocity.push_back(type_info.velocity);
-                            town.net_game = std::move(*joined);
-                            town.net_chat_npc = 0;
-                            town.world.hosted_quests = true;
-                            town.enter();
-                            if (const auto* here = town.world.level; here && net.self_x > 0) {
-                                town.hero.player.x = (net.self_x + 0.5f) / 5.f - float(here->world_x);
-                                town.hero.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
-                                town.publish();
+                            session.net_game = std::move(*joined);
+                            session.net_chat_npc = 0;
+                            session.world.hosted_quests = true;
+                            session.enter();
+                            if (const auto* here = session.world.level; here && net.self_x > 0) {
+                                session.hero.player.x = (net.self_x + 0.5f) / 5.f - float(here->world_x);
+                                session.hero.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
+                                session.publish();
                             }
-                            town.net_game->set_running(town.view.running);   // the host starts us walking
+                            session.net_game->set_running(session.view.running);   // the host starts us walking
                         }
                     }
                 }
@@ -1790,18 +1790,18 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 break;
             }
             case Screen::InGame: {
-                if (town.coop_typing()) {                        // a joining pad's new character's name
-                    town.coop_text(text_this_frame, backspace_this_frame);
+                if (session.coop_typing()) {                        // a joining pad's new character's name
+                    session.coop_text(text_this_frame, backspace_this_frame);
                     text_this_frame.clear();
                 }
-                town.typed = text_this_frame;
+                session.typed = text_this_frame;
                 // The act's palette follows the player's level.
-                if (const int act = town.view_act(); act != scene->palette_act)
+                if (const int act = session.view_act(); act != scene->palette_act)
                     load_act_palettes(*scene, scene->mpqs, act);
-                town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
+                session.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
                 // A panel key moved the cursor with the view (FUN_00468770's SetCursorPos):
                 // the game's copy, and the OS cursor unless a pad drives it.
-                if (const auto moved = std::exchange(town.cursor_move, std::nullopt)) {
+                if (const auto moved = std::exchange(session.cursor_move, std::nullopt)) {
                     mouse.x = moved->first; mouse.y = moved->second;
                     if (!pad_in_use) {
                         float window_x = 0, window_y = 0;
@@ -1812,7 +1812,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 write_save_back();
                 // S->C 0x61 (FUN_00482ef0): a cinematic now (its table 0x721d9c: 1..7 the
                 // Cinematics menu's videos), seen from then on; back into the game after.
-                if (const int movie = std::exchange(town.world.movie, -1); movie >= 1 && movie <= int(kCinematicVideo.size()) && g_video
+                if (const int movie = std::exchange(session.world.movie, -1); movie >= 1 && movie <= int(kCinematicVideo.size()) && g_video
                     && video_mpqs.contains(kCinematicVideo[std::size_t(movie - 1)])) {
                     static constexpr std::array<const char*, 7> kSeen{ "d2intro", "act2start", "act3start", "act4start", "act4end", "d2xintro", "d2xout" };
                     if (read_seen().find(kSeen[std::size_t(movie - 1)]) == std::string::npos) {
@@ -1822,43 +1822,43 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                     video_queue = { kCinematicVideo[std::size_t(movie - 1)] };
                     // LoD's 5 (DAT_007bc9d8): ACT04END, then D2X_INTRO.
-                    if (movie == 5 && town.hero.character.header.expansion() && video_mpqs.contains(kCinematicVideo[5])) {
+                    if (movie == 5 && session.hero.character.header.expansion() && video_mpqs.contains(kCinematicVideo[5])) {
                         video_queue.emplace_back(kCinematicVideo[5]);
                         if (read_seen().find(kSeen[5]) == std::string::npos) std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << kSeen[5] << '\n';
                     }
                     video_return = Screen::InGame;
                     screen = Screen::Video;
                 }
-                if (town.net_game && town.net_game->closed()) {        // the host's gone: back to the characters, as game.exe's drop
+                if (session.net_game && session.net_game->closed()) {        // the host's gone: back to the characters, as game.exe's drop
                     d2d::log::warn("net: lost the host; leaving the game");
                     screen = Screen::CharSelect;
                 }
-                if (screen == Screen::CharSelect && town.net_game) {   // a joined game: leave the host, saving on again
-                    town.net_game->leave();
+                if (screen == Screen::CharSelect && session.net_game) {   // a joined game: leave the host, saving on again
+                    session.net_game->leave();
                     write_save_back();
-                    town.net_game.reset();
-                    town.net_monsters.clear();
-                    town.world.fight.remote_monsters = false;
-                    town.world.hosted_quests = false;
-                    town.world.host_warps = false;
-                    town.world.characters = g_no_save ? nullptr : &characters;
+                    session.net_game.reset();
+                    session.net_monsters.clear();
+                    session.world.fight.remote_monsters = false;
+                    session.world.hosted_quests = false;
+                    session.world.host_warps = false;
+                    session.world.characters = g_no_save ? nullptr : &characters;
                 }
-                if (town.lan_client && !town.lan_lost.empty()) {        // the d2d host's gone: back to the characters
-                    d2d::log::warn("lan: {}; leaving the game", town.lan_lost);
-                    csu.popup = join_error_text(*scene, { .what = town.lan_lost, .no_connect = true }, character.expansion);
+                if (session.lan_client && !session.lan_lost.empty()) {        // the d2d host's gone: back to the characters
+                    d2d::log::warn("lan: {}; leaving the game", session.lan_lost);
+                    csu.popup = join_error_text(*scene, { .what = session.lan_lost, .no_connect = true }, character.expansion);
                     csu.popup_return = Screen::CharSelect;
-                    town.lan_client.reset();
+                    session.lan_client.reset();
                     screen = Screen::CharSelect;
                 }
-                if (screen == Screen::CharSelect && (town.lan_client || town.lan_store || town.lan_host)) {   // a LAN game left
-                    town.lan_client.reset();
-                    town.lan_lost.clear();
-                    town.lan_resyncing = false;
-                    town.lan_views = 0;
-                    if (town.lan_store) town.world.characters = g_no_save ? nullptr : &characters;
-                    town.lan_store = nullptr;
-                    town.lan_host.reset();                         // the joiners get Lost (their saves went at Town::save)
-                    town.lan_players.clear();
+                if (screen == Screen::CharSelect && (session.lan_client || session.lan_store || session.lan_host)) {   // a LAN game left
+                    session.lan_client.reset();
+                    session.lan_lost.clear();
+                    session.lan_resyncing = false;
+                    session.lan_views = 0;
+                    if (session.lan_store) session.world.characters = g_no_save ? nullptr : &characters;
+                    session.lan_store = nullptr;
+                    session.lan_host.reset();                         // the joiners get Lost (their saves went at ClientSession::save)
+                    session.lan_players.clear();
                 }
                 if (screen == Screen::CharSelect && scene) {         // left the game (saved): the roster again,
                     load_saves(*scene, save_dir);                      // the character just played first
@@ -1868,7 +1868,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 // Classic, Diablo dead with bit 13 (DAT_007a0604): leaving plays
                 // ACT04END, then the endgame screen (FUN_0044f360 -> FUN_00482ef0);
                 // after the leave and the roster reload above, so neither is skipped.
-                if (screen != Screen::InGame && std::exchange(town.world.end_movie, false)) {
+                if (screen != Screen::InGame && std::exchange(session.world.end_movie, false)) {
                     video_queue = { kCinematicVideo[4] };
                     video_return = Screen::Endgame;
                     screen = Screen::Video;
@@ -1913,10 +1913,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         screen = Screen::CharCreate;
                     } else {
                         static_cast<Character&>(character) = made_character(*scene, kUiToSaveClass[std::size_t(std::max(character.selected, 0))],
-                                                                            character.name, character.hardcore, character.expansion, town.rng);
+                                                                            character.name, character.hardcore, character.expansion, session.rng);
                         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
-                        town.enter();
-                        town.save();
+                        session.enter();
+                        session.save();
                         load_saves(*scene, save_dir);
                     }
                 }
@@ -1939,9 +1939,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             cursor_seen = { mouse.x, mouse.y };
             const int cursor_dx = (fb_width(framebuffer) - int(kScreenWidth)) / 2;
             bool os_cursor = false;   // the OS shows the gauntlet this frame (hw_cursor.hpp)
-            if (screen == Screen::InGame && town.held && !town.use_item.placed()) {   // placed in an item panel: the hand (FUN_00468070(0))
-                draw_held(framebuffer, *scene, *town.held, mouse.x + cursor_dx, mouse.y);
-            } else if (screen == Screen::InGame && town.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
+            if (screen == Screen::InGame && session.held && !session.use_item.placed()) {   // placed in an item panel: the hand (FUN_00468070(0))
+                draw_held(framebuffer, *scene, *session.held, mouse.x + cursor_dx, mouse.y);
+            } else if (screen == Screen::InGame && session.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
                 // An identify pick: cursor state 6, buysell's frame = Books.txt
                 // SpellIcon (0; S->C 0x3f, FUN_00468010), bottom 0x21 below the
                 // hotspot (FUN_00468460).
@@ -1959,7 +1959,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 cursor_anim.tick(now_ms);
                 // Co-op with two pads or more: the first player's cursor in their seat's colour.
                 const bool seat_colour = coop_game && std::ranges::count_if(gamepads.pads(), [](const Gamepads::Pad& pad) { return !pad.built_in; }) >= 2;
-                const auto& lead = kSeatColours[std::size_t(std::clamp(town.focus_colour(), 0, 3))];
+                const auto& lead = kSeatColours[std::size_t(std::clamp(session.focus_colour(), 0, 3))];
                 const auto& hand_pal = seat_colour ? tinted(pal, lead[0], lead[1], lead[2]) : pal;
                 // The OS cursor carries the plain hand only; a held item or identify pick is
                 // drawn into the frame, as game.exe draws every cursor (deviations.md row 19).
@@ -2020,7 +2020,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         if (dt_input > 100 || dt_render > 100 || dt_present > 100) {
             d2d::log::warn(
                 "slow frame: input={} ms render={} ms present={} ms screen={} cam=({},{})",
-                dt_input, dt_render, dt_present, int(screen), int(town.player.x), int(town.player.y));
+                dt_input, dt_render, dt_present, int(screen), int(session.player.x), int(session.player.y));
         }
         if (now_ms - stat_last_report_ms >= 5000) {
             const std::uint32_t avg_r = stat_frames ? stat_render_sum  / stat_frames : 0;
@@ -2028,7 +2028,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             d2d::log::info(
                 "alive: {} frames/5s | input max={} | render avg={} max={} | present avg={} max={} | screen={} cam=({},{})",
                 stat_frames, stat_input_max, avg_r, stat_render_max, avg_p, stat_present_max,
-                int(screen), int(town.player.x), int(town.player.y));
+                int(screen), int(session.player.x), int(session.player.y));
             stat_frames = 0;      stat_input_max = 0;
             stat_render_sum = 0;  stat_render_max = 0;
             stat_present_sum = 0; stat_present_max = 0;
@@ -2038,8 +2038,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             std::memory_order_relaxed);
         pace_frame(frame_start_ns, frame_budget(win.window));
     }
-    if (screen == Screen::InGame) town.save();   // quitting from the game saves it
-    if (town.net_game) { town.net_game->leave(); write_save_back(); }   // a joined game: leave the host (0x69), don't just drop it
+    if (screen == Screen::InGame) session.save();   // quitting from the game saves it
+    if (session.net_game) { session.net_game->leave(); write_save_back(); }   // a joined game: leave the host (0x69), don't just drop it
     // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
     // and touch stale pointers.
     watchdog_stop.store(true, std::memory_order_relaxed);

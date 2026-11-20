@@ -28,7 +28,7 @@ void load_game_world(GameData& data, d2d::mpq::Stack& mpqs, std::uint32_t map_se
 
 // A game on another map seed: act 1 laid out again, the camp rebuilt with
 // its units, the other levels dropped (they build again when wanted). The
-// World and its Town must enter afterwards; nothing may point into the
+// World and its ClientSession must enter afterwards; nothing may point into the
 // old levels.
 void set_map_seed(GameData& data, std::uint32_t seed, int difficulty);
 

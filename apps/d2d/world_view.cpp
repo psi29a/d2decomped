@@ -346,7 +346,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // FUN_00473a70: draw mode 3, additive), each moved by the side panel's
     // quarter (-W/4 right open, +W/4 left) and drawn when that spot lies in
     // the half the panel leaves, above the bottom 47 pixels. The world's
-    // shifted the same way (Town::draw_view), so they stay on their tiles
+    // shifted the same way (ClientSession::draw_view), so they stay on their tiles
     // (bugs.md #38 is in doubt: menu.md "The view with panels open").
     if (rain) {
         const int shift = g_drawn.panel_side == 1 ? -(screen_w / 4) : g_drawn.panel_side == 2 ? screen_w / 4 : 0;

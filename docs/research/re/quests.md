@@ -555,7 +555,7 @@ a new game's Den is dark again).
   function 23 (`FUN_004d4b80`) tops its life back to 500 below 100: they
   stay. The Den's ambient goes back to its own (0).
 
-d2d: `Town::den_tick` / `den_ambient` (the View's `den_cleared`, the
+d2d: `ClientSession::den_tick` / `den_ambient` (the View's `den_cleared`, the
 DenQuest state ≥ 4); the beams are client missiles drawn and lit like the
 World's.
 
@@ -574,11 +574,11 @@ about 14.06 frames/s, not 9 frames/s. `FUN_004b3380` creates kind 3:
 `FUN_00470c30` loops it without applying npcalert's LoopWaitTime 7000.
 The client keeps an independent start clock for each NPC's alert, so a
 new balloon begins at frame 0. Clocks reset with the level and on
-`Town::enter` (the same Town is reused for the next game);
+`ClientSession::enter` (the same Town is reused for the next game);
 joined alerts take their start from the host packet's arrival time,
 including a repeated packet while already showing. The joined game's
 existing local expiration after 16 * 111 ms and palace-guard handling
-remain open (`Town::net_quests`). See states.md for the original-code
+remain open (`ClientSession::net_quests`). See states.md for the original-code
 timing oracle and regression cases.
 
 ## Akara's Reset Stat/Skill Points (quest 41)

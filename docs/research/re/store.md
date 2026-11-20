@@ -492,7 +492,7 @@ else rare.
   if under 70 ms (0x46) since the last, else 1 for the first second, the
   count >> 5 past 1000 ms, >> 4 past 2000, >> 2 past 3000, and (ms held
   >> 11) x the count past 4096. d2d counts its frames drawn the same
-  (`GoldBox::draws`, `Town::update`).
+  (`GoldBox::draws`, `ClientSession::update`).
 - A button's hover (`FUN_004886c0`): box x .. x + 0x2d by 432..474, the
   string centred on x = 80 + the button table's x, bottom 440. Repair
   all's string 0x276f ("Repair all equipment: %d") takes the total

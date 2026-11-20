@@ -2,7 +2,7 @@
 
 Our port: `components/rules/monsters.hpp` (`Fighter`, `make_fighter`,
 `player_blow`, `monster_blow`, `attack_ticks`, `open_wounds_per_sec`),
-applied in `apps/d2d/town.hpp` (`land`, `strike`, `monster_dots`,
+applied in `apps/d2d/session.hpp` (`land`, `strike`, `monster_dots`,
 `apply_regen`) and `components/game/ai.hpp` (`monster_update`, `missiles_update`).
 Tests: `tests/monsters/test_monsters.cpp`.
 
@@ -632,7 +632,7 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
   the same way and, re-testing after the step, ends the mode a tick before
   the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
-  (`Unit::get_hit_rate` in the renderer; the player's own in `town/draw.cpp`, a knockback slide aside), checked by the oracle `tools/emu/hit_render.py`
+  (`Unit::get_hit_rate` in the renderer; the player's own in `session/draw.cpp`, a knockback slide aside), checked by the oracle `tools/emu/hit_render.py`
   (game.exe's step and draw run natively on hit_len.py's cases and its rate and ticks) against
   `test_combat --get-hit-frames`: no difference on the 55,089 monster cases of `hit_len.py gen 100000 7`. A joined
   game's merc has no FHR on the wire.

@@ -107,7 +107,7 @@ numbers |= {int(n) for n in re.findall(r"\{ (\d+), \d+ \}", ids)}
 for name in ("kClassSelect", "kClassDeselect"):
     row = re.search(name + r"\s*=\s*\{([^}]+)\}", ids)
     if row and name in refs: numbers |= {int(n) for n in re.findall(r"\d+", row.group(1))}
-# Town::class_cue builds `<class>_<line>` from the active character's class.
+# ClientSession::class_cue builds `<class>_<line>` from the active character's class.
 # Expand those literal line suffixes across the seven classic class prefixes.
 class_prefixes = ("amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin")
 for path in glob.glob("components/**/*.cpp", recursive=True):
@@ -118,7 +118,7 @@ for path in glob.glob("components/**/*.cpp", recursive=True):
 find_lines = re.findall(r'\{ \{[^}]*\}, \d+, "(act\d_find_\w+)"', open("components/rules/quests.hpp", encoding="utf-8").read())
 numbers |= {by_name[f"{prefix}_{line}"] for line in find_lines for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
 # Say sounds are selected by arithmetic from each class's first phrase row.
-town = "".join(open(path, encoding="utf-8").read() for path in sorted(glob.glob("apps/d2d/town/*.cpp")))
+town = "".join(open(path, encoding="utf-8").read() for path in sorted(glob.glob("apps/d2d/session/*.cpp")))
 chat = re.search(r"kChatSound\s*=\s*\{([^}]+)\}", town)
 if chat:
     numbers |= {int(value, 0) + offset for value in re.findall(r"0x[0-9a-fA-F]+|\d+", chat.group(1)) for offset in range(16)}

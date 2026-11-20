@@ -39,7 +39,7 @@ int main() try {
     lead.character.header.right_skill = 300;                         // no row
     world.hand_statuses(1040);
     assert(world.view().hand_status[1] == 3);
-    // Through the view codec (Town::publish / take_view, single player too): a keyframe, then a delta.
+    // Through the view codec (ClientSession::publish / take_view, single player too): a keyframe, then a delta.
     ViewEncoder encoder;
     View received;
     auto sent = world.view();

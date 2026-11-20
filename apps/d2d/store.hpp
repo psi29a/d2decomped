@@ -20,7 +20,7 @@ namespace d2d::client {
 // "Your Gold: %d     Hire which Mercenary?" (0xd24, carried + stash gold)
 // in gold, a list box (rules/hire_list.hpp, FUN_004bf8f0) of the offers,
 // two lines each, and "cancel" (0xd48). Enter hires the selected row
-// (rules::list_enter, town/update.cpp).
+// (rules::list_enter, session/update.cpp).
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
                             std::int64_t gold);
 

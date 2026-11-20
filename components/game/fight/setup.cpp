@@ -531,7 +531,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const int rate = int(anim.speed ? anim.speed : 256), fcr = actor->player_combat.fcr;
             len = std::uint32_t(steps.empty() ? d2d::rules::cast_ticks(int(anim.frames), rate, fcr) : d2d::rules::cast_sequence_ticks(int(steps.size()), rate, fcr)) * 40;
         } else if (mode == kModeGH && anim.frames) {
-            // The client draws its frames at the get-hit rate and ends a tick early (FUN_00463390: the hero's draw, town/draw.cpp).
+            // The client draws its frames at the get-hit rate and ends a tick early (FUN_00463390: the hero's draw, session/draw.cpp).
             len = d2d::game::get_hit_ms(anim, actor->player_combat.fhr);
         } else if (mode == kModeBL && anim.frames) {
             // FUN_00623f50's block branch: the rate adds 50 with Holy Shield's state, then the get-hit's end event.

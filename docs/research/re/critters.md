@@ -88,7 +88,7 @@ next subtile's free; the wait runs once the walk is done. Distances are
 `FUN_006416d0`: subtiles less half of each one's size, (smaller + 2 x
 larger) / 2.
 
-d2d (2026-10-25): `Town::critter_tick` makes a room's as it comes up
+d2d (2026-10-25): `ClientSession::critter_tick` makes a room's as it comes up
 (Spawning's `up`, the rooms the host would add; the camp keeps no rooms,
 so a camp room's seed is its DRLG room's from `camp_room_seeds`, matched
 by `level_room`'s index as it comes up) and thinks a 40 ms client

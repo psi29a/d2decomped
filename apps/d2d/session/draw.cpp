@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): drawing: menus, the view, chat, hints and portraits. The rest is in this
+// ClientSession (session.hpp): drawing: menus, the view, chat, hints and portraits. The rest is in this
 // directory.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "common.hpp"
 #include "controls.hpp"
@@ -63,7 +63,7 @@
 
 namespace d2d::client {
 
-auto Town::open_menu(int npc) -> void {
+auto ClientSession::open_menu(int npc) -> void {
         const auto& npc_info = level->npcs[std::size_t(npc)];
         const auto& state = view.npc_states[std::size_t(npc)];
         const float dx = (npc_info.path.empty() ? npc_info.x : state.x) - view.player.x, dy = (npc_info.path.empty() ? npc_info.y : state.y) - view.player.y;
@@ -85,7 +85,7 @@ auto Town::open_menu(int npc) -> void {
         if (touch_enabled) layout_npc_menu_touch(*scene, npc_menu);
     }
 
-auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
+auto ClientSession::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y) -> void {
         if (result.npc < 0) {
             if (store.npc >= 0) { store.refused(); npc_menu = open_trade_refused(*scene, store.npc, result.result, mouse_x, mouse_y); }
             return;
@@ -109,9 +109,9 @@ auto Town::trade_result(const ev::TradeResult& result, int mouse_x, int mouse_y)
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
 /**
- * Draw the current Town view and enabled UI overlays, including the optional touch controls.
+ * Draw the current ClientSession view and enabled UI overlays, including the optional touch controls.
  */
-auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
+auto ClientSession::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
     present_skill_pad();
     const int screen_w = fb_width(framebuffer);
     if (screen_w == int(kScreenWidth)) {
@@ -134,7 +134,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
 // place of the last one: at the draw, and as soon as a key opens or shuts a
 // panel, so the cursor maps to the world through the same view the frame's
 // input uses (FUN_0045aea0 sets 0x7a5214 in the call that moves the cursor).
-auto Town::sync_panel_cam() -> void {
+auto ClientSession::sync_panel_cam() -> void {
     const int shift = d2d::rules::panel_view_shift(view_state(), g_view_width);
     const float want_x = float(shift) / kIsoW, want_y = -float(shift) / kIsoW;
     cam_x += want_x - panel_cam_x; cam_y += want_y - panel_cam_y;
@@ -145,7 +145,7 @@ auto Town::sync_panel_cam() -> void {
  * Render the interpolated world view and gameplay panels from the published snapshot. Keep
  * controller panel/run hints and skill-tree close feedback aligned with their input targets.
  */
-auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
+auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
         const bool run_on = view.running && character.stats.values[d2d::d2s::kStamina] > 0;   // no run at stamina 0 (FUN_0057f090)
@@ -513,7 +513,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
 
 // Chat text wrapped as the edit box's (FUN_00502970, width `width`): FUN_0049e3a0
 // calls it on the message after setting the font, as the edit box does.
-auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
+auto ClientSession::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     return d2d::font::wrap_edit_box(text, width, [&](unsigned char code) {
         if (const auto* glyph = font.find(code)) return int(glyph->width);
@@ -524,7 +524,7 @@ auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<st
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
 // - 70 (at most 6 lines); past 18 lines on screen the oldest message goes,
 // one message an add, however many lines that leaves.
-auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
+auto ClientSession::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
     auto wrapped = wrap_chat(text, int(kScreenWidth) - 70);
     wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
     const std::uint32_t message = chat_lines.empty() ? 0 : chat_lines.back().message + 1;
@@ -544,7 +544,7 @@ auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> vo
 // x 0x83 on baselines H - 0x58 + 15 a line, the first 3 lines only; the
 // caret, string 0xd4c "_", after the last line drawn, on 500 ms and off
 // 100 (FUN_0047b450). Colours 6 / 7 (black, tan) are drawn white.
-auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void {
+auto ClientSession::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void {
     if (chat_lines.empty() && !chat_typing) return;
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
@@ -598,13 +598,13 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 
 // The field's pad prompt over the control panel: the button A is bound to,
 // and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
-auto Town::pad_action_pick() -> PadPick {
+auto ClientSession::pad_action_pick() -> PadPick {
         const UnitState& unit = focused().player;
         if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
         return pad_pick(pad, unit, true, pad_aim(skillbar.left, pad.move.aim || pad.move.active));
     }
 
-auto Town::pad_hover_npc(const PadPick& pick) const -> int {
+auto ClientSession::pad_hover_npc(const PadPick& pick) const -> int {
         if (pick.kind == PadPick::kMonster) {
             for (std::size_t index = 0; index < view.monsters.size(); ++index)
                 if (view.monsters[index].id == pick.id) return -10 - int(index);
@@ -615,7 +615,7 @@ auto Town::pad_hover_npc(const PadPick& pick) const -> int {
         return -1;
     }
 
-auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
+auto ClientSession::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
         if (!scene || pad_hold_text.empty()) return;
         const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
@@ -635,7 +635,7 @@ auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
             }
     }
 
-auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
+auto ClientSession::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
     const auto pick = pad_action_pick();
     if (pick.kind == PadPick::kNone) return;
     // A town portal (-2000 - which) is used, a corpse (-3000 - which) picked up, as an object / ground item.
@@ -666,7 +666,7 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
 // (SOJs sold, 0x2afc) format their string with +3 (FUN_005269d0's %d /
 // %u); 0x12 is 0x2afd as is (its eclipse, quake and sound: update.cpp's
 // event loop).
-auto Town::event_text(const NetGame::Event& event) const -> std::string {
+auto ClientSession::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
         for (const auto& value : values)
@@ -785,7 +785,7 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // its flag, nonzero: FUN_00479080, +0x1c), 100 from 0x7a and then 0x7f's
 // with +1 0 (FUN_00479010, NetGame::Pet::life); 0 draws no bar, over 99 a
 // full one.
-auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
+auto ClientSession::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
     if (portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
@@ -892,7 +892,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
 // there is some, clear of the 800x600 UI), each a life and a mana bar, the
 // class icon and the name in the seat's colour. Room to their right for
 // more. Under a left panel (no spare width) they don't show.
-auto Town::draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
+auto ClientSession::draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     if (!coop_hud_hidden() || portraits_hidden) return;
     const int frame_w = fb_width(framebuffer), spare = (frame_w - int(kScreenWidth)) / 2;
     if (left_open && spare < kCoopPortraitX + kCoopPortraitWidth) return;

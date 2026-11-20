@@ -29,7 +29,7 @@ one with a Fade In (FUN_004ba020), ramps its volume linearly from now to
 now + fade ticks. Act music is Fade In / Out 125 (5 s), the wilderness
 ambience 12 — so changing songs is a 5 s cross-fade.
 
-d2d: `Audio::crossfade_music`, the 3 s rule in `Town::update`.
+d2d: `Audio::crossfade_music`, the 3 s rule in `ClientSession::update`.
 ponytail: no resume positions, no ambience fades.
 
 # Automap layers

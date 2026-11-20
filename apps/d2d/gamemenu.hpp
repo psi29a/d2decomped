@@ -20,8 +20,8 @@ std::vector<std::string_view> game_menu_images();
 // The menus (FUN_0047e3d0 draws, the input table at 0x6d6034 drives):
 // 0 main, 1 options, 2 sound, 3 video, 4 automap. Opening one selects its
 // last item (FUN_0047e090).
-// The automap options drive Town::automap_frame; Gamma and Contrast the
-// DirectDraw ramp; Light Quality Town::light_quality. Resolution is kept, not applied
+// The automap options drive ClientSession::automap_frame; Gamma and Contrast the
+// DirectDraw ramp; Light Quality ClientSession::light_quality. Resolution is kept, not applied
 // (deviations.md #15). 3D sound, EAX, 3D bias and
 // perspective are off as on a machine without a 3D provider or Glide.
 // Blended Shadows is kept, not applied, as in game.exe: FUN_004f5200 stores

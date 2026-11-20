@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // When the belt popup (0x7bef98) is up: its key keeps it up (UI 0x1f), and
 // the mouse onto the HUD's belt strip brings it up until the mouse leaves
-// the popup. Nothing here draws; Town reads `shown`.
+// the popup. Nothing here draws; ClientSession reads `shown`.
 #pragma once
 
 namespace d2d::client::belt_popup {

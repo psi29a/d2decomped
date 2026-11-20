@@ -143,7 +143,7 @@ FUN_005022f0.
 - Always 4 for MonStats rows 0xd3, 0xe5, 0xf2, 0xf3, 0x14d, 0x220, 0x23a
   and 0x2c0..0x2c5: duriel, radament, mephisto, diablo, the clones,
   baalcrab and the ubers. Andariel is not on the list.
-- d2d: `rules::bar_name_colour`, drawn by town/view.cpp's draw_monster_bar.
+- d2d: `rules::bar_name_colour`, drawn by session/view.cpp's draw_monster_bar.
 
 **The sound set** (FUN_004ca410, UnitSnd.cpp; record 0x94 bytes at
 DAT_0096c6b4):

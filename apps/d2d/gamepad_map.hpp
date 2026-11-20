@@ -332,7 +332,7 @@ struct Actions {
 enum class SkillUi { None, Wheel, Strip };
 
 // A screen direction as a world one: the inverse of the isometric projection
-// the cursor's click uses (Town::input), normalised, times `reach` tiles.
+// the cursor's click uses (ClientSession::input), normalised, times `reach` tiles.
 struct WorldStep { float x = 0, y = 0; };
 [[nodiscard]] inline WorldStep world_step(float screen_x, float screen_y, int iso_w, int iso_h, float reach) {
     const float iso_u = screen_x / (float(iso_w) / 2), iso_v = screen_y / (float(iso_h) / 2);

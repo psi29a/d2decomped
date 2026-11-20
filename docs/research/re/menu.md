@@ -2,7 +2,7 @@
 
 Esc's in-game menu (UI 9) with its Options submenus, and the mini-panel
 (UI 0x15) with the HUD's button for it. d2d: `apps/d2d/gamemenu.{hpp,cpp}`,
-wired in `town/`.
+wired in `session/`.
 
 ## UI flags and Esc
 
@@ -29,7 +29,7 @@ which zeroes the flags) calls, at 0x456bad,
 the game's end `FUN_00456d80` calls `FUN_0047f130`, which writes
 `Mini Panel` = 1 when entry 21's "was open" (0x71315c) is 0, else 0:
 the mini-panel's state as the game menu last opened (Save and Exit).
-d2d: d2d.cfg's `mini_panel` (`Town::game_ended`).
+d2d: d2d.cfg's `mini_panel` (`ClientSession::game_ended`).
 
 ## The view with panels open
 
@@ -105,7 +105,7 @@ oracle run); their names first came from D2BS's UI enum:
   A store's (`0x710090`) refuses 2 and 4 and passes 1, whose flag toggles
   under the store's inventory, drawn anyway. Oracle:
   `tools/emu/panel_keys.py`. d2d: `client::panel_key_refused`,
-  `Town::toggle_inventory` / `toggle_character` / `toggle_skill_tree`.
+  `ClientSession::toggle_inventory` / `toggle_character` / `toggle_skill_tree`.
 - The trade screen's bars (`FUN_0048edf0`, the trade branch after the
   buttons, `0x7bcbf0` = 0xb with `0x7bcb04` set): the two names are copied
   (`FUN_00403040`, 0x17 chars) and each loses its last char while
@@ -140,7 +140,7 @@ oracle run); their names first came from D2BS's UI enum:
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`
-  (town.hpp:332-334) takes the waypoints as left and the stash / cube as
+  (session.hpp:332-334) takes the waypoints as left and the stash / cube as
   covering. `FUN_00455ae0` also calls `FUN_0045aea0` after the 0x19 / 0x1a
   close (0x1a without `FUN_00453ee0`); the state it sets is hidden by the
   decompile's fastcall args and is not traced there.
@@ -190,10 +190,10 @@ mini-panel's and HUD's buttons pass 0.
 
 The panels therefore cover the map.
 
-d2d (`rules/panel_view.hpp`, `Town::view_state`):
+d2d (`rules/panel_view.hpp`, `ClientSession::view_state`):
 - It works the state out from what's open, not from the last open or
   shut.
-- The camera moves by the shift (`Town::draw_view`, as the shake does).
+- The camera moves by the shift (`ClientSession::draw_view`, as the shake does).
 - The weather scrolls with the unshifted view, since its own draw moves
   it (weather.md).
 - `render_ingame` draws the automap before the border and the panels,
@@ -353,8 +353,8 @@ The belt's draw (`FUN_00499040`) clears 0x7bef98 when neither UI 0x1f
 nor 0x7bef9c is set (0x4990ce), or UI 9 is up (0x4990e2). A click on
 the strip (`FUN_004996a0`, the mouse-up handler) uses or takes the
 box's item (`FUN_00498870`); it doesn't toggle the popup. d2d:
-`apps/d2d/belt_popup.hpp`, `Town::belt_up`; the mini-panel's move:
-`belt_popup::moves_mini_panel`, `Town::mini_right`.
+`apps/d2d/belt_popup.hpp`, `ClientSession::belt_up`; the mini-panel's move:
+`belt_popup::moves_mini_panel`, `ClientSession::mini_right`.
 
 ## The pause
 

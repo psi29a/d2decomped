@@ -49,7 +49,7 @@ digit in a string is a colour change.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_004f9740` | `control_set_hidden` | Fastcall (control, flag): `+8` bit 2 set or cleared. Called by 16 screens (title, TCP/IP, character create and select, chat) | not compared: d2d's screens track their own state |
-| `FUN_004f9fb0` | `screenshot_save` | The first free `Screenshot%03d.jpg` (counter `DAT_0072dc40`, `FUN_00406960` probes), then the JPEG encoder (ordinals 2, 5 quality 8, 3) on a 0x4e40-byte state. Callers `FUN_004fa0c0`, the key handler `FUN_004fa7a0` | not compared: d2d's Print Screen (apps/d2d/town/update.cpp:1164) |
+| `FUN_004f9fb0` | `screenshot_save` | The first free `Screenshot%03d.jpg` (counter `DAT_0072dc40`, `FUN_00406960` probes), then the JPEG encoder (ordinals 2, 5 quality 8, 3) on a 0x4e40-byte state. Callers `FUN_004fa0c0`, the key handler `FUN_004fa7a0` | not compared: d2d's Print Screen (apps/d2d/session/update.cpp:1164) |
 | `FUN_004fa410` | `d2win_stub_4fa410` | Returns. Callers `FUN_0042f480`, `FUN_0042fab0`, `FUN_00435230` | no counterpart (empty) |
 | `FUN_004fa460` | `d2win_get_7d55e0` | Returns `DAT_007d55e0`. Callers `FUN_004ff620`, `FUN_004ffe50`, `FUN_00508370` | not compared |
 | `FUN_004fa4b0` | `d2win_get_7d55d4` | Returns `DAT_007d55d4`. Only caller the button draw `FUN_00500db0` | not compared |

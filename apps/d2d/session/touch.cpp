@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Opt-in touch prototype: separate per-character destinations, shared skill
 // eligibility, targeting and gameplay commands. No platform code in the World.
-#include "town.hpp"
+#include "session.hpp"
 
 #include "common.hpp"
 #include "cursor.hpp"
@@ -51,40 +51,40 @@ namespace d2d::client {
 namespace {
 
 /** True when the contextual interact chrome should accept touches and block field taps. */
-bool touch_interact_visible(const Town::PadPick& pick) {
-    return pick.kind == Town::PadPick::kItem || pick.kind == Town::PadPick::kThing;
+bool touch_interact_visible(const ClientSession::PadPick& pick) {
+    return pick.kind == ClientSession::PadPick::kItem || pick.kind == ClientSession::PadPick::kThing;
 }
 
 /** Short Immortal-style label for the contextual interact button. */
-std::string touch_interact_label(const Town& town, const Town::PadPick& pick) {
-    if (pick.kind == Town::PadPick::kItem) return "Get";
-    if (pick.kind != Town::PadPick::kThing) return {};
+std::string touch_interact_label(const ClientSession& session, const ClientSession::PadPick& pick) {
+    if (pick.kind == ClientSession::PadPick::kItem) return "Get";
+    if (pick.kind != ClientSession::PadPick::kThing) return {};
     if (pick.id <= -3000) return "Get";
     if (pick.id < 0) return "Use";
-    if (town.level && std::size_t(pick.id) < town.level->npcs.size())
-        return town.level->npcs[std::size_t(pick.id)].root == "objects" ? "Use" : "...";
+    if (session.level && std::size_t(pick.id) < session.level->npcs.size())
+        return session.level->npcs[std::size_t(pick.id)].root == "objects" ? "Use" : "...";
     return "Use";
 }
 
 } // namespace
 
-auto Town::touch_hides_classic_hud() const -> bool {
+auto ClientSession::touch_hides_classic_hud() const -> bool {
     return touch::touch_hud_visible(touch_enabled, last_device, touch::g_touch_classic_hud);
 }
 
-auto Town::touch_shows_field_controls() const -> bool {
+auto ClientSession::touch_shows_field_controls() const -> bool {
     return touch::touch_interface_visible(touch_enabled, last_device) && pad_field();
 }
 
-auto Town::touch_compact_field() const -> bool {
+auto ClientSession::touch_compact_field() const -> bool {
     return touch_shows_field_controls();
 }
 
-auto Town::touch_store_panel_x() const -> int {
+auto ClientSession::touch_store_panel_x() const -> int {
     return kCharPanelX;
 }
 
-void Town::touch_rebuild_bind_wheel() {
+void ClientSession::touch_rebuild_bind_wheel() {
     wheel_actions = false;
     wheel_ids.clear();
     if (scene)
@@ -97,7 +97,7 @@ void Town::touch_rebuild_bind_wheel() {
     touch_bind_hit = false;
 }
 
-void Town::touch_open_bind() {
+void ClientSession::touch_open_bind() {
     const bool page = touch_input.alternate;
     touch_bind = TouchBindPhase::PickSlot;
     touch_bind_slot = -1;
@@ -108,7 +108,7 @@ void Town::touch_open_bind() {
     touch_rebuild_bind_wheel();
 }
 
-void Town::touch_close_bind() {
+void ClientSession::touch_close_bind() {
     touch_bind = TouchBindPhase::Off;
     touch_bind_slot = -1;
     touch_bind_finger = -1;
@@ -116,7 +116,7 @@ void Town::touch_close_bind() {
     save_touch_sheet(character.name);
 }
 
-void Town::touch_apply_bind(int slot, int skill) {
+void ClientSession::touch_apply_bind(int slot, int skill) {
     auto [found, inserted] = touch_sheets.try_emplace(sheet_key(character.name));
     if (inserted) found->second.slots.fill(skillpad::kEmpty);
     if (slot == touch::kAttackBind) {
@@ -127,7 +127,7 @@ void Town::touch_apply_bind(int slot, int skill) {
     save_touch_sheet(character.name);
 }
 
-int Town::touch_bound_skill(int slot) const {
+int ClientSession::touch_bound_skill(int slot) const {
     const auto found = touch_sheets.find(sheet_key(character.name));
     if (slot == touch::kAttackBind) {
         if (found == touch_sheets.end()) return skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill));
@@ -140,7 +140,7 @@ int Town::touch_bound_skill(int slot) const {
     return found->second.slot(touch_input.alternate, slot);
 }
 
-Scene::InvLayout Town::touch_inv_layout() const {
+Scene::InvLayout ClientSession::touch_inv_layout() const {
     const int cls = std::max(character.character_class, 0);
     if (!scene) return {};
     return scene->inv_layout[std::size_t(cls)];
@@ -150,7 +150,7 @@ Scene::InvLayout Town::touch_inv_layout() const {
  * Load the named character touch assignments independently of controller positions. Remove the
  * cached sheet if its sidecar cannot be opened.
  */
-void Town::load_touch_sheet(const std::string& name) {
+void ClientSession::load_touch_sheet(const std::string& name) {
     if (key_dir.empty() || name.empty()) return;
     std::ifstream file(key_dir / (name + ".touchskills"));
     if (file) touch_sheets[sheet_key(name)] = skillpad::read(std::string{ std::istreambuf_iterator<char>(file), {} });
@@ -161,7 +161,7 @@ void Town::load_touch_sheet(const std::string& name) {
  * Persist a cached touch sheet through a checked temporary file and rename. Leave the original
  * destination in place on a failed write and report the failure.
  */
-void Town::save_touch_sheet(const std::string& name) const {
+void ClientSession::save_touch_sheet(const std::string& name) const {
     if (key_dir.empty() || name.empty()) return;
     const auto found = touch_sheets.find(sheet_key(name));
     if (found == touch_sheets.end()) return;
@@ -184,7 +184,7 @@ void Town::save_touch_sheet(const std::string& name) const {
  * aim uses screen drag distance; self casts, eligible corpses and Teleport each apply their own
  * target policy.
  */
-touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, float dy, bool manual, const UnitState* owner, std::string_view owner_name) const {
+touch::Target ClientSession::resolve_skill(PadPlayer& player_pad, int skill, float dx, float dy, bool manual, const UnitState* owner, std::string_view owner_name) const {
     touch::Target target;
     target.skill = skill;
     if (skillpad::panel_index(skill) >= 0) { target.valid = true; return target; }
@@ -260,7 +260,7 @@ touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, fl
  * shortcuts open UI, portal bindings use a carried tome, and auras update the selected hand rather
  * than attacking a target.
  */
-void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
+void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
     if (target.valid && skillpad::panel_index(target.skill) >= 0) {
         skill_strip = skillpad::panel_index(target.skill);
         pad::Actions open; open.confirm = true; drive_strip(open);
@@ -288,7 +288,7 @@ void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
  * Route a logical touch event to assignment, inventory/panel interaction or field gestures. Return
  * true for consumed events; field gestures retain separate movement and skill ownership.
  */
-bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
+bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
     if (phase == touch::Phase::Down) ++touch_fingers;
     else if (phase == touch::Phase::Up || phase == touch::Phase::Cancel)
@@ -838,7 +838,7 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     return true;
 }
 
-void Town::touch_refresh_skill_aim() {
+void ClientSession::touch_refresh_skill_aim() {
     const float dx = touch_input.aim_x - touch_input.origin_x, dy = touch_input.aim_y - touch_input.origin_y;
     const auto face = pad::world_step(dx, dy, kIsoW, kIsoH, 1.f);
     touch_player.face_x = face.x;
@@ -859,7 +859,7 @@ void Town::touch_refresh_skill_aim() {
     touch_input.preview = resolve_skill(touch_player, skill, dx, dy, manual);
 }
 
-void Town::drive_touch_hold(float seconds) {
+void ClientSession::drive_touch_hold(float seconds) {
     touch_hold_fraction = 0.f;
     if (!touch_enabled || touch_item_finger == -1 || touch_sold || !scene || touch_sheet.open || touch_item_drag) {
         if (touch_item_finger == -1) { touch_hold.clear(); touch_hold_edge = false; }
@@ -920,7 +920,7 @@ void Town::drive_touch_hold(float seconds) {
  * Invalidate gestures when field input loses ownership, and require a fresh attack press before
  * pickup.
  */
-void Town::drive_touch() {
+void ClientSession::drive_touch() {
     if (!touch_enabled) return;
     // Tracked whoever is last: a panel a key opened must not eat the next finger's gesture.
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
@@ -976,7 +976,7 @@ void Town::drive_touch() {
  * Draw the optional touch controls, assignment destinations and aim/cancel feedback. Reuse the
  * skill preview and current item hints without committing gameplay actions.
  */
-void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
+void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     if (!touch::touch_interface_visible(touch_enabled, last_device) || !scene || !have_world) return;
     touch::Layout chrome = touch::layout_boxes();
     const auto& font = scene->font_small;

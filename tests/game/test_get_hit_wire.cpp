@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// What the player's get-hit draw reads (town/draw.cpp: FUN_00463390's
+// What the player's get-hit draw reads (session/draw.cpp: FUN_00463390's
 // frame at the get-hit rate, ending a tick early) crosses the view codec:
 // its FHR, when the mode ends and whether a knockback holds it. Every View
-// goes through the codec, a local game's too (Town::publish).
+// goes through the codec, a local game's too (ClientSession::publish).
 
 #include <gamedata.hpp>
 #include <replication.hpp>
