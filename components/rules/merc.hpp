@@ -22,7 +22,7 @@ inline constexpr int kPlayerWalk = 2, kPlayerRun = 3, kPlayerTownWalk = 6;
 // (FUN_00620510). `ring`: the owner's footsteps (player data +0xa8, 20
 // spots, `cursor` +0xa0 the next to write; a spot goes in when the player,
 // walking or running, is over 45 (squared) from the last, FUN_00554ca0's
-// caller, or arrives through a warp). `end`: the owner's path end (+0x18).
+// caller, or arrives through a warp). `end`: the owner's path +0x18 (SP3: the target FUN_00649970 last worked it out to).
 // `on_bit40`: the collision bit 0x40 under the merc (FUN_0064d910).
 // `target`: the found foe's distance (FUN_005ddc30), -1 none.
 struct MercView {

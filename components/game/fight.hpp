@@ -252,6 +252,9 @@ struct Fight {
     // World's Player adds the rest of their state; `actor` is the one acting.
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
+        // Where the player is walking to: its path's target (+0x10, SP1); the target the
+        // path was last worked out to (+0x18, SP3, FUN_00649970) is player.goal_x / goal_y.
+        float target_x = 0, target_y = 0;
         bool reassigned = false;           // put somewhere at once (Teleport): the World tells its client (ev::Reassigned)
         bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)

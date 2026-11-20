@@ -99,6 +99,7 @@ auto World::revive(Player& player, std::uint32_t now_ms) -> void {
     player.last_pmode = -1;
     player.player.walking = false; player.player.path.clear();
     player.target_x = player.player.x; player.target_y = player.player.y;
+    player.player.goal_x = player.target_x; player.player.goal_y = player.target_y;   // the path's SP3 with it (Hero::target_x)
     fight.revive(now_ms);                                // full life and mana, no potions or poison working
     d2d::log::info("{} is alive again", player.character.name);
     act_as(was);
@@ -115,6 +116,7 @@ auto World::raise_step(float elapsed, std::uint32_t now_ms) -> void {
         if (std::hypot(body.x - raiser->player.x, body.y - raiser->player.y) > kRaiseReach) continue;   // still walking up
         raiser->player.walking = false; raiser->player.path.clear();
         raiser->target_x = raiser->player.x; raiser->target_y = raiser->player.y;
+        raiser->player.goal_x = raiser->target_x; raiser->player.goal_y = raiser->target_y;   // the path's SP3 with it (Hero::target_x)
         ++body.raisers;
     }
     for (auto& lying : players) {
@@ -158,6 +160,7 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
             players[slot]->knock.reset();
             players[slot]->interact_npc = -1;
             players[slot]->target_x = unit.x; players[slot]->target_y = unit.y;
+            players[slot]->player.goal_x = players[slot]->target_x; players[slot]->player.goal_y = players[slot]->target_y;   // the path's SP3 with it (Hero::target_x)
         }
         if (!too_far(spread(players.size()))) return;
     }
@@ -176,6 +179,7 @@ auto World::bring_party(const Level* from, const Level* destination, float x, fl
         player.player.x = spot_x; player.player.y = spot_y;
         player.player.walking = false; player.player.path.clear();
         player.target_x = spot_x; player.target_y = spot_y;
+        player.player.goal_x = player.target_x; player.player.goal_y = player.target_y;   // the path's SP3 with it (Hero::target_x)
         if (player.merc) {
             player.merc->unit.path.clear();
             std::tie(player.merc->unit.x, player.merc->unit.y) = destination->nearest_free(spot_x + 1, spot_y + 1);
@@ -274,6 +278,7 @@ auto World::join(const Character& entering) -> Player& {
         join_more();                                   // the +0xd8s see the game's difficulty's bits
         std::tie(player.player.x, player.player.y) = level->nearest_free(lead().player.x + 1, lead().player.y);
         player.target_x = player.player.x; player.target_y = player.player.y;
+        player.player.goal_x = player.target_x; player.player.goal_y = player.target_y;   // the path's SP3 with it (Hero::target_x)
         player.player.dir = 4;
         spawn_merc();
         lay_save_corpse(entering);
@@ -332,6 +337,7 @@ auto World::enter(const Character& entering) -> void {
         wanted_near = nullptr;
         if (level->start.first >= 0) std::tie(actor->player.x, actor->player.y) = level->nearest_free(level->start.first, level->start.second);
         actor->target_x = actor->player.x; actor->target_y = actor->player.y;
+        actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
         spawn_merc();
         lay_save_corpse(entering);                    // by the town's start, the player standing there
         new_game();
@@ -509,6 +515,7 @@ auto World::respawn(std::uint32_t now_ms) -> void {
                 for (auto& pet : actor->pets) pet.target = -1;
                 std::tie(actor->player.x, actor->player.y) = town->nearest_free(town->start.first, town->start.second);
                 actor->target_x = actor->player.x; actor->target_y = actor->player.y;
+                actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
                 actor->player.walking = false; actor->player.path.clear();
             }
             act_as(*dead);
@@ -530,6 +537,7 @@ auto World::respawn(std::uint32_t now_ms) -> void {
         std::tie(actor->player.x, actor->player.y) = level->start.first >= 0 ? level->start : std::pair{ actor->player.x, actor->player.y };
         std::tie(actor->player.x, actor->player.y) = level->nearest_free(actor->player.x, actor->player.y);
         actor->target_x = actor->player.x; actor->target_y = actor->player.y;
+        actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
         fight.revive(now_ms);
         d2d::log::info("respawned in {}", level_name(*level));
     }

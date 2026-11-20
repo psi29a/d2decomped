@@ -443,10 +443,9 @@ auto Fight::pet_crowd(const Pet& pet) const -> int {
 // in a preset room that isn't Outdoors, or once after a walk at a foe found
 // no path (flag 0x40); its melee is MeleeRng + 1, its line FUN_005dc640.
 // A teleport is room_teleport (mode 3).
-// The crowd is pet_crowd's.
-// ponytail: the owner's path spot (+0x10) is the player's next path point;
-// a good monster's own room order isn't kept (the search runs over the
-// monsters in fight order).
+// The crowd is pet_crowd's. The search walks the near rooms' units in their
+// lists' order (room_order); the owner's path target and planned target
+// (+0x10 / +0x18, SP1 / SP3) are Hero::target_x and player.goal_x.
 auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         auto& monster = pet.monster;
         auto& unit = monster.unit;
@@ -465,31 +464,32 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
         std::vector<d2d::rules::NearFoe> nears;
-        // The Shadow Master's units are its near rooms' (FUN_005eb970's FUN_005dd0b0 mode 1):
-        // its foe, the driver, comes from those only.
-        const bool master_ai = type_info.ai_name == "ShadowMaster";
+        // FUN_005dd0b0 (mode 5; the Shadow Master's mode 1) over its near rooms'
+        // units in their lists' order: a monster outside those isn't seen.
         std::vector<int> rooms;
-        if (master_ai)
-            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
-                if (room_level == level) rooms.push_back(near_room);
-        for (const auto& other : monsters) {
+        for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
+            if (room_level == level) rooms.push_back(near_room);
+        std::vector<d2d::rules::RoomUnit> listed;
+        listed.reserve(monsters.size());
+        for (const auto& other : monsters) listed.push_back({ room_of(*level, other.unit.x, other.unit.y), true, other.unit.room_stamp });
+        const auto near_of = d2d::rules::room_order(listed, rooms);
+        for (const int index : near_of) {
+            const auto& other = monsters[std::size_t(index)];
             const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
             const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
             auto& entry = nears.emplace_back(d2d::rules::NearFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other.align, other_type.threat,
                                                                   false, true, !other.targetable(), town });   // FUN_005dca70: no unit flag 0x4, no target
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
-            if (master_ai && !std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) entry.skip = true;
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
-        const int found = pick.target >= 0 ? pick.target : pick.second;
+        const int picked = pick.target >= 0 ? pick.target : pick.second;
+        const int found = picked >= 0 ? near_of[std::size_t(picked)] : -1;
         // State 0x3c is decrepify: a monster's Decrepify on the pet (pet.curse).
         const auto* curse = game_data->skills.get(pet.curse.skill);
         const bool slowed = curse && now_ms < pet.curse.until && curse->auratarget == "decrepify";
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
-                                  .cur_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.front().first),
-                                  .cur_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.front().second),
-                                  .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
-                                  .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
+                                  .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
+                                  .end_x = sub(actor->player.goal_x), .end_y = sub(actor->player.goal_y),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));
@@ -707,10 +707,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
-                                  .cur_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.front().first),
-                                  .cur_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.front().second),
-                                  .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
-                                  .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
+                                  .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
+                                  .end_x = sub(actor->player.goal_x), .end_y = sub(actor->player.goal_y),
                                   .ring = actor->footsteps, .cursor = actor->footstep_cursor, .arrive_x = actor->warp_spot.first, .arrive_y = actor->warp_spot.second,
                                   .town = town, .velocity = type_info.velocity, .run = type_info.run, .slowed = scene.slowed };
         view.pets = int(std::ranges::count_if(actor->pets, [](const Pet& other) { return other.monster.alive(); }));

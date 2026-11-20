@@ -246,7 +246,6 @@ struct World {
     // unit, character, merc, combat), where they're headed, what they hold
     // and have open, what the World told them.
     struct Player : Fight::Hero {
-        float target_x = 0, target_y = 0;      // where the player is walking to
         bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
         int   take_warp = -1;                  // the warp of `level` the player is walking to
         bool  walk_pending = false;            // a walk to an item or warp may be issued once more when it ends (unit +0x150, FUN_00548a50)
