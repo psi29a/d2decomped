@@ -499,7 +499,13 @@ try:
         frames(30)
     assert mons and {m[0] for m in mons} <= {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
-    # Attack a monster until it's hurt.
+    # Attack a monster until it's hurt. A made save has no stats section, so
+    # its hero has no life, defense or attack rating: the zombie's first hit
+    # kills it before a swing lands. Give it a level-10 hero's (#652).
+    if not real:
+        for stat, value in ((0, 30), (2, 60), (3, 30), (6, 200 << 8), (7, 200 << 8), (12, 10)):
+            cmd(f"debug stat {stat} {value}")   # str, dex, vit, life, max life (256ths), level
+        frames(6)
     m = min(mons, key=lambda m: (float(m[1]) - x0) ** 2 + (float(m[2]) - y0) ** 2)
     uid = m[-2].lstrip("#")                                         # then the sequence row drawn
     cmd(f"debug warp {float(m[1]) - 1:.2f} {float(m[2]):.2f}"); frames(6)
