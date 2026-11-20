@@ -481,12 +481,18 @@ jobs:
   # clang-tidy reads compile_commands.json, not objects: it runs beside the
   # build instead of after it (4-7 min off a full sweep). Only FFmpeg's
   # headers (cached) and the launcher's main.moc need building first.
+  # Three runners, each a third of the list (every third line): a full sweep
+  # takes ~10 min a runner instead of ~30 on one. CI ok needs all three.
   tidy:
-    name: Names and includes
+    name: Names and includes (${{ matrix.shard }}/3)
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -547,15 +553,18 @@ jobs:
 
       # Names say what they hold and files include what they use (docs/PLAN.md
       # "Code style"): .clang-tidy's identifier-length and include-cleaner
-      # checks. A push to main sweeps everything (rot never lands); a PR
-      # narrows to the changed .cpp / .hpp so review is a couple of minutes,
-      # not ten. A header edit re-tidies every TU that includes it. The
-      # changed files come from the PR API so no extra git fetch is needed
-      # (`persist-credentials: false` above blocks git fetch anyway).
+      # checks. A push to main sweeps its own changes too, and a tag (or a
+      # compare that fails) everything; a PR narrows to its changed files
+      # (tools/tidy-pr-select.py): a header edit re-tidies the TUs that
+      # include it themselves and one for each header above it, a
+      # comment-only one a single TU. The changed files come from the PR API
+      # and the base from the event (the checkout has the history), so no
+      # git fetch is needed (`persist-credentials: false` blocks it anyway).
       - name: Names and includes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           python3 -c "import json; print('\n'.join(sorted({e['file'] for e in json.load(open('build/compile_commands.json')) if '/_deps/' not in e['file'] and '/build/' not in e['file']})))" > tidy_files.txt
           # A PR: its files; a push to main: the push's (a failed compare,
@@ -571,13 +580,18 @@ jobs:
           # may be cut short, so tidy everything.
           if [ "$(grep -c . <<< "$changed")" -ge 100 ]; then changed=""; fi
           if [ -n "$changed" ]; then
-            grep -E '\.(cpp|hpp)$' <<< "$changed" > changed.txt || true
-            python3 tools/tidy-pr-select.py > tidy_files.txt
+            grep -E '\.(cpp|hpp|h|inc)$' <<< "$changed" > changed.txt || true
+            base=()
+            if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then base=(--base "$BASE"); fi
+            python3 tools/tidy-pr-select.py "${base[@]}" > tidy_files.txt
             if [ ! -s tidy_files.txt ]; then echo "Nothing to tidy" && exit 0; fi
             echo "Changed-files mode: $(wc -l < tidy_files.txt) files to tidy"
-            cat tidy_files.txt
           fi
-          xargs -P "$(nproc)" -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
+          awk -v shard=${{ matrix.shard }} '(NR - 1) % 3 == shard - 1' tidy_files.txt > shard_files.txt
+          echo "This runner: $(wc -l < shard_files.txt) of $(wc -l < tidy_files.txt)"
+          cat shard_files.txt
+          if [ ! -s shard_files.txt ]; then exit 0; fi
+          xargs -P "$(nproc)" -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < shard_files.txt
 
   flatpak:
     name: Flatpak (${{ matrix.arch }})

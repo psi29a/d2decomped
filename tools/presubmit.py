@@ -377,11 +377,14 @@ def find_gcc():
     return None
 
 
-def select_units(tree, build, sources):
-    """The translation units that compile the changed files (tools/tidy-pr-select.py)."""
+def select_units(tree, build, sources, base=None, transitive=False):
+    """The translation units to check for the changed files (tools/tidy-pr-select.py): for
+    clang-tidy its pick (a header's own includers; one TU for a comment-only header, against
+    `base`), for GCC's warnings every TU that reaches a changed file (`transitive`)."""
     # tidy-pr-select reads changed.txt from its cwd: run it in the build dir, not the worktree
     (build / "changed.txt").write_text("".join(f"{tree / path}\n" for path in sources))
-    select = subprocess.run([sys.executable, str(tree / "tools/tidy-pr-select.py")], cwd=build, capture_output=True,
+    flags = (["--transitive"] if transitive else []) + (["--base", base] if base else [])
+    select = subprocess.run([sys.executable, str(tree / "tools/tidy-pr-select.py"), *flags], cwd=build, capture_output=True,
                             text=True, env={**os.environ, "BUILD_DIR": str(build)}, check=False)
     return select.stdout.split() if select.returncode == 0 and select.stdout.strip() else \
         [str(tree / path) for path in sources if path.endswith(".cpp")]
@@ -447,7 +450,7 @@ def check_tidy(tree, build, units, numbers, changed):
            f"{len(units)} TUs ({elsewhere} findings on lines this branch didn't add; CI's older tidy may not flag them)")
 
 
-def check_cpp(tree, changed, numbers, build, quick, docker):
+def check_cpp(tree, changed, numbers, build, quick, docker, base=None):
     sources = [path for path in changed if path.endswith((".cpp", ".hpp")) and (tree / path).is_file()]
     if quick:
         report("WARN", "build", "skipped (--quick): no build or ctest")
@@ -459,9 +462,8 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
                 # configured yet (a new test) would pass unchecked
                 report("FAIL", "compile commands", f"{known.name}/compile_commands.json lacks {', '.join(stale[:8])}: "
                        f"run `cmake --build {os.path.relpath(known, tree)}` (or a full tools/presubmit.py) first")
-            units = select_units(tree, known, sources)
-            check_gcc(known, units)
-            check_tidy(tree, known, units, numbers, set(changed))
+            check_gcc(known, select_units(tree, known, sources, transitive=True))
+            check_tidy(tree, known, select_units(tree, known, sources, base), numbers, set(changed))
         elif sources:
             report("WARN", "gcc", "no compile_commands.json yet: one full tools/presubmit.py run makes it")
         return False
@@ -512,9 +514,8 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
     report("ok", "strict-build", CI_FLAGS)
     if not sources:
         return True
-    units = select_units(tree, build, sources)
-    check_gcc(build, units)
-    check_tidy(tree, build, units, numbers, set(changed))
+    check_gcc(build, select_units(tree, build, sources, transitive=True))
+    check_tidy(tree, build, select_units(tree, build, sources, base), numbers, set(changed))
     return True
 
 
@@ -714,7 +715,7 @@ def main():
     check_review(tree, args.base, changed, texts)
     check_short_names(texts)
     check_sorted(tree, changed)
-    built = check_cpp(tree, changed, numbers, build, args.quick, args.docker)
+    built = check_cpp(tree, changed, numbers, build, args.quick, args.docker, args.base)
     check_ctest(build, args.quick, args.docker, built)
 
     fails = sum(1 for level, _, _ in results if level == "FAIL")
