@@ -43,6 +43,11 @@
 
 namespace d2d::game {
 
+// A monster's or summon's max damage is its last swing's
+// (rules::swing_max_damage), the merc's its max damage stats (merc_foe).
+// None has a left skill: every FUN_005701b0 call with EDX 1 is a player's
+// (FUN_0055c5c0, FUN_0056af80 test unit type 0; FUN_0055da70 /
+// FUN_00580280 put a player's saved hands back).
 // Diablo's score of a pet or monster (FUN_005e8530 reads any unit's stats
 // so): its resists as stats 0x24 / 0x25 / 0x27 / 0x29 / 0x2b, raw, and its
 // aura as its right skill (FUN_005701b0 sets it: a merc's FUN_005e4d30, a
@@ -78,6 +83,10 @@ auto Fight::cast_level(int skill) const -> int {
 
 auto Fight::cost_of(const d2d::rules::Skill& skill, int lvl) const -> int { return from_charges(skill.id) ? 0 : d2d::rules::mana_formula(skill, lvl); }
 
+// In state 0x72 (Blood Mana's curse, curses[0]) the cost is asked of life (FUN_00647540: stat 6,
+// not 8). FUN_00647840's status 2 (an entry's item at 0 charges) never comes: the stat hook takes
+// the entry away at 0 (SKILLS_AddOrRemoveItemSkill, skills.md "Item charges"), as charged_skills
+// does.
 auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
         const auto* row = game_data->skills.get(skill);
         if (!row) return 3;
@@ -108,6 +117,7 @@ auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
         return 0;
     }
 
+// Else -1 and the status's line (0x711ddc): 1 needmana, 2..4 impossible, 6..8 none.
 auto Fight::ask(int skill, std::uint32_t now_ms) -> int {
         int status = skill_status(skill, now_ms);
         if (const auto* row = game_data->skills.get(skill); row && row->attack_no_mana && (status == 1 || status == 2 || status == 4)) {
@@ -140,6 +150,8 @@ auto Fight::blood_mana() const -> bool {
         return curse && curse->auratarget == "blood_mana";
     }
 
+// Short of it the state goes and life is set to 1 (0x100), false; paid, the state goes once life is
+// under the curse's Param5 (+0x158) points.
 auto Fight::blood_pay(std::int64_t cost) -> bool {
         auto& life = actor->character.stats.values[d2d::d2s::kLife];
         const auto* curse = game_data->skills.get(actor->curses[0].skill);
@@ -170,6 +182,8 @@ auto Fight::settle_cast() -> void {
         if (skill) pay(*skill, owed.lvl);
     }
 
+// Its row has no auraevent and no passivestat, so the aura events
+// (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
 auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || !self_cast(*skill_row)) return false;
@@ -363,6 +377,8 @@ auto Fight::zealots_spare() const -> bool {
         return d2d::rules::quest::bit(actor->character.header.quests[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))], 0x15, 0);
     }
 
+// A LastCollide row passes the unit it struck last (FUN_005a8730); a
+// Pierce row with a charge left flies on, as skill_missile_hits'.
 auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
         auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(monster_index), missile.level, rng);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
@@ -887,6 +903,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         else if (!died && (foe.hits > 0 || foe.soft_hits > 0) && actor->pmode != kModeGH && actor->pmode != kModeDT && actor->pmode != kModeDD) play_player_hit(now_ms);
     }
 
+// Fanaticism's attackrate speeds their attacks (Monster::aura_rate);
+// Holy Freeze's slow is the player's stats (update_fighters).
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {
         for (auto& monster : monsters) monster.aura_dmg = monster.aura_th = monster.aura_rate = 0;
         for (auto& aura_monster : monsters) {
@@ -934,6 +952,9 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
         }
     }
 
+// ponytail: they hit monsters only (game.exe's are the shrine's own and
+// may hit players too: other players wait for networking); the poison
+// potion's cloud is a burst of its row's poison.
 auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t now_ms) -> void {
         const int lvl = std::clamp(clvl / 5, 1, 8);
         if (code == 19) {

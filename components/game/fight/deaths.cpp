@@ -61,6 +61,8 @@ bool rise_spot_blocked(const Level* level, const Crowd& crowd, std::span<const F
 
 }  // namespace
 
+// The blast is centred on the unit kicked (FUN_00553540's, esi at
+// 0x5d71f7), so it's in it.
 auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
@@ -75,6 +77,8 @@ auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int 
         }
     }
 
+// A hit taken in GH fires the bolts 2 frames on (event 7,
+// FUN_005a37d0).
 // Each monster's mod hooks in the fight (monsters.md "Boss mods in the fight"), incl. mod 34's FUN_005a3840 / FUN_005a3910.
 auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
         using d2d::rules::Boss;

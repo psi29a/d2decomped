@@ -877,6 +877,19 @@ auto World::spring_traps(std::uint32_t now_ms) -> void {
         }
     }
 
+// The trap monster acts once and is gone, so its shot goes straight
+// from the chest at the target its monster search picks: missile
+// level 1 / 4 / 8 by difficulty; a row with a Skill (chainlightning)
+// carries that skill's damage, the others their own columns.
+// trapfirebolt bursts into its fireexplode as any missile does (its
+// ExplosionMissile, missiles_update). Its first think is two frames
+// after FUN_00582420 makes it; only a searched target within aip1
+// (Trap-Missile 25 / 30 / 32 by difficulty; Trap-Poison / Trap-Nova
+// 20) gets the act. Trap 1's chainlightning doesn't hop: its hops
+// (missile data +0x28) are set only through FUN_0064a710, which the
+// mode's missile path (FUN_005a6d50, FUN_0056ecb0, FUN_0059fa30)
+// never calls, so hit function 12 (FUN_005aa730: hops over 1) finds
+// none.
 auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead) -> void {
         cues.cue("object_trap_trigger", now_ms, x, y);
         const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);

@@ -27,11 +27,6 @@ void cloak(const GameData& game_data, Monster& monster, int skill, int lvl, std:
 // so): its resists as stats 0x24 / 0x25 / 0x27 / 0x29 / 0x2b, raw, and its
 // aura as its right skill (FUN_005701b0 sets it: a merc's FUN_005e4d30, a
 // summon's FUN_005c4470, Aura Enchanted's FUN_005a1650) at its level.
-// A monster's or summon's max damage is its last swing's (rules::swing_max_damage),
-// the merc's its max damage stats (merc_foe).
-// None has a left skill: every FUN_005701b0 call with EDX 1 is a player's
-// (FUN_0055c5c0, FUN_0056af80 test unit type 0; FUN_0055da70 / FUN_00580280
-// put a player's saved hands back).
 d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> res, int aura, int aura_level, int max_damage);
 
 // A think's move as a path by its type (FUN_00649970) from subtile

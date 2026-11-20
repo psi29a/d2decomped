@@ -234,6 +234,11 @@ auto Fight::merc_gives() -> void {
         }
     }
 
+// Standing, at its think (MonAI Hireable, rules::hireable_think) it
+// follows the player, wanders, stands or fights the foe its search
+// finds (FUN_005ddc30): the attack think and its skill pick
+// (rules::merc_attack, FUN_005e5050 / FUN_005e4d30). A walk or run
+// ends with a think at once (FUN_005a8030).
 // The merc's hireable_think, fed its view of its owner, footsteps and target.
 auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;

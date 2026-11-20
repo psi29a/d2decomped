@@ -139,8 +139,7 @@ struct Crowd {
 // A town NPC's first think, 2 frames after `now_ms`: game.exe files it as
 // the NPC's room comes into play (its first client, FUN_0053a8e0, or made
 // in one already in play, FUN_00554850) through FUN_00573780: mode NU,
-// event 2 at frame + 2 (0x5737c0). World files the states its rooms grow
-// in a frame; npc_patrol files the rest the first time it meets them.
+// event 2 at frame + 2 (0x5737c0).
 void file_first_think(UnitState& state, std::uint32_t now_ms);
 
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)

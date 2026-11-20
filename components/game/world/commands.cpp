@@ -463,6 +463,9 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
  * rules. A fresh move to the exact current position explicitly stops walking without choosing a new
  * facing.
  */
+// game.exe's dispatcher (FUN_0054d750) gates most packets on
+// FUN_0057eec0(1, 0, 0): state 0x36, or mode 0 / 0x11; walking passes
+// (network.md).
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
             if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });

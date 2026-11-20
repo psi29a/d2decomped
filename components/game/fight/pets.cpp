@@ -260,6 +260,10 @@ auto Fight::pet_skill_damage(Pet& pet) -> void {
         pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = to_hit;
     }
 
+// Of the 1.14d player summons only a revived monster reaches this
+// think (its own MonStats AI): every other summon's AI is traced, and
+// Decoy's (Idle, 0x5b0cd0) and Bone Wall's / Prison's (BoneWall,
+// FUN_005e0400) only stand (pet.idle).
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
