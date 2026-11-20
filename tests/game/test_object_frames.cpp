@@ -10,6 +10,7 @@
 
 using namespace d2d::game;
 
+// Checks the Sync, roll and per-unit cache rules of the frame rate, and the peek.
 int main() {
     assert(object_frame_delta(256, true, d2d::rules::Rng{ 7 }) == 256);
     d2d::rules::Rng seed{ 7 };

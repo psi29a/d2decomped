@@ -11,6 +11,7 @@
 
 using namespace d2d::game;
 
+// Ages two live rooms through the sweeps and checks the release and the repopulation.
 int main() {
     Spawning::LevelState state;
     state.up = { true, true };

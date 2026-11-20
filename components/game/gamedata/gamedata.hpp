@@ -1221,6 +1221,8 @@ inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {
     if (sync) return delta;
     return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
 }
+// The same for a placed object: its client seed (its spot) steps once on
+// entering a mode, and the rate is kept until the mode changes.
 inline int object_frame_delta(const Npc& npc, std::size_t mode) {
     if (npc.sync) return npc.frame_delta[mode];
     if (!npc.client_seeded) {
