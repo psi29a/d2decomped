@@ -275,7 +275,13 @@ void sort_near(std::vector<NearRoom>& list) {
 // warp to another level that level's room with the warp back
 // (FUN_0066be10), each appended and the list sorted again (FUN_0066bda0).
 // ponytail: game.exe links only rooms flagged (+0x28 bits 0x10..0x800) for
-// the level next door; closeness stands in for the flag.
+// the level next door; closeness stands in for the flag. The flags are the
+// room's DS1 vis tiles: FUN_00667970 sets bit n + 4 for a wall tile of type
+// 10 or 11 whose sub-index (word bits 20..25) n is under 8 (orientation 0 or
+// 4, or bit 31). FUN_0066c370 walks the room's set bits: vis n's level, and
+// in it (FUN_0066c220) the index of this level in that level's own Vis list,
+// whose bit FUN_0066be80 tests on each of its rooms. d2d's built rooms keep
+// no such bits.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
     const auto& self = rects[std::size_t(room)];
