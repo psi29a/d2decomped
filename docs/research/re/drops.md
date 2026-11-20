@@ -227,12 +227,30 @@ seed (FUN_00650e50 before them only reads it):
   weight rarity, at least 1. A forced index among them wins with no draw;
   else rand(total) (d2d: `generate_item`'s `special_wanted`). One found already (bit set in `game+0x1b24`) fails
   but for a quest item (Items `+0x12a`); FUN_00556530 sets the bit unless
-  nolimit (flag 2).
+  nolimit (UniqueItems `+0x2c` bit 2), a quest item's too: its own
+  found test (`FUN_005564d0`, quality 7 and the bit) is skipped only for a
+  quest item, and an index past 0x1000 fails (no row comes near). d2d:
+  `generate_item` (`test_unique_found`); it left a quest item's bit unset,
+  which nothing read.
 - Set: SetItems rows (`+0xc18`, stride 0x1b8), version as above, the
   code, lvl <= ilvl, set 29 (Cow King's Leathers) only with flag 1;
   weight rarity, 0 counts 1; a forced index among them wins with no draw
   (FUN_005c25c0's `+0x40 - 1` test), else rand(total), then subtract.
-- A failed unique goes rare with durability x3, a failed set x2.
+- A failed unique gets durability x3 (FUN_00629930, version not 0) and a
+  failed set x2. Then FUN_00557450 remakes it: a unique rare
+  (FUN_005573f0), and when that doesn't take magic (FUN_00557380), superior
+  (FUN_00557320), normal (FUN_005572a0); a set the same from magic on. Each
+  clears the affixes and `+0x28` (FUN_00557250), puts the own seed back to
+  {start, 666} (FUN_00627e20 stores the start at data `+0x10`, FUN_00650e40),
+  sets the quality (also the record's `+0x30`, so FUN_00556f60 draws
+  nothing) and reads the seed's low back as the next start. Rare refuses a
+  type that can't be rare (FUN_005c21a0 tests FUN_0062e990, ItemTypes
+  Rare), so a unique charm none fits (Gheed's Fortune under ilvl 62, or one
+  found already) is remade magic. `tools/emu/drops.py remade` runs
+  FUN_00557450 whole for a unique or set asked for. d2d: `generate_item`
+  (until this, both went rare off the seed as the pick left it, so a failed
+  unique charm came out a rare charm); a remade rare's roll is the one
+  under "Rare" below.
 
 ### The quality roll, expansion and classic — FUN_00556f60
 
@@ -383,8 +401,10 @@ on the item's own seed:
 - the affix level: max(ilvl, qlvl), then + MagicLvl, or without one − qlvl
   / 2 (2·level − 99 from 99 − qlvl / 2 up), clamped 1..99;
 - the rows (0x90 bytes) of its section: spawnable, version < 100 or an
-  expansion item, level ≤ alvl ≤ maxlevel (0: none), rare-capable or the
-  item not rare / normal / superior, the type test (FUN_0065e620: an
+  expansion item, level ≤ alvl ≤ maxlevel (0: none), rare-capable (row
+  `+0x64`) or the item not rare / crafted / tempered (quality 6, 8, 9:
+  `piVar7 + -2` in the decompile is int-pointer arithmetic, quality - 8),
+  the type test (FUN_0065e620: an
   expansion item skips the stack / throw test; a first mod setting stat
   0xc2 (sockets) needs an item with an inventory and a socket count; no
   etype, an itype), frequency > 0, classspecific none / the item type's
@@ -405,8 +425,46 @@ at least 1, at most the grid (6) and FUN_0062bc20; flag 0x800, stat 0xc2.
 
 d2d: `generate_item` (quality 4 with a unit seed); the affix loader
 trims type codes. `drops.py items 1-10000` (magic now through
-FUN_00557450 too): 9994 / 9995 (the `elx` code, which `drops.py` skips: the row 0xd (Charm)
-magic path, FUN_00556a60, not ported; whether `elx` is of that row is not traced).
+FUN_00557450 too): 9994 / 9995. The `elx` code differs: FUN_00557ab0's
+base roll for an elixir (FUN_0065e8e0, its only caller) draws its kind off
+the own seed; not ported, as no treasure class or recipe makes one (it is
+not of row 0xd, Charm: `tools/emu/books_row.py` shows no charm path for it).
+
+## Rare — FUN_005c21a0, FUN_005c1bf0
+
+FUN_00557450 case 6 clears the names (FUN_00628010 / FUN_00628070), puts
+the own seed's low in the start and calls FUN_005c21a0: nothing for a type
+that can't be rare (FUN_0062e990), else FUN_005c1bf0 for an expansion item
+(FUN_005c1e80 classic). In FUN_005c1bf0, all on the item's own seed:
+
+- two names: FUN_005c1ab0 with ECX 1 (`0x5c1c06`) over the RarePrefix rows,
+  then ECX 0 (`0x5c1c26`) over the RareSuffix rows (the table at
+  `0x96caa0`, rows 0x48 bytes): the rows FUN_0065e710 passes (no etype the
+  item is of, then an itype it is of), rand(count), the row's index in the
+  whole table + 1, so a prefix's id counts on past the 155 suffixes (156 up).
+  No row fits either: 0, and the roll fails;
+- the slot count: for an item of ItemTypes row 0x3a (`jewl`, the item's own
+  type by FUN_0062b400) rand(2) + 3 (`0x5c1c79`), else one step and
+  `{3, 4, 4, 5, 5, 5, 6, 6}[low & 7]` (0x6e3014);
+- each slot: while neither side has given up, one step, odd a suffix, even
+  a prefix (`0x5c1d40`); a side that has given up takes the other. The pick
+  is FUN_005c1560 (item, 1, 1, 0, prefix 1 / suffix 0, the record's
+  `+0x68` / `+0x74` row, 0): spawnable rows, forced (its coin step is drawn
+  but can't refuse), mods not yet applied; a rare takes only rows with the
+  rare column (row `+0x64`, tested for quality 6, 8 or 9). None found: that
+  side gives up and the slot is taken again. Three on a side: it's full;
+- none at all: 0. Else flag 0x10 clear, then each slot's mods
+  (FUN_0065fec0): prefix 0, suffix 0, prefix 1, suffix 1, prefix 2,
+  suffix 2; then the staff mods (FUN_005c1260) and 1. FUN_00557450's tail
+  follows: ethereal (FUN_00556ca0), the class affix (rare is in its list).
+
+A rare that fails goes magic (FUN_00557380), as a failed set does.
+`tools/emu/drops.py rare` runs FUN_00557450 whole for a rare asked of
+every base in turn. d2d: `generate_item` (quality 6 with a unit seed; the
+pick shared with magic as `choose`), names from `Tables::rare_prefix_names`
+/ `rare_suffix_names`; `test_rare_roll`. Before, d2d's rare was 3..6
+alternating slots with no coin, any name, rows without the rare column, and
+no tail (so never ethereal, no class affix).
 
 ## Chests — FUN_00585b90
 
@@ -599,13 +657,32 @@ and ends with `FUN_005c1260` (the staff mods above):
 | 7 | the same `+0x28` store, then item flag 0x10000 set (`FUN_006280d0`) |
 | 0x16, 0x12 | item data word `+0x3e` (`FUN_00627fb0(item, value, 0)`) set to `FUN_005c2540(..)`: the row of the books table (`d2d_books_count_ptr`) whose dword at `+0x18` / `+0x1c` equals the item's code (Items `+0x80`), else the table's count |
 
-`FUN_005c2540` is a fastcall whose ECX the decompile does not show (the item is assumed to
-be passed through); the books-table fields were read only by offset. The `+0x28` of rows 0x28 /
-7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set row is picked).
-Evidence: `python3 tools/ghidra/fn.py 00556e80`, `python3 tools/ghidra/fn.py 00629df0`,
-`python3 tools/ghidra/fn.py 00627fb0`, `python3 tools/ghidra/fn.py 005c2540`.
-d2d: not ported as a function (the charm-affix path, row 0xd, is not ported). Cited from the
-decompile, no oracle run.
+`FUN_005c2540` is a fastcall: ECX the item, EDX 1 for a scroll (row 0x16, `0x556eee`: the
+record's `+0x18`, ScrollSpellCode) or 0 for a tome (row 0x12, `0x556f0f`: `+0x1c`,
+BookSpellCode); the row count when no row matches, -1 with no table (`FUN_006374a0`, the table
+at `0x96cc60`). The result is suffix slot 0, which `FUN_0055bff0` reads back as the book's
+skill (items-mode-early.md) and the save writes as a scroll's or tome's 5 bits. The `+0x28` of
+rows 0x28 / 7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set
+row is picked).
+
+`FUN_00556f30` (ESI the item, EAX the drop record, one stack arg, `RET 4`) is FUN_00557450's
+normal case (2): the item data's version (`FUN_0062a670`, data `+0x30`) 0 takes the classic
+`FUN_00556d80` (a switch on the item's own type, the same five rows), else `FUN_00556e80`.
+`FUN_005572a0` (a quality that doesn't take, remade normal) ends the same way.
+
+`tools/emu/books_row.py` runs FUN_00556f30, FUN_00556e80 and FUN_005c2540 on every Items row
+(659) with the data tables loaded, version 101: tbk / tsc get row 0, ibk / isc row 1, 0sc (the
+plain Scroll, no Books row) 3, the count; the three charms (cm1..cm3) take the charm path; the
+twelve body parts and the ear set `+0x28` (0 from a zeroed record), the ear flag 0x10000 too;
+every item ends in the staff mods.
+
+d2d: `rules::books_row`, set by `generate_item` on a normal scroll or tome (`Item::tome`,
+`test_books_row`: the oracle's cases with the data, hand-made tables without). Before, a made
+tome or scroll kept -1 and its 5 save bits were written as 0, Town Portal's row, an Identify
+one's too (not traced: which field `FUN_0062cbe0` reads them back into). Not ported (`ponytail:` there): the charm path (row 0xd), whose two
+rolls repeat magic's that just failed, and the body-part `+0x28` (no drop makes one); the
+classic branch with the rest of the classic rules.
+Evidence: `python3 tools/ghidra/fn.py 00556e80 00556f30 005c2540 00629df0 00627fb0`.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

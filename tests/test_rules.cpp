@@ -739,7 +739,7 @@ int main() try {
     assert(uni.quality == 7 && uni.unique_id == 0 && uni.props.size() == 2);
     assert(uni.props[0].stat == 188 && uni.props[0].param == (1 << 3 | 1) && uni.props[0].value == 2);   // sorc tab 1
     assert(uni.props[1].stat == 198 && uni.props[1].param == (3 | 44 << 6) && uni.props[1].value == 10);
-    assert(generate_item(gamble_tables, "cap", 10, 5, roll).quality == 6);              // no set cap: rare instead
+    assert(generate_item(gamble_tables, "cap", 10, 5, roll).quality == 4);              // no set cap: remade magic (FUN_00557380)
     {   // A forced row (struct +0x40, row + 1) that fits wins with no draw (FUN_005566b0); one that doesn't fit rolls.
         Tables two = gamble_tables;
         two.uniques.push_back({ .code = "cap", .level = 1, .rarity = 1000 });

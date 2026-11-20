@@ -5,6 +5,8 @@
     uv run python drops.py 1-20000 print    # just game.exe's lines
     uv run python drops.py tables           # every class's entries, game.exe vs ours
     uv run python drops.py items 1-20000    # made items (seeds, gold, base rolls, unique / set picks) vs ours
+    uv run python drops.py remade 1-20000   # a unique / set asked for, FUN_00557450 whole: one none fits remade
+    uv run python drops.py rare 1-20000     # a rare asked for, FUN_00557450 whole
     uv run python drops.py objects 1-20000  # containers opened (chests, caskets, urns, barrels, corpses, bookshelves) vs ours
     uv run python drops.py stands 1-20000   # armor stands' / weapon racks' items vs ours
 
@@ -22,8 +24,13 @@ the ilvl; FUN_00557ab0 rolls its coins / stack / durability / defence
 (FUN_00627260, set stat, hooked to record them), then FUN_005566b0 (unique)
 or FUN_005c2940 (set) picks off its own seed on a game whose one-per-game
 list (+0x1b24) carries on from job to job. A failed pick triples (unique)
-or doubles (set) the durability, as FUN_00557450 goes on to. One that
-took shows its mods (FUN_00627030 add / FUN_00627150 set on the item's
+or doubles (set) the durability when FUN_00557450 would (FUN_00629930 asked:
+not nodurability or indestructible); ours is then the item remade, so only
+its seeds, gold, quantity and pick are compared (`remade` checks the rest).
+`remade` jobs (seed, code, ilvl, 7 or 5, 0, difficulty) run FUN_00557450
+whole: one none fits remade rare / magic / superior / normal, printed as the
+low / normal / superior lines; `rare` jobs (seed, code, ilvl, 6, 0,
+difficulty) the same for a rare asked. One that took shows its mods (FUN_00627030 add / FUN_00627150 set on the item's
 list), each set bonus list (states 0xa5..0xa9, as "i[...]"), ethereal
 (FUN_00556ca0) and its own seed after.
 
@@ -180,7 +187,7 @@ class Oracle:
         base = self.stats.get(0x49, 0) + self.mods.get((0x49, 0), 0)
         return base + base * self.mods.get((0x4b, 0), 0) // 100
 
-    def make(self, seed, code, ilvl, quality, bovine, diff=0):
+    def make(self, seed, code, ilvl, quality, bovine, diff=None):
         e = self.e
         item, data, args, gs = self.item, self.data, self.args, self.seed
         for a, n in ((item, 0x200), (data, 0x200), (args, 0x100)): e.mu.mem_write(a, b"\0" * n)
@@ -198,13 +205,13 @@ class Oracle:
         e.w32(args + 0x80, bovine)
         e.w32(args + 0xfc, item)                       # FUN_00557ab0's EDX: where the item's pointer is
         self.stats, self.mods, self.sets = {}, {}, {}
-        e.mu.mem_write(self.game + 0x6d, bytes([diff]))
-        if quality <= 4:                               # FUN_00557450 too: the quality's own rolls (magic: its affixes), ethereal, sockets, automagic
+        e.mu.mem_write(self.game + 0x6d, bytes([diff or 0]))
+        if quality <= 4 or diff is not None:          # FUN_00557450 too: the quality's own rolls (magic: its affixes; a set / unique none fits, remade), ethereal, sockets, automagic
             e.w32(args + 0x30, quality)
             e.call(0x557ab0, args, 1, ecx=self.game, edx=args + 0xfc)
             st = self.stats
             props = ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.mods.items()) if v)
-            return (f"{seed:08x} {code} i{ilvl} q{quality} d{diff}: seeds {unit_seed:08x} {own_seed:08x} qty {st.get(0x46, 0)}"
+            return (f"{seed:08x} {code} i{ilvl} q{quality} d{diff or 0}: seeds {unit_seed:08x} {own_seed:08x} qty {st.get(0x46, 0)}"
                     f" dur {st.get(0x48, 0)}/{st.get(0x49, 0)} def {st.get(0x1f, 0)} | q{e.r32(data)} sub {e.s32(data + 0x28)}"
                     f" flags {e.r32(data + 0x18) & 0x400800:x} sock {st.get(0xc2, 0)} pic {e.read(data + 0x49, 1)[0]}"
                     f" auto {max(e.r16(data + 0x36) - self.auto0, 0)} [{props}] -> {e.r32(gs):08x} {e.r32(item + 0x20):08x} {e.r32(data + 4):08x}")
@@ -220,7 +227,7 @@ class Oracle:
                 props = ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.mods.items()) if v)
                 sets = "".join(f" {i}[" + ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.sets[i].items()) if v) + "]" for i in sorted(self.sets))
                 made = f" flags {e.r32(data + 0x18) & 0x400000:x} [{props}]{sets} {e.r32(data + 4):08x}"
-            elif self.stats.get(0x49, 0):
+            elif e.call(0x629930, item):              # durability (FUN_00629930: not nodurability or indestructible), version 101
                 for s in (0x48, 0x49): self.stats[s] = min(self.stats[s] * (3 if quality == 7 else 2), 255)
         st = self.stats
         return (f"{seed:08x} {code} i{ilvl} q{quality}{' cow' if bovine else ''}: seeds {unit_seed:08x} {own_seed:08x} gold {st.get(0xe, 0)}"
@@ -349,6 +356,32 @@ def item_jobs(o, first, last):
         else: yield seed, sets[s // 4 % len(sets)], ilvl, 5, int(s % 3 == 0)
 
 
+def remade_jobs(o, first, last):
+    """A unique (every UniqueItems base, the charms among them) or a set asked for, FUN_00557450 run whole: one none
+    fits (its level past the ilvl, a unique found already) is remade (FUN_005573f0 / FUN_00557380 / FUN_00557320)."""
+    uniques = sorted({r["code"] for r in txt_rows(o.e, "UniqueItems") if r.get("code") in o.codes})
+    sets = sorted({r["item"] for r in txt_rows(o.e, "SetItems") if r.get("item") in o.codes})
+    for s in range(first, last + 1):
+        seed, ilvl, diff = (s * 0x9E3779B1) & 0xFFFFFFFF, 1 + s * 7 % 99, s // 2 % 3
+        if s % 2: yield seed, uniques[s // 2 % len(uniques)], ilvl, 7, 0, diff
+        else: yield seed, sets[s // 2 % len(sets)], ilvl, 5, 0, diff
+
+
+def rare_jobs(o, first, last):
+    """A rare asked for, FUN_00557450 run whole (FUN_005c21a0 -> FUN_005c1bf0): every base in turn, its own quality
+    flags first (a type that can't be rare goes magic), at varied ilvls and difficulties."""
+    for s in range(first, last + 1):
+        yield (s * 0x9E3779B1) & 0xFFFFFFFF, o.codes[s % len(o.codes)], 1 + s * 13 % 99, 6, 0, s // len(o.codes) % 3
+
+
+def same(game, ours, mode):
+    """Whether ours matches game.exe's line. An items job's set / unique none fits: up to the quantity and the pick,
+    as game.exe's side stops at the pick while ours is the item remade (`remade` checks the rest)."""
+    if mode == "items" and " pick -1" in game:
+        return game.split(" dur ")[0] == ours.split(" dur ")[0] and game.split(" pick ")[1] == ours.split(" pick ")[1]
+    return game == ours
+
+
 def main():
     if sys.argv[1] in ("objects", "stands"):
         o = Oracle()
@@ -367,16 +400,16 @@ def main():
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
         print(f"{len(game) - len(bad)}/{len(game)} {sys.argv[1]} match game.exe")
         sys.exit(1 if bad or len(game) != len(ours) else 0)
-    if sys.argv[1] == "items":
+    if sys.argv[1] in ("items", "remade", "rare"):
         o = Oracle(items=True)
         first, last = (int(v, 0) for v in sys.argv[2].split("-"))
-        todo = list(item_jobs(o, first, last))
+        todo = list({"items": item_jobs, "remade": remade_jobs, "rare": rare_jobs}[sys.argv[1]](o, first, last))
         game = [o.make(*j) for j in todo]
         if sys.argv[-1] == "print":
             print("\n".join(game))
             return
         ours = run_ours(["items"], "".join("\t".join(map(str, j)) + "\n" for j in todo))
-        bad = [(g, u) for g, u in zip(game, ours) if g != u]
+        bad = [(g, u) for g, u in zip(game, ours) if not same(g, u, sys.argv[1])]
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
         print(f"{len(game) - len(bad)}/{len(game)} items match game.exe")
         sys.exit(1 if bad or len(game) != len(ours) else 0)

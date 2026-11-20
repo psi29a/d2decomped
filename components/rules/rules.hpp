@@ -246,6 +246,8 @@ struct Tables {
     std::vector<std::pair<int, int>> skill_levels;         // Skills.txt reqlevel, maxlvl by Id (FUN_00644710 / FUN_004aa8b0)
     // books.txt CostPerCharge by BookSpellCode (tbk, ibk): what each scroll in a tome adds to its price (FUN_0062efb0).
     std::unordered_map<std::string, int> book_charge_cost;
+    // books.txt ScrollSpellCode, BookSpellCode by row (record +0x18 / +0x1c, FUN_005c2540).
+    std::vector<std::pair<std::string, std::string>> books;
     std::vector<std::pair<int, int>> skill_costs;          // Skills.txt cost mult, cost add by Id (+0x234 / +0x238: a charge's repair, FUN_00628d30)
     // ItemStatCost Multiply, Add, Encode by ID (+0x10, +0x14, +0x30): what a magic stat adds to a price (FUN_00628e70).
     struct StatCost { int mul = 0, add = 0, encode = 0; };
@@ -257,6 +259,9 @@ struct Tables {
     std::unordered_map<std::string, std::vector<PropFunc>> properties;
     std::unordered_map<std::string, int> skill_id;         // Skills.txt skill name -> Id
     int rare_prefixes = 0, rare_suffixes = 0;              // RarePrefix / RareSuffix rows
+    // RarePrefix / RareSuffix itype1..7 and etype1..4 by row (FUN_0065e710: a name fits an item of one itype, none of its etypes).
+    struct RareName { std::vector<std::string> itypes, etypes; };
+    std::vector<RareName> rare_prefix_names, rare_suffix_names;
     std::vector<std::string> gamble;                       // gamble.txt codes
     std::array<GambleRates, 3> gamble_rates{};
     std::vector<Hireling> hirelings;                       // hireling.txt rows
@@ -2020,8 +2025,17 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
     return ok.back().first;
 }
 
+// A scroll's or tome's Books.txt row (FUN_005c2540, EDX 1 for a scroll):
+// the first whose ScrollSpellCode (`scroll`) or BookSpellCode is `code`,
+// the row count when none is (0sc, the plain Scroll, gets 3).
+inline int books_row(const Tables& tables, const std::string& code, bool scroll) {
+    for (std::size_t row = 0; row < tables.books.size(); ++row)
+        if ((scroll ? tables.books[row].first : tables.books[row].second) == code) return int(row);
+    return int(tables.books.size());
+}
+
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6
-// rare, 7 unique; set/unique fall back to rare when none fits),
+// rare, 7 unique; a set / unique none fits is remade, below),
 // identified, with its defence and durability rolled.
 // A made drop (FUN_00558d90) passes its unit seed (+0x20): the base rolls
 // (FUN_00557ab0) come off it: arrows / bolts (ItemTypes Quiver) min +
@@ -2031,8 +2045,10 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // own seed (item data +4): the unique (FUN_005566b0) / set (FUN_005c25c0)
 // pick is its first draw. `found_uniques` is the game's one-per-game list
 // (+0x1b24): a unique found already fails (but a quest item's); one found
-// is added unless nolimit. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
-// A failed unique turns rare with 3x durability, a set 2x (FUN_00557450).
+// is added unless nolimit, a quest item too. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
+// A failed unique gets 3x durability and is remade rare (magic when its
+// type can't be rare), a failed set 2x and magic (FUN_00557450); off its
+// own seed's start, each falls on to superior and normal as magic does.
 // With a unit seed (a made drop) the rest of FUN_00557ab0 / FUN_00557450
 // too, in its order: the picture (ItemTypes VarInvGfx) off the unit seed;
 // low (FUN_005c2d40): sub rand(4), durability dur*33/100, defence 75%;
@@ -2047,11 +2063,14 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // off the base's auto prefix group).
 // `special_wanted`: a unique / set row + 1 that wins with no draw when it
 // fits (struct +0x40: FUN_005566b0, FUN_005c25c0).
-// ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
-// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules aren't here; without a unit seed everything
-// comes off `rng` (stores, gambling, imbue) and none of the above is
-// rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
-// and dmg%'s +1 max damage on a weak weapon only reach its props.
+// ponytail: without a unit seed (an imbue, tests) a rare's affixes are 3..6
+// alternating prefix / suffix, a magic's 1/4 prefix, 1/4 suffix, 1/2 both;
+// the classic (version < 100) rules aren't here; an elixir's base roll
+// (FUN_0065e8e0: its kind off the own seed; no treasure class or recipe
+// makes one) isn't either; without a unit seed everything comes off `rng`
+// and none of the above is rolled; base damage isn't kept on the item, so
+// low's 75%, ethereal's 3/2 and dmg%'s +1 max damage on a weak weapon only
+// reach its props.
 inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                                 Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
                                 int difficulty = 0, int special_wanted = 0) {
@@ -2146,6 +2165,7 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
                 const auto& affix = tables.automagic[row];
                 if (!affix.spawnable || affix.frequency <= 0 || affix.group != base->auto_prefix || affix.level > alvl || (affix.max_level > 0 && affix.max_level < alvl))
                     continue;
+                if (!affix.rare && (item.quality == 6 || item.quality == 8 || item.quality == 9)) continue;   // FUN_005c1560: the rare column on a rare, crafted or tempered
                 if (std::ranges::none_of(affix.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) continue;
                 if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
                 const int weight = base->magic_lvl ? affix.frequency * affix.level : affix.frequency;
@@ -2165,12 +2185,26 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
     };
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
     // their quantity.
+    // A normal item's fix-ups (FUN_00556f30, and FUN_005572a0 when another
+    // quality doesn't take: FUN_00556e80 on an item of version 100+): a scroll's
+    // (ItemTypes row 0x16) or a tome's (0x12) Books row into suffix slot
+    // 0, the save's 5 bits (FUN_005c2540; the tome's test runs last).
+    // ponytail: a charm's affix (row 0xd, FUN_00556a60: reached only after
+    // its magic roll found no affix, its two rolls fail the same way and
+    // the game exits, string 0x372) and a body part's monster (rows 0x28 /
+    // 7, FUN_00629df0; no drop makes one) aren't set; a classic item
+    // (version 0) takes FUN_00556d80 (the same Books row, by its own type).
+    auto fix_ups = [&] {
+        if (item.quality != 2) return;
+        if (type_is(tables, type, "scro")) item.tome = books_row(tables, code, true);
+        if (type_is(tables, type, "book")) item.tome = books_row(tables, code, false);
+    };
     // Low / normal / superior (also magic's fallback, FUN_00557320).
     auto plain = [&](int plain_quality) {
         quality = plain_quality;
         item.quality = std::max(quality, 1);
         if (!unit_seed && base && base->stackable) item.quantity = rng.range(base->min_stack, base->max_stack);
-        if (!unit_seed || !base) return std::move(item);
+        if (!unit_seed || !base) { fix_ups(); return std::move(item); }
         bool made = true;                                  // low / superior that doesn't take: FUN_005572a0, normal off a fresh own seed
         if (item.quality == 1 && kind != 1 && kind != 2) {
             made = false;
@@ -2210,6 +2244,7 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
             }
         }
         if (!made) { rng = Rng(start); item.quality = 2; item.qsub = -1; }
+        fix_ups();                                         // before the staff mods, as FUN_00556e80 ends in FUN_005c1260
         if (item.quality == 2) staff_mods();
         return finish();
     };
@@ -2233,9 +2268,12 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
         const int picked = special(list);
         int special_row = picked;
-        if (quality == 7 && special_row >= 0 && found_uniques && found != tables.item_base.end() && !found->second.quest) {
+        // FUN_005566b0 tests the one-per-game bit (but for a quest item);
+        // FUN_00556530 then sets it unless nolimit (UniqueItems +0x2c bit
+        // 2), a quest item's too.
+        if (quality == 7 && special_row >= 0 && found_uniques && base) {
             if (found_uniques->size() <= std::size_t(special_row)) found_uniques->resize(std::size_t(special_row) + 1);
-            if ((*found_uniques)[std::size_t(special_row)]) special_row = -1;
+            if (!base->quest && (*found_uniques)[std::size_t(special_row)]) special_row = -1;
             else if (!list[std::size_t(special_row)].nolimit) (*found_uniques)[std::size_t(special_row)] = true;
         }
         if (special_row >= 0) {
@@ -2261,12 +2299,18 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
             item.quality = 7;
             return finish();
         }
-        if (item.max_durability > 0) {
+        if (has_durability()) {                            // FUN_00629930: durability, not nodurability (6hx has both), not indestructible
             const int times = quality == 7 ? 3 : 2;
             item.durability = std::min(item.durability * times, 255);
             item.max_durability = std::min(item.max_durability * times, 255);
         }
-        quality = 6;
+        // Remade (FUN_005573f0 rare after a unique, FUN_00557380 magic after
+        // a set or a rare that won't take): the affixes cleared, the own seed
+        // back to {start, 666} (FUN_00627e20, FUN_00650e40). FUN_005c21a0
+        // refuses a type that can't be rare (a charm), so that one goes magic.
+        rng = Rng(start);
+        item.qsub = -1;                                    // FUN_00557250: +0x28 to -1
+        quality = quality == 7 && item_type && item_type->can_rare ? 6 : 4;
     }
     const int magic_lvl = found != tables.item_base.end() ? found->second.magic_lvl : 0;
     const int alvl = affix_level(item.ilvl, qlvl, magic_lvl);
@@ -2280,7 +2324,109 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
         for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng, base ? &target : nullptr);
         return affix_row;
     };
+    // FUN_005c1560 (version 100+), the affix pick of magic and rare off the
+    // own seed: a coin first (one step: even and not forced, none); the
+    // affix level (as the class affix'); the rows spawnable, in the level
+    // window, of the type, the item's class or none, frequency > 0, on a
+    // rare (crafted, tempered) the rare column, no group the item has
+    // (FUN_005c1500); weight
+    // frequency (x level with MagicLvl); rand(total + 1), the last when it
+    // runs past. Its mods are the caller's (apply_affix).
+    static constexpr std::array<std::string_view, 7> kClass = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+    const int item_class = item_type ? int(std::ranges::find(kClass, std::string_view(item_type->cls)) - kClass.begin()) : 7;
+    const int magic_alvl = affix_level(item.ilvl, qlvl, base ? base->magic_lvl : 0);
+    // FUN_0065e620: an affix whose first mod sets the sockets (stat 0xc2)
+    // only on an item that can hold some (hasinv and a socket count).
+    const int by_ilvl = item_type ? item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)] : 0;
+    const bool socketable = base && base->has_inv && std::min(base->gem_sockets, by_ilvl) > 0;
+    auto sockets_mod = [&](const Affix& affix) {
+        if (affix.mods.empty()) return false;
+        const auto property = tables.properties.find(lower_case(affix.mods.front().code));
+        return property != tables.properties.end() && !property->second.empty() && property->second.front().stat == 0xc2;
+    };
+    auto choose = [&](const std::vector<Affix>& list, bool forced) {
+        const auto coin = rng.next();
+        if (!(coin & 1) && !forced) return 0;
+        std::vector<std::pair<int, int>> fits;
+        int total = 0;
+        for (std::size_t row = 0; row < list.size(); ++row) {
+            const auto& affix = list[row];
+            if (!affix.spawnable || affix.frequency <= 0 || affix.level > magic_alvl || (affix.max_level > 0 && affix.max_level < magic_alvl)) continue;
+            if (!affix.rare && (item.quality == 6 || item.quality == 8 || item.quality == 9)) continue;
+            if (affix.class_specific >= 0 && item_class != 7 && affix.class_specific != item_class) continue;
+            if (std::ranges::none_of(affix.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) continue;
+            if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
+            if (std::ranges::find(groups, affix.group) != groups.end()) continue;
+            if (!socketable && sockets_mod(affix)) continue;
+            const int weight = base && base->magic_lvl ? affix.frequency * affix.level : affix.frequency;
+            fits.push_back({ int(row), weight });
+            total += weight;
+        }
+        if (fits.empty()) return 0;
+        int roll = rng(total + 1), chosen = fits.back().first;
+        for (const auto& [fit_row, weight] : fits) if ((roll -= weight) < 0) { chosen = fit_row; break; }
+        groups.push_back(list[std::size_t(chosen)].group);
+        return chosen;
+    };
+    auto apply_affix = [&](const std::vector<Affix>& list, int row) {   // FUN_0065fec0 with the item, as a unique's
+        const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };
+        for (const auto& mod : list[std::size_t(row)].mods) apply_mod(tables, mod, item.props, rng, &target);
+    };
+    if (quality == 6 && unit_seed && base) {
+        // Rare (FUN_00557450 case 6 -> FUN_005c21a0 -> FUN_005c1bf0): two
+        // names, a RarePrefix then a RareSuffix row (FUN_005c1ab0: rand over
+        // the rows of one of the item's itypes and none of its etypes,
+        // FUN_0065e710; a prefix's id counts on past the suffixes); with
+        // both, the count: rand(2) + 3 for a jewel (ItemTypes row 0x3a, the
+        // item's own type), else {3, 4, 4, 5, 5, 5, 6, 6}[next & 7]
+        // (0x6e3014). Each slot a coin (odd: a suffix) while neither side
+        // is full, at most 3 a side, picked forced (FUN_005c1560); a side
+        // that finds none is full and the slot goes again. Then each slot's
+        // mods (prefix 0, suffix 0, prefix 1 ..), the staff mods
+        // (FUN_005c1260) and the tail.
+        item.quality = 6;
+        auto rare_name = [&](const std::vector<Tables::RareName>& names, int first) {
+            std::vector<int> fits;
+            for (std::size_t row = 0; row < names.size(); ++row) {
+                const auto& name = names[row];
+                if (std::ranges::any_of(name.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
+                if (std::ranges::any_of(name.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) fits.push_back(int(row));
+            }
+            return fits.empty() ? 0 : first + fits[std::size_t(rng(int(fits.size())))] + 1;
+        };
+        item.rare1 = rare_name(tables.rare_prefix_names, int(tables.rare_suffix_names.size()));
+        item.rare2 = rare_name(tables.rare_suffix_names, 0);
+        int prefixes = 0, suffixes = 0;
+        if (item.rare1 && item.rare2) {
+            static constexpr std::array kRareCount{ 3, 4, 4, 5, 5, 5, 6, 6 };
+            const int count = type == "jewl" ? 3 + rng(2) : kRareCount[rng.next() & 7];
+            bool prefixes_full = false, suffixes_full = false;
+            for (int slot = 0; slot < count; ++slot) {
+                if (prefixes_full && suffixes_full) break;
+                const bool suffix = prefixes_full || (!suffixes_full && (rng.next() & 1) != 0);
+                const int row = choose(suffix ? tables.suffixes : tables.prefixes, true);
+                if (!row) { (suffix ? suffixes_full : prefixes_full) = true; --slot; continue; }
+                int& taken = suffix ? suffixes : prefixes;
+                item.affixes[std::size_t(taken * 2 + (suffix ? 1 : 0))] = row;
+                if (++taken > 2) (suffix ? suffixes_full : prefixes_full) = true;
+            }
+        }
+        if (prefixes || suffixes) {
+            for (std::size_t slot = 0; slot < item.affixes.size(); ++slot)
+                if (item.affixes[slot]) apply_affix(slot % 2 ? tables.suffixes : tables.prefixes, item.affixes[slot]);
+            staff_mods();
+            return finish();
+        }
+        // None (FUN_00557380): the names and affixes cleared, the own seed
+        // back to its start, remade magic.
+        item.rare1 = item.rare2 = 0;
+        item.affixes = {};
+        groups.clear();
+        rng = Rng(start);
+        quality = 4;
+    }
     if (quality == 6) {
+        // Rare with no unit seed (an imbue, tests): not game.exe's roll.
         item.quality = 6;
         item.rare1 = tables.rare_prefixes > 0 ? 156 + rng(tables.rare_prefixes) : 0;
         item.rare2 = tables.rare_suffixes > 0 ? 1 + rng(tables.rare_suffixes) : 0;
@@ -2294,53 +2440,11 @@ inline d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, i
     if (quality == 4 && unit_seed && base) {
         // Magic (FUN_00557450 case 4 -> FUN_005565e0): a prefix, then a
         // suffix (one at least: the suffix is forced when no prefix came),
-        // each FUN_005c1560 on the own seed: a coin (one step: even and not
-        // forced, none); the affix level (as the class affix'); the rows
-        // spawnable, in the level window, of the type, the item's class or
-        // none, frequency > 0, not rare-only on a non-rare, no group the
-        // item has (FUN_005c1500); weight frequency (x level with MagicLvl);
-        // rand(total + 1), the last when it runs past; its mods at once.
-        // Then the staff mods (FUN_005c1260) and the tail.
+        // each FUN_005c1560 (choose) with its mods at once. Then the staff
+        // mods (FUN_005c1260) and the tail.
         item.quality = 4;
-        static constexpr std::array<std::string_view, 7> kClass = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
-        const int item_class = item_type ? int(std::ranges::find(kClass, std::string_view(item_type->cls)) - kClass.begin()) : 7;
-        const int magic_alvl = affix_level(item.ilvl, qlvl, base->magic_lvl);
-        // FUN_0065e620: an affix whose first mod sets the sockets (stat 0xc2)
-        // only on an item that can hold some (hasinv and a socket count).
-        const int by_ilvl = item_type ? item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)] : 0;
-        const bool socketable = base->has_inv && std::min(base->gem_sockets, by_ilvl) > 0;
-        auto sockets_mod = [&](const Affix& affix) {
-            if (affix.mods.empty()) return false;
-            const auto property = tables.properties.find(lower_case(affix.mods.front().code));
-            return property != tables.properties.end() && !property->second.empty() && property->second.front().stat == 0xc2;
-        };
-        auto magic_affix = [&](const std::vector<Affix>& list, bool must) {
-            const auto coin = rng.next();
-            if (!(coin & 1) && !must) return 0;
-            std::vector<std::pair<int, int>> fits;
-            int total = 0;
-            for (std::size_t row = 0; row < list.size(); ++row) {
-                const auto& affix = list[row];
-                if (!affix.spawnable || affix.frequency <= 0 || affix.level > magic_alvl || (affix.max_level > 0 && affix.max_level < magic_alvl)) continue;
-                if (affix.class_specific >= 0 && item_class != 7 && affix.class_specific != item_class) continue;
-                if (std::ranges::none_of(affix.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) continue;
-                if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
-                if (std::ranges::find(groups, affix.group) != groups.end()) continue;
-                if (!socketable && sockets_mod(affix)) continue;
-                const int weight = base->magic_lvl ? affix.frequency * affix.level : affix.frequency;
-                fits.push_back({ int(row), weight });
-                total += weight;
-            }
-            if (fits.empty()) return 0;
-            int roll = rng(total + 1), chosen = fits.back().first;
-            for (const auto& [fit_row, weight] : fits) if ((roll -= weight) < 0) { chosen = fit_row; break; }
-            groups.push_back(list[std::size_t(chosen)].group);
-            const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };
-            for (const auto& mod : list[std::size_t(chosen)].mods) apply_mod(tables, mod, item.props, rng, &target);
-            return chosen;
-        };
-        item.prefix = magic_affix(tables.prefixes, false);
-        item.suffix = magic_affix(tables.suffixes, item.prefix == 0);
+        if ((item.prefix = choose(tables.prefixes, false))) apply_affix(tables.prefixes, item.prefix);
+        if ((item.suffix = choose(tables.suffixes, item.prefix == 0))) apply_affix(tables.suffixes, item.suffix);
         // Neither (FUN_00557320): the affixes cleared, the own seed back to
         // its start, remade superior (and normal when that doesn't take).
         if (!item.prefix && !item.suffix) { rng = Rng(start); return plain(3); }
