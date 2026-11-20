@@ -521,8 +521,7 @@ as `ev::UniqueEvent`: `rules::staff_show`, the client's
 3 and 13, his portal; Jerhyn → 5 / 6 (bit 4); Meshif → done (bits 0, 2,
 5, 13). The way down is drawn as object 100 (SJ): OP for 20 ticks (the
 client's counter, `object_op_ticks`), then ON; from an earlier game ON at
-once (0x59d976). Gaps: the orifice's panel (using it with the staff places
-it);
+once (0x59d976). Gaps:
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
 +0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
 
