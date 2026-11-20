@@ -26,9 +26,11 @@ int main() try {
     tables.item_base["rin"] = { .level = 1 };
     tables.item_base["cap"] = { .minac = 3, .maxac = 5, .level = 1, .durability = 12 };
     // One magic prefix and suffix that fit anything at level 1 (row 0 none, as the tables have it).
-    const Affix any{ .name = "any", .level = 1, .group = 1, .frequency = 1, .spawnable = true, .itypes = { "char", "ring", "helm" } };
+    const Affix any{ .name = "any", .level = 1, .group = 1, .frequency = 1, .spawnable = true, .rare = true, .itypes = { "char", "ring", "helm" } };
     tables.prefixes = { {}, any };
     tables.suffixes = { {}, any };
+    tables.rare_prefix_names = { { .itypes = { "ring", "helm" } } };   // a rare's two names (FUN_005c1ab0)
+    tables.rare_suffix_names = { { .itypes = { "ring", "helm" } } };
     // Rows none of the asks fits: their level is past the ilvl.
     tables.uniques = { { .code = "cm3", .level = 62 }, { .code = "rin", .level = 62 } };
     tables.sets = { { .code = "cap", .level = 62 } };

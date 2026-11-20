@@ -249,9 +249,8 @@ seed (FUN_00650e50 before them only reads it):
   found already) is remade magic. `tools/emu/drops.py remade` runs
   FUN_00557450 whole for a unique or set asked for. d2d: `generate_item`
   (until this, both went rare off the seed as the pick left it, so a failed
-  unique charm came out a rare charm); a remade rare's affixes are only
-  compared up to its quality, as d2d's rare roll isn't game.exe's
-  (`generate_item`'s `ponytail:`).
+  unique charm came out a rare charm); a remade rare's roll is the one
+  under "Rare" below.
 
 ### The quality roll, expansion and classic — FUN_00556f60
 
@@ -426,6 +425,42 @@ d2d: `generate_item` (quality 4 with a unit seed); the affix loader
 trims type codes. `drops.py items 1-10000` (magic now through
 FUN_00557450 too): 9994 / 9995 (the `elx` code, which `drops.py` skips: the row 0xd (Charm)
 magic path, FUN_00556a60, not ported; whether `elx` is of that row is not traced).
+
+## Rare — FUN_005c21a0, FUN_005c1bf0
+
+FUN_00557450 case 6 clears the names (FUN_00628010 / FUN_00628070), puts
+the own seed's low in the start and calls FUN_005c21a0: nothing for a type
+that can't be rare (FUN_0062e990), else FUN_005c1bf0 for an expansion item
+(FUN_005c1e80 classic). In FUN_005c1bf0, all on the item's own seed:
+
+- two names: FUN_005c1ab0 with ECX 1 (`0x5c1c06`) over the RarePrefix rows,
+  then ECX 0 (`0x5c1c26`) over the RareSuffix rows (the table at
+  `0x96caa0`, rows 0x48 bytes): the rows FUN_0065e710 passes (no etype the
+  item is of, then an itype it is of), rand(count), the row's index in the
+  whole table + 1, so a prefix's id counts on past the 155 suffixes (156 up).
+  No row fits either: 0, and the roll fails;
+- the slot count: for an item of ItemTypes row 0x3a (`jewl`, the item's own
+  type by FUN_0062b400) rand(2) + 3 (`0x5c1c79`), else one step and
+  `{3, 4, 4, 5, 5, 5, 6, 6}[low & 7]` (0x6e3014);
+- each slot: while neither side has given up, one step, odd a suffix, even
+  a prefix (`0x5c1d40`); a side that has given up takes the other. The pick
+  is FUN_005c1560 (item, 1, 1, 0, prefix 1 / suffix 0, the record's
+  `+0x68` / `+0x74` row, 0): spawnable rows, forced (its coin step is drawn
+  but can't refuse), mods not yet applied; a rare takes only rows with the
+  rare column (row `+0x64`, tested for quality 6, 8 or 9). None found: that
+  side gives up and the slot is taken again. Three on a side: it's full;
+- none at all: 0. Else flag 0x10 clear, then each slot's mods
+  (FUN_0065fec0): prefix 0, suffix 0, prefix 1, suffix 1, prefix 2,
+  suffix 2; then the staff mods (FUN_005c1260) and 1. FUN_00557450's tail
+  follows: ethereal (FUN_00556ca0), the class affix (rare is in its list).
+
+A rare that fails goes magic (FUN_00557380), as a failed set does.
+`tools/emu/drops.py rare` runs FUN_00557450 whole for a rare asked of
+every base in turn. d2d: `generate_item` (quality 6 with a unit seed; the
+pick shared with magic as `choose`), names from `Tables::rare_prefix_names`
+/ `rare_suffix_names`; `test_rare_roll`. Before, d2d's rare was 3..6
+alternating slots with no coin, any name, rows without the rare column, and
+no tail (so never ethereal, no class affix).
 
 ## Chests — FUN_00585b90
 

@@ -1549,6 +1549,15 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
         game_data.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
         game_data.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
+        for (const auto& [file_name, names] : { std::pair{ "RarePrefix", &game_data.rules.rare_prefix_names }, std::pair{ "RareSuffix", &game_data.rules.rare_suffix_names } })
+            if (const auto table = txt(file_name); table.size() > 0)
+                for (std::size_t row = 0; row < table.size(); ++row) {
+                    auto& name = names->emplace_back();
+                    for (int index = 1; index <= 7; ++index)
+                        if (const std::string code(table.get(row, ("itype" + std::to_string(index)).c_str())); !code.empty()) name.itypes.push_back(code);
+                    for (int index = 1; index <= 4; ++index)
+                        if (const std::string code(table.get(row, ("etype" + std::to_string(index)).c_str())); !code.empty()) name.etypes.push_back(code);
+                }
         game_data.rules.gamble = keys("gamble", "code", false);
         if (const auto hireling_table = txt("hireling"); hireling_table.size() > 0)
             for (std::size_t row = 0; row < hireling_table.size(); ++row) {

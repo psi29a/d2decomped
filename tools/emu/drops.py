@@ -6,6 +6,7 @@
     uv run python drops.py tables           # every class's entries, game.exe vs ours
     uv run python drops.py items 1-20000    # made items (seeds, gold, base rolls, unique / set picks) vs ours
     uv run python drops.py remade 1-20000   # a unique / set asked for, FUN_00557450 whole: one none fits remade
+    uv run python drops.py rare 1-20000     # a rare asked for, FUN_00557450 whole
     uv run python drops.py objects 1-20000  # containers opened (chests, caskets, urns, barrels, corpses, bookshelves) vs ours
     uv run python drops.py stands 1-20000   # armor stands' / weapon racks' items vs ours
 
@@ -28,7 +29,8 @@ not nodurability or indestructible); ours is then the item remade, so only
 its seeds, gold, quantity and pick are compared (`remade` checks the rest).
 `remade` jobs (seed, code, ilvl, 7 or 5, 0, difficulty) run FUN_00557450
 whole: one none fits remade rare / magic / superior / normal, printed as the
-low / normal / superior lines. One that took shows its mods (FUN_00627030 add / FUN_00627150 set on the item's
+low / normal / superior lines; `rare` jobs (seed, code, ilvl, 6, 0,
+difficulty) the same for a rare asked. One that took shows its mods (FUN_00627030 add / FUN_00627150 set on the item's
 list), each set bonus list (states 0xa5..0xa9, as "i[...]"), ethereal
 (FUN_00556ca0) and its own seed after.
 
@@ -365,20 +367,16 @@ def remade_jobs(o, first, last):
         else: yield seed, sets[s // 2 % len(sets)], ilvl, 5, 0, diff
 
 
-def rare(line):
-    """A remade unique that took rare: generate_item's rare affixes aren't game.exe's, nor is the tail after them (its
-    ponytail), and they move the defence, so only the seeds, quantity, durability (not when game.exe's tail made it
-    ethereal) and the quality are compared."""
-    return line.split(" | ")[1].split()[0] == "q6"
+def rare_jobs(o, first, last):
+    """A rare asked for, FUN_00557450 run whole (FUN_005c21a0 -> FUN_005c1bf0): every base in turn, its own quality
+    flags first (a type that can't be rare goes magic), at varied ilvls and difficulties."""
+    for s in range(first, last + 1):
+        yield (s * 0x9E3779B1) & 0xFFFFFFFF, o.codes[s % len(o.codes)], 1 + s * 13 % 99, 6, 0, s // len(o.codes) % 3
 
 
 def same(game, ours, mode):
-    """Whether ours matches game.exe's line. A remade rare: up to `rare`'s fields. An items job's set / unique none
-    fits: up to the quantity and the pick, as game.exe's side stops at the pick while ours is the item remade (its
-    durability, defence and ethereal are what `remade` checks)."""
-    if mode == "remade" and rare(game):
-        cut = " dur " if int(game.split(" flags ")[1].split()[0], 16) & 0x400000 else " def "
-        return game.split(cut)[0] == ours.split(cut)[0] and rare(ours)
+    """Whether ours matches game.exe's line. An items job's set / unique none fits: up to the quantity and the pick,
+    as game.exe's side stops at the pick while ours is the item remade (`remade` checks the rest)."""
     if mode == "items" and " pick -1" in game:
         return game.split(" dur ")[0] == ours.split(" dur ")[0] and game.split(" pick ")[1] == ours.split(" pick ")[1]
     return game == ours
@@ -402,19 +400,18 @@ def main():
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
         print(f"{len(game) - len(bad)}/{len(game)} {sys.argv[1]} match game.exe")
         sys.exit(1 if bad or len(game) != len(ours) else 0)
-    if sys.argv[1] in ("items", "remade"):
+    if sys.argv[1] in ("items", "remade", "rare"):
         o = Oracle(items=True)
         first, last = (int(v, 0) for v in sys.argv[2].split("-"))
-        todo = list((item_jobs if sys.argv[1] == "items" else remade_jobs)(o, first, last))
+        todo = list({"items": item_jobs, "remade": remade_jobs, "rare": rare_jobs}[sys.argv[1]](o, first, last))
         game = [o.make(*j) for j in todo]
         if sys.argv[-1] == "print":
             print("\n".join(game))
             return
         ours = run_ours(["items"], "".join("\t".join(map(str, j)) + "\n" for j in todo))
-        rares = sum(rare(g) for g in game) if sys.argv[1] == "remade" else 0
         bad = [(g, u) for g, u in zip(game, ours) if not same(g, u, sys.argv[1])]
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
-        print(f"{len(game) - len(bad)}/{len(game)} items match game.exe" + (f" ({rares} remade rare: up to the quality)" if rares else ""))
+        print(f"{len(game) - len(bad)}/{len(game)} items match game.exe")
         sys.exit(1 if bad or len(game) != len(ours) else 0)
     o = Oracle()
     if sys.argv[1] == "tables":
