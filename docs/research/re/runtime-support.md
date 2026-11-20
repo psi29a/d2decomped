@@ -96,6 +96,20 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   `D2.ini`'s directory. Not traced here.
 - d2d: not ported (its settings and saves folder is its own, apps/d2d/README.md).
 
+## The crash handler's flag (`FUN_00407ff0`)
+
+- **`FUN_00407ff0`** (no arguments, 6 bytes) returns `DAT_0074f0c8`. Fog's
+  crash handler `FUN_004082e0` sets it to 1 while it writes `Crash.txt` and
+  the minidump (the first entry only: `InterlockedIncrement` of
+  `0x007076b8` from -1), and back to 0 after; `FUN_00408660` and
+  `FUN_00408900` set and clear it too (not read further).
+- Its callers: the hand cursor's mouse move `FUN_00468840` (with a 3D
+  driver, `FUN_004f6270`, and the flag 0, it keeps the cursor inside the
+  window with `SetCursorPos`: client-frontier.md "The hand cursor and the
+  OS cursor") and `FUN_004f9f20` (`.\Src\D2WinMain.cpp`, not read).
+- d2d: no counterpart. Its crash reports are Sentry's (off unless turned
+  on), and it has no 3D driver path to clamp the cursor for.
+
 ## The error box and the start-up of the error system (`FUN_00408b20`, `FUN_00408ce0`)
 
 - **`FUN_00408b20`** (fastcall; the decompile names `param_1` the error

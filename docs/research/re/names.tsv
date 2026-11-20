@@ -5,6 +5,7 @@ address	name	evidence
 00406ba0	install_path_get	The registry's Diablo II\InstallPath (FUN_00414e50), else the module's folder (GetModuleFileNameA), checked with GetFileAttributesA, saved back (FUN_00415070). 6 callers, ported: FUN_00408f20, FUN_00469780, ... (unnamed-frontier.md)
 00406d20	get_74c82c	Returns DAT_0074c82c. 7 callers (the MPQ opens FUN_004fab90, FUN_004fac90, FUN_004fad10, FUN_004faec0; FUN_0050fdf0) (unnamed-frontier.md)
 00406d30	user_dir_path	(buf in ESI, size in EDI): FUN_004067d0 SHGetKnownFolderPath(id 0x6cca6c) + "Diablo II", else SHGetFolderPathA CSIDL 5 + "Diablo II\\Save"; null buf line 0x44 (runtime-support.md "The per-user folder path")
+00407ff0	crash_handler_active	returns DAT_0074f0c8, set while Fog's crash handler FUN_004082e0 writes Crash.txt (runtime-support.md)
 00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
 00409ab0	pool_free_block	Fastcall (_, *ptr, file, line): the pool block holding the pointer (FUN_004099d0); a slot inside its range has its in-use bit cleared (masks 0x6ce268 / 0x6ce2e8) and the count dropped under the block's lock ... (src-frontier.md)
 00409b80	pool_release_empty	For the global pool (0x74f104, a null argument): each sub-pool's blocks with no slots in use are unlinked, removed from the sorted list (d2d_pool_block_remove), VirtualFreed and freed. Only caller the app start ... (src-frontier.md)
