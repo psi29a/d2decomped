@@ -39,6 +39,28 @@ to Physical / Magic / Fire / Lightning / Cold / Poison". The resists come
 from MonStats and the boss mods: a curse that lowers one isn't counted
 (a `ponytail:` note there).
 
+## The UI start (`FUN_00456970`)
+
+The client's UI reset at a game's start (`FUN_00456970`; menu.md "The
+mini-panel's start") calls eight functions the gap map listed as frontier
+on 2026-11-20. Their teardown partners are in `FUN_00456d80` (rows below
+and in unnamed-frontier.md). Each runs in stock game.exe, with its
+loaders and registry calls hooked: `cd tools/emu && uv run python
+ui_start_frontier.py --mutation-check` prints `ok: 10 mini-panel, 6 text,
+2 waypoint/dialogs, 64 store cels, 1 quest log, 4 controls, 4 keys`, then
+eight caught negative controls. The rows go in call order.
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_0047f0c0` | `minipanel_cels_load` | Game type 0 (single player, `FUN_0044db30` = `0x7a0610`) loads `Panel\minipanel_s` into `0x7bc960` and sets `0x7bc978` = 1; any other type loads `Panel\minipanel`, flag 0 (`d2d_ui_dc6_load`, strings at `0x6d7488` / `0x6d749c`). Both load `Panel\minipanelbtn` into `0x7bc964`, then clear 7 (flag 1) or 8 button-down dwords at `0x7bc8f8`. The flag picks the bar everywhere: `FUN_0047f710` draws it at W/2 − 0x4a − 3 (flag 1) or W/2 − 0x54 − 3, and W/2 + 0x38 − 2 or + 0x23 − 2 beside a left panel; `FUN_0047e8b0` lays out 7 buttons (ids 0, 1, 2, 4..7) or 8 (ids 0..7, 3 the Party screen: `FUN_0047ec50` case 3 opens it when the game type isn't 0), and the press and release (`FUN_0047ef30`, `FUN_0047ed90`) walk 7 or 8 | differs: d2d loads only `minipanel_s` (apps/d2d/load.cpp:245) and draws 7 buttons (apps/d2d/gamemenu.cpp:374) in a joined or hosted game too (types 8 / 9), where game.exe shows the wide bar with a Party button |
+| `FUN_0049d440` | `text_state_init` | Clears 0x9f bytes at `0x7bf1b0`, then `0x7bf1f6` = the registry's `Diablo II\Text Display Beta` dword (`FUN_00414f10`), or 1 when the read fails. `FUN_0049d570` writes it back. The NPC speech scroll `FUN_0049d5a0` draws its box (`FUN_00452e50`) and lines only while `0x7bf1f6` or `0x7bf1fa` is set; the scroll's timing runs either way | matches the default (1): d2d draws the speech box whenever a speech is up (apps/d2d/ingame.cpp:467); the setting itself has no counterpart |
+| `FUN_0049c6a0` | `waypoint_ui_init` | `0x7bf081` = `FUN_00660f30(0)` (a 16-byte waypoint record from WayPoint\Waypoint.cpp, word 0 = 0x102, then word `[0x746428]` (1) or'd with `[0x74642a]` (1)), byte `0x7bf085` = 0. The waypoint panel (`FUN_0049cf90`, S->C 0x63) and its rows (`FUN_0049c7f0`) read the record | not compared |
+| `FUN_004b7b40` | `dialogs_init` | `DAT_007c0e58` = 0, the flag `dialogs_free` tests | no counterpart (as `ui_cels_free_7beeec`) |
+| `FUN_00489220` | `store_cels_load` | Each slot still empty is loaded (`FUN_004788b0`, flag 0): `DATA\GLOBAL\ui\panel\buyselltabs` (`0x7bcc24`), `miniconvert` (`0x7bcc28`), and `invchar6tab` (`0x7bcc38`) only when d2exp.mpq was found (`FUN_00408f20`) and the game is an expansion one (`FUN_0044dcc0`) | matches in an expansion game: d2d loads all three (apps/d2d/load.cpp:146, 262, 305); its weapon-switch tabs in a classic game not compared |
+| `FUN_004a3410` | `quest_log_init` | Writes the registry's `Diablo II\GAMEOVER` = 0 (`FUN_004150e0`; the string's only reference in game.exe, so nothing in game.exe reads it), then resets the quest log: state `0x7bf298` and dwords `0x7bf2d1`, `2d5`, `2d9`, `2dd`, `34d`, `351`, `2a4`, `2ac`, `0x7c0259` to 0, bytes `0x7bf2e1..0x7bf34c` and 0x29 each at `0x7bf356` and `0x7bf380` to 0, bytes `0x7bf2b0..2b4` and `0x7c025d..0x7c0260` to 0, dwords `0x7bf2b5`, `2bd`, `2c1`, `2c5`, `2c9`, `2cd` to −1 | no counterpart for `GAMEOVER`; the quest log's reset not compared |
+| `FUN_0046ac70` | `keys_start` | `FUN_0046aae0` (the key bindings' load, controls.md), `DAT_007a7418` = 1; the first time (`0x7a7428` was 0) sets `0x7a7428` and installs the four 12-byte handler rows at `0x712944` on the window `[0x7c8cbc]` (`FUN_00451db0`, count 4): WM_KEYDOWN and WM_SYSKEYDOWN → `FUN_0046a840`, WM_KEYUP and WM_SYSKEYUP → `FUN_0046a940`. Those run a bound key's action (table `0x712698`); with `0x7a7418` = 2 only the actions whose third word is set. Undone by `FUN_0046acb0` | no counterpart: d2d reads SDL key events and keeps its keys in d2d.cfg (unnamed-frontier.md `keyconfig_file_path`) |
+| `FUN_004a5190` | `controls_init` | `FUN_004a43e0`: an expansion game takes the rows table `0x724468`, 0x3e rows, 0x2f, 5 thumb rows (`0x7c0278`); a classic one `0x724268`, 0x33, 0x24, 6. Then `DATA\GLOBAL\UI\Menu\TextSlid` into `0x7c02bc`, the buttons' boxes (`FUN_004a5060`), and scroll `0x7c02ac` and selection `0x7c02b0` = 0 | matches for the thumb: 5 rows in an expansion game, 6 in classic (apps/d2d/controls.cpp:165); the rows tables are d2d's `keys::rows(expansion)`, not compared row by row |
+
 ## Rows in address order
 
 | Address | Name | Reading | d2d |
@@ -77,7 +99,7 @@ from MonStats and the boss mods: a curse that lowers one isn't counted
 | `FUN_0049abd0` | `party_hover_tips` | The Party screen's tooltips: the button at panel x + 0xe3..0x118, y 0x18..0x23 (string 0x1018); then each roster row's button (0x35 wide, 0x14 high) by its state: 0 strings 0x1004, 2 0x1006, 4 0x1008, two lines at y 0x32 and 0x41. Only caller `FUN_0049c3d0` | not compared |
 | `FUN_0049af60` | `party_tip_text` | One tip box (`FUN_0049aaf0`) with one or two lines, by whether the short is 0. Only caller `FUN_0049b330` | not compared |
 | `FUN_0049c170` | `party_level_text` | A label, two strings and the level (`%2u`) drawn at y `EAX` − the panel y. Only caller `FUN_0049c270` | not compared |
-| `FUN_0049c700` | `party_ui_end` | Once (`DAT_007bf085`), with the player in a room, `FUN_004786a0(0)`; frees `DAT_007bf081` (`FUN_00660fd0`); `FUN_0049c650`. Only caller `FUN_00456d80` | not compared |
+| `FUN_0049c700` | `waypoint_ui_end` | Once (`DAT_007bf085`), with the player in a room, `FUN_004786a0(0)`; frees the waypoint record `DAT_007bf081` (`FUN_00660fd0`); `FUN_0049c650` frees the waypoint panel's cels (`waygatebackground`, `waygatetabs` or `expwaygatetabs`, `waygateicons`, loaded by `FUN_0049c580`). Only caller `FUN_00456d80` | not compared |
 | `FUN_0049db10` | `text_lines_copy` | Fastcall source: a 0x9d0-byte record of up to the source's `+0x18` lines, each a 0x9d4-byte copy (`FUN_0040b380`); copies `+0x18` and `+0x1a`. Only caller `FUN_0049dbc0` (ui-text-frontier.md) | not compared |
 | `FUN_0049f3d0` | `unit_text_free` | Fastcall unit: its overhead text (`FUN_00661200`) freed (`FUN_0049d370`, line 0x68e) and cleared, then `FUN_006611a0(0, unit)`. Only caller the client unit free `FUN_00465870` | no counterpart: d2d's units own their text |
 | `FUN_004a51e0` | `ui_cel_free_7c02bc` | Frees the DC6 at `0x7c02bc`. Only caller `FUN_00456d80` | no counterpart (as `ui_cels_free_7beeec`) |
