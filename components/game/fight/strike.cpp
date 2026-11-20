@@ -7,6 +7,7 @@
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
+#include "item_text.hpp"
 #include "log.hpp"
 
 #include <combat.hpp>
@@ -1193,15 +1194,19 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         actor->player.x = next_x; actor->player.y = next_y;
     }
 
-// ponytail: FUN_0062a710's attack frames taken as attack_ticks of
-// the class's A1; FUN_005d92d0 (two weapons) as a weapon in each
-// hand.
+// Whirlwind's hit gap (FUN_005d9320): the weapon FUN_00535bc0 picks for
+// weaponsel 2 (the wielded hand's, look component 5) gives its attack
+// frames (FUN_0062a710: the item's own IAS and WSM, not the player's),
+// banded by whirlwind_gap; 10 frames with no weapon.
+// ponytail: the 0x2000 skill flag that turns FUN_00535bc0 to the other
+// hand's weapon (dual wield) isn't kept, nor FUN_0062a4e0's usable test;
+// FUN_005d92d0 (two weapons) as a weapon in each hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
-            const auto& attack_anim = player_anim(kModeA1);
-            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
-            actor->whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
+            const auto* weapon = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
+            const int gap = weapon ? d2d::rules::whirlwind_gap(weapon_attack_frames(*game_data, *weapon, actor->character.character_class)) : 10;
+            actor->whirl_next = now_ms + std::uint32_t(gap) * 40;
             const int hands = int(std::ranges::count_if(actor->character.items, [&](const d2d::d2s::Item& item) {
                 return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
                     && game_data->rules.item_info.at(item.code).kind == 2; }));
