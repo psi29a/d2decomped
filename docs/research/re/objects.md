@@ -257,6 +257,11 @@ type 0 then 1 on its opener, in mode 0 only) and the exploding barrel
 (`FUN_00584330` → `FUN_00584240`: type 0 on every unit of the barrel's
 room within 3 subtiles, players not in mode 0x11 and monsters not in
 mode 0xc; other barrels (class 0xb, mode 0) under 3 go off in turn):
+the walk is that one room's list (room +0x74, next +0xe8: newest
+first), so a unit just over the room's edge isn't struck, the seed's
+draws go in that order, and a barrel met in it goes off there and then
+(its blast before the rest of the list's). d2d: `World::explode` by room
+stamp, the objects (the room's own population) last, life in 256ths.
 
 - Nothing in town (`FUN_0061ab00`) or through a wall (`FUN_00622b50`,
   mask 0x804, each unit's own footprint lifted).

@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
+// An exploding barrel (FUN_00584240) walks its own room's unit list: a
+// monster within 3 subtiles but across in the next room isn't struck; one in
+// its room is, its life taken in 256ths; a barrel of its room under 3 off
+// goes off in the walk (FUN_00584330). No game data: the rooms are built here.
+#include <ai.hpp>
+#include <d2s_items.hpp>
+#include <ds1.hpp>
+#include <gamedata.hpp>
+#include <object_ids.hpp>
+#include <world.hpp>
+
+#include <cassert>
+#include <cstdio>
+#include <exception>
+
+using namespace d2d::game;
+
+int main() try {
+    GameData data;
+    data.monsters.types.resize(1);
+    data.monsters.types[0].id = "zombie";
+    data.monsters.types[0].size = 1;
+    Level field;
+    field.id = 2;
+    field.ds1 = d2d::ds1::Map(16, 8, 1, 1);
+    field.walk.assign(std::size_t(16 * 5) * std::size_t(8 * 5), 0);
+    field.rooms.push_back({ .x = 0, .y = 0, .width = 8, .height = 8 });
+    field.rooms.push_back({ .x = 8, .y = 0, .width = 8, .height = 8 });
+    const auto barrel_at = [&](float x) {
+        Npc barrel;
+        barrel.root = "objects";
+        barrel.object_id = d2d::rules::object_ids::kExplodingBarrel;
+        barrel.x = x; barrel.y = 4.1f;
+        barrel.size_x = 1;
+        barrel.seed = d2d::rules::Rng{ 99 };
+        field.npcs.push_back(barrel);
+    };
+    barrel_at(7.7f);                                               // room 0, by its east edge
+    barrel_at(7.3f);                                               // room 0, two subtiles off
+    World world(&data, -1, -1);
+    world.level = &field;
+    auto& fight = world.fight;
+    fight.mon_level = &field;
+    world.actor->player.x = 2; world.actor->player.y = 2;
+    world.actor->character.stats.values[d2d::d2s::kLife] = 0;      // out of it
+    Monster near_one, across;
+    for (auto* monster : { &near_one, &across }) {
+        monster->type = 0; monster->hit_points = monster->stats.hit_points = 400; monster->stats.level = 5; monster->unit.y = 4.1f;
+    }
+    near_one.unit.x = 7.5f;                                        // room 0, 1 subtile off
+    across.unit.x = 8.1f;                                          // room 1, 2 subtiles off
+    fight.monsters = { near_one, across };
+    fight.restamp();
+    world.explode(0, 1000);
+    assert(fight.monsters[0].life_fine() < 400 * 256);
+    assert(fight.monsters[1].life_fine() == 400 * 256);
+    assert(world.operated.contains({ &field, 1 }));                // the second barrel went off too
+    std::puts("OK: a barrel's blast walks its own room's list (FUN_00584240)");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_barrel_room: %s\n", error.what());
+    return 1;
+}
