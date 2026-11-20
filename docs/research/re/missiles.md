@@ -576,7 +576,7 @@ changes the picture.
 ## One unit a frame, and the last unit skipped — FUN_005ae1f0, FUN_005a8730
 
 A missile of a srvdofunc 1 row (its handler at 0x73c768 entry 1 is FUN_005ae1f0)
-with LastCollide and neither NextHit nor Pierce is handed ONE unit a frame:
+with LastCollide and not NextHit is handed ONE unit a frame:
 FUN_005ae1f0 stops at the first unit FUN_00641cb0 finds in the subtiles the
 frame entered that FUN_005a8730 passes (every unit but the one the missile
 struck last, FUN_0064a470), and FUN_005adf10 makes that unit the last one
@@ -595,8 +595,10 @@ poisonjavcloud, blizzard1 and poisonexplosioncloud strike B A B A ... for 8
 frames; corpsepoisoncloud's Size 1 reaches only A, once). `missiles_update`
 does the same for a monster's cloud, keyed by `Foe::id`, and keeps a monster
 missile only while its row lacks CollideKill (test_standing_missile). The
-Pierce rows (arrows, javelins, Blessed Hammer) keep their `struck` list: they
-need ToHit and the hit and damage functions in the oracle, not run. tools/emu/light_pierce.py
+Pierce rows (arrows, javelins, Blessed Hammer) take the same rule: `FUN_005a8730`
+doesn't test the Pierce flag, and every one of the 60 Pierce rows in game.exe's
+table has LastCollide (57 of them srvdo 1 or 3), so a piercing arrow passes only
+the unit it struck last, not every unit it struck. tools/emu/light_pierce.py
 and test_light_pierce check 1,192 casts a seed. Which unit of a frame goes first
 is d2d's monster order here; game.exe walks the subtiles in path order (not read).
 

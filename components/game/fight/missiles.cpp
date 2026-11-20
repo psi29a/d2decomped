@@ -833,9 +833,10 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             missile.last_hit = int(monster_index);
             missile.last_hit_ms = now_ms;
         } else if (missile_info.last_unit_rule()) {
-            // Not NextHit but LastCollide (Lightning): FUN_005a8730 passes every unit but the one the missile
-            // struck last (FUN_0064a470), and FUN_005adf10 makes it the last (FUN_0064a400, 0x5adfae).
-            // ponytail: a Pierce row (arrows, javelins, Blessed Hammer) keeps the struck list.
+            // Not NextHit but LastCollide (Lightning, and the Pierce rows: arrows, javelins, Blessed Hammer):
+            // FUN_005a8730 passes every unit but the one the missile struck last (FUN_0064a470), and
+            // FUN_005adf10 makes it the last (FUN_0064a400, 0x5adfae). A piercing arrow can strike a unit again
+            // once it has struck another.
             if (missile.last_hit == int(monster_index)) return false;
             missile.last_hit = int(monster_index);
             missile.last_hit_ms = now_ms;
