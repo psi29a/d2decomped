@@ -625,11 +625,12 @@ def history(out):
         cache = {}
     for day, commit in sorted(days.items()):
         key = f"{commit}:{script}"
-        if key in cache:
-            if cache[key] is not None:
-                points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
+        if cache.get(key) is not None:
+            points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
             continue
-        cache[key] = None
+        # Only a day's totals are kept: a run that failed (an old tree this script can't read, or
+        # something passing) is tried again next time.
+        cache.pop(key, None)
         with tempfile.TemporaryDirectory() as tree:
             subprocess.run(["git", "worktree", "add", "--detach", "-q", tree, commit], check=True)
             try:
