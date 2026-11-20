@@ -221,6 +221,7 @@ address	name	evidence
 00469650	keyconfig_file_path	Builds <save dir><account>\<user>.key (0x7a0500, 0x7a05c4) and probes it (FUN_00406960); missing, the save folder's <user>.key. Callers FUN_00469780, FUN_0046aae0 (unnamed-frontier.md)
 00469aa0	keyconfig_key_of	ECX function, EDX slot: the key (low word) of the first of the 114 records at 0x7a6f90 that matches, else 0xffff (controls.md; ui_client_helpers.py)
 0046a530	keyconfig_key_label	ECX function, EDX slot: 32 keys tail-jump to FUN_00524a30 with a string id, any other key or none to FUN_00469de0 with ECX, EDX kept (controls.md; ui_client_helpers.py)
+0046ac70	keys_start	FUN_0046aae0 (key bindings load), DAT_007a7418 = 1; the first time (0x7a7428 was 0) installs the four key-message handler rows at 0x712944 on window [0x7c8cbc] (FUN_00451db0, count 4). Only caller FUN_00456970 (ui-module-frontier.md)
 0046acb0	hint_reset	DAT_007a7418 = 0; with DAT_007a7428 1, cleared and window control 4 released. Only caller FUN_00456d80 (unnamed-frontier.md)
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
@@ -392,6 +393,7 @@ address	name	evidence
 0047dbb0	gamemenu_cel_load	(From its calls and data:) loads %s\UI\%s\%s under DATA\LOCAL (FUN_004788b0, language folder FUN_00525260), the LoD path by FUN_00408f20. Only caller the game menu's load FUN_0047dd70 (unnamed-frontier.md)
 0047dfd0	gamemenu_cels_free	Frees the game menu's DC6s (0x7bc93c..0x7bc958, FUN_0047df00). Only caller FUN_00456d80 (unnamed-frontier.md)
 0047e9a0	gamemenu_slider_draw	(From its calls and data:) draws the option slider cels (d2d_gamemenu_cel) from 0x7bc898..0x7bc978. Only caller FUN_0047f710 (unnamed-frontier.md)
+0047f0c0	minipanel_cels_load	Game type 0 loads Panel\minipanel_s and sets 0x7bc978 = 1, else Panel\minipanel, flag 0; Panel\minipanelbtn; clears 7 or 8 button dwords at 0x7bc8f8. Only caller FUN_00456970 (ui-module-frontier.md)
 0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
 0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
 0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
@@ -450,6 +452,7 @@ address	name	evidence
 00487cc0	inv_tab_last_used	0x7bcc40 = the last tab (of DAT_00722160) whose slot is set, then as inv_mode_normal. Callers FUN_004b53f0 and two more (unnamed-frontier.md)
 00487ea0	store_tab_reset	EAX tab: its slot's fields reset (0x7bc9e0.. 20 bytes a tab). Only caller FUN_00487ed0 (unnamed-frontier.md)
 004888c0	inv_can_close	Modes 1..4 with no cursor item: 0 when the cursor state is 7, 1 or 4, else 1. Callers FUN_00488b00 and one more (unnamed-frontier.md)
+00489220	store_cels_load	Loads buyselltabs, miniconvert and (d2exp.mpq and an expansion game) invchar6tab into 0x7bcc24, 0x7bcc28, 0x7bcc38 when empty. Only caller FUN_00456970 (ui-module-frontier.md)
 004892f0	inv_cels_free_b	Frees the DC6s 0x7bcb04, 0x7bcc24, 0x7bcc28, and with LoD 0x7bcc38. Only caller FUN_00456d80 (unnamed-frontier.md)
 00489840	inv_mode_not_123	0 in modes 1, 2, 3, else 1. Only caller FUN_00497a40 (unnamed-frontier.md)
 00489920	in_gold_button	ESI y, EDI x in the gold button's box (classic height − 0x103..− 0xf2, LoD − 0x1c7..− 0x1b6, from the panel y; x panel + 0x49..0x96). Callers FUN_00489ac0, FUN_00492510 (unnamed-frontier.md)
@@ -484,8 +487,10 @@ address	name	evidence
 0049abd0	party_hover_tips	The Party screen's tooltips: the button at panel x + 0xe3..0x118, y 0x18..0x23 (string 0x1018); then each roster row's button (0x35 wide, 0x14 high) by its state: 0 strings 0x1004, 2 0x1006, 4 0x1008, two lines at y ... (ui-module-frontier.md)
 0049af60	party_tip_text	One tip box (FUN_0049aaf0) with one or two lines, by whether the short is 0. Only caller FUN_0049b330 (ui-module-frontier.md)
 0049c170	party_level_text	A label, two strings and the level (%2u) drawn at y EAX − the panel y. Only caller FUN_0049c270 (ui-module-frontier.md)
+0049c6a0	waypoint_ui_init	DAT_007bf081 = FUN_00660f30(0) (the client's waypoint record), DAT_007bf085 = 0. Only caller FUN_00456970 (ui-module-frontier.md)
 0049c700	party_ui_end	Once (DAT_007bf085), with the player in a room, FUN_004786a0(0); frees DAT_007bf081 (FUN_00660fd0); FUN_0049c650. Only caller FUN_00456d80 (ui-module-frontier.md)
 0049d3c0	text_list_measure	EDI record: maximum linked-line width + 20, row count * 15 + 6, and copied fields; ui-text-frontier.md and ui_text_frontier.py
+0049d440	text_state_init	Clears 0x9f bytes at 0x7bf1b0; 0x7bf1f6 = registry Diablo II\Text Display Beta, else 1. Only caller FUN_00456970 (ui-module-frontier.md)
 0049db10	text_lines_copy	Fastcall source: a 0x9d0-byte record of up to the source's +0x18 lines, each a 0x9d4-byte copy (FUN_0040b380); copies +0x18 and +0x1a. Only caller FUN_0049dbc0 (ui-text-frontier.md) (ui-module-frontier.md)
 0049e3a0	chat_line_add	ECX text, EDX kind: wrapped to <= 6 lines in a 0x26 node (expiry tick + 10000), appended to the queue DAT_007bf1e4, one head dropped past 18 lines (net-packets.md; ui_client_helpers.py)
 0049e5c0	screen_message_add	ECX wide text, DL kind: wraps to six lines in a 0x26 node, 10-second expiry, keeps two nodes; ui-text-frontier.md and ui_text_frontier.py
@@ -500,6 +505,7 @@ address	name	evidence
 004a2550	quest_log_resources_release	DC6 handle slots and array release (ui-small-frontier.md)
 004a2600	quest_log_resources_release_thunk	tail jump FUN_004a2550 (ui-small-frontier.md)
 004a26b0	quest_log_close	state reset, resources release, UI 15 close (ui-small-frontier.md)
+004a3410	quest_log_init	Writes registry Diablo II\GAMEOVER = 0, resets the quest log's state. Only caller FUN_00456970 (ui-module-frontier.md)
 004a47c0	controls_button_hit	three inclusive rectangles, 3 for none (ui-small-frontier.md)
 004a47f0	controls_list_hit	centred controls list inclusive rectangle (ui-small-frontier.md)
 004a4860	controls_scroll_up_hit	inclusive scrollbar up rectangle (ui-small-frontier.md)
@@ -508,6 +514,7 @@ address	name	evidence
 004a4950	controls_thumb_hit	inclusive thumb region (ui-small-frontier.md)
 004a49a0	controls_page_below_hit	strict region between thumb and down arrow (ui-small-frontier.md)
 004a4a10	controls_release_match	list, row and column must match press (ui-small-frontier.md)
+004a5190	controls_init	FUN_004a43e0 (rows table, count, thumb rows 5 expansion / 6 classic), UI\Menu\TextSlid into 0x7c02bc, FUN_004a5060, scroll and selection 0. Only caller FUN_00456970 (ui-module-frontier.md)
 004a51e0	ui_cel_free_7c02bc	Frees the DC6 at 0x7c02bc. Only caller FUN_00456d80 (ui-module-frontier.md)
 004a5d00	keyconfig_open_windows	DAT_007c02b8 = 1, FUN_00455ae0, FUN_00451db0 on controls 6, 1, 1, 1. Only caller FUN_004a5e60 (ui-module-frontier.md)
 004a5d70	keyconfig_close_windows	FUN_00451e10 on controls 6, 1, 1, 1; with the argument, window_controls_set and DAT_007c02b8 = 0. Callers FUN_004a6000, FUN_004a63b0 (ui-module-frontier.md)
@@ -564,6 +571,7 @@ address	name	evidence
 004b3de0	npc_talk_end	DAT_007c0c6b = 0, FUN_00487990, FUN_004b3c20, FUN_00455f20(0). Callers FUN_004b3f10, FUN_004b4fd0, the greeting FUN_004b66b0, FUN_004b6a30 (ui-module-frontier.md)
 004b5c20	hire_list_close	The hire list's close callback: when DAT_007c0d77, FUN_004b8020, the box's virtual call (1), both cleared; FUN_004b4830; 1. Passed by FUN_004b5c60 to FUN_004b7eb0 (ui-module-frontier.md)
 004b7970	dialog_key_is_ok	EAX dialog, ESI key: with +0x20 clear, 1 when the key is either of two bound keys (d2d_keyconfig_key_of). Callers FUN_004b79d0, FUN_004b7a90 (ui-module-frontier.md)
+004b7b40	dialogs_init	DAT_007c0e58 = 0. Only caller FUN_00456970 (ui-module-frontier.md)
 004b7b50	dialogs_free	When DAT_007c0e58, FUN_00451e10 on controls 0xe and 1, 0x7c0e4c − 1; frees the dialog list DAT_007c0e54 (next +0xb0c, line 0x333). Only caller FUN_00456d80 (ui-module-frontier.md)
 004b7c60	dialog_keys_cache	Two bound keys (d2d_keyconfig_key_of, each below 0xe0) into 0x7273f4 and 0x727400. Callers FUN_004b7cd0, FUN_004b7eb0 (ui-module-frontier.md)
 004b7cd0	dialog_open	Fastcall: npc_dialog_window_flag, FUN_004898d0, mouse reset; refuses a null callback or a positive fifth argument; a 0xb10-byte dialog (line 0x396) pushed on DAT_007c0e54: tick count, the background ... (ui-module-frontier.md)
