@@ -733,7 +733,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
             if (room_level == &level) rooms.push_back(near_room);
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(foes.size());
-        for (const auto& foe : foes) units.push_back({ room_of(level, foe.x, foe.y), true });
+        for (const auto& foe : foes) units.push_back({ room_of(level, foe.x, foe.y), true, foe.room_stamp });
         const auto near_of = d2d::rules::room_order(units, rooms);
         std::vector<d2d::rules::NearFoe> nears;
         nears.reserve(near_of.size());

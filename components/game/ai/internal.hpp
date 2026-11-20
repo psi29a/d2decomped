@@ -98,7 +98,7 @@ struct ThinkCtx {
             if (room_level == &level) rooms.push_back(room);
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(pack.size());
-        for (const auto& other : pack) units.push_back({ room_of(level, other.unit.x, other.unit.y), eligible(other) });
+        for (const auto& other : pack) units.push_back({ room_of(level, other.unit.x, other.unit.y), eligible(other), other.unit.room_stamp });
         return d2d::rules::room_order(units, rooms);
     }
     template <class Eligible>

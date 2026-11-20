@@ -1036,7 +1036,7 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                     for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, from.x, from.y))
                         if (room_level == level) rooms.push_back(near_room);
                     units.reserve(monsters.size());
-                    for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable() });
+                    for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable(), monster.unit.room_stamp });
                 }
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (const int index : d2d::rules::room_order(units, rooms)) {

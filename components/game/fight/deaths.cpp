@@ -291,7 +291,7 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
                 const bool undead = other.type >= 0 && std::size_t(other.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(other.type)].undead;
                 const bool take = std::ranges::contains(rooms, other_room) && other.targetable() && other.align == 0 && other.type != row(0x14d)
                     && off_x * off_x + off_y * off_y <= hook.radius * hook.radius && (!hook.undead_only || undead);
-                units.push_back({ other_room, take });
+                units.push_back({ other_room, take, other.unit.room_stamp });
             }
             for (const int index : d2d::rules::room_order(units, rooms)) {
                 auto& other = monsters[std::size_t(index)];

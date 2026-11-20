@@ -1114,12 +1114,17 @@ inline int near_distance(int dx, int dy, int size) {
 
 // FUN_005dd0b0 mode 1 (FUN_005dce60): the eligible units in the near
 // rooms' order, each room's units newest first; `units` is oldest first.
-struct RoomUnit { int room = -1; bool eligible = false; };
+// `stamp`: when the unit came into its room (UnitState::room_stamp), its
+// list's head the latest; units of one stamp (0: none kept) newest index first.
+struct RoomUnit { int room = -1; bool eligible = false; std::uint32_t stamp = 0; };
 inline std::vector<int> room_order(std::span<const RoomUnit> units, std::span<const int> rooms) {
     std::vector<int> order;
-    for (const int room : rooms)
+    for (const int room : rooms) {
+        const auto first = order.size();
         for (std::size_t i = units.size(); i-- > 0;)
             if (units[i].room == room && units[i].eligible) order.push_back(int(i));
+        std::stable_sort(order.begin() + std::ptrdiff_t(first), order.end(), [&](int left, int right) { return units[std::size_t(left)].stamp > units[std::size_t(right)].stamp; });
+    }
     return order;
 }
 

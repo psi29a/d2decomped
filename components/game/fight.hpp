@@ -497,6 +497,10 @@ struct Fight {
     // now: the acting player's state is what `actor` points at, and the loot
     // drops and picks up for them too.
     std::vector<Hero*> heroes;
+    // Each unit's place in its room's list (UnitState::room_stamp): a unit seen in a room
+    // other than its last gets the next stamp (FUN_0064c2c0 puts it at the head).
+    std::uint32_t room_stamps = 0;
+    void restamp();
     Hero* actor = nullptr;
     void act_as(Hero& hero) {
         actor = &hero;

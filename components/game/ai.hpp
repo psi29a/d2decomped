@@ -79,6 +79,11 @@ struct UnitState {
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
     float goal_x = 0, goal_y = 0;     // where the route was planned to
+    // Its place in its room's unit list (room +0x74, next +0xe8): FUN_0064c2c0 puts a
+    // unit at the head as it's made or comes into a room, so each room's list
+    // runs by room_stamp, highest first (Fight::restamp; rules::room_order).
+    int room_seen = -2;
+    std::uint32_t room_stamp = 0;
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made
     std::uint16_t path_word = 0;      // path +0x54: the door bit (0x800) its steps met since its path was made (path_frame)
@@ -641,6 +646,7 @@ struct Foe {
     // the Succubi's Skill3) take any non-player alike.
     int max_life = 0, max_mana = 0;
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
+    std::uint32_t room_stamp = 0;             // its unit's (UnitState::room_stamp): its place in its room's list
     bool a3q5_done = false;                   // a player, or its pet, with quest 0x15 bit 0 (the zealots spare it)
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame
     d2d::rules::DiabloPick pick;              // what Diablo's target score reads off it (FUN_005e8530)

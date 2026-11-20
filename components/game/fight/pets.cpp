@@ -91,7 +91,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
-        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id;
+        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id; foe.room_stamp = pet.monster.unit.room_stamp;
         monster_foe_props(*game_data, pet.monster, foe);
         foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
@@ -184,7 +184,7 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
         units.reserve(monsters.size());
         for (const auto& other : monsters) {
             const int room = room_of(*level, other.unit.x, other.unit.y);
-            units.push_back({ room, std::ranges::contains(rooms, room) });
+            units.push_back({ room, std::ranges::contains(rooms, room), other.unit.room_stamp });
         }
         for (const int index : d2d::rules::room_order(units, rooms)) {
             const auto monster_index = std::size_t(index);
@@ -816,7 +816,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
                 if (room_level == level) rooms.push_back(near_room);
             std::vector<d2d::rules::RoomUnit> room_units;
-            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT" });
+            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT", other.unit.room_stamp });
             for (const int near_index : d2d::rules::room_order(room_units, rooms)) {
                 const auto monster_index = std::size_t(near_index);
                 const auto& other = monsters[monster_index];

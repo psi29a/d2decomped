@@ -558,7 +558,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
                 units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
                                   monster.alive() && monster.align == 0 && (monster.mode == "NU" || monster.mode == "WL") && kind.can_walk && kind.height != 0 &&
-                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none });
+                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none, monster.unit.room_stamp });
             }
             int best = -1, best_distance = 0xffff;
             const int player_x = int(std::floor(actor->player.x * 5)), player_y = int(std::floor(actor->player.y * 5));
