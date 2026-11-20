@@ -84,6 +84,21 @@ int strike_check(const GameData& data) {
     const std::int64_t lost = (std::int64_t(100000 - zombie.hit_points) << 8) + zombie.life_frac;   // life_frac: the 256ths of damage carried (hurt)
     assert(physical > 0 && back > 0 && lost == back);
     std::printf("OK: a zombie under Iron Maiden lost %lld/256 off a blow of %d/256 physical (calc1 %d)\n", static_cast<long long>(lost), physical, zombie.reflect_pct);
+
+    // A hit back of 0 (calc1 0) still raises event 4: its record is 0x4021, and FUN_0057cee0's
+    // 0x4000 branch doesn't look at the damage.
+    std::vector<Monster> second{ make_monster(data, int(zombie_row->second), 10.f, 10.f, rng, 0) };
+    auto& unhurt = second[0];
+    unhurt.stats.hit_points = unhurt.hit_points = 100000;
+    unhurt.curse = { maiden_id, 5, 1u << 30 };
+    unhurt.reflect_pct = 0;
+    set_mode(data, unhurt, "A1", 0);
+    std::array<Foe, 1> struck{};
+    struck[0].x = 11.f; struck[0].y = 10.f;
+    for (std::uint32_t frame = 1; frame <= 1000 && struck[0].hits == 0; ++frame)
+        monster_update(data, here, unhurt, struck, rng, frame * 40, 0.04f, crowd, missiles, second);
+    assert(struck[0].hits == 1 && unhurt.hit_points == 100000 && unhurt.life_frac == 0 && unhurt.struck_event);
+    std::puts("OK: a hit back of 0 still raises the zombie's event 4");
     return 0;
 }
 
