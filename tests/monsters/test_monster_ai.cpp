@@ -469,6 +469,7 @@ int main() try {
                         if (found) spot = std::pair{ spot_x, spot_y };
                     }
                     input.dying = ai_of(which) == "Fallen" && dying_word != 0;
+                    input.room_spot = [&] { return input.free_spot[1]; };   // Baal's teleport spot rides in free spot 1 (mon_ais.py's FUN_0054dc40)
                     if (ai_of(which) == "BloodRaven") {   // her home point rides in free spot 0 (none: her own spot); both distances are FUN_005dc480's, units of size 2
                         const int home_x = input.free_spot[0] ? input.free_spot[0]->first : input.self_x, home_y = input.free_spot[0] ? input.free_spot[0]->second : input.self_y;
                         input.home_dist = d2d::rules::point_apart(home_x - input.self_x, home_y - input.self_y, 2);

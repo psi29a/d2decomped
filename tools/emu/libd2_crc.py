@@ -24,8 +24,10 @@ from pathlib import Path
 import emu
 
 URL = "https://raw.githubusercontent.com/jaenster/libd2/{rev}/packages/drlg/src/golden/coll_crc_200_{name}.jsonl.gz"
-REV = "main"                                      # ponytail: pin a commit if their goldens ever change under us
-CACHE = Path(__file__).parent / ".cache" / "libd2"
+# The last libd2 commit that changed the goldens (2026-09-23, "drlg: CRC holdout over
+# the full u16 cell"): pinned, so a later change to them can't move the check under us.
+REV = "55a4028135e3fbff9193c2aa4a37b89d355cc3cc"
+CACHE = Path(__file__).parent / ".cache" / "libd2" / REV[:12]
 DIFFICULTIES = {"normal": 0, "nightmare": 1, "hell": 2}
 
 

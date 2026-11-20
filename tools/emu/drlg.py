@@ -21,12 +21,8 @@ def boot(fresh=False):
     global _e
     if _e is None or fresh:
         _e = emu.Emu()
-        original = _e.read(0x524d30, 5)        # crt_init stubs the string lookup; expansion's hireling.txt check needs real ids
         emu.serve_files(_e)
-        _e.crt_init()
-        _e.mu.mem_write(0x524d30, original)
-        _e.mu.ctl_remove_cache(0x524d30, 0x524d35)
-        _e.call(0x5259c0, 1, ecx=0, edx=_e.put(b"ENG\0"))   # 1: expansionstring.tbl too
+        _e.crt_init()                          # the string tables too: expansion's hireling.txt check needs real ids
         _e.w32(0x74f0dc, 1); _e.w32(0x74f0d8, 1)   # FUN_00408f20: d2exp.mpq found (LvlPrest's expansion rows load)
         if _e.call(0x619300, 0, 1, 1) != 0: raise SystemExit("drlg: data tables failed to load")
     return _e

@@ -32,6 +32,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -1034,8 +1035,9 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (level) {
                     for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, from.x, from.y))
                         if (room_level == level) rooms.push_back(near_room);
+                    restamp();                                       // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
                     units.reserve(monsters.size());
-                    for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable() });
+                    for (const auto& monster : monsters) units.push_back({ room_of(*level, monster.unit.x, monster.unit.y), monster.targetable(), monster.unit.room_stamp });
                 }
                 const std::uint32_t filter = skill->aura_filter != 0 ? skill->aura_filter : 0xa783;
                 for (const int index : d2d::rules::room_order(units, rooms)) {
@@ -1110,9 +1112,9 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         // The merc's own (an Act 2 merc's Prayer), on its own clock.
         if (const auto* merc_skill = actor->merc && actor->merc->alive() && actor->merc_aura > 0 ? game_data->skills.get(actor->merc_aura) : nullptr;
             merc_skill && merc_skill->aura && now_ms >= actor->merc_aura_next) {
-            actor->merc_aura_next = now_ms + std::uint32_t(std::max(merc_skill->perdelay, 25)) * 40;
             for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
                 if (actor->merc_ids[k] == actor->merc_aura && actor->merc_levels[k] > 0) {
+                    actor->merc_aura_next = aura_due(*merc_skill, actor->merc_levels[k], now_ms);
                     const auto merc_env = merc_calc_env();
                     if (merc_skill->srvdofunc == ServerDoFunction::kFriendlyAura) prayer_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y);
                     else enemy_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y, {}, merc_foe_id(), now_ms);   // its Holy Freeze
@@ -1123,7 +1125,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(actor->aura) : 1;
         if (lvl < 1) return;
         const auto env = calc_env();
-        actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+        actor->aura_next = aura_due(*skill, lvl, now_ms);
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
             prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y, true);
             return;
@@ -1146,6 +1148,27 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
             return;
         }
         const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
+        // FUN_005cf3a0's cost (FUN_00644b10: Sanctuary's one point): the target
+        // state's aurastats are made only with the mana in hand, and the cost is
+        // paid (FUN_0056c110) with nomanaregen (0x55) on only when the pulse put
+        // that state on a unit (FUN_005cedc0's count, +0x40); else 0x55 goes off.
+        // Sanctuary has no target state (+0x82 -1), so it never pays.
+        if (const int cost = cost_of(*skill, lvl); cost > 0 && skill->srvdofunc == ServerDoFunction::kEnemyAura) {
+            auto& values = actor->character.stats.values;
+            const bool afford = (blood_mana() ? values[d2d::d2s::kLife] : values[d2d::d2s::kMana]) >= cost;
+            const bool target_stats = !skill->auratarget.empty() && std::ranges::any_of(std::views::iota(std::size_t(0), skill->aurastat.size()), [&](std::size_t slot) {
+                return skill->aurastat[slot] >= 0 && calc(*skill, skill->aura_calc[slot], lvl) != 0;
+            });
+            const float reach = float(calc(*skill, skill->aurarange, lvl));
+            const bool took = afford && target_stats && std::ranges::any_of(monsters, [&](const Monster& monster) {
+                return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= reach && aura_takes(*skill, monster, actor->player.x, actor->player.y);
+            });
+            if (took) {
+                if (blood_mana()) (void)blood_pay(cost);
+                else values[d2d::d2s::kMana] -= cost;
+            }
+            actor->no_mana_regen = took;
+        }
         enemy_pulse(*skill, lvl, env, actor->player.x, actor->player.y, pierce, player_foe_id(), now_ms);
     }
 

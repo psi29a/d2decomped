@@ -375,8 +375,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
         const bool slowed = curse && now_ms < actor->curses[1].until && curse->auratarget == "decrepify";
         d2d::rules::MercView view{ .cls = actor->merc_npc->hc_idx, .x = merc_x, .y = merc_y, .size = size, .mode = d2d::rules::kMonsterNeutral,
                                    .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
-                                   .end_x = sub(actor->player.path.empty() ? actor->player.x : actor->player.path.back().first),
-                                   .end_y = sub(actor->player.path.empty() ? actor->player.y : actor->player.path.back().second),
+                                   .end_x = sub(actor->player.goal_x),   // +0x18, SP3: the target the path was worked out to
+                                   .end_y = sub(actor->player.goal_y),
                                    .ring = actor->footsteps, .cursor = actor->footstep_cursor,
                                    .on_bit40 = level->blocked(unit.x, unit.y, 0x40), .town = town, .target = target_gap, .slowed = slowed };
         auto area_at = [&](int from_x, int from_y, int x, int y) { return int(area_id_at(*game_data, *level, centre(from_x), centre(from_y), centre(x), centre(y))); };   // FUN_0061b130

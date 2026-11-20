@@ -252,6 +252,9 @@ struct Fight {
     // World's Player adds the rest of their state; `actor` is the one acting.
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
+        // Where the player is walking to: its path's target (+0x10, SP1); the target the
+        // path was last worked out to (+0x18, SP3, FUN_00649970) is player.goal_x / goal_y.
+        float target_x = 0, target_y = 0;
         bool reassigned = false;           // put somewhere at once (Teleport): the World tells its client (ev::Reassigned)
         bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)
@@ -497,6 +500,10 @@ struct Fight {
     // now: the acting player's state is what `actor` points at, and the loot
     // drops and picks up for them too.
     std::vector<Hero*> heroes;
+    // Each unit's place in its room's list (UnitState::room_stamp): a unit seen in a room
+    // other than its last gets the next stamp (FUN_0064c2c0 puts it at the head).
+    std::uint32_t room_stamps = 0;
+    void restamp();
     Hero* actor = nullptr;
     void act_as(Hero& hero) {
         actor = &hero;
@@ -1211,10 +1218,14 @@ struct Fight {
     // target state (+0x82) and target_of (and monster_states, Holy Freeze's
     // slow) applies them while the monster is in range and its aurafilter
     // takes it (enemy_auras).
-    // ponytail: perdelay taken as ticks (its reader isn't traced);
-    // Sanctuary and Redemption's own callbacks aren't built; Sanctuary's
-    // mana (FUN_005cf3a0, FUN_00644b10) isn't asked or drawn.
+    // A pulse's next is aura_due (rules::aura_next_frame). Redemption's
+    // callback (FUN_005d0d70) is aura_pulse's own; the rest of do 66 share
+    // FUN_005cf2a0. A cost (Sanctuary's) is paid only for a target state put.
     void aura_pulse(std::uint32_t now_ms);
+    // When an aura pulsing now (at level `lvl`) pulses next, ms (FUN_0056cda0).
+    [[nodiscard]] std::uint32_t aura_due(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) {
+        return std::uint32_t(d2d::rules::aura_next_frame(int(now_ms / 40), calc(skill, skill.perdelay_calc, lvl))) * 40;
+    }
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
     // Cast by the player (FUN_005cf010 on a player unit), it needs its
@@ -1276,8 +1287,8 @@ struct Fight {
     // The skill's passive stats, aurastats and sumskills land on it as
     // summons.cpp has them (FUN_005c4470; the masteries come in that way),
     // and its sumumod (0x5c4934: a trap's 32, a Shadow's 42).
-    // ponytail: the golems' specials (Blood Golem's life link, Iron Golem's
-    // item) aren't traced or built.
+    // Iron Golem wears the metal item it's cast at (golem_item_at).
+    // ponytail: Blood Golem's life link isn't built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
@@ -1294,6 +1305,12 @@ struct Fight {
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
+    // Iron Golem's item (FUN_005c32a0, start 20 and do 57's check): a ground
+    // item (type 4, mode 3) of a metal base (FUN_00629cc0: Items bitfield1 & 2),
+    // identified (flag 0x10), at the cast's subtile, else the nearest within a
+    // cell: its index in loot.ground, or -1.
+    [[nodiscard]] int golem_item_at(float x, float y) const;
+    std::optional<d2d::d2s::Item> golem_item;   // the one do 57 took off the floor, for summon_one's golem to wear
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;

@@ -66,6 +66,13 @@ class GuardTests(unittest.TestCase):
         self.assertEqual((len(fails), len(warns)), (1, 0))
         self.assertIn("inside FUN_0045c3e0", fails[0])
 
+    def test_a_split_body_holds_its_tail_and_not_its_gap(self):
+        entries = {0x401000: 0x28, 0x401040: 0x10}
+        split = {0x401000: [(0x401000, 0x40101f), (0x401060, 0x401067)]}
+        self.assertEqual(pr_guard.body_holding(0x401064, entries, split), 0x401000)
+        self.assertIsNone(pr_guard.body_holding(0x401024, entries, split))
+        self.assertEqual(pr_guard.body_holding(0x401045, entries, split), 0x401040)
+
     def test_plan_edit_warns(self):
         fails, warns = self.run_guard({"docs/PLAN.md": b"status\n"})
         self.assertEqual((len(fails), len(warns)), (0, 1))

@@ -283,6 +283,7 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
                 for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, boss.unit.x, boss.unit.y))
                     if (room_level == level) rooms.push_back(near_room);
             }
+            restamp();                                               // the lists as they stand now (FUN_0064c2c0 re-files a unit as it changes rooms)
             std::vector<d2d::rules::RoomUnit> units;
             units.reserve(monsters.size());
             for (const auto& other : monsters) {
@@ -291,7 +292,7 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
                 const bool undead = other.type >= 0 && std::size_t(other.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(other.type)].undead;
                 const bool take = std::ranges::contains(rooms, other_room) && other.targetable() && other.align == 0 && other.type != row(0x14d)
                     && off_x * off_x + off_y * off_y <= hook.radius * hook.radius && (!hook.undead_only || undead);
-                units.push_back({ other_room, take });
+                units.push_back({ other_room, take, other.unit.room_stamp });
             }
             for (const int index : d2d::rules::room_order(units, rooms)) {
                 auto& other = monsters[std::size_t(index)];

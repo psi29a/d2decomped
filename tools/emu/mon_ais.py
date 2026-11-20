@@ -547,7 +547,12 @@ def install(e):
     e.hook(0x5fbdd0, baal_pick, 5)
     e.hook(0x5fc860, lambda e: out("clone") or 1, 2)                   # FUN_005fc860: a Vile Effigy (World's)
     e.hook(0x6416d0, lambda e: cur["s"]["dist"], 2)                    # FUN_006416d0: him to the target
-    e.hook(0x54dc40, lambda e: 1, 4)                                   # a free spot there (ponytail: d2d's nearest_free)
+    def room_spot(e):                                                  # FUN_0054dc40(ECX game, EDX room; unit, class, &x, &y, flag): a spot in the room
+        spot = cur["s"]["free"][1]                                      # Baal's teleport rides in free spot 1 (ThinkIn::room_spot)
+        if not spot: return 0
+        e.w32(e.arg(2), spot[0] & MASK); e.w32(e.arg(3), spot[1] & MASK)
+        return 1
+    e.hook(0x54dc40, room_spot, 5)
     e.hook(0x647280, lambda e: 0, 6)
     def word(e):                                                       # FUN_0058eef0(ECX unit, EDX kind; 0): his kept point
         spot = cur.get("word") if diablo() else None

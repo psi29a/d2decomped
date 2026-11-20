@@ -206,15 +206,29 @@ def gap_id(kind, *parts):
 
 
 class Functions:
-    def __init__(self, rows):
+    def __init__(self, rows, ranges=None):
         self.rows = sorted(rows)  # (address, name, size)
         self.starts = [r[0] for r in self.rows]
+        # Each body's address ranges, inclusive: game-ranges.tsv's for a body Ghidra split (a
+        # tail moved away), else one run of `size` bytes from the entry.
+        # A split body's own ranges win over another entry's inferred run (pr_guard.body_holding).
+        ranges = ranges or {}
+        split, inferred = [], []
+        for start, _, size in self.rows:
+            if start in ranges:
+                split.extend((low, high, start) for low, high in ranges[start])
+            else:
+                inferred.append((start, start + max(size, 1) - 1, start))
+        self.split = sorted(split)
+        self.split_lows = [span[0] for span in self.split]
+        self.spans = sorted(inferred)
+        self.span_lows = [span[0] for span in self.spans]
 
     def holding(self, address):
-        # ponytail: a body is taken as one run of `size` bytes; split bodies miss their tails.
-        i = bisect.bisect_right(self.starts, address) - 1
-        if i >= 0 and address < self.starts[i] + max(self.rows[i][2], 1):
-            return self.starts[i]
+        for spans, lows in ((self.split, self.split_lows), (self.spans, self.span_lows)):
+            i = bisect.bisect_right(lows, address) - 1
+            if i >= 0 and address <= spans[i][1]:
+                return spans[i][2]
         return None
 
 
@@ -236,7 +250,9 @@ def module_of(path):
 
 
 def build(with_issues):
-    funcs = Functions((int(a, 16), n, int(s)) for a, n, s, _ in read_tsv("game-functions.tsv"))
+    split = {int(a, 16): [tuple(int(end, 16) for end in part.split("-")) for part in parts.split(",")]
+             for a, parts in read_tsv("game-ranges.tsv", optional=True)}
+    funcs = Functions(((int(a, 16), n, int(s)) for a, n, s, _ in read_tsv("game-functions.tsv")), split)
     info = {a: {"name": n, "size": s, "kinds": set(), "refs": [], "gaps": [], "d2d": set()} for a, n, s in funcs.rows}
 
     # Who cites what.
@@ -597,8 +613,24 @@ def history(out):
         if line:
             days.setdefault(line.split()[1], line.split()[0])   # newest first: the day's last commit
     points = []
-    # ponytail: a checkout and a run per day (about a second each); cache old days in the Pages artifact if it gets slow
+    # A day's totals are kept in history-cache.json beside it, keyed by its commit and this
+    # script's own hash (a changed script runs every day again): only new days are checked out.
+    with open(os.path.abspath(__file__), "rb") as f:
+        script = hashlib.sha1(f.read()).hexdigest()[:12]
+    cache_path = os.path.join(out, "history-cache.json")
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
     for day, commit in sorted(days.items()):
+        key = f"{commit}:{script}"
+        if cache.get(key) is not None:
+            points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
+            continue
+        # Only a day's totals are kept: a run that failed (an old tree this script can't read, or
+        # something passing) is tried again next time.
+        cache.pop(key, None)
         with tempfile.TemporaryDirectory() as tree:
             subprocess.run(["git", "worktree", "add", "--detach", "-q", tree, commit], check=True)
             try:
@@ -606,11 +638,14 @@ def history(out):
                                      cwd=tree, capture_output=True, text=True)
                 if run.returncode == 0:   # an old tree today's script can't read is left out
                     with open(os.path.join(tree, "out", "gaps.json"), encoding="utf-8") as f:
-                        points.append({"date": day, "commit": commit[:8], "totals": json.load(f)["totals"]})
+                        cache[key] = json.load(f)["totals"]
+                    points.append({"date": day, "commit": commit[:8], "totals": cache[key]})
             finally:
                 subprocess.run(["git", "worktree", "remove", "--force", tree], check=True)
     with open(os.path.join(out, "history.json"), "w", encoding="utf-8") as f:
         json.dump(points, f, indent=1)
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(cache, f)
 
 
 def done_line(remaining):

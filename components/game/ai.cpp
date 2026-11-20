@@ -214,7 +214,7 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
         const auto gear = spawn_gear(game_data, spawn.gear, difficulty);
-        if (!boss && !spawn.gear.empty()) wear_gear(monster.stats, gear);
+        if (!boss && !spawn.gear.empty()) { wear_gear(monster.stats, gear); wear_gear_stats(monster, gear); }
         if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng, players, spawn.gear.empty() ? nullptr : &gear);
         else if (auto act_boss = d2d::rules::act_boss(spawn.type, type_info.base)) {   // FUN_005b1cf0: flag 8, no unique stats
             monster.boss = d2d::rules::Boss::unique;
@@ -733,7 +733,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
             if (room_level == &level) rooms.push_back(near_room);
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(foes.size());
-        for (const auto& foe : foes) units.push_back({ room_of(level, foe.x, foe.y), true });
+        for (const auto& foe : foes) units.push_back({ room_of(level, foe.x, foe.y), true, foe.room_stamp });
         const auto near_of = d2d::rules::room_order(units, rooms);
         std::vector<d2d::rules::NearFoe> nears;
         nears.reserve(near_of.size());
@@ -842,6 +842,23 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
 // heals its level in life; then it casts MonTeleport (0xb8) at the spot
 // (FUN_005dead0 command 4) and true. No heal under state 0x34
 // (Prevent Monster Heal), its roll still drawn.
+// FUN_0054dc40 with no unit: 20 tries, each rand(width) then rand(height) on
+// the room's seed (+0x6c) inside the room's subtiles less its first row and
+// column, the first where FUN_005b2f20 places the type at radius -1.
+std::optional<std::pair<int, int>> room_free_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play,
+                                                  int type, int room) {
+    const auto rect = room < 0 ? std::nullopt : level_room(level, std::size_t(room));
+    if (!rect || !rooms_in_play || std::size_t(room) >= rooms_in_play->room_seeds.size()) return std::nullopt;
+    const int left = rect->x * 5 + 1, top = rect->y * 5 + 1, width = (rect->x + rect->width) * 5 - left, height = (rect->y + rect->height) * 5 - top;
+    for (int tries = 0; tries < 20; ++tries) {
+        auto& room_seed = rooms_in_play->room_seeds[std::size_t(room)];
+        const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
+        int at_x = 0, at_y = 0;
+        if (spawn_spot(game_data, level, crowd, rooms_in_play, type, try_x, try_y, -1, room, at_x, at_y)) return std::pair{ at_x, at_y };
+    }
+    return std::nullopt;
+}
+
 bool teleport_mod(const GameData& game_data, const Level& level, Monster& monster, int distance, const Crowd& crowd, Spawning::LevelState* rooms_in_play, std::uint32_t now_ms) {
     if ((monster.boss != d2d::rules::Boss::unique && monster.boss != d2d::rules::Boss::superunique) || !std::ranges::contains(monster.mods, d2d::rules::umod::teleport)
         || monster.seed.next() % 100 >= 40) return false;
@@ -851,25 +868,17 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
     if (!low && (melee || distance >= 10)) return false;
     if (monster.seed(100) >= 15) return false;
     const int teleport = skill_id(game_data, "MonTeleport");
-    const int room = room_of(level, monster.unit.x, monster.unit.y);
-    const auto rect = room < 0 ? std::nullopt : level_room(level, std::size_t(room));
-    if (teleport < 0 || !rect || !rooms_in_play || std::size_t(room) >= rooms_in_play->room_seeds.size()) return false;
-    const int left = rect->x * 5 + 1, top = rect->y * 5 + 1, width = (rect->x + rect->width) * 5 - left, height = (rect->y + rect->height) * 5 - top;
-    for (int tries = 0; tries < 20; ++tries) {
-        auto& room_seed = rooms_in_play->room_seeds[std::size_t(room)];
-        const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
-        int at_x = 0, at_y = 0;
-        if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
-        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
-        monster.skill = teleport;
-        monster.skill_sound = teleport;
-        monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
-        monster.unit.walking = false;
-        set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
-        monster.struck = false;
-        return true;
-    }
-    return false;
+    if (teleport < 0) return false;
+    const auto spot = room_free_spot(game_data, level, crowd, rooms_in_play, monster.type, room_of(level, monster.unit.x, monster.unit.y));
+    if (!spot) return false;
+    if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
+    monster.skill = teleport;
+    monster.skill_sound = teleport;
+    monster.skill_x = spot->first; monster.skill_y = spot->second; monster.at_point = true;
+    monster.unit.walking = false;
+    set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
+    monster.struck = false;
+    return true;
 }
 
 }  // namespace
@@ -1096,6 +1105,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // young come out on spawnx / spawny off (FUN_005fd350 tests crownest's only).
     input.frame = frame; input.state2 = &monster.ai_state2;
     input.spot_free = nest_spot_free(game_data, level, crowd, monster.type, x, y, false);
+    input.room_spot = [&] { return room_free_spot(game_data, level, crowd, rooms_in_play, monster.type, room_of(level, monster.unit.x, monster.unit.y)); };   // Baal's teleport
     input.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
     input.off_x = target_x - x; input.off_y = target_y - y;
     int pace = 0;
@@ -2830,11 +2840,66 @@ d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::r
 void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear) {
     // FUN_0057b420 reads the unit's stats whatever the mode, so a two-handed
     // weapon's damage stands in for every mode's (A1 / A2 / S1).
-    // ponytail: the items' other stats (resistances, life, to-hit, their
-    // elements) don't reach a made monster yet.
+    // The items' other stats are wear_gear_stats'.
     for (auto [low, high] : { std::pair{ &stats.a1_min, &stats.a1_max }, std::pair{ &stats.a2_min, &stats.a2_max }, std::pair{ &stats.s1_min, &stats.s1_max } })
         std::tie(*low, *high) = d2d::rules::gear_damage(gear, *low, *high);
     stats.armor_class += int(gear.defense + gear.sum[d2d::d2s::kArmorClass]);
+}
+
+// What a monster's gear adds to its max life on a base of `base_fine`: maxhp
+// (7, whole points) and item_maxhp_percent (76) of the base, as a merc's.
+int gear_life_fine(const d2d::rules::GearSum& gear, int base_fine) {
+    return int(gear.sum[d2d::d2s::kMaxLife]) * 256 + d2d::rules::mul_div(base_fine, int(gear.sum[d2d::d2s::kMaxLifePercent]), 100);
+}
+
+int boss_life_fine(int life, std::initializer_list<int> pcts, const d2d::rules::GearSum* gear) {
+    for (const int pct : pcts) {
+        if (pct == 0) continue;                                        // FUN_005a0d20 runs only for these mods
+        const int whole = gear ? life + gear_life_fine(*gear, life) : life;
+        life = int(std::uint32_t(whole) + std::uint32_t(d2d::rules::mul_div(whole, pct, 100)));
+    }
+    return life;
+}
+
+// The unit's stats are its base list's plus its items' (FUN_00625480 over the
+// lists), so each item stat reaches what reads it: the resistances (36 damage,
+// 37 magic, 39 / 41 / 43 / 45 the elements) into target(); max life (7, whole
+// points) and its percent (76) of the base (gear_life_fine; a boss's scaling
+// counted it already, make_boss); the attack rating (19) and its percent
+// (119) on each mode's; fire, lightning, cold and magic damage (48..56) on
+// every blow as a boss's enchants are (FUN_0057b7d0 reads the unit's
+// stats), the cold's length too; poison (57..59) as its own poison stats.
+void wear_gear_stats(Monster& monster, const d2d::rules::GearSum& gear) {
+    using namespace d2d::d2s;
+    const auto& sum = gear.sum;
+    auto& stats = monster.stats;
+    const std::array<int, 6> res_stats{ kDamageResist, kMagicResist, kFireResist, kLightningResist, kColdResist, kPoisonResist };
+    for (std::size_t k = 0; k < res_stats.size(); ++k) monster.gear_res[k] += int(sum[std::size_t(res_stats[k])]);
+    const int base_fine = monster.max_life_fine();
+    const int extra_fine = gear_life_fine(gear, base_fine);
+    if (extra_fine != 0) {
+        const int max_fine = std::max(base_fine + extra_fine, 256);
+        const int life_fine = std::max(monster.life_fine() + extra_fine, 1);
+        stats.hit_points = (max_fine + 255) >> 8;
+        monster.max_life_frac = stats.hit_points * 256 - max_fine;
+        monster.set_life_fine(std::min(life_fine, max_fine));
+    }
+    for (int* to_hit : { &stats.to_hit, &stats.to_hit2, &stats.to_hit_s1 })
+        *to_hit += int(sum[kToHit]) + *to_hit * int(sum[kToHitPercent]) / 100;
+    const std::array<std::pair<int, int>, 5> element_stats{ { { kFireMinDamage, kFireMaxDamage }, { kLightningMinDamage, kLightningMaxDamage },
+                                                              { kColdMinDamage, kColdMaxDamage }, { 0, 0 }, { kMagicMinDamage, kMagicMaxDamage } } };
+    for (std::size_t type = 0; type < element_stats.size(); ++type) {
+        const auto [low_stat, high_stat] = element_stats[type];
+        if (low_stat == 0) continue;
+        const int low = int(sum[std::size_t(low_stat)]), high = int(sum[std::size_t(high_stat)]);
+        if (low == 0 && high == 0) continue;
+        auto& enchant = stats.enchants[type];
+        enchant = enchant ? std::pair{ enchant->first + low, enchant->second + high } : std::pair{ low, high };
+    }
+    stats.enchant_len += int(sum[kColdLength]);
+    stats.poison_min += int(sum[kPoisonMinDamage]);
+    stats.poison_max += int(sum[kPoisonMaxDamage]);
+    stats.poison_len += int(sum[kPoisonLength]);
 }
 
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique) {
@@ -2860,9 +2925,10 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.super = super;
     monster.name_seed = name_seed;
     // FUN_005a0d20 scales max life in 256ths, first for hpmultiply and then for the champion kind.
-    int life = monster.stats.hit_points * 256;
-    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.hp_pct, 100)));
-    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.life_after_pct, 100)));
+    // It reads the unit's whole max life (FUN_00625d10: its gear's too, made with it in FUN_00573cb0)
+    // and writes that scaled as the base stat 7, the gear's list still adding on top
+    // (wear_gear_stats): a boss's item life counts in each scaling and again after.
+    int life = boss_life_fine(monster.stats.hit_points * 256, { boss.hp_pct, boss.life_after_pct }, gear);
     monster.lifeless = life <= 0;                                       // as make_monster's
     monster.set_life_fine(std::max(life, 256));
     monster.stats.hit_points = monster.hit_points;
@@ -2914,6 +2980,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
             if (const auto found = format.find(placeholder); found != std::string::npos) format.replace(found, placeholder.size(), value);
         monster.npc.name = std::move(format);
     }
+    if (gear) wear_gear_stats(monster, *gear);
 }
 
 int soak(Monster& monster, int physical, int damage) {

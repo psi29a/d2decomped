@@ -1196,7 +1196,7 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 - Record: +0xbc `summon` (MonStats row), +0xbe `pettype`, +0xc0 `petmax`
   (calc), +0xc4 sumskill1..5 with +0xd0 sumsk*calc, +0xe4 `sumumod`,
   +0xe6 `sumoverlay`. Do functions: 56 (FUN_005c5100, the golems), 57
-  (Iron Golem), 31 (FUN_005c4b00, Raise Skeleton / Skeletal Mage, from a
+  (Iron Golem, FUN_005c5250: below), 31 (FUN_005c4b00, Raise Skeleton / Skeletal Mage, from a
   corpse), 16 (FUN_005dc1e0, Valkyrie), 119 (FUN_005c7390, the Druid's
   wolves, bear, spirits), 114 (Raven), 15 (Decoy), 44 / 45 (the
   Assassin's traps), 49 (Shadow Warrior / Master).
@@ -1278,6 +1278,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 
+- **Iron Golem** (start 20 and do 57 both run `FUN_005c32a0`): the unit
+  cast at (`FUN_00553540`) is an item (type 4) on the ground (mode 3) of a
+  metal base (`FUN_00629cc0`: Items bitfield1 & 2), identified (flag 0x10,
+  `FUN_006280a0`), its stats not linked to an owner (`FUN_00625820`), else
+  no start and no golem. `FUN_005c5250`: the golem (`FUN_0056d940`), the
+  item out of its room (`FUN_0061a270`), mode 4, then `FUN_005606b0`(the
+  golem, the item, forced, its type's body location) equips it, and only
+  then `FUN_005c50c0` puts the summon's stats on (`FUN_005c4470`, Summon
+  Resist after the item's absorbs). d2d: `Fight::golem_item_at` (the item
+  at the cast's subtile: the client sends the item's spot, not its id),
+  `Fight::summon`, `summon_one`.
 ### Traps (phase 5, part 4)
 - Do 45 (**FUN_005d6170** → **FUN_005d5e10**): the summon path —
   FUN_0056e620 (the pet slot), FUN_0056d940 at the target, FUN_005c49e0 /
@@ -1404,7 +1415,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   FUN_005c55c0 sets its owner (FUN_0058f030) and its next think (event 2,
   15 frames on) and swaps no AI (no FUN_005b0e00). d2d runs a stand-in
   (`Fight::pets_turn`'s untraced branch): monster thinks don't take
-  monsters as targets yet.
+  monsters as targets yet. Being the same unit, it keeps every stat it was
+  made with (its level, damage, defence, to-hit, MonProp stats: an
+  expansion Nightmare or Hell corpse's are its area's level's) and its
+  unit seed, which the life roll steps. d2d: `Fight::summon_one` copies
+  the corpse's `stats`, `props` and `seed`. A MonStats Level of 0 stays 0
+  (`FUN_00573cb0` 0x573e18..0x573e70: MonLvl row 0, all 1s), in
+  `rules::monster_stats` too.
 - Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
   owner's max life x calc3 / 100 (FUN_00483360) before FUN_005c4470's calc1
   %; the owner's level (0x5dc144), then FUN_005c49e0's with the skill level
@@ -2089,6 +2106,33 @@ Cited from the decompile (no oracle run); re-check with
   `d2d_ai_castable(skill, level, 1, 0, 0)` instead. Both end in
   FUN_0056cda0(skill, level, 1). d2d: **not ported**; the 0x15e / 0x15f
   pair agrees with the passive refresh above (FUN_00646d60).
+- **An aura's pulse** (FUN_0056cda0 / FUN_0056ce70, on Skills.txt +4
+  flags 0x40 or 0x20): perdelay (+0x128, a calc) at the skill's level,
+  under 6 taken as 5, and unit event 8 (9 for FUN_0056ce70) armed at
+  `((frame - 1 + d) / d) * d + 1`, frame the game's +0xa8: the first frame
+  after now that is 1 more than a multiple of d. Event 8's handler
+  (FUN_0056fcb0, slot 8 of 0x6e2490) casts the aura (`d2d_ai_castable`)
+  and arms the next the same way, so every aura of one perdelay pulses on
+  the same frames however apart they began; the aura's start
+  (FUN_0056fc50) casts at once. FUN_0056cd50 is the same sum for the
+  states a pulse puts (FUN_005cf010 lasts it to the next pulse + 1). Every
+  1.14d aura's perdelay is 50; the Druid spirits' auras and the masteries
+  have none, so 5. d2d: `rules::aura_next_frame`, `Fight::aura_due`.
+- **An enemy aura's mana** (FUN_005cf3a0, do 66; FUN_005d0e90, do 82, the
+  same): the cost is FUN_00644b10 (Sanctuary's: mana 1, manashift 8, one
+  point; every other do 65 / 66 / 81 / 82 aura costs 0). The party's list
+  (the aurastate +0x80 with passivestat1..5, +0x98 / +0xa4, through
+  FUN_0056b740 -> FUN_005cedc0) is made for a non-player caster
+  (FUN_0044be50: the unit's type) or one with the mana; the targets' list
+  (auratargetstate +0x82 with aurastat1..6, +0x54 / +0x68) only when +0x82
+  is a state and the caster has the mana. The cost is paid (FUN_0056c110)
+  and nomanaregen (state 0x55) put on only when FUN_005cedc0 counted a
+  unit given the target state (+0x40 of the callback's record); otherwise
+  0x55 goes off. Sanctuary has no auratargetstate and no passivestats, so
+  its pulse never pays and never applies its aurastat1..3
+  (item_undeaddamage_percent, item_undead_tohit, skill_bypass_undead):
+  read, not run. Redemption's callback is FUN_005d0d70; the rest of do 66
+  share FUN_005cf2a0. d2d: `Fight::aura_pulse`.
 - **FUN_005a2d80** (124 bytes, no caller in game-calls.tsv, so reached
   through a table or pointer): reads stats 0x15 and 0x16; when 0x16 > 0
   and the unit's class id (+4) is not 0x10f, sets stat 0x15 = max(0, s15

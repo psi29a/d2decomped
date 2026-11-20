@@ -191,6 +191,14 @@ level, an object's area level), +0x2a / item data +0x30 version
 FUN_00555230 makes the unit: two steps of the game seed. FUN_00552df0:
 unit +0x20 = {low, 666} (the unit seed), +0x28 = low; FUN_00552e90: item
 data +0x10 = low, +4 = {low, 666} (its own seed, FUN_00627d90).
++0x28 is the fingerprint a save keeps (the 32 bits after the class
+affix): loading an item seeds +0x20 {it, 666} again (`FUN_0062cbe0` at
+`0x62cd13` / `0x62cd16`). An item made in play keeps its unit seed where
+its making left it, so Larzuk's sockets (`FUN_00579d60`) and a runeword's
+mods roll on from there; after a save and a load, from {fingerprint,
+666}. d2d: `rules::generate_item` sets `Item::uid` and keeps the seed
+(`Item::seed_kept`, not saved), `rules::item_seed`. Before this d2d saved
+every item it made with fingerprint 0.
 
 FUN_00557ab0 (ECX game, EDX &item; struct, do quality) off the unit seed:
 
@@ -503,8 +511,8 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
   job (seed, class, level, ilvl, players, mf; FUN_0055a550 hooked to
   record what it makes, FUN_005585d0 to answer mf) and diffs
   `build/tools/drop-dump` line by line, the dropper's seed after
-  included. 100000 / 100000 match, every class but ROP (N) / ROP (H)
-  (Annihilus, a unique entry).
+  included. 100000 / 100000 match, ROP (N) / ROP (H) (Annihilus, a
+  unique entry) among them.
 - `uv run python drops.py tables`: every class's entries against ours,
   1012 / 1012.
 - `drops.py act1` prints the Act 1 jobs `tests/game/test_game_tables.cpp` hashes.

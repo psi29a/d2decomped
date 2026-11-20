@@ -1040,7 +1040,12 @@ rest, and a d2d client talking to it must too.
   only 0x2c sounds.
 - **Rooms come and go** by 0x07 / 0x08: the client builds the act's map
   from the seed (0x03, the handshake note) and adds rooms as they come
-  into play; units are only sent for rooms in play.
+  into play; units are only sent for rooms in play. The server's side is
+  `FUN_00537b50`, run as the player's room (unit +0x1b4) changes: each room
+  in the new room's near list (`d2d_act5_rooms_near`) but not the old one's
+  goes through `FUN_0053a8e0` (0x07 for it, then `FUN_00571f90` for each
+  unit in its list, room +0x74, next +0xe8), each room only in the old
+  list through `FUN_0053a9b0` (0x08). d2d: `World::view`'s monsters.
 - **Monster life** is a byte (life / 128) and the client shows only
   that; exact numbers stay on the server.
 - **A held button** repeats the same packet; the send throttle drops

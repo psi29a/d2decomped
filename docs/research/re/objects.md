@@ -257,6 +257,14 @@ type 0 then 1 on its opener, in mode 0 only) and the exploding barrel
 (`FUN_00584330` → `FUN_00584240`: type 0 on every unit of the barrel's
 room within 3 subtiles, players not in mode 0x11 and monsters not in
 mode 0xc; other barrels (class 0xb, mode 0) under 3 go off in turn):
+the walk is that one room's list (room +0x74, next +0xe8: newest
+first), so a unit just over the room's edge isn't struck, the seed's
+draws go in that order, and a barrel met in it goes off there and then
+(its blast before the rest of the list's). d2d: `World::explode` by room
+stamp, life in 256ths, the other barrels last: objects keep no stamp.
+That differs from the newest-first walk when a barrel came into the room
+after a unit in it (an object group's barrel is made after the room's
+preset monsters, and anything that walks in later is newer still).
 
 - Nothing in town (`FUN_0061ab00`) or through a wall (`FUN_00622b50`,
   mask 0x804, each unit's own footprint lifted).
@@ -544,7 +552,14 @@ Findings along the way:
   own column, not a count of the layers present.
 - Blood Raven's and the flying scimitar's oninit MonEquip items
   (FUN_005d6b60, skills.md "Summons"): one own-seed roll a row, then two
-  game-seed steps for each item made (`FUN_00559ce0`).
+  game-seed steps for each item made (`FUN_00559ce0`). Made with the
+  monster (FUN_00573cb0, oninit), so every stat the items carry is the
+  unit's (FUN_00625480 sums the lists): resistances, max life and its
+  percent, the attack rating and its percent, elemental damage on each
+  blow, poison. A boss's life scaling (FUN_005a0d20, from hpmultiply and
+  the champion kinds) then reads the whole max life (FUN_00625d10), the
+  items' share in it, writes it back scaled as the base stat 7, and the
+  items' list still adds on top. d2d: `wear_gear_stats`, `boss_life_fine`.
 - A MonPlace champion (FUN_0054e1e0): the leader and its MonStats party
   (FUN_005b2830), one unused own roll (FUN_005a48c0 -> FUN_005a0c00),
   then own(3) + 1 more champions at radius 4, each with its own party.

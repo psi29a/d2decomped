@@ -295,6 +295,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         foe.running = actor->owner_mode == 3;                   // RN (World: walking with run on and stamina)
         foe.neutral = actor->pmode < 0 && actor->owner_mode == 1;   // mode 1: no swing, cast or get-hit, not moving
         foe.id = player_foe_id();
+        foe.room_stamp = actor->player.room_stamp;
         foe.life_pct = int(std::int64_t(actor->character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(actor->character.stats.get(d2d::d2s::kMaxLife), 1));
         foe.max_life = int(actor->character.stats.values[d2d::d2s::kMaxLife]); foe.max_mana = int(actor->character.stats.values[d2d::d2s::kMaxMana]);
         // Diablo's score of the player (FUN_005e8530).
@@ -320,6 +321,7 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.fighter.prime_evil_pct = 200;                // a hireling under a prime evil's blow (FUN_0057c060)
         foe.pet = true;                                  // the merc: its MonStats class's size
+        if (actor->merc) foe.room_stamp = actor->merc->unit.room_stamp;
         foe.id = merc_foe_id();
         foe.neutral = actor->merc && actor->merc->mode == "NU";
         foe.life_pct = actor->merc ? int(std::int64_t(actor->merc->hit_points) * 100 / std::max(merc_max_life(), 1)) : 0;
@@ -380,6 +382,23 @@ auto Fight::near_players(float x, float y) const -> bool {
         return std::ranges::any_of(heroes, [&](const Hero* hero) { return std::abs(x - hero->player.x) < 30 && std::abs(y - hero->player.y) < 30; });
     }
 
+auto Fight::restamp() -> void {
+        if (!level) return;
+        const auto seen = [&](UnitState& unit) {
+            const int room = room_of(*level, unit.x, unit.y);
+            if (room == unit.room_seen && unit.room_level == level) return;   // the same room of the same level
+            unit.room_seen = room;
+            unit.room_level = level;
+            unit.room_stamp = ++room_stamps;
+        };
+        for (Hero* hero : heroes) {
+            seen(hero->player);
+            if (hero->merc) seen(hero->merc->unit);
+            for (auto& pet : hero->pets) if (pet.where == level) seen(pet.monster.unit);
+        }
+        for (auto& monster : monsters) seen(monster.unit);
+    }
+
 auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         Hero& acting = *actor;
         if (now_ms >= acting.curses[0].until) acting.curses[0] = {};   // its state's end, in town too (blood_mana asks for it gone)
@@ -397,6 +416,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
         if (in_moor) {
             // Each player's side: the player and the merc, then everyone's
             // pets; the monsters (Confuse, Attract) after them.
+            restamp();
             struct Side { Hero* hero; std::size_t at = 0, pets = 0; };
             std::vector<Side> sides;
             std::vector<Foe> foes;
@@ -430,7 +450,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
                     const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                     Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
-                    foe.size = type_info.size; foe.threat = type_info.threat; foe.of = &monster; foe.id = monster.id;
+                    foe.size = type_info.size; foe.threat = type_info.threat; foe.of = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
                     monster_foe_props(*game_data, monster, foe);
                     foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
                                          d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));
@@ -901,7 +921,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                 }
             }
             if (skill->etype < 0 || skill->etype > 2 || now_ms < aura_monster.aura_next) continue;
-            aura_monster.aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
+            aura_monster.aura_next = aura_due(*skill, aura_monster.aura_lvl, now_ms);
             const int low = d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, false) >> 8;
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)

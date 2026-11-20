@@ -34,9 +34,11 @@ def make_save(name, status, cls, level):
     with open(path, "wb") as f:
         f.write(b)
     # Char select lists saves newest file time first (FUN_00438ad0): each
-    # one made is a minute older than the last, so they list as written.
+    # one made is a minute older than the last, so they list as written,
+    # all before now, so a save the test writes later lists first.
     made = len(os.listdir(saves))
-    os.utime(path, (2_000_000_000 - made * 60, 2_000_000_000 - made * 60))
+    stamp = int(time.time()) - 3600 - made * 60
+    os.utime(path, (stamp, stamp))
 
 real = os.environ.get("D2_SAVES_DIR")
 if real:

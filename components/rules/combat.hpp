@@ -1155,8 +1155,8 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
             default: break;   // types above 4 have no field in the record
         }
     }
-    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants, after its elements
-        if (const auto& enchant = attacker.enchants[type]) {
+    for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants and its gear's elements, after its elements
+        if (const auto& enchant = attacker.enchants[type]; enchant && type != 3) {
             const int roll = rng.range(enchant->first, enchant->second);
             if (roll <= 0) continue;
             if (type == 2) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, attacker.enchant_len));

@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <format>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -79,6 +80,12 @@ struct UnitState {
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
     float goal_x = 0, goal_y = 0;     // where the route was planned to
+    // Its place in its room's unit list (room +0x74, next +0xe8): FUN_0064c2c0 puts a
+    // unit at the head as it's made or comes into a room, so each room's list
+    // runs by room_stamp, highest first (Fight::restamp; rules::room_order).
+    int room_seen = -2;
+    const Level* room_level = nullptr;        // the level room_seen is a room of: crossing to another restamps
+    std::uint32_t room_stamp = 0;
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made
     std::uint16_t path_word = 0;      // path +0x54: the door bit (0x800) its steps met since its path was made (path_frame)
@@ -261,6 +268,7 @@ struct Monster {
     int super = -1;                           // SuperUniques row
     int name_seed = 0;                        // a boss's name seed (make_boss: the 0xac packet's, unit data +0x14)
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
+    std::array<int, 6> gear_res{};            // what its MonEquip gear adds to them (stats 36, 37, 39, 41, 43, 45: wear_gear_stats)
     std::array<int, 6> res_cut{};             // what its curse, cry and the auras on it add to them (Fight::target_of): the hover's immunity lines
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
@@ -537,7 +545,7 @@ struct Monster {
         const auto& type_info = game_data.monsters.types[std::size_t(type)];
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         auto res = per_difficulty.res;
-        for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
+        for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i] + gear_res[i];
         d2d::rules::Target built{ hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
                                   crush_divisor(game_data), type_info.undead, type_info.demon, life_fine(),
                                   game_data.life_steal_divisor[std::size_t(difficulty)], game_data.mana_steal_divisor[std::size_t(difficulty)] };
@@ -641,6 +649,7 @@ struct Foe {
     // the Succubi's Skill3) take any non-player alike.
     int max_life = 0, max_mana = 0;
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
+    std::uint32_t room_stamp = 0;             // its unit's (UnitState::room_stamp): its place in its room's list
     bool a3q5_done = false;                   // a player, or its pet, with quest 0x15 bit 0 (the zealots spare it)
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame
     d2d::rules::DiabloPick pick;              // what Diablo's target score reads off it (FUN_005e8530)
@@ -1277,6 +1286,13 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // mode's blow as FUN_0057b420 reads it, its defence (stat 31).
 [[nodiscard]] d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::rules::SpawnGear> gear, int difficulty);
 void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear);
+// The rest of its gear's stats, after a boss's mods (its life scaling read the
+// gear's life too, make_boss; the items' list adds on top): see ai.cpp.
+void wear_gear_stats(Monster& monster, const d2d::rules::GearSum& gear);
+[[nodiscard]] int gear_life_fine(const d2d::rules::GearSum& gear, int base_fine);
+// A boss's base life (256ths) after FUN_005a0d20 for each of `pcts` (hpmultiply, the champion
+// kind; 0: that mod isn't there, no call): each reads the whole max life, its gear's included.
+[[nodiscard]] int boss_life_fine(int life, std::initializer_list<int> pcts, const d2d::rules::GearSum* gear);
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->

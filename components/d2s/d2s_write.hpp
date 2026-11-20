@@ -55,7 +55,8 @@ inline void write_realm(BitWriter& writer, const Item& item, std::uint32_t file_
         for (std::size_t word = 0; word < (file_version > 93 ? 3u : 2u); ++word) writer.write(word < item.realm.size() ? item.realm[word] : 0, 32);
 }
 
-inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* all_props, std::size_t all_count) {
+// `file_version`: the save's; below 0x5d the 1.09 widths, as the reader takes them (detail::width).
+inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* all_props, std::size_t all_count, std::uint32_t file_version = kMaxVersion) {
     // Only stats with Save Bits go in (poison_count, 326, is the game's
     // alone: it's left out), in stat order as the game's stat list keeps
     // them, so a run's partners follow its first (17 then 18, 57 / 58 / 59).
@@ -80,9 +81,9 @@ inline void write_props(BitWriter& writer, const ItemTables& item_tables, const 
                                                                                                                                    : 1;
         writer.write(std::uint32_t(id), 9);
         for (std::size_t k = 0; k < run && i < count; ++k, ++i) {
-            const auto& stat_info = item_tables.stats[std::size_t(props[i].stat)];
-            if (stat_info.param_bits) writer.write(std::uint32_t(props[i].param), stat_info.param_bits);
-            writer.write(std::uint32_t(props[i].value + stat_info.save_add), stat_info.save_bits);
+            const auto width = detail::width(item_tables.stats[std::size_t(props[i].stat)], file_version);
+            if (width.param) writer.write(std::uint32_t(props[i].param), width.param);
+            if (width.bits) writer.write(std::uint32_t(props[i].value + width.add), width.bits);
         }
     }
     writer.write(0x1ff, 9);
@@ -155,10 +156,10 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
             if (item.quality == 5) writer.write(std::uint32_t(item.set_lists), 5);
             // Items made in d2d have no runeword list: all of props is the main one.
             const std::size_t main = item.runeword ? std::min(item.main_props, item.props.size()) : item.props.size();
-            write_props(writer, item_tables, item.props.data(), main);
+            write_props(writer, item_tables, item.props.data(), main, file_version);
             std::size_t offset = 0;
-            for (const auto count : item.set_list_sizes) { write_props(writer, item_tables, item.set_props.data() + offset, count); offset += count; }
-            if (item.runeword) write_props(writer, item_tables, item.props.data() + main, item.props.size() - main);
+            for (const auto count : item.set_list_sizes) { write_props(writer, item_tables, item.set_props.data() + offset, count, file_version); offset += count; }
+            if (item.runeword) write_props(writer, item_tables, item.props.data() + main, item.props.size() - main, file_version);
         }
     }
     writer.align();
