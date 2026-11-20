@@ -18,6 +18,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 using d2d::client::PartyPanel;
@@ -96,7 +97,7 @@ int main(int argc, char** argv) try {
             const auto& record = sample.records[std::size_t(index)];
             rows.push_back({ .id = record.id, .name = record.name, .party = record.party, .sort_key = record.sort_key });
         }
-        const auto got = regrouped(rows, std::uint32_t(sample.local), sample.by_key != 0);
+        const auto got = regrouped(std::move(rows), std::uint32_t(sample.local), sample.by_key != 0);
         bool same = got.size() == std::size_t(sample.count);
         for (std::size_t index = 0; same && index < got.size(); ++index) same = int(got[index]) == sample.after[index];
         if (!same) {

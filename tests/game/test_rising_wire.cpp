@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -19,13 +20,13 @@ int main() try {
     GameData game_data;
     d2d::rules::MonType horde;
     horde.killable = true;
-    game_data.monsters.types = { horde };
+    game_data.monsters.types = { std::move(horde) };
     game_data.mon_npc.resize(1);
     View sent;
     sent.level = &game_data.town;
     Monster monster;
     monster.id = 7; monster.type = 0; monster.hit_points = 10; monster.mode = "S1"; monster.rising = true;
-    sent.monsters.push_back(monster);
+    sent.monsters.push_back(std::move(monster));
     ViewEncoder encoder;
     View received;
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));   // the keyframe

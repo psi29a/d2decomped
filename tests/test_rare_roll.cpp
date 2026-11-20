@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -53,7 +54,7 @@ int main() try {
         assert(jewel.quality == 6 && jewel.rare1 == 2 + 1 && taken >= 3 && taken <= 4);
     }
     {   // No name fits (no ring prefix): remade magic.
-        Tables no_names = tables;
+        Tables no_names = std::move(tables);
         no_names.rare_prefix_names = { { .itypes = { "jewl" } } };
         Rng rng(3), unit_seed(4);
         const auto ring = generate_item(no_names, "rin", 30, 6, rng, &unit_seed);

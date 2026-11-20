@@ -54,7 +54,7 @@ void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Pane
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, button.x - width / 2 + 0x10, glyph_top(font, button.bottom - 0x26), label, 255, 255, 255);
     }
     // The instructions, gold, wrapped (FUN_00502970) and centred: kind 1 only.
-    const auto lines = panel.kind != 1 ? std::vector<std::string>{} : d2d::font::wrap_edit_box(string_id(scene, instructions(panel.hc_idx)), kTextWidth, [&](unsigned char code) {
+    const std::vector<std::string> lines = panel.kind != 1 ? std::vector<std::string>{} : d2d::font::wrap_edit_box(string_id(scene, instructions(panel.hc_idx)), kTextWidth, [&](unsigned char code) {
         const auto* glyph = font.find(code);
         return glyph ? int(glyph->width) : 0;
     });

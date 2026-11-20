@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -60,7 +61,7 @@ int main() try {
     cap.item.code = "cap";
     cap.item.identified = true;
     cap.x = cap.y = 12.1f;
-    loot.ground = { cap };
+    loot.ground = { std::move(cap) };
     assert(fight.golem_item_at(12.1f, 12.1f) < 0);   // not metal
     fight.summon(skill, 1, 12.1f, 12.1f, 1000);
     assert(hero.pets.empty() && loot.ground.size() == 1);
@@ -80,7 +81,7 @@ int main() try {
     jewel.props.push_back({ d2d::d2s::kMaxDamage, 0, 2 });
     loot.ground.back().item.socketed = true;
     loot.ground.back().item.sockets = 1;
-    loot.ground.back().item.socketed_items.push_back(jewel);
+    loot.ground.back().item.socketed_items.push_back(std::move(jewel));
     assert(fight.golem_item_at(14.1f, 14.1f) == 1);
     fight.summon(skill, 1, 14.6f, 14.3f, 2000);                     // a cast beside it, on another subtile
     assert(hero.pets.size() == 1 && loot.ground.size() == 1 && loot.ground[0].id == 1);   // the axe left the floor

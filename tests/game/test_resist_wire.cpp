@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -25,7 +26,7 @@ int main() try {
     d2d::rules::MonType fallen;
     fallen.killable = true;
     fallen.diff[2].res = { 15, 0, 100, 0, 40, 0 };                                   // fallen1's Hell resists: fire immune
-    game_data.monsters.types = { fallen };
+    game_data.monsters.types = { std::move(fallen) };
     game_data.mon_npc.resize(1);
     View sent;
     sent.level = &game_data.town;

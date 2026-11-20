@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
@@ -66,7 +67,7 @@ int main() try {
     foe.id = 0x7ffff0;
     foe.hit_points = 100;
     fight.monsters.clear();
-    fight.monsters.push_back(foe);
+    fight.monsters.push_back(std::move(foe));
     // One shift-click (or plain click) on it at `apart` cells east, from a standing start.
     const auto click = [&](float apart, bool stand) {
         actor->pmode = -1;

@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -73,7 +74,7 @@ int main() try {
     // A live target isn't a corpse.
     corpse.hit_points = 50;
     corpse.mode = "NU";
-    fight.monsters = { corpse };
+    fight.monsters = { std::move(corpse) };
     fight.pet_cast(fenris, 3000, crowd);
     assert(fenris.buffs.empty() && !fight.monsters[0].corpse_used);
     std::puts("OK: Fenris Rage uses up a corpse and puts fenris_rage with its damagepercent");

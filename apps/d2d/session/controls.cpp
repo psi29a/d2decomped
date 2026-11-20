@@ -87,7 +87,7 @@ auto ClientSession::save_keys(bool shared) const -> void {
     }
 
 auto ClientSession::update_hotkey_names() -> void {
-        auto name = [&](int action, bool either) {
+        auto name = [&](int action, bool either) -> std::string {
             const auto key = keys::label_key(key_table, action, either);
             if (!key) return std::string{};
             const auto key_name_id = keys::name_id(*key);

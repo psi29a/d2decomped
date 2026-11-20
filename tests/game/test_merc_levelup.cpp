@@ -129,7 +129,7 @@ int levelup_checks() {
     GameData game_data;
     d2d::rules::Hireling row;
     row.version = 100; row.id = 1; row.level = 1; row.exp_per_level = 100; row.hit_points = 100; row.hp_per_level = 10;
-    game_data.rules.hirelings.push_back(row);
+    game_data.rules.hirelings.push_back(std::move(row));
     game_data.exp_ratio.assign(100, 1024);
     Rig rig(game_data);
     auto& hero = rig.hero;

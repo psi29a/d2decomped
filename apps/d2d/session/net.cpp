@@ -510,9 +510,9 @@ auto ClientSession::net_overlay() -> void {
                 using d2d::rules::Boss;
                 const Boss kind = unit.boss_flags & 4 ? Boss::superunique : unit.boss_flags & 2 ? Boss::unique : unit.boss_flags & 1 ? Boss::champion : unit.boss_flags & 8 ? Boss::minion : Boss::none;
                 if (kind != Boss::none) {
-                    const auto plain_name = found->second.npc.name;
+                    std::string plain_name = found->second.npc.name;   // kept: make_boss renames it
                     make_boss(*scene, found->second, kind, unit.mods, unit.super, unit.name_seed, net_game->difficulty, rng);
-                    if (kind == Boss::unique && unit.mods.empty()) found->second.npc.name = plain_name;
+                    if (kind == Boss::unique && unit.mods.empty()) found->second.npc.name = std::move(plain_name);
                 }
             }
             auto& monster = found->second;

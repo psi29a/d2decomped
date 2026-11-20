@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -22,7 +23,7 @@ int main() try {
     d2d::rules::MonType trap, plain;
     trap.id = "trap-melee"; trap.base = 0x162; trap.level = { 4, 4, 4 };
     plain.id = "plain"; plain.base = 0x10; plain.level = { 4, 4, 4 };
-    data.monsters.types = { trap, plain };
+    data.monsters.types = { std::move(trap), std::move(plain) };
     data.mon_npc.resize(2);
     data.monsters.lvl.resize(130);
     for (std::size_t row = 0; row < data.monsters.lvl.size(); ++row) data.monsters.lvl[row].to_hit = { int(row) * 10, int(row) * 10, int(row) * 10 };

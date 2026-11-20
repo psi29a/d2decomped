@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -64,9 +65,9 @@ int main() try {
     // A magic item's affix goes on with its item (FUN_0065fec0, as a unique's): a pike's
     // dmg-min prefix is the two-hand stat, not the one-hand one a bare mod takes.
     {
-        Tables made = tables;
+        Tables made = std::move(tables);
         made.item_info["pik"] = { .width = 2, .height = 4, .type = "pole", .kind = 2 };
-        made.item_base["pik"] = pike;
+        made.item_base["pik"] = std::move(pike);
         made.types["pole"] = {};
         made.prefixes = { {}, { .name = "Sharp", .level = 1, .group = 1, .frequency = 1, .spawnable = true, .itypes = { "pole" }, .mods = { { "dmg-min", "", 2, 2 } } } };
         made.suffixes = { {} };

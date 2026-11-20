@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -52,7 +53,7 @@ int main() try {
     for (auto* monster : { &in_room, &off_list }) { monster->type = 1; monster->hit_points = monster->stats.hit_points = 50; monster->unit.y = 4.5f; }
     in_room.id = 1; in_room.unit.x = 9.2f;                         // room 1, 33 subtiles off
     off_list.id = 2; off_list.unit.x = 22.2f;                      // room 2, 31 subtiles off: nearer, but not in a near room
-    fight.monsters = { in_room, off_list };
+    fight.monsters = { std::move(in_room), std::move(off_list) };
     fight.restamp();
     const Crowd crowd;
     fight.necropet_turn(pet, 1000, 0.04f, crowd);

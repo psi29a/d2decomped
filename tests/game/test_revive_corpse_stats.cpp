@@ -20,6 +20,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -66,7 +67,7 @@ int main() try {
     corpse.stats.to_hit = 222;
     corpse.props.thorns = 5;
     corpse.seed = d2d::rules::Rng{ 0xabcd };
-    fight.monsters = { corpse };
+    fight.monsters = { std::move(corpse) };
     fight.summon_one(revive, 0, 1, fight.calc_env(), 12, 12, 1000, 0);
     assert(hero.pets.size() == 1);
     const auto& pet = hero.pets.back().monster;

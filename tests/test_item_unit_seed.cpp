@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::rules;
 
@@ -62,7 +63,7 @@ int main() try {
     assert(socketed.sockets == sockets);
     assert(socketed.seed_kept && socketed.seed_low == expect.low && socketed.seed_high == expect.high);
     // The same item loaded from a save rolls off {uid, 666}.
-    auto from_save = axe;
+    auto from_save = std::move(axe);
     from_save.seed_kept = false;
     Rng expect_loaded{ 0x5150 };
     assert(socket_item(tables, from_save).sockets == expect_loaded(2) + 1);

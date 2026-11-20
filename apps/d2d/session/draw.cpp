@@ -713,7 +713,7 @@ auto ClientSession::event_text(const NetGame::Event& event) const -> std::string
         static constexpr std::array<std::uint16_t, 11> kParty{ 0x277a, 0x277b, 0xfba, 0xfbb, 0xfbc, 0xfbd, 0xfbe, 0xfbf, 0xfc0, 0x277c, 0x277d };
         if (event.sub < 1 || event.sub > 11 || who.empty()) return {};
         const auto line = text(kParty[std::size_t(event.sub - 1)]);
-        if (event.sub <= 2 || event.sub >= 10) return format(line, { who });   // "%s permits you to loot his corpse."
+        if (event.sub <= 2 || event.sub >= 10) return format(line, { std::move(who) });   // "%s permits you to loot his corpse."
         return event.sub == 8 ? line + who : who + line;      // "You are now allied with " / " has left your party."
     }
     case 8: return event.name + text(0xfcc);                   // " is busy"

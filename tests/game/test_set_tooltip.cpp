@@ -19,6 +19,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -41,7 +42,7 @@ int main() try {
     auto ward = piece("lrg", 0), icon = piece("amu", 1);
     ward.location = d2s::item_location::kEquipped; ward.slot = d2s::body_location::kLeftArm;
     icon.location = d2s::item_location::kStored; icon.panel = d2s::item_panel::kStash;
-    std::vector<d2s::Item> owned{ ward, icon };
+    std::vector<d2s::Item> owned{ ward, std::move(icon) };
     const auto lines = item_lines(*data, ward, 30, nullptr, &owned);
     assert(lines.size() >= 5);
     const auto tail = lines.end() - 5;

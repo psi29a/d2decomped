@@ -81,7 +81,7 @@ int main() try {
     inside.hit_points = 100000;
     auto outside = inside;
     outside.unit.x = cell(6);
-    fight.monsters = {inside, outside};
+    fight.monsters = {std::move(inside), std::move(outside)};
     fight.enemy_pulse(pulse, 1, {}, cell(0.1f), cell(0), {}, fight.player_foe_id(), 1000);
     assert(fight.monsters[0].hit_points < 100000 && fight.monsters[1].hit_points == 100000);
     pulse.aurarange.code = {{d2d::rules::Calc::Const, 0}};

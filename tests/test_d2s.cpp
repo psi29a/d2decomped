@@ -85,7 +85,7 @@ int main() try {
         auto old = save;
         std::memcpy(old.data() + 4, &old_version, 4);
         assert(!d2d::d2s::convert_to_expansion(old) && old[0x24] == std::byte{ 0x04 });   // before 0x5c: not here
-        auto short_save = save;
+        auto short_save = std::move(save);
         short_save.pop_back();
         assert(!d2d::d2s::convert_to_expansion(short_save));
     }

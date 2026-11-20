@@ -56,10 +56,10 @@ int main() try {
     using Striker = Fight::Hero::Striker;
     assert(world.killer_name(Striker{}).empty());                      // none: no message
     assert(world.killer_name({ 1, 4242 }) == "Fallen");
-    auto bishibosh = monster;
+    auto bishibosh = std::move(monster);
     bishibosh.id = 4243;
     bishibosh.super = 1;
-    world.fight.monsters.push_back(bishibosh);
+    world.fight.monsters.push_back(std::move(bishibosh));
     assert(world.killer_name({ 1, 4243 }) == data->superuniques[1].name);
     assert(world.killer_name({ 2, 0xb }) == "an Exploding Barrel");
     assert(!world.killer_name({ 2, 3 }).empty());                       // an Objects.txt row's Name

@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -64,7 +65,7 @@ int main() try {
     hero.player.x = 2; hero.player.y = 2;
     fight.restamp();
     const auto here = hero.player.room_stamp;
-    Level next = field;
+    Level next = std::move(field);
     world.level = &next;
     fight.monsters.clear();
     fight.restamp();

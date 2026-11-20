@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -60,7 +61,7 @@ int main() try {
 
     // A soft hit on a missile of another function never touches its seed.
     burner.dmg_func = 2;
-    Missile other = fire;
+    Missile other = std::move(fire);
     const auto kept = *other.seed;
     assert(!soft_hit(other, rng) && other.seed->low == kept.low && other.seed->high == kept.high);
     std::puts("OK: pSrvDmgFunc 3 steps the missile's own seed (FUN_005ad220), pass or fail");

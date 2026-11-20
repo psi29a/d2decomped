@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -63,7 +64,7 @@ int main() try {
     auto& mana = hero.character.stats.values[d2d::d2s::kMana];
 
     // Sanctuary: the pulse lands, nothing paid, nomanaregen off.
-    fight.monsters = { undead };
+    fight.monsters = { std::move(undead) };
     mana = 100 << 8;
     hero.no_mana_regen = true;
     hero.aura = 1;

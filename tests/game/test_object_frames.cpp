@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -38,7 +39,7 @@ int main() {
 
     // A timing query (object_op_ticks) peeks: it neither changes the cached
     // mode nor steps the seed, however often it is asked.
-    Npc timed = object;
+    Npc timed = std::move(object);
     timed.client_seeded = false;
     timed.client_mode = -1;
     const int peeked = object_frame_delta_peek(timed, 1);

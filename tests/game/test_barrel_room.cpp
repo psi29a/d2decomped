@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -35,7 +36,7 @@ int main() try {
         barrel.x = x; barrel.y = 4.1f;
         barrel.size_x = 1;
         barrel.seed = d2d::rules::Rng{ 99 };
-        field.npcs.push_back(barrel);
+        field.npcs.push_back(std::move(barrel));
     };
     barrel_at(7.7f);                                               // room 0, by its east edge
     barrel_at(7.3f);                                               // room 0, two subtiles off
@@ -51,7 +52,7 @@ int main() try {
     }
     near_one.unit.x = 7.5f;                                        // room 0, 1 subtile off
     across.unit.x = 8.1f;                                          // room 1, 2 subtiles off
-    fight.monsters = { near_one, across };
+    fight.monsters = { std::move(near_one), std::move(across) };
     // A merc beside it with a point and a 256th: any blast leaves it under one point, dead (as a player).
     auto& merc = world.actor->merc.emplace();
     merc.type = 0; merc.hit_points = merc.stats.hit_points = 2; merc.unit.x = 7.6f; merc.unit.y = 4.1f;
