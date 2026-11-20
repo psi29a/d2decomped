@@ -432,6 +432,19 @@ inline std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine,
     return life < 1 ? 1 : std::min<std::int64_t>(life, max_fine);
 }
 
+// Iron Maiden (domeleedamage, aura event func 4, FUN_005c5f50): FUN_0057c6c0
+// raises it on the cursed unit as its own hit lands (0x57c7e3). Nothing when
+// the hit's +8 (its physical after the struck unit's reduction) is 0 or less;
+// else a hit back on the cursed unit whose +8 is MulDiv(that, pct, 100)
+// (FUN_00483360, 0x5c607e), 256ths: pct is calc1 for a monster that isn't a
+// hireling (FUN_0063ee90), else calc2 when it struck a player and calc3 when
+// not. Its record carries the skill's ResultFlags | 0x20 and HitClass;
+// FUN_0057c6c0 (flag 1) then resists it on the cursed unit (FUN_0057c1e0).
+[[nodiscard]] inline std::optional<int> iron_maiden_fine(bool monster, bool hireling, bool struck_player, int phys_fine, int calc1, int calc2, int calc3) {
+    if (phys_fine <= 0) return std::nullopt;
+    return mul_div(phys_fine, monster && !hireling ? calc1 : struck_player ? calc2 : calc3, 100);
+}
+
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
 // element's mastery) in 256ths, the element (Skill::etype order: fire,

@@ -1646,8 +1646,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     nothing. Its life (stat 6) and max
     (FUN_00625d10) above 0, the sum held between 1 and the max. d2d:
     `rules::life_tap_life`, `Fight::land` (the player, the merc, a pet).
-    **Iron Maiden's function, read (FUN_005c5f50; cited, decompile and
-    disassembly, no oracle run).** This one is fastcall
+    **Iron Maiden's function (FUN_005c5f50; run, `tools/emu/iron_maiden.py`
+    for steps 1, 3 and 4).** This one is fastcall
     with ECX the *game* (FUN_00552f60 takes it as its first argument at
     0x5c6016, and 0x5c60fb reads game +0x6d, the difficulty), not the
     wearer; `ret 0x14` takes five stack arguments: A (the cursed wearer,
@@ -1685,14 +1685,15 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
        returns what fitted) and the rest is reduced by it; A is healed
        the rest, the owner whatever A could not take; overlay 0x97 (151,
        FUN_00621e40) plays on A and on the owner. Returns 1 from step 4 on.
-    d2d: reads the same, cited from the decompile, no oracle run, on the
-    reflected share and the calc pick for a monster
-    wearer (`Monster::reflect_pct`, calc1 of "ironmaiden", states.cpp:364;
-    ai.cpp:2589 as thorns) and for a player wearer's picked row
-    (tick.cpp:550); the wearer rule is "hireling" (FUN_0063ee90 classes
-    0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
-    golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
-    and the reflected hit sent as a hit record (its flags and hit class; resistances not traced).
+    d2d: `rules::iron_maiden_fine` (steps 1, 3, 4: the percent pick, the
+    record's +8, 0x4021 and the class); a monster wearer's melee hit
+    (ai.cpp, `Monster::reflect_pct` = calc1, states.cpp) sends it back on
+    the monster as its own hit, its physical resisted there (res[0],
+    `resisted_fine`), the get-hit as Thorns' 0x4021. The wearer rule is
+    "hireling" (FUN_0063ee90 classes 0x10f, 0x152, 0x167, 0x230, 0x231), not
+    "any pet": a skeleton or a golem is a monster, so calc1. Not ported: the
+    leech tail for class 0x122, and the struck unit's absorbs before +8
+    (d2d reads the reduced roll).
   - **Item stats** use the same table (ItemStatCost itemevent1..2 /
     itemeventfunc1..2, row +0x48 / +0x4c and +0x4a / +0x4e; event ids in
     Events.txt order, 5 domeleedamage, 6 domissiledamage, 9 kill). When such
