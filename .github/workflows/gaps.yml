@@ -55,8 +55,9 @@ jobs:
           if new <= old:
               raise SystemExit
           commit = new_summary["generated"]["commit"]
-          body = {"content": f"D2Decomp is now **{new}% done** (was {old}%) as of `{commit}`. "
-                             "https://psi29a.github.io/d2decomped/gaps.html"}
+          body = {"content": f"🔥⛧🔥 **More of the Prime Evil's code is ours** 🔥⛧🔥\n"
+                             f"😈 D2Decomp is now **{new}% done** (was {old}%), as of `{commit}`\n"
+                             "💀 The gap map: https://psi29a.github.io/d2decomped/gaps.html"}
           request = urllib.request.Request(os.environ["DISCORD_WEBHOOK"], json.dumps(body).encode(),
                                            {"Content-Type": "application/json", "User-Agent": "d2decomped-gaps"})
           urllib.request.urlopen(request, timeout=30)
