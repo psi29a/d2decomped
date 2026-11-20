@@ -75,7 +75,11 @@ private:
         directions_   = rd32(bytes.data() + 16);
         framesPerDir_ = rd32(bytes.data() + 20);
         const auto total = std::size_t(directions_) * framesPerDir_;
-        if (total == 0) return;
+        if (total == 0) {   // no frames: report none, so frames_per_direction() alone is a safe guard
+            directions_ = 0;
+            framesPerDir_ = 0;
+            return;
+        }
 
         const std::size_t ptrTblOff = kFileHdr;
         if (bytes.size() < ptrTblOff + total * 4)
