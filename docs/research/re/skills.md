@@ -1681,6 +1681,91 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
     golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
     and the reflected hit sent as a hit record (its flags and hit class; resistances not traced).
+  - **Item stats** use the same table (ItemStatCost itemevent1..2 /
+    itemeventfunc1..2, row +0x48 / +0x4c and +0x4a / +0x4e; event ids in
+    Events.txt order, 5 domeleedamage, 6 domissiledamage, 9 kill). When such
+    a stat changes, FUN_0055b800 takes the hooks off for a new value of 0
+    (FUN_005c0b50(2, key)); else, unless FUN_005c0be0(2, key) finds them,
+    it calls FUN_0056e740 with node +0xc = key, +0x10 = 0, owner kind (+4)
+    2 and key (+8), where key is the stat << 16 | its layer (0x55b897,
+    0x55b8b9). Each item handler below reads its value with
+    FUN_00625500(unit, key >> 16, key) and gives 0 for a value under 1
+    unless noted. "Wearer" is the first stack argument, "other" the second.
+    None of them is ported in d2d (only the item text names these stats).
+  - **8** item_howl (stat 112, FUN_005bfa10, domeleedamage /
+    domissiledamage): other must be a monster (type 1) and not champion or
+    unique (FUN_005a0180 mask 0xc); a roll FUN_00472210 (ECX wearer +0x20,
+    the seed; EDX 0x80) under the value runs FUN_005ddd00 (ECX game, EDX
+    wearer; other, 0x82, 0x14, 0x14), the Howl / Terror run (bugs.md 41)
+    (0x5bfa38..0x5bfa88).
+  - **10** item_attackertakeslightdamage (stat 128, FUN_005bf720,
+    damagedinmelee) / **11** (FUN_005bf7d0; no 1.14d ItemStatCost or
+    Skills.txt row names 11, and the 11 calls to FUN_0056e740,
+    0x55b897..0x5d929b, pass a number read from memory, no constant): when
+    other's +0xc4 bit 2 (& 4) is set,
+    a zeroed 0x70-byte hit record with result flags (+4) |= 0x4021, the
+    value << 8 as lightning (+0x1c; 11: fire, +0x10) and hit class (+0x60)
+    0x4d (11: 0x2d) goes from the wearer to other: FUN_0057c6c0(game,
+    wearer, other, 1, record), then FUN_0057cee0(game, wearer, other,
+    record).
+  - **12** (FUN_005bf880; no row names it either): the same with the value
+    << 8 as cold (+0x24), cold length (+0x30) 25, or 25 + 10 x (wearer's
+    level - other's level, stat 12) when the wearer's is higher, hit class
+    0x3d (0x5bf8d1..0x5bf947).
+  - **13** item_damagetomana (stat 114, FUN_005bfbb0, damagedinmelee /
+    damagedbymissile): a player wearer and a hit whose +0x4c is above 0;
+    with mana (stat 8) under max (FUN_00625d60), mana becomes
+    min(max, max(0, mana + FUN_00483360(hit +0x4c, value, 100))) and overlay
+    0x98 (152, stealmana) plays on the wearer.
+  - **14** item_freeze (stat 134, FUN_005bfc60, domeleedamage /
+    domissiledamage): chance = 5 x (4 x max(0, value - 1) - other's level +
+    10 + wearer's level), with 6 off the wearer's level and the whole / 3
+    (signed) when EDX (the event) is 6; held to 0..100. One LCG step of the
+    wearer's seed (+0x20: lo x 0x6ac690c5 + hi) % 100 under the chance gives
+    a freeze length (+0x34) of 25 + 2 x (chance - roll), held to 25..250, in
+    a zeroed record that only FUN_0057c6c0(game, wearer, other, 1, record)
+    takes (no FUN_0057cee0) (0x5bfc9b..0x5bfd75).
+  - **17** item_manaafterkill (stat 138, FUN_005c0130, kill): a player
+    wearer and a victim; with mana under max, mana becomes min(max,
+    max(0, mana + value x 256)); overlay 0x98. Any non-zero value counts.
+  - **18** item_healafterdemonkill (stat 139, FUN_005c0260, kill): a
+    demon victim (FUN_0063e940); with life (stat 6) under max
+    (FUN_00625d10), life becomes min(max, max(0, life + value x 256));
+    overlay 0x97 (151, steallife). Any wearer type.
+  - **19** item_slow (stat 150, FUN_005c0310, domeleedamage /
+    domissiledamage): the value is held to 50 against a player, a champion
+    or unique (FUN_005a0180 mask 0xc), a MonStats boss (FUN_0063e9f0(0,
+    other)) or a hireling (FUN_0063ee90); to 75 against a superunique (mask
+    2); to 90 against other monsters; other types give 0. It puts state 24
+    (slowed) on other with FUN_0056e970 {wearer, other, skill 0, level 1,
+    length 750, stat 67 velocitypercent = -value}, then sets stats 68
+    (attackrate) and 69 (other_animrate) to -value on that state's list
+    (FUN_006270b0) and refreshes other's pace (FUN_00623f50)
+    (0x5c0347..0x5c044f).
+  - **20** item_skillonattack / onkill / onhit (stats 195, 196, 198;
+    FUN_005c0470; domeleeattack, domissileattack, kill, domeleedamage,
+    domissiledamage): the skill is the layer >> [0x744304]+0xc6c, the level
+    the layer & [0x744304]+0xc70, the value the chance. With no hit record,
+    or one whose hit flags (+0) have 0x20, one LCG step of the wearer's seed
+    % 100 under the chance casts it, if the skill has a row
+    (FUN_0045c4b0). A row with flag bit 29 (+7 & 0x20, mask 0x6ce27c; its
+    column was not traced) is cast only with an other, by other on itself:
+    FUN_005fdca0 (ECX other, EDX skill; level, other, 0) at 0x5c0529..0x5c0536.
+    Any other row is cast by the wearer: on other (FUN_005fdca0 ..., 1), or
+    with no other at the wearer's own spot (FUN_005fdd60(wearer, skill,
+    level, x, y, 1); x / y FUN_00648a00 / FUN_00648a10 of +0x2c)
+    (0x5c04c8..0x5c0584).
+  - **21** item_skillongethit (stat 201, FUN_005c05a0, damagedinmelee /
+    damagedbymissile): the same skill, level and chance from the key; a hit
+    record whose result flags (+4) have 4, and FUN_0045c3e0(wearer seed,
+    100) under the chance; the wearer casts it on other, or at its own spot
+    with no other, the last argument 0 (0x5c05f5..0x5c065a).
+  - The cast helpers, FUN_005fdca0 (ECX caster, EDX skill; level, target,
+    flag) and FUN_005fdd60 (ECX caster, EDX skill; level, x, y, flag): 0 for
+    no caster (or no target), when FUN_00554010 fails, or for a caster in
+    state 0x36; FUN_005fda80 settles the target, then they hand the skill,
+    level, target and flag to FUN_005717c0 / FUN_00571840 (net-packets.md:
+    0x99 skill on a unit, 0x9a skill at x, y) and return 1.
   - **22** Bone Armor (FUN_005c6370, absorbdamage): its pool stat
     (record +0x54) takes the hit's physical (+8); at 0 the state goes.
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
@@ -1702,6 +1787,33 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     d2d: `rules::absorb_blows` on each part's raw field (`cyclone_take`,
     then `elemental_fine`); V: `tools/emu/cyclone_armor.py`, 3000 records
     in `tests/cyclone_armor_cases.inc` (`test_cyclone_armor`).
+  - **27** Clay Golem (skill 75, FUN_005c6760, damagedinmelee): item_slow
+    (stat 150) as the golem holds it at layer 0, not the node's key; held to
+    50 against a player or a champion / unique (FUN_005a0180 mask 0xc), to
+    90 against other monsters; other types give 0. Then 19's state 24 with
+    the same descriptor and stats 68 / 69 (0x5c6796..0x5c6819). Not ported.
+  - **28** item_healafterkill (stat 86, FUN_005c01d0, kill): 18 without
+    the demon test.
+  - **29** item_restinpeace (stat 108, FUN_005c0770, kill): state 172
+    (restinpeace) on the victim (FUN_00639db0(other, 0xac, 1)); it reads no
+    value.
+  - **30** item_skillondeath / onlevelup (stats 197, 199; FUN_005c0670;
+    killed, levelup): 20's skill, level and roll, the skill only bounded
+    against the Skills table ([0x744304]+0xba0 rows of 0x23c), no hit or
+    row-bit test; the wearer casts it on other, or at its own spot with no
+    other, the last argument 0.
+  - **31** item_reanimate (stat 155, FUN_005c09e0, kill): other a monster
+    not champion or unique (mask 0xc); FUN_0045c3e0(wearer seed, 100) under
+    the value; from the wearer up the owner chain (FUN_0058f0d0) to the
+    first player, else 0. It hooks event 0xd on other directly
+    (FUN_005c0ad0, not through the table) with FUN_005c07a0, node +0xc =
+    the key's low 16 bits (the MonStats row to raise), +0x10 and key the
+    player's id (+0xc), owner kind 0 (0x5c0a5c..0x5c0a74). Where event 0xd
+    fires was not traced. FUN_005c07a0 (read in the decompile only) makes
+    that row at the corpse's spot (FUN_005b2f20(x, y, row, 1, -1, 0x4a)),
+    gives it the player as owner (FUN_0058f030), state 96 (revive) and 118
+    (corpse_noselect), an event 7 at frame +1500 (FUN_005417d0), and puts
+    state 173 on the corpse.
   d2d: `buff_events` (Foe::fired_by, damaged_by), `absorb` (Taken::physical
   / elemental).
 - Built: `self_cast` (all of the above), `start_state`, `state_of`,
