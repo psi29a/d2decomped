@@ -417,33 +417,10 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
 inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
 
-// Life Tap (damagedinmelee / damagedbymissile, aura event func 5,
-// FUN_005c61e0): FUN_0057c6c0 raises it on the cursed unit once
-// FUN_0057c1e0 has filled the hit (0x57c7f3), before the unit's life goes
-// down. Whoever dealt it heals MulDiv(the hit's +8, calc1, 100)
-// (FUN_00483360, 0x5c62d7), 256ths: +8 is the physical after resistance,
-// the total at +0x4c adds the elements (0x57c3a5..0x57c3c7), so an
-// elemental hit heals nothing. Its life (stat 6) is then held
-// between 1 and its max (FUN_00625d10); nothing on a hit of 0 or less, or
-// when the striker's life or max is 0 or below.
-inline std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct) {
-    if (damage_fine <= 0 || life_fine <= 0 || max_fine <= 0) return life_fine;
-    const int life = int(std::uint32_t(life_fine) + std::uint32_t(mul_div(damage_fine, pct, 100)));
-    return life < 1 ? 1 : std::min<std::int64_t>(life, max_fine);
-}
-
-// Iron Maiden (domeleedamage, aura event func 4, FUN_005c5f50): FUN_0057c6c0
-// raises it on the cursed unit as its own hit lands (0x57c7e3). Nothing when
-// the hit's +8 (its physical after the struck unit's reduction) is 0 or less;
-// else a hit back on the cursed unit whose +8 is MulDiv(that, pct, 100)
-// (FUN_00483360, 0x5c607e), 256ths: pct is calc1 for a monster that isn't a
-// hireling (FUN_0063ee90), else calc2 when it struck a player and calc3 when
-// not. Its record carries the skill's ResultFlags | 0x20 and HitClass;
-// FUN_0057c6c0 (flag 1) then resists it on the cursed unit (FUN_0057c1e0).
-[[nodiscard]] inline std::optional<int> iron_maiden_fine(bool monster, bool hireling, bool struck_player, int phys_fine, int calc1, int calc2, int calc3) {
-    if (phys_fine <= 0) return std::nullopt;
-    return mul_div(phys_fine, monster && !hireling ? calc1 : struck_player ? calc2 : calc3, 100);
-}
+// Life Tap (FUN_005c61e0): the striker's life after a hit on the cursed unit, 256ths.
+std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct);
+// Iron Maiden (FUN_005c5f50): the +8 of the hit back on the cursed unit, 256ths; none when it hits nothing.
+[[nodiscard]] std::optional<int> iron_maiden_fine(bool monster, bool hireling, bool struck_player, int phys_fine, int calc1, int calc2, int calc3);
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the

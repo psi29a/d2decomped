@@ -38,6 +38,39 @@ GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, 
     return lives;
 }
 
+// The corpses the Necromancer's corpse skills take, by their server start
+// functions on the target. A monster data +0x16 of a champion, unique or
+// superunique carries 8.
+// Raise Skeleton / Skeletal Mage (srvstfunc 15, FUN_005c3070): not in a town
+// (FUN_0061ab00), and FUN_00645510: a monster in mode 0xc (DD), not hidden
+// (FUN_0063a770), MonStats2 corpseSel (FUN_004638a0 bit 7), MonStats
+// Velocity (+0x32) not 0.
+namespace {
+
+bool corpse_raisable(const MonType& type, const CorpseState& corpse) {
+    return corpse.mode == 0xc && !corpse.hidden && type.corpse_sel && type.velocity != 0;
+}
+
+}  // namespace
+
+bool raise_takes(const MonType& type, const CorpseState& corpse) { return !corpse.town && corpse_raisable(type, corpse); }
+// Corpse / Poison Explosion (srvstfunc 17, FUN_005c31c0): not in a town, and
+// FUN_00645680: mode 0xc, not hidden, corpseSel.
+bool blast_takes(const MonType& type, const CorpseState& corpse) {
+    return !corpse.town && corpse.mode == 0xc && !corpse.hidden && type.corpse_sel;
+}
+// Revive (srvstfunc 21, FUN_005c3350 -> FUN_005c3300; a town too): MonStats2
+// revive (bit 8), dead or dying (FUN_005541b0), FUN_00645510, and
+// FUN_0056e2f0 -> FUN_005dd480: not an imp (BaseId 0x1ec) attached (state
+// 0x8f), not uninterruptable (state 0x36), MonStats2 mWL, not a MonStats boss
+// (+0xc & 0x40), switchai (+0xe & 1), targetable or dying, not a champion,
+// unique or superunique (+0x16 & 0xa).
+bool revive_takes(const MonType& type, const CorpseState& corpse) {
+    const bool dying = corpse.dying || corpse.mode == 0 || corpse.mode == 0xc;
+    return type.revive && dying && corpse_raisable(type, corpse) && !(type.base == 0x1ec && corpse.attached) && !corpse.uninterruptable && type.can_walk
+        && !type.boss_column && type.switch_ai && (corpse.targetable || dying) && (corpse.flags & 0xa) == 0;
+}
+
 BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town) {
     const int count = calc2 / 2;
     if (town || count <= 1) return {};
