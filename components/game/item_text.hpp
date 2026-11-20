@@ -412,6 +412,15 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
             break;
         default: out.push_back({ base, item.ethereal || item.socketed ? kTxtGrey : kTxtWhite }); break;
     }
+    // After the quality's colour, game.exe makes the name orange (code 8) for
+    // the essences, the Token of Absolution, the three organs, the three uber
+    // keys and any rune (itemtype 0x4a): the hover (FUN_0048dd90,
+    // 0x48e9b0..0x48ea15) and the floor label (FUN_004527d0) check alike.
+    static constexpr std::array<std::string_view, 11> kOrangeCodes{ "ceh", "bet", "tes", "fed", "toa", "dhn",
+                                                                    "bey", "mbr", "pk1", "pk2", "pk3" };
+    if (std::ranges::find(kOrangeCodes, std::string_view(item.code)) != kOrangeCodes.end()
+        || (info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, info->second.type, "rune")))
+        for (auto& line : out) line.rgb = kTxtOrange;
     // Unidentified magic and better: the base name in its colour, no properties.
     const bool unid = !item.identified && item.quality >= 4 && !item.runeword;
     if (unid) out = { { base, out.front().rgb } };
