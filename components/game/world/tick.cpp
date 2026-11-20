@@ -884,7 +884,15 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again
             each_player([&](Player& player) { if (player.ghost) revive(player, now_ms); });
+        hand_statuses(now_ms);
         loot.standing = nullptr;                                 // the crowd dies with this tick
+    }
+
+auto World::hand_statuses(std::uint32_t now_ms) -> void {
+        each_player([&](Player& player) {
+            const auto& header = player.character.header;
+            player.hand_status = { fight.skill_status(int(header.left_skill), now_ms), fight.skill_status(int(header.right_skill), now_ms) };
+        });
     }
 
 // State 153 on a unit: each client's setfunc 2 (FUN_004d87e0) dips its

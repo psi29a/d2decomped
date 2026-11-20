@@ -203,6 +203,7 @@ struct View {
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
+    std::array<int, 2> hand_status{};      // the left / right skill's status (Player::hand_status)
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
@@ -297,6 +298,9 @@ struct World {
         int raising = -1;                      // the body they're channelling on (its player's id), -1 none
         std::uint32_t right_before = 0;        // the right skill Resurrect took the place of (saved instead of it)
         std::uint32_t kept_left = 0, kept_right = 0;   // the hand skills a throwing potion took the place of (player data +0x74 / +0x70, hand_skills)
+        // The left / right skill's status as this tick left it (FUN_004d9fc0 -> FUN_00647960:
+        // Fight::skill_status, 0 it can go): the client's skill searches run only at 0.
+        std::array<int, 2> hand_status{};
         bool out = false;                      // hardcore, dead, Resurrect pressed: the screen takes them out of the game (FUN_0054c0e0)
     };
     using Corpse = Player::Corpse;
@@ -1076,6 +1080,8 @@ struct World {
     // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
     // slot, a weapon switch): each hand skill fits what the hands hold now.
     void hand_skills(std::uint32_t now_ms);
+    // Each player's Player::hand_status, at the end of a level's tick (what FUN_00467880 asks).
+    void hand_statuses(std::uint32_t now_ms);
 
     // A command from the player, checked and applied. game.exe's dispatcher
     // (FUN_0054d750) gates most packets on FUN_0057eec0(1, 0, 0): state

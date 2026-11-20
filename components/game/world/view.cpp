@@ -179,6 +179,7 @@ auto World::view() const -> View {
         if (now < actor->boost.until) { view.boost = actor->boost.stats; view.boost_code = shrine_code(actor->boost.shrine); }
         view.aura = actor->aura;
         view.gold_lost = int(actor->gold_lost);
+        view.hand_status = actor->hand_status;
         for (const auto& state : actor->self_states) view.buffs.push_back(state.skill);
         view.day = day;
         view.den_cleared = den.state >= 4;
