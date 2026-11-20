@@ -17,7 +17,6 @@
 #include <rules.hpp>
 #include <shadows.hpp>
 #include <skills.hpp>
-#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -75,12 +74,10 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
 // Raise's, the explosions' and Revive's corpse tests (rules::raise_takes, blast_takes, revive_takes) by the
 // skill's srvstfunc; any other start takes any corpse.
 auto Fight::corpse_takes(d2d::rules::ServerStartFunction start, const Monster& corpse) const -> bool {
-        using d2d::rules::Boss;
         using Start = d2d::rules::ServerStartFunction;
         if (start != Start::kRaiseSkeleton && start != Start::kCorpseBlast && start != Start::kRevive) return true;
         const auto& type_info = game_data->monsters.types[std::size_t(corpse.type)];
-        // Monster data +0x16: a champion's 0xd (FUN_005a48c0), a unique's 9 (FUN_005a4940), 2 and 8 on a superunique.
-        const int flags = corpse.boss == Boss::superunique ? 0xb : corpse.boss == Boss::champion ? 0xd : corpse.boss == Boss::unique ? 9 : 0;
+        const int flags = d2d::rules::monster_data_flags(corpse.boss);
         const d2d::rules::CorpseState state{ .mode = 0xc, .flags = flags, .targetable = false, .dying = false, .hidden = false,
                                              .uninterruptable = corpse.uninterruptable(), .attached = corpse.riding,
                                              .town = level && d2d::rules::level_ids::is_town(level->id) };

@@ -7,7 +7,8 @@
 // and prints each with `| raise blast revive`: rules::raise_takes,
 // blast_takes and revive_takes.
 // Without arguments, with the game data: Fight::corpse_near through Revive's
-// start skips a champion's corpse and takes a plain zombie's.
+// start skips a champion's corpse and takes a plain zombie's; swaps_ai
+// refuses a live champion.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -90,7 +91,11 @@ int pick_check(const GameData& data) {
     using Start = d2d::rules::ServerStartFunction;
     assert(world->fight.corpse_near(spot_x, spot_y, Start::kRevive) == plain);
     assert(world->fight.corpse_near(spot_x, spot_y, Start::kRaiseSkeleton) == champion);
-    std::puts("OK: Revive passes a champion's corpse over for a plain zombie's; Raise takes the champion's");
+    // The same FUN_005dd480 test on the living (Confuse, Attract, Howl): a champion's think stays its own.
+    auto live_champion = world->fight.monsters[std::size_t(champion)], live_plain = world->fight.monsters[std::size_t(plain)];
+    for (auto* live : { &live_champion, &live_plain }) { live->hit_points = live->stats.hit_points = 10; live->mode = "NU"; }
+    assert(!swaps_ai(data, live_champion) && swaps_ai(data, live_plain));
+    std::puts("OK: Revive passes a champion's corpse over for a plain zombie's; Raise takes the champion's; a live champion keeps its think");
     return 0;
 }
 

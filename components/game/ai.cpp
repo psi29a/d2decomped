@@ -2825,11 +2825,11 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
             near_foe.cursed = { 66, curse_level };
 }
 
+// rules::ai_swappable (FUN_005dd480): a champion is refused too (+0x16 & 0xa, its 0xd).
 bool swaps_ai(const GameData& game_data, const Monster& monster) {
-    const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
-    using d2d::rules::Boss;
-    return !monster.uninterruptable() && type_info.can_walk && !type_info.boss_column && type_info.switch_ai && !(type_info.base == 0x1ec && monster.riding)
-        && (monster.targetable() || !monster.alive()) && monster.boss != Boss::unique && monster.boss != Boss::superunique;
+    const d2d::rules::CorpseState unit{ .mode = monster.alive() ? 1 : 0xc, .flags = d2d::rules::monster_data_flags(monster.boss), .targetable = monster.targetable(),
+                                        .uninterruptable = monster.uninterruptable(), .attached = monster.riding };
+    return d2d::rules::ai_swappable(game_data.monsters.types[std::size_t(monster.type)], unit);
 }
 
 void ai_toggle(const GameData& game_data, Monster& monster, int special) {

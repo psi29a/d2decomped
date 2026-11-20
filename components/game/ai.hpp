@@ -1297,7 +1297,7 @@ void wear_gear_stats(Monster& monster, const d2d::rules::GearSum& gear);
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
 // FUN_005dd480; FUN_00623470, FUN_005b0da0): not state 0x36, MonStats2 mWL, not MonStats
-// boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a unique or
+// boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a champion, unique or
 // superunique (monster data +0x16 & 0xa), not an imp (BaseId 0x1ec) riding
 // (state 0x8f). State 0x36 (uninterruptable, FUN_005544b0) comes on with a
 // skill's start: Whirlwind (FUN_005d8f50), Leap (FUN_005d9d50), Leap Attack
