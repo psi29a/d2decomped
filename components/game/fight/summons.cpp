@@ -89,7 +89,7 @@ auto Fight::corpse_takes(d2d::rules::ServerStartFunction start, const Monster& c
 auto Fight::corpse_near(float x, float y, d2d::rules::ServerStartFunction start) const -> int {
         int best = -1; float best_distance = 2.f;
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const auto& corpse = monsters[i]; !corpse.alive() && !corpse.corpse_used && corpse.mode == "DD" && corpse_takes(start, corpse))
+            if (const auto& corpse = monsters[i]; !corpse.alive() && !corpse.corpse_used && !corpse.shatter && corpse.mode == "DD" && corpse_takes(start, corpse))
                 if (const float distance = std::hypot(corpse.unit.x - x, corpse.unit.y - y); distance < best_distance) { best_distance = distance; best = int(i); }
         return best;
     }

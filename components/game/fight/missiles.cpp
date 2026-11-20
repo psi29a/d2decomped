@@ -345,6 +345,9 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
             actor->attack_mon = -1;
             return false;
         }
+        // Corpse / Poison Explosion's start (srvstfunc 17, LAB_005c31c0) refuses a cast with no corpse its test passes,
+        // before any cost.
+        if (skill_row->srvstfunc == d2d::rules::ServerStartFunction::kCorpseBlast && corpse_near(target_x, target_y, skill_row->srvstfunc) < 0) return false;
         owe(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
