@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # d2d — the game binary. SDL3 windowing + streaming framebuffer texture;
 # devctl + screenshot still wired to the same in-memory buffer.
-find_package(SDL3 CONFIG REQUIRED)
+find_package(SDL3 CONFIG REQUIRED GLOBAL)   # GLOBAL: tests/ link SDL3::SDL3 too (test_press_position)
 # Sound: OpenAL (openal-soft), like ../thirdeye. cmake/FindOpenAL.cmake.
 find_package(OpenAL REQUIRED)
 
@@ -311,6 +311,7 @@ target_sources(d2d PRIVATE
     netgame.cpp
     panels.cpp
     party.cpp
+    pointer_events.cpp
     roster.cpp
     scene.cpp
     scene/render.cpp

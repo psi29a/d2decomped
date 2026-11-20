@@ -69,10 +69,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         // converted back by SDL_ConvertEventToRenderCoordinates on poll.
         float x = 0, y = 0;
         SDL_RenderCoordinatesToWindow(window.renderer, std::stof(args[1]), std::stof(args[2]), &x, &y);
-        // Motion + down + up land in the next frame's poll. One frame is
-        // enough: update_button and the slot picker both accept a press
-        // and release in the same frame. `down` or `up` pushes only that one,
-        // so a press can be held for frames (a player's click lasts several).
+        // Motion + down land in the next frame's poll, the up a frame later
+        // (a press ends the frame's poll: pointer_events.cpp).
+        // `down` or `up` pushes only that one, so a press can be held for
+        // frames (a player's click lasts several).
         SDL_Event event{};
         event.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(window.window), .x = x, .y = y };
         SDL_PushEvent(&event);
