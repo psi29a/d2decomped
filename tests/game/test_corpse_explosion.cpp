@@ -38,7 +38,8 @@ int corpse_explosion_cases(const GameData& game_data) {
         std::istringstream fields(line);
         int type = 0, difficulty = 0, level = 0, clvl = 0, calc1 = 0, calc2 = 0, calc3 = 0, aura_range = 0;
         std::uint32_t seed_low = 0, seed_high = 0;
-        if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high >> calc1 >> calc2 >> calc3 >> aura_range)) {
+        if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high >> calc1 >> calc2 >> calc3 >> aura_range)
+            || difficulty < 0 || difficulty > 2) {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
         }

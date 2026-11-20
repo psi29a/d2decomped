@@ -134,9 +134,11 @@ int main(int argc, char** argv) try {
         if (!(fields >> id >> player_x >> player_y >> mon_x >> mon_y >> size >> walk >> range >> walls)) { id = -1; return { -1, -1 }; }
         for (int y = 0; y < 64; ++y)
             for (int x = 0; x < 64; ++x) level.walk[std::size_t(y) * std::size_t(width) + std::size_t(x)] = 0;
+        // Bounded so a malformed line can't run the loop away or write off the 64 x 64 corner the cases use.
+        walls = std::clamp(walls, 0, 64 * 64);
         for (int k = 0; k < walls; ++k) {
-            int x, y, word;
-            fields >> x >> y >> word;
+            int x = 0, y = 0, word = 0;
+            if (!(fields >> x >> y >> word) || x < 0 || y < 0 || x >= 64 || y >= 64) { id = -1; return { -1, -1 }; }
             level.walk[std::size_t(y) * std::size_t(width) + std::size_t(x)] = std::uint16_t(word);
         }
         if (!monster_of_size.contains(size) || !weapon_of_range.contains(range)) return { -1, -1 };

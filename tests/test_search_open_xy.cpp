@@ -7,6 +7,7 @@
 // oracle's `game` does.
 #include <gamedata.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -51,7 +52,11 @@ int print_file(const char* path) {
         std::istringstream fields(line);
         int case_id = 0, kind = 0, target_x = 0, target_y = 0, click_x = 0, click_y = 0, count = 0;
         if (!(fields >> case_id >> kind >> target_x >> target_y >> click_x >> click_y >> count)) continue;
-        std::vector<Rect> rects(std::size_t(count > 0 ? count : 0));
+        // Bounded so a malformed line can't run a search away: sk_tele_spot.py's cases sit inside its 200-subtile world.
+        target_x = std::clamp(target_x, -kWorld, 2 * kWorld); target_y = std::clamp(target_y, -kWorld, 2 * kWorld);
+        click_x = std::clamp(click_x, -kWorld, 2 * kWorld); click_y = std::clamp(click_y, -kWorld, 2 * kWorld);
+        count = std::clamp(count, 0, kWorld * kWorld);
+        std::vector<Rect> rects(static_cast<std::size_t>(count));
         for (auto& rect : rects) fields >> rect.x0 >> rect.y0 >> rect.x1 >> rect.y1 >> rect.bits;
         const auto [kept, out_x, out_y] = select(kind, target_x, target_y, click_x, click_y, rects);
         std::printf("%d %d %d %d\n", case_id, kept, out_x, out_y);

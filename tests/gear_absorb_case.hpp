@@ -3,6 +3,7 @@
 // Cyclone pool, blows` (see its docstring), shared by test_gear_absorb and test_gear_absorb_rules.
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <sstream>
@@ -27,10 +28,13 @@ inline bool parse(const std::string& line, Case& out) {
     for (auto& value : out.pct) words >> value;
     for (auto& value : out.flat) words >> value;
     if (!(words >> out.pool >> count)) return false;
+    // Bounded so a malformed line can't run a loop away: gear_absorb.py writes 1 to 3 blows of 1 to 3 fields.
+    count = std::clamp(count, 0L, 64L);
     out.blows.clear();
     for (long blow = 0; blow < count; ++blow) {
         long fields = 0;
         if (!(words >> fields)) return false;
+        fields = std::clamp(fields, 0L, 16L);
         Blow one;
         for (long k = 0; k < fields; ++k) {
             int type = 0, points = 0;

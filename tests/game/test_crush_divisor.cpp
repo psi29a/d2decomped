@@ -90,7 +90,8 @@ int main(int argc, char** argv) try {
             if (line.empty() || line[0] == '#') continue;
             std::istringstream words(line);
             long case_id = 0, row = 0, kind = 0, players = 0;
-            if (!(words >> case_id >> row >> kind >> players) || kind < 0 || kind > 4 || row < 0 || row >= long(data->monsters.types.size())) {
+            if (!(words >> case_id >> row >> kind >> players) || kind < 0 || kind > 4 || row < 0 || row >= long(data->monsters.types.size())
+                || players < 1 || players > 8) {                                    // a game's 1 to 8 players
                 std::fprintf(stderr, "FAIL: bad case line: %s\n", line.c_str());
                 return 1;
             }

@@ -126,7 +126,10 @@ int revive_life_cases(const GameData& game_data) {
         std::istringstream fields(line);
         int type = 0, difficulty = 0, level = 0, clvl = 0;
         std::uint32_t seed_low = 0, seed_high = 0;
-        if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high)) { std::fprintf(stderr, "malformed case: %s\n", line.c_str()); return 1; }
+        if (!(fields >> type >> difficulty >> level >> clvl >> seed_low >> seed_high) || difficulty < 0 || difficulty > 2) {
+            std::fprintf(stderr, "malformed case: %s\n", line.c_str());
+            return 1;
+        }
         d2d::rules::Rng seed{ seed_low };
         seed.high = seed_high;
         const auto revived = d2d::rules::revive_life(game_data.monsters, type, difficulty, level, clvl, seed);
