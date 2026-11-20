@@ -1412,19 +1412,20 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   level (HydraMissile, whose row 'hydra' carries the Hydra skill).
 - The corpse tests (`tools/emu/corpse_tests.py`, `rules::raise_takes`,
   `blast_takes`, `revive_takes`; d2d's `Fight::corpse_near` by the skill's
-  srvstfunc). Raise Skeleton / Skeletal Mage (st 15, FUN_005c3070) and
-  Corpse / Poison Explosion (st 17, FUN_005c31c0) refuse a corpse in a
+  srvstfunc). Raise Skeleton / Skeletal Mage (st 15, LAB_005c3070) and
+  Corpse / Poison Explosion (st 17, LAB_005c31c0) refuse a corpse in a
   town (FUN_0061ab00). Raise then needs FUN_00645510: a monster in mode
   0xc, not hidden (FUN_0063a770), MonStats2 corpseSel (FUN_004638a0 bit 7)
   and MonStats Velocity (+0x32) not 0; the explosions FUN_00645680, the
-  same without Velocity. Revive (st 21, FUN_005c3350 -> FUN_005c3300, no
+  same without Velocity. Revive (st 21, LAB_005c3350 -> FUN_005c3300, no
   town test): MonStats2 revive (bit 8), FUN_005541b0 (+0xc6 bit 0, or mode
   0 / 0xc), FUN_00645510, then FUN_0056e2f0 -> FUN_005dd480 with 7: not an
   imp (BaseId 0x1ec) in state 0x8f (attached), not in state 0x36
   (uninterruptable), FUN_00623470 (MonStats2 mWL, not MonStats boss
   +0xc & 0x40, switchai +0xe & 1), unit flag +0xc4 & 4 or FUN_005541b0,
-  monster data +0x16 & 0xa clear (champions, uniques and superuniques all
-  carry 8), FUN_005b0da0 (1 for a 7).
+  monster data +0x16 & 0xa clear (a champion's 0xd: FUN_005a48c0 calls
+  FUN_005a0320, which sets 8 at 0x5a0375, then ORs 5 at 0x5a4905; a
+  unique's 9, FUN_005a4940), FUN_005b0da0 (1 for a 7).
 - Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with a
   life rolled at its own level (FUN_006538a0's range, its unit seed),
   brought down with the level to the owner's when above it (MulDiv by

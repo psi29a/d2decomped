@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Which corpses the Necromancer's corpse skills take, in game.exe as the oracle: the server start functions of
-Raise Skeleton / Skeletal Mage (srvstfunc 15, FUN_005c3070), Corpse / Poison Explosion (17, FUN_005c31c0) and Revive
-(21, FUN_005c3350), each on the caster's target (FUN_00553540).
+Raise Skeleton / Skeletal Mage (srvstfunc 15, LAB_005c3070), Corpse / Poison Explosion (17, LAB_005c31c0) and Revive
+(21, LAB_005c3350), each on the caster's target (FUN_00553540).
 
     uv run python corpse_tests.py gen 100000 1 > cases.txt     # `pick mode flags c4 c6 hidden s36 s8f town`
     uv run python corpse_tests.py game < cases.txt > game.txt   # each case and `| raise blast revive`

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of pets.hpp's functions; their notes are in the header.
+// The bodies of pets.hpp's functions; the older ones' notes are in the header, newer ones' above their definitions.
 #include "pets.hpp"
 
+#include "montypes.hpp"
 #include "rules.hpp"
 
 #include <algorithm>
@@ -39,12 +40,9 @@ GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, 
 }
 
 // The corpses the Necromancer's corpse skills take, by their server start
-// functions on the target. A monster data +0x16 of a champion, unique or
-// superunique carries 8.
-// Raise Skeleton / Skeletal Mage (srvstfunc 15, FUN_005c3070): not in a town
-// (FUN_0061ab00), and FUN_00645510: a monster in mode 0xc (DD), not hidden
-// (FUN_0063a770), MonStats2 corpseSel (FUN_004638a0 bit 7), MonStats
-// Velocity (+0x32) not 0.
+// functions on the target. Monster data +0x16: a champion's 0xd (FUN_005a48c0:
+// FUN_005a0320 sets 8 at 0x5a0375, then | 5 at 0x5a4905), a unique's 9
+// (FUN_005a4940: 1 at 0x5a4967, then FUN_005a0320).
 namespace {
 
 bool corpse_raisable(const MonType& type, const CorpseState& corpse) {
@@ -53,13 +51,17 @@ bool corpse_raisable(const MonType& type, const CorpseState& corpse) {
 
 }  // namespace
 
+// Raise Skeleton / Skeletal Mage (srvstfunc 15, LAB_005c3070): not in a town
+// (FUN_0061ab00), and FUN_00645510: a monster in mode 0xc (DD), not hidden
+// (FUN_0063a770), MonStats2 corpseSel (FUN_004638a0 bit 7), MonStats
+// Velocity (+0x32) not 0.
 bool raise_takes(const MonType& type, const CorpseState& corpse) { return !corpse.town && corpse_raisable(type, corpse); }
-// Corpse / Poison Explosion (srvstfunc 17, FUN_005c31c0): not in a town, and
+// Corpse / Poison Explosion (srvstfunc 17, LAB_005c31c0): not in a town, and
 // FUN_00645680: mode 0xc, not hidden, corpseSel.
 bool blast_takes(const MonType& type, const CorpseState& corpse) {
     return !corpse.town && corpse.mode == 0xc && !corpse.hidden && type.corpse_sel;
 }
-// Revive (srvstfunc 21, FUN_005c3350 -> FUN_005c3300; a town too): MonStats2
+// Revive (srvstfunc 21, LAB_005c3350 -> FUN_005c3300; a town too): MonStats2
 // revive (bit 8), dead or dying (FUN_005541b0), FUN_00645510, and
 // FUN_0056e2f0 -> FUN_005dd480: not an imp (BaseId 0x1ec) attached (state
 // 0x8f), not uninterruptable (state 0x36), MonStats2 mWL, not a MonStats boss
