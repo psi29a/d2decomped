@@ -926,6 +926,48 @@ The ids apps/d2proxy flagged in a real game.exe client's session (table
   merc's with skill 84 (Bone Spear) at level 16: the u16 may not be a
   plain skill row here.
 
+### The table's thin handlers (read from the disassembly)
+
+Read in the disassembly, not run. The id is the handler's slot in the
+table at `0x7114d0` (12 bytes an id), and the size is the table's,
+which matches the server's (`0x730ae8`) for each id here but 0x17. "Copy" means
+the handler copies the packet's bytes to the stack and calls the routine
+with ECX = the copy. Most of these packets' fields are described above
+under their subject.
+
+| Id | Size | Handler | What it does |
+|---|---|---|---|
+| 0x17 | var | `FUN_0045d260` (the unit handler; the entry's handler is the no-op `0x45c900`) | ECX the unit, EDX the packet. Does nothing for the client's own player (`FUN_00463dd0`). A null unit is fatal (line 0x841). Otherwise `FUN_00480c10(&{u8 +6 >> 1, pointer to two words}, 1)` with ECX = u8 +7, EDX = the unit. The two words are read **through** the u16s at +8 and +0xa, used as addresses (`0x45d298`..`0x45d2a7`). The server's size for 0x17 is 0 (not sent, above) |
+| 0x26 | var | `FUN_0045dfc0` | Copies bytes +0..+3, the u32 at +4, and bytes +8 and +9 into a local record. Then copies the name from +10 (at most 0x10, `FUN_004135d0`) and the message after its NUL (at most 0x100), and calls `FUN_0049f490` (ECX = the record) |
+| 0x2a | 15 | `FUN_0045e0d0` | copy → `FUN_004b6390` |
+| 0x3f | 8 | `FUN_0045e220` | copy → `FUN_004c4620` |
+| 0x4e | 7 | `FUN_0045e3d0` | copy → `FUN_004b3240` |
+| 0x5a | 40 | `FUN_0045e070` | copy (`rep movsd`, 10 dwords) → `FUN_0049eb10` |
+| 0x60 | 7 | `FUN_0045e610` | copy, then a fatal error (line 0xd21) when `FUN_00463de0` finds no player, then `FUN_004bdf30` |
+| 0x76 | 6 | `FUN_0045e050` | copy → `FUN_0049f8c0` |
+| 0x78 | 21 | `FUN_0045e810` | copy → `FUN_004b9010` |
+| 0x7d | 18 | `FUN_0045e930` | copy → `FUN_004c2270` |
+| 0x81 | 20 | `FUN_0045e890` | not a copy: `FUN_00478bb0(u8 +1, u16 +2, &{u32 +0xc, u32 +0x10, 0})` with ECX = u32 +8, EDX = u32 +4 |
+| 0x8a | 6 | `FUN_0045ea40` | copy → `FUN_004b3380` |
+| 0x93 | 8 | `FUN_0045dd10` | Looks up the type 0 unit with the u32 at +1 (`FUN_00463990`, EDX 0). If found, calls `FUN_004c7990(ECX unit, EDX = +5 as a signed byte (converted only above 0x80), u8 +6, u8 +7)`. The server's only 0x93 builder, `FUN_0053c6f0`, is an orphan (stubs.md) |
+| 0x96 | 9 | `FUN_0045dc50` | Unpacks (`FUN_0045dbe0`), then acts on the client's player (`FUN_00463de0`; none: nothing). Sets stat 10 to stamina << 8 (`FUN_00627260(unit, 10, v << 8, 0)`). Then calls `FUN_004804e0` with ECX = the unit, EDX = the dword at x (x is its low word), and on the stack the dword at y, 0, (x + dx) & 0xffff, (y + dy) & 0xffff. dx and dy are signed only above 0x80, as above |
+| 0x98 | 7 | `FUN_0045de50` | copy → `FUN_004b1240` |
+| 0x9a | 17 | `FUN_0045dec0` | The unit of type u8 +1, id u32 +2 (`FUN_00463990`). If found, calls `FUN_004ca230(ECX unit, EDX u16 +6, u8 +0xa, u16 +0xb, u16 +0xd, u16 +0xf)` |
+| 0xa7 | 7 | `FUN_0045ede0` | The unit of type u8 +1, id u32 +2. If found, calls `FUN_004d9b20` then `FUN_004d9e60`, each with ECX = the unit, EDX = u8 +6 (the state). Builder `FUN_0053e260` |
+| 0xa9 | 7 | `FUN_0045ef60` | the same, with `FUN_004d9f40` then `FUN_004d9c30`. Builder `FUN_0053e290` |
+
+**The unit packet queue's growth** (`FUN_0045f610`, EAX = the unit;
+only caller `FUN_0045f730`, `0x45f74d`; allocations name SCmd.cpp,
+`0x6d69e4`). On first use it caches a slot size in
+`DAT_007a5230`: the largest table size among the ids that have a unit
+handler, plus 5. Variable ids (−1) lose the signed compare. It takes the unit's queue
+record (`FUN_00464770`, unit +0xd8). With none, it allocates a zeroed 16-byte record
+(line 0x1266) and stores it (`FUN_004647a0`). It allocates a zeroed
+buffer of slot × (count + 5) bytes (line 0x126b), copies the old buffer
+at record +0xc into it and frees the old one (line 0x126f). Then
+count (+0) grows by 5 and the new buffer goes to +0xc, and it returns the
+record.
+
 ### Not traced
 
 0x12..0x14
