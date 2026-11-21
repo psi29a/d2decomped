@@ -286,6 +286,35 @@ lines (missile names aren't passed in). What it does:
   143, 38, 39). The table at 0x7325b0 is not the progressive table (likely
   aura / passive events).
 
+### Which hand a skill swings (FUN_00535bc0, traced 2026-11-21)
+`FUN_00535bc0(unit)` gives the weapon a skill's blow uses; the damage
+(`FUN_0057b420`, `FUN_0057b660`, `FUN_0057b7d0`), the to-hit
+(`FUN_0057d9b0`, `FUN_0057d3d0`), the ammo (`FUN_0056c3f0`, `FUN_0056c4e0`),
+Attack (`FUN_0056f070`), Double Throw (`FUN_005d88b0`) and Whirlwind's gap
+(`FUN_005d9320`) call it (game-calls.tsv). Its default is `FUN_0063c9b0`'s
+wielded item. Only a two-handed class (`FUN_006235a0`: a Barbarian, an
+Assassin, a Shadow) goes on, by the used skill's record byte `+0x168` (not a
+Skills.txt column of that name; read from the loaded 1.14d tables in
+`tools/emu` (`drlg.boot()`): Double Swing, Double Throw, Frenzy and the
+Assassin's claw skills Fists of Fire, Dragon Claw, Claws of Thunder,
+Blades of Ice 3; Whirlwind 2; Dragon Talon, Dragon Tail, Dragon Flight 4;
+every other row 0):
+- 0: the right-hand component's item (`d2d_inv_worn_by_component(inv, 5)`)
+  when it's a weapon (ItemTypes 0x2d), else the left hand's (6).
+- 1: the left hand's.
+- 2: the right hand's, unless the left holds a weapon and the skill
+  node's flags (`d2d_skill_get_flags`) have 0x2000: then the left's.
+- 3: by bit 8 of the unit's `+0x38` (with the sign fix-up of an `& 0x80000001`
+  test): clear, the right hand's; set, the left hand's. Frenzy's and Double
+  Swing's dos (`FUN_005d8e00`, `FUN_005d8470`) test the same bit to send the
+  set-bit blow at another target (`FUN_0056bd10`).
+- 4: no weapon (the kicks).
+The pick must be a usable weapon (0x2d, `FUN_0062a4e0`), else the default.
+d2d: Frenzy's and Double Swing's other target on every second event
+(`Fight::hit` callers in strike.cpp); the blow's weapon is the merged
+fighter, not the hand's (ponytail there). What `+0x38` counts, and whether
+the hand's blow sees the other weapon's stats, aren't traced.
+
 ### Kicks — Dragon Talon (srvstfunc 24 / srvdofunc 42)
 - Start (FUN_005d5970): in reach, the kick count = **calc1**
   (`lvl/6+1`); the first kick lands now, the rest on the following action
