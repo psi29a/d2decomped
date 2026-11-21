@@ -641,7 +641,10 @@ struct Fight {
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
-                                                     d2d::rules::StatSum* sum_out = nullptr) const;
+                                                     d2d::rules::StatSum* sum_out = nullptr,
+                                                     const d2d::d2s::Item* only_hand = nullptr) const;
+    // `only_hand`: that weapon in hand as the wielded one and the other hand's weapon's stats off, as
+    // FUN_00627910 sets them for one hand of two (FUN_004e9260 / FUN_004e9300, the panel's dual line).
     // The player's fighter this frame, with the self states' aurastats
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
     // of the panel defense (the override after), damageresist to DR %;

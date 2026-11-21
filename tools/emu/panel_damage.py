@@ -4,10 +4,12 @@
     uv run --project tools/emu python tools/emu/panel_damage.py
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
-"Damage" value (FUN_004ed570). Run for real here: descdam 5
+"Damage" value (FUN_004ed570). Run for real here: descdam 1 (FUN_004ea170),
+5
 (FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
-12 (FUN_004eb830), 17 (FUN_004ebd50), 21 (FUN_004ea790), 22 (FUN_004eaaa0)
+12 (FUN_004eb830), 13 (FUN_004eb240), 17 (FUN_004ebd50), 19 (FUN_004ea310),
+20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
 FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
@@ -24,7 +26,10 @@ shield, its record, Str / DexBonus), FUN_006439b0 / FUN_00639df0 /
 FUN_006442a0 (Holy Shield's node, state, level), FUN_004cc7c0 (Smite's %),
 FUN_0063a380 / FUN_0063a3a0 (damblue / damred), FUN_0063bef0 /
 FUN_0062ba80 / FUN_00629bb0 (the wielded weapon, throwable, a tpot) and
-FUN_00645830 (its mastery). FUN_004e96e0 (the
+FUN_00645830 (its mastery), FUN_006235a0 (a two-handed class),
+FUN_0063bde0 / FUN_0062a4e0 (a hand's item, usable), FUN_004e9300 /
+FUN_004e9260 (the wielded hand's weapon, the other's), FUN_00627910 (their
+stats on and off). FUN_004e96e0 (the
 draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
 colours. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
@@ -45,10 +50,11 @@ EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 HAS_WEAPON, WIELD, CALC_AT = 0x623990, 0x63D340, 0x646CA0
 SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298A0
 WIELDED, THROWABLE, ITEM_TYPE_IS, MASTERY = 0x63BEF0, 0x62BA80, 0x629BB0, 0x645830
+DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x63BDE0, 0x62A4E0, 0x4E9300, 0x4E9260, 0x627910
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 6, 8, 9, 10, 11, 12, 17, 21, 22, 24)
+HANDLERS = (1, 5, 6, 8, 9, 10, 11, 12, 13, 17, 19, 20, 21, 22, 24)
 
 
 def d2d_line(descdam, case):
@@ -56,14 +62,42 @@ def d2d_line(descdam, case):
     etype_colour = ELEM_COLOUR[case["etype"]] if 0 <= case["etype"] < 5 else 0
     low, high, colour = 0, 0, etype_colour
 
-    def weapon_part():
+    def weapon_part(hand=None, start=0):
         """FUN_004e86f0 + FUN_004e89a0: the weapon with its elements, clamped, damblue / damred."""
-        w_low, w_high, w_colour = case["w_low"], case["w_high"], 0
+        w_low, w_high, w_colour = (case[f"w_low_{hand}"], case[f"w_high_{hand}"], start) if hand else (case["w_low"], case["w_high"], start)
         if case["we_low"] or case["we_high"]:
             w_low += case["we_low"]; w_high += case["we_high"]; w_colour = case["we_colour"]
         if w_high > 0:
             w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
         return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else w_colour
+
+    def hand_part(descdam, hand, start):
+        """FUN_004e9610 (a weapon) or FUN_004ea4a0 (Double Throw's throw) on one hand, None the unit."""
+        if descdam != 13:
+            return weapon_part(hand, start)
+        stats = case["stats"]
+        item_ok = case[f"hand_{hand}"] if hand else case["wielded"]
+        if not item_ok or not case[f"throwable_{hand}" if hand else "throwable"]:
+            return 0, 0, start
+        str_bonus, dex_bonus = (case[f"str_bonus_{hand}"], case[f"dex_bonus_{hand}"]) if hand else (case["str_bonus"], case["dex_bonus"])
+        pct = 0
+        if str_bonus:
+            pct += trunc_div(stats.get(0, 0) * str_bonus, 100)
+        if dex_bonus:
+            pct += trunc_div(stats.get(2, 0) * dex_bonus, 100)
+        pct = max(pct + stats.get(25, 0), -90)
+        low = stats.get(159, 0) + trunc_div((stats.get(18, 0) + pct) * stats.get(159, 0), 100)
+        high = stats.get(160, 0) + trunc_div((stats.get(17, 0) + pct) * stats.get(160, 0), 100)
+        extra = case["calcs"][11] + (case["mastery"] if case["throw_state"] else 0)
+        low += mul_div(low, extra, 100); high += mul_div(high, extra, 100)
+        high = max(high, low)
+        e_low, e_high, colour = 0, 0, start
+        if case["we_low"] or case["we_high"]:
+            e_low, e_high, colour = case["we_low"], case["we_high"], case["we_colour"]
+        if e_high > 0:
+            e_low = max(e_low, 1); e_high = max(e_high, e_low + 1)
+        colour = 1 if case["red"] else 3 if case["blue"] else colour
+        return low + e_low, high + max(e_high, e_low), colour
 
     def element_part():
         """FUN_004e72d0."""
@@ -122,6 +156,40 @@ def d2d_line(descdam, case):
         if lower[:2] == (0, 0):
             return upper
         return ("two", two_text(*upper[:2]), two_text(*lower[:2]), upper[2], lower[2])
+    elif descdam in (1, 13, 19, 20) and (descdam == 13 or case["dual"]):
+        element = element_part() if descdam != 20 else (0, 0, 0)
+        first, second = (0, 0, element[2]), (0, 0, element[2])
+        if case["dual"]:
+            hand_a = case["hand_a"] and case["usable_a"] and not case["potion_a"]
+            hand_b = case["hand_b"] and case["usable_b"] and not case["potion_b"]
+            if hand_a and hand_b:
+                if case["other"]:
+                    second = hand_part(descdam, "b", element[2])
+                if case["main"]:
+                    first = hand_part(descdam, "a", element[2])
+            else:
+                first = hand_part(descdam, None, element[2])
+        scaled = []
+        for value in (first, second):
+            if value[0] != 0 and value[1] != 0:
+                value = (trunc_div(value[0] * case["srcdam"], 128) + element[0], trunc_div(value[1] * case["srcdam"], 128) + element[1], value[2])
+            scaled.append(value)
+        first, second = scaled
+        if first[:2] == (0, 0):
+            return second
+        if second[:2] == (0, 0):
+            return first
+        return ("two", two_text(*first[:2]), two_text(*second[:2]), first[2], second[2])
+    elif descdam == 19:
+        return weapon_part()
+    elif descdam in (1, 20):
+        return d2d_line(7, case)
+    elif descdam == 7:
+        low, high, colour = weapon_part()
+        if case["srcdam"] != 128:
+            low, high = mul_div(low, case["srcdam"], 128), mul_div(high, case["srcdam"], 128)
+        low += (case["phys_min"] >> 8) + (case["emin"] >> 8); high += (case["phys_max"] >> 8) + (case["emax"] >> 8)
+        return low, high, colour
     elif descdam in (21, 22):
         stats = case["stats"]
         thrown = case["wielded"] and case["throwable"]
@@ -218,8 +286,9 @@ def main():
     e.hook(ELEM_MAX, lambda _e: case["emax"], 4)
     e.hook(ELEM_LEN, lambda _e: case["elen"], 4)
 
-    def weapon(em):                                   # (&min, &max, &colour, ..): the physical part
-        em.w32(em.arg(0), case["w_low"]); em.w32(em.arg(1), case["w_high"])
+    def weapon(em):                                   # (&min, &max, &colour, calc2, node, share, item, 0): the physical part
+        hand = "a" if em.arg(6) == item_a else "b" if em.arg(6) == item_b else None
+        em.w32(em.arg(0), case[f"w_low_{hand}"] if hand else case["w_low"]); em.w32(em.arg(1), case[f"w_high_{hand}"] if hand else case["w_high"])
         return 0
 
     def weapon_elements(em):                          # (unit, &min, &max, &colour, node)
@@ -245,6 +314,17 @@ def main():
     e.hook(WIELD, lambda _e: case["wield"] & 0xFFFFFFFF, 2)
     e.hook(CALC_AT, lambda em: case["calcs"].get(em.arg(1), 0) & 0xFFFFFFFF, 4)
     item, record = e.alloc(0x100), e.alloc(0x200)
+    item_a, item_b = e.alloc(0x100), e.alloc(0x100)
+
+    def by_item(at, key):                             # a per-hand case value for the item at `at`
+        return case[f"{key}_a"] if at == item_a else case[f"{key}_b"] if at == item_b else case[key]
+
+    e.hook(DUAL_CLASS, lambda _e: int(case["dual"]), 1)
+    e.hook(HAND_ITEM, lambda em: (item_a if case["hand_a"] else 0) if em.arg(1) == 4 else (item_b if case["hand_b"] else 0), 2)
+    e.hook(USABLE, lambda em: int(by_item(em.arg(0), "usable")), 1)
+    e.hook(MAIN_HAND, lambda _e: item_a if case["main"] else 0, 0)
+    e.hook(OTHER_HAND, lambda _e: item_b if case["other"] else 0, 0)
+    e.hook(ITEM_STATS, lambda _e: 0, 3)
 
     def shield(em):                                   # (inventory, &item)
         em.w32(em.arg(1), item if case["shield"] else 0)
@@ -252,13 +332,13 @@ def main():
 
     e.hook(SHIELD, shield, 2)
     e.hook(ITEM_RECORD, lambda _e: record, 1)
-    e.hook(STR_BONUS, lambda _e: case["str_bonus"] & 0xFFFF, 1)
-    e.hook(DEX_BONUS, lambda _e: case["dex_bonus"] & 0xFFFF, 1)
+    e.hook(STR_BONUS, lambda em: by_item(em.arg(0), "str_bonus") & 0xFFFF, 1)
+    e.hook(DEX_BONUS, lambda em: by_item(em.arg(0), "dex_bonus") & 0xFFFF, 1)
     e.hook(SKILL_NODE, lambda _e: 0x5000 if case["holy_node"] else 0, 1)
     e.hook(HAS_STATE, lambda em: int(case["throw_state"] if em.arg(1) == 0x4E else case["holy_state"] if em.arg(1) == 0x65 else 0), 2)
     e.hook(WIELDED, lambda _e: item if case["wielded"] else 0, 1)
-    e.hook(THROWABLE, lambda _e: int(case["throwable"]), 1)
-    e.hook(ITEM_TYPE_IS, lambda em: int(case["potion"]) if em.arg(1) == 0x26 else 0, 2)
+    e.hook(THROWABLE, lambda em: int(by_item(em.arg(0), "throwable")), 1)
+    e.hook(ITEM_TYPE_IS, lambda em: int(by_item(em.arg(0), "potion")) if em.arg(1) == 0x26 else 0, 2)
     e.hook(MASTERY, lambda _e: case["mastery"] & 0xFFFFFFFF, 4)
     e.hook(NODE_LEVEL, lambda _e: 7, 3)
     e.hook(PARAM_PCT, lambda _e: case["smite_pct"] & 0xFFFFFFFF, 0)
@@ -309,6 +389,12 @@ def main():
             holy_node=rng.random() < 0.6, holy_state=rng.random() < 0.6, smite_pct=rng.choice((0, 15, 90, 300, -200)),
             str_bonus=rng.choice((0, 0, 50, 100, -10)), dex_bonus=rng.choice((0, 0, 50, 75)),
             wielded=rng.random() < 0.8, throwable=rng.random() < 0.8, potion=False,
+            dual=rng.random() < 0.7, main=rng.random() < 0.85, other=rng.random() < 0.7, usable=rng.random() < 0.9,
+            **{f"{key}_{hand}": value() for hand in "ab" for key, value in (
+                ("hand", lambda: rng.random() < 0.8), ("usable", lambda: rng.random() < 0.85),
+                ("potion", lambda: descdam != 13 and rng.random() < 0.1), ("throwable", lambda: rng.random() < 0.85),
+                ("w_low", lambda: rng.randrange(-5, 200)), ("w_high", lambda: rng.randrange(-5, 400)),
+                ("str_bonus", lambda: rng.choice((0, 0, 50, 75))), ("dex_bonus", lambda: rng.choice((0, 0, 30, 100))))},
             throw_state=rng.random() < 0.5, mastery=rng.choice((0, 30, 120, 400)),
             calcs={11: rng.choice((0, 30, 70, 300)), 12: rng.choice((0, 30, 70, 300)), 13: rng.choice((0, 30, 70, 300, -20))})
         if rng.random() < 0.5:

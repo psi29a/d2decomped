@@ -301,17 +301,20 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     if (usable != 0 && usable != 1 && usable != 6 && usable != 8) return line;   // FUN_004d9fc0
     constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
-    const auto weapon = [&](int pct, int flat) {
-        const int total = std::max(fighter.phys_pct + pct, -90);
-        line.min = int((std::int64_t(fighter.phys_lo) * (100 + total) / 100) >> 8) + flat;
-        line.max = int((std::int64_t(fighter.phys_hi) * (100 + total) / 100) >> 8) + flat;
+    // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
+    // elements on top (each colouring it), held to 1 and min + 1 when there is any.
+    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
+        const int total = std::max(hand.phys_pct + pct, -90);
+        out.min = int((std::int64_t(hand.phys_lo) * (100 + total) / 100) >> 8) + flat;
+        out.max = int((std::int64_t(hand.phys_hi) * (100 + total) / 100) >> 8) + flat;
         for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
-            const auto& [low, high] = fighter.elem[elem];
-            line.min += std::min(low, high); line.max += high;
-            if (low != 0 || high != 0) line.damage_colour = kElemColour[elem];
+            const auto& [low, high] = hand.elem[elem];
+            out.min += std::min(low, high); out.max += high;
+            if (low != 0 || high != 0) out.damage_colour = kElemColour[elem];
         }
-        if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
+        if (out.max > 0) { out.min = std::max(out.min, 1); out.max = std::max(out.max, out.min + 1); }
     };
+    const auto weapon = [&](int pct, int flat) { weapon_of(fighter, pct, flat, line); };
     const auto state_colour = [&](PanelColour bit, int colour) { return (red & bit) ? 1 : (blue & bit) ? 3 : colour; };
     const int etype_colour = skill.etype >= 0 && skill.etype < 5 ? kElemColour[skill.etype] : 0;   // FUN_004e6fb0
     // FUN_004e9660: SrcDam / 128 of the weapon's damage joins the line; the
@@ -355,15 +358,32 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     // A throwable's stats 159 / 160, each end + end x (its own % (18 / 17) + str x StrBonus / 100 +
     // dex x DexBonus / 100 + damagepercent, the last three at least -90) / 100 (FUN_004ea4a0 at
     // 0x4ea5ec..0x4ea6e4, FUN_004ea790 the same), then + MulDiv(end, mastery, 100).
-    const auto throw_base = [&](int& low, int& high) {
+    // `extra`: FUN_004ea4a0's own % on top of the mastery (Double Throw's calc1).
+    const auto throw_of = [&](const Fighter& hand, const PanelUnit::Thrown& thrown, int extra, int& low, int& high) {
         int pct = 0;
-        if (unit.thrown.str_bonus != 0) pct += unit.str * unit.thrown.str_bonus / 100;
-        if (unit.thrown.dex_bonus != 0) pct += unit.dex * unit.thrown.dex_bonus / 100;
+        if (thrown.str_bonus != 0) pct += unit.str * thrown.str_bonus / 100;
+        if (thrown.dex_bonus != 0) pct += unit.dex * thrown.dex_bonus / 100;
         pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
-        low = fighter.throw_lo + (stat(d2d::d2s::kMinDamagePercent) + pct) * fighter.throw_lo / 100;
-        high = fighter.throw_hi + (stat(d2d::d2s::kMaxDamagePercent) + pct) * fighter.throw_hi / 100;
-        low += mul_div(low, unit.thrown.mastery, 100);
-        high += mul_div(high, unit.thrown.mastery, 100);
+        low = hand.throw_lo + (stat(d2d::d2s::kMinDamagePercent) + pct) * hand.throw_lo / 100;
+        high = hand.throw_hi + (stat(d2d::d2s::kMaxDamagePercent) + pct) * hand.throw_hi / 100;
+        low += mul_div(low, thrown.mastery + extra, 100);
+        high += mul_div(high, thrown.mastery + extra, 100);
+    };
+    const auto throw_base = [&](int& low, int& high) { throw_of(fighter, unit.thrown, 0, low, high); };
+    // FUN_004ea4a0 whole on one hand into `out` (its colour from `out`'s): 0-0 with nothing throwable or
+    // a throwing potion (its missile isn't here), else the throw with its elements from 0 on top
+    // (FUN_004e89a0: clamped, coloured, damblue / damred), max at least min first.
+    const auto throw_line = [&](const Fighter& hand, const PanelUnit::Thrown& thrown, int extra, AttackLine& out) {
+        out.min = out.max = 0;
+        if (!thrown.held || thrown.potion) return;
+        throw_of(hand, thrown, extra, out.min, out.max);
+        out.max = std::max(out.max, out.min);
+        AttackLine elements;
+        elements.damage_colour = out.damage_colour;
+        weapon_of(Fighter{ .phys_lo = 0, .phys_hi = 0, .elem = hand.elem }, 0, 0, elements);
+        out.min += elements.min;
+        out.max += std::max(elements.max, elements.min);
+        out.damage_colour = state_colour(kPanelDamage, elements.damage_colour);
     };
     // Two parts: the first (`upper`) over the line's own; one that is 0-0 leaves the other alone
     // (FUN_004e96e0), else both (FUN_004e9870), the upper first.
@@ -374,7 +394,49 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min2 = line.min; line.max2 = line.max; line.colour2 = line.damage_colour;
         line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour;
     };
-    if (skill.descdam == 1 || skill.descdam == 7) {
+    // FUN_004e99f0: each hand's part (FUN_004e93a0: none unless a two-handed class; with both hands
+    // full the other hand's into the lower value, then the wielded one's; else the unit as it is, one
+    // value), coloured from the element's colour; a value whose ends are both non-zero becomes
+    // value x SrcDam / 128 (truncated) + the element (FUN_004e72d0, with `with_element`). The wielded
+    // one over the other as two_values does (0x4e9afd..0x4e9b3f).
+    const auto hands_line = [&](bool with_element, const auto& part) {
+        line.min = line.max = line.damage_colour = 0;
+        if (with_element) element_text();
+        const AttackLine element = line;
+        AttackLine first, second;
+        first.damage_colour = second.damage_colour = element.damage_colour;
+        if (unit.dual_class) {
+            if (!unit.both_hands) part(fighter, unit.thrown, first);
+            else {
+                if (unit.off_hand.fighter) part(*unit.off_hand.fighter, unit.off_hand.thrown, second);
+                if (unit.main_hand.fighter) part(*unit.main_hand.fighter, unit.main_hand.thrown, first);
+            }
+        }
+        for (AttackLine* value : { &first, &second })
+            if (value->min != 0 && value->max != 0) {
+                value->min = value->min * skill.srcdam_raw / 128 + element.min;
+                value->max = value->max * skill.srcdam_raw / 128 + element.max;
+            }
+        line.min = second.min; line.max = second.max; line.damage_colour = second.damage_colour;
+        two_values(first);
+    };
+    // FUN_004e9610: 7's weapon part on one hand (FUN_004e86f0 asks the skill's SrcDam, 128 on every
+    // 1.14d row that comes here: Attack, Whirlwind, Double Swing, Frenzy).
+    const auto hand_weapon = [&](const Fighter& hand, const PanelUnit::Thrown&, AttackLine& out) {
+        weapon_of(hand, calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2), out);
+        out.damage_colour = state_colour(kPanelDamage, out.damage_colour);
+    };
+    if ((skill.descdam == 1 || skill.descdam == 19 || skill.descdam == 20) && unit.dual_class) {   // FUN_004ea170 / FUN_004ea310 / FUN_004ea240
+        line.damage = true;
+        hands_line(skill.descdam != 20, hand_weapon);
+    } else if (skill.descdam == 19) {                         // FUN_004ea310 without two hands: FUN_004e9610 alone
+        line.damage = true;
+        hand_weapon(fighter, unit.thrown, line);
+    } else if (skill.descdam == 13) {                         // FUN_004eb240 (Double Throw)
+        line.damage = true;
+        const int extra = calc_of(skill.calc[0]);
+        hands_line(true, [&](const Fighter& hand, const PanelUnit::Thrown& thrown, AttackLine& out) { throw_line(hand, thrown, extra, out); });
+    } else if (skill.descdam == 1 || skill.descdam == 7 || skill.descdam == 20) {
         // FUN_004ea010: a SrcDam other than 128 takes MulDiv(end, SrcDam, 128) of the weapon part before
         // the skill's own (0x4ea0cf..0x4ea0f9; Strafe's 96).
         line.damage = true;
@@ -434,21 +496,9 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         // elements from 0 (FUN_004e89a0: clamped, coloured, damblue / damred) on top with max at least
         // min, x SrcDam / 128 (MulDiv), over the skill's element (FUN_004e72d0).
         line.damage = true;
-        if (unit.thrown.held && !unit.thrown.potion) {
-            int low = 0, high = 0;
-            throw_base(low, high);
-            high = std::max(high, low);
-            int elem_lo = 0, elem_hi = 0, colour = 0;
-            for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
-                const auto& [elem_min, elem_max] = fighter.elem[elem];
-                elem_lo += std::min(elem_min, elem_max); elem_hi += elem_max;
-                if (elem_min != 0 || elem_max != 0) colour = kElemColour[elem];
-            }
-            if (elem_hi > 0) { elem_lo = std::max(elem_lo, 1); elem_hi = std::max(elem_hi, elem_lo + 1); }
-            line.min = mul_div(low + elem_lo, skill.srcdam_raw, 128);
-            line.max = mul_div(high + std::max(elem_hi, elem_lo), skill.srcdam_raw, 128);
-            line.damage_colour = state_colour(kPanelDamage, colour);
-        }
+        throw_line(fighter, unit.thrown, 0, line);
+        line.min = mul_div(line.min, skill.srcdam_raw, 128);
+        line.max = mul_div(line.max, skill.srcdam_raw, 128);
         const AttackLine upper = line;
         line.min = line.max = line.damage_colour = 0;
         element_text();
