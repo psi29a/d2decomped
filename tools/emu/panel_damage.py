@@ -5,7 +5,8 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
-(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 11 (FUN_004eb640),
+(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
+11 (FUN_004eb640),
 12 (FUN_004eb830),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
 FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
@@ -17,7 +18,10 @@ FUN_004e89a0 (its elements, its clamp and damblue / damred at its end, as
 FUN_00643ce0 and FUN_00646d00 (its ddam calc1 / calc2), FUN_0044dcc0
 (expansion), FUN_006461d0 (Concentration's share), FUN_00625480 (a unit
 stat), FUN_00623990 / FUN_0063d340 (a weapon, two-handed), FUN_00646ca0
-(calc1..3). FUN_004e96e0 (the
+(calc1..3), FUN_0063c8f0 / FUN_006335f0 / FUN_00629860 / FUN_006298a0 (the
+shield, its record, Str / DexBonus), FUN_006439b0 / FUN_00639df0 /
+FUN_006442a0 (Holy Shield's node, state, level), FUN_004cc7c0 (Smite's %),
+FUN_0063a380 / FUN_0063a3a0 (damblue / damred). FUN_004e96e0 (the
 draw) records min, max and colour. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
 differ.
@@ -35,9 +39,11 @@ WEAPON, WEAPON_ELEMENTS, DRAW = 0x4E86F0, 0x4E89A0, 0x4E96E0
 SKILL_DESC, SKILL_ID, CALC = 0x4A89D0, 0x643CE0, 0x646D00
 EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 HAS_WEAPON, WIELD, CALC_AT = 0x623990, 0x63D340, 0x646CA0
+SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298A0
+SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 8, 9, 11, 12, 24)
+HANDLERS = (5, 8, 9, 10, 11, 12, 24)
 
 
 def d2d_line(descdam, case):
@@ -71,6 +77,21 @@ def d2d_line(descdam, case):
         low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
         high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
         weapon_share()
+    elif descdam == 10:
+        if not case["shield"]:
+            return None
+        stats = case["stats"]
+        low, high = case["sh_min"], case["sh_max"]
+        if case["holy_node"] and case["holy_state"]:
+            low += case["phys_min"] >> 8; high += case["phys_max"] >> 8
+        pct = case["smite_pct"]
+        if case["str_bonus"]:
+            pct += trunc_div(stats.get(0, 0) * case["str_bonus"], 100)
+        if case["dex_bonus"]:
+            pct += trunc_div(stats.get(2, 0) * case["dex_bonus"], 100)
+        pct = max(pct + stats.get(25, 0), -90)
+        low += trunc_div(pct * low + stats.get(18, 0), 100); high += trunc_div(pct * high + stats.get(17, 0), 100)
+        colour = 1 if case["red"] else 3 if case["blue"] else 0
     elif descdam == 11:
         weapon_share()
         stats = case["stats"]
@@ -132,6 +153,22 @@ def main():
     e.hook(HAS_WEAPON, lambda _e: int(case["weapon"]), 2)
     e.hook(WIELD, lambda _e: case["wield"] & 0xFFFFFFFF, 2)
     e.hook(CALC_AT, lambda em: case["calcs"].get(em.arg(1), 0) & 0xFFFFFFFF, 4)
+    item, record = e.alloc(0x100), e.alloc(0x200)
+
+    def shield(em):                                   # (inventory, &item)
+        em.w32(em.arg(1), item if case["shield"] else 0)
+        return int(case["shield"])
+
+    e.hook(SHIELD, shield, 2)
+    e.hook(ITEM_RECORD, lambda _e: record, 1)
+    e.hook(STR_BONUS, lambda _e: case["str_bonus"] & 0xFFFF, 1)
+    e.hook(DEX_BONUS, lambda _e: case["dex_bonus"] & 0xFFFF, 1)
+    e.hook(SKILL_NODE, lambda _e: 0x5000 if case["holy_node"] else 0, 1)
+    e.hook(HAS_STATE, lambda _e: int(case["holy_state"]), 2)
+    e.hook(NODE_LEVEL, lambda _e: 7, 3)
+    e.hook(PARAM_PCT, lambda _e: case["smite_pct"] & 0xFFFFFFFF, 0)
+    e.hook(DAM_BLUE, lambda _e: int(case["blue"]), 1)
+    e.hook(DAM_RED, lambda _e: int(case["red"]), 1)
     e.hook(WEAPON, weapon, 8)
     e.hook(WEAPON_ELEMENTS, weapon_elements, 5)
     e.hook(DRAW, draw, 2)
@@ -154,8 +191,12 @@ def main():
             expansion=rng.random() < 0.5, concentration=rng.choice((0, 0, 15, 40, 113, 262)),
             stats={25: rng.choice((0, 0, 30, 125, -95, -40)), 21: rng.randrange(-3, 60), 22: rng.randrange(-3, 120),
                    23: rng.randrange(-3, 90), 24: rng.randrange(-3, 200), 329: rng.choice((0, 0, 30, 210)),
-                   330: rng.choice((0, 0, 50, 180)), 331: rng.choice((0, 0, 20, 140))},
+                   330: rng.choice((0, 0, 50, 180)), 331: rng.choice((0, 0, 20, 140)),
+                   0: rng.randrange(10, 400), 2: rng.randrange(10, 300), 17: rng.choice((0, 0, 150, 37)), 18: rng.choice((0, 0, 99, 250))},
             weapon=rng.random() < 0.7, wield=rng.choice((-1, 1, 2)),
+            shield=rng.random() < 0.8, sh_min=rng.randrange(0, 30), sh_max=rng.randrange(0, 60),
+            holy_node=rng.random() < 0.6, holy_state=rng.random() < 0.6, smite_pct=rng.choice((0, 15, 90, 300, -200)),
+            str_bonus=rng.choice((0, 0, 50, 100, -10)), dex_bonus=rng.choice((0, 0, 50, 75)),
             calcs={11: rng.choice((0, 30, 70, 300)), 12: rng.choice((0, 30, 70, 300)), 13: rng.choice((0, 30, 70, 300, -20))})
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)
@@ -165,11 +206,12 @@ def main():
         e.w32(row + 0x1A8, case["mindam"]); e.w32(row + 0x1AC, case["maxdam"])
         e.mu.mem_write(row + 0x1DC, bytes((GAME_ETYPE[case["etype"]],)))
         e.w32(row + 0x138, 11); e.w32(row + 0x13C, 12); e.w32(row + 0x140, 13)
+        e.mu.mem_write(record + 0xFE, bytes((case["sh_min"], case["sh_max"])))
         drawn.clear()
         e.call(e.r32(TABLE + 4 * descdam), row, 5, 0, 0, 0, ecx=unit, edx=node)
         runs += 1
         want = d2d_line(descdam, case)
-        if len(drawn) != 1 or drawn[0] != want:
+        if (want is None and drawn) or (want is not None and (len(drawn) != 1 or drawn[0] != want)):
             bad += 1
             if bad <= 10:
                 print(f"descdam {descdam}: game {drawn} d2d {want} {case}")
