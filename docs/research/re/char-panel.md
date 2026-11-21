@@ -155,7 +155,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 14..16, 18, 23 (the Druid's and Assassin's), stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: descdam 14..16, 23 (the Druid's and Assassin's), stat 325, barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)
@@ -256,9 +256,9 @@ register arguments are partly dropped), so argument order is a reading.
   (0x72d7b0 - 0x72d768) / 4 = 18 of the descdam table at 0x72d768. Body: two
   arguments must be non-null and `FUN_004a89d0` must find a SkillDesc, then it
   forwards to `FUN_004ea010` (descdam 7, the weapon-damage handler), so
-  descdam 18 draws like 7 once its gate passes. Which skills use descdam 18
-  is a SkillDesc.txt question (not read here). d2d: not ported (listed under
-  "Not done: descdam 2..4, 6, 8..24" above). `0x72d7b0` is a data slot, not a
+  descdam 18 draws like 7 once its gate passes. Royal Strike is SkillDesc.txt's
+  only descdam 18 row. d2d: `rules::attack_line` takes 18 as 7
+  (`tools/emu/panel_damage.py` runs it). `0x72d7b0` is a data slot, not a
   function: nothing to trace there.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)

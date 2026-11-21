@@ -8,7 +8,8 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 2 (FUN_004ea450), 3 (FUN_004ea990), 4 (FUN_004eaa30), 5
 (FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
-12 (FUN_004eb830), 13 (FUN_004eb240), 17 (FUN_004ebd50), 19 (FUN_004ea310),
+7 (FUN_004ea010), 12 (FUN_004eb830), 13 (FUN_004eb240), 17 (FUN_004ebd50),
+18 (FUN_004ec040), 19 (FUN_004ea310),
 20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
@@ -63,7 +64,7 @@ DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x6
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 17, 19, 20, 21, 22, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 24)
 
 
 def d2d_line(descdam, case):
@@ -203,7 +204,7 @@ def d2d_line(descdam, case):
         return ("two", two_text(*first[:2]), two_text(*second[:2]), first[2], second[2])
     elif descdam == 19:
         return weapon_part()
-    elif descdam in (1, 20):
+    elif descdam in (1, 18, 20):
         return d2d_line(7, case)
     elif descdam == 7:
         low, high, colour = weapon_part()
