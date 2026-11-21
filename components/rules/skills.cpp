@@ -360,6 +360,23 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 11) {                         // FUN_004eb640 (Vengeance)
+        // EType's colour, the weapon's share (FUN_004e9660), then for calc1 / calc2 / calc3 (fire, cold,
+        // lightning %) with their mastery (329 / 331 / 330: MulDiv(pct, mastery, 100) on top) MulDiv(stat
+        // 21 / 22, pct, 100) on each end; 21 at least 1, 22 at least 2 and 21 (0x4eb6db..0x4eb6f6).
+        // White turns blue (0x4eb80f).
+        line.damage = true;
+        line.damage_colour = etype_colour;
+        weapon_share();
+        const int low = std::max(fighter.stat_lo, 1), high = std::max({ fighter.stat_hi, 2, low });
+        constexpr std::array<int, 3> kMastery{ d2d::d2s::kPassiveFireMastery, d2d::d2s::kPassiveColdMastery, d2d::d2s::kPassiveLightningMastery };
+        for (std::size_t k = 0; k < kMastery.size(); ++k) {
+            int pct = calc_of(skill.calc[k]);
+            if (const int mastery = pct != 0 && env.stat ? env.stat(kMastery[k]) : 0; mastery != 0) pct += mul_div(pct, mastery, 100);
+            line.min += mul_div(low, pct, 100);
+            line.max += mul_div(high, pct, 100);
+        }
+        if (line.damage_colour == 0) line.damage_colour = 3;
     } else if (skill.descdam == 12) {                         // FUN_004eb830 (Blessed Hammer)
         // FUN_004e72d0, then the share: FUN_006461d0 in an expansion game (0x4eb87c), stat 25 at least
         // -90 in a classic one (0x4eb8d0); each end + end x share / 100, truncated.
