@@ -908,6 +908,8 @@ struct Fight {
     // subtiles of its holder, at the holder's level and calc env.
     struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
     [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
+    // Concentration's share at (x, y) of a skill with that Param1, % (FUN_006461d0): Blessed Hammer's.
+    [[nodiscard]] int concentration_share(float x, float y, int param1) const;
     // The enemy auras (do 66, Holy Freeze's 81) over the monster the same
     // way: the player's and the merc's (an Act 2 merc's Holy Freeze), each
     // only when its aurafilter takes the monster from its holder's spot
