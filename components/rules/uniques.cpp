@@ -119,6 +119,11 @@ int bar_name_colour(Boss kind, std::string_view monstats_id) {
     return kind == Boss::champion ? kNameBlue : kind == Boss::unique || kind == Boss::superunique ? kNameGold : kNameWhite;
 }
 
+int bar_life_share(int life, int max_life) {
+    if (max_life <= 0) return 0x80;
+    return std::clamp(int((std::int64_t(life) << 7) / max_life), 2, 0x80);
+}
+
 std::vector<Immunity> immunity_lines(std::string_view monstats_id, const std::array<int, 6>& resists) {
     static constexpr std::array<std::string_view, 6> kUbers{ "uberduriel", "uberandariel", "uberizual", "uberdiablo", "uberbaal", "ubermephisto" };
     std::vector<Immunity> lines;

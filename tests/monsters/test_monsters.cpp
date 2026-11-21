@@ -346,6 +346,7 @@ int main() try {
         // The name over the life bar (FUN_00454ad0): uniques gold, champions
         // blue, Duriel gold whatever he is; Andariel white.
         assert(bar_name_colour(Boss::superunique, "corruptrogue3") == kNameGold && bar_name_colour(Boss::champion, "zombie1") == kNameBlue);
+        assert(bar_life_share(50, 100) == 64 && bar_life_share(0, 100) == 2 && bar_life_share(200, 100) == 0x80 && bar_life_share(5, 0) == 0x80);   // FUN_004525f0
         assert(bar_name_colour(Boss::none, "duriel") == kNameGold && bar_name_colour(Boss::none, "andariel") == kNameWhite && bar_name_colour(Boss::minion, "fallen1") == kNameWhite);
         // Act bosses (FUN_005b1cf0, by BaseId): Andariel mod 22, Blood Raven
         // 12, 22 and half freeze, the Smith 22, all flag 8 (gold, as a unique);
