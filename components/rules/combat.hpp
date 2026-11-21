@@ -44,6 +44,7 @@ struct Fighter {
     int phys_lo = 256, phys_hi = 512, phys_pct = 0;
     // The unit's stats 21 / 22 (23 / 24 with a two-hander): the weapon's with its own %, + the gear's flat.
     int stat_lo = 0, stat_hi = 0;
+    int throw_lo = 0, throw_hi = 0;                 // stats 159 / 160 the same way: the weapon's minmisdam / maxmisdam
     int ar_base = 1, ar_pct = 0;
     // Kicks (FUN_00646280): stat 137 + the boots' kick damage, and its % —
     // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.

@@ -336,6 +336,35 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * length >> 8;
         if (skill.etype >= 0 && skill.etype < 5) line.damage_colour = kElemColour[skill.etype];
     };
+    const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
+    // FUN_004e8d90: the unit's own damage of the skill's element: fire 48 / 49, lightning 50 / 51,
+    // magic 52 / 53, cold 54 / 55, poison 57 / 58 x its length >> 8 (stat 101, else 59 / stat 326 held
+    // to at least 1).
+    const auto gear_element = [&](int& low, int& high) {
+        constexpr std::array<int, 5> kOwn{ 48, 50, 54, 57, 52 };     // Skill::etype order: fire, lightning, cold, poison, magic
+        if (skill.etype == 3) {
+            int length = stat(101);
+            if (length < 1) length = stat(59) / std::max(stat(326), 1);
+            low += stat(57) * length >> 8;
+            high += stat(58) * length >> 8;
+        } else if (skill.etype >= 0 && skill.etype < 5) {
+            low += stat(kOwn[std::size_t(skill.etype)]);
+            high += stat(kOwn[std::size_t(skill.etype)] + 1);
+        }
+    };
+    // A throwable's stats 159 / 160, each end + end x (its own % (18 / 17) + str x StrBonus / 100 +
+    // dex x DexBonus / 100 + damagepercent, the last three at least -90) / 100 (FUN_004ea4a0 at
+    // 0x4ea5ec..0x4ea6e4, FUN_004ea790 the same), then + MulDiv(end, mastery, 100).
+    const auto throw_base = [&](int& low, int& high) {
+        int pct = 0;
+        if (unit.thrown.str_bonus != 0) pct += unit.str * unit.thrown.str_bonus / 100;
+        if (unit.thrown.dex_bonus != 0) pct += unit.dex * unit.thrown.dex_bonus / 100;
+        pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
+        low = fighter.throw_lo + (stat(d2d::d2s::kMinDamagePercent) + pct) * fighter.throw_lo / 100;
+        high = fighter.throw_hi + (stat(d2d::d2s::kMaxDamagePercent) + pct) * fighter.throw_hi / 100;
+        low += mul_div(low, unit.thrown.mastery, 100);
+        high += mul_div(high, unit.thrown.mastery, 100);
+    };
     // Two parts: the first (`upper`) over the line's own; one that is 0-0 leaves the other alone
     // (FUN_004e96e0), else both (FUN_004e9870), the upper first.
     const auto two_values = [&](const AttackLine& upper) {
@@ -378,20 +407,45 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.damage = true;
         weapon_share();
         const AttackLine upper = line;
-        const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
         line.min = (skill_phys(skill_tables, skill, env, lvl, false) >> 8) + (elem_damage(skill_tables, skill, env, lvl, false, 0, true) >> 8);
         line.max = (skill_phys(skill_tables, skill, env, lvl, true) >> 8) + (elem_damage(skill_tables, skill, env, lvl, true, 0, true) >> 8);
-        constexpr std::array<int, 5> kOwn{ 48, 50, 54, 57, 52 };     // Skill::etype order: fire, lightning, cold, poison, magic
-        if (skill.etype == 3) {
-            int length = stat(101);
-            if (length < 1) length = stat(59) / std::max(stat(326), 1);
-            line.min += stat(57) * length >> 8;
-            line.max += stat(58) * length >> 8;
-        } else if (skill.etype >= 0 && skill.etype < 5) {
-            line.min += stat(kOwn[std::size_t(skill.etype)]);
-            line.max += stat(kOwn[std::size_t(skill.etype)] + 1);
-        }
+        gear_element(line.min, line.max);
         line.damage_colour = etype_colour;
+        two_values(upper);
+    } else if (skill.descdam == 21 && unit.thrown.held) {    // FUN_004ea790 (Lightning Bolt)
+        // The throw (a throwing potion too: no tpot test here), the gear's damage of the skill's element
+        // (0x4ea91b), max at least min, x SrcDam / 128 (MulDiv), then the element and its colour.
+        line.damage = true;
+        int low = 0, high = 0;
+        throw_base(low, high);
+        gear_element(low, high);
+        high = std::max(high, low);
+        line.min = mul_div(low, skill.srcdam_raw, 128);
+        line.max = mul_div(high, skill.srcdam_raw, 128);
+        element_text();
+    } else if (skill.descdam == 22) {                         // FUN_004eaaa0 (Poison / Plague Javelin, Lightning Fury)
+        // FUN_004ea4a0's throw (0 with nothing throwable; a throwing potion's missile isn't here), its
+        // elements from 0 (FUN_004e89a0: clamped, coloured, damblue / damred) on top with max at least
+        // min, x SrcDam / 128 (MulDiv), over the skill's element (FUN_004e72d0).
+        line.damage = true;
+        if (unit.thrown.held && !unit.thrown.potion) {
+            int low = 0, high = 0;
+            throw_base(low, high);
+            high = std::max(high, low);
+            int elem_lo = 0, elem_hi = 0, colour = 0;
+            for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
+                const auto& [elem_min, elem_max] = fighter.elem[elem];
+                elem_lo += std::min(elem_min, elem_max); elem_hi += elem_max;
+                if (elem_min != 0 || elem_max != 0) colour = kElemColour[elem];
+            }
+            if (elem_hi > 0) { elem_lo = std::max(elem_lo, 1); elem_hi = std::max(elem_hi, elem_lo + 1); }
+            line.min = mul_div(low + elem_lo, skill.srcdam_raw, 128);
+            line.max = mul_div(high + std::max(elem_hi, elem_lo), skill.srcdam_raw, 128);
+            line.damage_colour = state_colour(kPanelDamage, colour);
+        }
+        const AttackLine upper = line;
+        line.min = line.max = line.damage_colour = 0;
+        element_text();
         two_values(upper);
     } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
         // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
@@ -417,7 +471,6 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
             low += skill_phys(skill_tables, *holy, env, unit.holy_shield, false) >> 8;
             high += skill_phys(skill_tables, *holy, env, unit.holy_shield, true) >> 8;
         }
-        const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
         int pct = lvl < 1 ? 0 : skill.par[2] + (lvl - 1) * skill.par[3];
         if (unit.shield.str_bonus != 0) pct += unit.str * unit.shield.str_bonus / 100;
         if (unit.shield.dex_bonus != 0) pct += unit.dex * unit.shield.dex_bonus / 100;
