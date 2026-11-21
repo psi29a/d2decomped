@@ -670,10 +670,9 @@ counter or operate-function-specific server event (`object_op_ticks`, world/tick
 server's event runs while its room is up, and d2d's rooms stay up); the drawn unit takes
 ON's selectable bit and light from its mode. `Npc::client_seed` is separate
 from the server unit seed and advances once when the object's mode changes;
-the renderer and `object_op_ticks` cache and share that mode's roll. ponytail:
-the first low word is still seeded from the object's fixed spot because d2d
-does not retain the client room1 seed that `FUN_00465fd0` advances. Not
-ported: OrderFlag2 and Parm7.
+the renderer and `object_op_ticks` cache and share that mode's roll. Its first
+seed is its room's client stream stepped once (`FUN_00465fd0`; units.md
+"Client unit initialization"). Not ported: OrderFlag2 and Parm7.
 
 23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
 COF and AnimData 2 frames, DCC 1, FrameCnt0 1); FrameCnt keeps most of

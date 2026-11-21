@@ -358,6 +358,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // objgroups.cpp's port, game.exe's to the subtile on every difficulty.
     room_objects(game_data, spawning, level, made_index);
     stamp_made();
+    seed_client_units(level_rw);                                // the new ones, as they're made
     if (spawns.size() > first)
         d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
 }
@@ -1426,6 +1427,39 @@ std::vector<int> walk_links(const GameData& game_data, int id) {
     return out;
 }
 
+// The client builds its rooms with the same DRLG code as the server, so each client room seed
+// starts at that room's room1 seed (taken so, not compared on a client). The unit order is the
+// level's object order, not the client's packet order.
+d2d::rules::Rng client_unit_seed(const Level& level, int room) {
+    if (room < 0 || std::size_t(room) >= level.rooms.size()) return d2d::rules::Rng{ 1 };
+    const auto start_of = [&](std::size_t index) { return index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed; };
+    if (level.client_rooms.size() != level.rooms.size()) {
+        level.client_rooms.clear();
+        level.client_room_starts.clear();
+        for (std::size_t index = 0; index < level.rooms.size(); ++index) {
+            level.client_rooms.emplace_back(start_of(index));
+            level.client_room_starts.push_back(start_of(index));
+        }
+    }
+    const auto index = std::size_t(room);
+    if (level.client_room_starts[index] != start_of(index)) {   // relevel laid it anew: a new room1, a new stream
+        level.client_rooms[index] = d2d::rules::Rng{ start_of(index) };
+        level.client_room_starts[index] = start_of(index);
+    }
+    return d2d::rules::Rng{ level.client_rooms[index].next() };
+}
+
+void seed_client_units(Level& level) {
+    // A camp keeps no room list (its rooms are the DS1's, no room1 seed d2d knows): its objects keep
+    // their spot as the seed (object_frame_delta), not one {1, 666} for all.
+    if (level.rooms.empty()) return;
+    for (auto& npc : level.npcs) {
+        if (npc.root != "objects" || npc.client_seeded) continue;
+        npc.client_seed = client_unit_seed(level, npc.room >= 0 ? npc.room : room_of(level, npc.x, npc.y));
+        npc.client_seeded = true;
+    }
+}
+
 // A finished build into GameData::levels (nullptr: tried, not built); an act
 // level is linked with the act levels already there, both ways, and with the
 // levels it walks into.
@@ -1442,6 +1476,7 @@ void install_level(const GameData& game_data, int id, std::unique_ptr<Level> lev
             other_level->nearby.push_back({ level.get(), level->world_x - other_level->world_x, level->world_y - other_level->world_y });
         }
     }
+    if (level) seed_client_units(*level);
     game_data.levels[id] = std::move(level);
 }
 
