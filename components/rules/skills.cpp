@@ -336,6 +336,15 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * length >> 8;
         if (skill.etype >= 0 && skill.etype < 5) line.damage_colour = kElemColour[skill.etype];
     };
+    // Two parts: the first (`upper`) over the line's own; one that is 0-0 leaves the other alone
+    // (FUN_004e96e0), else both (FUN_004e9870), the upper first.
+    const auto two_values = [&](const AttackLine& upper) {
+        if (upper.min == 0 && upper.max == 0) return;
+        if (line.min == 0 && line.max == 0) { line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour; return; }
+        line.two = true;
+        line.min2 = line.min; line.max2 = line.max; line.colour2 = line.damage_colour;
+        line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour;
+    };
     if (skill.descdam == 1 || skill.descdam == 7) {
         line.damage = true;
         weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
@@ -360,6 +369,17 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
+        // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
+        // then the element (0x4ebe07); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0
+        // the weapon (0x4ebe5b).
+        line.damage = true;
+        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+        line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+        const AttackLine upper = line;
+        line.min = line.max = line.damage_colour = 0;
+        element_text();
+        two_values(upper);
     } else if (skill.descdam == 10 && unit.shield.held) {    // FUN_004eb460 (Smite)
         // The shield's mindam / maxdam (+0xfe / +0xff), + Holy Shield's own (skill 0x75 at its level,
         // FUN_00647bc0 / FUN_00647d00 >> 8) while state 0x65 is on; the % is Param3 + (lvl - 1) x Param4

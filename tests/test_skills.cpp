@@ -319,6 +319,17 @@ int main() try {
         line = attack_line(skill_tables, smite, gear, 3, fighter, 5, 0, 0, 0, holding);
         assert(line.damage && line.min == 2 + (45 * 2 + 99) / 100 && line.max == 4 + 45 * 4 / 100 && line.damage_colour == 0);
         assert(!attack_line(skill_tables, smite, gear, 3, fighter, 5).damage);
+        // descdam 17 (Charged Strike, FUN_004ebd50): the weapon's as 7's (with its fire, red) over the
+        // skill's lightning (yellow); a 0-0 element leaves the weapon alone.
+        Skill strike = weapon_skill;
+        strike.descdam = 17; strike.etype = 1; strike.hitshift = 8; strike.emin = 1; strike.emax = 40;
+        strike.emin_lev = strike.emax_lev = {}; strike.edmg_sym = {};
+        line = attack_line(skill_tables, strike, env, 5, fighter, 5);
+        assert(line.damage && line.two && line.min == 12 && line.max == 21 && line.damage_colour == 1);
+        assert(line.min2 == 1 && line.max2 == 40 && line.colour2 == 9);
+        strike.emin = strike.emax = 0;
+        line = attack_line(skill_tables, strike, env, 5, fighter, 5);
+        assert(!line.two && line.min == 12 && line.max == 21 && line.damage_colour == 1);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
