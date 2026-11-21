@@ -3,7 +3,7 @@
 // Client do 8 (FUN_004d38d0): a lightning missile lays CltParam1 client
 // missiles of row CltSubMissile1 each client frame from age InitSteps (+0x135)
 // while its last step entered a new subtile (path flag 8: FUN_00650150), each
-// at motion z rand(CltParam2) - CltParam2 / 2 and frame rand(AnimLen)
+// at motion z rand(CltParam2) - CltParam2 / 2 (the bolt's client seed) and frame rand(AnimLen) (its own)
 // (FUN_004cc870), living its Range (d2d::game::SparkTrail). Then, with the
 // game data, the rows that carry it (lightningbolt, chainlightning ->
 // lightninghit, loaded though no skill names it).
@@ -42,7 +42,10 @@ void synthetic() {
     single.clt_params[0] = 0;
 
     SparkTrail trail;
-    trail.rng = d2d::rules::Rng(5);
+    Level room_level;                               // one room over all of it, its room1 seed 5
+    room_level.rooms.resize(1);
+    room_level.rooms[0].width = room_level.rooms[0].height = 200;
+    room_level.room1_seeds = { 5 };
     const std::uint32_t born = 4000;
     // Each a frame on, x in cells: subtile floor(x * 5). The bolt enters a new
     // subtile at frames 1 and 3 and stays in its own at frame 2.
@@ -50,9 +53,9 @@ void synthetic() {
         return std::vector<View::Shot>{ { &bolt, bolt_x, 20.f, 17, born }, { &late, other_x, 4.f, 0, born },
                                         { &plain, other_x, 1.f, 0, born }, { &single, other_x, 7.f, 0, born } };
     };
-    trail.tick(frame_of(10.f, 3.f), born);              // age 0, before any step: nothing (path flag 8 down)
+    trail.tick(frame_of(10.f, 3.f), born, &room_level);              // age 0, before any step: nothing (path flag 8 down)
     assert(trail.sparks.empty());
-    trail.tick(frame_of(10.27f, 3.27f), born + 40);     // stepped: bolt 3, single 1; late waits for InitSteps
+    trail.tick(frame_of(10.27f, 3.27f), born + 40, &room_level);     // stepped: bolt 3, single 1; late waits for InitSteps
     assert(trail.sparks.size() == 4);
     for (std::size_t i = 0; i < 3; ++i) {
         const auto& spark = trail.sparks[i].shot;
@@ -63,10 +66,14 @@ void synthetic() {
     }
     assert(trail.sparks[3].shot.y == 7.f);
 
-    // The same rolls by hand: z then frame per spark, one rng.
-    d2d::rules::Rng again(5);
+    // The same rolls by hand: each missile a client unit seed as it's first seen (the room's stream stepped
+    // once: bolt, late, single; plain is no do 8), then each spark its own; z on the bolt's, frame on its own.
+    d2d::rules::Rng stream(5);
+    d2d::rules::Rng bolt_seed{ stream.next() };
+    stream.next(); stream.next();                   // late's, single's
     for (std::size_t i = 0; i < 3; ++i) {
-        const int z_offset = again(16) - 8, frame = again(8);
+        d2d::rules::Rng own{ stream.next() };
+        const int z_offset = bolt_seed(16) - 8, frame = own(8);
         assert(trail.sparks[i].shot.motion_z == z_offset && trail.sparks[i].shot.born == born + 40 - std::uint32_t(frame) * 40);
     }
 
@@ -88,7 +95,7 @@ void synthetic() {
     std::array<int, 16> z_seen{}; std::array<int, 8> frames_seen{};
     for (std::uint32_t tick = 0; tick < 400; ++tick) {
         trail.sparks.clear();
-        trail.tick(std::vector<View::Shot>{ { &bolt, float(tick) / 5 + 0.1f, 0.1f, 0, 0 } }, tick * 40);
+        trail.tick(std::vector<View::Shot>{ { &bolt, float(tick) / 5 + 0.1f, 0.1f, 0, 0 } }, tick * 40, &room_level);
         assert(trail.sparks.size() == (tick == 0 ? 0u : 3u));
         for (const auto& spark : trail.sparks) { ++z_seen[std::size_t(spark.shot.motion_z + 8)]; ++frames_seen[(tick * 40 - spark.shot.born) / 40]; }
     }
