@@ -308,6 +308,11 @@ struct Fight {
         float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame
         d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
+        // A Barbarian's or Assassin's two weapons, each alone (the other's stats off, FUN_00623c80): [0]
+        // the right hand's, [1] the left's; `two_hands` while both hold a usable weapon.
+        std::array<d2d::rules::Fighter, 2> hand_combat{};
+        bool two_hands = false;
+        int blow_hand = -1;                    // a blow that names its hand (Whirlwind's each weapon), -1 by the skill
         d2d::rules::StatSum psum{};            // the player's stats (gear, passives, masteries, states) as of this frame
         // Stat 0x148 (pierce_idx, not saved): each skill command adds 1 (C->S 0x05 / 0x06 / 0x0c / 0x0d,
         // FUN_00549d00), the seed of its missiles' pierce charges (FUN_0059f940).
@@ -964,6 +969,8 @@ struct Fight {
     // higher unit id, else the lowest (round the ring; the same one when
     // it's alone).
     void other_target();
+    // The fighter a blow swings with (FUN_00535bc0): with two weapons, the hand the skill's weapsel picks.
+    [[nodiscard]] d2d::rules::Fighter blow_fighter(const d2d::rules::Skill* skill) const;
     // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
     // its quantity (stat 70, FUN_0056c3f0) instead.

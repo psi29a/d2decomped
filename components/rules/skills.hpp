@@ -314,6 +314,7 @@ struct Skill {
     bool st_success_only = false, st_sound_delay = false, weapon_sound = false;
     bool interrupt = false;                // Skills.txt `interrupt` (the row's flags byte +7 against the mask at 0x6ce284): 0, a hit never puts the user in a get-hit (FUN_0057eec0)
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
+    int weapsel = 0;                       // +0x168: which hand's weapon a two-handed class swings (FUN_00535bc0)
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)
     int perdelay = 0;                      // an aura's pulse, ticks
