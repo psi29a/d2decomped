@@ -27,8 +27,8 @@ inline IconRect circular_icon_rect(float x, float y, float width, float height,
     const float scale = diameter / std::max(art_width, art_height);
     const int dest_width = std::max(1, int(std::lround(art_width * scale)));
     const int dest_height = std::max(1, int(std::lround(art_height * scale)));
-    return { int(std::lround(x + (width - dest_width) * .5f)),
-             int(std::lround(y + (height - dest_height) * .5f)), dest_width, dest_height, scale };
+    return { int(std::lround(x + (width - float(dest_width)) * .5f)),
+             int(std::lround(y + (height - float(dest_height)) * .5f)), dest_width, dest_height, scale };
 }
 
 /** Pixel-center clip against the button's circular interior, leaving its rim visible. */
