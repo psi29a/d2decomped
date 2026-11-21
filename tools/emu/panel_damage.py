@@ -7,7 +7,8 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
 (FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
-12 (FUN_004eb830), 17 (FUN_004ebd50),
+12 (FUN_004eb830), 17 (FUN_004ebd50), 21 (FUN_004ea790), 22 (FUN_004eaaa0)
+with FUN_004ea4a0 (the throw),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
 FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
 colour). Hooked: FUN_00647bc0 / FUN_00647d00 (the skill's MinDam /
@@ -21,7 +22,9 @@ stat), FUN_00623990 / FUN_0063d340 (a weapon, two-handed), FUN_00646ca0
 (calc1..3), FUN_0063c8f0 / FUN_006335f0 / FUN_00629860 / FUN_006298a0 (the
 shield, its record, Str / DexBonus), FUN_006439b0 / FUN_00639df0 /
 FUN_006442a0 (Holy Shield's node, state, level), FUN_004cc7c0 (Smite's %),
-FUN_0063a380 / FUN_0063a3a0 (damblue / damred). FUN_004e96e0 (the
+FUN_0063a380 / FUN_0063a3a0 (damblue / damred), FUN_0063bef0 /
+FUN_0062ba80 / FUN_00629bb0 (the wielded weapon, throwable, a tpot) and
+FUN_00645830 (its mastery). FUN_004e96e0 (the
 draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
 colours. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
@@ -41,10 +44,11 @@ SKILL_DESC, SKILL_ID, CALC = 0x4A89D0, 0x643CE0, 0x646D00
 EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 HAS_WEAPON, WIELD, CALC_AT = 0x623990, 0x63D340, 0x646CA0
 SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298A0
+WIELDED, THROWABLE, ITEM_TYPE_IS, MASTERY = 0x63BEF0, 0x62BA80, 0x629BB0, 0x645830
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 6, 8, 9, 10, 11, 12, 17, 24)
+HANDLERS = (5, 6, 8, 9, 10, 11, 12, 17, 21, 22, 24)
 
 
 def d2d_line(descdam, case):
@@ -65,6 +69,19 @@ def d2d_line(descdam, case):
         """FUN_004e72d0."""
         length = case["elen"] if case["etype"] == 3 else 1
         return case["emin"] * length >> 8, case["emax"] * length >> 8, etype_colour
+
+    def gear_element(low, high):
+        """FUN_004e8d90: the unit's own damage of the skill's element."""
+        stats = case["stats"]
+        if case["etype"] == 3:
+            length = stats.get(101, 0)
+            if length < 1:
+                length = trunc_div(stats.get(59, 0), max(stats.get(326, 0), 1))
+            return low + (stats.get(57, 0) * length >> 8), high + (stats.get(58, 0) * length >> 8)
+        if 0 <= case["etype"] < 5:
+            own = (48, 50, 54, 57, 52)[case["etype"]]
+            return low + stats.get(own, 0), high + stats.get(own + 1, 0)
+        return low, high
 
     def weapon_share():
         nonlocal low, high, colour
@@ -98,20 +115,52 @@ def d2d_line(descdam, case):
         upper = (low, high, colour)
         stats = case["stats"]
         low = (case["phys_min"] >> 8) + (case["emin"] >> 8); high = (case["phys_max"] >> 8) + (case["emax"] >> 8)
-        if case["etype"] == 3:
-            length = stats.get(101, 0)
-            if length < 1:
-                length = trunc_div(stats.get(59, 0), max(stats.get(326, 0), 1))
-            low += stats.get(57, 0) * length >> 8; high += stats.get(58, 0) * length >> 8
-        elif 0 <= case["etype"] < 5:
-            own = (48, 50, 54, 57, 52)[case["etype"]]
-            low += stats.get(own, 0); high += stats.get(own + 1, 0)
+        low, high = gear_element(low, high)
         lower = (low, high, etype_colour)
         if upper[:2] == (0, 0):
             return lower
         if lower[:2] == (0, 0):
             return upper
         return ("two", two_text(*upper[:2]), two_text(*lower[:2]), upper[2], lower[2])
+    elif descdam in (21, 22):
+        stats = case["stats"]
+        thrown = case["wielded"] and case["throwable"]
+        if descdam == 21 and not thrown:
+            return None
+        low = high = colour = 0
+        if thrown and not (descdam == 22 and case["potion"]):
+            pct = 0
+            if case["str_bonus"]:
+                pct += trunc_div(stats.get(0, 0) * case["str_bonus"], 100)
+            if case["dex_bonus"]:
+                pct += trunc_div(stats.get(2, 0) * case["dex_bonus"], 100)
+            pct = max(pct + stats.get(25, 0), -90)
+            low = stats.get(159, 0) + trunc_div((stats.get(18, 0) + pct) * stats.get(159, 0), 100)
+            high = stats.get(160, 0) + trunc_div((stats.get(17, 0) + pct) * stats.get(160, 0), 100)
+            mastery = case["mastery"] if case["throw_state"] else 0
+            low += mul_div(low, mastery, 100); high += mul_div(high, mastery, 100)
+            if descdam == 21:
+                low, high = gear_element(low, high)
+                high = max(high, low)
+            else:
+                high = max(high, low)
+                e_low, e_high, colour = 0, 0, 0
+                if case["we_low"] or case["we_high"]:
+                    e_low, e_high, colour = case["we_low"], case["we_high"], case["we_colour"]
+                if e_high > 0:
+                    e_low = max(e_low, 1); e_high = max(e_high, e_low + 1)
+                colour = 1 if case["red"] else 3 if case["blue"] else colour
+                low += e_low; high += max(e_high, e_low)
+        low, high = mul_div(low, case["srcdam"], 128), mul_div(high, case["srcdam"], 128)
+        element = element_part()
+        if descdam == 21:
+            return low + element[0], high + element[1], element[2]
+        upper = (low, high, colour)
+        if upper[:2] == (0, 0):
+            return element
+        if element[:2] == (0, 0):
+            return upper
+        return ("two", two_text(*upper[:2]), two_text(*element[:2]), upper[2], element[2])
     elif descdam == 17:
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):
@@ -206,7 +255,11 @@ def main():
     e.hook(STR_BONUS, lambda _e: case["str_bonus"] & 0xFFFF, 1)
     e.hook(DEX_BONUS, lambda _e: case["dex_bonus"] & 0xFFFF, 1)
     e.hook(SKILL_NODE, lambda _e: 0x5000 if case["holy_node"] else 0, 1)
-    e.hook(HAS_STATE, lambda _e: int(case["holy_state"]), 2)
+    e.hook(HAS_STATE, lambda em: int(case["throw_state"] if em.arg(1) == 0x4E else case["holy_state"] if em.arg(1) == 0x65 else 0), 2)
+    e.hook(WIELDED, lambda _e: item if case["wielded"] else 0, 1)
+    e.hook(THROWABLE, lambda _e: int(case["throwable"]), 1)
+    e.hook(ITEM_TYPE_IS, lambda em: int(case["potion"]) if em.arg(1) == 0x26 else 0, 2)
+    e.hook(MASTERY, lambda _e: case["mastery"] & 0xFFFFFFFF, 4)
     e.hook(NODE_LEVEL, lambda _e: 7, 3)
     e.hook(PARAM_PCT, lambda _e: case["smite_pct"] & 0xFFFFFFFF, 0)
     e.hook(DAM_BLUE, lambda _e: int(case["blue"]), 1)
@@ -226,6 +279,7 @@ def main():
     e.hook(WEAPON_ELEMENTS, weapon_elements, 5)
     e.hook(DRAW, draw, 2)
     unit, node, row, desc = e.alloc(0x100), e.alloc(0x100), e.alloc(0x23C), e.alloc(0x120)
+    e.w32(unit + 0x60, e.alloc(0x40))                              # an inventory: FUN_004ea4a0 / FUN_004ea790 test it
     e.w32(desc + 0x18, 1); e.w32(desc + 0x1C, 2)                  # ddam calc1 / calc2: calc ids 1 and 2
     e.hook(SKILL_DESC, lambda _e: desc, 0)
     e.hook(SKILL_ID, lambda _e: 77, 3)
@@ -248,11 +302,14 @@ def main():
                    **{stat: rng.choice((0, 0, 3, 17, 250)) for stat in range(48, 56)},
                    57: rng.choice((0, 0, 40, 900)), 58: rng.choice((0, 0, 80, 1500)), 59: rng.choice((0, 25, 100)),
                    101: rng.choice((0, 0, -1, 50)), 326: rng.choice((0, 1, 2, 3)),
+                   159: rng.randrange(-2, 60), 160: rng.randrange(-2, 120),
                    0: rng.randrange(10, 400), 2: rng.randrange(10, 300), 17: rng.choice((0, 0, 150, 37)), 18: rng.choice((0, 0, 99, 250))},
             weapon=rng.random() < 0.7, wield=rng.choice((-1, 1, 2)),
             shield=rng.random() < 0.8, sh_min=rng.randrange(0, 30), sh_max=rng.randrange(0, 60),
             holy_node=rng.random() < 0.6, holy_state=rng.random() < 0.6, smite_pct=rng.choice((0, 15, 90, 300, -200)),
             str_bonus=rng.choice((0, 0, 50, 100, -10)), dex_bonus=rng.choice((0, 0, 50, 75)),
+            wielded=rng.random() < 0.8, throwable=rng.random() < 0.8, potion=False,
+            throw_state=rng.random() < 0.5, mastery=rng.choice((0, 30, 120, 400)),
             calcs={11: rng.choice((0, 30, 70, 300)), 12: rng.choice((0, 30, 70, 300)), 13: rng.choice((0, 30, 70, 300, -20))})
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)

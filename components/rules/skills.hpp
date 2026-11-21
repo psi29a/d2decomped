@@ -540,7 +540,12 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     other is 0-0, else both.
 //   damage, descdam 6 (FUN_004e9d20, Exploding Arrow): the weapon's SrcDam
 //     share over the skill's own with the unit's own damage of its element.
-// ponytail: descdam 2..4, 13..16, 18..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 21 (FUN_004ea790, Lightning Bolt): stats 159 / 160 x
+//     the weapon's %s and the throw mastery, the gear's damage of the skill's
+//     element, x SrcDam / 128, then the element; descdam 22 (FUN_004eaaa0,
+//     the javelins): FUN_004ea4a0's throw with the gear's elements, x SrcDam
+//     / 128, over the element.
+// ponytail: descdam 2..4, 13..16, 18..20, 23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -568,6 +573,10 @@ struct PanelUnit {
     int holy_shield = 0;         // Holy Shield's level while its state is on, else 0
     // The shield in hand (FUN_0063c8f0, ItemTypes shld): Armor.txt mindam / maxdam, StrBonus / DexBonus.
     struct Shield { bool held = false; int min = 0, max = 0, str_bonus = 0, dex_bonus = 0; } shield;
+    // The wielded weapon when it is throwable (FUN_0063bef0, FUN_0062ba80): its Str / DexBonus, whether
+    // it is a throwing potion (tpot), and the throw mastery's damage % on it (state throwingmastery,
+    // FUN_00645830), 0 without.
+    struct Thrown { bool held = false, potion = false; int str_bonus = 0, dex_bonus = 0, mastery = 0; } thrown;
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,
