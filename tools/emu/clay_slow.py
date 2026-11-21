@@ -68,10 +68,11 @@ class Rig:
     def run(self, slow, unit_type, kind):
         e = self.e
         self.slow, self.put, self.stats = slow, None, {}
-        e.w32(self.golem, 1)
-        e.w32(self.striker, unit_type)
-        e.w32(self.striker + 0x14, self.data)
-        e.mu.mem_write(self.data + 0x16, (KIND_FLAGS[kind] if 0 <= kind < len(KIND_FLAGS) else 0).to_bytes(2, "little"))
+        e.view("unit", self.golem).type = 1
+        striker = e.view("unit", self.striker)
+        striker.type = unit_type
+        striker.data = self.data
+        e.view("monster_data", self.data).flags = KIND_FLAGS[kind] if 0 <= kind < len(KIND_FLAGS) else 0
         e.call(0x5c6760, self.golem, self.striker, self.hit, CLAY_GOLEM, 1, ecx=self.game, edx=1)
         if self.put is None:
             return "0 0 0 0 0"
