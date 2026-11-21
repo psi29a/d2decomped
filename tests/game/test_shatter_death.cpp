@@ -50,6 +50,7 @@ int main() try {
     world.enter(character);
     world.level = moor;
     auto& fight = world.fight;
+    fight.enter(moor);
     const int fallen_row = data->monsters.row("fallen1");
     assert(fallen_row >= 0);
     d2d::rules::Rng rng{ 3 };
@@ -66,6 +67,14 @@ int main() try {
     fight.boss_events({}, 1000);                                   // alive: nothing
     assert(fight.pending.empty() && !fight.monsters[0].corpse_used);
     for (auto& dying : fight.monsters) { dying.hit_points = 0; set_mode(*data, dying, "DT", 1040); }
+    // The rooms' client streams before the deaths: as made so far, else each at its room1 seed (client_unit_seed).
+    auto streams = moor->client_rooms;
+    if (streams.size() != moor->rooms.size()) {
+        streams.clear();
+        for (std::size_t room = 0; room < moor->rooms.size(); ++room)
+            streams.emplace_back(room < moor->room1_seeds.size() ? moor->room1_seeds[room] : moor->rooms[room].seed);
+    }
+    assert(streams.size() == moor->rooms.size());
     fight.boss_events({}, 1040);
     const auto rows = d2d::rules::shatter_rows(1, fight.monsters[0].npc.height, false, false);
     const auto first = d2d::rules::shatter_row_name(rows.first);
@@ -76,6 +85,14 @@ int main() try {
     }
     assert(!fight.monsters[2].corpse_used && fight.monsters[2].hit_class == 0x32);
     assert(fight.pending.size() == 4);
+    // Each piece faces a draw below 64 on its own client seed: its room's stream stepped once (FUN_00465fd0).
+    for (std::size_t i = 0; i < 4; ++i) {
+        const auto& dying = fight.monsters[i / 2];
+        const int room = room_of(*moor, dying.unit.x, dying.unit.y);
+        assert(room < int(streams.size()));
+        d2d::rules::Rng own{ room < 0 ? 1u : streams[std::size_t(room)].next() };
+        assert(fight.pending[i].client_seeded && fight.pending[i].dir == own(64));
+    }
     for (std::size_t i = 0; i < 4; ++i) {
         assert(fight.pending[i].visual_only && fight.pending[i].info);
         assert(fight.pending[i].info->name == (i % 2 == 0 ? first : std::string_view("icebreaksmoke")));
