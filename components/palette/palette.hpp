@@ -124,16 +124,28 @@ public:
 
     // File colour through the DirectDraw ramp (FUN_006be190). Index 0 stays
     // transparent: alpha is the file's. entries() is the file palette.
-    [[nodiscard]] Rgba operator[](std::uint8_t idx) const noexcept {
-        Rgba colour = entries_[idx];
+    // The entry as drawn into the frame: the file's colour. The display ramp (gamma, contrast) is
+    // DirectDraw's on the whole picture (FUN_006be190), put on as the frame is shown (ramp_rgba).
+    [[nodiscard]] Rgba operator[](std::uint8_t idx) const noexcept { return entries_[idx]; }
+    // A colour through the display ramp.
+    [[nodiscard]] static Rgba ramp(Rgba colour) noexcept {
         const auto& level = video_ramp().level;
         colour.r = level[colour.r];
         colour.g = level[colour.g];
         colour.b = level[colour.b];
         return colour;
     }
+    // An RGBA picture through the display ramp, in place (the frame as it goes to the screen).
+    static void ramp_rgba(std::span<std::uint8_t> rgba) noexcept {
+        const auto& level = video_ramp().level;
+        for (std::size_t at = 0; at + 3 < rgba.size(); at += 4) {
+            rgba[at] = level[rgba[at]];
+            rgba[at + 1] = level[rgba[at + 1]];
+            rgba[at + 2] = level[rgba[at + 2]];
+        }
+    }
     [[nodiscard]] std::span<const Rgba> entries() const noexcept { return entries_; }
-    // Rebuild FUN_006be190. Every palette lookup sees it.
+    // Rebuild FUN_006be190. The next frame shown takes it.
     static void set_ramp(int gamma, int contrast) noexcept {
         gamma = std::clamp(gamma, kGammaMin, kGammaMax);
         contrast = std::clamp(contrast, kContrastMin, kContrastMax);

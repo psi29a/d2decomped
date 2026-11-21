@@ -68,38 +68,31 @@ int main() try {
         const Blend modes[]{ Blend::kAlpha75, Blend::kAlpha50, Blend::kAlpha25, Blend::kAdditive, Blend::kMultiply, Blend::kMaxComponent };
         const std::size_t offsets[]{ 0x3500, 0x13500, 0x23500, 0x33500, 0x43500, 0x5b500 };
         int wrong = 0;
-        // The screen holds ramped colours (Palette::operator[]): the default gamma 155, a flat one and another.
+        // The frame keeps the palette's own colours (the display ramp goes on as it's shown), so each blend
+        // is the table's cell for the ORIGINAL indices, whatever the ramp (the default gamma 155, a flat one,
+        // another): the lookup never sees a ramped colour.
         for (const auto& [gamma, contrast] : { std::pair{ d2d::palette::kDefaultGamma, d2d::palette::kDefaultContrast }, std::pair{ 100, 100 }, std::pair{ 205, 60 } }) {
             d2d::palette::Palette::set_ramp(gamma, contrast);
             for (std::size_t mode = 0; mode < 6; ++mode)
                 for (std::size_t screen = 0; screen < 256; ++screen)
                     for (std::size_t sprite = 0; sprite < 256; sprite += 7) {
-                        // A colour two entries share finds the lower (the tables go by colour, below), so the
-                        // cell is by the indices the lookup finds.
-                        const auto under = base[std::uint8_t(screen)], over = base[std::uint8_t(sprite)];
-                        const std::uint8_t cell = std::uint8_t(raw[offsets[mode] + blender.index_of(under) * 256 + blender.index_of(over)]);
-                        const auto want = base[cell];
-                        const auto got = blender.mix(modes[mode], under, over);
+                        const auto want = entries[std::uint8_t(raw[offsets[mode] + screen * 256 + sprite])];
+                        const auto got = blender.mix(modes[mode], base[std::uint8_t(screen)], base[std::uint8_t(sprite)]);
                         if (got.r != want.r || got.g != want.g || got.b != want.b) ++wrong;
-                        const auto found = base[blender.index_of(under)];
-                        if (found.r != under.r || found.g != under.g || found.b != under.b) ++wrong;
                     }
         }
         d2d::palette::Palette::set_ramp(d2d::palette::kDefaultGamma, d2d::palette::kDefaultContrast);
         // What makes the lookup exact: an entry sharing another's colour has its rows and columns.
         for (std::size_t mode = 0; mode < 6; ++mode)
             for (std::size_t entry = 0; entry < 256; ++entry) {
-                const std::size_t found = blender.index_of(base[std::uint8_t(entry)]);
-                if (entries[found].r != entries[entry].r || entries[found].g != entries[entry].g || entries[found].b != entries[entry].b) continue;   // the ramp merged two colours
+                const std::size_t found = blender.index_of(entries[entry]);
                 for (std::size_t other = 0; other < 256; ++other) {
                     if (raw[offsets[mode] + entry * 256 + other] != raw[offsets[mode] + found * 256 + other]) ++wrong;
                     if (raw[offsets[mode] + other * 256 + entry] != raw[offsets[mode] + other * 256 + found]) ++wrong;
                 }
             }
-        const Rgba off{ 1, 2, 250, 0xFF };                 // no entry's: its nearest ramped one
-        std::array<Rgba, 256> ramped{};
-        for (std::size_t index = 0; index < 256; ++index) ramped[index] = base[std::uint8_t(index)];
-        assert(blender.index_of(off) == d2d::palette::Palette(ramped).nearest(1, 2, 250));
+        const Rgba off{ 1, 2, 250, 0xFF };                 // no entry's: its nearest
+        assert(blender.index_of(off) == base.nearest(1, 2, 250));
         std::printf("act %d Blender: %d wrong\n", act, wrong);
         assert(wrong == 0);
     }

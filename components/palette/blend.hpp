@@ -10,8 +10,6 @@
 
 #include "palette.hpp"
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
 
@@ -19,39 +17,28 @@ namespace d2d::palette {
 
 class Blender {
 public:
-    // The screen holds the palette's colours through the display ramp (Palette::operator[], the gamma
-    // and contrast), so the lookup is by the ramped colours and the table's entry comes back ramped:
-    // remade whenever the ramp changes. Two entries the ramp makes one colour take the lower's row.
-    explicit Blender(const Pl2& pl2) : pl2_(&pl2), base_(pl2.base_palette()) {}
+    // The frame holds the palette's own colours (the display ramp goes on as it's shown), so an act
+    // palette colour finds its index exactly; two entries of one colour have the same rows (the tables
+    // go by colour), so the lower stands for both.
+    explicit Blender(const Pl2& pl2) : pl2_(&pl2), base_(pl2.base_palette()) {
+        for (int index = 255; index >= 0; --index) indices_[key(base_.entries()[std::size_t(index)])] = std::uint8_t(index);
+    }
     // `screen` under `sprite` as the table has it.
     [[nodiscard]] Rgba mix(Blend mode, Rgba screen, Rgba sprite) {
-        ramp_up();
-        auto colour = ramped_.entries()[pl2_->blend(mode, index_of(screen), index_of(sprite))];
+        auto colour = base_.entries()[pl2_->blend(mode, index_of(screen), index_of(sprite))];
         colour.a = 0xFF;
         return colour;
     }
     [[nodiscard]] std::uint8_t index_of(Rgba colour) {
-        ramp_up();
         const auto [found, made] = indices_.try_emplace(key(colour), std::uint8_t(0));
-        if (made) found->second = ramped_.nearest(colour.r, colour.g, colour.b);
+        if (made) found->second = base_.nearest(colour.r, colour.g, colour.b);
         return found->second;
     }
 
 private:
     static std::uint32_t key(Rgba colour) { return std::uint32_t(colour.r) << 16 | std::uint32_t(colour.g) << 8 | colour.b; }
-    void ramp_up() {
-        if (built_ && gamma_ == Palette::gamma() && contrast_ == Palette::contrast()) return;
-        built_ = true; gamma_ = Palette::gamma(); contrast_ = Palette::contrast();
-        std::array<Rgba, 256> ramped{};
-        for (std::size_t index = 0; index < 256; ++index) ramped[index] = base_[std::uint8_t(index)];
-        ramped_ = Palette(ramped);
-        indices_.clear();
-        for (int index = 255; index >= 0; --index) indices_[key(ramped[std::size_t(index)])] = std::uint8_t(index);
-    }
     const Pl2* pl2_;
-    Palette base_, ramped_;
-    bool built_ = false;
-    int gamma_ = 0, contrast_ = 0;
+    Palette base_;
     std::unordered_map<std::uint32_t, std::uint8_t> indices_;
 };
 
