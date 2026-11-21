@@ -1478,9 +1478,11 @@ stack words in order.
 |---|---|---|
 | `FUN_0053b400` | 5 | id (DL), u32 a0 at +1 |
 | `FUN_0053c1d0` | 0xa | id (DL), u32 a0 at +1, u8 a1 at +5, u32 a2 at +6. A word a1 of 0xff or more is fatal (line 0x4b8, file string `0x6cc837`) |
+| `FUN_0053c6f0` | 8 | 0x93, u32 EDX at +1, u8 a0 at +5, u8 a1 at +6, u8 at +7 (a3 when the stack word a2 is not 0, else 4) (`ret 0x10`). An orphan (stubs.md): the client's 0x93 handler is `FUN_0045dd10` |
 | `FUN_0053cab0` | 2 | 0x77, u8 DL at +1 |
 | `FUN_0053cad0` | 0x15 | the 0x15 bytes of the structure at EDX (the id is its first byte, set by the caller) |
 | `FUN_0053cbe0` | 6 | 0x79, u8 a0 at +1, u32 EDX at +2 |
+| `FUN_0053cc90` | (none) | Not a sender: a change test (EAX = a unit; stack words a0 a unit, a1, a2; `ret 0xc`). It returns 0 in three cases: `FUN_00554010` (ECX = the unit) gives 0; `FUN_00540710` (ECX = that result, EDX = the unit) gives 0xffff or differs from the same call with EDX = a0; or `FUN_006221a0(unit)` is null. Otherwise it walks the 0x14-byte records at that data's +0x98 (next at +0x10) for a0's id (`[a0+0xc]`, or 0xffffffff when a0 is null). When none matches, it allocates one (`FUN_0040b430`, SCmd.cpp line 0x6fa, ECX = `[result+0x1c]`; a failed allocation returns 0), zeroes it, stores the id at +0 and links it at the head. If the record's +8 differs from a2, it stores a1 at +4 and a2 at +8 and returns 1; else it returns `FUN_0053cc10()`. Only caller `FUN_0053cd80` (`0x53cdda`) |
 | `FUN_0053d220` | 8 | 0x3f, u8 at +1 (a0 when the stack word a1 is 0, else 0xff), u32 at +2 (`[EDX+0xc]`, or 0 when EDX is null), u16 a3 at +6. The stack word at +0x10 is not read |
 | `FUN_0053d270` | 0xd | 0x40, u32 at +1 (`[EDX+0xc]`, or 0xffffffff when EDX is null), u32 a0 at +5, u32 a1 at +9 |
 | `FUN_0053d330` | (wrapper) | `FUN_0053cef0(a0, 0x13, a1, 0)` with ECX and EDX as they came in; `FUN_0053cef0` is the 0x9d builder |
@@ -1499,12 +1501,21 @@ stack words in order.
 | `FUN_0053db20` | 8 | 0x7b, u8 DL at +1, u16 at +2 (a0 & 0xfff, with 0x8000 set when the stack word a1 is not 0), u32 a2 at +4 |
 | `FUN_0053db70` | 5 | 0x7e at +0. The four bytes after it are not written, so the queue copies what is on the stack (bugs.md #113) |
 | `FUN_0053db90` | 0x1d | 0x82, u32 at +1 (`[P+0xc]`), 16 bytes at +5 (the name from `FUN_006221a0(P)`, copied by `FUN_004135d0` with count 0x10), u32 a0 at +0x15, u32 a1 at +0x19. P is found in two steps: `FUN_00552f60(client, type 2, a0)` gives the first unit, `FUN_00552b10` on it gives an id, and `FUN_00552f60(client, type 0, id)` gives P. Sent only when both lookups find a unit |
+| `FUN_0053dc20` | a0 + 0xb | 0x83. The string at EDX is copied to +1 with no bound, then u16 a1 at +5, u16 a0 (the data length) at +7, u16 a2 at +9 and the a0 bytes at a3 from +0xb are stored, so a string past 4 characters is overwritten. `ret 0x10`, a 0x1a0-byte stack buffer. An orphan (stubs.md), and the server's size for 0x83 is 0 |
+| `FUN_0053dcc0` | a0 + 2 | 0x84, u8 DL at +1, the a0 bytes at a1 from +2 (`ret 8`). An orphan; the server's size for 0x84 is 0 |
+| `FUN_0053dd20` | a0 + 0xb | 0x88, laid out as `FUN_0053dc20`. An orphan; the server's size for 0x88 is 0 |
 | `FUN_0053df50` | 0xa | the callback of `FUN_0053df80`: ECX is the unit (the walker's EDX), the stack word the record pointer (`ret 4`). Calls `FUN_005531c0(0xbff)` with ECX = unit, then queues the record with EDI set to that result, so the walker's client is not the queue target. `FUN_005531c0` returns 0 when the unit is null or its first dword is not 0; otherwise the dword at +0x9c of `FUN_006221a0(unit)` |
 | `FUN_0053df80` | (none) | not a sender here: it stores a 10-byte record (0x8e, u8 a1 at +1, u32 EDX at +2, u32 a0 at +6) and passes its address to `FUN_005538d0` with EDX = 0x53df50 (the callback, `FUN_0053df50`, below). `FUN_005538d0` walks the client's unit lists (the 0x80 heads at client +0x1120, the link at unit +0xe4) and calls that routine for each unit where `FUN_00639df0(unit, 7)` is 0 |
 | `FUN_0053dff0` | 6 | the 6 bytes of the structure at EDX (u32 at +0, u16 at +4) |
 | `FUN_0053e0a0` | 7 | 0x98, u32 EDX at +1, u16 a0 at +5 |
 | `FUN_0053e0e0` | 7 | 0x9b, u16 DX at +1, u32 a0 at +3 |
 | `FUN_0053e110` | 1 | 0x97 |
+| `FUN_0053e1c0` | a1 + 6 | 0xa6, u8 DL at +1, u16 size (a1 + 6) at +2, u16 a0 at +4, the a1 bytes at a2 from +6 (`ret 0xc`). A size of 0xffff or more is fatal (line 0xd0d). That is the only bound, though the stack buffer runs 0x1008 bytes to the cookie. An orphan (stubs.md) |
+| `FUN_0053e260` | 7 | 0xa7 (delayed state), u8 DL at +1, u32 a0 at +2, u8 a1 at +6 (`ret 8`); client handler `FUN_0045ede0`. Called twice by `FUN_005711d0` (`0x5714f4`, `0x57150f`) |
+| `FUN_0053e290` | 7 | 0xa9 (end state), laid out as `FUN_0053e260`; client handler `FUN_0045ef60`. Caller `FUN_005711d0` (`0x571523`) |
+| `FUN_0053e2c0` | (none) | `FUN_00410eb0(ECX, a0 != 0, 1)`: writes one bit to the bit writer at ECX (`ret 4`). An orphan |
+| `FUN_0053e840` | a0 + 3 | 0xae, u16 a0 at +1, the a0 bytes at EDX from +3, returns 1 (`ret 4`). a0 above 0x1fd is fatal (line 0xe38), the bound the client's size rule for 0xae uses. An orphan |
+| `FUN_0053e8d0` | a0 | queues the a0 bytes at EDX as they are (`FUN_0053b280` with EDI = ECX; `ret 4`). Callers `FUN_00570e30` (`0x5711ac`) and `FUN_005711d0` (`0x5714df`) |
 | `FUN_0053ec00` | (none) | a wrapper: `FUN_0053eae0(0, a0, 0)` with ECX and EDX as they came in |
 
 **`FUN_0053cdf0`** (EDX the unit; a null unit is fatal, line 0x72a) sends up
