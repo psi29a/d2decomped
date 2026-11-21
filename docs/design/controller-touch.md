@@ -256,7 +256,11 @@ and skill bar when touch is on and a finger/Pencil is the last device
 `touch_shows_field_controls()` is true on the open field without panels,
 including while the automap overlay is on. Belt potions are a 2x2 under Map,
 shifted one column left so the right pots clear Map, and stay on-screen
-(shifted up if they would cover the skill arc). The move
+(shifted up if they would cover the skill arc). Each occupied column shows a
+stock count including its top potion and deeper belt rows. Counts include all
+belt item kinds, exclude inventory/stash items, and count each valid belt box
+once. The artwork still represents the top item used by that column; the count
+is stock, not a promise that deeper items are immediately usable. The move
 stick uses a large `move` hit box with a smaller `move_visual` ring.
 NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
 speech text clips to that sheet, not the classic top box. Taps route

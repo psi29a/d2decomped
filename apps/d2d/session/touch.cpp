@@ -14,6 +14,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
+#include "touch_belt.hpp"
 #include "touch_binding.hpp"
 #include "touch_glyph.hpp"
 #include "touch_icon.hpp"
@@ -1307,6 +1308,9 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     ring(stick_x, stick_y, touch::kStickOuter, true);
     ring(stick_x, stick_y, touch::kStickInner, true);
     ring(stick_x + touch_input.move_x * 32, stick_y + touch_input.move_y * 32, 16);
+    touch::BeltStock belt_stock;
+    for (const auto& item : character.items)
+        if (item.location == d2d::d2s::item_location::kBelt) belt_stock.add(item.column);
     for (int index = 0; index < 4; ++index) {
         const touch::Box belt = chrome.belts[std::size_t(index)];
         const d2d::d2s::Item* belt_item = nullptr;
@@ -1327,6 +1331,17 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
                     blit_sprite(framebuffer, frame, item_pal, int(origin.first), int(origin.second));
                 }
             }
+        }
+        const int stock = belt_stock.count(std::size_t(index));
+        if (stock > 0) {
+            const std::string label = std::to_string(stock);
+            const int label_x = int(belt.x + belt.width) - font.measure(label) - 8;
+            const int label_y = int(belt.y + belt.height) - 20;
+            for (int pixel_y = label_y - 2; pixel_y < label_y + 16; ++pixel_y)
+                for (int pixel_x = label_x - 3; pixel_x < int(belt.x + belt.width) - 5; ++pixel_x)
+                    if (pixel_x >= 0 && pixel_y >= 0 && pixel_x < int(kScreenWidth) && pixel_y < int(kScreenHeight))
+                        darken(pixel_x, pixel_y, 180);
+            font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, label, 255, 220, 100);
         }
     }
     const touch::Box attack_box = chrome.attack;
