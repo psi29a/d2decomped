@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A monster's S1..S4 / SQ run at its attack rate while its current skill has UseAttackRate (FUN_00621580: the mode row's +8,
-// Skills record byte +6 & 8), else at other_animrate like any other mode (FUN_00623f50). skill_attack_rate_cases.inc is
+// A monster's S1..S4 / SQ that aren't moving modes run at its attack rate while its current skill has UseAttackRate
+// (FUN_00621580: the mode row's +8, Skills record byte +6 & 8), else at other_animrate like any other mode (FUN_00623f50);
+// the cases' unit has no class, so no S-mode is a moving one here (test_mode_rates has those). skill_attack_rate_cases.inc is
 // game.exe's own +0x4c on 3000 cases (tools/emu/skill_attack_rate.py), run here against anim_rate_pct with the real Skills.txt.
-// GH, DD and DT are left out: the oracle starts at 0x6241d7 and d2d keeps their own rules (GH: get_hit_rate).
+// GH, BL, KB, DD and DT are left out: the oracle starts at 0x6241d7, past their own branches (tools/emu/mode_rates.py
+// runs those from the entry, test_mode_rates).
 
 #include <ai.hpp>
 #include <gamedata.hpp>
@@ -47,6 +49,7 @@ int main() try {
     if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     int bad = 0;
     for (const auto& one : kCases) {
+        if (one.mode == "BL" || one.mode == "KB") continue;   // their own branches, before 0x6241d7
         Monster unit;
         unit.skill = one.skill;
         unit.props.ias = one.ias;

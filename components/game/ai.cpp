@@ -276,6 +276,56 @@ int mode_end_event(const GameData& game_data, const Monster& monster, std::strin
     return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode)) / 40) + 1;
 }
 
+namespace {
+
+constexpr std::array<std::string_view, 16> kMonModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
+
+int mon_mode(std::string_view mode) {
+    const auto found = std::ranges::find(kMonModes, mode);
+    return found == kMonModes.end() ? 1 : int(found - kMonModes.begin());
+}
+
+int anim_speed(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const auto& anim = game_data.npc_timing(monster.npc, mode);
+    return int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256);
+}
+
+bool npc_row(const GameData& game_data, const Monster& monster) {
+    return monster.type >= 0 && std::size_t(monster.type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(monster.type)];
+}
+
+}  // namespace
+
+int mode_rate(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const auto* skill = game_data.skills.get(monster.skill);
+    const bool known = monster.type >= 0 && std::size_t(monster.type) < game_data.monsters.types.size();
+    d2d::rules::ModeRateIn rate_in{ .mode = mon_mode(mode), .low_class = monster.type >= 0 && monster.type < 0x19a, .npc = npc_row(game_data, monster),
+                               .use_attack_rate = skill && skill->use_attack_rate, .speed = anim_speed(game_data, monster, mode),
+                               .velocity_pct = monster.walk_pct, .fhr = monster.props.fhr, .fcr = monster.props.fcr, .ias = monster.props.ias,
+                               .attack_rate = 100 + monster.anim_pct + monster.aura_rate, .other_rate = 100 + monster.anim_pct };
+    if (known) rate_in.base = { game_data.monsters.types[std::size_t(monster.type)].walk_base, game_data.monsters.types[std::size_t(monster.type)].run_base };
+    return d2d::rules::monster_mode_rate(rate_in);
+}
+
+// ponytail: FUN_006214a0 also makes SQ (and S1..S4 for a class at or above 0x19a) a moving mode when the unit's
+// skill instance has flags & 1 and not 0x1000 (FUN_006446a0: set by do-funcs such as DiabRun's, 0x5cd498); d2d
+// keeps no skill instance flags, so those play at their attack / other rate.
+bool own_rate_mode(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const int index = mon_mode(mode);
+    const bool skill_mode = index >= 8 && index <= 11;
+    return index == 0 || index == 2 || index == 6 || index == 12 || index == 13 || index == 15
+        || (skill_mode && monster.type >= 0 && monster.type < 0x19a && !npc_row(game_data, monster));
+}
+
+int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    if (mode != "GH" && own_rate_mode(game_data, monster, mode)) {
+        const int speed = anim_speed(game_data, monster, mode), rate = std::max(mode_rate(game_data, monster, mode), 1);
+        return int((std::int64_t(rate) * 100 + speed - 1) / speed) - 100;
+    }
+    const auto* skill = game_data.skills.get(monster.skill);
+    return anim_rate_pct(monster, mode, skill && skill->use_attack_rate);
+}
+
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
     for (const auto& npc : level.npcs) out.push_back({ .x = Fine(npc.x), .y = Fine(npc.y), .shape = npc.shape });
@@ -1769,7 +1819,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         const auto& par = run_skill->par;
         const int lvl = skill_level(game_data, monster, monster.skill);
-        const std::uint32_t frame_ms = std::max<std::uint32_t>(game_data.npc_timing(monster.npc, "RN").ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct), 1);
+        // A sequence skill (seq_diablorun): game.exe plays it in SQ (mode 14) at the SQ rate, not the run's.
+        // ponytail: the do-func sets the skill instance's flags to 1 (FUN_005cd380, 0x5cd498), which makes a later
+        // FUN_00623f50 rate it as a moving mode (walk base x walk %); d2d keeps the SQ rate throughout.
+        const std::uint32_t frame_ms = std::max<std::uint32_t>(game_data.npc_timing(monster.npc, "RN").ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1);
         const int frames = int((now_ms - monster.diab_run_ms) / frame_ms);
         const auto contact = [&] {
             if (!foe.alive || d2d::rules::unit_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y), type_info.size, foe.size) > type_info.melee_rng + 1) return;
@@ -2673,6 +2726,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     const int chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
     const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
     const int walk_pct = std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + pace + chill, 25);
+    monster.walk_pct = walk_pct;   // its moving modes' rate (mode_rate)
     const int walk = path_velocity(type_info.velocity, walk_pct);
     // A moving mode's path velocity is MonStats Velocity (FUN_00621360,
     // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes

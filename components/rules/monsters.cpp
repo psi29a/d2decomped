@@ -2,6 +2,7 @@
 // The bodies of monsters.hpp's functions; their notes are in the header.
 #include "monsters.hpp"
 
+#include "combat.hpp"
 #include "montypes.hpp"
 #include "rules.hpp"
 
@@ -669,6 +670,59 @@ std::pair<int, int> spot_about(Rng& seed, int x, int y, int reach) {
     if (seed.next() & 1) off_x = -off_x;
     if (seed.next() & 1) off_y = -off_y;
     return { x + off_x, y + off_y };
+}
+
+// A MonStats row's walk and run animation base (+0x36 / +0x38), as the loader
+// derives them (FUN_00650f00, row by row in table order; a BaseId out of the
+// table is the row itself). Walk: its BaseId row's AnimData WL speed
+// (FUN_0066a9b0, default weapon class) x its Velocity / the base row's. Run:
+// from the base row's walk base as it stands then / 2 (0 for a base row not yet
+// reached; under row 0x19a) or the base row's AnimData RN speed (0x19a on),
+// x Run / the base row's Run. Neither is scaled when the base row is the row
+// itself or the base row's value isn't above 0. Unsigned 32-bit divides; each
+// held to 0x7fff (0x650f23..0x651029).
+int monster_walk_base(bool own_base, int base_walk_speed, int velocity, int base_velocity) {
+    std::uint32_t walk = std::uint32_t(base_walk_speed);
+    if (!own_base && std::int16_t(base_velocity) > 0) walk = std::uint32_t(std::int16_t(velocity) * base_walk_speed) / std::uint32_t(std::int16_t(base_velocity));
+    return int(std::min<std::uint32_t>(walk, 0x7fff));
+}
+
+int monster_run_base(bool own_base, int start, int run, int base_run) {
+    std::uint32_t running = std::uint32_t(start);
+    if (!own_base && std::int16_t(base_run) > 0) running = std::uint32_t(std::int16_t(run) * start) / std::uint32_t(std::int16_t(base_run));
+    return int(std::min<std::uint32_t>(running, 0x7fff));
+}
+
+// A monster's animation rate in a mode, the speed word FUN_00623f50 stores at
+// unit +0x4c (type 1). In order: a cast (SC) at min(100 + effective FCR, 175)
+// %; a block (BL) at 50 (100 in state 0x65) + effective FBR %, at least 1; a
+// get-hit (GH) at 50 + effective FHR %; a knockback (KB) at the walk base; a
+// moving mode (FUN_006214a0: WL, RN; S1..S4 too for a class under 0x19a that
+// isn't a MonStats npc) at the walk base (the run base in RN) x max(stat 0x43 +
+// effective FRW, 25) %, truncated toward 0; an attack (FUN_00621580: A1, A2;
+// S1..S4 and SQ with UseAttackRate) at effective IAS + stat 68, 15..175 %; DT
+// and DD (FUN_00621630) at the speed; any other at stat 69, 15..175 %. The
+// effective stats are FUN_00621740's 120 v / (120 + v) (FRW 150). The rest
+// multiply as unsigned 32-bit and divide by 100; a rate of 0 or below is 0,
+// over 0x7fff is 0x7fff.
+int monster_mode_rate(const ModeRateIn& rate_in) {
+    const auto stored = [](std::int64_t rate) { return int(std::clamp<std::int64_t>(rate, 0, 0x7fff)); };
+    const auto times = [&](int pct) { return std::int64_t(std::uint32_t(rate_in.speed) * std::uint32_t(pct) / 100u); };   // mul / shr: unsigned
+    constexpr int kSc = 7, kGh = 3, kBl = 6, kKb = 13, kRn = 15;
+    const bool skill_mode = rate_in.mode >= 8 && rate_in.mode <= 11, sequence = rate_in.mode == 14;
+    if (rate_in.mode == kSc) return stored(times(std::min(100 + effective_speed(rate_in.fcr), 175)));
+    if (rate_in.mode == kBl) return stored(std::max<std::int64_t>(times((rate_in.blocking ? 100 : 50) + effective_speed(rate_in.fbr)), 1));
+    if (rate_in.mode == kGh) return stored(times(50 + effective_speed(rate_in.fhr)));
+    if (rate_in.mode == kKb) return stored(rate_in.base.walk);
+    const bool moving = rate_in.mode == 2 || rate_in.mode == kRn || (!rate_in.npc && rate_in.low_class && skill_mode);
+    if (moving) {
+        const int pct = std::max(rate_in.velocity_pct + effective_speed(rate_in.frw, 150), 25);
+        return stored(std::int64_t(rate_in.mode == kRn ? rate_in.base.run : rate_in.base.walk) * pct / 100);   // imul, sar: toward 0
+    }
+    if (rate_in.mode == 4 || rate_in.mode == 5 || ((skill_mode || sequence) && rate_in.use_attack_rate))
+        return stored(times(std::clamp(effective_speed(rate_in.ias) + rate_in.attack_rate, 15, 175)));
+    if (rate_in.mode == 0 || rate_in.mode == 12) return stored(rate_in.speed);
+    return stored(times(std::clamp(rate_in.other_rate, 15, 175)));
 }
 
 }

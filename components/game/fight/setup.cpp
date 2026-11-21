@@ -377,8 +377,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                 // after its server path or in-reach swing has started, and every
                 // live Monster owns the client routine's skill record and path.
                 if (!skill->st_success_only || d2d::rules::client_start_succeeds(skill->clt_st_func, context)) {
-                    const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
-                    const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256) * (100 + anim_rate_pct(*game_data, monster, monster.mode)) / 100;
+                    const int rate = mode_rate(*game_data, monster, monster.mode);   // FUN_00623f50's +0x4c
                     const d2d::rules::sound_ids::SkillStart start{ .st_sound = skill->st_sound, .st_sound_class = skill->st_sound_class, .item_cast_sound = skill->item_cast_sound,
                                                                   .delay = skill->st_sound_delay, .weapon = skill->weapon_sound };
                     for (const auto cue : d2d::rules::sound_ids::skill_start(start, 1, monster.type, monster.npc.hit_class, rate, false, false))
