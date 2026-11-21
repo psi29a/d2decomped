@@ -285,9 +285,11 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             const std::string type = type_of(*item);
             thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
                        .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };
-            for (const auto& passive : passives)
-                if (passive.stat == kPassiveMasteryThrowDamage && d2d::rules::type_is(game_data->rules, type, passive.itype))
-                    thrown.mastery = std::max(thrown.mastery, passive.value);
+            for (const auto& passive : passives) {
+                if (!d2d::rules::type_is(game_data->rules, type, passive.itype)) continue;
+                if (passive.stat == kPassiveMasteryThrowDamage) thrown.mastery = std::max(thrown.mastery, passive.value);
+                if (passive.stat == kPassiveMasteryThrowToHit) thrown.tohit = std::max(thrown.tohit, passive.value);
+            }
             return thrown;
         };
         const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);

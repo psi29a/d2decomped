@@ -309,7 +309,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
                 text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
             }
         }
-        if (line.attack_rating != 0) {
+        if (line.attack_rating != 0 || line.attack_rating2 != 0) {
             if (auto found = lookup_string(scene, std::uint16_t(line.skill == 0 ? 0xfe1 : 0xfdf))) {
                 auto label = u16_to_latin1(*found);
                 if (const auto placeholder = label.find("%s"); placeholder != label.npos) label.replace(placeholder, 2, skill_name);
@@ -317,7 +317,13 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
                 text(font6, rec[3].left, rec[3].right, rec[3].y - 4, label.substr(0, newline));
                 if (newline != label.npos) text(font6, rec[3].left, rec[3].right, rec[3].y + 4, label.substr(newline + 1));
             }
-            text(line.attack_rating < 1000 ? f16 : font8, rec[5].left, rec[5].right, rec[5].y, std::to_string(line.attack_rating), line.ar_colour);
+            // FUN_004ed570: a second rating (dual wield) draws both, "%d" each, as FUN_004e9870 does.
+            if (line.attack_rating2 != 0) {
+                text(font6, rec[5].left, rec[5].right, rec[5].y - 6, std::to_string(line.attack_rating), line.ar_colour);
+                text(font6, rec[5].left, rec[5].right, rec[5].y + 2, std::to_string(line.attack_rating2), line.ar_colour2);
+            } else {
+                text(line.attack_rating < 1000 ? f16 : font8, rec[5].left, rec[5].right, rec[5].y, std::to_string(line.attack_rating), line.ar_colour);
+            }
         }
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";

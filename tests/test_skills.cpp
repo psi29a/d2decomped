@@ -415,6 +415,30 @@ int main() try {
         line = attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5, 0, 0, 0, thrower);
         assert(line.damage && line.min == 4 && line.max == 8 && line.damage_colour == 0);
         assert(!attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5).damage);   // no other hand: no line
+        // Attack ratings: descatt 2 with two hands (FUN_004e9510 -> FUN_004e93a0) the wielded weapon's
+        // over the other's, each with its own %; 3 (Throw, FUN_004e9160) the throw mastery's to-hit for
+        // the melee one; 4 (FUN_004e95c0) the other hand's alone. Bash's to-hit at 5: 20 + 4 x 5 = 40 %.
+        Skill rated = weapon_skill;
+        rated.descdam = 0;
+        Fighter rated_off = Fighter{};
+        rated_off.ar_base = 50; rated_off.ar_pct = 0;
+        PanelUnit rated_hands;
+        rated_hands.dual_class = rated_hands.both_hands = true;
+        rated_hands.main_hand.fighter = &fighter; rated_hands.off_hand.fighter = &rated_off;
+        rated.descatt = 2;
+        line = attack_line(skill_tables, rated, env, 5, fighter, 5, 0, 0, 0, rated_hands);
+        assert(line.attack_rating == fighter.ar_base * 60 / 100 + fighter.ar_base && line.attack_rating2 == 50 * 40 / 100 + 50);
+        assert(attack_line(skill_tables, rated, env, 5, fighter, 5).attack_rating2 == 0);   // one hand: one rating
+        rated.descatt = 4;
+        line = attack_line(skill_tables, rated, env, 5, fighter, 5, 0, 0, 0, rated_hands);
+        assert(line.attack_rating == 70 && line.attack_rating2 == 0);
+        assert(attack_line(skill_tables, rated, env, 5, fighter, 5).attack_rating == 0);
+        rated.descatt = 3;
+        PanelUnit rated_throw;
+        rated_throw.thrown = { .held = true, .tohit = 30 };
+        assert(attack_line(skill_tables, rated, env, 5, fighter, 5, 0, 0, 0, rated_throw).attack_rating == fighter.ar_base * (20 - 5 + 30 + 40) / 100 + fighter.ar_base);
+        rated_throw.thrown.potion = true;                           // a throwing potion: no rating
+        assert(attack_line(skill_tables, rated, env, 5, fighter, 5, 0, 0, 0, rated_throw).attack_rating == 0);
         // descdam 2 (Kick, FUN_004ea450): MinDam << (HitShift - 8) + the unit's own stat 137, both ends.
         Skill kick = frenzy;
         kick.descdam = 2; kick.mindam = 3; kick.hitshift = 10;
