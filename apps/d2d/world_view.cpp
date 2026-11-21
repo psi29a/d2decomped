@@ -500,7 +500,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     d2d::rules::Rng seed{ unit.mode_ms ^ (std::uint32_t(std::lround(unit.x * 5)) << 16) ^ std::uint32_t(std::lround(unit.y * 5)) };
                     const int ticks = int((elapsed_ms - unit.mode_ms) / 40u), life = int((unit.missile_dies - unit.mode_ms) / 40u);
                     frame = std::uint32_t(d2d::rules::ground_fire_frame(std::min(ticks, life), life, unit.missile->anim_len, unit.missile->sub_start,
-                                                                        unit.missile->sub_stop, unit.missile->sub_loop != 0, int(per_256), seed)) % frames;
+                                                                        unit.missile->sub_stop, unit.missile->sub_loop != 0 && unit.missile->loop_anim != 0, int(per_256), seed)) % frames;
                 }
                 // Lit as any unit, Trans or not: FUN_004df510 hands FUN_004dc7b0 the unit's light (FUN_00475aa0), and the cel
                 // draw (0x511fb0) takes its light table [light >> 3] under the draw mode's blend (FUN_00471ec0: Trans 1 / 2 ->
