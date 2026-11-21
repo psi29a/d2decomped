@@ -75,7 +75,7 @@ inline std::string d2_format(std::string_view format, std::initializer_list<std:
 inline std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
-        const auto found = lookup_string(game_data, key);
+        const std::optional<std::u16string_view> found = lookup_string(game_data, key);
         std::string text = found ? u16_to_latin1(*found) : std::string(key);
         while (!text.empty() && (text.back() == '\n' || text.back() == ' ')) text.pop_back();
         return text;
@@ -390,7 +390,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
                                         const d2d::rules::Wearer* wearer = nullptr, const std::vector<d2d::d2s::Item>* owner_items = nullptr) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
-        const auto found = lookup_string(game_data, key);
+        const std::optional<std::u16string_view> found = lookup_string(game_data, key);
         return found ? u16_to_latin1(*found) : std::string(key);
     };
     auto name_at = [](const std::vector<std::string>& names, int index) -> std::string_view {

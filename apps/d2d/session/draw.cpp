@@ -585,7 +585,7 @@ auto ClientSession::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_
     // function's other rule (wrap_edit_box's language_id). d2d reads only
     // LNG\ENG's tables (gamedata_load.cpp), the language of id 0 (row 0,
     // which 0x525260 halts unless its id is 0), so it passes 0.
-    const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} }
+    const std::vector<std::string> lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} }
         : d2d::font::wrap_edit_box(*chat_typing, kWidth - 0x109, [&](unsigned char code) {
               if (const auto* glyph = font.find(code)) return int(glyph->width);
               return 0;
