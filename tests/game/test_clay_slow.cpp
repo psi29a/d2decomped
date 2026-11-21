@@ -5,6 +5,9 @@
 // `| put velocity rate length state`: rules::clay_slow (a kind 1..3 is a
 // champion, unique or superunique, monster data +0x16 & 0xc), state 0x18 for
 // rules::kClaySlowFrames.
+// `--item-slow` reads tools/emu/item_slow.py's cases (`slow type kind boss
+// hireling`, FUN_005c0310: the slow on the unit the golem strikes) and prints
+// d2d's, which has none (nothing put).
 // Without arguments: the rule's holds; with the game data, a Necromancer's
 // Clay Golem through the real Fight::clay_slows and monster_states.
 
@@ -55,6 +58,21 @@ int slow_cases() {
             const int cut = int(0u - unsigned(held));   // neg, as 0x5c67e9 (wraps at INT_MIN)
             std::printf("%s | 1 %d %d %d 24\n", line.c_str(), cut, cut, d2d::rules::kClaySlowFrames);
         }
+    }
+    return 0;
+}
+
+int item_slow_cases() {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty()) continue;
+        std::istringstream fields(line);
+        long long slow = 0, type = 0, kind = 0, boss = 0, hireling = 0;
+        if (!(fields >> slow >> type >> kind >> boss >> hireling)) {
+            std::fprintf(stderr, "malformed case: %s\n", line.c_str());
+            return 1;
+        }
+        std::printf("%s | 0 0 0 0 0\n", line.c_str());
     }
     return 0;
 }
@@ -131,6 +149,7 @@ int golem_check(const GameData& data) {
 
 int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--clay-slow") return slow_cases();
+    if (argc > 1 && std::string_view(argv[1]) == "--item-slow") return item_slow_cases();
     rule_check();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
