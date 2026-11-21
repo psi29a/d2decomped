@@ -536,6 +536,13 @@ auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& str
                 pet.monster.set_life_fine(lives.golem_life);
             }
         }
+        // Its item_slow's domeleedamage (func 19, FUN_005c0310; Clay Golem's aurastat, hooked by FUN_005c4470
+        // 0x5c4686..0x5c46f2): the struck monster slowed (rules::item_slow, put_slow).
+        if (auto& victim = monsters[target]; landed && pet.slow != 0 && victim.type >= 0) {
+            const bool boss = game_data->monsters.types[std::size_t(victim.type)].boss_column;
+            if (const int slow = d2d::rules::item_slow(pet.slow, 1, victim.target(*game_data).special, boss, false, victim.boss == d2d::rules::Boss::superunique))
+                put_slow(*game_data, victim, slow, now_ms);
+        }
         // A MonProp thorns monster's flat value back on the pet (FUN_005bf670),
         // a monster striker: through its own damage resist, as a monster's hit on a monster.
         if (landed && thorns > 0) pet_hurt(pet, d2d::rules::resisted(thorns, pet.monster.target(*game_data).res[0]), now_ms);

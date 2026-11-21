@@ -31,6 +31,11 @@ int clay_slow(int slow, int unit_type, bool special) noexcept {
     return std::min(slow, unit_type == 0 || special ? 50 : 90);
 }
 
+int item_slow(int slow, int unit_type, bool special, bool boss, bool hireling, bool superunique) noexcept {
+    if (slow == 0 || (unit_type != 0 && unit_type != 1)) return 0;
+    return std::min(slow, unit_type == 0 || special || boss || hireling ? 50 : superunique ? 75 : 90);
+}
+
 GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
                              bool owner, GolemSteal lives, int owner_max, int golem_max) {
     if ((monster && (drain & 0xff) == 0) || !evil) return lives;

@@ -7,7 +7,7 @@
 // rules::kClaySlowFrames.
 // `--item-slow` reads tools/emu/item_slow.py's cases (`slow type kind boss
 // hireling`, FUN_005c0310: the slow on the unit the golem strikes) and prints
-// d2d's, which has none (nothing put).
+// rules::item_slow's (kind 1..3 special, kind 3 or 5 superunique).
 // Without arguments: the rule's holds; with the game data, a Necromancer's
 // Clay Golem through the real Fight::clay_slows and monster_states.
 
@@ -72,7 +72,13 @@ int item_slow_cases() {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
         }
-        std::printf("%s | 0 0 0 0 0\n", line.c_str());
+        const bool monster = type == 1, special = monster && kind >= 1 && kind <= 3, superunique = monster && (kind == 3 || kind == 5);
+        const int held = d2d::rules::item_slow(int(slow), int(type), special, monster && boss != 0, monster && hireling != 0, superunique);
+        if (held == 0) std::printf("%s | 0 0 0 0 0\n", line.c_str());
+        else {
+            const int cut = int(0u - unsigned(held));   // neg, as 0x5c03e8
+            std::printf("%s | 1 %d %d %d 24\n", line.c_str(), cut, cut, d2d::rules::kClaySlowFrames);
+        }
     }
     return 0;
 }
@@ -82,6 +88,10 @@ void rule_check() {
     assert(clay_slow(0, 1, false) == 0 && clay_slow(40, 2, false) == 0 && clay_slow(40, 4, false) == 0);
     assert(clay_slow(63, 1, false) == 63 && clay_slow(95, 1, false) == 90 && clay_slow(63, 1, true) == 50 && clay_slow(63, 0, false) == 50);
     assert(clay_slow(-20, 1, false) == -20);   // held from above only: a negative one speeds it up
+    using d2d::rules::item_slow;
+    assert(item_slow(63, 1, false, false, false, false) == 63 && item_slow(95, 1, false, false, false, false) == 90);
+    assert(item_slow(80, 1, false, false, false, true) == 75 && item_slow(80, 1, true, false, false, true) == 50);
+    assert(item_slow(80, 1, false, true, false, false) == 50 && item_slow(80, 1, false, false, true, false) == 50 && item_slow(80, 0, false, false, false, false) == 50);
     std::puts("OK: the slow is held to 50 (a player, a champion, unique or superunique) or 90 (another monster), none for 0 or another type");
 }
 
@@ -110,7 +120,7 @@ int golem_check(const GameData& data) {
     world->fight.skill_base = world->fight.skill_level;
     auto* actor = world->actor;
     world->fight.summon_one(clay_row, data.monsters.row(clay_row.summon), 20, world->fight.calc_env(), actor->player.x + 3, actor->player.y, 100000);
-    const auto& pet = actor->pets.back();
+    auto& pet = actor->pets.back();
     const int slow = d2d::rules::calc_dm(clay_row.par[2], clay_row.par[3], 20);   // aurastat item_slow, dm34
     assert(pet.slow == slow && slow > 50 && slow < 90);
     auto& monsters = world->fight.monsters;
@@ -141,7 +151,22 @@ int golem_check(const GameData& data) {
     assert(monsters[zombie].speed_pct == 0 && monsters[zombie].anim_pct == 0);
     put_slow(data, monsters[zombie], 30, monsters[zombie].slow_until);
     assert(monsters[zombie].slow_speed == 30);
-    std::printf("OK: a Clay Golem at 20 (item_slow %d) slows a zombie by %d, a champion by 50, a hydra not; a re-hit keeps the velocity cut\n", slow, slow);
+    // Its own blow that lands (FUN_005c0310 through pet_strike) slows the one it strikes: a zombie by 63, a champion by 50.
+    const auto struck = add("zombie1", 90003), struck_champion = add("zombie1", 90004);
+    monsters[struck_champion].boss = d2d::rules::Boss::champion;
+    monsters[struck].stats.hit_points = monsters[struck].hit_points = monsters[struck_champion].stats.hit_points = monsters[struck_champion].hit_points = 5000;
+    d2d::rules::Blow blow{ .hit = true };
+    blow.damage = 1;
+    blow.phys_fine = 256;
+    world->fight.pet_strike(pet, struck, blow, 120000);
+    world->fight.pet_strike(pet, struck_champion, blow, 120000);
+    assert(monsters[struck].slow_speed == slow && monsters[struck].slow_until == 120000 + std::uint32_t(d2d::rules::kClaySlowFrames) * 40);
+    assert(monsters[struck_champion].slow_speed == 50);
+    d2d::rules::Blow missed{ .hit = false };
+    const auto spared = add("zombie1", 90005);
+    world->fight.pet_strike(pet, spared, missed, 120000);
+    assert(monsters[spared].slow_until == 0);
+    std::printf("OK: a Clay Golem at 20 (item_slow %d) slows a zombie that hits it, and one it hits, by %d, a champion by 50, a hydra not, a miss not; a re-hit keeps the velocity cut\n", slow, slow);
     return 0;
 }
 
