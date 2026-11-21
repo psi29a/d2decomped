@@ -532,7 +532,10 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     % in an expansion game, x damagepercent (25, at least -90) in a classic.
 //   damage, descdam 11 (FUN_004eb640, Vengeance): 5's weapon share, then
 //     calc1..3 % (each with its element's mastery) of stats 21 / 22.
-// ponytail: descdam 2..4, 6, 10, 13..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 10 (FUN_004eb460, Smite): the shield's, Holy Shield's
+//     own on top while it's on, x (Param3 + Param4 per level + its
+//     Str / DexBonus + damagepercent) %; none with no shield.
+// ponytail: descdam 2..4, 6, 13..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -553,6 +556,10 @@ struct AttackLine {
 struct PanelUnit {
     bool expansion = true;       // the game's (FUN_0044dcc0)
     int concentration = 0;       // Concentration's share of Blessed Hammer, % (FUN_006461d0, aura_influence)
+    int str = 0, dex = 0;        // stats 0 / 2
+    int holy_shield = 0;         // Holy Shield's level while its state is on, else 0
+    // The shield in hand (FUN_0063c8f0, ItemTypes shld): Armor.txt mindam / maxdam, StrBonus / DexBonus.
+    struct Shield { bool held = false; int min = 0, max = 0, str_bonus = 0, dex_bonus = 0; } shield;
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,

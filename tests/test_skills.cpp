@@ -308,6 +308,17 @@ int main() try {
         line = attack_line(skill_tables, vengeance, cold, 5, bare, 5);
         // 1 x 70 % + 1 x 45 %, 10 x 70 % + 10 x 45 %.
         assert(line.damage && line.min == 0 + 0 && line.max == 7 + 4 && line.damage_colour == 3);
+        // descdam 10 (Smite, FUN_004eb460): the shield's 2-4 x (Param3 + Param4 x 2) %, item_mindamage_percent
+        // added to the product (0x4eb5ec), not the %; none with no shield.
+        Skill smite = vengeance;
+        smite.descdam = 10; smite.par[2] = 15; smite.par[3] = 15;
+        PanelUnit holding;
+        holding.shield = { true, 2, 4, 0, 0 };
+        CalcEnv gear = env;
+        gear.stat = [](int stat) { return stat == d2d::d2s::kMinDamagePercent ? 99 : 0; };
+        line = attack_line(skill_tables, smite, gear, 3, fighter, 5, 0, 0, 0, holding);
+        assert(line.damage && line.min == 2 + (45 * 2 + 99) / 100 && line.max == 4 + 45 * 4 / 100 && line.damage_colour == 0);
+        assert(!attack_line(skill_tables, smite, gear, 3, fighter, 5).damage);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
