@@ -26,11 +26,29 @@ int heal_to_max(int& life, int max_life, int amount) {   // FUN_005c5f10: what i
     return amount;
 }
 
+// Clay Golem's slow (damagedinmelee, aura event func 27, FUN_005c6760):
+// FUN_0057c6c0 raises it on the golem once a melee hit on it has landed
+// (record +4 & 1, not & 0x20; 0x57c7a5..0x57c7f3), the striker the other
+// unit. The golem's item_slow (stat 0x96, layer 0; Clay Golem's aurastat
+// dm34) is held to 50 against a player (type 0) and a champion, unique or
+// superunique (FUN_005a0180 mask 0xc), to 90 against another monster; other
+// types and a 0 give none. Returns the slow, 0 for none: state 0x18 on the
+// striker for 0x2ee frames with velocitypercent, attackrate and
+// other_animrate at -slow (FUN_0056e970, FUN_006270b0 0x5c67cf..0x5c6840).
 int clay_slow(int slow, int unit_type, bool special) noexcept {
     if (slow == 0 || (unit_type != 0 && unit_type != 1)) return 0;
     return std::min(slow, unit_type == 0 || special ? 50 : 90);
 }
 
+// item_slow's own event (ItemStatCost domeleedamage / domissiledamage, func 19,
+// FUN_005c0310), on the unit it strikes: on gear's wearer, and on a summon whose
+// aurastat it is (FUN_005c4470 0x5c4686..0x5c46f2: Clay Golem's), raised as its
+// hit lands (FUN_0057c6c0 event 5, 0x57c7d8..0x57c7e3). Held to 50 against a
+// player, and against a monster that is a champion, unique or superunique
+// (`special`, +0x16 & 0xc), a MonStats boss (FUN_0063e9f0) or a hireling
+// (FUN_0063ee90); to 75 against one with the superunique flag (+0x16 & 2)
+// alone; to 90 against another monster; other types and a 0 give none
+// (0x5c0347..0x5c03c9). The same state 0x18 as clay_slow's.
 int item_slow(int slow, int unit_type, bool special, bool boss, bool hireling, bool superunique) noexcept {
     if (slow == 0 || (unit_type != 0 && unit_type != 1)) return 0;
     return std::min(slow, unit_type == 0 || special || boss || hireling ? 50 : superunique ? 75 : 90);
