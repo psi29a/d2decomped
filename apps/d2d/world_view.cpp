@@ -283,7 +283,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         static d2d::rules::Stars stars;
         const int screen_h = int(framebuffer.size() / 4) / std::max(screen_w, 1);
         if (!stars.made)
-            stars.make(std::uint32_t(std::time(nullptr)) + elapsed_ms, screen_w, screen_h,   // game.exe: time() and the clock mixed (FUN_00650de0)
+            stars.make(std::uint32_t(std::uint64_t(std::time(nullptr)) & 0xffffffffu) + elapsed_ms, screen_w, screen_h,   // game.exe: time() and the clock mixed (FUN_00650de0)
                        [&](int red, int green, int blue) { return upal_splash.nearest(red, green, blue); });
         for (const auto& star : stars.stars) {
             if (star.x < 0 || star.y < 0 || star.x >= screen_w || star.y >= screen_h) continue;
