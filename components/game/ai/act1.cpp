@@ -35,7 +35,10 @@ struct Act1Ai : ThinkCtx {
     // (mode 9: FUN_005dd050 -> FUN_0058f380 on FUN_005dcda0).
     // The group list runs newest first (FUN_0058f100 adds at its head, as
     // each member is made), so its last match is the first in pack order.
-    // ponytail: the selectable flag (+0xc4 bit 1) and the udead states but shatter (freeze 1 on a corpse) aren't kept.
+    // A usable corpse has no udead state (FUN_0063a770, monster-ai.md): usable_corpse's corpse_used holds the
+    // ones that reach a corpse here (raised, revived, eaten, exploded, redeemed, a vine's, and a death in freeze
+    // or shatter, deaths.cpp).
+    // ponytail: the selectable flag (+0xc4 bit 1) isn't kept.
     void fallen_shaman() {
         auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
         const auto corpse_for = [&](const Monster& other) {
