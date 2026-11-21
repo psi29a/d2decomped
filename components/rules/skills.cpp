@@ -375,9 +375,15 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour;
     };
     if (skill.descdam == 1 || skill.descdam == 7) {
+        // FUN_004ea010: a SrcDam other than 128 takes MulDiv(end, SrcDam, 128) of the weapon part before
+        // the skill's own (0x4ea0cf..0x4ea0f9; Strafe's 96).
         line.damage = true;
         weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+        if (skill.srcdam_raw != 128) {
+            line.min = mul_div(line.min, skill.srcdam_raw, 128);
+            line.max = mul_div(line.max, skill.srcdam_raw, 128);
+        }
         own_damage(1);
     } else if (skill.descdam == 5 || skill.descdam == 24) {   // FUN_004ead60, FUN_004eae70: the same sum in another order
         line.damage = true;
