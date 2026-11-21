@@ -208,8 +208,8 @@ auto World::use_warp() -> void {
         // here, k its own rank among its row's slots there; none placed: the
         // lowest slot back that is.
         // ponytail: several tiles of one slot take the first built (game.exe:
-        // the first room of its list, then the first unit of its room): room
-        // unit lists are agent D's.
+        // the first room of its list, newest first, then the first unit of its
+        // room): d2d keeps no room unit lists.
         auto back = std::ranges::find_if(destination->warps, [&](const Level::Warp& other) { return other.destination == level->id && other.pair == warp.pair; });
         if (back == destination->warps.end())
             for (auto it = destination->warps.begin(); it != destination->warps.end(); ++it)
