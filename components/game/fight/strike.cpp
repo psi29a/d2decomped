@@ -265,6 +265,19 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             panel_unit.shield = { true, base->second.min_1h, base->second.maxdam, base->second.str_bonus, base->second.dex_bonus };
             break;
         }
+        // The thrown weapon: FUN_0063bef0's, when FUN_0062ba80 calls it throwable. Its mastery is the
+        // best passive throw damage (346) whose type fits it; only Throwing Mastery gives one, and with it
+        // the throwingmastery state FUN_004ea4a0 asks for.
+        if (const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items); wielded && throwable(*game_data, wielded->code)) {
+            const auto info = game_data->rules.item_info.find(wielded->code);
+            const auto base = game_data->rules.item_base.find(wielded->code);
+            const std::string type = info == game_data->rules.item_info.end() ? std::string{} : info->second.type;
+            panel_unit.thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
+                                  .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };
+            for (const auto& passive : passives)
+                if (passive.stat == kPassiveMasteryThrowDamage && d2d::rules::type_is(game_data->rules, type, passive.itype))
+                    panel_unit.thrown.mastery = std::max(panel_unit.thrown.mastery, passive.value);
+        }
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k) {
             if (const auto* skill = game_data->skills.get(int(chosen[k]))) {

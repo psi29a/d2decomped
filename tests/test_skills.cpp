@@ -342,6 +342,29 @@ int main() try {
         // the weapon: 3 x 130 % + 2 fire, 7 x 130 % + 4 fire.
         assert(line.damage && line.two && line.min == 5 && line.max == 13 && line.damage_colour == 1);
         assert(line.min2 == 2 + 4 && line.max2 == 3 + 6 && line.colour2 == 1);
+        // descdam 21 (Lightning Bolt, FUN_004ea790): the javelin's throw 10-20 at +50 % (its own item %
+        // 18 / 17 plus damagepercent) and the throw mastery's 20 %, x SrcDam 64 / 128, then the lightning.
+        Skill lightning_bolt = arrow;
+        lightning_bolt.descdam = 21; lightning_bolt.etype = 1; lightning_bolt.srcdam_raw = 64; lightning_bolt.emin = 1; lightning_bolt.emax = 30;
+        Fighter javelin = fighter;
+        javelin.throw_lo = 10; javelin.throw_hi = 20;
+        PanelUnit throwing;
+        throwing.thrown = { .held = true, .mastery = 20 };
+        CalcEnv sharp = env;
+        sharp.stat = [](int stat) { return stat == d2d::d2s::kDamagePercent ? 30 : stat == d2d::d2s::kMinDamagePercent || stat == d2d::d2s::kMaxDamagePercent ? 20 : 0; };
+        line = attack_line(skill_tables, lightning_bolt, sharp, 1, javelin, 5, 0, 0, 0, throwing);
+        // 10 + 50 % = 15, + 20 % = 18, / 2 = 9; 20 -> 30 -> 36 -> 18; + 1-30 yellow.
+        assert(line.damage && !line.two && line.min == 9 + 1 && line.max == 18 + 30 && line.damage_colour == 9);
+        assert(!attack_line(skill_tables, lightning_bolt, sharp, 1, javelin, 5, 0, 0, 0, {}).damage);   // nothing throwable: no line
+        // descdam 22 (the javelins, FUN_004eaaa0): the same throw with the gear's fire 2-4 on it (red), x SrcDam,
+        // over the skill's lightning; nothing throwable leaves the element alone.
+        Skill fury_jav = lightning_bolt;
+        fury_jav.descdam = 22;
+        line = attack_line(skill_tables, fury_jav, sharp, 1, javelin, 5, 0, 0, 0, throwing);
+        // (18 + 2) / 2, (36 + 4) / 2.
+        assert(line.two && line.min == 10 && line.max == 20 && line.damage_colour == 1 && line.min2 == 1 && line.max2 == 30 && line.colour2 == 9);
+        line = attack_line(skill_tables, fury_jav, sharp, 1, javelin, 5);
+        assert(line.damage && !line.two && line.min == 1 && line.max == 30 && line.damage_colour == 9);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
