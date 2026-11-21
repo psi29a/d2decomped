@@ -2620,10 +2620,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (taken.damage > 0) foe.damaged_by.push_back(monster.id);
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
                 // Iron Maiden (FUN_005c5f50, rules::iron_maiden_fine) as the hit lands: its own record back, the
-                // physical resisted on the monster (FUN_0057c1e0, res[0]), with Thorns' 0x4021 (below).
-                // ponytail: the struck one's absorbs (Bone Armor, Energy Shield) come off +8 before it in game.exe
-                // (0x57c2fc); here the physical is the reduced roll, before Foe::take's absorbs.
-                if (const auto* maiden = monster.curse.skill >= 0 ? game_data.skills.get(monster.curse.skill) : nullptr; taken.hit && maiden && maiden->auratarget == "ironmaiden") {
+                // physical resisted on the monster (FUN_0057c1e0, res[0]), with Thorns' 0x4021 (below). It is the
+                // striker's domeleedamage event, which FUN_0057c6c0 raises after FUN_0057c1e0 has run the struck
+                // unit's own events (its absorbs: Bone Armor, Energy Shield, 0x57c2fc) and its reduction, so +8
+                // is what they left. A player's absorbs come off as its blows resolve: its blow carries `reflect`
+                // and Fight::hurt_side sends it back then; a merc or pet has none, so it goes now.
+                const bool absorbs_later = !foe.pet && !foe.of;
+                if (const auto* maiden = monster.curse.skill >= 0 ? game_data.skills.get(monster.curse.skill) : nullptr; taken.hit && maiden && maiden->auratarget == "ironmaiden" && absorbs_later) {
+                    if (!foe.blows.empty()) foe.blows.back().reflect = true;
+                } else if (taken.hit && maiden && maiden->auratarget == "ironmaiden") {
                     const int physical = taken.raw >= 0 ? d2d::rules::reduce_fine_signed(taken.raw, foe.fighter.dr_pct, foe.fighter.dr_flat) : taken.physical << 8;
                     if (const auto back = d2d::rules::iron_maiden_fine(true, false, false, physical, monster.reflect_pct, 0, 0)) {
                         const int fine = d2d::rules::resisted_fine(*back, std::max(monster.target(game_data).res[0], -100));

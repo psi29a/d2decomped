@@ -1747,9 +1747,13 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     the monster as its own hit, its physical resisted there (res[0],
     `resisted_fine`), the get-hit as Thorns' 0x4021. The wearer rule is
     "hireling" (FUN_0063ee90 classes 0x10f, 0x152, 0x167, 0x230, 0x231), not
-    "any pet": a skeleton or a golem is a monster, so calc1. Not ported: the
-    leech tail for class 0x122, and the struck unit's absorbs before +8
-    (d2d reads the reduced roll).
+    "any pet": a skeleton or a golem is a monster, so calc1. +8 is what the
+    struck unit's own events (its absorbs: Bone Armor, Energy Shield) and its
+    reduction left: FUN_0057c6c0 runs FUN_0057c1e0 (they're in there, 0x57c2fc)
+    before the striker's domeleedamage. d2d: a player's blow carries `reflect`
+    and `Fight::hurt_side` sends it back after `Fight::absorb`
+    (`test_iron_maiden`); a merc or pet has no absorbs, so theirs goes as the
+    hit lands. Not ported: the leech tail for class 0x122.
   - **Item stats** use the same table (ItemStatCost itemevent1..2 /
     itemeventfunc1..2, row +0x48 / +0x4c and +0x4a / +0x4e; event ids in
     Events.txt order, 5 domeleedamage, 6 domissiledamage, 9 kill). When such

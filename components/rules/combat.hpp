@@ -201,6 +201,8 @@ struct StruckBlow {
     // game.exe absorbs first (state event 0xb, 0x57c2fc) and reduces after (the loop at 0x57c378). -1: not known,
     // the physical and `frac` are taken as they are (nothing to reduce again).
     int raw = -1, pct = 0, flat = 0;
+    // Its striker wears Iron Maiden: its physical goes back once the absorbs took theirs (Fight::hurt_side).
+    bool reflect = false;
     // The fire / lightning / cold / magic parts before the defender's resistance (Taken::element_raw, by monster_blow's
     // element type: 0 fire, 1 lightning, 2 cold, 4 magic; 3 is poison, which has no record field an absorb reads): the rolls
     // summed (whole points), what the blow carries of them now (`dealt`, whole points) and the resistance they went through.
