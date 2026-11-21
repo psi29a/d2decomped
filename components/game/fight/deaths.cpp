@@ -173,9 +173,8 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // becomes 0xa0, and FUN_004afc10 breaks it into ice (rules::shatter_rows) from it.
             // Each stands on the corpse unless its row has a speed (rules::shatter_row_made),
             // for its Range + LevRange at level 1, facing a draw below 64 (FUN_004cd540, flags 0x2020).
-            // ponytail: the draw is sound_rng (the client's rolls), not the missile's own seed (+0x20):
-            // {1, 666}, then its room's seed (+0x6c / +0x70) stepped once, {low, 666} (FUN_00465fd0,
-            // 0x46606a..0x466093); d2d keeps no client room seeds.
+            // The draw is on the missile's own client seed (+0x20): its room's client stream stepped once,
+            // {low, 666} (FUN_00465fd0, client_unit_seed), each made in turn.
             if (monster.mode != monster.fx_mode && monster.mode == "DT" && (monster.shatter || now_ms < monster.frozen_until)) {
                 monster.corpse_used = true;
                 monster.hit_class = (monster.hit_class & 0xf) | 0xa0;
@@ -184,8 +183,12 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                     if (const auto found = game_data->missiles.find(std::string(d2d::rules::shatter_row_name(row)));
                         found != game_data->missiles.end() && d2d::rules::shatter_row_made(found->second.vel, found->second.vel_lev)) {
                         const int ice_frames = d2d::rules::missile_range(found->second.range, found->second.lev_range, 1);
-                        Missile ice{ &found->second, monster.unit.x, monster.unit.y, 0, 0, sound_rng(64), now_ms, now_ms + std::uint32_t(std::max(ice_frames, 1)) * 40, {} };
+                        auto client_seed = level ? client_unit_seed(*level, room_of(*level, monster.unit.x, monster.unit.y)) : d2d::rules::Rng{ 1 };
+                        const int facing = client_seed(64);
+                        Missile ice{ &found->second, monster.unit.x, monster.unit.y, 0, 0, facing, now_ms, now_ms + std::uint32_t(std::max(ice_frames, 1)) * 40, {} };
                         ice.visual_only = true;
+                        ice.client_seed = client_seed;
+                        ice.client_seeded = true;
                         pending.push_back(std::move(ice));
                     }
             }
