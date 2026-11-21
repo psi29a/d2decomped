@@ -8,8 +8,9 @@
 // `--item-slow` reads tools/emu/item_slow.py's cases (`slow type kind boss
 // hireling`, FUN_005c0310: the slow on the unit the golem strikes) and prints
 // rules::item_slow's (kind 1..3 special, kind 3 or 5 superunique).
-// Without arguments: the rule's holds; with the game data, a Necromancer's
-// Clay Golem through the real Fight::clay_slows and monster_states.
+// Without arguments: the rule's holds and put_slow's gates on made-up rows;
+// with the game data, a Necromancer's Clay Golem through the real
+// Fight::clay_slows, pet_strike and monster_states.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -23,6 +24,7 @@
 #include <pets.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <test_data.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 
@@ -97,6 +99,30 @@ void rule_check() {
     std::puts("OK: the slow is held to 50 (a player, a champion, unique or superunique) or 90 (another monster), none for 0 or another type");
 }
 
+// put_slow on made-up MonStats rows: none on an npc or a row without isAtt
+// (FUN_0056e970); a re-hit while on keeps the velocity cut, sets the rates and
+// runs longer; after it, a new one.
+void state_check() {
+    d2d::test::TestData made;
+    made.monster(0, "biter").is_att = true;
+    made.monster(1, "talker").is_att = true;
+    made.monster(2, "post");
+    made.data.mon_is_npc = { false, true, false };
+    const std::uint32_t frames = std::uint32_t(d2d::rules::kClaySlowFrames) * 40;
+    Monster biter, talker, post;
+    biter.type = 0; talker.type = 1; post.type = 2;
+    put_slow(made.data, biter, 40, 1000);
+    put_slow(made.data, talker, 40, 1000);
+    put_slow(made.data, post, 40, 1000);
+    assert(biter.slow_speed == 40 && biter.slow_rate == 40 && biter.slow_until == 1000 + frames);
+    assert(talker.slow_until == 0 && post.slow_until == 0);
+    put_slow(made.data, biter, 25, 2000);
+    assert(biter.slow_speed == 40 && biter.slow_rate == 25 && biter.slow_until == 2000 + frames);
+    put_slow(made.data, biter, 25, biter.slow_until);
+    assert(biter.slow_speed == 25);
+    std::puts("OK: put_slow takes no npc and no row without isAtt; a re-hit keeps the velocity cut, a new put after it doesn't");
+}
+
 // A level-30 Necromancer's Clay Golem (at 20): a zombie whose melee blow landed
 // on it is slowed by its item_slow, a champion by 50 at most; a MonStats2 row
 // without isAtt (hydra1) takes none; a re-hit keeps the velocity cut.
@@ -168,6 +194,14 @@ int golem_check(const GameData& data) {
     const auto spared = add("zombie1", 90005);
     world->fight.pet_strike(pet, spared, missed, 120000);
     assert(monsters[spared].slow_until == 0);
+    // A pet whose summoning skill doesn't hook func 27 (a Blood Golem given item_slow) slows no striker.
+    auto& other = actor->pets.emplace_back(pet);
+    other.skill = data.skills.by_name.at("BloodGolem");
+    const auto unhooked = add("zombie1", 90006);
+    Foe struck_by;
+    struck_by.landed_by = { 90006 };
+    world->fight.clay_slows(other, struck_by, 130000);
+    assert(monsters[unhooked].slow_until == 0);
     std::printf("OK: a Clay Golem at 20 (item_slow %d) slows a zombie that hits it, and one it hits, by %d, a champion by 50, a hydra not, a miss not; a re-hit keeps the velocity cut\n", slow, slow);
     return 0;
 }
@@ -178,6 +212,7 @@ int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--clay-slow") return slow_cases();
     if (argc > 1 && std::string_view(argv[1]) == "--item-slow") return item_slow_cases();
     rule_check();
+    state_check();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP (the golem check): no d2data.mpq (D2_MPQ_DIR)"); return 0; }

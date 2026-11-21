@@ -79,7 +79,14 @@ bool shadow_may_have(const d2d::rules::Skill* skill, const d2d::rules::MonType& 
 }
 
 auto Fight::clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms) -> void {
-        if (pet.slow == 0) return;
+        // FUN_005c4470 hooks the summoning skill's own aura events (0x5c48ce..0x5c4931): only a pet whose skill
+        // carries damagedinmelee func 27 (Clay Golem's) has it; the value is its whole item_slow, gear's too.
+        const auto* skill = game_data->skills.get(pet.skill);
+        if (pet.slow == 0 || !skill) return;
+        bool hooked = false;
+        for (std::size_t event = 0; event < skill->aura_event.size(); ++event)
+            hooked = hooked || (skill->aura_event[event] == "damagedinmelee" && skill->aura_event_func[event] == 27);
+        if (!hooked) return;
         for (const int striker : foe.landed_by)
             if (const int found = monster_index(striker); found >= 0 && monsters[std::size_t(found)].alive()) {
                 auto& struck = monsters[std::size_t(found)];
