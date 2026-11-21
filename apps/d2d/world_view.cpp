@@ -8,6 +8,7 @@
 #include "scene.hpp"
 #include "watchdog.hpp"
 
+#include <blend.hpp>
 #include <cof.hpp>
 #include <combat.hpp>
 #include <dc6.hpp>
@@ -614,17 +615,12 @@ bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
             const auto colour = pal[idx];
             auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             const d2d::palette::Rgba under{ pixel[0], pixel[1], pixel[2], 0xFF };
-            if (trans == 1 || trans == 2) {                            // PL2 additive / multiply
-                const auto mixed = trans == 1 ? d2d::palette::additive_blend(under, colour) : d2d::palette::multiply_blend(under, colour);
-                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
-            }
-            else if (trans >= 3 && trans <= 5) {                       // a quarter, half, three quarters of the layer (PL2 +0x23500 / +0x13500 / +0x3500)
-                constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
-                const auto mixed = d2d::palette::alpha_blend(under, colour, weights[trans - 3]);
-                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
-            }
-            else if (trans == 6) {                                     // weighted by the file colour's greatest channel (PL2 +0x5b500)
-                const auto mixed = d2d::palette::max_component_blend(under, colour, d2d::palette::max_component_weight(pal.entries()[idx]));
+            if (trans >= 1 && trans <= 6) {                            // through the PL2's tables (blend.hpp)
+                // 1 / 2 additive / multiply; 3..5 a quarter, half, three quarters of the layer (+0x23500 /
+                // +0x13500 / +0x3500); 6 weighted by the colour's greatest channel (+0x5b500).
+                using d2d::palette::Blend;
+                constexpr Blend kModes[]{ Blend::kAdditive, Blend::kMultiply, Blend::kAlpha25, Blend::kAlpha50, Blend::kAlpha75, Blend::kMaxComponent };
+                const auto mixed = d2d::palette::blend(kModes[trans - 1], under, colour);
                 pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
             }
             else { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
@@ -650,7 +646,8 @@ void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::Playe
                 const int pixel_x = left + x - pixel_row / 2;
                 if (row[x] == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
                 auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
-                pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
+                const auto mixed = d2d::palette::blend(d2d::palette::Blend::kAlpha75, { pixel[0], pixel[1], pixel[2], 0xFF }, { 0, 0, 0, 0xFF });   // T[ground][0]
+                pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
             }
         }
     });

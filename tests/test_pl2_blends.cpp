@@ -5,7 +5,11 @@
 // palette::alpha_blend (FUN_00605880, weights 0xbf / 0x7f / 0x3f),
 // additive_blend (FUN_006059b0) or multiply_blend (FUN_00605aa0). Rebuilt
 // for each act's Pal.PL2 and compared with the file, all 65,536 cells of
-// each table. The max-component table is test_pl2_max_blend's.
+// each table. The max-component table is test_pl2_max_blend's. Then the
+// Blender (blend.hpp): each blend drawn is the table's entry for the screen's
+// and sprite's colours found back as indices, an off-palette one by its nearest;
+// none installed, palette::blend is the RGB formula.
+#include <blend.hpp>
 #include <mpq.hpp>
 #include <palette.hpp>
 
@@ -57,7 +61,38 @@ int main() try {
             std::printf("act %d %s: %d of 65536 cells differ\n", act, table.name, differ);
             assert(differ == 0);
         }
+        using d2d::palette::Blend;
+        d2d::palette::Blender blender(pl2);
+        const Blend modes[]{ Blend::kAlpha75, Blend::kAlpha50, Blend::kAlpha25, Blend::kAdditive, Blend::kMultiply, Blend::kMaxComponent };
+        const std::size_t offsets[]{ 0x3500, 0x13500, 0x23500, 0x33500, 0x43500, 0x5b500 };
+        int wrong = 0;
+        for (std::size_t mode = 0; mode < 6; ++mode)
+            for (std::size_t screen = 0; screen < 256; ++screen)
+                for (std::size_t sprite = 0; sprite < 256; sprite += 7) {
+                    // A colour shared by two entries finds the lower: its row is the same (the tables go by colour).
+                    const auto want = entries[std::uint8_t(raw[offsets[mode] + blender.index_of(entries[screen]) * 256 + blender.index_of(entries[sprite])])];
+                    const auto got = blender.mix(modes[mode], entries[screen], entries[sprite]);
+                    if (got.r != want.r || got.g != want.g || got.b != want.b) ++wrong;
+                    if (base.entries()[blender.index_of(entries[screen])].r != entries[screen].r) ++wrong;
+                }
+        // What makes the lookup exact: an entry sharing another's colour has its rows and columns.
+        for (std::size_t mode = 0; mode < 6; ++mode)
+            for (std::size_t entry = 0; entry < 256; ++entry) {
+                const std::size_t found = blender.index_of(entries[entry]);
+                for (std::size_t other = 0; other < 256; ++other) {
+                    if (raw[offsets[mode] + entry * 256 + other] != raw[offsets[mode] + found * 256 + other]) ++wrong;
+                    if (raw[offsets[mode] + other * 256 + entry] != raw[offsets[mode] + other * 256 + found]) ++wrong;
+                }
+            }
+        const Rgba off{ 1, 2, 250, 0xFF };                 // no entry's: its nearest
+        assert(blender.index_of(off) == base.nearest(1, 2, 250));
+        std::printf("act %d Blender: %d wrong\n", act, wrong);
+        assert(wrong == 0);
     }
+    assert(d2d::palette::installed_blender() == nullptr);
+    const Rgba red{ 200, 10, 10, 0xFF }, grey{ 100, 100, 100, 0xFF };
+    const auto plain = d2d::palette::blend(d2d::palette::Blend::kAdditive, grey, red);
+    assert(plain.r == 255 && plain.g == 110 && plain.b == 110);
     // The weights are game.exe's, not exact quarters: a quarter of black over
     // white keeps 255 * 192 / 255 = 192 of it, where 255 * 3 / 4 is 191.
     const Rgba black{ 0, 0, 0, 0xFF }, white{ 255, 255, 255, 0xFF };

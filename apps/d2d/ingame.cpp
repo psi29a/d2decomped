@@ -15,6 +15,7 @@
 #include "watchdog.hpp"
 #include "world_view.hpp"
 
+#include <blend.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <palette.hpp>
@@ -306,8 +307,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             for (int y = std::max(rect[1], 0); y < std::min(rect[3], int(kScreenHeight)); ++y)
                 for (int x = std::max(rect[0], 0); x < std::min(rect[2], world_w); ++x) {
                     auto* pixel = &world[(std::size_t(y) * std::size_t(world_w) + std::size_t(x)) * 4];
-                    for (std::size_t channel = 0; channel < 3; ++channel)
-                        pixel[channel] = mode == 5 ? rgb[channel] : mode == 1 ? std::uint8_t((pixel[channel] + rgb[channel]) / 2) : std::uint8_t(pixel[channel] / 4);
+                    const d2d::palette::Rgba under{ pixel[0], pixel[1], pixel[2], 0xFF }, over{ rgb[0], rgb[1], rgb[2], 0xFF };
+                    const auto mixed = mode == 5 ? over : mode == 1 ? d2d::palette::blend(d2d::palette::Blend::kAlpha50, under, over)
+                                                                    : d2d::palette::blend(d2d::palette::Blend::kAlpha75, under, { 0, 0, 0, 0xFF });
+                    pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
                 }
         };
         // Alt ("Show Items", UI\showitems.cpp FUN_004c0810): the drawn
