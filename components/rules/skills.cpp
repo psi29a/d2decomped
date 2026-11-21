@@ -303,23 +303,29 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
     // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
     // elements on top (each colouring it), held to 1 and min + 1 when there is any.
-    // ponytail: FUN_004e86f0 takes the unit's stats 21 / 22 (23 / 24 two-handed; +1 / +2 bare) x (100 +
-    // stat 18 / 17 + its %) / 100 + the item's stat 111 + flat; this takes the Fighter's (the weapon's
-    // base with its own %, then the gear's flat and 111, x the %). Whether the two agree for every item
-    // turns on what the unit's stat 21 holds; not compared (panel_damage.py hooks FUN_004e86f0).
     // Bare hands (the unit's own fighter, no weapon wielded): + the strength (stat 0) to the %, where a
     // weapon's StrBonus / DexBonus would go (FUN_004e86f0 at its item test, before the -90 floor).
-    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
-        const int bare = &hand == &fighter && !unit.armed ? unit.str : 0;
-        const int total = std::max(hand.phys_pct + pct + bare, -90);
-        out.min = int((std::int64_t(hand.phys_lo) * (100 + total) / 100) >> 8) + flat;
-        out.max = int((std::int64_t(hand.phys_hi) * (100 + total) / 100) >> 8) + flat;
+    // FUN_004e89a0: the elements on top, each colouring it, held to 1 and min + 1 when there is any.
+    const auto elements_of = [&](const Fighter& hand, AttackLine& out) {
         for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
             const auto& [low, high] = hand.elem[elem];
             out.min += std::min(low, high); out.max += high;
             if (low != 0 || high != 0) out.damage_colour = kElemColour[elem];
         }
         if (out.max > 0) { out.min = std::max(out.min, 1); out.max = std::max(out.max, out.min + 1); }
+    };
+    // FUN_004e86f0: stats 21 / 22 (23 / 24 two-handed; +1 / +2 bare), at least 1 / 2, x (100 + stat
+    // 18 / 17 + the %) / 100, + the weapon's own stat 111 + `flat` (0x4e8873..0x4e88c0); the % is
+    // `pct` + damagepercent + the weapon mastery + its Str / DexBonus share (bare hands: the strength),
+    // at least -90. Then FUN_004e89a0 (tools/emu/panel_damage.py runs FUN_004e86f0 itself). The
+    // skill-flag-8 share (a Druid's / Assassin's) isn't kept.
+    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
+        const bool bare = &hand == &fighter && !unit.armed;
+        const int low = std::max(hand.stat_lo + (bare ? 1 : 0), 1), high = std::max(hand.stat_hi + (bare ? 2 : 0), 2);
+        const int total = std::max(hand.phys_pct + pct + (bare ? unit.str : 0), -90);
+        out.min = int((std::int64_t(hand.unit_min_pct) + 100 + total) * low / 100) + hand.item_normal + flat;
+        out.max = int((std::int64_t(hand.unit_max_pct) + 100 + total) * high / 100) + hand.item_normal + flat;
+        elements_of(hand, out);
     };
     const auto weapon = [&](int pct, int flat) { weapon_of(fighter, pct, flat, line); };
     const auto state_colour = [&](PanelColour bit, int colour) { return (red & bit) ? 1 : (blue & bit) ? 3 : colour; };
@@ -371,8 +377,8 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         if (thrown.str_bonus != 0) pct += unit.str * thrown.str_bonus / 100;
         if (thrown.dex_bonus != 0) pct += unit.dex * thrown.dex_bonus / 100;
         pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
-        low = hand.throw_lo + (stat(d2d::d2s::kMinDamagePercent) + pct) * hand.throw_lo / 100;
-        high = hand.throw_hi + (stat(d2d::d2s::kMaxDamagePercent) + pct) * hand.throw_hi / 100;
+        low = hand.throw_lo + (hand.unit_min_pct + pct) * hand.throw_lo / 100;      // the unit's 18 / 17: the weapon's own stay on it (op 13)
+        high = hand.throw_hi + (hand.unit_max_pct + pct) * hand.throw_hi / 100;
         low += mul_div(low, thrown.mastery + extra, 100);
         high += mul_div(high, thrown.mastery + extra, 100);
     };
@@ -387,7 +393,7 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         out.max = std::max(out.max, out.min);
         AttackLine elements;
         elements.damage_colour = out.damage_colour;
-        weapon_of(Fighter{ .phys_lo = 0, .phys_hi = 0, .elem = hand.elem }, 0, 0, elements);
+        elements_of(hand, elements);
         out.min += elements.min;
         out.max += std::max(elements.max, elements.min);
         out.damage_colour = state_colour(kPanelDamage, elements.damage_colour);
@@ -558,8 +564,8 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         if (unit.shield.str_bonus != 0) pct += unit.str * unit.shield.str_bonus / 100;
         if (unit.shield.dex_bonus != 0) pct += unit.dex * unit.shield.dex_bonus / 100;
         pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
-        line.min = low + (pct * low + stat(d2d::d2s::kMinDamagePercent)) / 100;
-        line.max = high + (pct * high + stat(d2d::d2s::kMaxDamagePercent)) / 100;
+        line.min = low + (pct * low + fighter.unit_min_pct) / 100;               // the unit's 18 / 17 (op 13 keeps the weapon's own)
+        line.max = high + (pct * high + fighter.unit_max_pct) / 100;
         line.damage_colour = state_colour(kPanelDamage, 0);
     } else if (skill.descdam == 11) {                         // FUN_004eb640 (Vengeance)
         // EType's colour, the weapon's share (FUN_004e9660), then for calc1 / calc2 / calc3 (fire, cold,

@@ -70,6 +70,9 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
         fighter.throw_hi = int(weapon_base->max_misdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
                                + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8);
     }
+    fighter.unit_min_pct = int(stat(kMinDamagePercent) - weapon_stat(kMinDamagePercent));
+    fighter.unit_max_pct = int(stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
+    fighter.item_normal = weapon_base ? int(weapon_stat(kNormalDamage)) : 0;
     fighter.stat_lo = int(low - stat(kNormalDamage) - (weapon_base ? 0 : 1));
     fighter.stat_hi = int(high - stat(kNormalDamage) - (weapon_base ? 0 : 2));
     low = std::max<std::int64_t>(low, 1) << 8;

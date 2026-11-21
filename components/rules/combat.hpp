@@ -45,6 +45,9 @@ struct Fighter {
     // The unit's stats 21 / 22 (23 / 24 with a two-hander): the weapon's with its own %, + the gear's flat.
     int stat_lo = 0, stat_hi = 0;
     int throw_lo = 0, throw_hi = 0;                 // stats 159 / 160 the same way: the weapon's minmisdam / maxmisdam
+    // The unit's stats 18 / 17 beside the weapon's own (op 13 keeps those on the weapon), and the
+    // weapon's own stat 111: the char panel's sum (FUN_004e86f0).
+    int unit_min_pct = 0, unit_max_pct = 0, item_normal = 0;
     int ar_base = 1, ar_pct = 0;
     int ar_base_bare = 1;                           // ar_base with the weapon's own stats off (FUN_004e9040)
     int mastery_tohit = 0;                          // ar_pct's share from the weapon mastery (342, or 345 throwing)

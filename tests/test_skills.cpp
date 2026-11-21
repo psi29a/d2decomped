@@ -227,7 +227,7 @@ int main() try {
     // +20 % (5 of it the mastery).
     {
         Fighter fighter;
-        fighter.phys_lo = 3 << 8; fighter.phys_hi = 7 << 8; fighter.phys_pct = 30;
+        fighter.phys_lo = 3 << 8; fighter.phys_hi = 7 << 8; fighter.phys_pct = 30; fighter.stat_lo = 3; fighter.stat_hi = 7;
         fighter.ar_base = 100; fighter.ar_pct = 20; fighter.ar_base_bare = 100;
         fighter.elem[0] = { 2, 4 };
         Skill weapon_skill = skill_tables.rows[0];
@@ -238,13 +238,19 @@ int main() try {
         // (3 x 256 x 180 % >> 8) + 5 + 2, (7 x 256 x 180 % >> 8) + 5 + 4; 100 x (20 + 40) %.
         assert(line.damage && line.min == 5 + 5 + 2 && line.max == 12 + 5 + 4 && line.damage_colour == 1);
         assert(line.attack_rating == 160);                  // descatt 1 (0x4e9000): the mastery stays in, as 2's
+        {   // FUN_004e86f0: the unit's own stat 18 / 17 in the %, the weapon's stat 111 after it.
+            Fighter gear = fighter;
+            gear.unit_min_pct = 20; gear.unit_max_pct = 40; gear.item_normal = 4;
+            const auto more = attack_line(skill_tables, weapon_skill, env, 5, gear, 5);
+            assert(more.min == 3 * (100 + 20 + 30 + 50) / 100 + 4 + 5 + 2 && more.max == 7 * (100 + 40 + 30 + 50) / 100 + 4 + 5 + 4);
+        }
         weapon_skill.descatt = 5;                           // FUN_004e9040: the mastery out
         assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).attack_rating == 155);
         weapon_skill.descatt = 1;
         PanelUnit bare_hands;                               // no weapon: + the strength (50) to the % (FUN_004e86f0)
         bare_hands.armed = false; bare_hands.str = 50;
         line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5, 0, 0, 0, bare_hands);
-        assert(line.min == (3 * 256 * 230 / 100 >> 8) + 5 + 2 && line.max == (7 * 256 * 230 / 100 >> 8) + 5 + 4);
+        assert(line.min == (3 + 1) * 230 / 100 + 5 + 2 && line.max == (7 + 2) * 230 / 100 + 5 + 4);   // bare: stats 21 / 22 + 1 / + 2
         line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5);
         weapon_skill.descdam = 18;                          // Royal Strike (FUN_004ec040): 7's line
         assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).min == line.min && attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).max == line.max);
@@ -330,10 +336,12 @@ int main() try {
         PanelUnit holding;
         holding.shield = { true, 2, 4, 0, 0 };
         CalcEnv gear = env;
-        gear.stat = [](int stat) { return stat == d2d::d2s::kMinDamagePercent ? 99 : 0; };
-        line = attack_line(skill_tables, smite, gear, 3, fighter, 5, 0, 0, 0, holding);
+        gear.stat = [](int) { return 0; };
+        Fighter geared = fighter;
+        geared.unit_min_pct = 99;                           // the unit's stat 18 (no weapon's own: op 13)
+        line = attack_line(skill_tables, smite, gear, 3, geared, 5, 0, 0, 0, holding);
         assert(line.damage && line.min == 2 + (45 * 2 + 99) / 100 && line.max == 4 + 45 * 4 / 100 && line.damage_colour == 0);
-        assert(!attack_line(skill_tables, smite, gear, 3, fighter, 5).damage);
+        assert(!attack_line(skill_tables, smite, gear, 3, geared, 5).damage);
         // descdam 17 (Charged Strike, FUN_004ebd50): the weapon's as 7's (with its fire, red) over the
         // skill's lightning (yellow); a 0-0 element leaves the weapon alone.
         Skill strike = weapon_skill;
@@ -362,11 +370,11 @@ int main() try {
         Skill lightning_bolt = arrow;
         lightning_bolt.descdam = 21; lightning_bolt.etype = 1; lightning_bolt.srcdam_raw = 64; lightning_bolt.emin = 1; lightning_bolt.emax = 30;
         Fighter javelin = fighter;
-        javelin.throw_lo = 10; javelin.throw_hi = 20;
+        javelin.throw_lo = 10; javelin.throw_hi = 20; javelin.unit_min_pct = javelin.unit_max_pct = 20;
         PanelUnit throwing;
         throwing.thrown = { .held = true, .mastery = 20 };
         CalcEnv sharp = env;
-        sharp.stat = [](int stat) { return stat == d2d::d2s::kDamagePercent ? 30 : stat == d2d::d2s::kMinDamagePercent || stat == d2d::d2s::kMaxDamagePercent ? 20 : 0; };
+        sharp.stat = [](int stat) { return stat == d2d::d2s::kDamagePercent ? 30 : 0; };
         line = attack_line(skill_tables, lightning_bolt, sharp, 1, javelin, 5, 0, 0, 0, throwing);
         // 10 + 50 % = 15, + 20 % = 18, / 2 = 9; 20 -> 30 -> 36 -> 18; + 1-30 yellow.
         assert(line.damage && !line.two && line.min == 9 + 1 && line.max == 18 + 30 && line.damage_colour == 9);
@@ -386,7 +394,7 @@ int main() try {
         Skill frenzy = weapon_skill;
         frenzy.descdam = 19; frenzy.etype = -1;
         Fighter off = Fighter{};
-        off.phys_lo = 10 << 8; off.phys_hi = 20 << 8; off.phys_pct = 0;
+        off.phys_lo = 10 << 8; off.phys_hi = 20 << 8; off.phys_pct = 0; off.stat_lo = 10; off.stat_hi = 20;
         PanelUnit barbarian;
         barbarian.dual_class = true; barbarian.both_hands = true;
         barbarian.main_hand.fighter = &fighter; barbarian.off_hand.fighter = &off;
@@ -414,6 +422,10 @@ int main() try {
         barbarian.off_hand = { &off_throw, { .held = true } };
         line = attack_line(skill_tables, double_throw, plain, 5, fighter, 5, 0, 0, 0, barbarian);
         assert(line.two && line.min == 17 && line.max == 34 && line.damage_colour == 1 && line.min2 == 6 && line.max2 == 12 && line.colour2 == 0);
+        off_throw.unit_min_pct = 100;                           // the left weapon's world alone: the right hand's line keeps its 17
+        line = attack_line(skill_tables, double_throw, plain, 5, fighter, 5, 0, 0, 0, barbarian);
+        assert(line.min == 17 && line.min2 == (4 + 4 * 100 / 100) * 150 / 100);
+        off_throw.unit_min_pct = 0;
         // descdam 3 (Throw, FUN_004ea990): the wielded throw (15-30 with its fire 2-4, x SrcDam 128 / 128),
         // then the skill's element; 4 (Left Hand Throw, FUN_004eaa30): the other hand's throw alone.
         Skill throw_skill = frenzy;
