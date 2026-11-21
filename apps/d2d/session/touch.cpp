@@ -1046,6 +1046,29 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (info->icon >= 0 && std::uint32_t(info->icon) < art.frames_per_direction())
             blit_sprite(framebuffer, art.frame(0, std::uint32_t(info->icon)), palette, pixel_x, pixel_y);
     };
+    const auto blit_frame_scaled = [&](const touch::Box& box, const d2d::dc6::Frame& frame, const d2d::palette::Palette& pal, float scale) {
+        if (scale <= 0.f || frame.width == 0 || frame.height == 0) return;
+        const int dest_w = std::max(1, int(std::lround(float(frame.width) * scale)));
+        const int dest_h = std::max(1, int(std::lround(float(frame.height) * scale)));
+        const int dst_x = int(box.x + (box.width - float(dest_w)) * .5f);
+        const int dst_y = int(box.y + (box.height - float(dest_h)) * .5f);
+        const int screen_w = int(kScreenWidth);
+        for (int pixel_y = 0; pixel_y < dest_h; ++pixel_y) {
+            const int dy = dst_y + pixel_y;
+            if (dy < 0 || dy >= int(kScreenHeight)) continue;
+            const int src_y = std::min(int(frame.height) - 1, int(float(pixel_y) / scale));
+            for (int pixel_x = 0; pixel_x < dest_w; ++pixel_x) {
+                const int dx = dst_x + pixel_x;
+                if (dx < 0 || dx >= screen_w) continue;
+                const int src_x = std::min(int(frame.width) - 1, int(float(pixel_x) / scale));
+                const auto idx = frame.pixels[std::size_t(src_y) * frame.width + std::size_t(src_x)];
+                if (idx == 0) continue;
+                const auto colour = pal[idx];
+                auto* pixel = &framebuffer[(std::size_t(dy) * std::size_t(screen_w) + std::size_t(dx)) * 4];
+                pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; pixel[3] = colour.a;
+            }
+        }
+    };
     const auto blit_skill_icon_centered = [&](const touch::Box& box, int skill_id, bool fill_button = false) {
         const auto* info = scene->skills.get(skill_id);
         if (!info || info->icon < 0) return;
