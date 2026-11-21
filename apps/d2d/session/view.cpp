@@ -243,6 +243,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         unit.missile = shot_state.info;
         unit.missile_rate = shot_state.anim_rate;
         unit.missile_z = shot_state.motion_z;
+        unit.missile_dies = shot_state.dies;
         out.push_back(std::move(unit));
     };
     for (const auto& shot_state : view.missiles) shot(shot_state);

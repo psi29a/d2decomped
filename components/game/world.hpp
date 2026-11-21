@@ -169,7 +169,8 @@ struct View {
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
     // motion_z: in pixels, negative up (gfx.md "The motion record": draw z = -z); a client spark's (client_sparks.hpp).
-    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; int anim_rate = 0; int motion_z = 0; };
+    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; int anim_rate = 0; int motion_z = 0;
+                  std::uint32_t dies = 0; };   // dies: when its Range runs out (a ground fire's frames left, rules::ground_fire_frame), 0 unknown
     std::vector<Shot> missiles;
     int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
     std::vector<Loot::GroundItem> ground;  // the level's floor

@@ -13,9 +13,11 @@
 #include <dc6.hpp>
 #include <dt1.hpp>
 #include <level_ids.hpp>
+#include <missiles.hpp>
 #include <overlays.hpp>
 #include <palette.hpp>
 #include <room_tiles.hpp>
+#include <rules.hpp>
 #include <stars.hpp>
 #include <weather.hpp>
 
@@ -490,8 +492,16 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 if (dirs == 0 || fpd == 0) continue;
                 // AnimSpeed in 16ths of a frame a tick, or the unit's own rate (+0x4c) where one was set.
                 const std::uint32_t per_256 = unit.missile_rate > 0 ? std::uint32_t(unit.missile_rate) : std::uint32_t(unit.missile->anim_speed) * 16u;
-                const auto frame = (elapsed_ms - unit.mode_ms) * per_256 / (40u * 256u)
-                                   % std::min<std::uint32_t>(std::uint32_t(unit.missile->anim_len), fpd);
+                const std::uint32_t frames = std::min<std::uint32_t>(std::uint32_t(unit.missile->anim_len), fpd);
+                auto frame = (elapsed_ms - unit.mode_ms) * per_256 / (40u * 256u) % frames;
+                if (unit.missile->clt_do == 5 && unit.missile_dies > unit.mode_ms) {
+                    // Client do 5 (FUN_004d3540 / FUN_004d30c0): rise once, burn in SubStart..SubStop, sink at the end.
+                    // ponytail: the jump's draw is game.exe's client unit seed (+0x20), not traced; d2d seeds by spot and birth.
+                    d2d::rules::Rng seed{ unit.mode_ms ^ (std::uint32_t(std::lround(unit.x * 5)) << 16) ^ std::uint32_t(std::lround(unit.y * 5)) };
+                    const int ticks = int((elapsed_ms - unit.mode_ms) / 40u), life = int((unit.missile_dies - unit.mode_ms) / 40u);
+                    frame = std::uint32_t(d2d::rules::ground_fire_frame(std::min(ticks, life), life, unit.missile->anim_len, unit.missile->sub_start,
+                                                                        unit.missile->sub_stop, unit.missile->sub_loop != 0, int(per_256), seed)) % frames;
+                }
                 if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y + unit.missile_z, unit.missile->trans))
                     Scene::note_drawn("missiles", unit.missile->cel_file);
                 continue;

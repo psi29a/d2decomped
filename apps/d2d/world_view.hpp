@@ -76,6 +76,7 @@ struct Unit {
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
     int missile_rate = 0;                // a missile's own, in 256ths of a frame a tick (unit +0x4c); 0: its AnimSpeed
     int missile_z = 0;                   // ... and its motion z, pixels down the screen (View::Shot::motion_z)
+    std::uint32_t missile_dies = 0;      // ... and when its Range runs out (View::Shot::dies), 0 unknown
     bool hold = false;                   // plays once and stays on its last frame (an opened chest)
     std::uint8_t frames = 0, loop_from = 0;   // an object's FrameCnt / Start in its mode (Npc::frames), 0: the COF's length
     std::uint16_t frame_delta = 0;            // ... and its FrameDelta: 256 a frame a tick
