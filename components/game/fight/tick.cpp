@@ -857,6 +857,23 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
         foe.damage = absorb(foe, now_ms);                   // leaves foe.frac what the absorbs left of the 256ths
+        // Iron Maiden's reflect on what the absorbs and the reduction left of each blow's physical (ai.cpp's
+        // note: the striker's domeleedamage comes after the struck unit's events in FUN_0057c6c0).
+        for (const auto& blow : foe.blows) {
+            if (!blow.reflect || blow.striker < 0) continue;
+            const int index = monster_index(blow.striker);
+            if (index < 0) continue;
+            auto& striker = monsters[std::size_t(index)];
+            const auto* maiden = striker.curse.skill >= 0 ? game_data->skills.get(striker.curse.skill) : nullptr;
+            if (!maiden || maiden->auratarget != "ironmaiden" || !striker.alive()) continue;
+            const int physical = blow.raw >= 0 ? int(std::max<std::int64_t>(d2d::rules::reduce_fine_signed(blow.raw, blow.pct, blow.flat), 0)) : blow.physical << 8;
+            if (const auto back = d2d::rules::iron_maiden_fine(true, false, false, physical, striker.reflect_pct, 0, 0)) {
+                const int fine = d2d::rules::resisted_fine(*back, std::max(striker.target(*game_data).res[0], -100));
+                const bool out_of_gh = striker.mode != "GH";
+                if (hurt(*game_data, striker, fine >> 8, now_ms, fine & 255, maiden->hit_class)) { killed(std::size_t(index), now_ms); continue; }   // the player's record (FUN_005c5f50's B)
+                if (out_of_gh) striker.struck_event = true;   // 0x4021: FUN_0057cee0's 0x4000 branch raises event 4
+            }
+        }
         const int fine = foe.frac;
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;
