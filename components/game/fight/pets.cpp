@@ -247,7 +247,11 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
 auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
         const auto swung = pet.monster.classic_stats();
         const int curse = std::max(pet_buff_stat(pet, d2d::d2s::kDamagePercent), -90 - pet.damage_pct);
-        const auto& base = pet.a1_unscaled[1] > 0 ? pet.a1_unscaled : std::array<int, 2>{ swung.a1_min, swung.a1_max };
+        // The curse's base is the unscaled A1 through the same classic cut (classic_swing) as the swing's.
+        auto unscaled = pet.monster.stats;
+        unscaled.a1_min = pet.a1_unscaled[0]; unscaled.a1_max = pet.a1_unscaled[1];
+        if (pet.monster.classic) d2d::rules::classic_swing(unscaled, pet.monster.difficulty, pet.monster.row_align);
+        const auto base = pet.a1_unscaled[1] > 0 ? std::array<int, 2>{ unscaled.a1_min, unscaled.a1_max } : std::array<int, 2>{ swung.a1_min, swung.a1_max };
         return d2d::rules::simple_fighter(std::max(swung.a1_min + base[0] * curse / 100, 0), std::max(swung.a1_max + base[1] * curse / 100, 0), swung.to_hit);
     }
 

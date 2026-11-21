@@ -12,6 +12,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <loot.hpp>
+#include <monsters.hpp>
 #include <rules.hpp>
 #include <test_data.hpp>
 
@@ -52,6 +53,19 @@ int main() try {
     pet.buff_stats[d2d::d2s::kDamagePercent] = -300;                  // the sum floored at -90: the curse's share -115
     const auto floored = fight.pet_swing(pet);
     assert(floored.min == 10 + 8 * -115 / 100 && floored.max == 20 + 16 * -115 / 100);
+    // A classic game's pet above Normal: its A1 is cut (classic_swing), and the curse's share is taken off the
+    // same cut base.
+    Fight::Pet classic_pet = pet;
+    classic_pet.mirror = false;
+    classic_pet.monster.classic = true; classic_pet.monster.difficulty = 2; classic_pet.monster.row_align = 0;
+    classic_pet.damage_pct = 0;
+    classic_pet.a1_unscaled = { 120, 120 };
+    classic_pet.monster.stats.a1_min = classic_pet.monster.stats.a1_max = 120;
+    classic_pet.buff_stats[d2d::d2s::kDamagePercent] = -33;
+    auto cut = classic_pet.monster.stats;
+    d2d::rules::classic_swing(cut, 2, 0);
+    const auto classic_swing_blow = fight.pet_swing(classic_pet);
+    assert(cut.a1_max < 120 && classic_swing_blow.max == cut.a1_max + cut.a1_max * -33 / 100);
     // pet_strike: the curse is in the swing now, so nothing more comes off a pet's blow after the roll; a
     // Shadow (it swings its owner's fighter) still takes its share there.
     pet.buff_stats[d2d::d2s::kDamagePercent] = -33;
