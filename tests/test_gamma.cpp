@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: palette
-// DirectDraw's gamma ramp (FUN_006be190) and the Video Options slider
-// truncation (FUN_0047cc90, FUN_0047cd00).
+// DirectDraw's gamma ramp (FUN_006be190), put on the frame as it's shown
+// (Palette::ramp / ramp_rgba), and the Video Options slider truncation
+// (FUN_0047cc90, FUN_0047cd00).
 #include <palette.hpp>
 
 #include <algorithm>
@@ -23,10 +24,9 @@ d2d::palette::Palette ramp_palette() {
 void expect_contrast_100(const d2d::palette::Palette& palette, int gamma) {
     for (const int index : { 1, 16, 64, 128, 192, 255 }) {
         const int level = std::min(255, index * gamma / 100);
-        assert(palette[std::uint8_t(index)].r == level);
-        assert(palette[std::uint8_t(index)].g == level);
-        assert(palette[std::uint8_t(index)].b == level);
-        assert(palette.entries()[std::size_t(index)].r == index);
+        const auto shown = d2d::palette::Palette::ramp(palette[std::uint8_t(index)]);
+        assert(shown.r == level && shown.g == level && shown.b == level);
+        assert(palette[std::uint8_t(index)].r == index);              // the frame keeps the file's colour
     }
 }
 
@@ -45,7 +45,7 @@ int main() try {
 
     Palette::set_ramp(100, 100);
     assert(Palette::gamma() == 100);
-    for (int index = 0; index < 256; ++index) assert(palette[std::uint8_t(index)].r == index);
+    for (int index = 0; index < 256; ++index) assert(Palette::ramp(palette[std::uint8_t(index)]).r == index);
     expect_contrast_100(palette, 100);
 
     Palette::set_ramp(55, 100);
@@ -56,21 +56,24 @@ int main() try {
     // FUN_006be190's blend, truncated (FUN_00682fd0 with the SSE2 flag set).
     // The research note's samples are 128 -> 163 and 192 -> 212.
     Palette::set_ramp(155, 0);
-    assert(palette[1].r == 7);
-    assert(palette[16].r == 42);
-    assert(palette[64].r == 104);
-    assert(palette[128].r == 163);
-    assert(palette[192].r == 212);
-    assert(palette[255].r == 255);
-    assert(palette.entries()[128].r == 128);
+    assert(Palette::ramp(palette[1]).r == 7);
+    assert(Palette::ramp(palette[16]).r == 42);
+    assert(Palette::ramp(palette[64]).r == 104);
+    assert(Palette::ramp(palette[128]).r == 163);
+    assert(Palette::ramp(palette[192]).r == 212);
+    assert(Palette::ramp(palette[255]).r == 255);
+    assert(palette[128].r == 128);
+    std::array<std::uint8_t, 8> frame{ 128, 64, 192, 0xFF, 1, 255, 16, 0xFF };   // two RGBA pixels, as shown
+    Palette::ramp_rgba(frame);
+    assert(frame[0] == 163 && frame[1] == 104 && frame[2] == 212 && frame[3] == 0xFF && frame[4] == 7 && frame[5] == 255 && frame[6] == 42);
 
     Palette::set_ramp(155, 50);
-    assert(palette[1].r == 4);
-    assert(palette[16].r == 33);
-    assert(palette[64].r == 101);
-    assert(palette[128].r == 180);
-    assert(palette[192].r == 233);
-    assert(palette[255].r == 255);
+    assert(Palette::ramp(palette[1]).r == 4);
+    assert(Palette::ramp(palette[16]).r == 33);
+    assert(Palette::ramp(palette[64]).r == 101);
+    assert(Palette::ramp(palette[128]).r == 180);
+    assert(Palette::ramp(palette[192]).r == 233);
+    assert(Palette::ramp(palette[255]).r == 255);
 
     using d2d::palette::slider_position;
     using d2d::palette::slider_value;

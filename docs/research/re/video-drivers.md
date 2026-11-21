@@ -135,7 +135,11 @@ Video Options' two sliders, both kept in the registry under "Diablo II".
   At contrast 100 the power term is zero and the truncation is the integer
   line above. The converter is `FUN_00682fd0`, which truncates when the
   CRT's SSE2 flag is set. Run, `video_drivers.py gamma`, through game.exe's
-  own code. d2d applies this on palette lookup (palette.hpp), default 155
+  own code. d2d applies it as the frame is shown (palette.hpp
+  `Palette::ramp_rgba`: main.cpp's `shown_frame`, a screenshot, the hardware
+  cursor), as DirectDraw's present draws the 8-bit frame through the ramped
+  palette (below): the frame keeps the palette's own colours, so a blend
+  through the PL2 tables finds its indices exactly (blend.hpp). Default 155
   and 100, keys `gamma` and `contrast` in d2d.cfg. Index 0 stays transparent.
 - **Who applies it.** DirectDraw: `+0x58` (`0x510300`) keeps the gamma and
   rebuilds the palette through the ramp (`FUN_00510160`, contrast from

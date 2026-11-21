@@ -128,6 +128,7 @@ struct Window {
                                 : scale_mode == SDL_SCALEMODE_NEAREST ? CursorScaleMode::nearest
                                                                       : CursorScaleMode::pixelart;
         auto image = cursor_image(frame, pal, pixels / density, cursor_scale);
+        d2d::palette::Palette::ramp_rgba(image.rgba);                  // shown as the frame is: through the display ramp
         if (!cursor || image != cursor_points) {
             const auto surface_of = [](CursorImage& made) {
                 return SDL_CreateSurfaceFrom(made.width, made.height, SDL_PIXELFORMAT_RGBA32, made.rgba.data(), made.width * 4);
@@ -135,6 +136,7 @@ struct Window {
             SDL_Surface* base = surface_of(image);
             if (!base) return false;
             auto dense = density > 1 ? cursor_image(frame, pal, pixels, cursor_scale) : CursorImage{};
+            d2d::palette::Palette::ramp_rgba(dense.rgba);
             if (SDL_Surface* sharp = dense.width > 0 ? surface_of(dense) : nullptr) {
                 SDL_AddSurfaceAlternateImage(base, sharp);
                 SDL_DestroySurface(sharp);   // base holds its own reference

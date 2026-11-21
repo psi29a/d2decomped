@@ -130,6 +130,16 @@ unsigned int _newlib_heap_size_user = 300 * 1024 * 1024;
 
 namespace {
 
+// The frame as it goes to the screen (and a screenshot): through the display ramp, DirectDraw's on the
+// whole picture (FUN_006be190, Palette::ramp_rgba). The frame itself keeps the palette's colours, so
+// a blend through the PL2 tables finds them (palette::Blender).
+const std::vector<std::uint8_t>& shown_frame(const std::vector<std::uint8_t>& framebuffer) {
+    static std::vector<std::uint8_t> shown;
+    shown = framebuffer;
+    d2d::palette::Palette::ramp_rgba(shown);
+    return shown;
+}
+
 #ifdef D2D_WITH_SENTRY
 std::string cpu_model() {
 #if defined(_WIN32) && (defined(_M_IX86) || defined(_M_X64))
@@ -617,7 +627,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         SDL_Event event;
         while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) quit = true;
         if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()), boot_title->version);
-        SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
+        SDL_UpdateTexture(win.texture, nullptr, shown_frame(framebuffer).data(), int(kScreenWidth * 4));
         SDL_RenderClear(win.renderer);
         SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
         SDL_RenderPresent(win.renderer);
@@ -1475,7 +1485,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         // loop cannot reach its usual presentation until they return.
                         render_tcpip(framebuffer, *scene, tcpip, now_ms);
                         render_connecting(framebuffer, *scene);
-                        SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), fb_width(framebuffer) * 4);
+                        SDL_UpdateTexture(win.texture, nullptr, shown_frame(framebuffer).data(), fb_width(framebuffer) * 4);
                         SDL_RenderClear(win.renderer);
                         SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
                         SDL_RenderPresent(win.renderer);
@@ -1992,7 +2002,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         if (!(wflags & SDL_WINDOW_MINIMIZED)) {
             current_phase.store(std::uint32_t(MainPhase::Upload),
                                 std::memory_order_relaxed);
-            SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), fb_width(framebuffer) * 4);
+            SDL_UpdateTexture(win.texture, nullptr, shown_frame(framebuffer).data(), fb_width(framebuffer) * 4);
             SDL_RenderClear(win.renderer);
             SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
             current_phase.store(std::uint32_t(MainPhase::Present),
@@ -2303,7 +2313,7 @@ int main(int argc, char** argv) {
         // Relative paths land in the user screenshots dir.
         const fs::path out = fs::path(args[1]).is_relative() ? shot_dir / args[1]
                                                              : fs::path(args[1]);
-        const auto written = d2d::screenshot::save_png(out, framebuffer, std::uint32_t(fb_width(framebuffer)), kScreenHeight);
+        const auto written = d2d::screenshot::save_png(out, shown_frame(framebuffer), std::uint32_t(fb_width(framebuffer)), kScreenHeight);   // as shown: ramped
         return "ok " + std::to_string(written) + "\n";
     });
     channel.on("quit", [&](const std::vector<std::string>&) {
