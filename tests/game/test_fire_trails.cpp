@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// Fire Wall through the REAL Fight on an open level (do 24, FUN_005c9ea0): a flame on the point, then its two makers
-// (missile do 6, FUN_005ae680) fly out both ways from it, square to the caster's line, laying flames as they go.
+// Fire Wall and Blaze through the REAL Fight on an open level. Fire Wall (do 24, FUN_005c9ea0): a flame on the point, then
+// its two makers (missile do 6, FUN_005ae680) fly out both ways square to the caster's line and lay a flame at their
+// subtile only on a frame they entered a new one (FUN_006505c0: path +0x34 & 8), so no two flames share a subtile.
+// Blaze (FUN_005c9d90): a flame at the player's subtile on each new subtile walked into, none while standing in one.
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -90,8 +92,34 @@ int main() try {
     }
     std::printf("Fire Wall: %zu flames on %zu subtiles, %d north and %d south of the point\n", wall_spots.size(), wall_set.size(), north, south);
     assert(wall_set.contains({ point_x, point_y }));   // srvmissileb on the point
+    assert(wall_set.size() == wall_spots.size());       // one flame a subtile
     assert(north > 0 && north == south);                 // growing both ways from the point
-    std::puts("OK: Fire Wall's makers fly square to the caster's line, both ways (FUN_005c9ea0)");
+
+    // Blaze: walk east 0.3 subtile a frame for 30 frames, then stand 10 frames.
+    world.fight.missiles.clear();
+    const auto& blaze = *data->skills.get(data->skills.by_name.at("Blaze"));
+    const auto& blaze_fire = data->missiles.at("blaze");
+    world.fight.start_state(blaze, 1, now);
+    world.actor->player.walking = true;
+    // The subtiles a walking step entered: the one the player already stood on isn't one (the Fire Wall above ran there).
+    const auto subtile = [&] { return std::pair{ int(std::floor(world.actor->player.x * 5)), int(std::floor(world.actor->player.y * 5)) }; };
+    std::set<std::pair<int, int>> entered;
+    for (int frame = 0; frame < 40; ++frame) {
+        if (frame == 30) world.actor->player.walking = false;
+        if (world.actor->player.walking) {
+            const auto before = subtile();
+            world.actor->player.x += 0.3f / 5;
+            if (subtile() != before) entered.insert(subtile());
+        }
+        now += kTickMs;
+        world.fight.world(true, now, 0.04f, crowd);
+    }
+    const auto blaze_spots = flames_of(blaze_fire);
+    const std::set<std::pair<int, int>> blaze_set(blaze_spots.begin(), blaze_spots.end());
+    std::printf("Blaze: %zu flames on %zu subtiles, %zu entered\n", blaze_spots.size(), blaze_set.size(), entered.size());
+    assert(blaze_set.size() == blaze_spots.size());   // one flame a subtile
+    assert(!entered.empty() && blaze_set == entered);  // on each subtile entered, none off the path or while standing
+    std::puts("OK: Fire Wall's makers and Blaze lay a flame a new subtile (FUN_005ae680, FUN_005c9d90)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_fire_trails: %s\n", error.what());

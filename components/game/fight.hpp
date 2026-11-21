@@ -415,7 +415,8 @@ struct Fight {
         std::vector<SelfState> self_states;
         int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb, whole points
         int absorb_frac = 0;                           // and the 256ths of a point the pool holds beyond them
-        std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
+        std::pair<int, int> blaze_subtile{ -1, -1 };   // the subtile the player stood in at the last Blaze check
+        std::uint32_t storm_next = 0;                  // Thunder Storm's next bolt
         int storm_last = -1;                            // the unit id Thunder Storm struck last (FUN_00644560)
         std::uint32_t blade_next = 0;                  // Blade Shield's next strike
         std::uint32_t armageddon_next = 0, hurricane_next = 0;   // their timer events (type 5) next
@@ -1075,8 +1076,9 @@ struct Fight {
     [[nodiscard]] static int land_range(const GameData::MissileInfo& missile_info, float dx, float dy);
     // Once a frame for the player's skill missiles (their pSrvDoFunc):
     // 7 (FUN_005ae780) turns a guided one to its target every Param1
-    // frames; 6 (FUN_005ae680, Fire Wall's maker) leaves its SubMissile1
-    // where it is; 10 / 25 (FUN_005aea60 / FUN_005af880 -> FUN_005a9820:
+    // frames; 6 (FUN_005ae680, Fire Wall's maker) and 23 (FUN_005af790,
+    // Firestorm) leave SubMissile1 at their subtile on a frame they entered
+    // a new one (FUN_006505c0); 10 / 25 (FUN_005aea60 / FUN_005af880 -> FUN_005a9820:
     // Blizzard, Eruption) every calc2 frames drop SubMissile1 at a random
     // point -(calc1 - 1)..(calc1 - 2) subtiles from it on each axis; 5
     // (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze) burns whoever
@@ -1088,7 +1090,7 @@ struct Fight {
     // 256ths a frame (FUN_004cc7c0).
     // Also Strafe's queued arrows and Inferno's flames.
     // ponytail: a burner hits a monster once a frame however many overlap
-    // (by skill); the maker leaves one a frame (not per subtile); a Bone
+    // (by skill); a Bone
     // Spirit cast at nothing seeks the monster nearest the cast point.
     // The acting player's own shots this frame: Strafe's arrows due, a
     // channelled skill's (Inferno, Blade Fury).
