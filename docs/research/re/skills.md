@@ -293,9 +293,9 @@ lines (missile names aren't passed in). What it does:
 Attack (`FUN_0056f070`), Double Throw (`FUN_005d88b0`) and Whirlwind's gap
 (`FUN_005d9320`) call it (game-calls.tsv). Its default is `FUN_0063c9b0`'s
 wielded item. Only a two-handed class (`FUN_006235a0`: a Barbarian, an
-Assassin, a Shadow) goes on, by the used skill's record byte `+0x168` (not a
-Skills.txt column of that name; read from the loaded 1.14d tables in
-`tools/emu` (`drlg.boot()`): Double Swing, Double Throw, Frenzy and the
+Assassin, a Shadow) goes on, by the used skill's record byte `+0x168`, Skills.txt
+`weapsel` (every 1.14d row's matches, read from the loaded tables in `tools/emu`,
+`drlg.boot()`): Double Swing, Double Throw, Frenzy and the
 Assassin's claw skills Fists of Fire, Dragon Claw, Claws of Thunder,
 Blades of Ice 3; Whirlwind 2; Dragon Talon, Dragon Tail, Dragon Flight 4;
 every other row 0):
@@ -310,10 +310,16 @@ every other row 0):
   set-bit blow at another target (`FUN_0056bd10`).
 - 4: no weapon (the kicks).
 The pick must be a usable weapon (0x2d, `FUN_0062a4e0`), else the default.
-d2d: Frenzy's and Double Swing's other target on every second event
-(`Fight::hit` callers in strike.cpp); the blow's weapon is the merged
-fighter, not the hand's (ponytail there). What `+0x38` counts, and whether
-the hand's blow sees the other weapon's stats, aren't traced.
+`+0x38` is the sequence position (structs.tsv, units.md `FUN_00621260`), so 3
+alternates by row. The weapon's stats on the unit follow the hand:
+`FUN_00623c80` (called by the rate set-up `FUN_00623f50` as a mode starts, and by
+`FUN_0064b860`) turns the selected weapon's stat list on and the other's off
+(`FUN_00627910`, cited-core.md), and the blow's damage (`FUN_0057b420`) reads the
+unit's stats 21 / 22. d2d: `Fight::blow_fighter` takes the hand's fighter
+(`Hero::hand_combat`, each weapon alone) by `Skill::weapsel`, the left on
+Frenzy's and Double Swing's even events, where they also turn to another target
+(`test_two_hands_blow`). Not kept: weapsel 2's turn to the left on the node's
+flag 0x2000, set by what isn't traced.
 
 ### Kicks — Dragon Talon (srvstfunc 24 / srvdofunc 42)
 - Start (FUN_005d5970): in reach, the kick count = **calc1**

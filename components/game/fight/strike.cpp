@@ -225,6 +225,23 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             }
         }
         actor->player_combat = player_fighter(&actor->pf_kick, &st_sum, &passives, &actor->psum);
+        // Two weapons in a two-handed class's hands (FUN_006235a0): each alone, as FUN_00623c80 turns the
+        // swinging one's stats on and the other's off when the mode starts (blow_fighter picks).
+        actor->two_hands = false;
+        if (actor->character.character_class == 4 || actor->character.character_class == 6) {
+            const auto weapon_in = [&](int slot) -> const d2d::d2s::Item* {
+                const auto held = std::ranges::find_if(actor->character.items, [&](const d2d::d2s::Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
+                if (held == actor->character.items.end() || !d2d::rules::item_usable(*held) || !game_data->rules.item_info.contains(held->code)
+                    || game_data->rules.item_info.at(held->code).kind != 2) return nullptr;
+                return &*held;
+            };
+            const auto *right = weapon_in(body_location::kRightArm), *left = weapon_in(body_location::kLeftArm);
+            if (right && left) {
+                actor->two_hands = true;
+                actor->hand_combat[0] = player_fighter(nullptr, &st_sum, &passives, nullptr, right);
+                actor->hand_combat[1] = player_fighter(nullptr, &st_sum, &passives, nullptr, left);
+            }
+        }
         constexpr int kRes[4] = { kFireResist, kLightningResist, kColdResist, kPoisonResist };          // Fighter::res order: fire, lightning, cold, poison
         constexpr std::size_t kPanelRes[4] = { 0, 2, 1, 3 };  // PanelStats::res_cap order: fire, cold, lightning, poison
         // A resist aura's, shrine's or potion's on top of the panel's (Salvation,
@@ -751,8 +768,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
-                // ponytail: that blow is the left hand's weapon's (FUN_00535bc0, +0x168 3: skills.md
-                // "Which hand a skill swings"); here both are the merged fighter's.
+                // That blow is the left hand's weapon's (blow_fighter: FUN_00535bc0, weapsel 3).
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->seq_struck % 2 == 0 && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kDoubleSwing))
                     other_target();
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && moving_skill(*skill)) move_event(*skill, now_ms);
@@ -768,6 +784,19 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
         hit(now_ms);
         start_delay(now_ms);
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->swing_skill != 0 && skill->srvdofunc == ServerDoFunction::kRepeatedHit) repeat_hit(struck, now_ms);
+    }
+
+// FUN_00535bc0 by the skill's weapsel (+0x168) with two weapons in hand: 1 the left hand's, 3 by the
+// sequence row (unit +0x38 >> 8: odd the left, the row Frenzy and Double Swing turn to another
+// target on, as other_target here: the even event), 4 none (kicks: the kick fighter), else the right
+// hand's (2's skill-flag 0x2000 turn to the left isn't kept). Each hand's fighter has the other
+// weapon's stats off (FUN_00623c80). One weapon or none: the player's.
+auto Fight::blow_fighter(const d2d::rules::Skill* skill) const -> d2d::rules::Fighter {
+        if (!actor->two_hands) return actor->player_combat;
+        if (actor->blow_hand >= 0) return actor->hand_combat[std::size_t(actor->blow_hand)];
+        const int weapsel = skill ? skill->weapsel : 0;
+        const bool left = weapsel == 1 || (weapsel == 3 && actor->seq_struck % 2 == 0 && !actor->seq.empty());
+        return actor->hand_combat[left ? 1 : 0];
     }
 
 auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
@@ -796,8 +825,8 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
             || (reach < 0.f ? !melee_reach_to(target_monster, true)
                             : std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach)) return;
         auto current_swing = swing();
-        auto fighter = current_swing.kick ? actor->pf_kick : actor->player_combat;
         const auto* skill = game_data->skills.get(actor->swing_skill);
+        auto fighter = current_swing.kick ? actor->pf_kick : blow_fighter(skill);
         const bool charging = skill && skill->srvstfunc == ServerStartFunction::kChargeUp, finishing = finisher(skill);
         std::erase_if(actor->charges, [&](const Charge& charge) { return now_ms >= charge.until; });
         if (finishing) add_charges(fighter, current_swing);
@@ -1275,10 +1304,10 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
 // weaponsel 2 (the wielded hand's, look component 5) gives its attack
 // frames (FUN_0062a710: the item's own IAS and WSM, not the player's),
 // banded by whirlwind_gap; 10 frames with no weapon.
-// ponytail: the 0x2000 skill flag that turns FUN_00535bc0 to the other
-// hand's weapon (Whirlwind's +0x168 is 2, skills.md "Which hand a skill
-// swings") isn't kept, nor FUN_0062a4e0's usable test; FUN_005d92d0 (two
-// weapons) as a weapon in each hand.
+// ponytail: where the skill node's flag 0x2000 (weapsel 2's turn to the
+// left hand, skills.md "Which hand a skill swings") is set isn't traced:
+// the second of a two-weapon hit is taken as it; FUN_0062a4e0's usable test
+// isn't kept; FUN_005d92d0 (two weapons) as a weapon in each hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
@@ -1295,7 +1324,11 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
                 if (nearby.empty()) return;
                 const auto next = std::ranges::upper_bound(nearby, actor->attack_mon);
                 actor->attack_mon = next != nearby.end() ? *next : nearby.front();
+                // Each weapon its hit: the right hand's, then the left's (FUN_00535bc0's weapsel 2 is the
+                // right unless the skill node's flag 0x2000 turns it left; the second hit is taken as that).
+                actor->blow_hand = hands >= 2 ? hand : -1;
                 hit(now_ms, 5.f);
+                actor->blow_hand = -1;
             }
             return;
         }
