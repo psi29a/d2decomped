@@ -538,7 +538,9 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 17 (FUN_004ebd50, Charged / Lightning Strike): 7's
 //     weapon part over the element (FUN_004e72d0); either alone when the
 //     other is 0-0, else both.
-// ponytail: descdam 2..4, 6, 13..16, 18..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 6 (FUN_004e9d20, Exploding Arrow): the weapon's SrcDam
+//     share over the skill's own with the unit's own damage of its element.
+// ponytail: descdam 2..4, 13..16, 18..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:

@@ -5,7 +5,7 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
-(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
+(FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
 12 (FUN_004eb830), 17 (FUN_004ebd50),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
@@ -44,7 +44,7 @@ SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 8, 9, 10, 11, 12, 17, 24)
+HANDLERS = (5, 6, 8, 9, 10, 11, 12, 17, 24)
 
 
 def d2d_line(descdam, case):
@@ -92,6 +92,26 @@ def d2d_line(descdam, case):
         low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
         high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
         weapon_share()
+    elif descdam == 6:
+        colour = 0
+        weapon_share()
+        upper = (low, high, colour)
+        stats = case["stats"]
+        low = (case["phys_min"] >> 8) + (case["emin"] >> 8); high = (case["phys_max"] >> 8) + (case["emax"] >> 8)
+        if case["etype"] == 3:
+            length = stats.get(101, 0)
+            if length < 1:
+                length = trunc_div(stats.get(59, 0), max(stats.get(326, 0), 1))
+            low += stats.get(57, 0) * length >> 8; high += stats.get(58, 0) * length >> 8
+        elif 0 <= case["etype"] < 5:
+            own = (48, 50, 54, 57, 52)[case["etype"]]
+            low += stats.get(own, 0); high += stats.get(own + 1, 0)
+        lower = (low, high, etype_colour)
+        if upper[:2] == (0, 0):
+            return lower
+        if lower[:2] == (0, 0):
+            return upper
+        return ("two", two_text(*upper[:2]), two_text(*lower[:2]), upper[2], lower[2])
     elif descdam == 17:
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):
@@ -225,6 +245,9 @@ def main():
             stats={25: rng.choice((0, 0, 30, 125, -95, -40)), 21: rng.randrange(-3, 60), 22: rng.randrange(-3, 120),
                    23: rng.randrange(-3, 90), 24: rng.randrange(-3, 200), 329: rng.choice((0, 0, 30, 210)),
                    330: rng.choice((0, 0, 50, 180)), 331: rng.choice((0, 0, 20, 140)),
+                   **{stat: rng.choice((0, 0, 3, 17, 250)) for stat in range(48, 56)},
+                   57: rng.choice((0, 0, 40, 900)), 58: rng.choice((0, 0, 80, 1500)), 59: rng.choice((0, 25, 100)),
+                   101: rng.choice((0, 0, -1, 50)), 326: rng.choice((0, 1, 2, 3)),
                    0: rng.randrange(10, 400), 2: rng.randrange(10, 300), 17: rng.choice((0, 0, 150, 37)), 18: rng.choice((0, 0, 99, 250))},
             weapon=rng.random() < 0.7, wield=rng.choice((-1, 1, 2)),
             shield=rng.random() < 0.8, sh_min=rng.randrange(0, 30), sh_max=rng.randrange(0, 60),
