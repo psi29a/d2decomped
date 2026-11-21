@@ -330,6 +330,18 @@ int main() try {
         strike.emin = strike.emax = 0;
         line = attack_line(skill_tables, strike, env, 5, fighter, 5);
         assert(!line.two && line.min == 12 && line.max == 21 && line.damage_colour == 1);
+        // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
+        // the gear's own fire (stats 48 / 49) on top.
+        Skill arrow = skill_tables.rows[0];
+        arrow.mindam = arrow.maxdam = 0; arrow.mindam_lev = arrow.maxdam_lev = {}; arrow.dmg_sym = {};
+        arrow.emin_lev = arrow.emax_lev = {}; arrow.edmg_sym = {};
+        arrow.descdam = 6; arrow.etype = 0; arrow.srcdam_raw = 128; arrow.hitshift = 8; arrow.emin = 2; arrow.emax = 3;
+        CalcEnv burning = env;
+        burning.stat = [](int stat) { return stat == 48 ? 4 : stat == 49 ? 6 : 0; };
+        line = attack_line(skill_tables, arrow, burning, 1, fighter, 5);
+        // the weapon: 3 x 130 % + 2 fire, 7 x 130 % + 4 fire.
+        assert(line.damage && line.two && line.min == 5 && line.max == 13 && line.damage_colour == 1);
+        assert(line.min2 == 2 + 4 && line.max2 == 3 + 6 && line.colour2 == 1);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.

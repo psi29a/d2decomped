@@ -369,6 +369,30 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 6) {                          // FUN_004e9d20 (Exploding, Immolation, Freezing Arrow)
+        // The weapon's SrcDam share (FUN_004e9660, white before its elements and damblue / damred) over
+        // the skill's own physical and element >> 8 (no poison length), with the unit's own stats of that
+        // element on top (FUN_004e8d90 at 0x4e9dd9): fire 48 / 49, lightning 50 / 51, magic 52 / 53, cold
+        // 54 / 55, poison 57 / 58 x its length >> 8 (stat 101, else 59 / stat 326 held to at least 1,
+        // 0 or 1 taken as 1), in EType's colour.
+        line.damage = true;
+        weapon_share();
+        const AttackLine upper = line;
+        const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
+        line.min = (skill_phys(skill_tables, skill, env, lvl, false) >> 8) + (elem_damage(skill_tables, skill, env, lvl, false, 0, true) >> 8);
+        line.max = (skill_phys(skill_tables, skill, env, lvl, true) >> 8) + (elem_damage(skill_tables, skill, env, lvl, true, 0, true) >> 8);
+        constexpr std::array<int, 5> kOwn{ 48, 50, 54, 57, 52 };     // Skill::etype order: fire, lightning, cold, poison, magic
+        if (skill.etype == 3) {
+            int length = stat(101);
+            if (length < 1) length = stat(59) / std::max(stat(326), 1);
+            line.min += stat(57) * length >> 8;
+            line.max += stat(58) * length >> 8;
+        } else if (skill.etype >= 0 && skill.etype < 5) {
+            line.min += stat(kOwn[std::size_t(skill.etype)]);
+            line.max += stat(kOwn[std::size_t(skill.etype)] + 1);
+        }
+        line.damage_colour = etype_colour;
+        two_values(upper);
     } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
         // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
         // then the element (0x4ebe07); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0
