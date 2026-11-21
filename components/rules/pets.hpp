@@ -277,6 +277,18 @@ int heal_to_max(int& life, int max_life, int amount);
 GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
                              bool owner, GolemSteal lives, int owner_max, int golem_max);
 
+// Clay Golem's slow (damagedinmelee, aura event func 27, FUN_005c6760):
+// FUN_0057c6c0 raises it on the golem once a melee hit on it has landed
+// (record +4 & 1, not & 0x20; 0x57c7a5..0x57c7f3), the striker the other
+// unit. The golem's item_slow (stat 0x96, layer 0; Clay Golem's aurastat
+// dm34) is held to 50 against a player (type 0) and a champion, unique or
+// superunique (FUN_005a0180 mask 0xc), to 90 against another monster; other
+// types and a 0 give none. Returns the slow, 0 for none: state 0x18 on the
+// striker for 0x2ee frames with velocitypercent, attackrate and
+// other_animrate at -slow (FUN_0056e970, FUN_006270b0 0x5c67cf..0x5c6840).
+inline constexpr int kClaySlowFrames = 0x2ee;
+[[nodiscard]] int clay_slow(int slow, int unit_type, bool special) noexcept;
+
 // Iron Golem's target (its srvstfunc 20, FUN_005c32a0): an item (unit type 4)
 // on the ground (mode 3) of a metal base (Items bitfield1 & 2, FUN_00629cc0),
 // identified (item flags & 0x10, FUN_006280a0) and that nothing holds

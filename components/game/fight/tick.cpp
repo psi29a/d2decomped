@@ -552,6 +552,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     for (const int divisor : foe.crushed)                // Crushing Blows, after the hits (FUN_005bffc0)
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
+                    clay_slows(pet, foe, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
                     if (foe.flashed >= 0) d2d::rules::add_one_shot(pet.monster.one_shots, foe.flashed, now_ms);
                 }

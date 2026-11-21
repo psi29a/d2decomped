@@ -13,6 +13,7 @@
 #include <d2s_items.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -88,6 +89,15 @@ bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState 
     end_state(game_data, monster, slot);
     slot = next;
     return true;
+}
+
+void put_slow(const GameData& game_data, Monster& monster, int slow, std::uint32_t now_ms) {
+    if (monster.type < 0 || std::size_t(monster.type) >= game_data.monsters.types.size()) return;
+    const auto row = std::size_t(monster.type);
+    if ((row < game_data.mon_is_npc.size() && game_data.mon_is_npc[row]) || !game_data.monsters.types[row].is_att) return;
+    if (now_ms >= monster.slow_until) monster.slow_speed = slow;
+    monster.slow_rate = slow;
+    monster.slow_until = now_ms + std::uint32_t(d2d::rules::kClaySlowFrames) * 40;
 }
 
 auto Fight::skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill& skill) -> void {
@@ -409,6 +419,11 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
             std::erase_if(monster.states, [](const Monster::SkillState& held) { return held.skill < 0; });   // ended (end_state)
+            // State 0x18 (put_slow): its own list's velocitypercent and attackrate / other_animrate (one rate).
+            if (now_ms < monster.slow_until) {
+                monster.speed_pct -= monster.slow_speed;
+                monster.anim_pct -= monster.slow_rate;
+            }
             // The enemy auras over it (the player's, the merc's): Holy Freeze's
             // velocitypercent and attackrate / other_animrate (one rate), -dm34.
             if (monster.alive())

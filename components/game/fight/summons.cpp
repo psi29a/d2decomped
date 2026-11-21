@@ -399,6 +399,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         const auto& base_res = type_info.diff[std::size_t(monster.difficulty)].res;
         pet.res = { base_res[2] + stat(kFireResist), base_res[3] + stat(kLightningResist), base_res[4] + stat(kColdResist), base_res[5] + stat(kPoisonResist) };
         pet.thorns = stat(kThornsPercent); pet.fire_lo = stat(kFireMinDamage); pet.fire_hi = std::max(stat(kFireMaxDamage), pet.fire_lo); pet.speed_pct = stat(kVelocityPercent);
+        pet.slow = stat(kItemSlow);
         for (const auto& [given_id, given_level] : d2d::rules::summon_skill_levels(game_data->skills, skill, env, lvl)) {
             const auto& given = *game_data->skills.get(given_id);
             if (given.aura) { pet.aura = given.id; pet.aura_level = given_level; }

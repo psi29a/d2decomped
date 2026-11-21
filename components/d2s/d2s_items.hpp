@@ -251,6 +251,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,
               kAbsorbFirePercent = 142, kAbsorbFire = 143, kAbsorbLightningPercent = 144, kAbsorbLightning = 145,
               kAbsorbMagicPercent = 146, kAbsorbMagic = 147, kAbsorbColdPercent = 148, kAbsorbCold = 149,
+              kItemSlow = 150,                      // item_slow: a slow on the unit it strikes or that strikes it (aura event 19 / 27)
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
               kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
               kThrowMinDamage = 159, kThrowMaxDamage = 160, kSkillPierce = 166,
