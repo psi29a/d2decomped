@@ -36,7 +36,7 @@ From the constructor `FUN_004bbbb0` and the slots below, in offset order.
 | `+0x36` | the caret | slots `+0x24`, `+0x28`, `+0x38` |
 | `+0x3a` | the text's length | slots `+0x38`, `+0x3c` |
 | `+0x3e` | set by a press, cleared by the release | slots `+0x0c`, `+0x10` |
-| `+0x42` | the callback for Enter (0xd) and Esc (0x1b), on the path with no filter and not digits only (`0x4bb68b`..`0x4bb69e`, `0x4bb91d`). Digits only, a space, Esc or Enter returns 0 instead (`0x4bb903`..`0x4bb91a`), so the key stays with the menu | constructor |
+| `+0x42` | the callback for Enter (0xd) and Esc (0x1b). The key handler first swallows a key above 0x7f (and a repeat when `+0x24` is 0), then takes backspace (8) and 0x2e itself. With no filter (`+0x04` 0) and not digits only (`+0x20` 0), Enter or Esc calls `+0x42` and returns 1 (`0x4bb68b`..`0x4bb69e`, `0x4bb91d`). Otherwise the filter or `_isdigit` decides: a key it refuses returns 0 when it is a space, Esc or Enter, so the key stays with the menu, and 1 for any other (`0x4bb75a`, `0x4bb903`..`0x4bb922`) | constructor |
 | `+0x46` | a count of draws: the draw adds 1 (`0x4bb21d`); the caret `+0x4a` flips when it is a multiple of 20 while shown and of 10 while hidden (`0x4bb276`..`0x4bb2a8`) | `FUN_004bb210`; slot `+0x10` zeroes it |
 | `+0x4a` | the caret shown; the constructor sets 1 | `FUN_004bb210` |
 | `+0x4e` | the font (`set_font` at `0x4bb246`) | constructor |
