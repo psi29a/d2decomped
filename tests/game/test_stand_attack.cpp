@@ -2,10 +2,12 @@
 // test-links: game
 // A shift-click (stand still) on a monster out of reach (FUN_00461c70): a melee skill swings where the
 // player stands, at the click (flag 0x20 -> FUN_00461700(0)), and nothing walks; without shift the
-// player walks up to it (FUN_00481030); in reach either way it swings at the monster.
+// player walks up to it (FUN_00481030); in reach either way it swings at the monster. Zeal at a spot
+// swings at the foe in reach (FUN_005daf40).
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -102,6 +104,26 @@ int main() try {
     const Order bash_order{ actor->id, cmd::UseSkill{ bash, fight.monsters[0].unit.x, fight.monsters[0].unit.y, fight.monsters[0].id, true, -1, true } };
     world->tick({ &bash_order, 1 }, now, now - kTickMs);
     assert(!actor->player.walking && actor->attack_mon == -1 && actor->pick_item == -1 && actor->interact_npc == -1);
+
+    // Zeal at a spot (no unit named, FUN_005daf40): its start takes the foe in reach with the lowest id
+    // (FUN_0056bd10 from -1) and swings at it; with none in reach it refuses, as Bash's does.
+    const int zeal = data->skills.by_name.at("Zeal");
+    fight.skill_level = [](int) { return 1; };
+    const auto zeal_at = [&](float apart) {
+        actor->pmode = -1;
+        actor->attack_mon = -1;
+        actor->player.walking = false;
+        actor->character.stats.values[d2d::d2s::kMana] = 100 << 8;
+        fight.monsters[0].unit.x = actor->player.x + apart;
+        fight.monsters[0].unit.y = actor->player.y;
+        const Order order{ actor->id, cmd::UseSkill{ zeal, actor->player.x - 2.f, actor->player.y, -1, true, -1, false } };
+        world->tick({ &order, 1 }, now, now - kTickMs);
+        now += 100 * kTickMs;
+    };
+    zeal_at(0.4f);
+    assert(actor->attack_mon == 0 && actor->pmode == kModeA1 && actor->swing_skill == zeal && actor->player.dir == direction16(1, 0));
+    zeal_at(6.f);
+    assert(actor->attack_mon == -1 && actor->pmode < 0);
 
     std::printf("test_stand_attack: ok\n");
     return 0;
