@@ -65,7 +65,7 @@ returns read none.
 | `+0x30` | `FUN_004bb5b0`: the text narrowed into the argument, at most `+0x34` characters (ret 4) | `FUN_004bbb30`: calls the implementation's `+0x34` (no argument), then ret 4 |
 | `+0x34` | `FUN_004bb5d0`: 0 (plain `ret`) | `FUN_004bbb50` → `+0x38` |
 | `+0x38` | `FUN_004bb530`: a narrow string widened into `+0x28` (`narrow_to_wide`, count `+0x34`); caret and length = its length (ret 4) | `FUN_004bbb40` → `+0x3c` |
-| `+0x3c` | `FUN_004bb4d0`: the argument as `"%d"` (`0x6d57bc`) in 0x14 bytes; when longer than `+0x34` the character at `+0x34 − 1` is cut (`0x4bb507`), so it keeps one fewer than the most; then as `+0x38` (ret 4) | `FUN_004bbb60` → `+0x30` |
+| `+0x3c` | `FUN_004bb4d0`: the argument as `"%d"` (`0x6d57bc`) in 0x14 bytes; when longer than `+0x34` the character at `+0x34 − 1` is cut (`0x4bb507`), so it keeps one fewer than the most (bugs.md #129); then as `+0x38` (ret 4) | `FUN_004bbb60` → `+0x30` |
 | `+0x40` | `FUN_004bb990`: `+0x18` = the argument (ret 4) | `FUN_004bbb80` |
 | `+0x44` | `FUN_004bb9a0`: `+0x24` = the argument (ret 4) | `FUN_004bbb90` |
 | `+0x48` | `FUN_004bb200`: `+0x20` = the argument (ret 4) | `FUN_004bbba0` |
