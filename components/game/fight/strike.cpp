@@ -295,6 +295,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         };
         const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
         panel_unit.thrown = thrown_of(wielded);
+        panel_unit.armed = wielded != nullptr;
         // Two hands (FUN_004e93a0): a Barbarian or an Assassin (FUN_006235a0) with a usable item that is
         // no throwing potion in each; then the wielded weapon alone and, when the other hand's is a usable
         // weapon too (FUN_004e9260: the hand that isn't the wielded one's), that one alone.
