@@ -325,11 +325,16 @@ auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
     }
 
 auto Fight::buff_tick(std::uint32_t now_ms) -> void {
-        if (const auto* blaze = state_of("blaze"); blaze && actor->player.walking && now_ms / 40 != actor->blaze_frame) {
-            actor->blaze_frame = now_ms / 40;
+        // FUN_005c9d90: under state blaze, its srvmissilea at the player's subtile, only on a frame its
+        // path entered a new one (FUN_006505c0: path +0x34 & 8).
+        const int at_x = int(std::floor(actor->player.x * 5)), at_y = int(std::floor(actor->player.y * 5));
+        const bool new_subtile = std::pair{ at_x, at_y } != actor->blaze_subtile;
+        actor->blaze_subtile = { at_x, at_y };
+        if (const auto* blaze = state_of("blaze"); blaze && actor->player.walking && new_subtile) {
             const auto* skill = game_data->skills.get(blaze->skill);
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end())
-                launch(found->second, *skill, blaze->level, actor->player.x, actor->player.y, 0, 0, found->second.range + found->second.lev_range * blaze->level, now_ms);
+                launch(found->second, *skill, blaze->level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0,
+                       found->second.range + found->second.lev_range * blaze->level, now_ms);
         }
         // Armageddon / Hurricane (do 124, FUN_005c8190: the state and its
         // timer event, FUN_005417d0(5, ...) at Param4 frames, FUN_004efc80

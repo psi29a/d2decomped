@@ -1351,8 +1351,15 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   HitShift a frame, + Inferno x 3 %, FUN_0064b100).
 - **Do 24** (FUN_005c9ea0, Fire Wall): from the target point two
   srvmissilea makers out across the caster's line, srvmissileb on the
-  point. The maker (missile do **6**, FUN_005ae680) leaves SubMissile1
-  where it is each frame.
+  point (FUN_0059fa30 flags 0x21: maker 1 aims at the point plus
+  (-(caster y - point y), caster x - point x), maker 2 at the point minus
+  that, so the wall is square to the caster's line in subtiles). The
+  maker (missile do **6**, FUN_005ae680) leaves SubMissile1 at its own
+  subtile (FUN_0045adf0 / FUN_0045ae20) only on a frame its path entered
+  a new subtile: FUN_006505c0 reads path +0x34 & 8. Firestorm's (do
+  **23**, FUN_005af790) and Blaze's (FUN_005c9d90: under state 13 blaze,
+  the skill and level from the state's stats 0x15e / 0x15f, flags 0x21)
+  lay theirs on the same test, at the unit's subtile.
 - **Do 19** (FUN_005c8ca0, Inferno, Arctic Blast; st 11 FUN_005c8fa0
   checks the mana): a flame per call lasting calc1 frames (flags 0x8020).
 - Missile do **5** (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze)

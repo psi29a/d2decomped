@@ -387,6 +387,7 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_facing(x, y, dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
+        missile.subtile_x = int(std::floor(x * 5)); missile.subtile_y = int(std::floor(y * 5));   // the subtile it starts in (the trail makers')
         seed_pierce(missile, casting_merc);
         pending.push_back(std::move(missile));
         return pending.back();
@@ -621,8 +622,15 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 }
             }
             const auto sub = missile_info.sub.empty() ? game_data->missiles.end() : game_data->missiles.find(missile_info.sub);
-            if (missile_info.srv_do == 6 && sub != game_data->missiles.end())
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, 0, 0, sub->second.range + sub->second.lev_range * missile.level, now_ms);
+            // 6 (FUN_005ae680, Fire Wall's maker) and 23 (FUN_005af790, Firestorm): SubMissile1 at its own
+            // subtile, only on a frame its path entered a new one (FUN_006505c0: path +0x34 & 8).
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+            const bool new_subtile = at_x != missile.subtile_x || at_y != missile.subtile_y;
+            if ((missile_info.srv_do == 6 || missile_info.srv_do == 23) && sub != game_data->missiles.end() && new_subtile) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                const int life = missile_info.srv_do == 6 ? sub->second.range + sub->second.lev_range * missile.level : sub->second.range;
+                launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, life, now_ms);
+            }
             if ((missile_info.srv_do == 10 || missile_info.srv_do == 25) && sub != game_data->missiles.end()) {
                 const int every = std::max(calc(*skill, skill->calc[1], missile.level), 1), radius = std::max(calc(*skill, skill->calc[0], missile.level), 1);
                 if (age % every == 0) {
@@ -648,9 +656,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
             // (path +0x34 & 8), at the skill's level; its flight stops at a wall (CollideType 8).
             if (missile_info.srv_do == 13 && missile.hops > 0) {
-                const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
                 const bool first_stands = std::ranges::any_of(actor->pets, [&](const auto& pet) { return pet.monster.id == missile.target_id && pet.monster.alive(); });
-                if ((at_x != missile.subtile_x || at_y != missile.subtile_y) && first_stands) {
+                if (new_subtile && first_stands) {
                     missile.subtile_x = at_x; missile.subtile_y = at_y;
                     if (const int type = game_data->monsters.row(skill->summon); type >= 0) {
                         summon_one(*skill, type, missile.level, calc_env(), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
@@ -693,9 +700,6 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // 31 (Wake of Fire's maker): its fire where it goes.
             if (missile_info.srv_do == 31 && sub != game_data->missiles.end())
                 launch(sub->second, *skill, missile.level, missile.x, missile.y, missile.velocity_x, missile.velocity_y, sub->second.range, now_ms);
-            // 23 (FUN_005af790, Firestorm): SubMissile1 where it is, each frame.
-            if (missile_info.srv_do == 23 && sub != game_data->missiles.end())
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, 0, 0, sub->second.range, now_ms);
             // 27 (FUN_005afa30, Tornado): every Param1 (else calc4) frames its
             // damage within Param2 (else aurarange) subtiles.
             if (missile_info.srv_do == 27 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0)
