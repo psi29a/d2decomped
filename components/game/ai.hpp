@@ -1034,8 +1034,11 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     // cold's length): FUN_0064a930 adds the owner's to the record in 256ths (EBX 8 at
     // 0x64becf) only when SrcDamage isn't 0, then FUN_0064aa60 scales the record by
     // SrcDamage / 128, the length too; so an A1, A2 or S1 shot alike. Kept in whole points.
-    // ponytail: a cast takes its skill's SrcDam there (FUN_0064b860's other branch,
-    // skill +0x1a5); d2d drops them, as monster_shot_phys drops the owner's physical.
+    // A MissC shot takes this plain branch too: FUN_0064b860's other one is for a row with a Skill
+    // (+0x194), and the only MissC rows in 1.14d, the Wills o' the Wisp's willowisplightningbolt /
+    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu).
+    // ponytail: whether the Wisp's cast carries its enchants and physical (FUN_0064a930 by SrcDamage;
+    // the owner's stats 21 / 22 as its SC mode set them, FUN_005a4f50) isn't traced; d2d drops both.
     if (cast || src_damage == 0) stats.enchants = {};
     for (auto& enchant : stats.enchants)
         if (enchant) *enchant = { enchant->first * src_damage / 128, enchant->second * src_damage / 128 };
