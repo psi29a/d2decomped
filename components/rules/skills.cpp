@@ -585,8 +585,13 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     // FUN_004e8ec0 on one hand: its rating with its weapon's mastery (342, FUN_00645830 flag 0), 0 for a
     // throwing potion (type 0x26, FUN_0062b400).
     const auto weapon_rating = [&](const Fighter& hand, const PanelUnit::Thrown& thrown) { return thrown.potion ? 0 : rating(hand, hand.ar_pct + tohit); };
-    if (skill.descatt == 1 || skill.descatt == 5) {
-        line.attack_rating = rating(fighter, fighter.ar_pct - mastery_tohit + tohit);
+    if (skill.descatt == 1) {
+        // 0x4e9000: FUN_004e8ec0 on the wielded weapon, its mastery in (the bows, Bash, Jab, Whirlwind).
+        line.attack_rating = weapon_rating(fighter, unit.thrown);
+    } else if (skill.descatt == 5) {
+        // FUN_004e9040 (the Assassin's kicks): FUN_00622560 with the wielded weapon's stats off
+        // (FUN_00627910 at 0x4e9091), stat 119 after they're back on (0x4e90cb), no mastery.
+        line.attack_rating = rating(Fighter{ .ar_base = fighter.ar_base_bare }, fighter.ar_pct - mastery_tohit + tohit);
     } else if (skill.descatt == 2) {
         // FUN_004e9510: a two-handed class's through FUN_004e93a0 (callback 0x4e8fe0), the wielded one's
         // first; else FUN_004e8ec0 on the unit.
