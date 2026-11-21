@@ -136,6 +136,47 @@ the lists by the records their code links:
 | `FUN_0041a450` | (archive, position, &next, &timed, &delay; `ret 0x14`). Walks the requests from `0x708368`, skipping one whose +0x24 is nonzero and equals the following request's. When `0x708350` is 0 or the request's +0x30 is set, it becomes `next` (best 0). Otherwise it does when its distance is at most the best so far, and the distance becomes the best. The distance is +0x14 minus (the position minus the sector size of the request file's archive, when that is positive); a smaller +0x14 adds 0x8000000 instead, and a request in another archive is 0xfffffffe. `timed` is the request with the smallest +0x18 − now (at most 1000 when +0x1c is set), `delay` that value. Caller `FUN_0041a550` |
 | `FUN_0041a550` | The request worker. Its address is pushed at `0x41a8a1` in `FUN_0041a880`. Each loop it sets every event (`0x708380`, `FUN_00419690` steps), pumps the streams and picks a request. With nothing due it waits on `0x779054` (250 ms, or until the bytes-per-second pace allows). Otherwise it unlinks the request into `0x77902c` and reads it: archive member `FUN_00417040`, loose file `FUN_00415560`, into `[0x779050]` for an audio request. A file being checksummed whose bytes summed reach its size finishes the checksum (`FUN_0041d810` mode 4, state 4). An audio request fills its stream (`FUN_004157c0`), or stops it (slot +0x48, state 4) when the read gave nothing. Then it calls the callback at +0x40 (a mismatched finished checksum first reports 0x85100083), frees the request when +0x38 is set, and sets its event (+8). It returns 0 when `0x778f24` is set, clearing it |
 
+### No caller (orphans)
+
+These 58 have no caller in `game-calls.tsv`, no raw pointer to them in the
+image (0x401000..0x7d0000), and no E8 / E9 rel32 call to them in `.text`
+(byte-scanned). They are Storm entry points and template members D2 does not
+use (stubs.md).
+
+| Function | What it does |
+|---|---|
+| `FUN_00415d50` | (path; `ret 4`): the checksum of a disk file. It opens the file (`CreateFileA`, read, share read) and feeds it in 0x1000-byte reads (line 0xb83) to `FUN_0041d810` (modes 1, 2, 4), returning the result or 0 on a short read. A null or empty path gives error 0x57 |
+| `FUN_00415ec0` | (callback, context; `ret 8`): stores them at `0x779060` / `0x779064`, the open callback `FUN_004192f0` calls |
+| `FUN_00415f10` | (archive, flag; `ret 8`): archive +0x258 += 1 when the flag is 0, else −1; returns 1 |
+| `FUN_00415fa0` | (archive, out1, out2; `ret 0xc`): `*out1` = archive +0x118, `*out2` = (archive +0x110 == 3), each when non-null; returns 1 |
+| `FUN_00416030` | (archive, buffer, size; `ret 0xc`): copies the archive's name (+8) with `FUN_004135d0`; a null buffer gives error 0x57 |
+| `FUN_004160a0` | (buffer, size; `ret 8`): copies the exe folder (`0x778f28`, filled first if empty); returns 1 |
+| `FUN_004160f0` | (file, out; `ret 8`): `*out` = file +0x114 (its archive); a null out gives error 0x57 |
+| `FUN_00416160` | (file; `ret 4`): an archive member's block entry +0x18 (its expected checksum), else 0 |
+| `FUN_004161c0` | (file, out; `ret 8`): an archive member's block entry +0x1c..+0x2b copied to out (16 bytes), returns 1; else 0 |
+| `FUN_004162a0` | (file, buffer, size; `ret 0xc`): copies the disk path (+0x10c) when set, else the name (+8); a null buffer gives error 0x57 |
+| `FUN_00416320` | (file, out; `ret 8`): zeroes `*out` and returns an archive member's block entry +4, else 0 |
+| `FUN_00416400` | (file, FILETIME *; `ret 8`): a loose file answers `GetFileTime(handle, 0, 0, out)` (after leaving the lock); an archive member copies its block entry +0x10 / +0x14; a null out gives error 0x57 |
+| `FUN_004166d0`, `FUN_00416700` | (value; `ret 4`): store a u16 at `0x77905c` / a byte at `0x77905e` |
+| `FUN_00416770`, `FUN_004168c0`, `FUN_00416930`, `FUN_00416970`, `FUN_004169b0` | ECX = link, stack offset (`ret 4`): link +4 when negative gives its complement; else link +4 plus the offset (a negative offset is worked out from the link). Byte-identical |
+| `FUN_00417a10`, `FUN_00417a50`, `FUN_00417b60`, `FUN_00417c50`, `FUN_00417d60` | ECX = list, stack link (`ret 4`): the link, or list +4 when null. Byte-identical |
+| `FUN_00417b20`, `FUN_00417d20`, `FUN_00417e30` | the same choice, then its +4, or 0 when that is not positive. Byte-identical |
+| `FUN_00417e90`, `FUN_00418560`, `FUN_004185f0`, `FUN_00418660`, `FUN_00418710` | the same choice, then unlinks it. Byte-identical |
+| `FUN_004181f0` | (file, &a, &b; `ret 0xc`): finds the stream whose +8 is the file and fills +0x34 / +0x38 from slots +0x18 / +0x1c of its buffer object when they hold 0x7fffffff, then copies them out. No stream gives error 0x85100072. The slots are IDirectSoundBuffer's GetVolume / GetPan in the header's order |
+| `FUN_004182d0` | (file, a, b; `ret 0xc`): the same lookup; a value other than 0x7fffffff that differs from +0x34 / +0x38 is stored and passed to slot +0x3c / +0x40 (SetVolume / SetPan in that order) |
+| `FUN_004185d0`, `FUN_004186d0`, `FUN_004186f0` | ECX = list, stack item (`ret 4`): the item's +4, or list +8 when null. Byte-identical |
+| `FUN_00418b20`, `FUN_00419150`, `FUN_00419a50`, `FUN_0041a0e0` | ECX = record, stack flags (`ret 4`): run the archive close `FUN_00418a50`, file teardown `FUN_00419070`, stream destructor `FUN_004199a0` or request destructor `FUN_0041a020`, then free the record (tag `delete`) when flags bit 0 is set |
+| `FUN_00418b80` | (name; `ret 4`): `FUN_00418390(0, name, FUN_00418b50())` |
+| `FUN_00418c60`, `FUN_00418cc0`, `FUN_00418d00`, `FUN_00418d40`, `FUN_00418da0` | ECX = list: empty it (`FUN_00418900`, `FUN_00418940`, `FUN_00418980`, `FUN_004189c0`, `FUN_00418a00`), then unlink its head link. The three middle ones are byte-identical |
+| `FUN_00418e90` | ECX = archive: lowers +0x148; at 0 closes it (`FUN_00418a50`) and frees it |
+| `FUN_00418ec0`, `FUN_00418f90`, `FUN_00419630` | (list, extra, flags; `ret 0xc`): the archive (0x25c), event (0xc) and request (0x44) constructors, as `FUN_00419700` |
+| `FUN_00419000` | ECX = link, stack flags (`ret 4`): unlinks it and frees it when flags bit 0 is set |
+| `FUN_00419180` | (archive, name, priority, a3, out; `ret 0x14`). Makes a second archive record (0x25c bytes) on an open archive. It copies the archive's name (+8) and file handle (+0x10c), +0x150 = the archive, +0x118 = priority, +0x258 = 0, the name at +0x154, +0x148 = 1. It raises the archive's +0x148 and links the record before the first archive whose +0x118 is not above its own. A null out, null or empty name or null archive gives error 0x57 |
+| `FUN_00419b90`, `FUN_0041a2c0` | ECX = list, stack record (`ret 4`): destroy (`FUN_004199a0` / `FUN_0041a020`) and free a stream / request; returns the next item or 0 |
+| `FUN_0041a960` | (handle; `ret 4`): `FUN_0041a300(handle, 0)`; a null handle gives error 0x57 |
+| `FUN_0041b080` | (6 words; `ret 0x18`): `FUN_0041aad0(a0, a1, a2, a3, a4, 0, a5)` |
+| `FUN_0041ba30` | (3 words; `ret 0xc`): `FUN_0041b280(a0, a1, a2, 0, 0x7fffffff, 0x7fffffff, 0)` |
+
 ## Remaining gaps
 
 The archive search, sector decompression, request-queue worker, checksum
