@@ -1305,6 +1305,8 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 // (FUN_005da540), Nest (FUN_005cbd10) and Jump (FUN_005cb730, no monster's),
 // each clearing it at its end (Monster::uninterruptable).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
+// The AI search's pick for `monster` among `foes` (FUN_005dd7f0, ai.cpp): its index, or -1.
+int search_foe(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, const Crowd& crowd);
 // The Cursed umod's hit hook (FUN_005a2530), on a melee or missile hit that
 // lands: a unique's or superunique's 3 in 4 on its own seed (a draw's low 2
 // bits), Amplify Damage (skill 66) at level mlvl / 5 + 1 on every foe within

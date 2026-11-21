@@ -885,6 +885,13 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
 
 }  // namespace
 
+// The AI search's pick (search_target, FUN_005dd7f0) as a foe index: a pet that runs its own monster's search (a
+// revived monster: alignment 2, mode 5).
+int search_foe(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, const Crowd& crowd) {
+    const auto found = search_target(game_data, level, monster, foes, nullptr, crowd);
+    return found.target ? int(found.target - foes.data()) : -1;
+}
+
 auto ThinkCtx::idle(int frames) -> void {                           // FUN_005de080
     if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
     monster.wandering = false;
