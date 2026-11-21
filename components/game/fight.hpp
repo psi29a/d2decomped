@@ -694,8 +694,10 @@ struct Fight {
     // What the player shows in a sequence: its frame's mode, and a start
     // time that lands the renderer (frame = elapsed / ms_per_frame) on it.
     [[nodiscard]] std::pair<int, std::uint32_t> seq_view(std::uint32_t now_ms) const;
-    // The swing's animation: KK for kicks, S1 for Smite, else A1.
-    // ponytail: SQ sequences play A1.
+    // The swing's animation: KK for kicks, S1 for Smite, else A1. An SQ
+    // skill is drawn by its sequence's frames (view_seq, draw.cpp).
+    // ponytail: an SQ skill's mode is A1 here, game.exe's sequence mode 0x12
+    // (skills.md, Whirlwind's start).
     [[nodiscard]] int swing_mode() const;
     [[nodiscard]] bool skill_in_use() const;     // the unit's mode holds a used skill (FUN_00620250 non-null): a swing or a cast
     [[nodiscard]] bool hit_interrupts() const;   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
