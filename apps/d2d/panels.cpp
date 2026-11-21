@@ -11,6 +11,7 @@
 #include <automap_cells.hpp>
 #include <automap_miniature.hpp>
 #include <automap_scroll.hpp>
+#include <blend.hpp>
 #include <d2s.hpp>
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
@@ -956,8 +957,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         const int top = bottom - int(frame.height) + 1;
         if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
         const int mode = list == 3 && fade == 1 ? 5 : mode_of(x, bottom);
-        constexpr int weights[]{ d2d::palette::kAlphaQuarter, d2d::palette::kAlphaHalf, d2d::palette::kAlphaThreeQuarters };
-        const int weight = mode < 3 ? weights[mode] : 255;           // the cel's share over what's there (PL2 alpha tables, pl2.md)
+        constexpr d2d::palette::Blend kShares[]{ d2d::palette::Blend::kAlpha25, d2d::palette::Blend::kAlpha50, d2d::palette::Blend::kAlpha75 };   // the cel's share over what's there (PL2 alpha tables, pl2.md)
         for (int row = 0; row < int(frame.height); ++row)
             for (int column = 0; column < int(frame.width); ++column) {
                 const int pixel_x = x + column, pixel_y = top + row;
@@ -965,7 +965,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
                 if (index == 0 || pixel_x < clip_x0 || pixel_x > clip_x1 || pixel_y < draw_y0 || pixel_y > clip_y1) continue;
                 const auto colour = pal[index];
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                const auto mixed = d2d::palette::alpha_blend({ pixel[0], pixel[1], pixel[2], 0xFF }, colour, weight);
+                const auto mixed = mode < 3 ? d2d::palette::blend(kShares[mode], { pixel[0], pixel[1], pixel[2], 0xFF }, colour) : colour;
                 pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
             }
     }

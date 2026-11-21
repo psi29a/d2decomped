@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 
+#include <blend.hpp>
 #include <dt1.hpp>
 #include <light.hpp>
 #include <palette.hpp>
@@ -109,7 +110,8 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
             if (idx == 0) continue;
             const auto colour = pal[idx];
             auto* pixel = line + std::size_t(screen_x + x) * 4;
-            pixel[0] = std::uint8_t((pixel[0] + colour.r * 3) / 4); pixel[1] = std::uint8_t((pixel[1] + colour.g * 3) / 4); pixel[2] = std::uint8_t((pixel[2] + colour.b * 3) / 4);
+            const auto mixed = d2d::palette::blend(d2d::palette::Blend::kAlpha75, { pixel[0], pixel[1], pixel[2], 0xFF }, colour);
+            pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
         }
     }
 }

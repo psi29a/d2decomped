@@ -67,7 +67,9 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
             if (idx == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
             auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
-            pixel[0] = std::uint8_t((pixel[0] + colour.r * 3) / 4); pixel[1] = std::uint8_t((pixel[1] + colour.g * 3) / 4); pixel[2] = std::uint8_t((pixel[2] + colour.b * 3) / 4);
+            // Alpha table 0's colour (weight 0xbf, FUN_00605880), as palette::blend gives with no PL2 installed.
+            const auto mixed = d2d::palette::alpha_blend({ pixel[0], pixel[1], pixel[2], 0xFF }, colour, d2d::palette::kAlphaThreeQuarters);
+            pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
         }
     }
 }
