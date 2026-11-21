@@ -34,6 +34,14 @@ draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
 colours. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
 differ.
+
+The attack rating's descatt table at 0x72d7f8 (FUN_004eda80) the same
+way: descatt 1 (0x4e9000), 2 (0x4e9510), 3 (0x4e9590), 4 (0x4e95c0) and 5
+(0x4e9040) with FUN_004e8ec0 / FUN_004e9160 for real; hooked: the skill
+record (FUN_00644140), the base rating (FUN_00622560, by which hand's or
+whether the weapon's stats are on), stat 119 (FUN_00625500), the skill's
+to-hit (FUN_006449f0), the item's type (FUN_0062b400), attblue / attred
+(FUN_0063a3c0 / FUN_0063a3e0).
 """
 import itertools
 import random
@@ -380,7 +388,8 @@ def main():
     e.hook(CALC, lambda em: case["calc1"] if em.arg(1) == 1 else case["calc2"], 4)
     rng = random.Random(1114)
     bad = runs = 0
-    for descdam, trial in itertools.product(HANDLERS, range(4000)):
+    def draw_case(descdam, trial):
+        """A random case for handler `descdam`, its row written."""
         case.update(
             etype=rng.choice(list(GAME_ETYPE)), hitshift=rng.randrange(9), srcdam=rng.choice((0, 0, 32, 64, 100, 128, 255)),
             mindam=rng.randrange(-5, 60), maxdam=rng.randrange(-5, 90),
@@ -420,6 +429,9 @@ def main():
         e.mu.mem_write(row + 0x1DC, bytes((GAME_ETYPE[case["etype"]],)))
         e.w32(row + 0x138, 11); e.w32(row + 0x13C, 12); e.w32(row + 0x140, 13)
         e.mu.mem_write(record + 0xFE, bytes((case["sh_min"], case["sh_max"])))
+
+    for descdam, trial in itertools.product(HANDLERS, range(4000)):
+        draw_case(descdam, trial)
         drawn.clear()
         e.call(e.r32(TABLE + 4 * descdam), row, 5, 0, 0, 0, ecx=unit, edx=node)
         runs += 1
@@ -429,7 +441,114 @@ def main():
             if bad <= 10:
                 print(f"descdam {descdam}: game {drawn} d2d {want} {case}")
     print(f"{bad} of {runs} differ")
+    active = set()                                    # "a" / "b": that hand's stats on; "off": the wielded weapon's off
+
+    def item_stats(em):                               # FUN_00627910(unit, item, on)
+        if em.arg(2) == 0:
+            active.add("off")
+        else:
+            active.discard("off")
+        return 0
+
+    def base_rating(_e):
+        if "off" in active:
+            return case["ar_base_bare"] & 0xFFFFFFFF
+        return case[f"ar_base_{hand}"] & 0xFFFFFFFF if (hand := next(iter(active & {"a", "b"}), None)) else case["ar_base"] & 0xFFFFFFFF
+
+    def own_stat(em):
+        if em.arg(1) == 0x89:
+            return case["base_kick"] & 0xFFFFFFFF
+        if em.arg(1) != 0x77:
+            return 0
+        hand = next(iter(active & {"a", "b"}), None)
+        return case[f"own119_{hand}"] & 0xFFFFFFFF if hand else case["own119"] & 0xFFFFFFFF
+
+    def main_hand(_e):
+        active.discard("b"); active.add("a")
+        return item_a if case["main"] else 0
+
+    def other_hand(_e):
+        active.discard("a"); active.add("b")
+        return item_b if case["other"] and case["dual"] else 0
+
+    def stats_active(em):                             # FUN_00625820(item, &state): on, its state 1
+        em.w32(em.arg(1), 1)
+        return 1
+
+    e.hook(ITEM_STATS, item_stats, 3)
+    e.hook(BASE_AR, base_rating, 1)
+    e.hook(BASE_STAT, own_stat, 3)
+    e.hook(MAIN_HAND, main_hand, 0)
+    e.hook(OTHER_HAND, other_hand, 0)
+    e.hook(STATS_ACTIVE, stats_active, 2)
+    e.hook(SKILL_RECORD, lambda _e: row, 0)
+    e.hook(SKILL_TOHIT, lambda _e: case["tohit"] & 0xFFFFFFFF, 3)
+    e.hook(UNIT_TYPE, lambda em: 0x26 if by_item(em.arg(0), "potion") else 0, 1)
+    e.hook(ATT_BLUE, lambda _e: int(case["ar_blue"]), 1)
+    e.hook(ATT_RED, lambda _e: int(case["ar_red"]), 1)
+    e.hook(MASTERY, lambda em: (case["mastery"] if em.arg(3) == 1 else by_item(em.arg(1), "ar_mastery")) & 0xFFFFFFFF, 4)
+    bad += main_rating(e, case, rng, {"unit": unit, "node": node, "row": row, "draw_case": draw_case, "active": active})
     return 1 if bad else 0
+
+
+AR_TABLE = 0x72D7F8
+SKILL_RECORD, BASE_AR, SKILL_TOHIT, UNIT_TYPE, ATT_BLUE, ATT_RED, STATS_ACTIVE = 0x644140, 0x622560, 0x6449F0, 0x62B400, 0x63A3C0, 0x63A3E0, 0x625820
+
+
+def d2d_rating(descatt, case):
+    """rules::attack_line's attack ratings: (rating, colour, second, colour2)."""
+    colour = 1 if case["ar_red"] else 3 if case["ar_blue"] else 0
+    potion = case["wielded"] and case["potion"]
+
+    def rating(hand, mastery):
+        base, own = (case[f"ar_base_{hand}"], case[f"own119_{hand}"]) if hand else (case["ar_base"], case["own119"])
+        return 0 if (case[f"potion_{hand}"] if hand else potion) else trunc_div(base * (mastery + own + case["tohit"]), 100) + base
+
+    first = second = 0
+    both = case["dual"] and all(case[f"hand_{hand}"] and case[f"usable_{hand}"] and not case[f"potion_{hand}"] for hand in "ab")
+    if descatt == 1:
+        first = rating(None, case["ar_mastery"])
+    elif descatt == 2:
+        if both:
+            second = rating("b", case["ar_mastery_b"]) if case["other"] else 0
+            first = rating("a", case["ar_mastery_a"]) if case["main"] else 0
+        else:
+            first = rating(None, case["ar_mastery"])
+    elif descatt == 3:
+        first = rating(None, case["ar_mastery"] if case["throw_state"] else 0)
+    elif descatt == 4:
+        first = rating("b", case["ar_mastery_b"]) if both and case["other"] else 0
+    elif descatt == 5:
+        base = case["ar_base_bare"] if case["wielded"] else case["ar_base"]        # FUN_00622560 with the weapon's stats off
+        first = trunc_div(base * (case["own119"] + case["tohit"]), 100) + base    # stat 119 after they're back on
+    return first, colour if first else 0, second, colour if second else 0
+
+
+def main_rating(e, case, rng, hooks):
+    """Each descatt handler on random cases; the number that differ."""
+    bad = runs = 0
+    unit, node, row = hooks["unit"], hooks["node"], hooks["row"]
+    out = e.alloc(0x20)
+    for descatt, trial in itertools.product((1, 2, 3, 4, 5), range(3000)):
+        hooks["draw_case"](descatt, trial)
+        case.update(
+            ar_base=rng.randrange(-20, 900), ar_base_a=rng.randrange(-20, 900), ar_base_b=rng.randrange(-20, 900), ar_base_bare=rng.randrange(-20, 900),
+            own119=rng.choice((0, 0, 20, 85, -10)), own119_a=rng.choice((0, 20, 85)), own119_b=rng.choice((0, 15, 60)),
+            tohit=rng.choice((0, 15, 50, 120)), ar_mastery=rng.choice((0, 0, 30, 95)), ar_mastery_a=rng.choice((0, 20, 95)), ar_mastery_b=rng.choice((0, 40, 75)), ar_blue=rng.random() < 0.2, ar_red=rng.random() < 0.2,
+            potion=rng.random() < 0.15)
+        hooks["active"].clear()
+        e.mu.mem_write(out, bytes(0x20))
+        e.call(e.r32(AR_TABLE + 4 * descatt), row, 5, out, out + 4, out + 8, out + 12, ecx=unit, edx=node)
+        runs += 1
+        got = tuple(signed(e.r32(out + 4 * k)) for k in range(4))
+        got = (got[0], got[1] if got[0] else 0, got[2], got[3] if got[2] else 0)
+        want = d2d_rating(descatt, case)
+        if got != want:
+            bad += 1
+            if bad <= 10:
+                print(f"descatt {descatt}: game {got} d2d {want} {case}")
+    print(f"ratings: {bad} of {runs} differ")
+    return bad
 
 
 def two_text(low, high):

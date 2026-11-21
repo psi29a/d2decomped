@@ -554,6 +554,11 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     unit's own stat 137, both ends; 3 (FUN_004ea990, Throw): the throw x
 //     SrcDam / 128 + the element; 4 (FUN_004eaa30, Left Hand Throw): the
 //     other hand's throw, none without one.
+//   attack rating, descatt 2 for a Barbarian or an Assassin (FUN_004e9510
+//     -> FUN_004e93a0): the wielded weapon's over the other's, each alone;
+//     a throwing potion's 0; descatt 3 (FUN_004e9160, Throw): its % is the
+//     throw mastery's to-hit, not the melee one; descatt 4 (FUN_004e95c0,
+//     Left Hand Throw): the other hand's alone, 0 without.
 // ponytail: descdam 14..16, 18, 23 (Druid / Assassin skills) and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
@@ -573,6 +578,7 @@ struct AttackLine {
     bool two = false;
     int min2 = 0, max2 = 0, colour2 = 0;
     int attack_rating = 0, ar_colour = 0;
+    int attack_rating2 = 0, ar_colour2 = 0;   // the other hand's: two ratings drawn when it isn't 0
 };
 // What the handlers read off the unit beside its Fighter.
 struct PanelUnit {
@@ -585,7 +591,8 @@ struct PanelUnit {
     // The wielded weapon when it is throwable (FUN_0063bef0, FUN_0062ba80): its Str / DexBonus, whether
     // it is a throwing potion (tpot), and the throw mastery's damage % on it (state throwingmastery,
     // FUN_00645830), 0 without.
-    struct Thrown { bool held = false, potion = false; int str_bonus = 0, dex_bonus = 0, mastery = 0; } thrown;
+    // `tohit`: its throw mastery's to-hit % (345) the same way.
+    struct Thrown { bool held = false, potion = false; int str_bonus = 0, dex_bonus = 0, mastery = 0, tohit = 0; } thrown;
     // Two hands (FUN_004e93a0): only a Barbarian or an Assassin (FUN_006235a0) has them; `both_hands`
     // when each holds a usable item that is no throwing potion. Then `main_hand` is the wielded weapon
     // alone (FUN_004e9300) and `off_hand` the other hand's weapon alone (FUN_004e9260), each
