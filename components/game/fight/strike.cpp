@@ -745,6 +745,8 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
+                // ponytail: that blow is the left hand's weapon's (FUN_00535bc0, +0x168 3: skills.md
+                // "Which hand a skill swings"); here both are the merged fighter's.
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->seq_struck % 2 == 0 && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kDoubleSwing))
                     other_target();
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && moving_skill(*skill)) move_event(*skill, now_ms);
@@ -1268,8 +1270,9 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
 // frames (FUN_0062a710: the item's own IAS and WSM, not the player's),
 // banded by whirlwind_gap; 10 frames with no weapon.
 // ponytail: the 0x2000 skill flag that turns FUN_00535bc0 to the other
-// hand's weapon (dual wield) isn't kept, nor FUN_0062a4e0's usable test;
-// FUN_005d92d0 (two weapons) as a weapon in each hand.
+// hand's weapon (Whirlwind's +0x168 is 2, skills.md "Which hand a skill
+// swings") isn't kept, nor FUN_0062a4e0's usable test; FUN_005d92d0 (two
+// weapons) as a weapon in each hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
