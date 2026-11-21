@@ -131,8 +131,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
 // transparent so limbs compose cleanly over each other and over tiles.
 // Trans 1 / 2 are draw modes 3 / 4, which the software renderer blends
 // through the palette's PL2 tables (FUN_00511d70; D2WinPalette.cpp copies
-// them from PL2 +0x33500 additive and +0x43500 multiply).
-// ponytail: the same sums in RGB, not the tables' nearest palette colours.
+// them from PL2 +0x33500 additive and +0x43500 multiply): palette::blend.
 // `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque). True when a pixel landed on screen.
 bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                     const d2d::dcc::Frame& frame,
@@ -198,7 +197,6 @@ void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerA
 // colour (whatever Blended Shadows says, lighting.md). Each layer the COF
 // marks (FUN_004db090: its record's shadow byte) is drawn on its own
 // (FUN_00471620 -> FUN_004f6540), so where two overlap the ground darkens twice.
-// ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y);
 

@@ -21,6 +21,7 @@
 // (JPN/KOR/CYR) use the same layout with different codepoints.
 #pragma once
 
+#include <blend.hpp>
 #include <dc6.hpp>
 #include <palette.hpp>
 
@@ -113,8 +114,6 @@ public:
     // `multiply`: draw mode 4, the renderer's slot 0x42 (FUN_00511d70),
     // which FUN_004fb010 points at the PL2's multiplicative table: each
     // channel fg * bg / 255 (FUN_00605aa0). A button label draws so.
-    // ponytail: the table holds the nearest palette colour of that; this
-    // keeps the RGB product (deviations.md approximation 1).
     int draw_tinted_baseline(std::vector<std::uint8_t>& framebuffer,
                              std::uint32_t framebuffer_width, std::uint32_t framebuffer_height,
                              const palette::Palette& palette, int x, int baseline,
@@ -154,10 +153,10 @@ private:
                 const int red = int(colour.r) * tint_red / 255;
                 const int green = int(colour.g) * tint_green / 255;
                 const int blue = int(colour.b) * tint_blue / 255;
-                if (multiply) {
-                    pixel[0] = std::uint8_t(red * pixel[0] / 255);
-                    pixel[1] = std::uint8_t(green * pixel[1] / 255);
-                    pixel[2] = std::uint8_t(blue * pixel[2] / 255);
+                if (multiply) {                                    // the PL2's multiply table (palette::blend)
+                    const auto mixed = palette::blend(palette::Blend::kMultiply, { pixel[0], pixel[1], pixel[2], 0xFF },
+                                                      { std::uint8_t(red), std::uint8_t(green), std::uint8_t(blue), 0xFF });
+                    pixel[0] = mixed.r; pixel[1] = mixed.g; pixel[2] = mixed.b;
                     continue;
                 }
                 pixel[0] = std::uint8_t(red);

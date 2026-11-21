@@ -9,6 +9,7 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <blend.hpp>
 #include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -38,6 +39,7 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -627,9 +629,18 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
     scene.act_text_red = {};
     scene.act_text_blue = {};
     scene.act_text_grey = {};
+    d2d::palette::installed_blender() = nullptr;
+    scene.act_blender.reset();
+    scene.act_pl2.reset();
     if (auto bytes = mpqs.try_read(dir + "pal.dat"))
         scene.act_pal = d2d::palette::Palette(*bytes);
     if (scene.act_pal.entries().empty()) { scene.palette_act = act; return; }
+    // Its blend tables, installed: every blended draw becomes the table's palette entry (blend.hpp).
+    if (auto bytes = mpqs.try_read(dir + "Pal.pl2"); bytes && bytes->size() >= d2d::palette::Pl2::kFileSize) {
+        scene.act_pl2 = std::make_shared<const d2d::palette::Pl2>(std::span<const std::byte>(*bytes));
+        scene.act_blender = std::make_shared<d2d::palette::Blender>(*scene.act_pl2);
+        d2d::palette::installed_blender() = scene.act_blender.get();
+    }
     if (auto bytes = mpqs.try_read(dir + "Pal.pl2"); bytes && bytes->size() >= 0x400 + 32 * 256)
         for (std::size_t level = 0; level < 32; ++level) {
             std::array<d2d::palette::Rgba, 256> entries{};

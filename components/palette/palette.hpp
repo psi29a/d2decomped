@@ -168,8 +168,9 @@ private:
 };
 
 // The PL2 blend tables' colours (docs/research/formats/pl2.md). game.exe
-// stores the nearest palette entry (FUN_00605210) of each; d2d draws the
-// colour itself (deviations.md approximation 1). Each channel is truncated.
+// stores the nearest palette entry (FUN_00605210) of each; blend.hpp draws
+// that entry when a PL2 is installed, these colours when none is. Each
+// channel is truncated.
 //
 // Alpha (FUN_00605880): (screen * (255 - w) + sprite * w) / 255. The three
 // tables' sprite weights, +0x3500 / +0x13500 / +0x23500.
@@ -198,6 +199,11 @@ inline constexpr int kAlphaThreeQuarters = 0xbf, kAlphaHalf = 0x7f, kAlphaQuarte
     return alpha_blend(screen, sprite, weight);
 }
 
+// The five 256 x 256 blend tables a draw can go through (pl2.md): the three
+// alphas (the sprite's share 75 / 50 / 25 %), additive, multiply, and the
+// max-component one (COF draw effect 6).
+enum class Blend : std::uint8_t { kAlpha75, kAlpha50, kAlpha25, kAdditive, kMultiply, kMaxComponent };
+
 // PL2 colormap file. We currently parse:
 //   * base 256 RGBA at offset 0                    → base_palette()
 //   * additive[256][256] at offset 0x33500         → additive(fg, bg)
@@ -210,8 +216,8 @@ inline constexpr int kAlphaThreeQuarters = 0xbf, kAlphaHalf = 0x7f, kAlphaQuarte
 // off the palette and looks off-key.
 //
 // blend50 is game.exe's installed 0x7fe468 (FUN_004fb1e0) and max_blend its
-// 0x831b68: tools/emu pl2.py diffs both (docs/research/formats/pl2.md). The
-// other tables (the 75 / 25 % alphas, multiply) have no caller here yet.
+// 0x831b68: tools/emu pl2.py diffs both (docs/research/formats/pl2.md); blend()
+// reads all five, as blend.hpp's Blender draws them.
 class Pl2 {
 public:
     static constexpr std::size_t kFileSize        = 443175;
@@ -219,6 +225,9 @@ public:
     static constexpr std::size_t kAdditiveOff     = 0x33500;
     static constexpr std::size_t kBlend50Off      = 0x13500;
     static constexpr std::size_t kMaxBlendOff     = 0x5b500;   // max_component_blend's table
+    static constexpr std::size_t kAlpha75Off      = 0x3500;
+    static constexpr std::size_t kAlpha25Off      = 0x23500;
+    static constexpr std::size_t kMultiplyOff     = 0x43500;
     // The 13 text colours' index shifts (FUN_004fb1e0 copies PL2 +0x6b627
     // to 0x7d5668 and hands it to the driver: a glyph's index i draws as
     // shift[colour][i]); their RGBs at +0x6b600 (0x7d563c).
@@ -242,7 +251,12 @@ public:
             blend50_[i]  = std::uint8_t(bytes[kBlend50Off  + i]);
         }
         if (bytes.size() >= kMaxBlendOff + 256u * 256u)
-            for (std::size_t i = 0; i < 256u * 256u; ++i) max_blend_[i] = std::uint8_t(bytes[kMaxBlendOff + i]);
+            for (std::size_t i = 0; i < 256u * 256u; ++i) {
+                max_blend_[i] = std::uint8_t(bytes[kMaxBlendOff + i]);
+                alpha75_[i] = std::uint8_t(bytes[kAlpha75Off + i]);
+                alpha25_[i] = std::uint8_t(bytes[kAlpha25Off + i]);
+                multiply_[i] = std::uint8_t(bytes[kMultiplyOff + i]);
+            }
         if (bytes.size() >= kTextShiftOff + 13u * 256u)
             for (std::size_t i = 0; i < 13u * 256u; ++i) text_shift_[i] = std::uint8_t(bytes[kTextShiftOff + i]);
     }
@@ -270,6 +284,20 @@ public:
     [[nodiscard]] std::uint8_t max_blend(std::uint8_t screen, std::uint8_t sprite) const noexcept {
         return max_blend_[std::size_t(screen) * 256 + sprite];
     }
+    // Any of the blend tables, T[screen * 256 + sprite] (each built with the
+    // sprite as the column, pl2.md).
+    [[nodiscard]] std::uint8_t blend(Blend mode, std::uint8_t screen, std::uint8_t sprite) const noexcept {
+        const std::size_t cell = std::size_t(screen) * 256 + sprite;
+        switch (mode) {
+            case Blend::kAlpha75: return alpha75_[cell];
+            case Blend::kAlpha50: return blend50_[cell];
+            case Blend::kAlpha25: return alpha25_[cell];
+            case Blend::kAdditive: return additive_[cell];
+            case Blend::kMultiply: return multiply_[cell];
+            case Blend::kMaxComponent: return max_blend_[cell];
+        }
+        return sprite;
+    }
 
 private:
     // The 64 KB tables live on the heap: a Scene holds two PL2s, and inline
@@ -278,6 +306,9 @@ private:
     std::vector<std::uint8_t>  additive_  = std::vector<std::uint8_t>(65536);
     std::vector<std::uint8_t>  blend50_   = std::vector<std::uint8_t>(65536);
     std::vector<std::uint8_t>  max_blend_ = std::vector<std::uint8_t>(65536);
+    std::vector<std::uint8_t>  alpha75_   = std::vector<std::uint8_t>(65536);
+    std::vector<std::uint8_t>  alpha25_   = std::vector<std::uint8_t>(65536);
+    std::vector<std::uint8_t>  multiply_  = std::vector<std::uint8_t>(65536);
     std::array<std::uint8_t, 13 * 256> text_shift_{};
 };
 

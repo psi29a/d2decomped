@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 
+#include <blend.hpp>
 #include <cof.hpp>
 #include <compcode.hpp>
 #include <d2s.hpp>
@@ -19,6 +20,7 @@
 #include <cstdint>
 #include <exception>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -196,6 +198,9 @@ struct Scene : GameData {
     // it as the player changes act.
     d2d::palette::Palette                    act_pal;
     std::array<d2d::palette::Palette, 32>    act_lit;   // act_pal at each light level (PL2 +0x400)
+    // The act PL2's blend tables and their Blender, installed while it's the act's (FUN_004fb1e0).
+    std::shared_ptr<const d2d::palette::Pl2> act_pl2;
+    std::shared_ptr<d2d::palette::Blender>   act_blender;
     d2d::palette::Palette act_text_red;              // act_pal through PL2's text colour 1 shift (the last 13 x 256: FUN_004f64b0's colour)
     d2d::palette::Palette act_text_blue;             // ... and its text colour 3 (blue): a hovered list row, a mode-1 menu line
     d2d::palette::Palette act_text_grey;             // text colour 5 (grey): a skill icon that cannot take a point (FUN_004abf60)
