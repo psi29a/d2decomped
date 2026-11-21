@@ -40,6 +40,7 @@ int main() try {
     input.event(2, Phase::Down, 598, 530, fire);
     input.event(2, Phase::Up, -1, 170);
     assert(input.casts.empty()); // lift off the 800x600 band
+    assert(input.feedback.sample(0, 0).kind == FeedbackKind::Cancelled);
     input.event(2, Phase::Down, 598, 530, fire);
     input.event(2, Phase::Up, 380, 600);
     assert(input.casts.empty());
@@ -283,6 +284,14 @@ int main() try {
     assert(input.feedback.sample(0, 150).kind == FeedbackKind::Cancelled);
     input.clear();
     assert(!input.feedback.sample(0, 150).active);
+    input.event(2, Phase::Down, field.skills[0].x + 20, field.skills[0].y + 20, {}, false, false, 500);
+    input.event(2, Phase::Up, field.skills[0].x + 20, field.skills[0].y + 20, {}, false, false, 550);
+    assert(input.casts.empty() && input.feedback.sample(0, 550).kind == FeedbackKind::Rejected);
+    input.clear();
+    input.event(2, Phase::Down, field.skills[0].x + 20, field.skills[0].y + 20, fire, false, false, 800);
+    input.event(2, Phase::Up, field.skills[0].x + 20, field.skills[0].y + 20, {}, false, false, 850);
+    assert(input.casts.size() == 1 && input.feedback.sample(0, 850).kind == FeedbackKind::Accepted);
+    input.clear();
     // Insets supported by the SDL mapping must keep all thumb targets separate.
     for (float inset : { 0.f, 20.f, 48.f }) {
         safe_inset = { inset, inset, inset, inset };

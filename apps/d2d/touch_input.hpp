@@ -460,11 +460,12 @@ public:
             aim_x = x; aim_y = y;
             dragged = dragged || (!stationary && std::hypot(x - origin_x, y - origin_y) > 10);
             if (phase == Phase::Up) {
-                const bool accepted = x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid;
+                const bool in_band = x >= 0 && x < 800 && y >= 0 && y < 600;
+                const bool accepted = in_band && preview.valid;
                 if (accepted) casts.push_back(preview);
                 if (skill_feedback_ >= 0) {
                     feedback.release(std::size_t(skill_feedback_));
-                    feedback.pulse(std::size_t(skill_feedback_), accepted ? FeedbackKind::Accepted : FeedbackKind::Rejected, now_ms);
+                    feedback.pulse(std::size_t(skill_feedback_), in_band ? (accepted ? FeedbackKind::Accepted : FeedbackKind::Rejected) : FeedbackKind::Cancelled, now_ms);
                     skill_feedback_ = -1;
                 }
                 skill_ = -1; aiming = false;

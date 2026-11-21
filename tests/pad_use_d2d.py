@@ -432,6 +432,14 @@ if touch_ux:
     tap(598, 530)           # onto skill ring 1
     screenshot("touch-assignment-corpse.png" if corpse_ux else "touch-assignment.png")
     tap(768, 30); tap(768, 30)  # Done, then Back from the tree
+    tap(170, 30)  # Stats from the field, outside the NPC dispatch branch.
+    assert state()["character_panel"] == "1", "Stats did not open Character from the field"
+    tap(768, 30)
+    tap(30, 30)
+    assert state()["inventory"] == "1", "Inventory fixture did not open"
+    tap(170, 30)
+    assert state()["character_panel"] == "1" and state()["inventory"] == "0", "Stats did not replace Inventory"
+    tap(768, 30)
     cmd("debug goto 2"); frames(20)
     cmd("debug kill"); frames(40)
     if corpse_ux:

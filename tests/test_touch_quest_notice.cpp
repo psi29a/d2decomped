@@ -4,8 +4,10 @@
 #include "touch_quest_notice.hpp"
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     d2d::client::touch::QuestNotice notices;
     assert(!notices.active());
     // Reviewing one entry cannot clear another quest's update.
@@ -34,4 +36,8 @@ int main() {
     assert(notices.active());
     notices.review(40);
     assert(!notices.active());
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_touch_quest_notice: %s\n", error.what());
+    return 1;
 }
