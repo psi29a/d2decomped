@@ -432,6 +432,26 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     } else if (skill.descdam == 19) {                         // FUN_004ea310 without two hands: FUN_004e9610 alone
         line.damage = true;
         hand_weapon(fighter, unit.thrown, line);
+    } else if (skill.descdam == 2) {                          // FUN_004ea450 (Kick)
+        // MinDam (+0x1a8) << (HitShift - 8) (SHL by CL: the count's low 5 bits), + FUN_00625500's stat
+        // 137 (0x89) on both ends, white.
+        line.damage = true;
+        line.min = line.max = (skill.mindam << ((skill.hitshift - 8) & 31)) + unit.base_kick;
+    } else if (skill.descdam == 3) {                          // FUN_004ea990 (Throw)
+        // FUN_004ea4a0 on the wielded weapon (white before its elements), x SrcDam / 128 truncated, then
+        // the element (0x4eaa07) and its colour.
+        line.damage = true;
+        throw_line(fighter, unit.thrown, 0, line);
+        line.min = line.min * skill.srcdam_raw / 128;
+        line.max = line.max * skill.srcdam_raw / 128;
+        element_text();
+    } else if (skill.descdam == 4) {                          // FUN_004eaa30 (Left Hand Throw)
+        // The other hand's weapon (FUN_004e9260) through FUN_004ea4a0, no SrcDam or element; nothing
+        // drawn without one.
+        if (unit.dual_class && unit.off_hand.fighter) {
+            line.damage = true;
+            throw_line(*unit.off_hand.fighter, unit.off_hand.thrown, 0, line);
+        }
     } else if (skill.descdam == 13) {                         // FUN_004eb240 (Double Throw)
         line.damage = true;
         const int extra = calc_of(skill.calc[0]);

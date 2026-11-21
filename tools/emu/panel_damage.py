@@ -5,7 +5,7 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 1 (FUN_004ea170),
-5
+2 (FUN_004ea450), 3 (FUN_004ea990), 4 (FUN_004eaa30), 5
 (FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
 12 (FUN_004eb830), 13 (FUN_004eb240), 17 (FUN_004ebd50), 19 (FUN_004ea310),
@@ -29,7 +29,7 @@ FUN_0062ba80 / FUN_00629bb0 (the wielded weapon, throwable, a tpot) and
 FUN_00645830 (its mastery), FUN_006235a0 (a two-handed class),
 FUN_0063bde0 / FUN_0062a4e0 (a hand's item, usable), FUN_004e9300 /
 FUN_004e9260 (the wielded hand's weapon, the other's), FUN_00627910 (their
-stats on and off). FUN_004e96e0 (the
+stats on and off), FUN_00625500 (a unit's own stat). FUN_004e96e0 (the
 draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
 colours. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
@@ -50,11 +50,12 @@ EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 HAS_WEAPON, WIELD, CALC_AT = 0x623990, 0x63D340, 0x646CA0
 SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298A0
 WIELDED, THROWABLE, ITEM_TYPE_IS, MASTERY = 0x63BEF0, 0x62BA80, 0x629BB0, 0x645830
+BASE_STAT = 0x625500
 DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x63BDE0, 0x62A4E0, 0x4E9300, 0x4E9260, 0x627910
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 5, 6, 8, 9, 10, 11, 12, 13, 17, 19, 20, 21, 22, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 17, 19, 20, 21, 22, 24)
 
 
 def d2d_line(descdam, case):
@@ -71,12 +72,12 @@ def d2d_line(descdam, case):
             w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
         return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else w_colour
 
-    def hand_part(descdam, hand, start):
+    def hand_part(descdam, hand, start, extra=None):
         """FUN_004e9610 (a weapon) or FUN_004ea4a0 (Double Throw's throw) on one hand, None the unit."""
         if descdam != 13:
             return weapon_part(hand, start)
         stats = case["stats"]
-        item_ok = case[f"hand_{hand}"] if hand else case["wielded"]
+        item_ok = True if hand else case["wielded"]
         if not item_ok or not case[f"throwable_{hand}" if hand else "throwable"]:
             return 0, 0, start
         str_bonus, dex_bonus = (case[f"str_bonus_{hand}"], case[f"dex_bonus_{hand}"]) if hand else (case["str_bonus"], case["dex_bonus"])
@@ -88,7 +89,7 @@ def d2d_line(descdam, case):
         pct = max(pct + stats.get(25, 0), -90)
         low = stats.get(159, 0) + trunc_div((stats.get(18, 0) + pct) * stats.get(159, 0), 100)
         high = stats.get(160, 0) + trunc_div((stats.get(17, 0) + pct) * stats.get(160, 0), 100)
-        extra = case["calcs"][11] + (case["mastery"] if case["throw_state"] else 0)
+        extra = (case["calcs"][11] if extra is None else extra) + (case["mastery"] if case["throw_state"] else 0)
         low += mul_div(low, extra, 100); high += mul_div(high, extra, 100)
         high = max(high, low)
         e_low, e_high, colour = 0, 0, start
@@ -156,6 +157,18 @@ def d2d_line(descdam, case):
         if lower[:2] == (0, 0):
             return upper
         return ("two", two_text(*upper[:2]), two_text(*lower[:2]), upper[2], lower[2])
+    elif descdam == 2:
+        value = signed(((case["mindam"] << ((case["hitshift"] - 8) & 31)) + case["base_kick"]) & 0xFFFFFFFF)
+        return value, value, 0
+    elif descdam == 3:
+        low, high, colour = hand_part(13, None, 0, 0)
+        element = element_part()
+        colour = element[2] if 0 <= case["etype"] < 5 else colour
+        return trunc_div(low * case["srcdam"], 128) + element[0], trunc_div(high * case["srcdam"], 128) + element[1], colour
+    elif descdam == 4:
+        if not (case["dual"] and case["other"]):
+            return None
+        return hand_part(13, "b", 0, 0)
     elif descdam in (1, 13, 19, 20) and (descdam == 13 or case["dual"]):
         element = element_part() if descdam != 20 else (0, 0, 0)
         first, second = (0, 0, element[2]), (0, 0, element[2])
@@ -323,7 +336,8 @@ def main():
     e.hook(HAND_ITEM, lambda em: (item_a if case["hand_a"] else 0) if em.arg(1) == 4 else (item_b if case["hand_b"] else 0), 2)
     e.hook(USABLE, lambda em: int(by_item(em.arg(0), "usable")), 1)
     e.hook(MAIN_HAND, lambda _e: item_a if case["main"] else 0, 0)
-    e.hook(OTHER_HAND, lambda _e: item_b if case["other"] else 0, 0)
+    e.hook(OTHER_HAND, lambda _e: item_b if case["other"] and case["dual"] else 0, 0)
+    e.hook(BASE_STAT, lambda em: case["base_kick"] & 0xFFFFFFFF if em.arg(1) == 0x89 else 0, 3)
     e.hook(ITEM_STATS, lambda _e: 0, 3)
 
     def shield(em):                                   # (inventory, &item)
@@ -389,10 +403,10 @@ def main():
             holy_node=rng.random() < 0.6, holy_state=rng.random() < 0.6, smite_pct=rng.choice((0, 15, 90, 300, -200)),
             str_bonus=rng.choice((0, 0, 50, 100, -10)), dex_bonus=rng.choice((0, 0, 50, 75)),
             wielded=rng.random() < 0.8, throwable=rng.random() < 0.8, potion=False,
-            dual=rng.random() < 0.7, main=rng.random() < 0.85, other=rng.random() < 0.7, usable=rng.random() < 0.9,
+            base_kick=rng.choice((0, 0, 3, 40, -2)), dual=rng.random() < 0.7, main=rng.random() < 0.85, other=rng.random() < 0.7, usable=rng.random() < 0.9,
             **{f"{key}_{hand}": value() for hand in "ab" for key, value in (
                 ("hand", lambda: rng.random() < 0.8), ("usable", lambda: rng.random() < 0.85),
-                ("potion", lambda: descdam != 13 and rng.random() < 0.1), ("throwable", lambda: rng.random() < 0.85),
+                ("potion", lambda: descdam not in (3, 4, 13) and rng.random() < 0.1), ("throwable", lambda: rng.random() < 0.85),
                 ("w_low", lambda: rng.randrange(-5, 200)), ("w_high", lambda: rng.randrange(-5, 400)),
                 ("str_bonus", lambda: rng.choice((0, 0, 50, 75))), ("dex_bonus", lambda: rng.choice((0, 0, 30, 100))))},
             throw_state=rng.random() < 0.5, mastery=rng.choice((0, 30, 120, 400)),
