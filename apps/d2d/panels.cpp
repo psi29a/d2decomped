@@ -1158,6 +1158,7 @@ void quest_log_tab(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits,
 void quest_log_notify(QuestLog& quest_log, int quest) {
     const auto found = std::ranges::find(kQuestLog, quest, &QuestEntry::quest);
     if (found == kQuestLog.end()) return;
+    quest_log.touch_notice.notify(quest);
     if (!quest_log.open) {
         quest_log.button = quest_log.notified = true;
         quest_log.pending[std::size_t(found->act)] = found->slot;     // FUN_004a2c30
@@ -1228,6 +1229,7 @@ bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         draw_hover_text(framebuffer, scene, { { string_id(scene, button == 1 ? 0x1030 : 0xe88), kTxtWhite } }, centre, centre, hover_bottom, hover_bottom);
     }
     if (!sel) return sound;
+    quest_log.touch_notice.review(sel->quest);
     // The name centred at 160, the lines from x 16, wrapped to 270 (FUN_00502970).
     auto line = [&](const std::string& text, int x, int y) { font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, panel_y + y - font.line_height(), text); };
     const auto name = string_id(scene, std::uint16_t(sel->name));

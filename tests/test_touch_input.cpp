@@ -3,6 +3,7 @@
 // test-includes: apps/d2d
 // Actual touch adapter: independent fingers, latched page/skill, safe cancellation.
 #include "skillpad.hpp"
+#include "touch_feedback.hpp"
 #include "touch_input.hpp"
 
 #include <algorithm>
@@ -20,6 +21,7 @@
 int main() try {
     using namespace d2d::client::touch;
     Input input;
+    const auto initial = layout_boxes();
     const Target fire{ 54, 7, 5, 6, false, true };
     input.event(1, Phase::Down, 126, 462);
     input.event(1, Phase::Move, 191, 462);
@@ -27,7 +29,7 @@ int main() try {
     input.event(2, Phase::Down, 598, 530, fire);
     input.event(2, Phase::Move, 630, 500);
     assert(input.aiming && input.dragged && input.casts.empty());
-    input.event(3, Phase::Down, 736, 440);
+    input.event(3, Phase::Down, initial.page.x + 20, initial.page.y + 20);
     assert(input.alternate && input.move_x == 1 && input.preview.skill == 54);
     input.event(2, Phase::Cancel, 610, 450);
     assert(!input.aiming && input.casts.empty() && input.move_x == 1);
@@ -80,7 +82,7 @@ int main() try {
     assert(input.move_held() && input.move_x == 1);
     assert(!chrome_hit(400, 300));
     assert(!chrome_hit(200, 200));
-    assert(chrome_hit(391, 455, true)); // kInteract only blocks field taps when visible
+    assert(chrome_hit(initial.interact.x + 20, initial.interact.y + 20, true)); // kInteract only blocks field taps when visible
     // layout_boxes positions depend on safe_inset and kUiScale only, not on pad_field().
     safe_inset = {};
     const auto field = layout_boxes();
@@ -128,8 +130,7 @@ int main() try {
     const float gap_bars = bar_gap();
     assert(gap_bars >= 0.25f * chip_h && gap_bars <= 0.5f * chip_h);
     assert(field.quest_track.y + 1.f >= field.bind.y + field.bind.height + gap_bars + kBarBlockH);
-    const float grid_w = 2.f * field.belts[0].width + ui_scale(kBeltGap);
-    assert(std::abs(field.belts[1].x - (field.map.x + field.map.width - grid_w)) < 1.f);
+    assert(std::abs(field.belts[1].x - (field.belt_more.x - ui_scale(kBeltSize) - ui_scale(kBeltGap))) < 1.f);
     const auto overlap = [](Box left, Box right) {
         return left.x < right.x + right.width && right.x < left.x + left.width && left.y < right.y + right.height && right.y < left.y + left.height;
     };
@@ -178,6 +179,7 @@ int main() try {
     assert(identify.hit(identify.confirm.x + 1.f, identify.confirm.y + 1.f) == ItemAction::Confirm);
     assert(identify.hit(identify.use.x + 1.f, identify.use.y + 1.f) == ItemAction::None);
     input.clear();
+    input.belt_expanded = true;
     input.event(4, Phase::Down, field.belts[0].x + 2.f, field.belts[0].y + 2.f, {}, false, false, 1000);
     assert(input.belt < 0 && !input.belt_quick && input.belt_armed == 0);
     input.event(4, Phase::Up, field.belts[0].x + 2.f, field.belts[0].y + 2.f, {}, false, false, 1010);
@@ -258,6 +260,42 @@ int main() try {
         const auto none = bind_wheel_pick(40.f, 0.f, 0, 0, 0);
         assert(!none.hit);
     }
+    // Potion release must come from its owner and stay inside the original target.
+    PotionPress potion;
+    const float potion_x = field.healing.x + 20.f, potion_y = field.healing.y + 20.f;
+    assert(potion.event(1, Phase::Down, potion_x, potion_y, field) == PotionButton::None);
+    assert(potion.event(2, Phase::Up, potion_x, potion_y, field) == PotionButton::None && potion.owns(1));
+    assert(potion.event(1, Phase::Up, potion_x, potion_y, field) == PotionButton::Healing);
+    potion.event(1, Phase::Down, potion_x, potion_y, field);
+    potion.event(1, Phase::Move, 0.f, 0.f, field);
+    assert(potion.event(1, Phase::Up, potion_x, potion_y, field) == PotionButton::None);
+    potion.event(1, Phase::Down, potion_x, potion_y, field);
+    assert(potion.event(1, Phase::Cancel, potion_x, potion_y, field) == PotionButton::None && !potion.owns(1));
+    input.potion_press.event(1, Phase::Down, potion_x, potion_y, field);
+    input.belt_expanded = true;
+    input.clear();
+    assert(!input.potion_press.owns(1) && !input.belt_expanded);
+    assert(!chrome_hit(field.belts[0].x + 2, field.belts[0].y + 2));
+    assert(chrome_hit(field.belts[0].x + 2, field.belts[0].y + 2, false, true, true));
+    input.event(2, Phase::Down, field.skills[0].x + 20, field.skills[0].y + 20, fire, false, false, 100);
+    assert(input.feedback.sample(0, 100).kind == FeedbackKind::Pressed);
+    input.event(2, Phase::Cancel, 0, 0, {}, false, false, 150);
+    assert(input.feedback.sample(0, 150).kind == FeedbackKind::Cancelled);
+    input.clear();
+    assert(!input.feedback.sample(0, 150).active);
+    // Insets supported by the SDL mapping must keep all thumb targets separate.
+    for (float inset : { 0.f, 20.f, 48.f }) {
+        safe_inset = { inset, inset, inset, inset };
+        const auto safe = layout_boxes();
+        assert(!overlap(safe.move, safe.healing) && !overlap(safe.move, safe.mana));
+        for (const auto& skill : safe.skills) {
+            assert(!overlap(skill, safe.healing) && !overlap(skill, safe.mana));
+            assert(skill.x >= inset && skill.y >= inset);
+            assert(skill.x + skill.width <= 800.f - inset && skill.y + skill.height <= 600.f - inset);
+        }
+        assert(safe.belt_more.x + safe.belt_more.width <= 800.f - inset);
+    }
+    safe_inset = {};
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());
