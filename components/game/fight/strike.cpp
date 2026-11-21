@@ -134,6 +134,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
             *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, bare, {}, actor->character.stats, gains,
                                              int(actor->character.panel.defense), res, boots);
+            fighter.ar_base_bare = kick->ar_base;               // the weapon's stats off (FUN_00627910 in FUN_004e9040)
             kick->ar_base = fighter.ar_base; kick->ar_pct = fighter.ar_pct; kick->attack_rating = fighter.attack_rating;
             kick->kick_pct = fighter.kick_pct;
         }
