@@ -93,7 +93,8 @@ bytes a pixel, `FUN_00603860`), a count of entries at `+0x24`, and its
 ## Not reached
 
 No pointer, and no call or jump from anything but another function in
-this list. The cel file ones assert with `.\SRC\CelCmp.cpp`.
+this list. Three have callers, each of them in this list (their rows name
+them); the rest have none. The cel file ones assert with `.\SRC\CelCmp.cpp`.
 
 | Address | What it does |
 |---|---|
@@ -116,19 +117,19 @@ this list. The cel file ones assert with `.\SRC\CelCmp.cpp`.
 | `FUN_00601e80` | ECX = list, stack pointer to an offset: the list set up with that link offset and an empty head |
 | `FUN_00601ea0` | (file; `ret 4`): null is fatal (0x41b). With bit 0 or 1: bit 1 runs `FUN_00601a50`; then frees it (0x422) |
 | `FUN_00601fa0` | byte-identical to storm-file.md's `FUN_00417a10` |
-| `FUN_00601fc0` | byte-identical to storm-file.md's `FUN_00417a70` (the insert) |
+| `FUN_00601fc0` | byte-identical to storm-file.md's `FUN_00417a70` (the insert). Called only by `FUN_006029b0` |
 | `FUN_00602070` | byte-identical to storm-file.md's `FUN_00417b20` |
 | `FUN_00602090`, `FUN_00602400` | ECX = table, stack flag: leaves `+0x50` when the flag is set. Byte-identical |
 | `FUN_00602110`, `FUN_00602280` | ECX = list, stack item: the item's link (item + the link offset), or list + 4 when null. Byte-identical |
 | `FUN_00602190` | byte-identical to storm-file.md's `FUN_00417e90` |
-| `FUN_006021e0` | (record; `ret 4`): when `+0x08` is set, unlinks its `+0x04` and `+0x0c` links |
+| `FUN_006021e0` | (record; `ret 4`): when `+0x08` is set, unlinks its `+0x04` and `+0x0c` links. Called only by `FUN_00602620`, `FUN_006027e0`, `FUN_00602a10`, `FUN_006039c0` |
 | `FUN_00602260` | ECX = list, stack item: the item's next, or list `+8` when null |
 | `FUN_006022a0`, `FUN_00602590` | the link as `FUN_00602110` picks it, then unlinks it. Byte-identical |
 | `FUN_006022f0`, `FUN_00602350` | ECX = list, stack offset: set up with that offset and an empty head. Byte-identical |
 | `FUN_00602310` | as `FUN_00602260`, but 0 when that is not positive |
 | `FUN_006023b0`, `FUN_00602980` | as `FUN_00601e80`, zeroing the head first. Byte-identical |
 | `FUN_006023e0` | byte-identical to storm-file.md's `FUN_004185d0` |
-| `FUN_006024e0` | ECX = list, stack item, mode, where (`ret 0xc`): the insert, with the item and `where` given as items, not links |
+| `FUN_006024e0` | ECX = list, stack item, mode, where (`ret 0xc`): the insert, with the item and `where` given as items, not links. Called only by `FUN_006035a0` |
 | `FUN_00602620`, `FUN_006027e0` | ECX = table, stack record: unlinks it (`FUN_006021e0`) and deletes it (slot 0). The same code |
 | `FUN_006026e0` | ECX = list, stack offset: when the offset differs, empties the list and sets it up with the new one |
 | `FUN_006027a0`, `FUN_00602890`, `FUN_006028d0`, `FUN_00602ae0`, `FUN_00602df0` | as `FUN_00602aa0`: empty the list (`FUN_006025e0`, `FUN_00602640` or `FUN_00602690`), unlink its head |
