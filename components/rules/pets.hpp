@@ -287,6 +287,17 @@ GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, 
 // striker for 0x2ee frames with velocitypercent, attackrate and
 // other_animrate at -slow (FUN_0056e970, FUN_006270b0 0x5c67cf..0x5c6840).
 inline constexpr int kClaySlowFrames = 0x2ee;
+// item_slow's own event (ItemStatCost domeleedamage / domissiledamage, func 19,
+// FUN_005c0310), on the unit it strikes: on gear's wearer, and on a summon whose
+// aurastat it is (FUN_005c4470 0x5c4686..0x5c46f2: Clay Golem's), raised as its
+// hit lands (FUN_0057c6c0 event 5, 0x57c7d8..0x57c7e3). Held to 50 against a
+// player, and against a monster that is a champion, unique or superunique
+// (`special`, +0x16 & 0xc), a MonStats boss (FUN_0063e9f0) or a hireling
+// (FUN_0063ee90); to 75 against one with the superunique flag (+0x16 & 2)
+// alone; to 90 against another monster; other types and a 0 give none
+// (0x5c0347..0x5c03c9). The same state 0x18 as clay_slow's.
+[[nodiscard]] int item_slow(int slow, int unit_type, bool special, bool boss, bool hireling, bool superunique) noexcept;
+
 [[nodiscard]] int clay_slow(int slow, int unit_type, bool special) noexcept;
 
 // Iron Golem's target (its srvstfunc 20, FUN_005c32a0): an item (unit type 4)

@@ -1775,7 +1775,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     length 750, stat 67 velocitypercent = -value}, then sets stats 68
     (attackrate) and 69 (other_animrate) to -value on that state's list
     (FUN_006270b0) and refreshes other's pace (FUN_00623f50)
-    (0x5c0347..0x5c044f).
+    (0x5c0347..0x5c044f). A superunique carries +0x16 & 8 too (FUN_005a09e0 0x5a0b61 ->
+    FUN_005a0320 0x5a0375, before flag 2 at 0x5a4a99), so the 75 is
+    only for the flag 2 alone. A Clay Golem carries it (aura event 27
+    below); gear's on a player isn't in d2d.
   - **20** item_skillonattack / onkill / onhit (stats 195, 196, 198;
     FUN_005c0470; domeleeattack, domissileattack, kill, domeleedamage,
     domissiledamage): the skill is the layer >> [0x744304]+0xc6c, the level
@@ -1831,7 +1834,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     without isAtt (flags bit 9; 0x56e9cc..0x56ea08); a re-hit only moves the
     expiry and sets 68 / 69 anew (0x56ea87). The golem's own blows slow
     too: FUN_005c4470 (0x5c4686..0x5c46f2) hooks item_slow's ItemStatCost
-    events (19, domeleedamage / domissiledamage) on it; not in d2d.
+    events (19, domeleedamage / domissiledamage) on it (`rules::item_slow`
+    in `Fight::pet_strike`; V: `tools/emu/item_slow.py`).
     d2d: `rules::clay_slow`,
     `Fight::clay_slows`, `put_slow`; V: `tools/emu/clay_slow.py`
     (`test_clay_slow --clay-slow`).
