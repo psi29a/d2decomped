@@ -502,7 +502,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     frame = std::uint32_t(d2d::rules::ground_fire_frame(std::min(ticks, life), life, unit.missile->anim_len, unit.missile->sub_start,
                                                                         unit.missile->sub_stop, unit.missile->sub_loop != 0, int(per_256), seed)) % frames;
                 }
-                if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y + unit.missile_z, unit.missile->trans))
+                // Lit as any unit, Trans or not: FUN_004df510 hands FUN_004dc7b0 the unit's light (FUN_00475aa0), and the cel
+                // draw (0x511fb0) takes its light table [light >> 3] under the draw mode's blend (FUN_00471ec0: Trans 1 / 2 ->
+                // draw mode 3 / 4).
+                if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), upal, anchor_x, anchor_y + unit.missile_z, unit.missile->trans))
                     Scene::note_drawn("missiles", unit.missile->cel_file);
                 continue;
             }
