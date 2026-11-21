@@ -833,8 +833,9 @@ struct GameData {
                          // what misscalc reads of them (FUN_0064b340, skill_text::miss_operand).
                          int param5 = 0; std::array<int, 5> clt_params{}; std::array<int, 3> clt_hit_pars{};
                          // SubLoop, SubStart, SubStop (+0x180..+0x182): made with create flag 8, its Range runs on by
-                         // (SubStop - SubStart) x [0xd] when SubLoop (FUN_0059fa30).
-                         int sub_loop = 0, sub_start = 0, sub_stop = 0;
+                         // (SubStop - SubStart) x [0xd] when SubLoop (FUN_0059fa30). LoopAnim (+0x137): the client's
+                         // SubStart..SubStop wrap needs it with SubLoop (FUN_004d30c0).
+                         int sub_loop = 0, sub_start = 0, sub_stop = 0, loop_anim = 0;
                          int damage_rate = 0;   // DamageRate (+0x19c, stat 327 damage_framerate on the missile): a burner's flat DR / MDR x it / 1024 (rules::frame_rate_flat)
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames

@@ -368,7 +368,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.param5 = number("Param5");
         for (std::size_t slot = 0; slot < missile_info.clt_params.size(); ++slot) missile_info.clt_params[slot] = number("CltParam" + std::to_string(slot + 1));
         for (std::size_t slot = 0; slot < missile_info.clt_hit_pars.size(); ++slot) missile_info.clt_hit_pars[slot] = number("cHitPar" + std::to_string(slot + 1));
-        missile_info.sub_loop = number("SubLoop"); missile_info.sub_start = number("SubStart"); missile_info.sub_stop = number("SubStop");
+        missile_info.sub_loop = number("SubLoop"); missile_info.sub_start = number("SubStart"); missile_info.sub_stop = number("SubStop"); missile_info.loop_anim = number("LoopAnim");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.clt_sub = missiles_table.get(row_index, "CltSubMissile1"); missile_info.init_steps = number("InitSteps");

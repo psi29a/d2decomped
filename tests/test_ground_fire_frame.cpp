@@ -33,6 +33,12 @@ int main() try {
         assert(frame_at(89, seed_value) == 1 && frame_at(90, seed_value) == 1);                    // held at 0, then a step
     }
     assert(jumped.size() > 8);   // the jump is a draw, not one frame
+    // Without LoopAnim (andyfirewall: SubLoop 1, LoopAnim 0) FUN_004d30c0 takes FUN_00621310: past SubStop it runs on
+    // to AnimLen and wraps to 0, so the caller passes SubLoop && LoopAnim.
+    d2d::rules::Rng plain_seed{ 7 };
+    const int jump = d2d::rules::ground_fire_frame(12, kLife, kLen, kStart, kStop, false, kRate, plain_seed);
+    d2d::rules::Rng plain_again{ 7 };
+    assert(d2d::rules::ground_fire_frame(12 + (kLen - jump), kLife, kLen, kStart, kStop, false, kRate, plain_again) == 0);
     std::printf("OK: ground fire frames (FUN_004d3540), %zu jump frames seen\n", jumped.size());
     return 0;
 } catch (const std::exception& error) {
