@@ -340,9 +340,10 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             // the player, 0x5c561b): rules::leader_follow with a player leader, before anything else. Over 0x14
             // (its own size off) a walk to a spot 0x13 about the owner (FUN_005df530); within 1 a back-off 0x13
             // (FUN_005defe0), failing that the walk; the owner dead, never again.
-            // ponytail: d2d has no monster think aimed at monsters, so past that step a stand-in: the nearest foe
-            // chased at max(Run, Velocity), else a follow at the owner's RunVelocity x 1.1. Port when monster
-            // thinks can take monsters for their targets.
+            // Past that step it searches as its monster (below).
+            // ponytail: its think isn't: a stand-in chases the pick at max(Run, Velocity) and swings A1 (or shoots
+            // its pet missile), else follows at the owner's RunVelocity x 1.1; its MonStats think and skills, and
+            // a monster's missiles hitting monsters, aren't ported for a pet.
             {
                 const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
                 const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
@@ -375,14 +376,22 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
             }
             if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) pet.target = -1;
+            // Its search is its monster's (FUN_005dd7f0): alignment 2 (FUN_005c55c0's FUN_005543b0), so
+            // FUN_005dd0b0 mode 5 over the monsters about it (search_foe), the player's side its friends.
+            // ponytail: it runs only when the stand-in has no target (game.exe searches each think), and on a
+            // fresh Monster: the corpse's own AI control flags (its sighted flag 8) aren't carried over.
             if (pet.target < 0) {
-                float best = 1e9f;
-                for (std::size_t i = 0; i < monsters.size(); ++i) {
-                    const auto& other = monsters[i];
-                    if (!other.alive()) continue;
-                    const float to_player = std::hypot(other.unit.x - actor->player.x, other.unit.y - actor->player.y), to_pet = std::hypot(other.unit.x - unit.x, other.unit.y - unit.y);
-                    if (((other.aware && to_player < 8) || to_pet < 4) && to_pet < best) { best = to_pet; pet.target = int(i); }
+                restamp();                                    // the room lists as they stand now
+                std::vector<Foe> foes;
+                foes.reserve(monsters.size());
+                for (auto& other : monsters) {
+                    const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
+                    Foe& foe = foes.emplace_back();
+                    foe.x = other.unit.x; foe.y = other.unit.y; foe.level = other.stats.level;
+                    foe.alive = other.targetable() && other.mode != "DT";
+                    foe.size = other_type.size; foe.threat = other_type.threat; foe.of = &other; foe.id = other.id; foe.room_stamp = other.unit.room_stamp;
                 }
+                pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
             const float speed = cells_per_sec(float(std::max(type_info.run, type_info.velocity))) * float(100 + pet.speed_pct) / 100;

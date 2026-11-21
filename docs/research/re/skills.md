@@ -1438,8 +1438,9 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   gives it alignment 2. So its driver's first step (FUN_005b0ff0,
   `rules::leader_follow`) walks it back to a spot 0x13 about the owner
   when over 0x14 off, and backs it off 0x13 when within 1. d2d runs that
-  step (`Fight::pets_turn`, `test_revive_follow`), then a stand-in for
-  the think: monster thinks don't take monsters as targets yet. Being the same unit, it keeps every stat it was
+  step (`Fight::pets_turn`, `test_revive_follow`), then its own search
+  (alignment 2: FUN_005dd0b0 mode 5, `search_foe`), then a stand-in for
+  the think: its MonStats think isn't run for a pet yet. Being the same unit, it keeps every stat it was
   made with (its level, damage, defence, to-hit, MonProp stats: an
   expansion Nightmare or Hell corpse's are its area's level's) and its
   unit seed, which the life roll steps. d2d: `Fight::summon_one` copies

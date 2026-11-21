@@ -251,6 +251,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // the level to the owner's (rules::revive_life).
         // The roll is on the corpse's own unit seed (FUN_0045c3e0 on +0x20), which the pet keeps.
         const bool revive = skill.srvdofunc == ServerDoFunction::kRevive;
+        if (revive) monster.align = 2;                    // FUN_005c55c0: FUN_005543b0(pet, 2), Conversion's alignment
         const int corpse_level = monster.stats.level;
         const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, raised ? monster.seed : rng) : d2d::rules::RevivedLife{};
         if (!revive) {
