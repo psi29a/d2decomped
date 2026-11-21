@@ -360,6 +360,27 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 10 && unit.shield.held) {    // FUN_004eb460 (Smite)
+        // The shield's mindam / maxdam (+0xfe / +0xff), + Holy Shield's own (skill 0x75 at its level,
+        // FUN_00647bc0 / FUN_00647d00 >> 8) while state 0x65 is on; the % is Param3 + (lvl - 1) x Param4
+        // (FUN_004cc7c0), + str x StrBonus / 100 + dex x DexBonus / 100 + damagepercent, at least -90.
+        // Each end is end + (end x % + stat) / 100, the stat 18 on the min and 17 on the max
+        // (0x4eb5e3..0x4eb5ec): added to the product, not to the % (bugs.md). damblue / damred colour it.
+        constexpr int kHolyShield = 0x75;
+        line.damage = true;
+        int low = unit.shield.min, high = unit.shield.max;
+        if (const auto* holy = unit.holy_shield > 0 ? skill_tables.get(kHolyShield) : nullptr) {
+            low += skill_phys(skill_tables, *holy, env, unit.holy_shield, false) >> 8;
+            high += skill_phys(skill_tables, *holy, env, unit.holy_shield, true) >> 8;
+        }
+        const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
+        int pct = lvl < 1 ? 0 : skill.par[2] + (lvl - 1) * skill.par[3];
+        if (unit.shield.str_bonus != 0) pct += unit.str * unit.shield.str_bonus / 100;
+        if (unit.shield.dex_bonus != 0) pct += unit.dex * unit.shield.dex_bonus / 100;
+        pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
+        line.min = low + (pct * low + stat(d2d::d2s::kMinDamagePercent)) / 100;
+        line.max = high + (pct * high + stat(d2d::d2s::kMaxDamagePercent)) / 100;
+        line.damage_colour = state_colour(kPanelDamage, 0);
     } else if (skill.descdam == 11) {                         // FUN_004eb640 (Vengeance)
         // EType's colour, the weapon's share (FUN_004e9660), then for calc1 / calc2 / calc3 (fire, cold,
         // lightning %) with their mastery (329 / 331 / 330: MulDiv(pct, mastery, 100) on top) MulDiv(stat

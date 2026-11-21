@@ -254,13 +254,26 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 panel.red |= found->second.panel_red;
             }
         if (std::ranges::contains(active, std::string_view("holyshield"))) panel.blue |= d2d::rules::kPanelDefense;   // FUN_004a7d00: state 0x65 with a shield
+        d2d::rules::PanelUnit panel_unit{ .expansion = game_expansion, .str = int(actor->character.stats.get(kStr)), .dex = int(actor->character.stats.get(kDex)) };
+        if (state_of("holyshield") && skill_level) panel_unit.holy_shield = skill_level(0x75);
+        for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {     // FUN_0063c8f0: hand +0x10, then +0x14
+            const auto held = std::ranges::find_if(actor->character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
+            if (held == actor->character.items.end() || !d2d::rules::item_usable(*held)) continue;
+            const auto info = game_data->rules.item_info.find(held->code);
+            const auto base = game_data->rules.item_base.find(held->code);
+            if (info == game_data->rules.item_info.end() || base == game_data->rules.item_base.end() || !d2d::rules::type_is(game_data->rules, info->second.type, "shld")) continue;
+            panel_unit.shield = { true, base->second.min_1h, base->second.maxdam, base->second.str_bonus, base->second.dex_bonus };
+            break;
+        }
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
-        for (std::size_t k = 0; k < 2; ++k)
-            if (const auto* skill = game_data->skills.get(int(chosen[k])))
+        for (std::size_t k = 0; k < 2; ++k) {
+            if (const auto* skill = game_data->skills.get(int(chosen[k]))) {
+                panel_unit.concentration = concentration_share(actor->player.x, actor->player.y, skill->par[0]);
                 panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
                                                           actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red,
-                                                          skill_status(skill->id, now_ms),   // FUN_004d9fc0: 0, 1, 6, 8 draw
-                                                          { game_expansion, concentration_share(actor->player.x, actor->player.y, skill->par[0]) });
+                                                          skill_status(skill->id, now_ms), panel_unit);   // FUN_004d9fc0: 0, 1, 6, 8 draw
+            }
+        }
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
