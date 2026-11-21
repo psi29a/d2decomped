@@ -303,6 +303,10 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
     // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
     // elements on top (each colouring it), held to 1 and min + 1 when there is any.
+    // ponytail: FUN_004e86f0 takes the unit's stats 21 / 22 (23 / 24 two-handed; +1 / +2 bare) x (100 +
+    // stat 18 / 17 + its %) / 100 + the item's stat 111 + flat; this takes the Fighter's (the weapon's
+    // base with its own %, then the gear's flat and 111, x the %). Whether the two agree for every item
+    // turns on what the unit's stat 21 holds; not compared (panel_damage.py hooks FUN_004e86f0).
     // Bare hands (the unit's own fighter, no weapon wielded): + the strength (stat 0) to the %, where a
     // weapon's StrBonus / DexBonus would go (FUN_004e86f0 at its item test, before the -90 floor).
     const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
