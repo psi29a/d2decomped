@@ -863,9 +863,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // Another melee skill at a spot isn't swung: FUN_0056f640 refuses a skill whose start returns 0, and
         // starts 32 (FUN_005d7ea0: Bash, Stun, Concentrate, Conversion), 35 (FUN_005cfe10: Vengeance), 39
         // (FUN_005d97f0: Berserk) and 29 (FUN_005ce790: Sacrifice) return 0 with no target (FUN_00553540).
-        // ponytail: Zeal's start (37, FUN_005daf40) takes a foe about the player (d2d_rules_ring_pick, 0x20003)
-        // when none is named, and a skill with no start (Frenzy, Smite: srvstfunc 0) is started and swung at
-        // nothing; neither is swung here.
+        // Zeal's start (37, FUN_005daf40) takes a foe in reach instead (FUN_0056bd10, flags 0x20003, the last
+        // id -1: the lowest), and with none returns 0 too: zeal_spot.
+        // ponytail: a skill with no start (Frenzy, Smite: srvstfunc 0) is started and swung at nothing; not here.
         const auto attack_spot = [&] {
             const auto* attack = game_data->skills.get(0);
             actor->interact_npc = actor->pick_item = -1;
@@ -881,6 +881,18 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->player.dir = direction16(use_skill.x - actor->player.x, use_skill.y - actor->player.y);
             (void)fight.start_swing(now_ms);
         };
+        const auto zeal_spot = [&] {
+            actor->interact_npc = actor->pick_item = -1;
+            actor->player.walking = false;
+            actor->attack_mon = -1;
+            if (actor->pmode >= 0 || fight.dead()) return;
+            fight.other_target();                                                    // faces it, -1 with none in reach
+            if (actor->attack_mon < 0) return;
+            actor->attack_skill = use_skill.skill;
+            actor->attack_charge = entry;
+            if (!fight.start_swing(now_ms)) actor->attack_mon = -1;
+        };
+        const bool zeal = skill && skill->srvstfunc == ServerStartFunction::kRepeatedHit;
         if (skill && !skill->in_town && !in_moor) {
             if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
             else class_cue("not_in_town_2", now_ms);
@@ -909,6 +921,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (fight.cast_summon(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
         } else if (skill && !live && use_skill.skill == 0 && use_skill.unit < 0) {
             attack_spot();
+        } else if (zeal && !live && use_skill.unit < 0) {
+            zeal_spot();
         } else if (live && use_skill.stand && skill && !fight.missile_skill(*skill) && !fight.spot_skill(*skill) && !moving_skill(*skill)
                    && std::hypot(target->unit.x - actor->player.x, target->unit.y - actor->player.y) > kMeleeReach) {
             // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
@@ -918,6 +932,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             // and a queued pickup or interaction goes with it, as attack_spot's does (the skill takes their place).
             actor->attack_mon = -1;
             if (use_skill.skill == 0) attack_spot();
+            else if (zeal) zeal_spot();
             else {
                 actor->interact_npc = actor->pick_item = -1;
                 actor->player.walking = false;
