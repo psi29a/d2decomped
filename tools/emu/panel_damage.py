@@ -5,14 +5,17 @@
 
 The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
-(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 24 (FUN_004eae70),
+(FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 12 (FUN_004eb830),
+24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
 FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
 colour). Hooked: FUN_00647bc0 / FUN_00647d00 (the skill's MinDam /
 MaxDam), FUN_00644d50 / FUN_00644e40 (EMin / EMax with mastery),
 FUN_00644f20 (ELen), FUN_004e86f0 (the weapon's physical damage),
 FUN_004e89a0 (its elements, its clamp and damblue / damred at its end, as
 004e8b25 and 004e8d58 read), FUN_004a89d0 (the SkillDesc row),
-FUN_00643ce0 and FUN_00646d00 (its ddam calc1 / calc2). FUN_004e96e0 (the
+FUN_00643ce0 and FUN_00646d00 (its ddam calc1 / calc2), FUN_0044dcc0
+(expansion), FUN_006461d0 (Concentration's share), FUN_00625480 (a unit
+stat). FUN_004e96e0 (the
 draw) records min, max and colour. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
 differ.
@@ -28,9 +31,10 @@ TABLE = 0x72D768                  # descdam -> handler
 PHYS_MIN, PHYS_MAX, ELEM_MIN, ELEM_MAX, ELEM_LEN = 0x647BC0, 0x647D00, 0x644D50, 0x644E40, 0x644F20
 WEAPON, WEAPON_ELEMENTS, DRAW = 0x4E86F0, 0x4E89A0, 0x4E96E0
 SKILL_DESC, SKILL_ID, CALC = 0x4A89D0, 0x643CE0, 0x646D00
+EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 8, 9, 24)
+HANDLERS = (5, 8, 9, 12, 24)
 
 
 def d2d_line(descdam, case):
@@ -64,6 +68,11 @@ def d2d_line(descdam, case):
         low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
         high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
         weapon_share()
+    elif descdam == 12:
+        length = case["elen"] if case["etype"] == 3 else 1
+        low = case["emin"] * length >> 8; high = case["emax"] * length >> 8
+        share = case["concentration"] if case["expansion"] else max(case["stats"].get(25, 0), -90)
+        low += trunc_div(low * share, 100); high += trunc_div(high * share, 100)
     elif descdam == 8:
         times, per = case["calc1"] or 1, case["calc2"] or 1
         low = trunc_div(case["emin"] * times * 25, per) >> 8
@@ -102,6 +111,9 @@ def main():
         drawn.append((signed(em.mu.reg_read(UC_X86_REG_ECX)), signed(em.mu.reg_read(UC_X86_REG_EDX)), em.arg(0)))
         return 0
 
+    e.hook(EXPANSION, lambda _e: int(case["expansion"]), 0)
+    e.hook(CONCENTRATION, lambda _e: case["concentration"], 2)
+    e.hook(STAT, lambda em: case["stats"].get(em.arg(1), 0) & 0xFFFFFFFF, 3)
     e.hook(WEAPON, weapon, 8)
     e.hook(WEAPON_ELEMENTS, weapon_elements, 5)
     e.hook(DRAW, draw, 2)
@@ -120,7 +132,9 @@ def main():
             emin=rng.randrange(-3000, 80000), emax=rng.randrange(-3000, 120000), elen=rng.choice((0, 1, 25, 75, 200)),
             w_low=rng.randrange(-20, 300), w_high=rng.randrange(-20, 500),
             we_low=0, we_high=0, we_colour=rng.choice((1, 2, 3, 9)), blue=rng.random() < 0.2, red=rng.random() < 0.2,
-            calc1=rng.choice((0, 0, 1, 2, 3, -2, 40)), calc2=rng.choice((0, 0, 1, 3, 7, -3)))
+            calc1=rng.choice((0, 0, 1, 2, 3, -2, 40)), calc2=rng.choice((0, 0, 1, 3, 7, -3)),
+            expansion=rng.random() < 0.5, concentration=rng.choice((0, 0, 15, 40, 113, 262)),
+            stats={25: rng.choice((0, 0, 30, 125, -95, -40))})
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)
         e.mu.mem_write(row, bytes(0x23C))

@@ -295,7 +295,7 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue, std::uint8_t red,
-                       int usable) {
+                       int usable, const PanelUnit& unit) {
     AttackLine line;
     line.skill = skill.id;
     if (usable != 0 && usable != 1 && usable != 6 && usable != 8) return line;   // FUN_004d9fc0
@@ -329,6 +329,13 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * poison_len >> 8;
         line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * poison_len >> 8;
     };
+    // FUN_004e72d0: the element (EMin / EMax with mastery, poison x ELen) >> 8, coloured by EType.
+    const auto element_text = [&] {
+        const int length = skill.etype == 3 ? elem_length(skill_tables, skill, env, lvl) : 1;
+        line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * length >> 8;
+        line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * length >> 8;
+        if (skill.etype >= 0 && skill.etype < 5) line.damage_colour = kElemColour[skill.etype];
+    };
     if (skill.descdam == 1 || skill.descdam == 7) {
         line.damage = true;
         weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
@@ -353,6 +360,14 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 12) {                         // FUN_004eb830 (Blessed Hammer)
+        // FUN_004e72d0, then the share: FUN_006461d0 in an expansion game (0x4eb87c), stat 25 at least
+        // -90 in a classic one (0x4eb8d0); each end + end x share / 100, truncated.
+        line.damage = true;
+        element_text();
+        const int share = unit.expansion ? unit.concentration : std::max(env.stat ? env.stat(d2d::d2s::kDamagePercent) : 0, -90);
+        line.min += line.min * share / 100;
+        line.max += line.max * share / 100;
     }
     if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
         const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);

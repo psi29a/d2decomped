@@ -286,6 +286,16 @@ int main() try {
         inferno.descdam = 8; inferno.srcdam_raw = 128; inferno.hitshift = 8; inferno.ddam_calc1 = {}; inferno.ddam_calc2 = compile("3");
         line = attack_line(skill_tables, inferno, env, 5, fighter, 5);
         assert(line.damage && line.min == (10 << 8) * 25 / 3 >> 8 && line.max == (20 << 8) * 25 / 3 >> 8 && line.damage_colour == 3);
+        // descdam 12 (Blessed Hammer, FUN_004eb830): its magic 10-20 and blue, + Concentration's share
+        // in an expansion game, + damagepercent (at least -90) in a classic one; truncated.
+        Skill hammer = inferno;
+        hammer.descdam = 12;
+        line = attack_line(skill_tables, hammer, env, 5, fighter, 5, 0, 0, 0, { true, 50 });
+        assert(line.damage && line.min == 15 && line.max == 30 && line.damage_colour == 3);
+        CalcEnv weak = env;
+        weak.stat = [](int stat) { return stat == d2d::d2s::kDamagePercent ? -95 : 0; };
+        line = attack_line(skill_tables, hammer, weak, 5, fighter, 5, 0, 0, 0, { false, 50 });
+        assert(line.min == 1 && line.max == 2);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
