@@ -515,9 +515,10 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 8 (FUN_004eb290, Inferno): EMin / EMax with mastery x
 //     ddam calc1 x 25 / ddam calc2 >> 8, a calc of 0 taken as 1; EType's
 //     colour, no weapon.
-//   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
-//     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
-//     adds the weapon mastery (342) to the %. No floor at 1.
+//   attack rating, descatt 1 (0x4e9000) and 2 (FUN_004e8ec0): (dex - 7) x 5
+//     + ToHitFactor + 19, x (1 + (119 + the weapon mastery (342) + the
+//     skill's ToHit) %), 0 for a throwing potion; descatt 5 (FUN_004e9040)
+//     the base with the weapon's stats off and no mastery. No floor at 1.
 //   A state on the unit turns the weapon damage blue / red (damblue /
 //     damred: FUN_004e86f0, then again after the elements in FUN_004e89a0)
 //     and the attack rating (attblue / attred, FUN_004e9040 / FUN_004e8ec0);
