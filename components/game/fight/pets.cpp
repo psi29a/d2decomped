@@ -321,7 +321,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
                         auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : pet_swing(pet), target, monster.stats.level, rng);
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
-                        pet_strike(pet, monster_index, blow, now_ms);
+                        pet_strike(pet, monster_index, blow, now_ms, !pet.mirror);
                     }
                 }
                 if (now_ms < monster.mode_until) continue;
@@ -1269,8 +1269,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
-                                                                         target_of(std::size_t(target)), monster.stats.level, rng), now_ms);
+            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng), now_ms, true);
     }
 
 }  // namespace d2d::game

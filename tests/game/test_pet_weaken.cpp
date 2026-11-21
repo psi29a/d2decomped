@@ -59,12 +59,11 @@ int main() try {
     struck.type = 0; struck.id = 900; struck.stats.hit_points = struck.hit_points = 1000; struck.mode = "NU";
     d2d::rules::Blow blow{ .hit = true };
     blow.damage = blow.phys = 10; blow.phys_fine = 10 << 8;
-    fight.pet_strike(pet, 0, blow, 1000);
+    fight.pet_strike(pet, 0, blow, 1000, true);                       // a pet_swing blow: the curse is in it
     assert(struck.hit_points == 1000 - 10);
-    pet.mirror = true;
-    fight.pet_strike(pet, 0, blow, 2000);
+    fight.pet_strike(pet, 0, blow, 2000);                             // another fighter's (a Shadow's): its share here
     assert(struck.hit_points == 1000 - 10 - (10 + 10 * -33 / 100));
-    std::puts("OK: a pet's swing takes a curse's damagepercent with its own, floored at -90, before the roll; pet_strike adds none but a Shadow's");
+    std::puts("OK: a pet's swing takes a curse's damagepercent with its own, floored at -90, before the roll; pet_strike adds it only to a blow from another fighter");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_pet_weaken: %s\n", error.what());

@@ -507,13 +507,13 @@ auto Fight::player_thorns(std::size_t target, const d2d::rules::Blow& blow) -> v
             actor->self_hurt += std::int64_t(std::max(thorns * (100 - hero.dr_pct) / 100 - hero.dr_flat, 0)) << 8;
 }
 
-auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms) -> void {
+auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms, bool curse_in_swing) -> void {
         const int thorns = monsters[target].props.thorns;
         auto blow = struck;
-        // A curse's damagepercent (Weaken) is in the pet's own swing (pet_swing, before the roll); a Shadow swings
-        // the owner's fighter, so its share is added here.
-        // ponytail: a Shadow's (and its kicks' and skills') stat 25 isn't joined to its copied fighter's percent.
-        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); pet.mirror && percent != 0 && blow.hit)
+        // A curse's damagepercent (Weaken) is in a blow built by pet_swing (before the roll, curse_in_swing); one
+        // from another fighter (a Shadow's owner's, its kick's) takes its share here.
+        // ponytail: those blows' stat 25 isn't joined to their fighter's percent before the roll.
+        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); !curse_in_swing && percent != 0 && blow.hit)
             blow.damage = std::max(blow.damage + d2d::rules::resisted(blow.phys * percent / 100, target_of(target).res[0]), 0);
         const int target_life = monsters[target].life_fine();               // as FUN_005c6530 reads it: before the blow's loss
         const bool landed = land(target, blow, false, now_ms, pet.monster.id);
