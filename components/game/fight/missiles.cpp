@@ -458,9 +458,15 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
         } else if (skill.srvdofunc == ServerDoFunction::kMissileWall) {
             const float around_x = target >= 0 ? monsters[std::size_t(target)].unit.x : caster.to_x;
             const float around_y = target >= 0 ? monsters[std::size_t(target)].unit.y : caster.to_y;
-            const float perp_x = around_y - caster.y, perp_y = caster.x - around_x;
-            launch(missile_info, skill, lvl, around_x, around_y, perp_x, perp_y, range, now_ms);
-            launch(missile_info, skill, lvl, around_x, around_y, -perp_x, -perp_y, range, now_ms);
+            // FUN_005c9ea0 in subtiles: each maker starts on the point and aims at the point plus
+            // (-(caster y - point y), caster x - point x), the other at the point minus that.
+            const int point_x = int(std::floor(around_x * 5)), point_y = int(std::floor(around_y * 5));
+            const int across_x = point_y - int(std::floor(caster.y * 5)), across_y = int(std::floor(caster.x * 5)) - point_x;
+            for (const int side : { 1, -1 }) {
+                const float aim_x = (float(point_x + side * across_x) + 0.5f) / 5, aim_y = (float(point_y + side * across_y) + 0.5f) / 5;
+                const float start_x = (float(point_x) + 0.5f) / 5, start_y = (float(point_y) + 0.5f) / 5;
+                launch(missile_info, skill, lvl, start_x, start_y, aim_x - start_x, aim_y - start_y, range, now_ms).to = std::pair{ aim_x, aim_y };
+            }
             if (const auto found = game_data->missiles.find(skill.srvmissileb); found != game_data->missiles.end())
                 launch(found->second, skill, lvl, around_x, around_y, 0, 0, found->second.range + found->second.lev_range * lvl, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kBreath || skill.srvdofunc == ServerDoFunction::kBladeFury) {
