@@ -1905,6 +1905,7 @@ void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t m
     game_data.builder = std::make_shared<GameData::LevelBuilder>();
     game_data.builder->act1 = std::move(act1);
     load_npcs(game_data, mpqs);
+    seed_client_units(game_data.town);
     load_monsters(game_data, mpqs);
     // The camp's critters: Levels.txt names them by MonStats Id, known only now.
     for (std::size_t row = 0; row < game_data.builder->levels.size(); ++row)
@@ -1946,6 +1947,7 @@ void set_map_seed(GameData& game_data, std::uint32_t seed, int difficulty) {
     place_act1(game_data, game_data.mpqs, *game_data.builder->act1, seed);
     game_data.shrines.clear();                          // load_npcs reads Shrines.txt again
     load_npcs(game_data, game_data.mpqs);
+    seed_client_units(game_data.town);
     want_nearby(game_data, game_data.town);
     d2d::log::info("map seed {:#x}: {}", seed, game_data.town.ds1.width() ? "act 1 laid out" : "no town");
 }
