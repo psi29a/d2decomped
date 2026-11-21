@@ -12,7 +12,6 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
-#include <rules.hpp>
 #include <shake.hpp>
 #include <staff_show.hpp>
 
@@ -37,13 +36,14 @@ constexpr std::string_view kStaffName = "horadricstaff", kBeamName = "horadricli
 // (FUN_0065a620: class 0x98, in the player's room; d2d: OperateFn 25) and
 // starts its light show there, light_jet on it once (FUN_00470390 kind 2);
 // no orifice, nothing.
-// ponytail: the staff's seed (unit +0x20, the dust's spread) as the client makes it isn't traced; d2d seeds it from the clock.
+// The staff's seed (unit +0x20, the dust's spread): a client missile's, FUN_004cd540 -> FUN_00466730 ->
+// FUN_00465fd0 (game-calls.tsv): client_unit_seed at the orifice.
 auto ClientSession::unique_event(int event, std::uint32_t frame_ms) -> void {
     if (event != 3 || !level) return;
     const auto orifice = std::ranges::find(level->npcs, d2d::rules::operate_fn::kOrifice, &Npc::operate_fn);
     if (orifice == level->npcs.end()) return;
     staff_show = { .playing = true, .level = level, .orifice = int(orifice - level->npcs.begin()), .x = orifice->x, .y = orifice->y, .born = frame_ms,
-                   .seed = d2d::rules::Rng{ frame_ms } };
+                   .seed = client_unit_seed(*level, room_of(*level, orifice->x, orifice->y)) };
     d2d::log::info("The Horadric Staff: its light show starts");
 }
 
