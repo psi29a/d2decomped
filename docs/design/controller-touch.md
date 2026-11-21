@@ -297,3 +297,11 @@ destination button and cancels the previous finger's selection. A cancelled
 gesture cannot save an assignment. Taps must hit a displayed icon; dragging
 from the hub can select a wedge. The controller wheel keeps its existing
 sliding-window behavior. This is touch UI work, not traced retail behavior.
+
+## Circular skill artwork
+
+Touch skill and Attack icons scale to their circular controls while retaining
+artwork proportions. Palette index zero remains transparent, and clipping stays
+inside the visible ring so enlarged artwork does not cover the rim. Wheel icons
+and gameplay hit boxes are unchanged. This is a rendering adjustment; physical
+readability still needs a device check.

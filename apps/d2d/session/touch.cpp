@@ -16,6 +16,7 @@
 #include "store.hpp"
 #include "touch_binding.hpp"
 #include "touch_glyph.hpp"
+#include "touch_icon.hpp"
 #include "touch_input.hpp"
 #include "use_item.hpp"
 
@@ -1077,12 +1078,10 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         const auto& art = icon_class >= 0 ? scene->skill_icons[std::size_t(icon_class)] : scene->generic_skill_icons;
         if (std::uint32_t(info->icon) >= art.frames_per_direction()) return;
         const auto& frame = art.frame(0, std::uint32_t(info->icon));
-        if (fill_button) {
-            blit_frame_scaled(box, frame, palette, touch::fit_icon_scale(box.width, box.height, float(frame.width), float(frame.height), 0.10f));
-            return;
-        }
-        const auto origin = touch::centred_blit_origin(box, float(frame.width), float(frame.height));
-        blit_sprite(framebuffer, frame, palette, int(origin.first), int(origin.second));
+        const float rim = fill_button ? 6.f : std::max(3.f, std::min(box.width, box.height) * .5f - touch::kSkillRing + 3.f);
+        touch::draw_circular_icon(framebuffer, int(kScreenWidth), int(kScreenHeight), box.x, box.y, box.width, box.height,
+                                  frame.pixels, int(frame.width), int(frame.height),
+                                  [&](std::uint8_t index) { return palette[index]; }, rim);
     };
     const auto glyph_button = [&](touch::Box box, touch::Glyph glyph, const std::string& caption, bool active = false) {
         button(box, "", active, true);
