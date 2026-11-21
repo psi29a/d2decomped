@@ -64,10 +64,9 @@
 
 namespace d2d::client {
 
-// The hovered monster's name on its life bar, top centre: a dark red bar
-// as wide as the name plus a margin, filled by its share of life left.
-// ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
-// font and per-type colours) isn't traced; this is its look by eye.
+// The hovered monster's name on its life bar, top centre (FUN_00503000's
+// hover box: the name + 8 wide, its life share dark red, the rest dimmed).
+// ponytail: where game.exe puts it on screen isn't traced.
 void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster);
 
 // The client's drawing of what the World told it (View): the ground

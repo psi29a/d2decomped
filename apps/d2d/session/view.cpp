@@ -54,21 +54,28 @@ namespace d2d::client {
 void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster) {
     const auto& name = monster.npc.name;
     if (name.empty() || !monster.alive()) return;
-    const int width = std::max(scene.font.measure(name) + 20, 120), height = scene.font.line_height() + 4;
+    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    // The hover box with a life bar (FUN_00503000): the text's width + 8 by its height; the life share (FUN_004525f0:
+    // life << 7 / max life, 0x80 for none, held to 2..0x80) of it in the palette's nearest to (0x50, 0, 0)
+    // (FUN_004fb180) at half (draw mode 1), the rest black at a quarter (mode 2).
+    const int width = scene.font.measure(name) + 8, height = scene.font.line_height();
     const int left = int(kScreenWidth) / 2 - width / 2, top = 10;
-    const int filled = width * std::clamp(monster.hit_points, 0, monster.stats.hit_points) / std::max(monster.stats.hit_points, 1);
+    const int filled = d2d::rules::bar_life_share(monster.hit_points, monster.stats.hit_points) * width >> 7;
+    std::array<std::uint8_t, 3> red{ 0x50, 0, 0 };
+    int best = 1 << 30;
+    for (const auto& entry : pal.entries())
+        if (const int distance = (entry.r - 0x50) * (entry.r - 0x50) + entry.g * entry.g + entry.b * entry.b; distance < best) { best = distance; red = { entry.r, entry.g, entry.b }; }
     for (int y = top; y < top + height; ++y)
         for (int x = left; x < left + width; ++x) {
             auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
-            const bool filled_here = x - left < filled;
-            pixel[0] = filled_here ? 0x88 : 0x20; pixel[1] = filled_here ? 0x08 : 0x10; pixel[2] = filled_here ? 0x08 : 0x10;
+            for (std::size_t channel = 0; channel < 3; ++channel)
+                pixel[channel] = x - left < filled ? std::uint8_t((pixel[channel] + red[channel]) / 2) : std::uint8_t(pixel[channel] / 4);
         }
-    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     // Its name's colour (FUN_00454ad0): gold for uniques, blue for champions.
     const int colour = d2d::rules::bar_name_colour(monster.boss, scene.monsters.types[std::size_t(monster.type)].id);
     const std::array<std::uint8_t, 3> tint = colour == d2d::rules::kNameGold ? std::array<std::uint8_t, 3>{ 199, 179, 119 }
                                              : colour == d2d::rules::kNameBlue ? std::array<std::uint8_t, 3>{ 105, 105, 255 } : std::array<std::uint8_t, 3>{ 255, 255, 255 };
-    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(name) / 2, top + 2, name, tint[0], tint[1], tint[2]);
+    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, left + 4, top, name, tint[0], tint[1], tint[2]);
     // The label under it (uniques and minions, d2d::rules::kUModLabel):
     // Demon / Undead, then its mods; a minion's "Minion". Champions have
     // none: their name says it.

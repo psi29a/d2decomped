@@ -136,6 +136,9 @@ inline constexpr std::uint16_t kMinionLabel = 0xc95, kMinionSpace = 0xf9b, kDemo
 // 0x2c0..0x2c5 (by MonStats Id below) are always gold; Andariel isn't one.
 inline constexpr int kNameWhite = 0, kNameBlue = 3, kNameGold = 4;
 int bar_name_colour(Boss kind, std::string_view monstats_id);
+// The life bar's share in 128ths (client FUN_004525f0): life << 7 / max life,
+// held to 2..0x80; 0x80 for a max of 0.
+int bar_life_share(int life, int max_life);
 
 // The hover bar's immunity lines (client FUN_004526c0, the last call of
 // FUN_00454ad0): over the six rows at 0x6d6418 (`kImmunities`, in
