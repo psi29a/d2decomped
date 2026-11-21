@@ -36,10 +36,14 @@ decompression, the request queue's worker, the checksum arithmetic.
 ## Conventions read from the assembly
 
 - `FUN_00415950` and `FUN_00415930` are `__fastcall` and store ECX into the
-  slot EAX points at, then return 1. The handle accessors pass their own
-  handle argument slot, so the "is this handle valid" branch that follows is
-  not reachable, since the helper returns 1 each time. Ghidra's decompile of the accessors is
-  misleading for this reason (the handle appears as `param_2`).
+  slot EAX points at, then return 1. The handle accessors pass a stack
+  slot and read the handle back from it: their own handle argument's
+  (`FUN_00415f10`, `FUN_00416160`, `FUN_004161c0`, `FUN_004181f0`,
+  `FUN_004182d0`), or the next argument's once its out pointer is in a
+  register (`FUN_00415fa0`, `FUN_00416030`, `FUN_004160f0`, `FUN_004162a0`,
+  `FUN_00416320`, `FUN_00416400`). The "is this handle valid" branch that
+  follows is not reachable, since the helper returns 1 each time. In the
+  second kind Ghidra's decompile shows the handle as `param_2`.
 - Critical section `0x779068` guards the file layer; `0x7790cc` guards the
   message-facility list.
 - Intrusive lists (`TSList`): the list object holds the link offset at +0 and
