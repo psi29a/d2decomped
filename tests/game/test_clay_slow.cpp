@@ -11,8 +11,10 @@
 // Without arguments: the rule's holds; with the game data, a Necromancer's
 // Clay Golem through the real Fight::clay_slows and monster_states.
 
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <combat.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
