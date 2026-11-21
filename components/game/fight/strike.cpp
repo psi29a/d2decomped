@@ -259,7 +259,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto* skill = game_data->skills.get(int(chosen[k])))
                 panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
                                                           actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red,
-                                                          skill_status(skill->id, now_ms));   // FUN_004d9fc0: 0, 1, 6, 8 draw
+                                                          skill_status(skill->id, now_ms),   // FUN_004d9fc0: 0, 1, 6, 8 draw
+                                                          { game_expansion, concentration_share(actor->player.x, actor->player.y, skill->par[0]) });
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {

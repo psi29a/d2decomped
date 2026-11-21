@@ -527,7 +527,10 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     caller that omits it still fills the line. The server's status is
 //     FUN_00647960 (Fight::skill_status). FUN_004d9fc0 may turn a 0 into 8
 //     for the client player's own cast delay, and both still draw.
-// ponytail: descdam 2..4, 6, 10..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 12 (FUN_004eb830, Blessed Hammer): the skill's element
+//     (FUN_004e72d0) and its colour, then + that x the Concentration share
+//     % in an expansion game, x damagepercent (25, at least -90) in a classic.
+// ponytail: descdam 2..4, 6, 10, 11, 13..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -544,9 +547,14 @@ struct AttackLine {
     int min = 0, max = 0, damage_colour = 0;
     int attack_rating = 0, ar_colour = 0;
 };
+// What the handlers read off the unit beside its Fighter.
+struct PanelUnit {
+    bool expansion = true;       // the game's (FUN_0044dcc0)
+    int concentration = 0;       // Concentration's share of Blessed Hammer, % (FUN_006461d0, aura_influence)
+};
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,
-                       int usable = 0);
+                       int usable = 0, const PanelUnit& unit = {});
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
