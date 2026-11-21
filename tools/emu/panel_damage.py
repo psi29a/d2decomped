@@ -7,7 +7,7 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 "Damage" value (FUN_004ed570). Run for real here: descdam 5
 (FUN_004ead60), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
-12 (FUN_004eb830),
+12 (FUN_004eb830), 17 (FUN_004ebd50),
 24 (FUN_004eae70), FUN_004e72d0 (the element and its colour),
 FUN_004e9660 (the SrcDam share of the weapon) and FUN_004e6fb0 (EType's
 colour). Hooked: FUN_00647bc0 / FUN_00647d00 (the skill's MinDam /
@@ -22,7 +22,8 @@ stat), FUN_00623990 / FUN_0063d340 (a weapon, two-handed), FUN_00646ca0
 shield, its record, Str / DexBonus), FUN_006439b0 / FUN_00639df0 /
 FUN_006442a0 (Holy Shield's node, state, level), FUN_004cc7c0 (Smite's %),
 FUN_0063a380 / FUN_0063a3a0 (damblue / damred). FUN_004e96e0 (the
-draw) records min, max and colour. d2d's rules::attack_line
+draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
+colours. d2d's rules::attack_line
 (components/rules/skills.hpp) is the Python below; prints the cases that
 differ.
 """
@@ -35,7 +36,7 @@ from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX
 
 TABLE = 0x72D768                  # descdam -> handler
 PHYS_MIN, PHYS_MAX, ELEM_MIN, ELEM_MAX, ELEM_LEN = 0x647BC0, 0x647D00, 0x644D50, 0x644E40, 0x644F20
-WEAPON, WEAPON_ELEMENTS, DRAW = 0x4E86F0, 0x4E89A0, 0x4E96E0
+WEAPON, WEAPON_ELEMENTS, DRAW, DRAW_TWO = 0x4E86F0, 0x4E89A0, 0x4E96E0, 0x4E9870
 SKILL_DESC, SKILL_ID, CALC = 0x4A89D0, 0x643CE0, 0x646D00
 EXPANSION, CONCENTRATION, STAT = 0x44DCC0, 0x6461D0, 0x625480
 HAS_WEAPON, WIELD, CALC_AT = 0x623990, 0x63D340, 0x646CA0
@@ -43,13 +44,27 @@ SHIELD, ITEM_RECORD, STR_BONUS, DEX_BONUS = 0x63C8F0, 0x6335F0, 0x629860, 0x6298
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (5, 8, 9, 10, 11, 12, 24)
+HANDLERS = (5, 8, 9, 10, 11, 12, 17, 24)
 
 
 def d2d_line(descdam, case):
     """rules::attack_line's damage for these handlers, from the hooks' answers."""
     etype_colour = ELEM_COLOUR[case["etype"]] if 0 <= case["etype"] < 5 else 0
     low, high, colour = 0, 0, etype_colour
+
+    def weapon_part():
+        """FUN_004e86f0 + FUN_004e89a0: the weapon with its elements, clamped, damblue / damred."""
+        w_low, w_high, w_colour = case["w_low"], case["w_high"], 0
+        if case["we_low"] or case["we_high"]:
+            w_low += case["we_low"]; w_high += case["we_high"]; w_colour = case["we_colour"]
+        if w_high > 0:
+            w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
+        return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else w_colour
+
+    def element_part():
+        """FUN_004e72d0."""
+        length = case["elen"] if case["etype"] == 3 else 1
+        return case["emin"] * length >> 8, case["emax"] * length >> 8, etype_colour
 
     def weapon_share():
         nonlocal low, high, colour
@@ -77,6 +92,13 @@ def d2d_line(descdam, case):
         low = ((case["mindam"] << shift) + case["emin"]) * 75 >> 8
         high = ((case["maxdam"] << shift) + case["emax"]) * 75 >> 8
         weapon_share()
+    elif descdam == 17:
+        upper, lower = weapon_part(), element_part()
+        if upper[:2] == (0, 0):
+            return lower
+        if lower[:2] == (0, 0):
+            return upper
+        return ("two", two_text(*upper[:2]), two_text(*lower[:2]), upper[2], lower[2])
     elif descdam == 10:
         if not case["shield"]:
             return None
@@ -169,6 +191,17 @@ def main():
     e.hook(PARAM_PCT, lambda _e: case["smite_pct"] & 0xFFFFFFFF, 0)
     e.hook(DAM_BLUE, lambda _e: int(case["blue"]), 1)
     e.hook(DAM_RED, lambda _e: int(case["red"]), 1)
+    def wide(em, at):
+        text = ""
+        while (unit_char := em.mu.mem_read(at + 2 * len(text), 2)) != b"\0\0":
+            text += unit_char.decode("utf-16-le")
+        return text
+
+    def draw_two(em):
+        drawn.append(("two", wide(em, em.mu.reg_read(UC_X86_REG_ECX)), wide(em, em.mu.reg_read(UC_X86_REG_EDX)), em.arg(3), em.arg(4)))
+        return 0
+
+    e.hook(DRAW_TWO, draw_two, 5)
     e.hook(WEAPON, weapon, 8)
     e.hook(WEAPON_ELEMENTS, weapon_elements, 5)
     e.hook(DRAW, draw, 2)
@@ -217,6 +250,17 @@ def main():
                 print(f"descdam {descdam}: game {drawn} d2d {want} {case}")
     print(f"{bad} of {runs} differ")
     return 1 if bad else 0
+
+
+def two_text(low, high):
+    """FUN_004e9870's strings: "%d" when equal, else FUN_004e96e0's forms."""
+    if low == high:
+        return str(low)
+    if low >= 10000:
+        return f"{trunc_div(low + 500, 1000)}K-{trunc_div(high + 500, 1000)}K"
+    if high >= 10000:
+        return f"{low}-{trunc_div(high + 500, 1000)}K"
+    return f"{low}-{high}"
 
 
 def mul_div(value, times, over):

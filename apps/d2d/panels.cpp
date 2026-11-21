@@ -275,8 +275,11 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // server (rules::attack_line).
     // FUN_004eda20's y-1 (records 0 and 6, 0x72d844 / 0x72d88c) is for
     // languages 6..9 (FUN_00525150); d2d reads LNG\ENG only, language 0.
-    // ponytail: dual wield's two-value line (FUN_004e9870) and the hover
-    // tooltips (FUN_004a7340..) aren't drawn.
+    // Two values (FUN_004e9870, from FUN_004e99f0 and the handlers like
+    // it): each "%d" when its ends are equal, else as above with no min + 1;
+    // font6, the first at y-6 (y-7 for languages 6..9), the second at y+2
+    // (0x72d8d0), each in its own colour.
+    // ponytail: the hover tooltips (FUN_004a7340..) aren't drawn.
     for (std::size_t block = 0; block < 2; ++block) {
         const auto& line = panel.attack[block];
         const auto* skill = scene.skills.get(line.skill);
@@ -289,15 +292,22 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         text(font6, rec[0].left, rec[0].right, rec[0].y, skill_name);
         if (line.damage) {
             if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
-            const int top = std::max(line.max, line.min + 1);
             // FUN_004e96e0: "%d-%d", and past 9999 "%s%d-%dK" (max only) or
             // "%s%dK-%dK" (min too). The figure before K is (value + 500) /
             // 1000; the %s is 0x6cc837, an empty string.
-            std::string range = std::to_string(line.min) + "-" + std::to_string(top);
-            if (line.min > 9999) range = std::to_string((line.min + 500) / 1000) + "K-" + std::to_string((top + 500) / 1000) + "K";
-            else if (top > 9999) range = std::to_string(line.min) + "-" + std::to_string((top + 500) / 1000) + "K";
-            const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
-            text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
+            const auto range_of = [](int low, int high) {
+                if (low > 9999) return std::to_string((low + 500) / 1000) + "K-" + std::to_string((high + 500) / 1000) + "K";
+                if (high > 9999) return std::to_string(low) + "-" + std::to_string((high + 500) / 1000) + "K";
+                return std::to_string(low) + "-" + std::to_string(high);
+            };
+            if (line.two) {
+                text(font6, rec[2].left, rec[2].right, rec[2].y - 6, line.min == line.max ? std::to_string(line.min) : range_of(line.min, line.max), line.damage_colour);
+                text(font6, rec[2].left, rec[2].right, rec[2].y + 2, line.min2 == line.max2 ? std::to_string(line.min2) : range_of(line.min2, line.max2), line.colour2);
+            } else {
+                const auto range = range_of(line.min, std::max(line.max, line.min + 1));
+                const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
+                text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
+            }
         }
         if (line.attack_rating != 0) {
             if (auto found = lookup_string(scene, std::uint16_t(line.skill == 0 ? 0xfe1 : 0xfdf))) {
