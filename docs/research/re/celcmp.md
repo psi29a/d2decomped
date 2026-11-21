@@ -1,8 +1,9 @@
 # Cel files and the cel list cache (`SRC/CelCmp.cpp`) — game.exe 1.14d
 
 The untouched functions bracketed by `SRC/CelCmp.cpp` in
-`game-srcfiles.tsv` (`0x600f10` .. `0x6039c0`). Two kinds of code sit
-there:
+`game-srcfiles.tsv`, whose entries run `0x600f10` .. `0x603a70`; the
+untouched ones in that span run `0x600f10` .. `0x6039c0`. Two kinds of
+code sit there:
 
 - cel file helpers, asserting with `.\SRC\CelCmp.cpp` (`0x6e5dd0`);
 - Storm's `TSHashTable<CELLIST, HASHKEY_NONE>` template code (RTTI at
