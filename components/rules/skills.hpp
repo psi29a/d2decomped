@@ -545,7 +545,12 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     element, x SrcDam / 128, then the element; descdam 22 (FUN_004eaaa0,
 //     the javelins): FUN_004ea4a0's throw with the gear's elements, x SrcDam
 //     / 128, over the element.
-// ponytail: descdam 2..4, 13..16, 18..20, 23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 19 (FUN_004ea310, Double Swing, Frenzy) and 1 / 20 for
+//     a Barbarian or an Assassin: FUN_004e99f0 by hand, the wielded weapon's
+//     over the other's (each 7's weapon part on that hand alone, x SrcDam /
+//     128 + the element); descdam 13 (FUN_004eb240, Double Throw) the same
+//     with each hand's throw at calc1 %. Elsewhere 19 is the weapon part.
+// ponytail: descdam 2..4, 14..16, 18, 23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -577,6 +582,13 @@ struct PanelUnit {
     // it is a throwing potion (tpot), and the throw mastery's damage % on it (state throwingmastery,
     // FUN_00645830), 0 without.
     struct Thrown { bool held = false, potion = false; int str_bonus = 0, dex_bonus = 0, mastery = 0; } thrown;
+    // Two hands (FUN_004e93a0): only a Barbarian or an Assassin (FUN_006235a0) has them; `both_hands`
+    // when each holds a usable item that is no throwing potion. Then `main_hand` is the wielded weapon
+    // alone (FUN_004e9300) and `off_hand` the other hand's weapon alone (FUN_004e9260), each
+    // fighter with the other weapon's stats off; a hand without one is null.
+    struct Hand { const Fighter* fighter = nullptr; Thrown thrown; };
+    bool dual_class = false, both_hands = false;
+    Hand main_hand, off_hand;
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,

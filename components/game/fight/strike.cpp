@@ -47,7 +47,8 @@ namespace d2d::game {
 auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
-                                                     d2d::rules::StatSum* sum_out ) const -> d2d::rules::Fighter {
+                                                     d2d::rules::StatSum* sum_out ,
+                                                     const d2d::d2s::Item* only_hand ) const -> d2d::rules::Fighter {
         using namespace d2d::d2s;
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
@@ -57,6 +58,11 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         for (const auto& item : actor->character.items) {
             if (!gear_active(item)) continue;
             const bool worn = item.location == d2d::d2s::item_location::kEquipped;
+            const bool in_hand = worn && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm);
+            if (only_hand && in_hand && &item != only_hand) {
+                const auto info = game_data->rules.item_info.find(item.code);
+                if (info != game_data->rules.item_info.end() && info->second.kind == 2) continue;
+            }
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
             add(sum, set_bonus_props(*game_data, actor->character.items, item));
@@ -65,7 +71,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             const auto found = game_data->rules.item_base.find(item.code);
             const auto info = game_data->rules.item_info.find(item.code);
             if (found == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()) continue;
-            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm)) weapon = &item;
+            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm) && (!only_hand || &item == only_hand)) weapon = &item;
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
         add(sum, set_props(*game_data, actor->character.items));
@@ -268,15 +274,47 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         // The thrown weapon: FUN_0063bef0's, when FUN_0062ba80 calls it throwable. Its mastery is the
         // best passive throw damage (346) whose type fits it; only Throwing Mastery gives one, and with it
         // the throwingmastery state FUN_004ea4a0 asks for.
-        if (const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items); wielded && throwable(*game_data, wielded->code)) {
-            const auto info = game_data->rules.item_info.find(wielded->code);
-            const auto base = game_data->rules.item_base.find(wielded->code);
-            const std::string type = info == game_data->rules.item_info.end() ? std::string{} : info->second.type;
-            panel_unit.thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
-                                  .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };
+        const auto type_of = [&](const Item& item) {
+            const auto info = game_data->rules.item_info.find(item.code);
+            return info == game_data->rules.item_info.end() ? std::string{} : info->second.type;
+        };
+        const auto thrown_of = [&](const Item* item) {
+            d2d::rules::PanelUnit::Thrown thrown;
+            if (!item || !throwable(*game_data, item->code)) return thrown;
+            const auto base = game_data->rules.item_base.find(item->code);
+            const std::string type = type_of(*item);
+            thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
+                       .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };
             for (const auto& passive : passives)
                 if (passive.stat == kPassiveMasteryThrowDamage && d2d::rules::type_is(game_data->rules, type, passive.itype))
-                    panel_unit.thrown.mastery = std::max(panel_unit.thrown.mastery, passive.value);
+                    thrown.mastery = std::max(thrown.mastery, passive.value);
+            return thrown;
+        };
+        const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
+        panel_unit.thrown = thrown_of(wielded);
+        // Two hands (FUN_004e93a0): a Barbarian or an Assassin (FUN_006235a0) with a usable item that is
+        // no throwing potion in each; then the wielded weapon alone and, when the other hand's is a usable
+        // weapon too (FUN_004e9260: the hand that isn't the wielded one's), that one alone.
+        d2d::rules::Fighter main_fighter, off_fighter;
+        panel_unit.dual_class = actor->character.character_class == 4 || actor->character.character_class == 6;
+        if (panel_unit.dual_class) {
+            const auto hand_item = [&](int slot) -> const Item* {
+                const auto held = std::ranges::find_if(actor->character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
+                if (held == actor->character.items.end() || !d2d::rules::item_usable(*held) || d2d::rules::type_is(game_data->rules, type_of(*held), "tpot")) return nullptr;
+                return &*held;
+            };
+            const Item *right = hand_item(body_location::kRightArm), *left = hand_item(body_location::kLeftArm);
+            panel_unit.both_hands = right && left;
+            if (panel_unit.both_hands && wielded) {
+                const Item* other = wielded->slot == body_location::kRightArm ? left : right;
+                const bool two = other != wielded && d2d::rules::type_is(game_data->rules, type_of(*other), "weap") && d2d::rules::item_usable(*wielded);
+                main_fighter = two ? player_fighter(nullptr, &st_sum, &passives, nullptr, wielded) : actor->player_combat;
+                panel_unit.main_hand = { &main_fighter, thrown_of(wielded) };
+                if (two) {
+                    off_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, other);
+                    panel_unit.off_hand = { &off_fighter, thrown_of(other) };
+                }
+            }
         }
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k) {
