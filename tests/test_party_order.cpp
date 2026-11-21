@@ -73,7 +73,7 @@ int print_file(const char* path) {
                 for (std::size_t at = 0; at + 1 < name.size(); at += 2) row.name.push_back(char(std::stoi(name.substr(at, 2), nullptr, 16)));
         }
         std::printf("%d", case_id);
-        for (const auto id : regrouped(rows, std::uint32_t(local), by_key != 0)) std::printf(" %d", int(id));
+        for (const auto id : regrouped(std::move(rows), std::uint32_t(local), by_key != 0)) std::printf(" %d", int(id));
         std::printf("\n");
     }
     return 0;
