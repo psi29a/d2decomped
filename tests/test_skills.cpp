@@ -241,6 +241,9 @@ int main() try {
         weapon_skill.descatt = 5;                           // FUN_004e9040: the mastery out
         assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).attack_rating == 155);
         weapon_skill.descatt = 1;
+        weapon_skill.descdam = 18;                          // Royal Strike (FUN_004ec040): 7's line
+        assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).min == line.min && attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).max == line.max);
+        weapon_skill.descdam = 7;
         weapon_skill.srcdam_raw = 96;                       // Strafe's: the weapon part x 96 / 128 (FUN_004ea010 at 0x4ea0cf)
         line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5);
         assert(line.min == (5 + 5 + 2) * 96 / 128 && line.max == (12 + 5 + 4) * 96 / 128);

@@ -456,7 +456,7 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.damage = true;
         const int extra = calc_of(skill.calc[0]);
         hands_line(true, [&](const Fighter& hand, const PanelUnit::Thrown& thrown, AttackLine& out) { throw_line(hand, thrown, extra, out); });
-    } else if (skill.descdam == 1 || skill.descdam == 7 || skill.descdam == 20) {
+    } else if (skill.descdam == 1 || skill.descdam == 7 || skill.descdam == 18 || skill.descdam == 20) {   // 18: FUN_004ec040 forwards
         // FUN_004ea010: a SrcDam other than 128 takes MulDiv(end, SrcDam, 128) of the weapon part before
         // the skill's own (0x4ea0cf..0x4ea0f9; Strafe's 96).
         line.damage = true;
