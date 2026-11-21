@@ -6,12 +6,14 @@
 
 #include <array>
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
 using d2d::client::touch::PotionEntry;
 using d2d::client::touch::PotionPlace;
 using d2d::client::touch::summarize_touch_potions;
 
-int main() {
+int main() try {
     {
         const std::array entries{
             PotionEntry{ "hp1", PotionPlace::Belt, 0 },
@@ -75,4 +77,8 @@ int main() {
         assert(summary.healing == 1 && summary.mana == 1);
         assert(!summary.strongest_healing_slot && summary.strongest_mana_slot == 1);
     }
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_touch_potions: %s\n", error.what());
+    return 1;
 }

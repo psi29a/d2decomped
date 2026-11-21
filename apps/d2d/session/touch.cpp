@@ -344,14 +344,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             if (automap.open) { automap.mini = 0; automap.fade = 2; automap.panel_side = 0; automap.covered = false; }
             return true;
         }
-        if (touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
-        && phase == touch::Phase::Down && chrome.stats.contains(x, y)) {
-        touch_input.clear(); touch_sheet = {};
-        if (store.npc >= 0) send(cmd::CloseTrade{});
-        char_open = true; inv_open = tree_open = false;
-        return true;
-    }
-    if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
+        if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
             touch_input.clear();
             touch_item_finger = -1;
             focus_keys.push_back(SDLK_ESCAPE);
@@ -390,6 +383,13 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         if (store.npc >= 0) send(cmd::CloseTrade{});
         tree_open = true;
         inv_open = false;
+        return true;
+    }
+    if (touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
+        && phase == touch::Phase::Down && chrome.stats.contains(x, y)) {
+        touch_input.clear(); touch_sheet = {};
+        if (store.npc >= 0) send(cmd::CloseTrade{});
+        char_open = true; inv_open = tree_open = false;
         return true;
     }
     if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
@@ -1461,6 +1461,8 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         halo(skill_cx, skill_cy, skill_box.width * .46f, 10);
         ring(skill_cx, skill_cy, touch::kSkillRing, true);
         const bool has_icon = info && info->icon >= 0;
+        if (has_icon && touch_input.feedback.sample(std::size_t(index), now_ms).active)
+            button(skill_box, "", false, true, false, false);
         if (!has_icon) {
             const std::string skill_label = info ? (info->name.size() > 6 ? info->name.substr(0, 5) + "." : info->name) :
                                                   target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-";

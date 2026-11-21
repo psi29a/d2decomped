@@ -6,8 +6,10 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using namespace d2d::client::touch;
     FeedbackState feedback;
     assert(feedback.pulse(2, FeedbackKind::Accepted, 100));
@@ -48,4 +50,8 @@ int main() {
     assert(!feedback.sample(2, 400).active && !feedback.sample(5, 400).active);
     assert(feedback.pulse(2, FeedbackKind::Accepted, 400)); // reset clears throttle
     assert(!feedback.pulse(FeedbackState::kButtons, FeedbackKind::Accepted, 500));
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_touch_feedback: %s\n", error.what());
+    return 1;
 }
