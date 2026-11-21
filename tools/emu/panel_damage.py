@@ -43,6 +43,11 @@ record (FUN_00644140), the base rating (FUN_00622560, by which hand's or
 whether the weapon's stats are on), stat 119 (FUN_00625500), the skill's
 to-hit (FUN_006449f0), the item's type (FUN_0062b400), attblue / attred
 (FUN_0063a3c0 / FUN_0063a3e0).
+
+And the weapon part itself, FUN_004e86f0 (every descdam above hooks it): run
+for real on hooked stats (FUN_00625480 / FUN_00625500), the wielded weapon
+(FUN_0063bef0), two-handed (FUN_0063d340), Str / DexBonus, the mastery
+(FUN_00645830), damblue / damred; d2d's sum is rules::attack_line's weapon_of.
 """
 import itertools
 import random
@@ -489,6 +494,7 @@ def main():
     e.hook(ATT_RED, lambda _e: int(case["ar_red"]), 1)
     e.hook(MASTERY, lambda em: (case["mastery"] if em.arg(3) == 1 else by_item(em.arg(1), "ar_mastery")) & 0xFFFFFFFF, 4)
     bad += main_rating(e, case, rng, {"unit": unit, "node": node, "row": row, "draw_case": draw_case, "active": active})
+    bad += main_weapon_sum()
     return 1 if bad else 0
 
 
@@ -549,6 +555,86 @@ def main_rating(e, case, rng, hooks):
             if bad <= 10:
                 print(f"descatt {descatt}: game {got} d2d {want} {case}")
     print(f"ratings: {bad} of {runs} differ")
+    return bad
+
+
+WEAPON_SUM = 0x4E86F0
+
+
+def d2d_weapon_sum(case):
+    """weapon_of's sum (before FUN_004e89a0) in the hooks' terms: stats 21 / 22 (23 / 24), the %."""
+    stats = case["stats"]
+    if case["wielded"]:
+        two = case["wield"] == 2
+        low, high = stats.get(23 if two else 21, 0), stats.get(24 if two else 22, 0)
+    else:
+        low, high = stats.get(21, 0) + 1, stats.get(22, 0) + 2
+    share = case["share"] or case["srcdam"]
+    if share != 0x80:
+        low, high = trunc_div(low * share, 128), trunc_div(high * share, 128)
+    if share == 0:
+        low = high = 0
+    else:
+        low, high = max(low, 1), max(high, 2)
+    pct = case["calc1"] + stats.get(25, 0) + case["mastery"]
+    if case["wielded"]:
+        if case["str_bonus"]:
+            pct += trunc_div(stats.get(0, 0) * case["str_bonus"], 100)
+        if case["dex_bonus"]:
+            pct += trunc_div(stats.get(2, 0) * case["dex_bonus"], 100)
+    else:
+        pct += stats.get(0, 0)
+    pct = max(pct, -90)
+    normal = case["normal"] if case["wielded"] else 0
+    low = trunc_div((stats.get(18, 0) + 100 + pct) * low, 100) + normal + case["calc2"]
+    high = trunc_div((stats.get(17, 0) + 100 + pct) * high, 100) + normal + case["calc2"]
+    colour = 1 if case["red"] else 3 if case["blue"] else 0
+    return low, high, colour
+
+
+def main_weapon_sum():
+    """FUN_004e86f0 on random cases; the number that differ."""
+    e = Emu()
+    e.crt_init()
+    case = {}
+    unit, node, row, item, record = (e.alloc(0x240) for _ in range(5))
+    e.w32(unit + 0x60, e.alloc(0x40))
+    e.hook(SKILL_RECORD, lambda _e: row, 0)
+    e.hook(WIELDED, lambda _e: item if case["wielded"] else 0, 1)
+    e.hook(ITEM_RECORD, lambda _e: record, 1)
+    e.hook(WIELD, lambda _e: case["wield"] & 0xFFFFFFFF, 2)
+    e.hook(STAT, lambda em: case["stats"].get(em.arg(1), 0) & 0xFFFFFFFF, 3)
+    e.hook(BASE_STAT, lambda em: case["normal"] & 0xFFFFFFFF if em.arg(1) == 0x6F else 0, 3)
+    e.hook(MASTERY, lambda _e: case["mastery"] & 0xFFFFFFFF, 4)
+    e.hook(STR_BONUS, lambda _e: case["str_bonus"] & 0xFFFF, 1)
+    e.hook(DEX_BONUS, lambda _e: case["dex_bonus"] & 0xFFFF, 1)
+    e.hook(DAM_BLUE, lambda _e: int(case["blue"]), 1)
+    e.hook(DAM_RED, lambda _e: int(case["red"]), 1)
+    rng = random.Random(1186)
+    out = e.alloc(0x10)
+    bad = 0
+    runs = 6000
+    for _ in range(runs):
+        case.clear()
+        case.update(
+            wielded=rng.random() < 0.8, wield=rng.choice((-1, 1, 2)), share=rng.choice((0x80, 0x80, 0)), srcdam=rng.choice((128, 128, 96, 64, 0)),
+            calc1=rng.choice((0, 0, 50, 180, -40)), calc2=rng.choice((0, 0, 3, 12)), mastery=rng.choice((0, 0, 30, 95)),
+            str_bonus=rng.choice((0, 0, 50, 100)), dex_bonus=rng.choice((0, 0, 50, 75)), normal=rng.choice((0, 0, 4, 17)),
+            blue=rng.random() < 0.2, red=rng.random() < 0.2,
+            stats={21: rng.randrange(-3, 40), 22: rng.randrange(-3, 90), 23: rng.randrange(-3, 60), 24: rng.randrange(-3, 150),
+                   25: rng.choice((0, 0, 30, 125, -95)), 0: rng.randrange(10, 300), 2: rng.randrange(10, 250),
+                   17: rng.choice((0, 0, 50, 150)), 18: rng.choice((0, 0, 40, 99))})
+        e.mu.mem_write(row, bytes(0x23C))
+        e.mu.mem_write(row + 0x1A5, bytes((case["srcdam"],)))
+        e.mu.mem_write(out, bytes(0x10))
+        e.call(WEAPON_SUM, out, out + 4, out + 8, case["calc2"], node, case["share"], 0, 0, ecx=unit, regs={"EAX": case["calc1"] & 0xFFFFFFFF})
+        got = (signed(e.r32(out)), signed(e.r32(out + 4)), e.r32(out + 8))
+        want = d2d_weapon_sum(case)
+        if got != want:
+            bad += 1
+            if bad <= 10:
+                print(f"FUN_004e86f0: game {got} d2d {want} {case}")
+    print(f"weapon sums: {bad} of {runs} differ")
     return bad
 
 
