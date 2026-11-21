@@ -751,6 +751,17 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
             return;
         }
+        // Double Throw's sequence (FUN_005d88b0 on each event): one hand's weapon a throw, by FUN_00535bc0's
+        // weapsel 3 (the left on the even event, as blow_fighter).
+        if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->srvdofunc == ServerDoFunction::kDoubleThrow && !actor->seq.empty()) {
+            const int due = seq_events(now_ms);
+            while (actor->seq_struck < due) {
+                ++actor->seq_struck;
+                if (actor->seq_struck == 1) { settle_cast(); do_sounds(now_ms); start_delay(now_ms); }   // the cost cast_missile owed, once
+                throw_hand(*skill, cast_level(skill->id), actor->seq_struck % 2 == 0 ? d2d::d2s::body_location::kLeftArm : d2d::d2s::body_location::kRightArm, now_ms);
+            }
+            return;
+        }
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
             if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); start_delay(now_ms); }
             return;
@@ -797,6 +808,23 @@ auto Fight::blow_fighter(const d2d::rules::Skill* skill) const -> d2d::rules::Fi
         const int weapsel = skill ? skill->weapsel : 0;
         const bool left = weapsel == 1 || (weapsel == 3 && actor->seq_struck % 2 == 0 && !actor->seq.empty());
         return actor->hand_combat[left ? 1 : 0];
+    }
+
+// One hand's throw of Double Throw (FUN_005d88b0): its weapon's missile (weapons.txt missiletype) at
+// the cast point with calc1 damage % (stat 25) and toht (stat 19, FUN_006449f0), one of it spent; none
+// left in that hand, none flies.
+auto Fight::throw_hand(const d2d::rules::Skill& skill, int lvl, int slot, std::uint32_t now_ms) -> void {
+        auto& items = actor->character.items;
+        const auto hand = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
+        if (hand == items.end() || hand->quantity < 1) return;
+        const auto found_thrown = game_data->thrown.find(hand->code);
+        const auto found = found_thrown != game_data->thrown.end() ? game_data->missiles.find(found_thrown->second) : game_data->missiles.end();
+        if (found == game_data->missiles.end()) return;
+        auto& thrown = launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
+                              found->second.range + found->second.lev_range * lvl, now_ms);
+        thrown.ed_pct = calc(skill, skill.calc[0], lvl);
+        thrown.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, calc_env(), lvl);
+        spend_ammo(int(hand - items.begin()));   // FUN_0056ecb0 -> FUN_0056c3f0 -> FUN_0056c310
     }
 
 auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
@@ -1165,7 +1193,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // with calc1 damage % (stat 25), spending one of it (FUN_0056ecb0's
             // last argument 1 -> FUN_0056c3f0) and toht (stat 19, FUN_006449f0);
             // none left, none flies.
-            // ponytail: both hands throw at once, not one an SQ event (FUN_00535bc0's hand).
+            // Each event one hand (throw_hand by FUN_00535bc0's hand; player_modes runs the sequence).
             // Throw (do 3, FUN_0056f460): the item rules::throw_hand takes (the
             // wielded weapon, or the other hand's) flies as its missile
             // (weapons.txt missiletype) and one of it is spent. Its
@@ -1181,20 +1209,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                             spend_ammo(index);
                         }
                 break;
-            case ServerDoFunction::kDoubleThrow:
-                for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
-                    auto& items = actor->character.items;
-                    const auto hand = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
-                    if (hand == items.end() || hand->quantity < 1) continue;
-                    const auto found_thrown = game_data->thrown.find(hand->code);
-                    const auto found = found_thrown != game_data->thrown.end() ? game_data->missiles.find(found_thrown->second) : game_data->missiles.end();
-                    if (found == game_data->missiles.end()) continue;
-                    auto& thrown = launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
-                                          found->second.range + found->second.lev_range * lvl, now_ms);
-                    thrown.ed_pct = calc(skill, skill.calc[0], lvl);
-                    thrown.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, calc_env(), lvl);
-                    spend_ammo(int(hand - items.begin()));   // FUN_0056ecb0 -> FUN_0056c3f0 -> FUN_0056c310
-                }
+            case ServerDoFunction::kDoubleThrow:                     // with no sequence (none for the class): both hands
+                for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) throw_hand(skill, lvl, slot, now_ms);
                 break;
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
             // a corpse not yet searched (state 0x76), at calc1 %: a potion

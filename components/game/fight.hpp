@@ -971,6 +971,8 @@ struct Fight {
     void other_target();
     // The fighter a blow swings with (FUN_00535bc0): with two weapons, the hand the skill's weapsel picks.
     [[nodiscard]] d2d::rules::Fighter blow_fighter(const d2d::rules::Skill* skill) const;
+    // One hand's throw (Double Throw's do, FUN_005d88b0): that slot's throwing weapon flies.
+    void throw_hand(const d2d::rules::Skill& skill, int lvl, int slot, std::uint32_t now_ms);
     // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
     // its quantity (stat 70, FUN_0056c3f0) instead.

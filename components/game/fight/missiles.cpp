@@ -364,9 +364,12 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
-        // ponytail: a spot skill whose anim is SQ (Double Throw) runs in mode SC here and is not timed by start_sequence, so the
-        // 30-point sequence rate (rules::sequence_sias) does not reach it in play; its timing and projectile scheduling are a separate candidate.
-        set_pmode(skill_row->anim == "A1" || skill_row->anim == "TH" ? kModeA1 : kModeSC, now_ms);
+        // A spot skill whose anim is an attack sequence (Double Throw) runs it (start_sequence: the 30-point
+        // rate, rules::sequence_sias) and its do on each event (player_modes). One whose sequence counts as a
+        // cast (seqtrans SC: Lightning, Chain Lightning; FUN_006216e0) stays on the cast's FCR timing.
+        const bool attack_sequence = skill_row->anim == "SQ" && skill_row->seqtrans != "SC";
+        set_pmode(skill_row->anim == "A1" || skill_row->anim == "TH" || attack_sequence ? kModeA1 : kModeSC, now_ms);
+        if (attack_sequence) start_sequence(now_ms);
         actor->pstruck = false;
         return true;
     }
