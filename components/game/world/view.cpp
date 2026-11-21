@@ -227,7 +227,7 @@ auto World::save_header() -> d2d::d2s::Header {
         if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's only: never in a save
         if (header.right_swap == std::uint32_t(kResurrectSkill)) header.right_swap = 0;
         header.level = std::uint8_t(std::clamp<std::int64_t>(actor->character.stats.get(d2d::d2s::kLevel), 1, 99));
-        header.last_played = std::uint32_t(std::time(nullptr));
+        header.last_played = std::uint32_t(std::uint64_t(std::time(nullptr)) & 0xffffffffu);   // the save's 32 bits
         header.map_id = game_data->map_seed;
         if (actor->character.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
             header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance : game_data->look_of(actor->character.items));
