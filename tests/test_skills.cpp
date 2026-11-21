@@ -369,6 +369,40 @@ int main() try {
         assert(line.two && line.min == 10 && line.max == 20 && line.damage_colour == 1 && line.min2 == 1 && line.max2 == 30 && line.colour2 == 9);
         line = attack_line(skill_tables, fury_jav, sharp, 1, javelin, 5);
         assert(line.damage && !line.two && line.min == 1 && line.max == 30 && line.damage_colour == 9);
+        // Two hands (FUN_004e99f0): a Barbarian with two weapons shows the wielded one's (12-21 with its fire,
+        // red) over the other's (10-20 at the skill's 50 %, + 5: 20-35, white), each that weapon alone.
+        // Without two hands descdam 19 (Frenzy, FUN_004ea310) is the weapon part only.
+        Skill frenzy = weapon_skill;
+        frenzy.descdam = 19; frenzy.etype = -1;
+        Fighter off = Fighter{};
+        off.phys_lo = 10 << 8; off.phys_hi = 20 << 8; off.phys_pct = 0;
+        PanelUnit barbarian;
+        barbarian.dual_class = true; barbarian.both_hands = true;
+        barbarian.main_hand.fighter = &fighter; barbarian.off_hand.fighter = &off;
+        CalcEnv plain = env;
+        plain.stat = [](int) { return 0; };
+        line = attack_line(skill_tables, frenzy, plain, 5, fighter, 5, 0, 0, 0, barbarian);
+        assert(line.damage && line.two && line.min == 12 && line.max == 21 && line.damage_colour == 1);
+        assert(line.min2 == 20 && line.max2 == 35 && line.colour2 == 0);
+        barbarian.off_hand.fighter = nullptr;                  // a shield in the other hand: the wielded one alone
+        line = attack_line(skill_tables, frenzy, plain, 5, fighter, 5, 0, 0, 0, barbarian);
+        assert(!line.two && line.min == 12 && line.max == 21);
+        line = attack_line(skill_tables, frenzy, plain, 5, fighter, 5);
+        assert(!line.two && line.min == 12 && line.max == 21);
+        Skill attack = frenzy;                                  // descdam 1 takes the same road for a Barbarian
+        attack.descdam = 1;
+        barbarian.off_hand.fighter = &off;
+        assert(attack_line(skill_tables, attack, plain, 5, fighter, 5, 0, 0, 0, barbarian).two);
+        // descdam 13 (Double Throw, FUN_004eb240): each hand's throw at calc1 (50) %, with that hand's
+        // elements: 10-20 -> 15-30 + fire 2-4, over 4-8 -> 6-12.
+        Skill double_throw = frenzy;
+        double_throw.descdam = 13; double_throw.calc = { compile("50"), {}, {}, {} };
+        Fighter main_throw = fighter, off_throw = off;
+        main_throw.throw_lo = 10; main_throw.throw_hi = 20; off_throw.throw_lo = 4; off_throw.throw_hi = 8;
+        barbarian.main_hand = { &main_throw, { .held = true } };
+        barbarian.off_hand = { &off_throw, { .held = true } };
+        line = attack_line(skill_tables, double_throw, plain, 5, fighter, 5, 0, 0, 0, barbarian);
+        assert(line.two && line.min == 17 && line.max == 34 && line.damage_colour == 1 && line.min2 == 6 && line.max2 == 12 && line.colour2 == 0);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
