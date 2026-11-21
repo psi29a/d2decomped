@@ -31,6 +31,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -86,7 +87,7 @@ int walk_check(const GameData& data) {
     const Crowd crowd;
     std::vector<Missile> shots;
     d2d::rules::Rng rng(7);
-    const auto minion_after = [&](float apart, bool leader_alive) {
+    const auto minion_after = [&](float apart, bool leader_alive) -> Monster {
         d2d::rules::Rng spawn{ 0x5eed };
         std::vector<Monster> pack{ make_monster(data, int(row->second), 4.1f, 8.1f, spawn, 0), make_monster(data, int(row->second), 4.1f + apart, 8.1f, spawn, 0) };
         pack[0].boss = d2d::rules::Boss::unique; pack[0].leader = 0;
@@ -96,7 +97,7 @@ int walk_check(const GameData& data) {
         player[0].x = pack[1].unit.x + 0.4f; player[0].y = pack[1].unit.y;   // beside the minion
         pack[1].aware = true;
         monster_update(data, here, pack[1], player, rng, 40000, 0.04f, crowd, shots, pack);
-        return pack[1];
+        return std::move(pack[1]);
     };
     // 8 cells is 40 subtiles: over 0x14, it walks to a spot 0x13 about its leader, not at the player beside it.
     const auto distant = minion_after(8.f, true);

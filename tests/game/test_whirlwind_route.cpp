@@ -32,6 +32,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 using namespace d2d::game;
 
@@ -100,7 +101,7 @@ int main() try {
     const int quick = gap_now(3000);
     assert(quick == gap_for(60) && quick < plain);
     weapon->props.pop_back();
-    const auto worn = actor.character.items;
+    const std::vector<d2d::d2s::Item> worn = actor.character.items;   // a copy on purpose: put back below
     std::erase_if(actor.character.items, [&](const d2d::d2s::Item& item) { return &item == weapon; });
     assert(gap_now(4000) == 10);
     actor.character.items = worn;
