@@ -3885,8 +3885,15 @@ disassemble `004d1826`..`004d187a`, `004d1be4`..`004d1d58` (the loop) and
   `FUN_00464930` (the decompiler: FreeLightMap, not read); else a tail
   jump to `FUN_004d30c0`.
 
-d2d: not ported; d2d does not run client missile callbacks. Fire Wall's
-look is d2d's own.
+d2d: slot 5 is `rules::ground_fire_frame` (world_view draws every client
+do 5 row with it): the data frame is the frames left at birth less the
+ticks gone, and the step after the pick is FUN_004d30c0's: with LoopAnim
+(+0x137) and SubLoop (+0x180) and more than AnimLen (+0x178) - SubStop + 1
+frames left, `FUN_00621330(unit, SubStart, SubStop)` adds the rate (+0x4c)
+and takes SubStop - SubStart off at SubStop; else `FUN_00621310` wraps at
+the length (+0x48). The jump's seed (+0x20) is not traced: d2d draws from
+the flame's spot and birth. `tests/test_ground_fire_frame.cpp`. The other
+slots are not ported; d2d does not run those client callbacks.
 
 Not traced: `FUN_004ce140` (the poison cloud scatter) and what
 `FUN_004d30c0`'s second client frame (`+0x44`) means beyond `missiles.md`;

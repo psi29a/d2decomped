@@ -298,4 +298,29 @@ bool walk_frame(std::uint32_t& x, std::uint32_t& y, std::span<const std::pair<in
     return going;
 }
 
+// The frame a client do 5 missile (the ground fires: blaze, firewall, meteorfire, immolationfire) shows after `ticks`
+// client frames of its `life` (frames left at birth, missile data +0x10), its frame counter (unit +0x44) in 256ths.
+// Each frame FUN_004d3540 first picks: at frame SubStart - 1 a jump of rand(SubStop - SubStart) (FUN_0045c3e0 on the
+// unit's seed); else with SubStart frames left, frame SubStart - 3; else with fewer left, two frames back (each at
+// least 0). Then FUN_004d30c0 steps it by the rate (+0x4c): with LoopAnim and SubLoop and more than
+// AnimLen - SubStop + 1 frames left, FUN_00621330 wraps it from SubStop back to SubStart; otherwise FUN_00621310
+// wraps it at AnimLen; then one frame less is left. So the fire rises once, burns in SubStart..SubStop - 1 from a
+// random point, and sinks as it runs out.
+inline int ground_fire_frame(int ticks, int life, int anim_len, int sub_start, int sub_stop, bool sub_loop, int rate, Rng& seed) {
+    int frame = 0;   // 256ths
+    for (int tick = 0; tick < ticks; ++tick) {
+        const int left = life - tick, whole = frame >> 8;
+        if (whole == sub_start - 1) frame = (whole + seed(sub_stop - sub_start)) << 8;
+        else if (left == sub_start) frame = std::max(sub_start - 3, 0) << 8;
+        else if (left < sub_start) frame = std::max(whole - 2, 0) << 8;
+        frame += rate;
+        if (sub_loop && left > anim_len - sub_stop + 1) {
+            if (frame >= sub_stop << 8) frame += (sub_start - sub_stop) << 8;
+        } else if (frame >= anim_len << 8) {
+            frame -= anim_len << 8;
+        }
+    }
+    return frame >> 8;
+}
+
 }  // namespace d2d::rules
