@@ -530,7 +530,9 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 12 (FUN_004eb830, Blessed Hammer): the skill's element
 //     (FUN_004e72d0) and its colour, then + that x the Concentration share
 //     % in an expansion game, x damagepercent (25, at least -90) in a classic.
-// ponytail: descdam 2..4, 6, 10, 11, 13..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 11 (FUN_004eb640, Vengeance): 5's weapon share, then
+//     calc1..3 % (each with its element's mastery) of stats 21 / 22.
+// ponytail: descdam 2..4, 6, 10, 13..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:

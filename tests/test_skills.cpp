@@ -296,6 +296,18 @@ int main() try {
         weak.stat = [](int stat) { return stat == d2d::d2s::kDamagePercent ? -95 : 0; };
         line = attack_line(skill_tables, hammer, weak, 5, fighter, 5, 0, 0, 0, { false, 50 });
         assert(line.min == 1 && line.max == 2);
+        // descdam 11 (Vengeance, FUN_004eb640): calc1..3 % of stats 21 / 22 (at least 1 / 2), each with
+        // its mastery; no element or weapon share here, so white turns blue.
+        Skill vengeance = hammer;
+        vengeance.descdam = 11; vengeance.etype = -1; vengeance.srcdam_raw = 0;
+        vengeance.calc = { compile("70"), compile("30"), compile("0"), {} };
+        Fighter bare = fighter;
+        bare.stat_lo = 0; bare.stat_hi = 10;
+        CalcEnv cold = env;
+        cold.stat = [](int stat) { return stat == d2d::d2s::kPassiveColdMastery ? 50 : 0; };
+        line = attack_line(skill_tables, vengeance, cold, 5, bare, 5);
+        // 1 x 70 % + 1 x 45 %, 10 x 70 % + 10 x 45 %.
+        assert(line.damage && line.min == 0 + 0 && line.max == 7 + 4 && line.damage_colour == 3);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
