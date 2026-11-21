@@ -15,6 +15,7 @@
 #include <level_ids.hpp>
 #include <mon_equip.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
 #include <object_ids.hpp>
@@ -496,6 +497,23 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.mon_equip.push_back(std::move(equip_row));
         }
     if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 34 (none random; 24, 40 and 41 are never applied)");
+    // FUN_00650f00, row by row: each MonStats row's walk / run animation base from its BaseId row's AnimData
+    // records (FUN_0066a9b0: the default weapon class; none: the default record's 0x100).
+    auto& mon_types = game_data.monsters.types;
+    const auto speed_of = [&](std::size_t base_row, std::string_view mode) {
+        const auto& npc = game_data.mon_npc[base_row];
+        std::string name = npc.code + std::string(mode) + std::string(cof_weapon_class(npc, mode));
+        for (auto& letter : name) letter = char(std::toupper(static_cast<unsigned char>(letter)));
+        const auto anim = game_data.anim_data.find(name);
+        return anim != game_data.anim_data.end() ? int(anim->second.speed) : 0x100;
+    };
+    for (std::size_t mon_row = 0; mon_row < mon_types.size() && mon_row < game_data.mon_npc.size(); ++mon_row) {
+        const int listed = mon_types[mon_row].base;
+        const std::size_t base = listed >= 0 && std::size_t(listed) < mon_types.size() ? std::size_t(listed) : mon_row;
+        mon_types[mon_row].walk_base = d2d::rules::monster_walk_base(base == mon_row, speed_of(base, "WL"), mon_types[mon_row].velocity, mon_types[base].velocity);
+        const int start = mon_row < 0x19a ? mon_types[base].walk_base / 2 : speed_of(base, "RN");
+        mon_types[mon_row].run_base = d2d::rules::monster_run_base(base == mon_row, start, mon_types[mon_row].run, mon_types[base].run);
+    }
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {

@@ -390,6 +390,7 @@ struct Monster {
     // and -attackrate / other_animrate until then.
     int slow_speed = 0, slow_rate = 0;
     std::uint32_t slow_until = 0;
+    int walk_pct = kMonsterVelocityPct;       // its walk % this frame (stat 0x43 + FRW, at least 25; monster_update): its moving modes' rate
     bool afraid = false;
     // Converted from a higher level (state 0x6d): its own level and life
     // (stats 0xb0 / 0xb1), put back as Conversion ends (FUN_005d01a0).
@@ -579,9 +580,11 @@ struct Monster {
 // other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
 // table at 0x6e8e24). S1..S4 and SQ (a skill's sequence) are attack modes
 // too while the monster's current skill has UseAttackRate (FUN_00621580:
-// the mode row's +8, Skills record byte +6 & 8; `skill_attack_rate`). A
-// moving mode (WL, RN: FUN_006214a0), GH and DD keep their own; any other
-// at 100 + anim_pct (other_animrate), clamped 15..175.
+// the mode row's +8, Skills record byte +6 & 8; `skill_attack_rate`), unless
+// they're moving ones (S1..S4 below class 0x19a: own_rate_mode). Any
+// other at 100 + anim_pct (other_animrate), clamped 15..175. The modes whose
+// rate isn't a % of their AnimData speed (moving ones, GH, BL, KB, DT, DD)
+// take the GameData overload below (mode_rate).
 // A get-hit's length in ms: rules::get_hit_ticks on the mode's AnimData
 // record (frames and speed, the COF's for a mode animdata lacks) and the
 // unit's FHR, a tick 40 ms.
@@ -594,14 +597,20 @@ inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool ski
     const bool skill_mode = mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4" || mode == "SQ";
     if (mode == "A1" || mode == "A2" || (skill_attack_rate && skill_mode)) return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
     if (mode == "SC") return std::min(100 + d2d::rules::effective_speed(monster.props.fcr), 175) - 100;
-    if (mode == "WL" || mode == "RN" || mode == "GH" || mode == "DD") return monster.anim_pct;
     return std::clamp(100 + monster.anim_pct, 15, 175) - 100;
 }
-// The same with the monster's current skill (monster.skill: the one its mode plays) read for its UseAttackRate.
-inline int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode) {
-    const auto* skill = game_data.skills.get(monster.skill);
-    return anim_rate_pct(monster, mode, skill && skill->use_attack_rate);
-}
+// Its rate in a mode, the speed word FUN_00623f50 stores (rules::monster_mode_rate) on the mode's AnimData
+// speed: its walk % (walk_pct), MonStats row (the walk / run base, npc, under 0x19a), current skill's
+// UseAttackRate, MonProp IAS / FCR / FHR and anim_pct (+ aura_rate on an attack). d2d's monsters have no
+// FBR or state 0x65.
+int mode_rate(const GameData& game_data, const Monster& monster, std::string_view mode);
+// Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one (FUN_006214a0:
+// WL, RN; S1..S4 for a class under 0x19a that isn't a MonStats npc), KB, BL, DT, DD.
+bool own_rate_mode(const GameData& game_data, const Monster& monster, std::string_view mode);
+// The same with the monster's current skill (monster.skill: the one its mode plays) read for its UseAttackRate;
+// an own_rate_mode as mode_rate over its AnimData speed, rounded up so it stays above -100 (GH keeps
+// get_hit_ms / get_hit_rate).
+int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode);
 
 // Whoever the monsters are after (the player, the merc), and what they
 // did to it this frame. The player comes first and its pets after it, as in

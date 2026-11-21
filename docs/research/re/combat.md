@@ -720,10 +720,23 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   `FUN_006216e0`) runs at min(100 + effective FCR, 175) % of its AnimData
   speed, stat 68 / 69 not read; an attack mode (`FUN_00621580`: A1 / A2,
   and S1..S4 / SQ while the unit's current skill has UseAttackRate) at effective IAS + stat 68
-  (attackrate, 100 base), clamped 15..175; a moving mode (`FUN_006214a0`)
-  at stat 67 + effective FRW, at least 25; any other (not GH / DD, which
-  have their own) at stat 69 (other_animrate) clamped 15..175. The speed ×
-  pct / 100 is at least 1 when not 0 and at most 0x7fff.
+  (attackrate, 100 base), clamped 15..175; a moving mode (`FUN_006214a0`:
+  WL, RN, and S1..S4 too for a class under 0x19a that isn't a MonStats npc,
+  the mode row's +4) at stat 67 + effective FRW, at least 25, of its
+  MonStats +0x36 (+0x38 in RN), not of the AnimData speed: the loader
+  derives those (`FUN_00650f00`) from its BaseId row's AnimData WL speed x
+  Velocity / the base row's, and the run one from the base row's walk one /
+  2 (rows under 0x19a) or its AnimData RN speed, x Run / the base row's; a
+  get-hit (GH, 0x62409f) at 50 + effective FHR; a block (BL) at 50 (100 in
+  state 0x65) + effective FBR, at least 1; a knockback (KB) at the walk
+  base; DT / DD (the row's +0x10, `FUN_00621630`) at the AnimData speed;
+  any other at stat 69 (other_animrate) clamped 15..175. The rate is at
+  most 0x7fff, 0 when not above 0. SQ (and S1..S4 from class 0x19a) is a
+  moving mode too while the unit's skill instance has flags & 1 and not
+  0x1000 (`FUN_006446a0`; DiabRun's do-func sets it, 0x5cd498): not in d2d,
+  which keeps no instance flags. d2d: `rules::monster_mode_rate`,
+  `MonType::walk_base` / `run_base`, `mode_rate`; V:
+  `tools/emu/mode_rates.py` (`test_mode_rates --mode-rates`).
   `FUN_00621580` (ECX mode, EDX unit type, stack unit, class): a monster's
   row is 0x6e8b90 + mode x 0x14 (class < 0x19a, else 0x6e8cd0, the same
   for these columns). +0xc set (A1, A2): an attack mode. +8 set (S1..S4,

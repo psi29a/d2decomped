@@ -26,15 +26,17 @@ int main() try {
     sent.level = &game_data.town;
     Monster monster;
     monster.id = 7; monster.type = 0; monster.hit_points = 10; monster.mode = "S1"; monster.rising = true;
+    monster.walk_pct = 40;                                                              // its walk % (protocol 10)
     sent.monsters.push_back(std::move(monster));
     ViewEncoder encoder;
     View received;
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));   // the keyframe
     assert(received.monsters.size() == 1 && received.monsters[0].rising && !received.monsters[0].targetable());
+    assert(received.monsters[0].walk_pct == 40);
     sent.monsters[0].rising = false;                                                    // an update: it clears
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));
     assert(received.monsters.size() == 1 && !received.monsters[0].rising && received.monsters[0].targetable());
-    std::printf("OK: a rising Horde's flag round-trips the view codec\n");
+    std::printf("OK: a rising Horde's flag and walk %% round-trip the view codec\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "FAIL: %s\n", error.what());

@@ -1301,4 +1301,27 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
 // The other thinks (the MonAI row's fourth word; ai_toggle).
 Think other_think(std::string_view ai_name, const ThinkIn& input);
 
+// A MonStats row's walk / run animation base (+0x36 / +0x38) as the loader
+// derives them (FUN_00650f00); `own_base`: its BaseId row is itself; `start`:
+// the run base before Run scales it.
+struct MoveBase { int walk = 0, run = 0; };
+int monster_walk_base(bool own_base, int base_walk_speed, int velocity, int base_velocity);
+int monster_run_base(bool own_base, int start, int run, int base_run);
+
+// A monster's animation rate in a mode, the speed word FUN_00623f50 stores at
+// unit +0x4c (256 a frame a tick).
+struct ModeRateIn {
+    int mode = 1;                    // monster mode, 0 DT .. 15 RN
+    bool low_class = true;           // MonStats row under 0x19a (the mode table at 0x6e8b90, else 0x6e8cd0)
+    bool npc = false;                // MonStats npc (+0xd & 1): only WL and RN move
+    bool use_attack_rate = false;    // its current skill's UseAttackRate
+    int speed = 256;                 // the mode's AnimData speed
+    MoveBase base;                   // its MonStats row's walk / run base
+    int velocity_pct = 75;           // stat 0x43
+    int frw = 0, fhr = 0, fbr = 0, fcr = 0, ias = 0;   // raw stats 96, 99, 102, 105, 93
+    bool blocking = false;           // state 0x65
+    int attack_rate = 100, other_rate = 100;           // stats 68 / 69
+};
+int monster_mode_rate(const ModeRateIn& rate_in);
+
 }  // namespace d2d::rules
