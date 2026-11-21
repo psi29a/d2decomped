@@ -47,6 +47,7 @@ struct Fighter {
     int throw_lo = 0, throw_hi = 0;                 // stats 159 / 160 the same way: the weapon's minmisdam / maxmisdam
     int ar_base = 1, ar_pct = 0;
     int ar_base_bare = 1;                           // ar_base with the weapon's own stats off (FUN_004e9040)
+    int mastery_tohit = 0;                          // ar_pct's share from the weapon mastery (342, or 345 throwing)
     // Kicks (FUN_00646280): stat 137 + the boots' kick damage, and its % —
     // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;

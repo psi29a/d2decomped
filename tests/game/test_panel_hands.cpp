@@ -81,6 +81,35 @@ int main() try {
     std::printf("OK: Attack %d-%d over %d-%d with two axes\n", both.min, both.max, both.min2, both.max2);
     assert(world.actor->character.panel.attack[0].skill == frenzy && world.actor->character.panel.attack[0].two);
 
+    // Bare hands (the axe off, a buckler with +100 strength in the other hand): the whole strength,
+    // gear included, joins the %, so the line grows with the bonus.
+    items.erase(left);
+    items.erase(in_hand(d2d::d2s::body_location::kRightArm));
+    d2d::d2s::Item buckler;
+    buckler.code = "buc"; buckler.location = d2d::d2s::item_location::kEquipped; buckler.slot = d2d::d2s::body_location::kLeftArm;
+    items.push_back(buckler);
+    fight.update_fighters(now);
+    const auto plain_bare = world.actor->character.panel.attack[1];
+    in_hand(d2d::d2s::body_location::kLeftArm)->props.push_back({ d2d::d2s::kStr, 0, 100 });
+    fight.update_fighters(now);
+    const auto strong_bare = world.actor->character.panel.attack[1];
+    assert(plain_bare.damage && strong_bare.max > plain_bare.max);
+    // A throwing axe with Throwing Mastery: Attack's rating takes the melee masteries whatever the last
+    // attack was (a Throw makes the fight's fighter take the throw ones).
+    const int throw_skill = data->skills.by_name.at("Throw"), throwing_mastery = data->skills.by_name.at("Throwing Mastery");
+    fight.skill_level = [&](int skill) { return skill == 0 || skill == frenzy || skill == throw_skill || skill == throwing_mastery ? 10 : 0; };
+    items.erase(in_hand(d2d::d2s::body_location::kLeftArm));
+    d2d::d2s::Item axe;
+    axe.code = "tax"; axe.location = d2d::d2s::item_location::kEquipped; axe.slot = d2d::d2s::body_location::kRightArm; axe.wielded = true; axe.quantity = 20;
+    items.push_back(axe);
+    world.actor->attack_skill = 0;
+    fight.update_fighters(now);
+    fight.update_fighters(now);
+    const int after_attack = world.actor->character.panel.attack[1].attack_rating;
+    world.actor->attack_skill = throw_skill;
+    fight.update_fighters(now);
+    fight.update_fighters(now);
+    assert(after_attack > 0 && world.actor->character.panel.attack[1].attack_rating == after_attack);
     // The same items on a Sorceress: no two hands (FUN_006235a0).
     world.actor->character.character_class = 1;
     fight.update_fighters(now);

@@ -603,6 +603,7 @@ struct PanelUnit {
     bool dual_class = false, both_hands = false;
     Hand main_hand, off_hand;
     int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
+    bool armed = true;           // a weapon wielded (FUN_0063bef0); without one FUN_004e86f0 adds the strength to the %
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,
