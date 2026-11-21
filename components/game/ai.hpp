@@ -386,6 +386,10 @@ struct Monster {
     // (Iron Maiden), Terror's state (0x38) on it.
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
     int anim_pct = 0;                         // attackrate / other_animrate (stats 68 / 69): its modes play faster
+    // State 0x18 (slowed) from a Clay Golem it struck (put_slow): -velocitypercent
+    // and -attackrate / other_animrate until then.
+    int slow_speed = 0, slow_rate = 0;
+    std::uint32_t slow_until = 0;
     bool afraid = false;
     // Converted from a higher level (state 0x6d): its own level and life
     // (stats 0xb0 / 0xb1), put back as Conversion ends (FUN_005d01a0).
@@ -615,9 +619,10 @@ struct Foe {
     int stun_ticks = 0;                       // stunned this frame (a monster's Smite), ticks
     std::optional<std::pair<float, float>> knocked_from;   // knocked back this frame by a unit there (result flag 8: Smite)
     bool blocked = false;                     // blocked a hit this frame
-    // Who struck at it in melee this frame (Shiver Armor) and, of those, whose blow did damage (Frozen
-    // Armor: the event's +8 over 0), by Monster::id: monsters born this frame may move the vector.
-    std::vector<int> melee_by, damaged_by;
+    // Who struck at it in melee this frame (Shiver Armor), of those whose blow landed (damagedinmelee,
+    // FUN_0057c6c0 0x57c7a5: result flag 1 (& 1); Clay Golem's slow) and whose did damage (Frozen Armor: the
+    // event's +8 over 0), by Monster::id: monsters born this frame may move the vector.
+    std::vector<int> melee_by, landed_by, damaged_by;
     std::vector<int> fired_by;                // the owners of the ReturnFire missiles that reached it this frame (Chilling Armor)
     std::vector<int> shot_by;                 // the owners of the monster missiles that hit it this frame (their MonProp events)
     std::vector<int> crushed;                 // Crushing Blows this frame, each its life divisor (MonProp crush, FUN_005bffc0)
@@ -1347,6 +1352,11 @@ void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // its state's node (FUN_0056e970); and a state's end (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
+// State 0x18 (slowed) put by an item_slow event (FUN_005c6760) for
+// rules::kClaySlowFrames: none on a MonStats npc or a MonStats2 row without
+// isAtt (FUN_0056e970 0x56e9cc..0x56ea08); one already on (skill 0, level 1)
+// only runs longer, its velocity cut kept, its rates set anew (0x56ea87).
+void put_slow(const GameData& game_data, Monster& monster, int slow, std::uint32_t now_ms);
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components
 // and stats rolled (a boss's by make_boss instead: `stats` false), for

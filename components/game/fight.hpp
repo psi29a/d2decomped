@@ -334,6 +334,7 @@ struct Fight {
             // What the summoning skill's stats gave it (FUN_005c4470).
             std::array<int, 4> res{};                  // fire, lightning, cold, poison
             int thorns = 0, fire_lo = 0, fire_hi = 0, speed_pct = 0;
+            int slow = 0;                              // item_slow (Clay Golem's aurastat): its damagedinmelee event (FUN_005c6760) slows the striker
             // Its A1 before damagepercent and to-hit before item_tohit_percent,
             // those percents, and its summoning skill's damage and to-hit in its
             // swings (a SkillDamage row's: pet_skill_damage) as they stand now.
@@ -722,6 +723,9 @@ struct Fight {
     bool land(std::size_t monster_index, const d2d::rules::Blow& blow, bool by_player, std::uint32_t now_ms, int striker);
     void player_thorns(std::size_t target, const d2d::rules::Blow& blow);   // a MonProp thorns monster's flat value back on the player's melee blow that landed, through the whole hero's DR
     void merc_strike(std::size_t target, const d2d::rules::Swing& swing, std::uint32_t now_ms);   // the merc's melee blow on a monster, and its thorns back
+    // Clay Golem's damagedinmelee event (func 27, FUN_005c6760): each monster whose melee blow landed on
+    // the pet this frame (its foe's landed_by) is slowed (rules::clay_slow, put_slow).
+    void clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms);
     void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms, bool curse_in_swing = false);   // a pet's melee blow, and its thorns back; curse_in_swing: built by pet_swing
     // A monster with GH and KB modes knocked back away from (from_x, from_y): land's knockback, a monster foe's (Smite, MonProp knock).
     void knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms);

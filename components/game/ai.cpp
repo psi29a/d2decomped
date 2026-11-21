@@ -1843,6 +1843,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             if (taken.hit) struck.struck_by(type_info.hit_class);
             if (taken.hit) monprop_hit(monster, struck, false);         // a melee blow: MonProp knock / crush, as the strike's
             struck.melee_by.push_back(monster.id);
+            if (taken.hit) struck.landed_by.push_back(monster.id);
         }
         monster.seq_frame = (*seq)[std::size_t(rows) % seq->size()].frame;
         monster.seq_mode = (*seq)[std::size_t(rows) % seq->size()].mode;
@@ -2008,6 +2009,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.struck_by(type_info.hit_class); monprop_hit(monster, foe, false); }
                         d2d::log::info("{} lands its leap attack ({})", monster.npc.name, taken.hit ? "hit" : "missed");
                         foe.melee_by.push_back(monster.id);
+                        if (taken.hit) foe.landed_by.push_back(monster.id);
                     }
                     monster.seq_once = true;
                 }
@@ -2614,6 +2616,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (taken.hit && monster.mana_hi > 0) foe.mana_burn += d2d::rules::mana_burn_fine(monster.mana_lo, monster.mana_hi, rng);   // Mana Burn: 256ths, 256 times the points
                 if (taken.hit) cursed_hit(game_data, monster, foes, foe);
                 foe.melee_by.push_back(monster.id);
+                if (taken.hit) foe.landed_by.push_back(monster.id);
                 if (taken.damage > 0) foe.damaged_by.push_back(monster.id);
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
                 // Iron Maiden (FUN_005c5f50, rules::iron_maiden_fine) as the hit lands: its own record back, the

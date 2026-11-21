@@ -1825,7 +1825,16 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     (stat 150) as the golem holds it at layer 0, not the node's key; held to
     50 against a player or a champion / unique (FUN_005a0180 mask 0xc), to
     90 against other monsters; other types give 0. Then 19's state 24 with
-    the same descriptor and stats 68 / 69 (0x5c6796..0x5c6819). Not ported.
+    the same descriptor and stats 68 / 69 (0x5c6796..0x5c6819): on the
+    striker of a landed melee hit (FUN_0057c6c0 event 1, 0x57c7a5..0x57c7f3),
+    for 0x2ee frames. The put takes no MonStats npc and no MonStats2 row
+    without isAtt (flags bit 9; 0x56e9cc..0x56ea08); a re-hit only moves the
+    expiry and sets 68 / 69 anew (0x56ea87). The golem's own blows slow
+    too: FUN_005c4470 (0x5c4686..0x5c46f2) hooks item_slow's ItemStatCost
+    events (19, domeleedamage / domissiledamage) on it; not in d2d.
+    d2d: `rules::clay_slow`,
+    `Fight::clay_slows`, `put_slow`; V: `tools/emu/clay_slow.py`
+    (`test_clay_slow --clay-slow`).
   - **28** item_healafterkill (stat 86, FUN_005c01d0, kill): 18 without
     the demon test.
   - **29** item_restinpeace (stat 108, FUN_005c0770, kill): state 172

@@ -78,6 +78,15 @@ bool shadow_may_have(const d2d::rules::Skill* skill, const d2d::rules::MonType& 
     return skill->pettype.empty() || skill->pettype != summoning.pettype;
 }
 
+auto Fight::clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms) -> void {
+        if (pet.slow == 0) return;
+        for (const int striker : foe.landed_by)
+            if (const int found = monster_index(striker); found >= 0 && monsters[std::size_t(found)].alive()) {
+                auto& struck = monsters[std::size_t(found)];
+                if (const int slow = d2d::rules::clay_slow(pet.slow, 1, struck.target(*game_data).special)) put_slow(*game_data, struck, slow, now_ms);
+            }
+    }
+
 auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const auto swung = pet.monster.classic_stats();                 // a revived one's swing in a classic game
         auto fighter = d2d::rules::simple_fighter(swung.a1_min, swung.a1_max, swung.to_hit,

@@ -26,6 +26,11 @@ int heal_to_max(int& life, int max_life, int amount) {   // FUN_005c5f10: what i
     return amount;
 }
 
+int clay_slow(int slow, int unit_type, bool special) noexcept {
+    if (slow == 0 || (unit_type != 0 && unit_type != 1)) return 0;
+    return std::min(slow, unit_type == 0 || special ? 50 : 90);
+}
+
 GolemSteal blood_golem_steal(bool monster, int drain, bool evil, int phys_fine, int target_life, int steal_pct, int owner_pct,
                              bool owner, GolemSteal lives, int owner_max, int golem_max) {
     if ((monster && (drain & 0xff) == 0) || !evil) return lives;
