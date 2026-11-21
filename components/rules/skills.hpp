@@ -535,7 +535,10 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 10 (FUN_004eb460, Smite): the shield's, Holy Shield's
 //     own on top while it's on, x (Param3 + Param4 per level + its
 //     Str / DexBonus + damagepercent) %; none with no shield.
-// ponytail: descdam 2..4, 6, 13..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 17 (FUN_004ebd50, Charged / Lightning Strike): 7's
+//     weapon part over the element (FUN_004e72d0); either alone when the
+//     other is 0-0, else both.
+// ponytail: descdam 2..4, 6, 13..16, 18..23 and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -550,6 +553,9 @@ struct AttackLine {
     int skill = -1;
     bool damage = false;
     int min = 0, max = 0, damage_colour = 0;
+    // Two values (FUN_004e9870): min / max / damage_colour the upper one, these the lower.
+    bool two = false;
+    int min2 = 0, max2 = 0, colour2 = 0;
     int attack_rating = 0, ar_colour = 0;
 };
 // What the handlers read off the unit beside its Fighter.
