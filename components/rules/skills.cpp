@@ -580,11 +580,32 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min += line.min * share / 100;
         line.max += line.max * share / 100;
     }
-    if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
-        const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);
-        line.attack_rating = int(std::int64_t(fighter.ar_base) * pct / 100 + fighter.ar_base);
-        line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
+    const int tohit = skill_tohit(skill_tables, skill, env, lvl);
+    const auto rating = [](const Fighter& hand, int pct) { return int(std::int64_t(hand.ar_base) * pct / 100 + hand.ar_base); };
+    // FUN_004e8ec0 on one hand: its rating with its weapon's mastery (342, FUN_00645830 flag 0), 0 for a
+    // throwing potion (type 0x26, FUN_0062b400).
+    const auto weapon_rating = [&](const Fighter& hand, const PanelUnit::Thrown& thrown) { return thrown.potion ? 0 : rating(hand, hand.ar_pct + tohit); };
+    if (skill.descatt == 1 || skill.descatt == 5) {
+        line.attack_rating = rating(fighter, fighter.ar_pct - mastery_tohit + tohit);
+    } else if (skill.descatt == 2) {
+        // FUN_004e9510: a two-handed class's through FUN_004e93a0 (callback 0x4e8fe0), the wielded one's
+        // first; else FUN_004e8ec0 on the unit.
+        if (unit.dual_class && unit.both_hands) {
+            if (unit.off_hand.fighter) line.attack_rating2 = weapon_rating(*unit.off_hand.fighter, unit.off_hand.thrown);
+            if (unit.main_hand.fighter) line.attack_rating = weapon_rating(*unit.main_hand.fighter, unit.main_hand.thrown);
+        } else {
+            line.attack_rating = weapon_rating(fighter, unit.thrown);
+        }
+    } else if (skill.descatt == 3) {
+        // FUN_004e9160: the throw mastery's to-hit (FUN_00645830 flag 0 under state throwingmastery) for the
+        // melee one; 0 for a throwing potion.
+        line.attack_rating = unit.thrown.potion ? 0 : rating(fighter, fighter.ar_pct - mastery_tohit + unit.thrown.tohit + tohit);
+    } else if (skill.descatt == 4) {
+        // FUN_004e95c0: FUN_004e93a0's second value moved to the first (0x4e95ed..0x4e95ff).
+        if (unit.dual_class && unit.both_hands && unit.off_hand.fighter) line.attack_rating = weapon_rating(*unit.off_hand.fighter, unit.off_hand.thrown);
     }
+    line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
+    if (line.attack_rating2 != 0) line.ar_colour2 = line.ar_colour;
     return line;
 }
 
