@@ -48,7 +48,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
                                                      d2d::rules::StatSum* sum_out ,
-                                                     const d2d::d2s::Item* only_hand ) const -> d2d::rules::Fighter {
+                                                     const d2d::d2s::Item* only_hand , bool melee ) const -> d2d::rules::Fighter {
         using namespace d2d::d2s;
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
@@ -78,7 +78,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         // Throwing (FUN_00645720): a throwable in hand and the skill in use ranged
         // (range 2) with an itypea1 of thro (type 0x30).
         const auto* in_use = game_data->skills.get(actor->attack_skill);
-        const bool throwing = weapon && throwable(*game_data, weapon->code) && in_use && in_use->range == "rng" && !in_use->itypea1.empty()
+        const bool throwing = !melee && weapon && throwable(*game_data, weapon->code) && in_use && in_use->range == "rng" && !in_use->itypea1.empty()
                            && d2d::rules::type_is(game_data->rules, in_use->itypea1, "thro");
         if (passives) {
             const auto type_of = [&](const d2d::d2s::Item& item) {
@@ -261,7 +261,9 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 panel.red |= found->second.panel_red;
             }
         if (std::ranges::contains(active, std::string_view("holyshield"))) panel.blue |= d2d::rules::kPanelDefense;   // FUN_004a7d00: state 0x65 with a shield
-        d2d::rules::PanelUnit panel_unit{ .expansion = game_expansion, .str = int(actor->character.stats.get(kStr)), .dex = int(actor->character.stats.get(kDex)) };
+        // Stats 0 / 2 whole: the save's own plus the gear's, the sets' and the states' (panel.bonus, above).
+        d2d::rules::PanelUnit panel_unit{ .expansion = game_expansion, .str = int(actor->character.stats.get(kStr) + panel.bonus[kStr]),
+                                          .dex = int(actor->character.stats.get(kDex) + panel.bonus[kDex]) };
         if (state_of("holyshield") && skill_level) panel_unit.holy_shield = skill_level(0x75);
         for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {     // FUN_0063c8f0: hand +0x10, then +0x14
             const auto held = std::ranges::find_if(actor->character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
@@ -295,9 +297,14 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         };
         const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
         panel_unit.thrown = thrown_of(wielded);
+        panel_unit.armed = wielded != nullptr;
         // Two hands (FUN_004e93a0): a Barbarian or an Assassin (FUN_006235a0) with a usable item that is
         // no throwing potion in each; then the wielded weapon alone and, when the other hand's is a usable
         // weapon too (FUN_004e9260: the hand that isn't the wielded one's), that one alone.
+        // The panel's own fighter: the melee masteries even after a throw (player_fighter's `melee`); a
+        // throw's line takes the throw mastery itself (PanelUnit::Thrown). Its stats are the same frame's.
+        auto panel_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, nullptr, true);
+        panel_fighter.ar_base_bare = actor->player_combat.ar_base_bare;
         d2d::rules::Fighter main_fighter, off_fighter;
         panel_unit.dual_class = actor->character.character_class == 4 || actor->character.character_class == 6;
         if (panel_unit.dual_class) {
@@ -311,10 +318,10 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (panel_unit.both_hands && wielded) {
                 const Item* other = wielded->slot == body_location::kRightArm ? left : right;
                 const bool two = other != wielded && d2d::rules::type_is(game_data->rules, type_of(*other), "weap") && d2d::rules::item_usable(*wielded);
-                main_fighter = two ? player_fighter(nullptr, &st_sum, &passives, nullptr, wielded) : actor->player_combat;
+                main_fighter = two ? player_fighter(nullptr, &st_sum, &passives, nullptr, wielded, true) : panel_fighter;
                 panel_unit.main_hand = { &main_fighter, thrown_of(wielded) };
                 if (two) {
-                    off_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, other);
+                    off_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, other, true);
                     panel_unit.off_hand = { &off_fighter, thrown_of(other) };
                 }
             }
@@ -324,7 +331,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto* skill = game_data->skills.get(int(chosen[k]))) {
                 panel_unit.concentration = concentration_share(actor->player.x, actor->player.y, skill->par[0]);
                 panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
-                                                          actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red,
+                                                          panel_fighter, panel_fighter.mastery_tohit, panel.blue, panel.red,
                                                           skill_status(skill->id, now_ms), panel_unit);   // FUN_004d9fc0: 0, 1, 6, 8 draw
             }
         }

@@ -241,6 +241,11 @@ int main() try {
         weapon_skill.descatt = 5;                           // FUN_004e9040: the mastery out
         assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).attack_rating == 155);
         weapon_skill.descatt = 1;
+        PanelUnit bare_hands;                               // no weapon: + the strength (50) to the % (FUN_004e86f0)
+        bare_hands.armed = false; bare_hands.str = 50;
+        line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5, 0, 0, 0, bare_hands);
+        assert(line.min == (3 * 256 * 230 / 100 >> 8) + 5 + 2 && line.max == (7 * 256 * 230 / 100 >> 8) + 5 + 4);
+        line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5);
         weapon_skill.descdam = 18;                          // Royal Strike (FUN_004ec040): 7's line
         assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).min == line.min && attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).max == line.max);
         weapon_skill.descdam = 7;

@@ -303,8 +303,11 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
     // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
     // elements on top (each colouring it), held to 1 and min + 1 when there is any.
+    // Bare hands (the unit's own fighter, no weapon wielded): + the strength (stat 0) to the %, where a
+    // weapon's StrBonus / DexBonus would go (FUN_004e86f0 at its item test, before the -90 floor).
     const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
-        const int total = std::max(hand.phys_pct + pct, -90);
+        const int bare = &hand == &fighter && !unit.armed ? unit.str : 0;
+        const int total = std::max(hand.phys_pct + pct + bare, -90);
         out.min = int((std::int64_t(hand.phys_lo) * (100 + total) / 100) >> 8) + flat;
         out.max = int((std::int64_t(hand.phys_hi) * (100 + total) / 100) >> 8) + flat;
         for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {

@@ -86,6 +86,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
     fighter.ar_pct = int(stat(kToHitPercent) + stat(kPassiveMasteryMeleeToHit));
     fighter.ar_base_bare = fighter.ar_base;
+    fighter.mastery_tohit = int(stat(kPassiveMasteryMeleeToHit));
     fighter.attack_rating = int(std::max<std::int64_t>(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct) / 100, 1));
     fighter.kick_lo = fighter.kick_hi = int(stat(kKickDamage));
     if (boots) if (const auto found = tables.item_base.find(boots->code); found != tables.item_base.end()) {
