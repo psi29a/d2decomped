@@ -550,7 +550,11 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     over the other's (each 7's weapon part on that hand alone, x SrcDam /
 //     128 + the element); descdam 13 (FUN_004eb240, Double Throw) the same
 //     with each hand's throw at calc1 %. Elsewhere 19 is the weapon part.
-// ponytail: descdam 2..4, 14..16, 18, 23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 2 (FUN_004ea450, Kick): MinDam << (HitShift - 8) + the
+//     unit's own stat 137, both ends; 3 (FUN_004ea990, Throw): the throw x
+//     SrcDam / 128 + the element; 4 (FUN_004eaa30, Left Hand Throw): the
+//     other hand's throw, none without one.
+// ponytail: descdam 14..16, 18, 23 (Druid / Assassin skills) and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -589,6 +593,7 @@ struct PanelUnit {
     struct Hand { const Fighter* fighter = nullptr; Thrown thrown; };
     bool dual_class = false, both_hands = false;
     Hand main_hand, off_hand;
+    int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,

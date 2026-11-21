@@ -403,6 +403,25 @@ int main() try {
         barbarian.off_hand = { &off_throw, { .held = true } };
         line = attack_line(skill_tables, double_throw, plain, 5, fighter, 5, 0, 0, 0, barbarian);
         assert(line.two && line.min == 17 && line.max == 34 && line.damage_colour == 1 && line.min2 == 6 && line.max2 == 12 && line.colour2 == 0);
+        // descdam 3 (Throw, FUN_004ea990): the wielded throw (15-30 with its fire 2-4, x SrcDam 128 / 128),
+        // then the skill's element; 4 (Left Hand Throw, FUN_004eaa30): the other hand's throw alone.
+        Skill throw_skill = frenzy;
+        throw_skill.descdam = 3; throw_skill.srcdam_raw = 64;
+        PanelUnit thrower = barbarian;
+        thrower.thrown = { .held = true, .mastery = 50 };
+        line = attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5, 0, 0, 0, thrower);
+        assert(!line.two && line.min == (15 + 2) / 2 && line.max == (30 + 4) / 2 && line.damage_colour == 1);
+        throw_skill.descdam = 4;
+        line = attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5, 0, 0, 0, thrower);
+        assert(line.damage && line.min == 4 && line.max == 8 && line.damage_colour == 0);
+        assert(!attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5).damage);   // no other hand: no line
+        // descdam 2 (Kick, FUN_004ea450): MinDam << (HitShift - 8) + the unit's own stat 137, both ends.
+        Skill kick = frenzy;
+        kick.descdam = 2; kick.mindam = 3; kick.hitshift = 10;
+        PanelUnit kicker;
+        kicker.base_kick = 5;
+        line = attack_line(skill_tables, kick, plain, 5, fighter, 5, 0, 0, 0, kicker);
+        assert(line.damage && line.min == 12 + 5 && line.max == 12 + 5);
         // Usable status (FUN_004d9fc0) 0, 1, 6 or 8 draws the line. Any other
         // status keeps the skill id and leaves the numbers blank. Omitting
         // the status is status 0.
