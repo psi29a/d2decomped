@@ -630,6 +630,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     cues.cue_on(unit_key(kSoundOnMissile, flown.sound), flown.hit_sound, now_ms, flown.x, flown.y);
             std::ranges::move(pending, std::back_inserter(missiles));
             pending.clear();
+            // Each missile its sound id (its identity on the client: View::Shot::sound) before any view sees
+            // it, the frame it's made: its TravelSound starts then too.
+            for (auto& missile : missiles)
+                if (missile.info && missile.sound == 0) {
+                    missile.sound = ++missile_sounds;
+                    cues.cue_on(unit_key(kSoundOnMissile, missile.sound), missile.info->travel_sound, now_ms, missile.x, missile.y, missile.sound);
+                }
             for (auto& monster : monsters) {
                 if (near_players(monster.unit.x, monster.unit.y)) monster_sounds(monster, now_ms);
                 else { monster.seq_sounds = 0; monster.skill_sound = -1; }   // a far Jab's event-3 rows and skill start go unheard, not saved for later

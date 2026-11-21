@@ -829,7 +829,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
         bool flashed = false;
         for (; frame_ms - rain_ms >= 40; rain_ms += 40) {
             den_tick(frame_ms);
-            spark_trail.tick(view.missiles, rain_ms + 40);
+            spark_trail.tick(view.missiles, rain_ms + 40, level);
             staff_show_tick(frame_ms);
             dip_tick();
             critter_tick(frame_ms);
