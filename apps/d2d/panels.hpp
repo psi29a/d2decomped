@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "scene.hpp"
+#include "touch_quest_notice.hpp"
 
 #include <ai.hpp>
 #include <automap_cells.hpp>
@@ -392,6 +393,7 @@ inline constexpr std::array<int, 5> kQuestTabX = { 5, 0x43, 0x81, 0xbf, 0xfd };
 inline constexpr std::array<int, 4> kQuestTabXClassic = { 5, 0x52, 0x9f, 0xec };
 // The log's client state (QuestLog.cpp's globals).
 struct QuestLog {
+    touch::QuestNotice touch_notice;
     bool open = false;                       // UI 0xf
     int act = 0, slot = -1;                  // the tab (0x7c0255) and the quest picked (0x7bf2b9)
     int pressed = -1;                        // the icon held down (0x7bf2b5)

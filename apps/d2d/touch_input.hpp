@@ -2,6 +2,8 @@
 // Touch adapter in logical 800x600 coordinates. No SDL, game rules or saves.
 #pragma once
 
+#include "touch_feedback.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -81,7 +83,8 @@ inline constexpr Box kMenu{ 0, 0, 48, 48 }, kSkillsBar{ 0, 52, 48, 48 }, kDone{ 
 inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
-    Box move, move_visual, attack, page, menu, skills_bar, quest, bind, map, done, interact, quest_track;
+    Box move, move_visual, attack, page, menu, skills_bar, stats, quest, bind, map, done, interact, quest_track;
+    Box healing, mana, belt_more;
     std::array<Box, 4> skills{}, belts{};
 };
 
@@ -214,7 +217,7 @@ inline Box placed(Box box) {
 /** Immortal-style thumb layout with edge anchoring. */
 inline Layout layout_boxes() {
     Layout out;
-    const float belt = ui_scale(kBeltSize), skill = ui_scale(kSkillSize), attack = ui_scale(kAttackSize), page = ui_scale(kPageSize);
+    const float belt = ui_scale(kBeltSize), attack = ui_scale(kAttackSize), page = ui_scale(kPageSize);
     out.move = anchor_box(ui_scale(kMoveHitW), ui_scale(kMoveHitH), true, false);
     out.move_visual = { out.move.x + (out.move.width - ui_scale(kMoveVisualW)) * .5f,
                         out.move.y + (out.move.height - ui_scale(kMoveVisualH)) * .5f,
@@ -226,48 +229,46 @@ inline Layout layout_boxes() {
     const float chip = ui_scale(kChipSize), gap = ui_scale(kChipGap);
     out.menu = anchor_box(chip, chip, true, true);
     out.skills_bar = { out.menu.x + chip + gap, out.menu.y, chip, chip };
+    out.stats = { out.skills_bar.x + chip + gap, out.menu.y, chip, chip };
     out.quest = { out.menu.x, out.menu.y + chip + gap, chip, chip };
     out.bind = { out.skills_bar.x, out.quest.y, chip, chip };
-    out.done = anchor_box(ui_scale(52.f), ui_scale(48.f), false, true);
-    out.map = { out.done.x, out.done.y + ui_scale(56.f), ui_scale(52.f), ui_scale(48.f) };
+    out.done = anchor_box(ui_scale(64.f), ui_scale(64.f), false, true);
+    out.map = { out.done.x + ui_scale(12.f), out.done.y + ui_scale(68.f), ui_scale(52.f), ui_scale(48.f) };
     const float track_y = out.bind.y + out.bind.height + bar_gap() + kBarBlockH;
     out.quest_track = { safe_inset.left + 6.f, track_y, ui_scale(172.f), 88.f };
-    // Quarter arc left and above the attack. Centres stay about a diameter apart.
-    out.skills[0] = { attack_x - ui_scale(103.f), attack_y + ui_scale(7.f), skill, skill };
-    out.skills[1] = { attack_x - ui_scale(186.f), attack_y - ui_scale(64.f), skill, skill };
-    out.skills[2] = { attack_x - ui_scale(104.f), attack_y - ui_scale(134.f), skill, skill };
-    out.skills[3] = { attack_x - ui_scale(24.f), attack_y - ui_scale(174.f), skill, skill };
-    float skill_top = out.skills[0].y;
-    for (const auto& skill_box : out.skills) skill_top = std::min(skill_top, skill_box.y);
-    // 2x2 under Map, shifted one column left so the right pots clear Map.
+    // Large thumb targets fan left and upward from the main attack target.
+    constexpr float skill_hit = 80.f;
+    const float attack_cx = attack_x + attack * .5f, attack_cy = attack_y + attack * .5f;
+    const auto skill_at = [&](float dx, float dy) {
+        return Box{ attack_cx + dx - skill_hit * .5f, attack_cy + dy - skill_hit * .5f, skill_hit, skill_hit };
+    };
+    out.skills[0] = skill_at(-145.f, 20.f);
+    out.skills[1] = skill_at(-155.f, -70.f);
+    out.skills[2] = skill_at(-80.f, -160.f);
+    out.skills[3] = skill_at(15.f, -175.f);
+    out.page = { attack_x + 75.f, attack_y - 54.f, 40.f, 40.f };
     const float pot_gap = ui_scale(kBeltGap);
-    const float grid_w = 2.f * belt + pot_gap, grid_h = 2.f * belt + pot_gap;
-    const float column = belt + pot_gap;
-    float pot_x = out.map.x + out.map.width - grid_w - column;
-    float pot_y0 = out.map.y + out.map.height + pot_gap;
-    const float min_y = safe_inset.top + 6.f;
-    const float max_y = 600.f - safe_inset.bottom - 6.f - grid_h;
-    pot_y0 = std::clamp(pot_y0, min_y, std::max(min_y, max_y));
-    if (pot_y0 + grid_h + 8.f > skill_top)
-        pot_y0 = std::clamp(skill_top - grid_h - 8.f, min_y, std::max(min_y, max_y));
-    pot_x = std::clamp(pot_x, safe_inset.left + 6.f, 800.f - safe_inset.right - grid_w - 6.f);
+    out.belt_more = { out.map.x, out.map.y + out.map.height + pot_gap, belt, belt };
+    const float grid_x = out.belt_more.x - 2.f * (belt + pot_gap);
+    const float grid_y = out.belt_more.y;
     for (int index = 0; index < 4; ++index) {
-        const int col = index % 2, row = index / 2;
-        out.belts[std::size_t(index)] = { pot_x + float(col) * (belt + pot_gap), pot_y0 + float(row) * (belt + pot_gap), belt, belt };
+        out.belts[std::size_t(index)] = { grid_x + float(index % 2) * (belt + pot_gap),
+                                         grid_y + float(index / 2) * (belt + pot_gap), belt, belt };
     }
-    out.interact = { attack_x - ui_scale(268.f), attack_y - ui_scale(48.f), ui_scale(56.f), ui_scale(56.f) };
-    const float move_right = std::min(out.interact.x + out.interact.width + 16.f, out.skills[2].x - 8.f);
-    out.move.width = std::max(out.move.width, move_right - out.move.x);
-    out.move.height = std::max(out.move.height, 600.f - safe_inset.bottom - out.move.y);
+    // Potion pair sits left of the lower fan; interaction has extra separation above it.
+    const float potion_x = std::max(safe_inset.left + 12.f, attack_cx - 277.f);
+    out.interact = { potion_x, attack_cy - 216.f, 64.f, 64.f };
+    out.mana = { potion_x, attack_cy - 136.f, 64.f, 64.f };
+    out.healing = { potion_x, attack_cy - 56.f, 64.f, 64.f };
     return out;
 }
 
 inline constexpr float kStickOuter = 52.f, kStickInner = 22.f, kSkillRing = 34.f;
 
-/** Inv/Skl/Quest/Bind stay pinned to the top-left, including while panels are open. */
+/** Inv/Skl/Stats/Quest/Bind stay pinned to the top-left, including while panels are open. */
 inline bool chip_hit(float x, float y) {
     const auto chrome = layout_boxes();
-    return chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y);
+    return chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y) || chrome.stats.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y);
 }
 
 /** Drag-aim when the skill is directional, or when the pad has no monster in focus. */
@@ -283,23 +284,58 @@ inline bool chip_hit(float x, float y) {
     return -1;
 }
 
-inline bool chrome_hit(float x, float y, bool interact_chrome = false, bool field_controls = true) {
+inline bool chrome_hit(float x, float y, bool interact_chrome = false, bool field_controls = true, bool belt_expanded = false) {
     const auto chrome = layout_boxes();
     if (chrome.done.contains(x, y) || chrome.map.contains(x, y) || chip_hit(x, y)) return true;
     if (!field_controls) return false;
     if (interact_chrome && chrome.interact.contains(x, y)) return true;
-    if (chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)) return true;
+    if (chrome.page.contains(x, y) || chrome.move.contains(x, y) || chrome.attack.contains(x, y)
+        || chrome.healing.contains(x, y) || chrome.mana.contains(x, y) || chrome.belt_more.contains(x, y)) return true;
     for (const auto& box : chrome.skills)
         if (box.contains(x, y)) return true;
-    for (const auto& box : chrome.belts)
+    if (belt_expanded) for (const auto& box : chrome.belts)
         if (box.contains(x, y)) return true;
     return false;
 }
 
 struct Target { int skill = -1, unit = -1; float x = 0, y = 0; bool left = false, valid = false; };
 
+enum class PotionButton { None, Healing, Mana };
+
+/** A potion tap belongs to its starting finger and must stay inside its box. */
+class PotionPress {
+public:
+    PotionButton event(std::int64_t finger, Phase phase, float x, float y, const Layout& layout) {
+        if (phase == Phase::Down && owner_ == -1) {
+            if (layout.healing.contains(x, y)) button_ = PotionButton::Healing;
+            else if (layout.mana.contains(x, y)) button_ = PotionButton::Mana;
+            else return PotionButton::None;
+            owner_ = finger;
+        }
+        if (finger != owner_) return PotionButton::None;
+        const Box box = button_ == PotionButton::Healing ? layout.healing : layout.mana;
+        if (!box.contains(x, y)) inside_ = false;
+        if (phase == Phase::Cancel) { clear(); return PotionButton::None; }
+        if (phase == Phase::Up) {
+            const auto result = inside_ && box.contains(x, y) ? button_ : PotionButton::None;
+            clear();
+            return result;
+        }
+        return PotionButton::None;
+    }
+    [[nodiscard]] bool owns(std::int64_t finger) const { return owner_ != -1 && finger == owner_; }
+    void clear() { owner_ = -1; button_ = PotionButton::None; inside_ = true; }
+private:
+    std::int64_t owner_ = -1;
+    PotionButton button_ = PotionButton::None;
+    bool inside_ = true;
+};
+
 class Input {
 public:
+    bool belt_expanded = false;
+    PotionPress potion_press;
+    FeedbackState feedback;
     bool alternate = false, attack_down = false, attack_press = false;
     bool menu = false, done = false, belt_quick = false, run_toggle = false;
     int belt = -1, belt_armed = -1, destination = -1;
@@ -310,17 +346,25 @@ public:
     std::vector<Target> casts;
 
     [[nodiscard]] bool move_held() const { return movement_ != -1; }
-    [[nodiscard]] bool owns(std::int64_t finger) const { return finger == movement_ || finger == attack_ || finger == skill_; }
+    [[nodiscard]] bool owns(std::int64_t finger) const { return finger != -1 && (finger == movement_ || finger == attack_ || finger == skill_); }
 
     /** Drop ownership for a finger that lifted (routes that skip event() must call this). */
     void release_finger(std::int64_t finger) {
+        if (finger == attack_) feedback.release(kAttackBind);
+        if (finger == skill_ && skill_feedback_ >= 0) {
+            if (feedback.sample(std::size_t(skill_feedback_), 0).kind == FeedbackKind::Pressed) feedback.release(std::size_t(skill_feedback_));
+            skill_feedback_ = -1;
+        }
+        if (potion_press.owns(finger)) potion_press.clear();
         if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }
         if (finger == attack_) { attack_ = -1; attack_down = false; }
         if (finger == skill_) { skill_ = -1; aiming = false; }
     }
 
     void clear() {
+        potion_press.clear(); belt_expanded = false; feedback.reset();
         movement_ = skill_ = attack_ = -1;
+        skill_feedback_ = -1;
         move_x = move_y = 0;
         aiming = dragged = attack_down = attack_press = false;
         casts.clear();
@@ -335,6 +379,12 @@ public:
     void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false, std::uint32_t now_ms = 0) {
         const auto chrome = layout_boxes();
         if (phase == Phase::Cancel) {
+            if (finger == attack_) { feedback.release(kAttackBind); feedback.pulse(kAttackBind, FeedbackKind::Cancelled, now_ms); }
+            if (finger == skill_ && skill_feedback_ >= 0) {
+                feedback.release(std::size_t(skill_feedback_));
+                feedback.pulse(std::size_t(skill_feedback_), FeedbackKind::Cancelled, now_ms);
+                skill_feedback_ = -1;
+            }
             if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }
             if (finger == attack_) { attack_ = -1; attack_down = false; }
             if (finger == skill_) { skill_ = -1; aiming = false; }
@@ -348,7 +398,7 @@ public:
                 return;
             }
             if (chrome.menu.contains(x, y)) { menu = true; return; }
-            for (int index = 0; index < 4; ++index)
+            if (belt_expanded) for (int index = 0; index < 4; ++index)
                 if (chrome.belts[std::size_t(index)].contains(x, y)) {
                     const bool quick = belt_last_ == index && now_ms >= belt_ms_ && now_ms - belt_ms_ <= kBeltDoubleTapMs
                         && !item_dragged(belt_x_, belt_y_, x, y);
@@ -366,9 +416,11 @@ public:
             }
             else if (chrome.attack.contains(x, y) && attack_ < 0) {
                 attack_ = finger; attack_press = attack_down = true;
+                feedback.press(kAttackBind, now_ms);
                 if (skill_ < 0 && (target.valid || target.skill >= 0)) {
                     stationary = immediate;
                     skill_ = finger; aiming = true; dragged = false;
+                    skill_feedback_ = kAttackBind;
                     origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
                 }
             }
@@ -377,6 +429,8 @@ public:
                     if (box.contains(x, y)) {
                         stationary = immediate;
                         skill_ = finger; aiming = true; dragged = false;
+                        skill_feedback_ = int(&box - chrome.skills.data());
+                        feedback.press(std::size_t(skill_feedback_), now_ms);
                         origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
                         return;
                     }
@@ -397,17 +451,28 @@ public:
                 move_y = length > 12 ? dy / std::max(length, 55.f) : 0;
             }
         }
-        if (finger == attack_ && phase == Phase::Up) { attack_ = -1; attack_down = false; }
+        if (finger == attack_ && phase == Phase::Up) {
+            feedback.release(kAttackBind);
+            if (finger != skill_) feedback.pulse(kAttackBind, FeedbackKind::Accepted, now_ms);
+            attack_ = -1; attack_down = false;
+        }
         if (finger == skill_) {
             aim_x = x; aim_y = y;
             dragged = dragged || (!stationary && std::hypot(x - origin_x, y - origin_y) > 10);
             if (phase == Phase::Up) {
-                if (x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid) casts.push_back(preview);
+                const bool accepted = x >= 0 && x < 800 && y >= 0 && y < 600 && preview.valid;
+                if (accepted) casts.push_back(preview);
+                if (skill_feedback_ >= 0) {
+                    feedback.release(std::size_t(skill_feedback_));
+                    feedback.pulse(std::size_t(skill_feedback_), accepted ? FeedbackKind::Accepted : FeedbackKind::Rejected, now_ms);
+                    skill_feedback_ = -1;
+                }
                 skill_ = -1; aiming = false;
             }
         }
     }
 private:
+    int skill_feedback_ = -1;
     std::int64_t movement_ = -1, skill_ = -1, attack_ = -1;
     float move_origin_x_ = 0, move_origin_y_ = 0;
     bool move_dragged_ = false;

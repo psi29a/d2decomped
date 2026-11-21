@@ -50,21 +50,21 @@ input prototype, not an Android/iOS packaging or device-support claim. Coordinat
 follow the game's existing logical viewport. Use landscape for this prototype.
 
 - Left movement area, dedicated contextual Interact, attack-only primary button,
-  four skill buttons, and a one-tap I/II page switch. Belt buttons are available
-  on either page.
-- Top chrome is edge-pinned (Inv / Skl / Quest / Bind as a 2x2 flush to the
+  four skill buttons in an 80px thumb fan, and a one-tap I/II page switch.
+  Healing/mana shortcuts and an expandable belt are available on either page.
+- Top chrome is edge-pinned (Inv / Skl / Stats across the first row,
+  Quest / Bind across the second row, flush to the
   top-left; Done and Map stacked top-right). Letterbox gutters pull chrome
   toward the physical bezels on wide phones. Field controls sit in the bottom
   corners; the center stays clear.
   On the field, compact life/mana bars sit under the 2x2 chip block with a gap
-  of about 0.35 of chip height; belt potions sit in a 2x2 under Map, one column
-  left so they miss the Map chip; a compact
+  of about 0.35 of chip height; the Belt chip opens the four-column 2x2 under Map; a compact
   quest tracker on the left opens the full log on tap. The classic bottom bar, belt
   strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
   them back) while a finger or Pencil is the last device. A real key, non-touch
   mouse, or gamepad hides the Immortal HUD and restores classic or pad input;
   the next finger brings the HUD back. `--touch-controls` stays on. Map is a dim overlay: field move/skill/belt chrome stays up.
-  Open panels hide the stick, skill rings, I/II and belt grid; Inv / Skl / Quest / Bind
+  Open panels hide the stick, skill rings, I/II, potion pair and belt grid; Inv / Skl / Stats / Quest / Bind
   stay put and stay tappable.
   The skill tree, character, inventory, and vendor trade/repair panels use
   classic placement (`kTreeR`, `kCharPanelX`). Touch no longer splits the
@@ -254,14 +254,32 @@ chips and the combat cluster. `touch_hides_classic_hud()` suppresses the PC belt
 and skill bar when touch is on and a finger/Pencil is the last device
 (including automap, NPC speech, and shop);
 `touch_shows_field_controls()` is true on the open field without panels,
-including while the automap overlay is on. Belt potions are a 2x2 under Map,
-shifted one column left so the right pots clear Map, and stay on-screen
-(shifted up if they would cover the skill arc). Each occupied column shows a
-stock count including its top potion and deeper belt rows. Counts include all
-belt item kinds, exclude inventory/stash items, and count each valid belt box
-once. The artwork still represents the top item used by that column; the count
-is stock, not a promise that deeper items are immediately usable. The move
-stick uses a large `move` hit box with a smaller `move_visual` ring.
+including while the automap overlay is on. Four 80px skill targets fan upward
+and left from Attack. HP and MP buttons sit left of that fan, with the contextual
+Interact target above them. The existing SDL safe-area mapping and centered
+800-wide touch band are retained; the layout is checked at 0, 20 and 48px insets.
+
+A potion activates on the starting finger's release inside its original box.
+Leaving that box, cancellation, or a panel/focus reset disarms it. The shortcut
+chooses the strongest currently usable healing or mana potion among top belt
+boxes 0..3, breaking ties toward the lowest column. It sends the existing
+UseBelt command; it never drinks directly from inventory or a deeper row.
+Rejuvenation, antidote, thawing and stamina potions stay on the expanded belt.
+
+The pair shows stock totals including deeper rows, while its artwork represents
+the potion the shortcut would use. The Belt chip opens the original four-column
+2x2 with the per-column counts added in #668 and the existing Use/Fill sheet.
+Invalid or duplicate belt boxes do not inflate counts. Opening a panel, changing
+input mode, or clearing gestures collapses this grid.
+
+Stats opens the original character panel. Skill/stat point badges derive from
+the current character. Quest updates keep a separate unread badge until the
+corresponding selected entry is displayed; merely opening a different quest or
+tab does not acknowledge them. Field Map/page/Belt toggles and local cast/potion acceptance show
+brief gold feedback, unavailable actions red, and cancelled skill gestures grey.
+This feedback acknowledges client input, not a server-confirmed action.
+
+The move stick uses a large hit box with a smaller visual ring.
 NPC menus and speech use a bottom sheet on touch (`layout_npc_menu_touch`);
 speech text clips to that sheet, not the classic top box. Taps route
 through ordinary menu hit tests with extra row padding. Skill assignment
@@ -271,23 +289,10 @@ Done) is hit-tested before the wheel swallows input. While binding, I/II
 still swaps skill set 1 vs 2. Inventory
 item tap opens a Use/Sell/Buy sheet with Confirm; a 14px drag picks up, and
 lift places into the nearest valid cell or drops. Move stick, skill rings, I/II, and the potion grid hide while
-panels are open. Inv / Skl / Quest / Bind stay at their field positions and
+panels are open. Inv / Skl / Stats / Quest / Bind stay at their field positions and
 keep taking taps. Round chrome fills are light (about 15% of the old dim);
 the Attack icon is scaled to fill its ring; belt potion frames are centred
 in their circles.
-
-Pass 4 stacked Inv / Skl / Quest / Bind as a column. Pass 5 lays them out as a
-2x2 flush to the top (life/mana under that block), moves belt potions to a 2x2
-under Map, turns the Bind chip into Done while the editor is open, and keeps
-I/II available in the bind editor. Pass 6 leaves those chips fixed (no
-`panel_chrome_x` shift), restores classic trade/inventory panel X, and splits
-item tap vs drag.
-
-The later HUD pass removes the skill drag-to-cancel box, widens the gap under
-the 2x2 chips, thins chrome, scales the Attack icon, centres belt art, places
-held items on finger up with grid snap, keeps last-device handoff (Touch vs
-keyboard/mouse vs gamepad), adds Confirm before identify, and gives the field
-belt a Use/Fill sheet with double-tap to use.
 
 ## Touch HUD and binding navigation
 

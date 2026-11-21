@@ -442,7 +442,7 @@ if touch_ux:
     # Aiming and cancellation travel through injected SDL finger events.
     mana = state()["mana"]
     finger(1, "down", 90, 460); finger(1, "move", 140, 460)
-    finger(2, "down", 631, 541)
+    finger(2, "down", 591, 556)
     assert state()["touch_aiming"] == "1" and state()["touch_skill"] == str(aimed), cmd("state")
     if corpse_ux:
         assert int(state()["touch_target"]) >= 0, "corpse skill did not select a corpse"
@@ -451,27 +451,27 @@ if touch_ux:
     finger(2, "cancel", 636, 450)
     assert state()["touch_aiming"] == "0" and state()["touch_move"] != "0.000000,0.000000", "cancellation interrupted movement"
     assert state()["mana"] == mana, "cancelled skill spent mana"
-    finger(3, "down", 736, 440); finger(3, "up", 736, 440)
+    finger(3, "down", 774, 445); finger(3, "up", 774, 445)
     assert state()["touch_page"] == "1" and state()["touch_move"] != "0.000000,0.000000", "page switch interrupted movement"
     finger(1, "up", 140, 460)
     # A pointer that moves, then clicks, is a non-touch mouse: it takes the seat and
     # the overlay leaves it alone; the next finger brings it back (controller-touch.md).
-    cmd("click 736 440"); frames(4)
+    cmd("click 774 445"); frames(4)
     assert state()["touch_page"] == "1", "a mouse click switched the touch page"
-    finger(3, "down", 736, 440); finger(3, "up", 736, 440)
+    finger(3, "down", 774, 445); finger(3, "up", 774, 445)
     assert state()["touch_page"] == "0", "the next finger did not switch the touch page"
-    finger(2, "down", 631, 541)
+    finger(2, "down", 591, 556)
     cmd("key i"); frames(5)
     finger(2, "up", 640, 500)
     assert state()["touch_aiming"] == "0" and state()["mana"] == mana, "opening a panel committed the pending skill"
     screenshot("touch-inventory.png")
     tap(768, 30)
-    finger(2, "down", 631, 541)
+    finger(2, "down", 591, 556)
     if not corpse_ux:
         finger(2, "move", 640, 500)
     preview = tuple(map(float, state()["touch_point"].split(",")))
     before_cast = players()["Alpha"][:2]
-    finger(2, "up", 640 if not corpse_ux else 631, 500 if not corpse_ux else 541)   # a corpse skill: a tap, no drag
+    finger(2, "up", 640 if not corpse_ux else 591, 500 if not corpse_ux else 556)   # a corpse skill: a tap, no drag
     frames(35)
     if corpse_ux:
         assert state()["pets"] != "-", "touch corpse skill did not raise a minion"
