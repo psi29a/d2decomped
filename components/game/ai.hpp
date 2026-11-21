@@ -816,6 +816,8 @@ struct Missile {
     int prog_sound_phase = -1;                // last animation phase that played Missiles.txt ProgSound
     bool launched = false, follow = true;
     std::vector<std::array<int, 4>> rooms;
+    d2d::rules::Rng client_seed;              // the client unit's (FUN_00465fd0, client_unit_seed), once client_seeded
+    bool client_seeded = false;
 };
 // pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when one step
 // of the missile's own seed (+0x20: low * 0x6ac690c5 + high) has its low 7
@@ -1083,16 +1085,17 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
         // from a subtile -1..0 off it each way, sent at that start's -10..9
         // off (x the first draw, y the second), the start x then y by the
-        // third and fourth's bit 0: four steps of the missile's seed (+0x20).
-        // ponytail: the update's rng, not the missile's seed: the client unit's
-        // first seed (FUN_00465fd0 via FUN_00466730) is {1, 666}, then, with a room
-        // at its spot, that room's seed (+0x6c / +0x70) stepped once and its low
-        // word as {low, 666} (FUN_00650e40, 0x46606a..0x466093); d2d keeps no
-        // client room seeds.
+        // third and fourth's bit 0: four steps of the missile's client seed
+        // (+0x20: client_unit_seed at its spot, made as the client first runs it).
         if (missile.info && missile.info->clt_do == 55 && missile.sub && missile.frame != frame && (int(now_ms - missile.born) / 40) % 3 == 0) {
             missile.frame = frame;
-            const int off_x = int(rng.next() % 20) - 10, off_y = int(rng.next() % 20) - 10;
-            const float from_x = std::floor(missile.x * 5) + float(rng.next() & 1) - 1, from_y = std::floor(missile.y * 5) + float(rng.next() & 1) - 1;
+            if (!missile.client_seeded) {
+                missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));
+                missile.client_seeded = true;
+            }
+            auto& seed = missile.client_seed;
+            const int off_x = int(seed.next() % 20) - 10, off_y = int(seed.next() % 20) - 10;
+            const float from_x = std::floor(missile.x * 5) + float(seed.next() & 1) - 1, from_y = std::floor(missile.y * 5) + float(seed.next() & 1) - 1;
             Missile cloud = missile_from(missile, *missile.sub, (from_x + 0.5f) / 5, (from_y + 0.5f) / 5, 0, 0, now_ms);
             cloud.visual_only = true;
             cloud.to = std::pair{ (from_x + float(off_x) + 0.5f) / 5, (from_y + float(off_y) + 0.5f) / 5 };

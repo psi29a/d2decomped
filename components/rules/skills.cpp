@@ -295,23 +295,33 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue, std::uint8_t red,
-                       int usable) {
+                       int usable, const PanelUnit& unit) {
     AttackLine line;
     line.skill = skill.id;
     if (usable != 0 && usable != 1 && usable != 6 && usable != 8) return line;   // FUN_004d9fc0
     constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
-    const auto weapon = [&](int pct, int flat) {
-        const int total = std::max(fighter.phys_pct + pct, -90);
-        line.min = int((std::int64_t(fighter.phys_lo) * (100 + total) / 100) >> 8) + flat;
-        line.max = int((std::int64_t(fighter.phys_hi) * (100 + total) / 100) >> 8) + flat;
+    // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
+    // elements on top (each colouring it), held to 1 and min + 1 when there is any.
+    // ponytail: FUN_004e86f0 takes the unit's stats 21 / 22 (23 / 24 two-handed; +1 / +2 bare) x (100 +
+    // stat 18 / 17 + its %) / 100 + the item's stat 111 + flat; this takes the Fighter's (the weapon's
+    // base with its own %, then the gear's flat and 111, x the %). Whether the two agree for every item
+    // turns on what the unit's stat 21 holds; not compared (panel_damage.py hooks FUN_004e86f0).
+    // Bare hands (the unit's own fighter, no weapon wielded): + the strength (stat 0) to the %, where a
+    // weapon's StrBonus / DexBonus would go (FUN_004e86f0 at its item test, before the -90 floor).
+    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
+        const int bare = &hand == &fighter && !unit.armed ? unit.str : 0;
+        const int total = std::max(hand.phys_pct + pct + bare, -90);
+        out.min = int((std::int64_t(hand.phys_lo) * (100 + total) / 100) >> 8) + flat;
+        out.max = int((std::int64_t(hand.phys_hi) * (100 + total) / 100) >> 8) + flat;
         for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
-            const auto& [low, high] = fighter.elem[elem];
-            line.min += std::min(low, high); line.max += high;
-            if (low != 0 || high != 0) line.damage_colour = kElemColour[elem];
+            const auto& [low, high] = hand.elem[elem];
+            out.min += std::min(low, high); out.max += high;
+            if (low != 0 || high != 0) out.damage_colour = kElemColour[elem];
         }
-        if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
+        if (out.max > 0) { out.min = std::max(out.min, 1); out.max = std::max(out.max, out.min + 1); }
     };
+    const auto weapon = [&](int pct, int flat) { weapon_of(fighter, pct, flat, line); };
     const auto state_colour = [&](PanelColour bit, int colour) { return (red & bit) ? 1 : (blue & bit) ? 3 : colour; };
     const int etype_colour = skill.etype >= 0 && skill.etype < 5 ? kElemColour[skill.etype] : 0;   // FUN_004e6fb0
     // FUN_004e9660: SrcDam / 128 of the weapon's damage joins the line; the
@@ -329,10 +339,140 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * poison_len >> 8;
         line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * poison_len >> 8;
     };
-    if (skill.descdam == 1 || skill.descdam == 7) {
+    // FUN_004e72d0: the element (EMin / EMax with mastery, poison x ELen) >> 8, coloured by EType.
+    const auto element_text = [&] {
+        const int length = skill.etype == 3 ? elem_length(skill_tables, skill, env, lvl) : 1;
+        line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * length >> 8;
+        line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * length >> 8;
+        if (skill.etype >= 0 && skill.etype < 5) line.damage_colour = kElemColour[skill.etype];
+    };
+    const auto stat = [&](int id) { return env.stat ? env.stat(id) : 0; };
+    // FUN_004e8d90: the unit's own damage of the skill's element: fire 48 / 49, lightning 50 / 51,
+    // magic 52 / 53, cold 54 / 55, poison 57 / 58 x its length >> 8 (stat 101, else 59 / stat 326 held
+    // to at least 1).
+    const auto gear_element = [&](int& low, int& high) {
+        constexpr std::array<int, 5> kOwn{ 48, 50, 54, 57, 52 };     // Skill::etype order: fire, lightning, cold, poison, magic
+        if (skill.etype == 3) {
+            int length = stat(101);
+            if (length < 1) length = stat(59) / std::max(stat(326), 1);
+            low += stat(57) * length >> 8;
+            high += stat(58) * length >> 8;
+        } else if (skill.etype >= 0 && skill.etype < 5) {
+            low += stat(kOwn[std::size_t(skill.etype)]);
+            high += stat(kOwn[std::size_t(skill.etype)] + 1);
+        }
+    };
+    // A throwable's stats 159 / 160, each end + end x (its own % (18 / 17) + str x StrBonus / 100 +
+    // dex x DexBonus / 100 + damagepercent, the last three at least -90) / 100 (FUN_004ea4a0 at
+    // 0x4ea5ec..0x4ea6e4, FUN_004ea790 the same), then + MulDiv(end, mastery, 100).
+    // `extra`: FUN_004ea4a0's own % on top of the mastery (Double Throw's calc1).
+    const auto throw_of = [&](const Fighter& hand, const PanelUnit::Thrown& thrown, int extra, int& low, int& high) {
+        int pct = 0;
+        if (thrown.str_bonus != 0) pct += unit.str * thrown.str_bonus / 100;
+        if (thrown.dex_bonus != 0) pct += unit.dex * thrown.dex_bonus / 100;
+        pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
+        low = hand.throw_lo + (stat(d2d::d2s::kMinDamagePercent) + pct) * hand.throw_lo / 100;
+        high = hand.throw_hi + (stat(d2d::d2s::kMaxDamagePercent) + pct) * hand.throw_hi / 100;
+        low += mul_div(low, thrown.mastery + extra, 100);
+        high += mul_div(high, thrown.mastery + extra, 100);
+    };
+    const auto throw_base = [&](int& low, int& high) { throw_of(fighter, unit.thrown, 0, low, high); };
+    // FUN_004ea4a0 whole on one hand into `out` (its colour from `out`'s): 0-0 with nothing throwable or
+    // a throwing potion (its missile isn't here), else the throw with its elements from 0 on top
+    // (FUN_004e89a0: clamped, coloured, damblue / damred), max at least min first.
+    const auto throw_line = [&](const Fighter& hand, const PanelUnit::Thrown& thrown, int extra, AttackLine& out) {
+        out.min = out.max = 0;
+        if (!thrown.held || thrown.potion) return;
+        throw_of(hand, thrown, extra, out.min, out.max);
+        out.max = std::max(out.max, out.min);
+        AttackLine elements;
+        elements.damage_colour = out.damage_colour;
+        weapon_of(Fighter{ .phys_lo = 0, .phys_hi = 0, .elem = hand.elem }, 0, 0, elements);
+        out.min += elements.min;
+        out.max += std::max(elements.max, elements.min);
+        out.damage_colour = state_colour(kPanelDamage, elements.damage_colour);
+    };
+    // Two parts: the first (`upper`) over the line's own; one that is 0-0 leaves the other alone
+    // (FUN_004e96e0), else both (FUN_004e9870), the upper first.
+    const auto two_values = [&](const AttackLine& upper) {
+        if (upper.min == 0 && upper.max == 0) return;
+        if (line.min == 0 && line.max == 0) { line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour; return; }
+        line.two = true;
+        line.min2 = line.min; line.max2 = line.max; line.colour2 = line.damage_colour;
+        line.min = upper.min; line.max = upper.max; line.damage_colour = upper.damage_colour;
+    };
+    // FUN_004e99f0: each hand's part (FUN_004e93a0: none unless a two-handed class; with both hands
+    // full the other hand's into the lower value, then the wielded one's; else the unit as it is, one
+    // value), coloured from the element's colour; a value whose ends are both non-zero becomes
+    // value x SrcDam / 128 (truncated) + the element (FUN_004e72d0, with `with_element`). The wielded
+    // one over the other as two_values does (0x4e9afd..0x4e9b3f).
+    const auto hands_line = [&](bool with_element, const auto& part) {
+        line.min = line.max = line.damage_colour = 0;
+        if (with_element) element_text();
+        const AttackLine element = line;
+        AttackLine first, second;
+        first.damage_colour = second.damage_colour = element.damage_colour;
+        if (unit.dual_class) {
+            if (!unit.both_hands) part(fighter, unit.thrown, first);
+            else {
+                if (unit.off_hand.fighter) part(*unit.off_hand.fighter, unit.off_hand.thrown, second);
+                if (unit.main_hand.fighter) part(*unit.main_hand.fighter, unit.main_hand.thrown, first);
+            }
+        }
+        for (AttackLine* value : { &first, &second })
+            if (value->min != 0 && value->max != 0) {
+                value->min = value->min * skill.srcdam_raw / 128 + element.min;
+                value->max = value->max * skill.srcdam_raw / 128 + element.max;
+            }
+        line.min = second.min; line.max = second.max; line.damage_colour = second.damage_colour;
+        two_values(first);
+    };
+    // FUN_004e9610: 7's weapon part on one hand (FUN_004e86f0 asks the skill's SrcDam, 128 on every
+    // 1.14d row that comes here: Attack, Whirlwind, Double Swing, Frenzy).
+    const auto hand_weapon = [&](const Fighter& hand, const PanelUnit::Thrown&, AttackLine& out) {
+        weapon_of(hand, calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2), out);
+        out.damage_colour = state_colour(kPanelDamage, out.damage_colour);
+    };
+    if ((skill.descdam == 1 || skill.descdam == 19 || skill.descdam == 20) && unit.dual_class) {   // FUN_004ea170 / FUN_004ea310 / FUN_004ea240
+        line.damage = true;
+        hands_line(skill.descdam != 20, hand_weapon);
+    } else if (skill.descdam == 19) {                         // FUN_004ea310 without two hands: FUN_004e9610 alone
+        line.damage = true;
+        hand_weapon(fighter, unit.thrown, line);
+    } else if (skill.descdam == 2) {                          // FUN_004ea450 (Kick)
+        // MinDam (+0x1a8) << (HitShift - 8) (SHL by CL: the count's low 5 bits), + FUN_00625500's stat
+        // 137 (0x89) on both ends, white.
+        line.damage = true;
+        line.min = line.max = (skill.mindam << ((skill.hitshift - 8) & 31)) + unit.base_kick;
+    } else if (skill.descdam == 3) {                          // FUN_004ea990 (Throw)
+        // FUN_004ea4a0 on the wielded weapon (white before its elements), x SrcDam / 128 truncated, then
+        // the element (0x4eaa07) and its colour.
+        line.damage = true;
+        throw_line(fighter, unit.thrown, 0, line);
+        line.min = line.min * skill.srcdam_raw / 128;
+        line.max = line.max * skill.srcdam_raw / 128;
+        element_text();
+    } else if (skill.descdam == 4) {                          // FUN_004eaa30 (Left Hand Throw)
+        // The other hand's weapon (FUN_004e9260) through FUN_004ea4a0, no SrcDam or element; nothing
+        // drawn without one.
+        if (unit.dual_class && unit.off_hand.fighter) {
+            line.damage = true;
+            throw_line(*unit.off_hand.fighter, unit.off_hand.thrown, 0, line);
+        }
+    } else if (skill.descdam == 13) {                         // FUN_004eb240 (Double Throw)
+        line.damage = true;
+        const int extra = calc_of(skill.calc[0]);
+        hands_line(true, [&](const Fighter& hand, const PanelUnit::Thrown& thrown, AttackLine& out) { throw_line(hand, thrown, extra, out); });
+    } else if (skill.descdam == 1 || skill.descdam == 7 || skill.descdam == 18 || skill.descdam == 20) {   // 18: FUN_004ec040 forwards
+        // FUN_004ea010: a SrcDam other than 128 takes MulDiv(end, SrcDam, 128) of the weapon part before
+        // the skill's own (0x4ea0cf..0x4ea0f9; Strafe's 96).
         line.damage = true;
         weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+        if (skill.srcdam_raw != 128) {
+            line.min = mul_div(line.min, skill.srcdam_raw, 128);
+            line.max = mul_div(line.max, skill.srcdam_raw, 128);
+        }
         own_damage(1);
     } else if (skill.descdam == 5 || skill.descdam == 24) {   // FUN_004ead60, FUN_004eae70: the same sum in another order
         line.damage = true;
@@ -353,12 +493,131 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = elem_damage(skill_tables, skill, env, lvl, false, 0, true) * times * 25 / per >> 8;
         line.max = elem_damage(skill_tables, skill, env, lvl, true, 0, true) * times * 25 / per >> 8;
         line.damage_colour = etype_colour;
+    } else if (skill.descdam == 6) {                          // FUN_004e9d20 (Exploding, Immolation, Freezing Arrow)
+        // The weapon's SrcDam share (FUN_004e9660, white before its elements and damblue / damred) over
+        // the skill's own physical and element >> 8 (no poison length), with the unit's own stats of that
+        // element on top (FUN_004e8d90 at 0x4e9dd9): fire 48 / 49, lightning 50 / 51, magic 52 / 53, cold
+        // 54 / 55, poison 57 / 58 x its length >> 8 (stat 101, else 59 / stat 326 held to at least 1,
+        // 0 or 1 taken as 1), in EType's colour.
+        line.damage = true;
+        weapon_share();
+        const AttackLine upper = line;
+        line.min = (skill_phys(skill_tables, skill, env, lvl, false) >> 8) + (elem_damage(skill_tables, skill, env, lvl, false, 0, true) >> 8);
+        line.max = (skill_phys(skill_tables, skill, env, lvl, true) >> 8) + (elem_damage(skill_tables, skill, env, lvl, true, 0, true) >> 8);
+        gear_element(line.min, line.max);
+        line.damage_colour = etype_colour;
+        two_values(upper);
+    } else if (skill.descdam == 21 && unit.thrown.held) {    // FUN_004ea790 (Lightning Bolt)
+        // The throw (a throwing potion too: no tpot test here), the gear's damage of the skill's element
+        // (0x4ea91b), max at least min, x SrcDam / 128 (MulDiv), then the element and its colour.
+        line.damage = true;
+        int low = 0, high = 0;
+        throw_base(low, high);
+        gear_element(low, high);
+        high = std::max(high, low);
+        line.min = mul_div(low, skill.srcdam_raw, 128);
+        line.max = mul_div(high, skill.srcdam_raw, 128);
+        element_text();
+    } else if (skill.descdam == 22) {                         // FUN_004eaaa0 (Poison / Plague Javelin, Lightning Fury)
+        // FUN_004ea4a0's throw (0 with nothing throwable; a throwing potion's missile isn't here), its
+        // elements from 0 (FUN_004e89a0: clamped, coloured, damblue / damred) on top with max at least
+        // min, x SrcDam / 128 (MulDiv), over the skill's element (FUN_004e72d0).
+        line.damage = true;
+        throw_line(fighter, unit.thrown, 0, line);
+        line.min = mul_div(line.min, skill.srcdam_raw, 128);
+        line.max = mul_div(line.max, skill.srcdam_raw, 128);
+        const AttackLine upper = line;
+        line.min = line.max = line.damage_colour = 0;
+        element_text();
+        two_values(upper);
+    } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
+        // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
+        // then the element (0x4ebe07); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0
+        // the weapon (0x4ebe5b).
+        line.damage = true;
+        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+        line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+        const AttackLine upper = line;
+        line.min = line.max = line.damage_colour = 0;
+        element_text();
+        two_values(upper);
+    } else if (skill.descdam == 10 && unit.shield.held) {    // FUN_004eb460 (Smite)
+        // The shield's mindam / maxdam (+0xfe / +0xff), + Holy Shield's own (skill 0x75 at its level,
+        // FUN_00647bc0 / FUN_00647d00 >> 8) while state 0x65 is on; the % is Param3 + (lvl - 1) x Param4
+        // (FUN_004cc7c0), + str x StrBonus / 100 + dex x DexBonus / 100 + damagepercent, at least -90.
+        // Each end is end + (end x % + stat) / 100, the stat 18 on the min and 17 on the max
+        // (0x4eb5e3..0x4eb5ec): added to the product, not to the % (bugs.md). damblue / damred colour it.
+        constexpr int kHolyShield = 0x75;
+        line.damage = true;
+        int low = unit.shield.min, high = unit.shield.max;
+        if (const auto* holy = unit.holy_shield > 0 ? skill_tables.get(kHolyShield) : nullptr) {
+            low += skill_phys(skill_tables, *holy, env, unit.holy_shield, false) >> 8;
+            high += skill_phys(skill_tables, *holy, env, unit.holy_shield, true) >> 8;
+        }
+        int pct = lvl < 1 ? 0 : skill.par[2] + (lvl - 1) * skill.par[3];
+        if (unit.shield.str_bonus != 0) pct += unit.str * unit.shield.str_bonus / 100;
+        if (unit.shield.dex_bonus != 0) pct += unit.dex * unit.shield.dex_bonus / 100;
+        pct = std::max(pct + stat(d2d::d2s::kDamagePercent), -90);
+        line.min = low + (pct * low + stat(d2d::d2s::kMinDamagePercent)) / 100;
+        line.max = high + (pct * high + stat(d2d::d2s::kMaxDamagePercent)) / 100;
+        line.damage_colour = state_colour(kPanelDamage, 0);
+    } else if (skill.descdam == 11) {                         // FUN_004eb640 (Vengeance)
+        // EType's colour, the weapon's share (FUN_004e9660), then for calc1 / calc2 / calc3 (fire, cold,
+        // lightning %) with their mastery (329 / 331 / 330: MulDiv(pct, mastery, 100) on top) MulDiv(stat
+        // 21 / 22, pct, 100) on each end; 21 at least 1, 22 at least 2 and 21 (0x4eb6db..0x4eb6f6).
+        // White turns blue (0x4eb80f).
+        line.damage = true;
+        line.damage_colour = etype_colour;
+        weapon_share();
+        const int low = std::max(fighter.stat_lo, 1), high = std::max({ fighter.stat_hi, 2, low });
+        constexpr std::array<int, 3> kMastery{ d2d::d2s::kPassiveFireMastery, d2d::d2s::kPassiveColdMastery, d2d::d2s::kPassiveLightningMastery };
+        for (std::size_t k = 0; k < kMastery.size(); ++k) {
+            int pct = calc_of(skill.calc[k]);
+            if (const int mastery = pct != 0 && env.stat ? env.stat(kMastery[k]) : 0; mastery != 0) pct += mul_div(pct, mastery, 100);
+            line.min += mul_div(low, pct, 100);
+            line.max += mul_div(high, pct, 100);
+        }
+        if (line.damage_colour == 0) line.damage_colour = 3;
+    } else if (skill.descdam == 12) {                         // FUN_004eb830 (Blessed Hammer)
+        // FUN_004e72d0, then the share: FUN_006461d0 in an expansion game (0x4eb87c), stat 25 at least
+        // -90 in a classic one (0x4eb8d0); each end + end x share / 100, truncated.
+        line.damage = true;
+        element_text();
+        const int share = unit.expansion ? unit.concentration : std::max(env.stat ? env.stat(d2d::d2s::kDamagePercent) : 0, -90);
+        line.min += line.min * share / 100;
+        line.max += line.max * share / 100;
     }
-    if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
-        const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);
-        line.attack_rating = int(std::int64_t(fighter.ar_base) * pct / 100 + fighter.ar_base);
-        line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
+    const int tohit = skill_tohit(skill_tables, skill, env, lvl);
+    const auto rating = [](const Fighter& hand, int pct) { return int(std::int64_t(hand.ar_base) * pct / 100 + hand.ar_base); };
+    // FUN_004e8ec0 on one hand: its rating with its weapon's mastery (342, FUN_00645830 flag 0), 0 for a
+    // throwing potion (type 0x26, FUN_0062b400).
+    const auto weapon_rating = [&](const Fighter& hand, const PanelUnit::Thrown& thrown) { return thrown.potion ? 0 : rating(hand, hand.ar_pct + tohit); };
+    if (skill.descatt == 1) {
+        // 0x4e9000: FUN_004e8ec0 on the wielded weapon, its mastery in (the bows, Bash, Jab, Whirlwind).
+        line.attack_rating = weapon_rating(fighter, unit.thrown);
+    } else if (skill.descatt == 5) {
+        // FUN_004e9040 (the Assassin's kicks): FUN_00622560 with the wielded weapon's stats off
+        // (FUN_00627910 at 0x4e9091), stat 119 after they're back on (0x4e90cb), no mastery.
+        line.attack_rating = rating(Fighter{ .ar_base = fighter.ar_base_bare }, fighter.ar_pct - mastery_tohit + tohit);
+    } else if (skill.descatt == 2) {
+        // FUN_004e9510: a two-handed class's through FUN_004e93a0 (callback 0x4e8fe0), the wielded one's
+        // first; else FUN_004e8ec0 on the unit.
+        if (unit.dual_class && unit.both_hands) {
+            if (unit.off_hand.fighter) line.attack_rating2 = weapon_rating(*unit.off_hand.fighter, unit.off_hand.thrown);
+            if (unit.main_hand.fighter) line.attack_rating = weapon_rating(*unit.main_hand.fighter, unit.main_hand.thrown);
+        } else {
+            line.attack_rating = weapon_rating(fighter, unit.thrown);
+        }
+    } else if (skill.descatt == 3) {
+        // FUN_004e9160: the throw mastery's to-hit (FUN_00645830 flag 0 under state throwingmastery) for the
+        // melee one; 0 for a throwing potion.
+        line.attack_rating = unit.thrown.potion ? 0 : rating(fighter, fighter.ar_pct - mastery_tohit + unit.thrown.tohit + tohit);
+    } else if (skill.descatt == 4) {
+        // FUN_004e95c0: FUN_004e93a0's second value moved to the first (0x4e95ed..0x4e95ff).
+        if (unit.dual_class && unit.both_hands && unit.off_hand.fighter) line.attack_rating = weapon_rating(*unit.off_hand.fighter, unit.off_hand.thrown);
     }
+    line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
+    if (line.attack_rating2 != 0) line.ar_colour2 = line.ar_colour;
     return line;
 }
 

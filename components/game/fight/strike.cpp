@@ -47,7 +47,8 @@ namespace d2d::game {
 auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
-                                                     d2d::rules::StatSum* sum_out ) const -> d2d::rules::Fighter {
+                                                     d2d::rules::StatSum* sum_out ,
+                                                     const d2d::d2s::Item* only_hand ) const -> d2d::rules::Fighter {
         using namespace d2d::d2s;
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
@@ -57,6 +58,11 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         for (const auto& item : actor->character.items) {
             if (!gear_active(item)) continue;
             const bool worn = item.location == d2d::d2s::item_location::kEquipped;
+            const bool in_hand = worn && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm);
+            if (only_hand && in_hand && &item != only_hand) {
+                const auto info = game_data->rules.item_info.find(item.code);
+                if (info != game_data->rules.item_info.end() && info->second.kind == 2) continue;
+            }
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
             add(sum, set_bonus_props(*game_data, actor->character.items, item));
@@ -65,7 +71,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             const auto found = game_data->rules.item_base.find(item.code);
             const auto info = game_data->rules.item_info.find(item.code);
             if (found == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()) continue;
-            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm)) weapon = &item;
+            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm) && (!only_hand || &item == only_hand)) weapon = &item;
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
         add(sum, set_props(*game_data, actor->character.items));
@@ -128,6 +134,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
             *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, bare, {}, actor->character.stats, gains,
                                              int(actor->character.panel.defense), res, boots);
+            fighter.ar_base_bare = kick->ar_base;               // the weapon's stats off (FUN_00627910 in FUN_004e9040)
             kick->ar_base = fighter.ar_base; kick->ar_pct = fighter.ar_pct; kick->attack_rating = fighter.attack_rating;
             kick->kick_pct = fighter.kick_pct;
         }
@@ -254,12 +261,74 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 panel.red |= found->second.panel_red;
             }
         if (std::ranges::contains(active, std::string_view("holyshield"))) panel.blue |= d2d::rules::kPanelDefense;   // FUN_004a7d00: state 0x65 with a shield
+        d2d::rules::PanelUnit panel_unit{ .expansion = game_expansion, .str = int(actor->character.stats.get(kStr)), .dex = int(actor->character.stats.get(kDex)) };
+        if (state_of("holyshield") && skill_level) panel_unit.holy_shield = skill_level(0x75);
+        for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {     // FUN_0063c8f0: hand +0x10, then +0x14
+            const auto held = std::ranges::find_if(actor->character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
+            if (held == actor->character.items.end() || !d2d::rules::item_usable(*held)) continue;
+            const auto info = game_data->rules.item_info.find(held->code);
+            const auto base = game_data->rules.item_base.find(held->code);
+            if (info == game_data->rules.item_info.end() || base == game_data->rules.item_base.end() || !d2d::rules::type_is(game_data->rules, info->second.type, "shld")) continue;
+            panel_unit.shield = { true, base->second.min_1h, base->second.maxdam, base->second.str_bonus, base->second.dex_bonus };
+            break;
+        }
+        // The thrown weapon: FUN_0063bef0's, when FUN_0062ba80 calls it throwable. Its mastery is the
+        // best passive throw damage (346) whose type fits it; only Throwing Mastery gives one, and with it
+        // the throwingmastery state FUN_004ea4a0 asks for.
+        const auto type_of = [&](const Item& item) {
+            const auto info = game_data->rules.item_info.find(item.code);
+            return info == game_data->rules.item_info.end() ? std::string{} : info->second.type;
+        };
+        const auto thrown_of = [&](const Item* item) {
+            d2d::rules::PanelUnit::Thrown thrown;
+            if (!item || !throwable(*game_data, item->code)) return thrown;
+            const auto base = game_data->rules.item_base.find(item->code);
+            const std::string type = type_of(*item);
+            thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
+                       .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };
+            for (const auto& passive : passives) {
+                if (!d2d::rules::type_is(game_data->rules, type, passive.itype)) continue;
+                if (passive.stat == kPassiveMasteryThrowDamage) thrown.mastery = std::max(thrown.mastery, passive.value);
+                if (passive.stat == kPassiveMasteryThrowToHit) thrown.tohit = std::max(thrown.tohit, passive.value);
+            }
+            return thrown;
+        };
+        const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
+        panel_unit.thrown = thrown_of(wielded);
+        panel_unit.armed = wielded != nullptr;
+        // Two hands (FUN_004e93a0): a Barbarian or an Assassin (FUN_006235a0) with a usable item that is
+        // no throwing potion in each; then the wielded weapon alone and, when the other hand's is a usable
+        // weapon too (FUN_004e9260: the hand that isn't the wielded one's), that one alone.
+        d2d::rules::Fighter main_fighter, off_fighter;
+        panel_unit.dual_class = actor->character.character_class == 4 || actor->character.character_class == 6;
+        if (panel_unit.dual_class) {
+            const auto hand_item = [&](int slot) -> const Item* {
+                const auto held = std::ranges::find_if(actor->character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; });
+                if (held == actor->character.items.end() || !d2d::rules::item_usable(*held) || d2d::rules::type_is(game_data->rules, type_of(*held), "tpot")) return nullptr;
+                return &*held;
+            };
+            const Item *right = hand_item(body_location::kRightArm), *left = hand_item(body_location::kLeftArm);
+            panel_unit.both_hands = right && left;
+            if (panel_unit.both_hands && wielded) {
+                const Item* other = wielded->slot == body_location::kRightArm ? left : right;
+                const bool two = other != wielded && d2d::rules::type_is(game_data->rules, type_of(*other), "weap") && d2d::rules::item_usable(*wielded);
+                main_fighter = two ? player_fighter(nullptr, &st_sum, &passives, nullptr, wielded) : actor->player_combat;
+                panel_unit.main_hand = { &main_fighter, thrown_of(wielded) };
+                if (two) {
+                    off_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, other);
+                    panel_unit.off_hand = { &off_fighter, thrown_of(other) };
+                }
+            }
+        }
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
-        for (std::size_t k = 0; k < 2; ++k)
-            if (const auto* skill = game_data->skills.get(int(chosen[k])))
+        for (std::size_t k = 0; k < 2; ++k) {
+            if (const auto* skill = game_data->skills.get(int(chosen[k]))) {
+                panel_unit.concentration = concentration_share(actor->player.x, actor->player.y, skill->par[0]);
                 panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
                                                           actor->player_combat, int(actor->psum[kPassiveMasteryMeleeToHit]), panel.blue, panel.red,
-                                                          skill_status(skill->id, now_ms));   // FUN_004d9fc0: 0, 1, 6, 8 draw
+                                                          skill_status(skill->id, now_ms), panel_unit);   // FUN_004d9fc0: 0, 1, 6, 8 draw
+            }
+        }
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
@@ -676,6 +745,8 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
+                // ponytail: that blow is the left hand's weapon's (FUN_00535bc0, +0x168 3: skills.md
+                // "Which hand a skill swings"); here both are the merged fighter's.
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->seq_struck % 2 == 0 && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kDoubleSwing))
                     other_target();
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && moving_skill(*skill)) move_event(*skill, now_ms);
@@ -1199,8 +1270,9 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
 // frames (FUN_0062a710: the item's own IAS and WSM, not the player's),
 // banded by whirlwind_gap; 10 frames with no weapon.
 // ponytail: the 0x2000 skill flag that turns FUN_00535bc0 to the other
-// hand's weapon (dual wield) isn't kept, nor FUN_0062a4e0's usable test;
-// FUN_005d92d0 (two weapons) as a weapon in each hand.
+// hand's weapon (Whirlwind's +0x168 is 2, skills.md "Which hand a skill
+// swings") isn't kept, nor FUN_0062a4e0's usable test; FUN_005d92d0 (two
+// weapons) as a weapon in each hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;

@@ -145,9 +145,9 @@ struct Npc {
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.
     mutable d2d::rules::Rng seed;
-    // The client unit's independent animation seed. FUN_00465fd0 draws its
-    // initial low word from room1 +0x6c/+0x70; d2d does not retain that
-    // client-room stream, so the first mode falls back to the object's spot.
+    // The client unit's independent animation seed (seed_client_units): its
+    // room's client seed stepped once, {low, 666}; {1, 666} with no room.
+    // One made by hand (tests) keeps its spot as the seed.
     mutable d2d::rules::Rng client_seed;
     mutable int client_mode = -1;
     mutable std::uint16_t client_frame_delta = 0;
@@ -394,6 +394,9 @@ struct Level {
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
     std::vector<std::uint32_t> room1_seeds;            // by `rooms` index
+    // The client's room seeds (room1 +0x6c / +0x70), from room1_seeds (else the room's own seed):
+    // seed_client_units steps one for each unit it seeds there.
+    mutable std::vector<d2d::rules::Rng> client_rooms;
     // Rooms flagged 0x800000 as built: a hidden warp tile's (FUN_0066e360)
     // or a preset's with LvlPrest Populate 0 (FUN_00666680). FUN_0054ebc0
     // (FUN_0066bb20) populates none there. By `rooms` index.
@@ -1251,6 +1254,13 @@ inline int object_frame_delta_peek(const Npc& npc, std::size_t mode) {
     const int delta = npc.frame_delta[mode];
     return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
 }
+// A client unit's first seed (FUN_00465fd0 via FUN_00466730, 0x46606a..0x466093): {1, 666}, then, with
+// a room at its spot, that room's seed (+0x6c / +0x70) stepped once (FUN_00650e40) and its low word
+// as {low, 666}. `room` is a Level::rooms index, -1 none.
+d2d::rules::Rng client_unit_seed(const Level& level, int room);
+// Each object of the level without one its client seed (its room, else the room at its spot), in the
+// level's object order: as the level is built, then as each room's objects are made.
+void seed_client_units(Level& level);
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
 inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {

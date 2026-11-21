@@ -132,12 +132,15 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
   y+4 of +3. One value (FUN_004e9940): `%d` at +5, font16, font8 from
   1000. Two (FUN_004e9870, dual wield): font6 at y-6 / y+2 (y-7 for
   languages 6..9).
-  - 1 / 5 (0x4e9040): FUN_00622560 `(dex - 7) x 5 + 19 + ToHitFactor`,
-    x (1 + (119 + the skill's ToHit, FUN_006449f0) %), + 325 when the
-    skill's flag is set (colour 3).
-  - 2 (0x4e9510; Attack): the same plus the weapon mastery % (FUN_00645830,
-    stat 342) — FUN_004e8ec0; 0 for weapon type 0x26. Two weapons:
-    FUN_004e93a0, both hands.
+  - 5 (0x4e9040; the Assassin's kicks): FUN_00622560 `(dex - 7) x 5 + 19 +
+    ToHitFactor` with the wielded weapon's stats off (FUN_00627910 at
+    0x4e9091), x (1 + (119, read after they're back on, + the skill's ToHit,
+    FUN_006449f0) %), + 325 when the skill's flag is set (colour 3).
+  - 1 (0x4e9000; the bows, Bash, Jab, Whirlwind) and 2 (0x4e9510; Attack):
+    FUN_004e8ec0 on the wielded weapon, its stats on and the weapon mastery %
+    (FUN_00645830, stat 342) in; 0 for weapon type 0x26. 2 with two weapons:
+    FUN_004e93a0, each hand with its own item (and mastery).
+  `tools/emu/panel_damage.py` runs all five.
   - 3 (0x4e9590, FUN_004e9160) throws, 4 (0x4e95c0) the other hand.
   - Colour 3 / 1 when the states (FUN_0063a3c0 / FUN_0063a3e0, damage:
     FUN_0063a380 / FUN_0063a3a0) say so.
@@ -152,8 +155,8 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 2..4, 6, 10..23, descatt 3 / 4, dual wield, stat 325, the usability gate, the K formats, barehanded strength,
-tooltips.
+Not done: descdam 14..16, 23 (the Druid's and Assassin's), stat 325, barehanded strength (FUN_004e86f0 adds it
+with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)
 
@@ -253,9 +256,9 @@ register arguments are partly dropped), so argument order is a reading.
   (0x72d7b0 - 0x72d768) / 4 = 18 of the descdam table at 0x72d768. Body: two
   arguments must be non-null and `FUN_004a89d0` must find a SkillDesc, then it
   forwards to `FUN_004ea010` (descdam 7, the weapon-damage handler), so
-  descdam 18 draws like 7 once its gate passes. Which skills use descdam 18
-  is a SkillDesc.txt question (not read here). d2d: not ported (listed under
-  "Not done: descdam 2..4, 6, 8..24" above). `0x72d7b0` is a data slot, not a
+  descdam 18 draws like 7 once its gate passes. Royal Strike is SkillDesc.txt's
+  only descdam 18 row. d2d: `rules::attack_line` takes 18 as 7
+  (`tools/emu/panel_damage.py` runs it). `0x72d7b0` is a data slot, not a
   function: nothing to trace there.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)

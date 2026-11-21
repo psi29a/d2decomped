@@ -640,7 +640,10 @@ struct Fight {
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
-                                                     d2d::rules::StatSum* sum_out = nullptr) const;
+                                                     d2d::rules::StatSum* sum_out = nullptr,
+                                                     const d2d::d2s::Item* only_hand = nullptr) const;
+    // `only_hand`: that weapon in hand as the wielded one and the other hand's weapon's stats off, as
+    // FUN_00627910 sets them for one hand of two (FUN_004e9260 / FUN_004e9300, the panel's dual line).
     // The player's fighter this frame, with the self states' aurastats
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
     // of the panel defense (the override after), damageresist to DR %;
@@ -903,6 +906,8 @@ struct Fight {
     // subtiles of its holder, at the holder's level and calc env.
     struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
     [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
+    // Concentration's share at (x, y) of a skill with that Param1, % (FUN_006461d0): Blessed Hammer's.
+    [[nodiscard]] int concentration_share(float x, float y, int param1) const;
     // The enemy auras (do 66, Holy Freeze's 81) over the monster the same
     // way: the player's and the merc's (an Act 2 merc's Holy Freeze), each
     // only when its aurafilter takes the monster from its holder's spot

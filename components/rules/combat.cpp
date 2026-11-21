@@ -65,6 +65,13 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
     std::int64_t low = (weapon_base ? base_min * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
                  high = (weapon_base ? base_max * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
+    if (weapon_base) {
+        fighter.throw_lo = int(weapon_base->min_misdam * (100 + weapon_stat(kMinDamagePercent)) / 100 + stat(kMinDamage));
+        fighter.throw_hi = int(weapon_base->max_misdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
+                               + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8);
+    }
+    fighter.stat_lo = int(low - stat(kNormalDamage) - (weapon_base ? 0 : 1));
+    fighter.stat_hi = int(high - stat(kNormalDamage) - (weapon_base ? 0 : 2));
     low = std::max<std::int64_t>(low, 1) << 8;
     high = std::max<std::int64_t>(high << 8, low + 256);
     const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
@@ -78,6 +85,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
     fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
     fighter.ar_pct = int(stat(kToHitPercent) + stat(kPassiveMasteryMeleeToHit));
+    fighter.ar_base_bare = fighter.ar_base;
     fighter.attack_rating = int(std::max<std::int64_t>(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct) / 100, 1));
     fighter.kick_lo = fighter.kick_hi = int(stat(kKickDamage));
     if (boots) if (const auto found = tables.item_base.find(boots->code); found != tables.item_base.end()) {

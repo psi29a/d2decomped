@@ -69,7 +69,6 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
 // T0[ground][tile], a quarter of the ground under three quarters of the
 // tile, unlit (driver +0xa4, callback FUN_004f82d0 at alpha 0xc0). Drawn
 // once every floor is down (FUN_004df510).
-// ponytail: the mix in RGB, not the table's nearest palette colour.
 void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
                      const d2d::palette::Palette& pal, int screen_x, int screen_y);
 

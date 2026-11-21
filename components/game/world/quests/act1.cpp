@@ -130,7 +130,7 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         using Said = d2d::rules::CainQuest::Said;
         const auto scroll = std::ranges::find(actor->character.items, std::string_view("bks"), &d2d::d2s::Item::code);
         const bool cain_flagged = cain.rescued_flag;
-        const auto cain_before = cain;           // a ring that finds no floor is never made: the claim below is put back
+        const d2d::rules::CainQuest cain_before = cain;   // a copy on purpose: a ring that finds no floor is never made: the claim below is put back
         const auto bits_before = quests();
         const auto cain_said = cain.said(quests(), hc_idx, message_string, scroll != actor->character.items.end(), actor->id);
         if (cain_said == Said::decipher) {        // the scroll goes (FUN_00544160), a new bkd (FUN_005466b0): into the inventory, else at the feet

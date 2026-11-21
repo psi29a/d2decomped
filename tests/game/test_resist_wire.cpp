@@ -34,7 +34,7 @@ int main() try {
     monster.id = 7; monster.type = 0; monster.hit_points = 10; monster.mode = "NU";
     monster.difficulty = 2;
     monster.boss_res = { 0, 0, 0, 75, 0, 0 };                                        // lightning enchanted's +75
-    sent.monsters.push_back(monster);
+    sent.monsters.push_back(std::move(monster));
     ViewEncoder encoder;
     View received;
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));

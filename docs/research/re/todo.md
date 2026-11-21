@@ -26,10 +26,9 @@ Ranked by Seen, then by how much play it touches.
 |---|---|---|---|---|
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
 | 7 | Council S1: compare built d2d timing, including speed modifiers. The original event is traced; the current source already waits for the action frame. | check | maybe | [council-s1.md](council-s1.md): stock original scheduler/dispatch checked; no built-d2d differential yet |
-| 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
-| 9 | Unique monster mods: 14 spcdamage is in for the trap-melee (the chest trap monsters 0x146..0x14a are objects in d2d, their level and damage pairs unused), 34 ai_after_death is in (the Reanimated Horde rising again, Act 5), 15 partydead is in (Diablo's Bone Prison); left: where unit flags 0xe come back after the rise's S1; the trap-melee's first swing may run before hook 0's stat 0x13 (not traced) | build | maybe | monsters.md's hook table |
+| 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps". The char panel's damage and rating lines follow game.exe's handlers for every classic skill, two hands and throws included (`tools/emu/panel_damage.py`). Left: a two-weapon blow uses both weapons' merged stats, not the hand's (skills.md "Which hand a skill swings"); the panel's weapon sum, FUN_004e86f0's stat 21 reading, isn't compared (skills.cpp `weapon_of`) |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
-| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | `git grep -n ponytail: -- components apps | grep -i seed`, act1-gaps.md. Matters once machines share a game |
+| 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | `git grep -n ponytail: -- components apps | grep -i seed`, act1-gaps.md. Matters once machines share a game. The client unit seed (FUN_00465fd0) is in: `client_unit_seed` for objects, the ancient death cloud, a shatter's ice, Lightning's sparks and the Horadric Staff; left are the server's (a pet's, a summon's, Cain's spot, the object seed's order) |
 
 ## Sounds
 
@@ -59,7 +58,6 @@ Known differences in the ones it draws, and what's left to check:
 
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
-| 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 ## Tables
 

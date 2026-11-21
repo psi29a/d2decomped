@@ -314,9 +314,14 @@ lights, object client data, and item client data were read only to the effects
 needed above; their full internals are not traced here. d2d has no single
 client-unit constructor counterpart. The object-animation part is
 `Npc::client_seed` plus `object_frame_delta`: it now keeps and advances a
-separate seed per mode transition. ponytail: d2d has no retained client room1
-stream, so its first low word is derived from the object's spot instead of the
-room step.
+separate seed per mode transition. Its first seed is `client_unit_seed`
+(gamedata.cpp): each room's client stream (`Level::client_rooms`) starts at that
+room's room1 seed (`Level::room1_seeds`: the client builds its rooms with the
+same DRLG code, taken so, not compared on a client) and steps once per object
+seeded there, in the level's object order as each room's objects are made
+(`seed_client_units`; `test_client_seeds`). ponytail: the client's own order is
+its packets' and holds its monsters, missiles and items too, which d2d's
+streams don't step for.
 
 ## Unit allocation (`FUN_00620290`)
 

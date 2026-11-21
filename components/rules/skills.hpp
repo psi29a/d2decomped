@@ -515,9 +515,10 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 8 (FUN_004eb290, Inferno): EMin / EMax with mastery x
 //     ddam calc1 x 25 / ddam calc2 >> 8, a calc of 0 taken as 1; EType's
 //     colour, no weapon.
-//   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
-//     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
-//     adds the weapon mastery (342) to the %. No floor at 1.
+//   attack rating, descatt 1 (0x4e9000) and 2 (FUN_004e8ec0): (dex - 7) x 5
+//     + ToHitFactor + 19, x (1 + (119 + the weapon mastery (342) + the
+//     skill's ToHit) %), 0 for a throwing potion; descatt 5 (FUN_004e9040)
+//     the base with the weapon's stats off and no mastery. No floor at 1.
 //   A state on the unit turns the weapon damage blue / red (damblue /
 //     damred: FUN_004e86f0, then again after the elements in FUN_004e89a0)
 //     and the attack rating (attblue / attred, FUN_004e9040 / FUN_004e8ec0);
@@ -527,7 +528,40 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     caller that omits it still fills the line. The server's status is
 //     FUN_00647960 (Fight::skill_status). FUN_004d9fc0 may turn a 0 into 8
 //     for the client player's own cast delay, and both still draw.
-// ponytail: descdam 2..4, 6, 10..23 and descatt 3 / 4 (kicks, throws,
+//   damage, descdam 12 (FUN_004eb830, Blessed Hammer): the skill's element
+//     (FUN_004e72d0) and its colour, then + that x the Concentration share
+//     % in an expansion game, x damagepercent (25, at least -90) in a classic.
+//   damage, descdam 11 (FUN_004eb640, Vengeance): 5's weapon share, then
+//     calc1..3 % (each with its element's mastery) of stats 21 / 22.
+//   damage, descdam 10 (FUN_004eb460, Smite): the shield's, Holy Shield's
+//     own on top while it's on, x (Param3 + Param4 per level + its
+//     Str / DexBonus + damagepercent) %; none with no shield.
+//   damage, descdam 17 (FUN_004ebd50, Charged / Lightning Strike): 7's
+//     weapon part over the element (FUN_004e72d0); either alone when the
+//     other is 0-0, else both.
+//   damage, descdam 6 (FUN_004e9d20, Exploding Arrow): the weapon's SrcDam
+//     share over the skill's own with the unit's own damage of its element.
+//   damage, descdam 21 (FUN_004ea790, Lightning Bolt): stats 159 / 160 x
+//     the weapon's %s and the throw mastery, the gear's damage of the skill's
+//     element, x SrcDam / 128, then the element; descdam 22 (FUN_004eaaa0,
+//     the javelins): FUN_004ea4a0's throw with the gear's elements, x SrcDam
+//     / 128, over the element.
+//   damage, descdam 19 (FUN_004ea310, Double Swing, Frenzy) and 1 / 20 for
+//     a Barbarian or an Assassin: FUN_004e99f0 by hand, the wielded weapon's
+//     over the other's (each 7's weapon part on that hand alone, x SrcDam /
+//     128 + the element); descdam 13 (FUN_004eb240, Double Throw) the same
+//     with each hand's throw at calc1 %. Elsewhere 19 is the weapon part.
+//   damage, descdam 2 (FUN_004ea450, Kick): MinDam << (HitShift - 8) + the
+//     unit's own stat 137, both ends; 3 (FUN_004ea990, Throw): the throw x
+//     SrcDam / 128 + the element; 4 (FUN_004eaa30, Left Hand Throw): the
+//     other hand's throw, none without one.
+//   attack rating, descatt 2 for a Barbarian or an Assassin (FUN_004e9510
+//     -> FUN_004e93a0): the wielded weapon's over the other's, each alone;
+//     a throwing potion's 0; descatt 3 (FUN_004e9160, Throw): its % is the
+//     throw mastery's to-hit, not the melee one; descatt 4 (FUN_004e95c0,
+//     Left Hand Throw): the other hand's alone, 0 without.
+//   damage, descdam 18 (FUN_004ec040, Royal Strike): 7's (FUN_004ea010).
+// ponytail: descdam 14..16, 23 (Druid / Assassin skills) and descatt 3 / 4 (kicks, throws,
 // dual wield: the second value, FUN_004e93a0) show no line; stat 325 and
 // barehanded strength % (FUN_004e86f0) are left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
@@ -542,11 +576,38 @@ struct AttackLine {
     int skill = -1;
     bool damage = false;
     int min = 0, max = 0, damage_colour = 0;
+    // Two values (FUN_004e9870): min / max / damage_colour the upper one, these the lower.
+    bool two = false;
+    int min2 = 0, max2 = 0, colour2 = 0;
     int attack_rating = 0, ar_colour = 0;
+    int attack_rating2 = 0, ar_colour2 = 0;   // the other hand's: two ratings drawn when it isn't 0
+};
+// What the handlers read off the unit beside its Fighter.
+struct PanelUnit {
+    bool expansion = true;       // the game's (FUN_0044dcc0)
+    int concentration = 0;       // Concentration's share of Blessed Hammer, % (FUN_006461d0, aura_influence)
+    int str = 0, dex = 0;        // stats 0 / 2
+    int holy_shield = 0;         // Holy Shield's level while its state is on, else 0
+    // The shield in hand (FUN_0063c8f0, ItemTypes shld): Armor.txt mindam / maxdam, StrBonus / DexBonus.
+    struct Shield { bool held = false; int min = 0, max = 0, str_bonus = 0, dex_bonus = 0; } shield;
+    // The wielded weapon when it is throwable (FUN_0063bef0, FUN_0062ba80): its Str / DexBonus, whether
+    // it is a throwing potion (tpot), and the throw mastery's damage % on it (state throwingmastery,
+    // FUN_00645830), 0 without.
+    // `tohit`: its throw mastery's to-hit % (345) the same way.
+    struct Thrown { bool held = false, potion = false; int str_bonus = 0, dex_bonus = 0, mastery = 0, tohit = 0; } thrown;
+    // Two hands (FUN_004e93a0): only a Barbarian or an Assassin (FUN_006235a0) has them; `both_hands`
+    // when each holds a usable item that is no throwing potion. Then `main_hand` is the wielded weapon
+    // alone (FUN_004e9300) and `off_hand` the other hand's weapon alone (FUN_004e9260), each
+    // fighter with the other weapon's stats off; a hand without one is null.
+    struct Hand { const Fighter* fighter = nullptr; Thrown thrown; };
+    bool dual_class = false, both_hands = false;
+    Hand main_hand, off_hand;
+    int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
+    bool armed = true;           // a weapon wielded (FUN_0063bef0); without one FUN_004e86f0 adds the strength to the %
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,
-                       int usable = 0);
+                       int usable = 0, const PanelUnit& unit = {});
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.

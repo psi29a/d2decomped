@@ -525,7 +525,7 @@ auto ClientSession::automap_frame() -> void {
         // red portals yellow; then the party anywhere (FUN_0045ab60), green,
         // the others red; with Party on, the party's pets green too (a
         // joined game's: the host's monsters whose 0xac owner is in our party).
-        const auto rooms = level && view.level == level ? missile_rooms(*world.game_data, *level, view.player.x, view.player.y, &world.fight.spawning) : std::vector<std::array<int, 4>>{};
+        const std::vector<std::array<int, 4>> rooms = level && view.level == level ? missile_rooms(*world.game_data, *level, view.player.x, view.player.y, &world.fight.spawning) : std::vector<std::array<int, 4>>{};
         const auto close_by = [&](float x, float y) {
             const int sub_x = int(std::floor((x + world_x) * 5)), sub_y = int(std::floor((y + world_y) * 5));
             return std::ranges::any_of(rooms, [&](const auto& rect) { return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; });
