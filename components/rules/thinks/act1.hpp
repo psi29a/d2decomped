@@ -481,6 +481,58 @@ struct Act1Thinks : Thinker {
         }
         return { MonAct::untraced };
     }
+    // ElementalBeast (46, FUN_005f6b70; firebeast, iceglobe, lightningbeast,
+    // poisonorb: disabled in MonStats, and nothing places them). Its state: 2, it
+    // dies (FUN_0057ccb0, the target as killer). At rest (0), a target
+    // nearer than aip2 or a hit (FUN_005dd2b0) starts an S1 at it (state
+    // 1). Any state but 1 stands aip3. In state 1: in melee another S1, its
+    // action event (FUN_005417d0 type 0) filed a frame on, then state 2;
+    // else aip1 % walks in, or wanders 8.
+    // ponytail: ai.cpp ignores the `strike` effect, so its S1 hits at the
+    // mode's own action frame.
+    Think elemental_beast() {
+        if (*input.state == 2) return { MonAct::die };
+        if (*input.state == 0 && (input.dist < aip[1] || input.got_hit)) { *input.state = 1; return { MonAct::s1 }; }
+        if (*input.state != 1) return { MonAct::idle, aip[2] };
+        if (input.in_melee) { *input.state = 2; effect(ThinkEffect::strike, 1); return { MonAct::s1 }; }
+        return roll() < aip[0] ? walk_in : think_wander(rng, 8);
+    }
+    // FlyingScimitar (47, FUN_005f6ca0; no level, preset or table places
+    // one). Out of melee aip1 % keeps 1 off (8 at most, FUN_005de6d0), then
+    // aip1 % walks in; in melee aip2 % A1, then aip4 % circles 2; else
+    // stands aip3.
+    Think flying_scimitar() {
+        if (!input.in_melee) {
+            if (roll() < aip[0]) return keep_off(8, 1);
+            if (roll() < aip[0]) return walk;
+        } else {
+            if (roll() < aip[1]) return { MonAct::a1 };
+            if (roll() < aip[3]) return think_circle(rng, 2);
+        }
+        return { MonAct::idle, aip[2] };
+    }
+    // TownRogue (62, FUN_005e7d60; rogue3, which no preset places): A1 at
+    // its second target (FUN_005ddc30) nearer than 25, else stands 50.
+    // Special AI 8's think (FUN_005e7dc0, 0x73d3e0) is the same code; d2d
+    // has no special AI 8 (who sets it is not traced).
+    Think town_rogue() {
+        if (input.second && input.second_dist < 25) return at_second({ MonAct::a1 });
+        return { MonAct::idle, 50 };
+    }
+    // QuillMother (75, FUN_005fb2a0; quillbear1..5, which no level places).
+    // Hit (FUN_005dd2b0), it sends its group command 1 at the target
+    // (FUN_0058f730; quillbears never read it, monster-ai.md) and walks in,
+    // or in melee A1. Else out of melee aip2 % walks in, or stands aip4; in
+    // melee aip1 % A1, or stands aip3.
+    Think quill_mother() {
+        if (input.got_hit) {
+            *input.rally = true;
+            effect(ThinkEffect::rally);
+            return input.in_melee ? Think{ MonAct::a1 } : walk;
+        }
+        if (!input.in_melee) return roll() < aip[1] ? walk : Think{ MonAct::idle, aip[3] };
+        return roll() < aip[0] ? Think{ MonAct::a1 } : Think{ MonAct::idle, aip[2] };
+    }
 };
 
 inline constexpr auto kAct1Thinks = std::to_array<ThinkRow>({
@@ -508,6 +560,10 @@ inline constexpr auto kAct1Thinks = std::to_array<ThinkRow>({
     { "Griswold", &think_as<Act1Thinks, &Act1Thinks::griswold> },
     { "Smith", &think_as<Act1Thinks, &Act1Thinks::smith> },
     { "Andariel", &think_as<Act1Thinks, &Act1Thinks::andariel> },
+    { "ElementalBeast", &think_as<Act1Thinks, &Act1Thinks::elemental_beast> },
+    { "FlyingScimitar", &think_as<Act1Thinks, &Act1Thinks::flying_scimitar> },
+    { "TownRogue", &think_as<Act1Thinks, &Act1Thinks::town_rogue> },
+    { "QuillMother", &think_as<Act1Thinks, &Act1Thinks::quill_mother> },
 });
 
 }  // namespace d2d::rules

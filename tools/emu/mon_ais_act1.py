@@ -48,6 +48,13 @@ def patch(e):
                     return 0
                 return held["search"](e)
             return orig_hook(addr, search, nstack)
+        if addr == 0x5417d0:                          # the ElementalBeast's type-0 event (its S1's action, frame + 1): a strike, not a think event
+            def event(e):
+                if e.arg(0) == 0:
+                    cur["out"].append(("strike", M.S32(e.arg(1)) - cur["s"]["frame"]))
+                    return 0
+                return fn(e)
+            return orig_hook(addr, event, nstack)
         return orig_hook(addr, fn, nstack)
     e.hook = hook
     orig_call = e.call
