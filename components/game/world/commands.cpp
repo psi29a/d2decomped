@@ -831,9 +831,6 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         const auto& use_skill = std::get<cmd::UseSkill>(command);
-        // Stat 0x148 + 1 (FUN_00549d00). ponytail: one a UseSkill; game.exe's client sends no packet for
-        // a click it refuses and its own rate while held, so the count drifts from game.exe's over a run.
-        ++actor->pierce_idx;
         // A charged entry's cast (UseSkill::item): only while the entry is
         // there, its item active with charges left (FUN_00647840; a client
         // with none starts nothing, FUN_004c6140). Its level and cost go
@@ -912,18 +909,24 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // A held Inferno / Arctic Blast while it burns, at the ground or a unit (C->S 0x0f / 0x10, both on to
         // FUN_005809d0 and the skill's start): its next cast, from where the player stands (Fight::breath_again).
         if (skill && skill->srvdofunc == ServerDoFunction::kBreath && actor->pmode >= 0 && actor->channel == use_skill.skill && now_ms < actor->burning) {
-            (void)fight.cast_missile(use_skill.skill, live ? target->unit.x : use_skill.x, live ? target->unit.y : use_skill.y, now_ms);
+            if (fight.cast_missile(use_skill.skill, live ? target->unit.x : use_skill.x, live ? target->unit.y : use_skill.y, now_ms)) ++actor->pierce_idx;   // its ask passed: a packet
             return;
         }
-        if (skill && !skill->in_town && !in_moor) {
-            if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
-            else class_cue("not_in_town_2", now_ms);
-        } else if (const int goes = live ? use_skill.skill : fight.ask(use_skill.skill, now_ms); goes != use_skill.skill) {
-            // FUN_004610c0 at the click (FUN_004625b0's calls); at a unit it asks once in reach
-            // (FUN_00461c70, or the walk's end: start_swing). FUN_00467880 only picks the target.
-            // Attack in the skill's place (AttackNoMana) goes at the spot; a refusal swings nothing.
+        // FUN_004610c0 at the click (FUN_004625b0's calls), on the client before it sends; at a unit it
+        // asks once in reach (FUN_00461c70, or the walk's end: start_swing). FUN_00467880 only picks the target.
+        const int goes = live ? use_skill.skill : fight.ask(use_skill.skill, now_ms);
+        // Stat 0x148 + 1 for each skill packet the server takes (FUN_00549d00, 0x549fc0): none for a click
+        // the ask refuses (no packet), one for Attack in its place (AttackNoMana) or a skill the server then
+        // refuses in town (FUN_0056f640, after the packet).
+        // ponytail: a held click's own rate (the client's) isn't d2d's: the count can still drift over a run.
+        if (goes >= 0) ++actor->pierce_idx;
+        if (goes != use_skill.skill) {
+            // Attack in the skill's place goes at the spot; a refusal swings nothing.
             actor->attack_mon = -1;
             if (goes == 0 && use_skill.unit < 0) attack_spot();
+        } else if (skill && !skill->in_town && !in_moor) {
+            if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
+            else class_cue("not_in_town_2", now_ms);
         } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) { actor->player.walking = false; actor->interact_npc = -1; }
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
