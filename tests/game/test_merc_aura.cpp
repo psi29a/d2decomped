@@ -133,6 +133,22 @@ int main() try {
     chilled.unit.x = actor.merc->unit.x + 40;
     fight.monster_states(3000);
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
+    // The player's Holy Freeze too, at a higher level, over the merc's: one state (FUN_005cedc0 -> FUN_0056e970), the
+    // higher level's slow alone, not the two added.
+    chilled.unit.x = actor.merc->unit.x + 1;
+    fight.monster_states(3000);
+    const int merc_slow = chilled.speed_pct;
+    actor.aura = holy_freeze;
+    fight.skill_level = [&](int id) { return id == holy_freeze ? 12 : 0; };
+    fight.monster_states(3000);
+    const int both = chilled.speed_pct;
+    actor.merc_aura = -1;
+    fight.monster_states(3000);
+    assert(both == chilled.speed_pct && both < merc_slow);
+    actor.aura = -1;
+    actor.merc_aura = holy_freeze;
+    chilled.unit.x = actor.merc->unit.x + 40;
+    fight.monster_states(3000);
     // Decrepify's attackrate (stat 68, Param5) alone: its attack modes slow, its other modes don't; it adds to the
     // other states' (FUN_00625480 sums the lists), not the largest of them.
     const int decrepify = data->skills.by_name.at("Decrepify");
