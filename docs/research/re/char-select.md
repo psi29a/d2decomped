@@ -34,7 +34,10 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 - Characters with index outside `[offset, offset + visible)` are hidden.
 - Other registered records: `0xa2` OK, `0xa3` EXIT, `0xa4..0xa6` bottom
   row TallButtons (tbl `0x2a50`, `0x58cc` CREATE, `0x1498` DELETE),
-  `0x9c` = 466×42 text box at (85, 78) — the header line.
+  `0x9c` = 466×42 text box at (85, 78) — the header line (bytes at
+  `0x70aa50`: margins 0, font pair `0x7089ac` = Font42, flags 0x22,
+  centred, no wrap). `FUN_004390a0` (the selection's redraw) clears it
+  and adds the selected character's name, colour 0 (`0x4391f9`).
 
 ## Scrolling
 
