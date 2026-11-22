@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // The merc's hits as game.exe makes them, with the game's MPQs (D2_MPQ_DIR;
-// the 1.14d ones with D2_PATCH_INSTALLER): its arrow (Missiles.txt arrow: no
-// Skill, its weapon's damage at SrcDamage, FUN_0064b860) is built from its
+// the 1.14d ones with D2_PATCH_INSTALLER): its plain shot (a missile row with no
+// Skill: its weapon's damage at SrcDamage, FUN_0064b860) is built from its
 // gear as its swing is, so its item_slow slows the monster it strikes; and its
 // life steal heals it with no LifeStealDivisor (FUN_0057c420: a hireling's
 // leech skips the divisors, 0x57c58a..0x57c597).
@@ -86,6 +86,14 @@ int main() try {
     }
     assert(landed && struck.slow_speed == 40);
     assert(actor.merc->life_fine() > 50 * 256);
+    // A blow the merc struck heals it alone, by_player or not (its skill missiles land by_player): the player keeps its life.
+    actor.character.stats.values[d2d::d2s::kLife] = 256;
+    actor.merc->set_life_fine(50 * 256);
+    d2d::rules::Blow leeched{ .hit = true };
+    leeched.damage = 1;
+    leeched.life = 512;
+    fight.land(fight.monsters.size() - 1, leeched, true, 1000, fight.merc_foe_id());
+    assert(actor.character.stats.values[d2d::d2s::kLife] == 256 && actor.merc->life_fine() == 50 * 256 + 512);
     std::printf("OK: the merc's arrow slows a zombie by its gear's 40 and its life steal heals it (%d/256 -> %d/256)\n", 50 * 256, actor.merc->life_fine());
     return 0;
 } catch (const std::exception& error) {
