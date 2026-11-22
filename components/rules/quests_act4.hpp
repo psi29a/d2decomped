@@ -55,14 +55,8 @@ struct IzualQuest {
     quest::Players rewarded;         // +0x1c (FUN_005452c0)
     float spot_x = 0, spot_y = 0;  // data +4 / +8: where he died
 
-    // The player joins (LAB_005b4220).
-    void join(const QuestBits& quest_bits) {
-        open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
-        if (!open) return;
-        if (quest::bit(quest_bits, kQuest, 4)) { ghost_told = true; log = 2; state = 3; }
-        else if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
-        else if (quest::bit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
-    }
+    // The player joins.
+    void join(const QuestBits& quest_bits);
     // Izual's first think (FUN_005b4390, from his AI): open with the log
     // under 2, log 2 and sent again (FUN_005b3940 -> FUN_00544190: S->C
     // 0x5d, the Quest Log button).
@@ -77,42 +71,14 @@ struct IzualQuest {
         if (state == 2) quest::set(quest_bits, kQuest, 2);
         if (state == 3) quest::set(quest_bits, kQuest, ghost_told ? 4 : 3);
     }
-    // The fortress entered (LAB_005b4140): state 2 → 3.
-    void enter(QuestBits& quest_bits, int into) {
-        if (into != act4_detail::kFortress || state != 2 || quest::bit(quest_bits, kQuest, 0)) return;
-        state = 3;
-        if (log == 0) log = 1;
-        mark(quest_bits);
-    }
-    // Izual died (FUN_005b4020): state 4; the player's bits 13 and 1 (reward
-    // due) unless done or due; his ghost due 3 ticks on (FUN_005b3e60).
-    void killed(QuestBits& quest_bits, float x, float y) {
-        state = 4;
-        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) {
-            quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
-            act4_detail::clear_steps(quest_bits, kQuest);
-        }
-        ghost_due = true; spot_x = x; spot_y = y;
-    }
+    // The fortress entered: state 2 → 3.
+    void enter(QuestBits& quest_bits, int into);
+    // Izual died: state 4; the player's bits 13 and 1 (reward due) unless done or due; his ghost due 3 ticks on.
+    void killed(QuestBits& quest_bits, float x, float y);
     // Heard (FUN_005b39a0): the skill points it pays, and whether the chain
     // (the Hellforge) opens.
     struct Heard { int skill_points = 0; bool chain = false; };
-    Heard said(QuestBits& quest_bits, int npc, int string, int player) {
-        Heard out;
-        if (npc == kTyrael && string == kTold) { state = 2; heard = true; mark(quest_bits); }
-        if (npc == kTyrael && string == kReward && quest::bit(quest_bits, kQuest, 1)) {
-            if (quest::bit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 13; out.chain = true; }
-            quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false);
-            act4_detail::clear_steps(quest_bits, kQuest);
-            out.skill_points = kSkillPoints;
-            rewarded.add(player);
-        }
-        if (npc == kGhost && string == kGhostSpeech) {
-            quest::set(quest_bits, kQuest, 5);
-            if (log != 4) { log = 4; news = true; }
-        }
-        return out;
-    }
+    Heard said(QuestBits& quest_bits, int npc, int string, int player);
     // Blocks (0x73d708; FUN_005b3bb0, by state 0x73dba0).
     static inline const std::vector<act4_detail::Entry> kBlocks[5] = {
         { { 367, 670, true } },
@@ -121,21 +87,9 @@ struct IzualQuest {
         { { 367, 676, true }, { 246, 677, false }, { 406, 675, true } },
         { { 367, 676, false }, { 246, 677, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
-        if (npc == kGhost && !quest::bit(quest_bits, kQuest, 5)) return act4_detail::block_for(kBlocks[3], npc);
-        int block = -1;
-        if (quest::bit(quest_bits, kQuest, 1)) block = 3;
-        else if (rewarded.has(player)) block = 4;
-        else if (quest::bit(quest_bits, kQuest, 0) || (state > 3 && !quest::bit(quest_bits, kQuest, 13)) || !open) block = -1;
-        else if (state >= 1 && state <= 5) block = state - 1;
-        return block >= 0 ? act4_detail::block_for(kBlocks[block], npc) : std::vector<QuestMsg>{};
-    }
-    // The "!" (FUN_005b37f0).
-    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
-        if (!open || quest::bit(quest_bits, kQuest, 0)) return false;
-        if (npc == kTyrael) return quest::bit(quest_bits, kQuest, 1) || state == 1;
-        return npc == kGhost && !quest::bit(quest_bits, kQuest, 5);
-    }
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const;
+    // The "!".
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const;
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 5); }
 };
 
@@ -159,62 +113,23 @@ struct HellforgeQuest {
     bool heard = false;            // data +2: Cain's 678 / 679 heard
     bool news = false;             // the log sent again (FUN_00544300 flag 1)
 
-    // A later player's +0xd8 (LAB_005b64c0) counts the hammers about (data
-    // +0x10), which d2d doesn't keep (the forge asks the hand).
-    // The player joins (FUN_005b64e0).
-    void join(const QuestBits& quest_bits, bool stone) {
-        open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
-        if (!open) return;
-        if (!stone) { state = 1; return; }
-        if (quest::bit(quest_bits, kQuest, 5)) { stone_given = true; log = 4; state = 2; }
-        else if (quest::bit(quest_bits, kQuest, 3)) { log = 1; state = 3; }
-        else if (quest::bit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
-    }
+    void join(const QuestBits& quest_bits, bool stone);
     // a4q1's chain (LAB_005b5f40): 0 → 1.
     void opened() { if (open && state == 0) state = 1; }
-    // The Hellforge Hammer into an inventory (LAB_005b5a90, event 4 on an
-    // item bound to this record: hfh's Items.txt quest 25; the soulstone's
-    // 23 is a4q1's): 0 → 1 unless done, in this game (13), due, or the log
-    // at 13. tools/emu/quest_item_events.py.
-    void hammer_picked(const QuestBits& quest_bits) {
-        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 13) && !quest::bit(quest_bits, kQuest, 1) && open && log != 13 && state == 0) state = 1;
-    }
+    void hammer_picked(const QuestBits& quest_bits);
     // The forge's InitFn (48, FUN_005b5a20): open, the log 2 unless 2 / 3 / 13, sent.
     void forge_seen() { if (open && log != 13 && log != 2 && log != 3) { log = 2; news = true; } }
     // Cain's talk closes (FUN_005b6440) with 678 / 679 heard: log 4 with
     // the stone given, else 1; sent.
     void talk_closed(int npc) { if (npc == kCain && std::exchange(heard, false)) { log = stone_given ? 4 : 1; news = true; } }
-    // The fortress entered (FUN_005b6080).
-    void enter(const QuestBits& quest_bits, int into) {
-        if (into == act4_detail::kFortress && state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) state = 3;
-    }
+    // The fortress entered.
+    void enter(const QuestBits& quest_bits, int into);
     struct Heard { bool gives_stone = false, chain = false; };
-    // Heard (FUN_005b6100).
-    Heard said(QuestBits& quest_bits, int npc, int string, int player) {
-        Heard out;
-        if (npc != kCain) return out;
-        if (string == kTold) { state = 2; heard = true; }
-        if (string == kGivesStone) { out.gives_stone = true; stone_given = heard = true; if (state < 2) state = 2; }
-        if (string == kReward && quest::bit(quest_bits, kQuest, 1)) {
-            if (quest::bit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 13; out.chain = true; }
-            quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false);
-            rewarded.add(player);
-        }
-        return out;
-    }
+    // Heard.
+    Heard said(QuestBits& quest_bits, int npc, int string, int player);
     // The forge used (OperateFn 49, FUN_005b5c10).
     struct Struck { bool takes_stone = false, takes_hammer = false, done = false; };
-    Struck operate(QuestBits& quest_bits, bool stone, bool hammer_in_hand) {
-        Struck out;
-        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return out;
-        if (forge_mode == 0 && stone) { forge_mode = 2; log = 3; news = true; out.takes_stone = true; return out; }
-        if (forge_mode != 2 || !hammer_in_hand || ++blows < kBlows) return out;
-        forge_mode = 3; state = 4; log = 13; news = true;
-        quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
-        act4_detail::clear_steps(quest_bits, kQuest);
-        out.takes_hammer = out.done = true;
-        return out;
-    }
+    Struck operate(QuestBits& quest_bits, bool stone, bool hammer_in_hand);
     // The gems (event 7, FUN_005b6710): one a round, rand(7) of the round's
     // table on the quest seed, round 4 first; then, LoD, a rune by difficulty.
     static constexpr std::array<std::array<const char*, 7>, 3> kGems{ { { "gsv", "gsr", "gsb", "gsy", "gsg", "gsw", "sku" },     // round 1 (0x73e5a4)
@@ -224,24 +139,10 @@ struct HellforgeQuest {
     // The forge's event 7 at FrameCnt3 (22: objects.txt 376, +0xe4 >> 8),
     // then a round every 20 frames (+8 rounds, from 4).
     static constexpr int kStrikeFrames = 22, kRoundFrames = 20, kRounds = 4;                          // 0x73e114 / 0x73e514 / 0x73e540: rand(11) on
-    // Blocks (0x73e140; FUN_005b62d0).
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool stone, int player) const {
-        if (npc != kCain) return {};
-        if (quest::bit(quest_bits, kQuest, 1)) return { { kReward, true } };
-        if (rewarded.has(player)) return { { kReward, false } };
-        if (state == 0 || quest::bit(quest_bits, kQuest, 0) || (state > 3 && !quest::bit(quest_bits, kQuest, 13)) || !open) return {};
-        if (state == 1) {
-            if (stone) return { { kTold, true } };
-            if (stone_given || log > 2) return {};
-            return { { kGivesStone, true } };
-        }
-        if (stone || log > 2 || stone_given) return {};
-        return { { kGivesStone, true } };
-    }
-    // The "!" (FUN_005b5ee0).
-    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
-        return npc == kCain && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && open && state == 1 && !stone_given;
-    }
+    // Blocks.
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool stone, int player) const;
+    // The "!".
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const;
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 5); }
 };
 
@@ -281,41 +182,19 @@ struct TerrorQuest {
     static void join_more(QuestBits& quest_bits, bool expansion) {
         if (expansion && quest::bit(quest_bits, kQuest, 9) && !quest::bit(quest_bits, 0x1c, 0)) quest::set(quest_bits, kQuest, 9, false);
     }
-    // The player joins (FUN_005b5080).
-    void join(QuestBits& quest_bits, bool expansion) {
-        join_more(quest_bits, expansion);
-        open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
-        if (!open) return;
-        if (quest::bit(quest_bits, kQuest, 4)) { log = 2; state = 3; }
-        else if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
-        else if (quest::bit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
-    }
+    // The player joins.
+    void join(QuestBits& quest_bits, bool expansion);
     void mark(QuestBits& quest_bits) const {   // FUN_005b4560
         if (quest::bit(quest_bits, kQuest, 0)) return;
         if (state == 2) quest::set(quest_bits, kQuest, 2);
         if (state == 3) quest::set(quest_bits, kQuest, log == 1 ? 3 : 4);
     }
     void opened() { if (open && state == 0) state = 1; }   // LAB_005b4530
-    void enter(QuestBits& quest_bits, int into) {           // LAB_005b4ea0
-        if (into == act4_detail::kFortress && state == 2 && !quest::bit(quest_bits, kQuest, 0)) {
-            state = 3;
-            if (log < 1) log = 1;
-            mark(quest_bits);
-        }
-        if (into == act4_detail::kChaosSanctuary && open) {
-            if (state < 3) state = 3;
-            if (log < 1) { log = 1; news = true; }
-            mark(quest_bits);
-        }
-    }
+    void enter(QuestBits& quest_bits, int into);
     // Tyrael's talk closes (FUN_005b4f90) with 681 heard: log 1, sent.
     void talk_closed(int npc) { if (npc == kTyrael && std::exchange(heard, false)) { log = 1; news = true; } }
-    // A seal opened (FUN_005b5630; 392..396): whether all five are open
-    // and the three bosses dead (the release, FUN_005b5230, once).
-    bool seal(int object_id) {
-        if (object_id >= 392 && object_id <= 396) seals[std::size_t(object_id - 392)] = true;
-        return ready();
-    }
+    // A seal opened: whether all five are open and the three bosses dead.
+    bool seal(int object_id);
     bool boss_died() { ++bosses_dead; return ready(); }     // FUN_005b52e0, a bound non-Diablo
     [[nodiscard]] bool ready() const {
         for (const bool open_seal : seals) if (!open_seal) return false;
@@ -323,39 +202,13 @@ struct TerrorQuest {
     }
     // Released (FUN_005b52e0 / FUN_005b5630): +0x18 0, +2 1, the 1-tick timer.
     void arm() { armed = true; release_runs = 0; release_steps = 0; }
-    // A quest-clock step. True: the timer runs (every kReleaseTicks + 1
-    // steps) with its count past 9, so Diablo comes now if he can; if he
-    // can't, it runs again (returns 0) and tries on its next run.
-    bool release_step() {
-        if (!armed || ++release_steps < quest_timer_steps(kReleaseTicks)) return false;
-        release_steps = 0;
-        return ++release_runs >= kReleaseRuns;
-    }
+    // A quest-clock step.
+    bool release_step();
     void diablo_came() { armed = false; diablo_made = true; }   // +2 0, returns 1
-    // Diablo died (FUN_005b52e0 class 0xf3 -> FUN_005b4d20 for the player):
-    // whether the classic ending (bits 6 / 7 and the next difficulty) applies.
-    void diablo_died(QuestBits& quest_bits, bool expansion, int player) {
-        dead = true;
-        if (open) { log = 13; news = true; }
-        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
-        quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 0);
-        act4_detail::clear_steps(quest_bits, kQuest);
-        if (!expansion) { quest::set(quest_bits, kQuest, 6); quest::set(quest_bits, kQuest, 7); }
-        rewarded.add(player);
-    }
+    // Diablo died: whether the classic ending (bits 6 / 7 and the next difficulty) applies.
+    void diablo_died(QuestBits& quest_bits, bool expansion, int player);
     struct Heard { bool portal = false; };
-    Heard said(QuestBits& quest_bits, int npc, int string, bool expansion) {   // FUN_005b4670
-        Heard out;
-        if (npc == kTyrael && string == kTold) { state = 2; heard = true; mark(quest_bits); }
-        if (npc == kTyrael && string == kTyraelLast) quest::set(quest_bits, kQuest, 7, false);
-        if (npc == kTyrael && string == kTyraelPortal && expansion) {
-            quest::set(quest_bits, kQuest, 9);
-            if (!portal_made) { portal_made = true; out.portal = true; }
-        }
-        if (npc == kCain && string == kCainLast) quest::set(quest_bits, kQuest, 6, false);
-        if (npc == kCain && string == kCainPortal) quest::set(quest_bits, kQuest, 8);
-        return out;
-    }
+    Heard said(QuestBits& quest_bits, int npc, int string, bool expansion);
     // Blocks (0x73dbb8; FUN_005b4790, by state 0x73d56c).
     static inline const std::vector<act4_detail::Entry> kBlocks[6] = {
         { { 367, 681, true } },
@@ -365,45 +218,9 @@ struct TerrorQuest {
         { { 367, 20000, true }, { 246, 20001, true } },
         { { 367, 20000, false }, { 246, 20001, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool expansion) const {
-        using act4_detail::block_for;
-        const bool tyrael_last = quest::bit(quest_bits, kQuest, 7), cain_last = quest::bit(quest_bits, kQuest, 6);
-        if (!expansion) {
-            if (tyrael_last && npc == kTyrael) return block_for(kBlocks[2], npc);
-            if (cain_last && npc == kCain) return block_for(kBlocks[2], npc);
-            if (tyrael_last) return npc == kCain ? block_for(kBlocks[3], npc) : std::vector<QuestMsg>{};
-            if (cain_last) return npc == kTyrael ? block_for(kBlocks[3], npc) : std::vector<QuestMsg>{};
-        }
-        if (!quest::bit(quest_bits, kQuest, 0)) {
-            if ((state > 3 && !quest::bit(quest_bits, kQuest, 13)) || !open || state == 0) return {};
-            return state <= 2 ? block_for(kBlocks[state - 1], npc) : std::vector<QuestMsg>{};
-        }
-        std::vector<QuestMsg> out;
-        if (!expansion) return out;
-        if (!quest::bit(quest_bits, kQuest, 9)) {
-            if (npc == kTyrael) out = block_for(kBlocks[4], npc);
-            else if (npc == kCain) out = block_for(kBlocks[5], npc);
-        }
-        if (!quest::bit(quest_bits, kQuest, 8)) {
-            auto more = npc == kCain ? block_for(kBlocks[4], npc) : npc == kTyrael ? block_for(kBlocks[5], npc) : std::vector<QuestMsg>{};
-            out.insert(out.end(), more.begin(), more.end());
-        }
-        return out;
-    }
-    // The "!" (FUN_005b4450).
-    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool expansion) const {
-        const bool done = quest::bit(quest_bits, kQuest, 0);
-        if (npc == kTyrael) {
-            if (!done && !quest::bit(quest_bits, kQuest, 15) && state == 1) return true;
-            if (!expansion) return done && quest::bit(quest_bits, kQuest, 7);
-            return done && !quest::bit(quest_bits, kQuest, 9);
-        }
-        if (npc == kCain) {
-            if (!expansion) return done && quest::bit(quest_bits, kQuest, 6);
-            return done && !quest::bit(quest_bits, kQuest, 8);
-        }
-        return false;
-    }
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool expansion) const;
+    // The "!".
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool expansion) const;
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
 };
 
