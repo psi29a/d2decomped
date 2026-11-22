@@ -175,7 +175,8 @@ int main() try {
         assert(thrown >= 2);
         assert(world.actor->character.stats.values[d2d::d2s::kMana] < (200 << 8));   // its cost paid, on the first event
         std::printf("Double Throw: %d knives over its sequence\n", thrown);
-        // Lightning's sequence counts as a cast (seqtrans SC): it stays on the cast's timing, no attack sequence.
+        // Lightning's sequence counts as a cast (seqtrans SC): it stays on the cast's timing (SC, no attack
+        // sequence's events), its 19 steps there to be drawn one by one.
         const int lightning = data->skills.by_name.at("Lightning");
         assert(data->skills.get(lightning)->anim == "SQ" && data->skills.get(lightning)->seqtrans == "SC");
         fight.skill_level = [&](int skill) { return skill == lightning ? 1 : 0; };
@@ -184,7 +185,7 @@ int main() try {
         world.actor->character.stats.values[d2d::d2s::kMana] = 200 << 8;
         clock_ms += 50 * kTickMs;
         assert(fight.cast_missile(lightning, world.actor->player.x + 4, world.actor->player.y, clock_ms));
-        assert(world.actor->pmode == kModeSC && world.actor->seq.empty());
+        assert(world.actor->pmode == kModeSC && world.actor->seq.size() == 19);
     }
     std::printf("test_two_hands_blow: ok\n");
     return 0;
