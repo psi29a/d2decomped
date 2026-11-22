@@ -727,6 +727,11 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             if (life > life_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_life", now_ms, actor->player.x, actor->player.y);
             if (mana > mana_before) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "impact_steal_mana", now_ms, actor->player.x, actor->player.y);
         }
+        // The merc's own leech (FUN_0057c420: a hireling striker, 0x57c58a..0x57c597, takes the player's path without
+        // the steal divisors: merc_strike, plain_missile_hits) heals it through FUN_0057a980: not when it's dying, up to its max.
+        // ponytail: its mana half (FUN_0057aa00): d2d keeps no merc mana.
+        if (striker == merc_foe_id() && blow.life > 0 && actor->merc && actor->merc->alive())
+            actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
         if (const double rate = double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0);

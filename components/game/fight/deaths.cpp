@@ -512,7 +512,11 @@ auto Fight::gain_exp(std::int64_t share, const Monster& monster, std::uint32_t n
 auto Fight::merc_strike(std::size_t target, const d2d::rules::Swing& swing, std::uint32_t now_ms) -> void {
         const auto fighter = merc_fighter();
         const int thorns = monsters[target].props.thorns;
-        const auto blow = d2d::rules::player_blow(fighter, merc_target(target), actor->merc_st.level, rng, swing);
+        // No steal divisor: FUN_0057c420 divides a player's leech by DifficultyLevels' LifeStealDivisor / ManaStealDivisor
+        // (0x57c49e..0x57c4ce), a hireling's not (it joins that path at 0x57c4d1); land() heals the merc.
+        auto struck = merc_target(target);
+        struck.life_steal_divisor = struck.mana_steal_divisor = 1;
+        const auto blow = d2d::rules::player_blow(fighter, struck, actor->merc_st.level, rng, swing);
         merc_blow = true;
         const bool landed = land(target, blow, false, now_ms, merc_foe_id());
         merc_blow = false;
