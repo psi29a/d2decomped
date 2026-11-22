@@ -53,15 +53,17 @@ auto Fight::monster_index(int id) const -> int {
         return found == monsters.end() ? -1 : int(found - monsters.begin());
     }
 
-auto Fight::add_monster(Monster monster) -> void { add_monster(std::move(monster), mon_level); }
+auto Fight::add_monster(Monster monster) -> int { return add_monster(std::move(monster), mon_level); }
 
-auto Fight::add_monster(Monster monster, const Level* where) -> void {
+auto Fight::add_monster(Monster monster, const Level* where) -> int {
         monster.id = next_id++;
         monster.classic = !game_expansion;
         const auto* made_level = where ? where : mon_level ? mon_level : level;
         if (made_level && (monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique))
             made_bosses.push_back({ monster.id, monster.type, made_level->id });
-        (where == mon_level || !where ? monsters : kept[where]).push_back(std::move(monster));
+        auto& list = where == mon_level || !where ? monsters : kept[where];
+        list.push_back(std::move(monster));
+        return int(list.size()) - 1;
     }
 
 auto Fight::own_stats() const -> d2d::d2s::Stats {

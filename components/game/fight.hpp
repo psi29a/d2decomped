@@ -241,8 +241,8 @@ struct Fight {
     std::vector<MadeBoss> made_bosses;     // qualifying unique placements, in creation order (the Golden Bird)
     // A monster by unit id: its index in `monsters`, or -1.
     [[nodiscard]] int monster_index(int id) const;
-    void add_monster(Monster monster);
-    void add_monster(Monster monster, const Level* where);   // into that level's (kept) monsters
+    int add_monster(Monster monster);                         // its index in the list it joined (a minion's Monster::leader)
+    int add_monster(Monster monster, const Level* where);   // into that level's (kept) monsters
 
     const Level* mon_level = nullptr;                // whose monsters `monsters` are
     AreaSeen area_seen;                              // their spawn areas' "seen" flags (ai.cpp search_target)

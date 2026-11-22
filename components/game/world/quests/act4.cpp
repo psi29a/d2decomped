@@ -63,12 +63,13 @@ auto World::seal_boss(const Level& where, int superunique, int x, int y) -> void
         boss.aware = true;
         const int minion = game_data->monsters.types[std::size_t(row.type)].minion[0] >= 0 ? game_data->monsters.types[std::size_t(row.type)].minion[0] : row.type;
         const int count = row.min_grp + int(fight.rng.next() % std::uint32_t(std::max(row.max_grp - row.min_grp + 1, 1)));
-        fight.add_monster(std::move(boss), &where);
+        const int leader = fight.add_monster(std::move(boss), &where);
         for (int i = 0; i < count; ++i) {
             const auto [minion_x, minion_y] = where.nearest_free(at_x + float(i % 3 - 1) * 0.6f, at_y + float(i / 3 - 1) * 0.6f);
             auto follower = make_monster(*game_data, minion, minion_x, minion_y, fight.rng, diff, false, fight.game_players(), where.id);
             make_boss(*game_data, follower, d2d::rules::Boss::minion, row.mods, -1, 0, diff, fight.rng, fight.game_players());   // its mods' inits (FUN_0058f380)
             follower.aware = true;
+            follower.leader = leader;                                 // its leader the seal's boss (FUN_0058f380: the group it joins)
             fight.add_monster(std::move(follower), &where);
         }
         d2d::log::info("{} comes (superunique {})", row.name, superunique);
