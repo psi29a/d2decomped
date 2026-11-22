@@ -219,4 +219,30 @@ auto MissileFlight::launch(int x, int y, int to_x, int to_y, int velocity, int m
     return flight;
 }
 
+// FUN_005db410 (0x5db4e8..0x5db678): the line from the caster's subtile to
+// the point through FUN_0056d370 (x 4 while its squared length is under 4,
+// then x 2 while under 16) and FUN_0056d3b0 (turned to (y, -x), both halved
+// toward 0 while the squared length is over 3); the first aim is the point
+// less trunc(step x count / 2) on each axis; (count - mid) / 2 (toward 0)
+// missiles flagged 0x10000, then mid (calc3; calc1 when 0) without, then
+// count less both flagged, each a step on. A mid above count gives mid
+// missiles in the middle and none after.
+std::vector<FanShot> missile_fan(int from_x, int from_y, int to_x, int to_y, int count, int mid) {
+    int step_x = to_x - from_x, step_y = to_y - from_y;
+    if (step_x * step_x + step_y * step_y < 4) { step_x *= 4; step_y *= 4; }
+    if (step_x * step_x + step_y * step_y < 16) { step_x *= 2; step_y *= 2; }
+    int turned_x = step_y, turned_y = -step_x;
+    while (turned_x * turned_x + turned_y * turned_y > 3) { turned_x /= 2; turned_y /= 2; }
+    int aim_x = to_x - turned_x * count / 2, aim_y = to_y - turned_y * count / 2;
+    const int middle = mid != 0 ? mid : count, before = (count - middle) / 2;
+    std::vector<FanShot> out;
+    const auto shoot = [&](int shots, bool side) {
+        for (int k = 0; k < shots; ++k, aim_x += turned_x, aim_y += turned_y) out.push_back({ aim_x, aim_y, side });
+    };
+    shoot(before, true);
+    shoot(middle, false);
+    shoot(count - before - middle, true);
+    return out;
+}
+
 }
