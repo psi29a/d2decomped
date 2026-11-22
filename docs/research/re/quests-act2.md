@@ -69,9 +69,9 @@ and calls a2q4's hook:
 d2d: `rules::palace_spots` (quests.hpp, tests/test_quests.cpp); Lut
 Gholein builds every candidate (`Npc::palace` 1..4) and
 `World::show_palace` shows them as the quest bits stand.
-Ponytails: the game's flags are the player's (one player), and record 13's
-"under 2" is quest 14 having none of bits 1..11 (the Seven Tombs record
-isn't ported); FUN_00545340's spot search is the nearest free spot.
+It reads the game's flags (`World::game_bits`) and record 13's state
+(`tombs.state`). Ponytail: FUN_00545340's spot search is the nearest free
+spot.
 
 ## Act 2's opening (a2q0.cpp, record 7, quest 8)
 
@@ -147,9 +147,10 @@ d2d: `rules::RadamentQuest`, `World::radament_died`, the book in
 state 2 / log 1 / bit 2; out of town → state 3; the kill → bits
 1 2 3 5 13, log 3, the book dropped; read → +1 skill point, bit 5 clear;
 Atma 334 → state 5, log 0xd; the log's Act 2 tab says "Quest completed".
-Ponytails: one player (the lists are bools, no party), "near" is the
-player in Sewers level 3, the chain on to the Seven Tombs waits for its
-record.
+The kill's credit goes to the players in the Lair by the killer (his
+room or one next to it, `World::near_room`) and their party
+(`World::kill_credit`); the rewarded list is a player list; the chain goes
+on to record 13 (`tombs.chain()`).
 
 ## The Tainted Sun (a2q3.cpp, record 10, quest 11)
 
@@ -199,8 +200,9 @@ altar in `World::operate`; a joined game takes 0x53 (`NetGame::sky`).
 Checked live (devctl, 2026-10-11): the Lost City darkens (light 32), the
 Act 1 sky stays clear, the temple is state 3, the altar gives state 4 →
 log 3, bits 1 2 13, the amulet, the chest roll and 8 gold piles, sunrise.
-N-player gaps: one player (the rewarded list a bool, no party credit, the
-altar's room is "the player"); one day clock for all acts.
+The rewarded list is a player list; the altar credits the players in its
+room and the party in Act 2 (`World::operate`, OperateFn 24). N-player
+gap: one day clock for all acts.
 
 ## The Horadric Staff (a2q2.cpp, record 9, quest 10)
 
@@ -258,8 +260,9 @@ read (or any part shown), 4 / 5 / 6 the amulet / shaft / Cube shown,
 d2d: `rules::HoradricStaffQuest`, the chests in `World::operate`, the
 scroll's removal in the said path. Checked live (devctl, 2026-10-11): the
 three chests give their parts; Cain takes the Cube, then the shaft (bits
-3, 5, 6); the Cube makes the staff (cube.md; bit 11, `FUN_0059e5c0`). Not
-yet: the orifice (a2q6). N-player gaps: one player's counts, the rewarded bool.
+3, 5, 6); the Cube makes the staff (cube.md; bit 11, `FUN_0059e5c0`); the
+orifice is a2q6's. The rewarded list is a player list, and the parts are counted from each
+player's own items (`World::staff_items`, as each player).
 
 ## The Arcane Sanctuary (a2q4.cpp, record 11, quest 12)
 
@@ -335,10 +338,11 @@ pads in `World::operate`, `World::canyon_portal` (portal slots 4 / 5).
 Checked live (devctl, 2026-10-11): the staff made opens it; Drognan → 2,
 Jerhyn → 3, the Sanctuary → 4; the Summoner's death (bits 1, 13, log 4);
 the journal (bits 0 1 7 8 13), its 396 opens the Canyon portal, which
-leads to the Canyon of the Magi. Gaps: the Summoner's AI isn't ported
-(awareness stands in for its first attack think); "by him" is the player
-in the Sanctuary; the portal draws as a town portal, not object 60's red
-one; the palace door's mode; one player.
+leads to the Canyon of the Magi. His first think opens it
+(`Act2Thinks::summoner`); his death credits the players by him (his room
+or one next to it) and their party (`World::kill_credit`). Gaps: the
+portal draws as a town portal, not object 60's red one; the palace door's
+mode.
 
 ## The Seven Tombs (a2q6.cpp, record 13, quest 14)
 
@@ -523,7 +527,8 @@ as `ev::UniqueEvent`: `rules::staff_show`, the client's
 client's counter, `object_op_ticks`), then ON; from an earlier game ON at
 once (0x59d976). Gaps:
 Tyrael's prison (data+0x2c) isn't opened; the log override (data+0x10 /
-+0x14) isn't traced; Meshif's Sail East (Act 3) isn't there; one player.
++0x14) isn't traced. Meshif's Sail East is below; the rewarded list is a
+player list.
 
 ## Meshif's boat to Act 3
 
