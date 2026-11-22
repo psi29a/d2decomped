@@ -3,11 +3,12 @@
 // The missile fan (srvdofunc 8: Multiple Shot, Teeth, Shock Wave), as
 // tools/emu/missile_fan.py runs game.exe's FUN_005db410: `--missile-fan` reads
 // its cases (`sx sy tx ty count mid`, subtiles) and prints each with each
-// missile's aim and side flag: d2d's, the point + (k - count / 2) x a step
-// turned from the line in cells and halved, at least one missile, no flags.
+// missile's aim and side flag: rules::missile_fan.
+// Without arguments: the rule on a few lines (no game data).
 
-#include <algorithm>
-#include <cmath>
+#include <missiles.hpp>
+
+#include <cassert>
 #include <cstdio>
 #include <exception>
 #include <iostream>
@@ -27,18 +28,10 @@ int fan_cases() {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
         }
-        // Fight::fire's do-8 branch on a caster and a point at their subtiles' centres.
-        const float dx = float(to_x - from_x) / 5, dy = float(to_y - from_y) / 5;
-        float side_x = dy * 5, side_y = -dx * 5;
-        while (side_x * side_x + side_y * side_y > 3) { side_x = std::trunc(side_x / 2); side_y = std::trunc(side_y / 2); }
-        if (side_x == 0 && side_y == 0) side_x = 1;
         std::string out;
-        const int number = std::max(count, 1);
-        for (int k = 0; k < number; ++k) {
-            const float spread = float(k) - float(number) / 2;
-            const int aim_x = int(std::floor(float(to_x) + 0.5f + spread * side_x)), aim_y = int(std::floor(float(to_y) + 0.5f + spread * side_y));
-            out += (out.empty() ? "" : " ") + std::to_string(aim_x) + "," + std::to_string(aim_y) + ",0";
-        }
+        for (const auto& shot : d2d::rules::missile_fan(from_x, from_y, to_x, to_y, count, mid))
+            out += (out.empty() ? "" : " ") + std::to_string(shot.x) + "," + std::to_string(shot.y) + "," + (shot.side ? "1" : "0");
+        if (out.empty()) out = "-";
         std::printf("%s | %s\n", line.c_str(), out.c_str());
     }
     return 0;
@@ -48,8 +41,16 @@ int fan_cases() {
 
 int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--missile-fan") return fan_cases();
-    std::puts("SKIP: the fan check comes with the fix");
-    return D2D_TEST_SKIPPED;
+    using d2d::rules::missile_fan;
+    // At the point itself every one aims at it; a line of one subtile is scaled up to 8 first (FUN_0056d370) and
+    // turned to a step of 1; Multiple Shot's calc3 2 of 5: one side, two middle, two side.
+    assert(missile_fan(1000, 1000, 1000, 1000, 3, 0).size() == 3 && missile_fan(1000, 1000, 1000, 1000, 3, 0)[2].x == 1000);
+    const auto five = missile_fan(1000, 1000, 1000, 1001, 5, 2);
+    assert(five.size() == 5 && five[0].x == 998 && five[4].x == 1002 && five[0].y == 1001);
+    assert(five[0].side && !five[1].side && !five[2].side && five[3].side && five[4].side);
+    assert(missile_fan(1000, 1000, 1002, 1001, 0, 0).empty() && missile_fan(1000, 1000, 1002, 1001, 2, 5).size() == 5);
+    std::puts("OK: the fan's aims and side flags as FUN_005db410 makes them");
+    return 0;
 } catch (const std::exception& error) {
     std::printf("test_missile_fan: %s\n", error.what());
     return 1;

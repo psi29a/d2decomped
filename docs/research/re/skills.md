@@ -1040,11 +1040,19 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (FUN_0056c4e0), so the Amazon's arrows and javelins take the same path
   (Fire / Cold / Ice Arrow, Poison Javelin, Lightning Bolt). Do 8
   (**FUN_005db410**, Teeth, Multiple Shot): calc1 srvmissilea missiles
-  (srvmissileb for monsters) at points a step apart across the line to
-  the target, centred on it — the step is the line's vector turned a
-  right angle and halved until its squared length is at most 3 subtiles
-  (FUN_0056d3b0; FUN_0056d370 scales short vectors up first); calc3 of
-  them in the middle, the rest flagged 0x10000. Do 17 (**FUN_005c9300**,
+  (srvmissileb when set and the skill's weapon class isn't a bow,
+  FUN_00623c60: a crossbow's Multiple Shot bolts, a monster's) at points a step apart across the line to
+  the target — the step is the line's vector (caster subtile to the
+  point) scaled up while short (FUN_0056d370: x 4 under a squared length
+  of 4, then x 2 under 16), turned to (y, -x) and halved toward 0 until
+  its squared length is at most 3 (FUN_0056d3b0); the first aim is the
+  point less trunc(step x calc1 / 2); (calc1 - calc3) / 2 flagged
+  0x10000, then calc3 (calc1 when 0) without, then the rest flagged
+  (0x5db4e8..0x5db678). The flag sets missile data +0x14 bit 2
+  (0x59fe8d), hit flag 0x80 (0x5ad8a0), so FUN_0057c6c0 skips the
+  shooter's event 6 (domissiledamage, 0x57c7bd) for a side one; calc2 is
+  the request's +0x44, its activation delay (flag 0x800). d2d: `rules::missile_fan`; V:
+  `tools/emu/missile_fan.py` (`test_missile_fan --missile-fan`). Do 17 (**FUN_005c9300**,
   Charged Bolt): calc1 missiles at the target, each with FUN_005c9290
   steering it. Do 22 (**FUN_005c9b50** → FUN_0056d400, the novas): 64
   missiles toward the offsets in 0x6e1288 / 0x6e1388, lasting

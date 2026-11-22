@@ -511,9 +511,8 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
 
 // The missiles leave the caster at their velocity for Range + LevRange x
 // level ticks: one toward the cast point; do 8 (FUN_005db410) calc1 of
-// them at points a step apart across the line to it (the step: the
-// line's direction turned a right angle and halved to at most ~1.7
-// subtiles, FUN_0056d3b0), centred on it; do 17 (FUN_005c9300) calc1
+// them at subtiles a step apart across the line to it, calc3 in the
+// middle (rules::missile_fan); do 17 (FUN_005c9300) calc1
 // toward it, each wandering (FUN_005c9290); do 22 (FUN_005c9b50 ->
 // FUN_0056d400) 64 all round, for Range + calc1 ticks.
 // Do 10 (FUN_005db6d0: Guided Arrow, Bone Spirit): one at the monster
@@ -547,13 +546,16 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             return missile;
         };
         if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
-            const int count = std::max(calc1, 1);
-            float side_x = dy * 5, side_y = -dx * 5;                 // subtiles, turned a right angle
-            while (side_x * side_x + side_y * side_y > 3) { side_x = std::trunc(side_x / 2); side_y = std::trunc(side_y / 2); }
-            if (side_x == 0 && side_y == 0) side_x = 1;
-            for (int k = 0; k < count; ++k) {
-                const float spread = float(k) - float(count) / 2;
-                send(dx + spread * side_x / 5, dy + spread * side_y / 5, range);
+            // FUN_005db410: calc1 of them across the line from the caster's subtile to the point's, calc3 in the
+            // middle (rules::missile_fan), each aimed at its subtile's centre.
+            // ponytail: a side one's flag 0x10000 (Multiple Shot's) skips the shooter's domissiledamage events in
+            // game.exe (0x59fe8d -> hit flag 0x80 -> 0x57c7bd: no Crushing Blow, Open Wounds or chance to cast from
+            // it); calc2's activation delay and srvmissileb for a crossbow (FUN_00623c60) aren't modelled either.
+            const int from_x = int(std::floor(caster.x * 5)), from_y = int(std::floor(caster.y * 5));
+            for (const auto& shot : d2d::rules::missile_fan(from_x, from_y, int(std::floor(caster.to_x * 5)), int(std::floor(caster.to_y * 5)), calc1,
+                                                            calc(skill, skill.calc[2], lvl))) {
+                const float aim_x = (float(shot.x) + 0.5f) / 5, aim_y = (float(shot.y) + 0.5f) / 5;
+                send(aim_x - caster.x, aim_y - caster.y, range).to = { aim_x, aim_y };
             }
         } else if (skill.srvdofunc == ServerDoFunction::kScatteredBolts) {
             for (int k = 0; k < std::max(calc1, 1); ++k) send(dx, dy, range).bolt = k;   // each wandering (FUN_005c9290)

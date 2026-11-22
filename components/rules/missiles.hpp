@@ -59,6 +59,11 @@ inline constexpr std::array<std::array<int, 2>, 64> kNovaRing{ {
     { 21, -21 }, { 23, -19 }, { 24, -16 }, { 26, -14 }, { 27, -11 }, { 28, -8 }, { 29, -5 }, { 29, -2 },
 } };
 
+// The missile fan (srvdofunc 8): `count` aims in subtiles, a step apart across the line from the caster's subtile to
+// the point's, `mid` unflagged in the middle (0: all), the rest `side` (flag 0x10000).
+struct FanShot { int x = 0, y = 0; bool side = false; };
+std::vector<FanShot> missile_fan(int from_x, int from_y, int to_x, int to_y, int count, int mid);
+
 // The path velocity FUN_0059fa30 gives every missile it makes:
 // ((Vel + VelLev x lvl / 8) << 8) x 75 / 100.
 int missile_velocity(int vel, int vel_lev, int level);
