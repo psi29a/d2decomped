@@ -556,7 +556,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             for (const auto& shot : d2d::rules::missile_fan(from_x, from_y, int(std::floor(caster.to_x * 5)), int(std::floor(caster.to_y * 5)), calc1,
                                                             calc(skill, skill.calc[2], lvl))) {
                 const float aim_x = (float(shot.x) + 0.5f) / 5, aim_y = (float(shot.y) + 0.5f) / 5;
-                send(aim_x - caster.x, aim_y - caster.y, range).to = { aim_x, aim_y };
+                // One at the caster's own subtile: FUN_0059fa30 aims it a subtile on (+1, +1), as missile_fly does;
+                // it needs a direction to launch.
+                const bool own = shot.x == from_x && shot.y == from_y;
+                send(own ? 0.2f : aim_x - caster.x, own ? 0.2f : aim_y - caster.y, range).to = { aim_x, aim_y };
             }
         } else if (skill.srvdofunc == ServerDoFunction::kScatteredBolts) {
             for (int k = 0; k < std::max(calc1, 1); ++k) send(dx, dy, range).bolt = k;   // each wandering (FUN_005c9290)
