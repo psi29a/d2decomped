@@ -760,6 +760,9 @@ struct Fight {
     // monster struck, on away from the player (to twice its spot less the
     // player's), each wandering as Charged Bolt's (FUN_005c9290).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
+    // A monster Conversion or Mind Blast turned (its state already on): good,
+    // no target, and down to the caster's level when above it.
+    void turn_good(Monster& turned, int caster_level);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
     // sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
     // physical, on what its aurafilter takes within half the aurarange.
@@ -768,8 +771,8 @@ struct Fight {
     // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
     // monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
     // uniques, bosses), Mind Blast (51, FUN_005d76e0: the skill's physical
-    // and stun within aurarange of the point), Static Field (20,
-    // FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
+    // and stun within aurarange of the point, or a conversion instead),
+    // Static Field (20, FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
     // aurarange of the caster, as lightning), Corpse Explosion (55,
     // FUN_005c4df0: corpse_blast), Poison Explosion (63,
     // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,

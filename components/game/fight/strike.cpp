@@ -884,29 +884,14 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kChargedStrike || skill->srvdofunc == ServerDoFunction::kLightningStrike)) strike_bolts(*skill, target, now_ms);
         // Conversion (do 79, FUN_005d0350): on a hit, an evil monster no one
         // owns that swaps_ai lets (FUN_005d02b0: FUN_006259b0, FUN_0056e2f0)
-        // turns at calc1 % for auralen frames: alignment 2 (FUN_005543b0) in
-        // the caster's list (FUN_005b1900), its target and flag-8 states
-        // dropped. One above the caster's level comes down to it, its life in
-        // proportion (state 0x6d keeps its own, stats 0xb0 / 0xb1): MulDiv of
-        // the whole points by clvl / mlvl (FUN_00483360: ECX life, EDX clvl,
-        // mlvl on the stack; 0x5d05ed / 0x5d0600), back in 256ths (the part of
-        // a point dropped), life 1..max; d2d applies a minimum of one whole point during Conversion.
+        // turns at calc1 % for auralen frames (turn_good).
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kConversion && monsters[target].alive() && monsters[target].align == 0
             && swaps_ai(*game_data, monsters[target])) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             auto& turned = monsters[target];
             if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)
-                && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms)) {
-                turned.align = 2; turned.set_kind = 0; turned.chase = -1;
-                if (const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel)); turned.stats.level > clvl && turned.own_level == 0) {
-                    turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
-                    turned.own_max_life_frac = turned.max_life_frac;
-                    turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.max_life_fine() >> 8, clvl, turned.own_level), 1);
-                    turned.hit_points = std::clamp(d2d::rules::mul_div(turned.hit_points - (turned.life_frac > 0), clvl, turned.own_level), 1, turned.stats.hit_points);
-                    turned.max_life_frac = turned.life_frac = 0;
-                    turned.stats.level = clvl;
-                }
-            }
+                && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms))
+                turn_good(turned, int(actor->character.stats.get(d2d::d2s::kLevel)));
         }
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
@@ -917,6 +902,26 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
                                                                             skill_level ? skill_level(skill->id) : 1) / 100;
         }
         if (!monsters[target].alive()) actor->attack_mon = -1;
+    }
+
+// What Conversion (FUN_005d0350) and Mind Blast (FUN_005d7430) do once
+// state 0x35 is on: alignment 2 (FUN_005543b0) in the caster's list
+// (FUN_005b1900), its target and flag-8 states dropped. One above the
+// caster's level comes down to it, its life in proportion (state 0x6d keeps
+// its own, stats 0xb0 / 0xb1): MulDiv of the whole points by clvl / mlvl
+// (FUN_00483360: ECX life, EDX clvl, mlvl on the stack; 0x5d05ed /
+// 0x5d0600, 0x5d7393), back in 256ths (the part of a point dropped), life
+// 1..max; d2d applies a minimum of one whole point during Conversion.
+auto Fight::turn_good(Monster& turned, int caster_level) -> void {
+        turned.align = 2; turned.set_kind = 0; turned.chase = -1;
+        if (turned.stats.level > caster_level && turned.own_level == 0) {
+            turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
+            turned.own_max_life_frac = turned.max_life_frac;
+            turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.max_life_fine() >> 8, caster_level, turned.own_level), 1);
+            turned.hit_points = std::clamp(d2d::rules::mul_div(turned.hit_points - (turned.life_frac > 0), caster_level, turned.own_level), 1, turned.stats.hit_points);
+            turned.max_life_frac = turned.life_frac = 0;
+            turned.stats.level = caster_level;
+        }
     }
 
 // Lightning Strike (do 14, FUN_005dbe50): from the monster struck at
@@ -981,8 +986,7 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
 // Static Field's walk takes its aurafilter (0x8783) from the
 // caster: a clear line (0x200), out of town.
 // ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
-// enemy player: FUN_0056b3e0 type 0), Mind Blast's conversion
-// (Param3 / 4 through FUN_005d7680) and the knockback guards aren't
+// enemy player: FUN_0056b3e0 type 0) and the knockback guards aren't
 // applied.
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
         return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
@@ -1013,9 +1017,35 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;
-            case ServerDoFunction::kMindBlast:
-                within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) { land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster)); });
+            case ServerDoFunction::kMindBlast: {
+                // FUN_005d76e0 -> FUN_005d7680 on each unit of the walk: first
+                // FUN_005d7430's conversion. A monster no one owns, not a
+                // hireling, evil (FUN_006259b0) and one swaps_ai lets (FUN_0056e2f0
+                // EDX 0xb) turns when rand(100) on the caster's seed (the fight's rng here) is at most
+                // dm(Param5, Param6) (FUN_00645c10: 15..40; FUN_005d72b0's
+                // SETLE), for Param3 + rand(Param4) frames (150 + rand(100),
+                // 0x5d7457); a 0x35 already on it only takes the new end
+                // (FUN_006260b0). The level it comes down to is the caster's
+                // stat 0xc (a Shadow's own). A turned one takes no blow.
+                // The 0x35 node is Conversion's row here (its auratargetstate).
+                const int chance = d2d::rules::calc_dm(skill.par[4], skill.par[5], lvl);
+                const auto conversion = game_data->skills.by_name.find("Conversion");
+                int caster_level = int(actor->character.stats.get(d2d::d2s::kLevel));
+                for (const auto& pet : actor->pets)
+                    if (caster.pet && pet.monster.id == caster.unit_id) caster_level = pet.monster.stats.level;
+                within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
+                    auto& struck = monsters[monster_index];
+                    if (conversion != game_data->skills.by_name.end() && struck.align == 0 && swaps_ai(*game_data, struck) && int(rng(100)) <= chance) {
+                        const auto until = now_ms + std::uint32_t(std::max(skill.par[2] + int(rng(std::uint32_t(std::max(skill.par[3], 1)))), 1)) * 40;
+                        if (auto held = std::ranges::find(struck.states, conversion->second, &Monster::SkillState::skill); held != struck.states.end()) held->until = until;
+                        else struck.states.push_back({ conversion->second, lvl, until });
+                        turn_good(struck, caster_level);
+                        return;
+                    }
+                    land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster));
+                });
                 break;
+            }
             case ServerDoFunction::kStaticField: {
                 // FUN_005c9800: calc1 %, calc2 the least (256ths), the floor
                 // only in an expansion game; FUN_005c96a0 on each unit, its
