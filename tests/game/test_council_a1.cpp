@@ -3,6 +3,7 @@
 // FUN_005539b0 schedules HPA1HTH; tools/emu/council_modes.py checks its deadlines.
 
 #include <ai.hpp>
+#include <combat.hpp>
 #include <gamedata.hpp>
 #include <rules.hpp>
 
@@ -15,6 +16,17 @@
 using namespace d2d::game;
 
 int main() try {
+    // HPA1HTH at 168: FUN_00623e00 gives frame 1 on tick 3 and
+    // frame 3 on tick 6. Dividing by a rounded 60 ms gives 2 and 4.
+    using d2d::rules::fixed_animation_position;
+    constexpr std::array original_positions{0u, 168u, 336u, 504u, 672u, 840u, 1008u, 1176u, 1344u};
+    for (std::size_t tick = 0; tick < original_positions.size(); ++tick) {
+        const auto elapsed = std::uint32_t(tick) * 40;
+        if (fixed_animation_position(elapsed, 168, 10) != original_positions[tick]
+            || fixed_animation_position(elapsed + 39, 168, 10) != original_positions[tick]) return 1;
+    }
+    if (fixed_animation_position(639, 168, 10) != 2520u || fixed_animation_position(640, 168, 10)) return 1;
+
     GameData data;
     data.monsters.types.resize(32);
     data.mon_bin.resize(348);

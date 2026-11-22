@@ -185,6 +185,16 @@ def check(exe, record, melee_record):
         print(f"Council A1 rate {rate}: action at +{action} ticks, mode end at +{end}")
 
     oracle.w32(unit + 0x44, 0)
+    oracle.mu.mem_write(unit + 0x4c, struct.pack("<h", 168))
+    positions = [0]
+    for _ in range(8):
+        oracle.call(0x623e00, unit, limit=10000)
+        assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+        positions.append(oracle.r32(unit + 0x44))
+    assert positions == [0, 168, 336, 504, 672, 840, 1008, 1176, 1344], positions
+    print(f"Council A1 visible positions at stock rate: {positions}")
+
+    oracle.w32(unit + 0x44, 0)
     positions = []
     for rate in (168, 168, 84, 84, 84, 84, 84, 84):
         oracle.mu.mem_write(unit + 0x4c, struct.pack("<h", rate))
