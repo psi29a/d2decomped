@@ -441,7 +441,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                     }
                 }
                 draw_inventory(framebuffer, scene, layout, *inventory,
-                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header);
+                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header, hud.uninterruptable);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
             }
         };

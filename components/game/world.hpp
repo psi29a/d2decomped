@@ -133,6 +133,7 @@ struct View {
     bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
     bool stamina_blue = false;             // a stambarblue state on the player (staminapot, shrine_stamina): the stamina bar full and blue (FUN_004975b0)
     bool stamina_shrine = false;           // state 0x88 (shrine_stamina) on it: the stamina text blue too
+    bool uninterruptable = false;          // state 0x36 on it (Fight::uninterruptable: a whirl, a leap): the grid's items red
     // With a healthpot / manapot (state 100 / 0x6a) on the player: the
     // client's stat 0x4a / 0x1a, the percent of the max at the potion's end
     // plus the gear's regen, for the globes' preview (FUN_00496f80 /

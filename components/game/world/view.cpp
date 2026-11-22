@@ -51,6 +51,7 @@ auto World::view() const -> View {
         view.chilled = fight.chill_rate(now) != 0;
         view.stamina_shrine = now < actor->boost.until && shrine_code(actor->boost.shrine) == 14;   // 14: the stamina shrine (state 0x88)
         view.stamina_blue = now < actor->stamina_pot.until || view.stamina_shrine;
+        view.uninterruptable = fight.uninterruptable();
         // The globes' preview: the client's stat 0x4a / 0x1a, S->C 0x18's
         // percents as last sent (life_update_frame) plus the gear's regen,
         // while the healthpot / manapot state is on.
