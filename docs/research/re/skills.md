@@ -1361,7 +1361,12 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   **10** (FUN_005aa650) lets a guided one pass all but its target.
 - **St 8** (FUN_005dacd0, Strafe): n = the monsters within aurarange,
   clamped to [min(calc3, calc1), calc1]; **do 12** (FUN_005dba40) shoots one
-  at the next (FUN_0056bd10) per call, calc2 as its damage % (0x5db6a0).
+  at the next (FUN_0056bd10) per call, calc2 as its damage % (0x5db6a0);
+  with arrows left it picks the next and starts the swing over
+  (FUN_0056e210 -> FUN_00553b10) with Param6 (+0x15c, FUN_004f4110: 50):
+  (100 - 50) % of the frames played kept, so each arrow is a shortened
+  swing's action frame. d2d: `Fight::strafe_shot`, `restart_swing`,
+  `test_strafe_repeat`.
 - **Do 26** (FUN_005ca1b0, Chain Lightning): srvmissilea with calc1 hops
   (FUN_0064a710). Hit **12** (FUN_005aa730): with hops > 1, a new one from
   the hit point at another unit within sHitPar1 (else aurarange, at least

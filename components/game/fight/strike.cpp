@@ -772,7 +772,15 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
 
 auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && missile_skill(*skill)) {   // Magic Arrow: the bow's action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + action_at()) {
+                actor->pstruck = true;
+                // Strafe's do (12, FUN_005dba40) on each action frame: one arrow; with arrows left the swing
+                // starts over (FUN_0056e210, Param6 +0x15c through FUN_004f4110: 50 % of the frames kept).
+                const bool strafing = skill->srvdofunc == ServerDoFunction::kStrafe && !actor->strafe.empty();
+                if (strafing) strafe_shot(*skill, now_ms);
+                else { settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
+                if (skill->srvdofunc == ServerDoFunction::kStrafe && !actor->strafe.empty()) restart_swing(skill->par[5], now_ms);
+            }
             return;
         }
         // Double Throw's sequence (FUN_005d88b0 on each event): one hand's weapon a throw, by FUN_00535bc0's
@@ -871,9 +879,12 @@ auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
         actor->attack_mon = struck;
         other_target();
         if (actor->attack_mon < 0) { actor->kicks_left = 0; return; }
-        const auto* skill = game_data->skills.get(actor->swing_skill);
+        restart_swing(game_data->skills.get(actor->swing_skill)->par[1], now_ms);
+    }
+
+auto Fight::restart_swing(int keep, std::uint32_t now_ms) -> void {
         const auto played = (now_ms - actor->player.mode_ms) / 40;   // game frames into the swing
-        const auto frames_kept = played * std::uint32_t(std::clamp(100 - skill->par[1], 0, 100)) / 100;   // the animation's frames kept
+        const auto frames_kept = played * std::uint32_t(std::clamp(100 - keep, 0, 100)) / 100;   // the animation's frames kept
         set_pmode(swing_mode(), now_ms);
         const auto& anim = player_anim(actor->pmode);
         const auto back = anim.frames ? frames_kept * (actor->pmode_until - now_ms) / anim.frames : 0;
@@ -1321,6 +1332,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
                     return false;
                 }
                 actor->kicks_left = 0;
+                actor->strafe.clear();                              // arrows left when the swing ends are lost
                 actor->seq = {};
                 actor->smove = {};
                 actor->seq_loop = false;

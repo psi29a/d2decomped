@@ -414,6 +414,21 @@ auto Fight::seed_missiles(std::size_t from) -> void {
             if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
     }
 
+auto Fight::strafe_shot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
+        if (actor->strafe.empty()) return;
+        const int target = actor->strafe.front();
+        actor->strafe.erase(actor->strafe.begin());
+        const auto& missile_info = *skill_missile(skill);
+        const int lvl = skill_level ? skill_level(skill.id) : 1;
+        float target_x = actor->cast_x, target_y = actor->cast_y;
+        if (target >= 0 && std::size_t(target) < monsters.size() && monsters[std::size_t(target)].alive()) {
+            target_x = monsters[std::size_t(target)].unit.x; target_y = monsters[std::size_t(target)].unit.y;
+            actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);   // FUN_00620c10: faced
+        }
+        launch(missile_info, skill, lvl, actor->player.x, actor->player.y, target_x - actor->player.x, target_y - actor->player.y, missile_info.range + missile_info.lev_range * lvl, now_ms).ed_pct
+            = calc(skill, skill.calc[1], lvl);
+    }
+
 auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl) -> int {
         return d2d::rules::eval_calc(game_data->skills, calc_row, calc_env(), skill.id, lvl);
     }
@@ -471,8 +486,9 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     && std::hypot(monsters[i].unit.x - caster.x, monsters[i].unit.y - caster.y) * 5 <= float(radius)) nearby.push_back(int(i));
             const int high = calc1, low = std::min(calc(skill, skill.calc[2], lvl), high);
             const int count = std::clamp(int(nearby.size()), low, high);
-            for (int k = 0; k < count; ++k)
-                actor->strafe.push_back({ nearby.empty() ? -1 : nearby[std::size_t(k) % nearby.size()], now_ms + std::uint32_t(k) * 120 });
+            actor->strafe.clear();
+            for (int k = 0; k < count; ++k) actor->strafe.push_back(nearby.empty() ? -1 : nearby[std::size_t(k) % nearby.size()]);
+            strafe_shot(skill, now_ms);                         // the first on this action frame, the rest each restart's
         } else if (skill.srvdofunc == ServerDoFunction::kChainLightning) {
             send(dx, dy, range).hops = calc1;
         } else if (skill.srvdofunc == ServerDoFunction::kMissileAtTarget) {
@@ -551,18 +567,6 @@ auto Fight::player_shots(std::uint32_t now_ms) -> void {
         const int frame = int(now_ms / 40);
         if (frame == actor->last_frame) return;
         actor->last_frame = frame;
-        std::erase_if(actor->strafe, [&](const std::pair<int, std::uint32_t>& strafed) {
-            if (now_ms < strafed.second) return false;
-            const auto* skill = game_data->skills.get(actor->swing_skill);
-            if (!skill || skill->srvdofunc != ServerDoFunction::kStrafe) return true;
-            const auto& missile_info = *skill_missile(*skill);
-            const int lvl = skill_level ? skill_level(skill->id) : 1;
-            float target_x = actor->cast_x, target_y = actor->cast_y;
-            if (strafed.first >= 0 && monsters[std::size_t(strafed.first)].alive()) { target_x = monsters[std::size_t(strafed.first)].unit.x; target_y = monsters[std::size_t(strafed.first)].unit.y; }
-            launch(missile_info, *skill, lvl, actor->player.x, actor->player.y, target_x - actor->player.x, target_y - actor->player.y, missile_info.range + missile_info.lev_range * lvl, now_ms).ed_pct
-                = calc(*skill, skill->calc[1], lvl);
-            return true;
-        });
         if (actor->channel >= 0) {
             const auto* skill = game_data->skills.get(actor->channel);
             if (!skill || actor->pmode != kModeSC || actor->swing_skill != actor->channel) actor->channel = -1;
