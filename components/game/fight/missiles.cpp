@@ -318,9 +318,8 @@ auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const
 auto Fight::missile_skill(const d2d::rules::Skill& skill) const -> bool { return skill_missile(skill) != nullptr; }
 
 // A cast sequence (anim SQ, seqtrans SC: Lightning) holds SC for its
-// steps (rules::cast_sequence_ticks).
-// ponytail: its action frame and drawing are SC's scaled over that
-// hold, not the sequence's own steps.
+// steps (rules::cast_sequence_ticks), its action its event-1 step and each
+// step's frame drawn (set_pmode).
 auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);

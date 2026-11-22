@@ -506,6 +506,7 @@ auto Fight::action_at() const -> std::uint32_t {
 // Sets the actor's player mode and runs the start-of-mode cues, incl. the inferno list of cltstfunc 15 (LAB_004e3060).
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
+        actor->seq = {};                                           // a new mode's frames: start_sequence's, or a cast sequence's below
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
         actor->player.mode_ms = now_ms;
         actor->player.walking = false;
@@ -532,11 +533,15 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             }
         } else if (mode == kModeSC && anim.frames) {
             // A cast sequence (seqtrans SC, Lightning's 19 steps) runs out its steps at the cast speed
-            // (rules::cast_sequence_ticks); its frames are drawn spread over the hold, not step by step.
+            // (rules::cast_sequence_ticks), each step's frame drawn in its turn (View::seq: +0x38 on by the
+            // cast speed a tick, FUN_00623e00, its row's mode and frame, FUN_00621210).
             const auto* cast_row = game_data->skills.get(actor->swing_skill);
             const auto steps = cast_row && cast_row->seqtrans == "SC" ? skill_sequence() : std::span<const d2d::rules::SeqFrame>{};
             const int rate = int(anim.speed ? anim.speed : 256), fcr = actor->player_combat.fcr;
             len = std::uint32_t(steps.empty() ? d2d::rules::cast_ticks(int(anim.frames), rate, fcr) : d2d::rules::cast_sequence_ticks(int(steps.size()), rate, fcr)) * 40;
+            actor->seq = steps;
+            actor->seq_loop = false;
+            actor->seq_frame_ms = std::uint32_t(std::max(40 * 256 / std::max(d2d::rules::cast_speed(rate, fcr), 1), 1));
         } else if (mode == kModeGH && anim.frames) {
             // The client draws its frames at the get-hit rate and ends a tick early (FUN_00463390: the hero's draw, session/draw.cpp).
             len = d2d::game::get_hit_ms(anim, actor->player_combat.fhr);
