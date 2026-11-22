@@ -10,7 +10,9 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 11 (FUN_004eb640),
 7 (FUN_004ea010), 12 (FUN_004eb830), 13 (FUN_004eb240), 14 (FUN_004eb940:
 Param5 read through the data tables at 0x744304, faked here), 17 (FUN_004ebd50),
-23 (FUN_004eaf90: 17's with no ddam calcs),
+23 (FUN_004eaf90: 17's with no ddam calcs), 15 (FUN_004eba30: the kick, FUN_00646280
+hooked, its % by FUN_004e6ca0 for real on the faked row; FUN_004e6ff0 and
+FUN_004e7120, the charge-ups' share and adds, hooked to none, as d2d keeps none),
 18 (FUN_004ec040), 19 (FUN_004ea310),
 20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
@@ -71,8 +73,9 @@ DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x6
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24)
 DATA_TABLES, SKILLS_TXT, SKILLS_COUNT, SKILL_ROW_ID = 0x744304, 0xB98, 0xBA0, 77
+KICK, CHARGE_SHARE, CHARGE_ADDS = 0x646280, 0x4E6FF0, 0x4E7120
 
 
 def d2d_line(descdam, case):
@@ -269,6 +272,13 @@ def d2d_line(descdam, case):
         if w_high > 0:
             w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
         return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else colour
+    elif descdam == 15:
+        own_low, own_high = case["phys_min"] >> 8, case["phys_max"] >> 8
+        pct = case["par1"] + case["par2"] * (5 - 1)              # FUN_004e6ca0 at level 5
+        kick_pct = pct + case["kick_pct"]
+        low = case["kick_lo"] + mul_div(case["kick_lo"], kick_pct, 100) + own_low + mul_div(own_low, pct, 100)
+        high = case["kick_hi"] + mul_div(case["kick_hi"], kick_pct, 100) + own_high + mul_div(own_high, pct, 100)
+        return low, high, 3 if pct else 0
     elif descdam in (17, 23):
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):
@@ -404,6 +414,15 @@ def main():
     e.w32(desc + 0x18, 1); e.w32(desc + 0x1C, 2)                  # ddam calc1 / calc2: calc ids 1 and 2
     e.hook(SKILL_DESC, lambda _e: desc, 0)
     e.hook(SKILL_ID, lambda _e: SKILL_ROW_ID, 3)
+
+    def kick(em):                                     # FUN_00646280(unit, &min, &max, &pct): adds the kick and its %
+        for at, key in ((em.arg(1), "kick_lo"), (em.arg(2), "kick_hi"), (em.arg(3), "kick_pct")):
+            em.w32(at, (signed(em.r32(at)) + case[key]) & 0xFFFFFFFF)
+        return 0
+
+    e.hook(KICK, kick, 4)
+    e.hook(CHARGE_SHARE, lambda _e: 0, 0)
+    e.hook(CHARGE_ADDS, lambda _e: 1, 4)
     tables = e.alloc(0x1000)                                       # FUN_004eb940 finds the Skills row itself: [0x744304] +0xb98 / +0xba0
     e.w32(DATA_TABLES, tables)
     e.w32(tables + SKILLS_TXT, (row - SKILL_ROW_ID * 0x23C) & 0xFFFFFFFF); e.w32(tables + SKILLS_COUNT, 400)
@@ -442,6 +461,8 @@ def main():
                 ("str_bonus", lambda: rng.choice((0, 0, 50, 75))), ("dex_bonus", lambda: rng.choice((0, 0, 30, 100))))},
             throw_state=rng.random() < 0.5, mastery=rng.choice((0, 30, 120, 400)),
             param5=rng.choice((-75, -75, 0, 30, -100, -150, 7)),
+            par1=rng.choice((0, 5, 100, -20)), par2=rng.choice((0, 7, 25, -3)),
+            kick_lo=rng.randrange(0, 80), kick_hi=rng.randrange(0, 160), kick_pct=rng.choice((0, 0, 30, 150, -90, -60)),
             calcs={11: rng.choice((0, 30, 70, 300)), 12: rng.choice((0, 30, 70, 300)), 13: rng.choice((0, 30, 70, 300, -20))})
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)
@@ -452,6 +473,9 @@ def main():
         e.mu.mem_write(row + 0x1DC, bytes((GAME_ETYPE[case["etype"]],)))
         e.w32(row + 0x138, 11); e.w32(row + 0x13C, 12); e.w32(row + 0x140, 13)
         e.w32(row + 0x158, case["param5"])                        # Param5 (Hunger's -75)
+        e.w32(row + 0x148, case["par1"]); e.w32(row + 0x14C, case["par2"])   # Param1 / 2: FUN_004e6ca0's ln12
+        if descdam == 15:
+            e.mu.mem_write(row, SKILL_ROW_ID.to_bytes(2, "little"))   # its id: FUN_004e6ca0 finds the row by it
         e.mu.mem_write(record + 0xFE, bytes((case["sh_min"], case["sh_max"])))
 
     for descdam, trial in itertools.product(HANDLERS, range(4000)):

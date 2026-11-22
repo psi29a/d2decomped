@@ -136,6 +136,15 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     at 0x4eafbb, EAX 0); both push share 0x80 to FUN_004e86f0 (0x4eafb5 /
     0x4ebdbc: the weapon unscaled whatever the row's SrcDam, Rabies' 0),
     then FUN_004e72d0's element (poison x ELen) under it.
+  - 15 (0x4eba30; Dragon Talon, Dragon Flight): the % is FUN_004e6ff0
+    (the charge-ups' share: each listed skill's charges stat 0x15f x its
+    ln12, data +0x16c) + FUN_004e6ca0's ln12 (Param1 + Param2 x (lvl - 1)),
+    colour 3 when not 0. FUN_00646280 from 0 with that % in (stat 137, the
+    boots' mindam / maxdam, their Str / DexBonus + stat 25 at least -90, +
+    stat 17, the weapon's stats off), then each end kick + MulDiv(kick, %
+    out, 100) + (MinDam / MaxDam >> 8) + MulDiv(that, the skill's %, 100)
+    (0x4ebab7..0x4ebb00), + FUN_004e7120's adds; one value. d2d keeps no
+    charge-ups' share or adds.
 - **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
   When either is set: `"%s\nAttack Rating"` (0xfdf; 0xfe1 `"%s\nRating"`
   for skill 0, Attack) with the upper-cased name, font6, halves at y-4 /
@@ -165,7 +174,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 15, 16 (the Assassin's kicks), stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: descdam 16 (Dragon Tail), the charge-ups' share and adds in 15, stat 325, barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)

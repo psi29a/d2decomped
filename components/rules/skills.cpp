@@ -549,6 +549,20 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.max += skill.par[4] * line.max / 100;
         elements_of(fighter, line);
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
+    } else if (skill.descdam == 15) {                         // FUN_004eba30 (Dragon Talon, Dragon Flight)
+        // The skill's % is ln12 (FUN_004e6ca0: Param1 + Param2 x (lvl - 1)) + the charge-ups' share
+        // (FUN_004e6ff0), colour 3 when not 0. The kick (FUN_00646280 from 0: stat 137 and the boots, its
+        // % on top: the Fighter's kick_lo / kick_hi / kick_pct) + MulDiv(kick, both %s, 100), + MinDam /
+        // MaxDam >> 8 (FUN_00647bc0 / FUN_00647d00) + MulDiv(them, the skill's %, 100) (0x4ebab7..0x4ebb00),
+        // then the charge-ups' adds (FUN_004e7120); one value, no damblue / damred.
+        // ponytail: FUN_004e6ff0's share and FUN_004e7120's adds (the charge-ups' charges) aren't kept: 0.
+        line.damage = true;
+        const int pct = calc_ln(skill.par[0], skill.par[1], lvl);
+        const int kick_pct = pct + fighter.kick_pct;
+        const int own_low = skill_phys(skill_tables, skill, env, lvl, false) >> 8, own_high = skill_phys(skill_tables, skill, env, lvl, true) >> 8;
+        line.min = fighter.kick_lo + mul_div(fighter.kick_lo, kick_pct, 100) + own_low + mul_div(own_low, pct, 100);
+        line.max = fighter.kick_hi + mul_div(fighter.kick_hi, kick_pct, 100) + own_high + mul_div(own_high, pct, 100);
+        line.damage_colour = pct != 0 ? 3 : 0;
     } else if (skill.descdam == 17 || skill.descdam == 23) {   // FUN_004ebd50 (Charged / Lightning Strike), FUN_004eaf90 (Rabies)
         // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale:
         // both push share 0x80, 0x4ebdbc / 0x4eafb5), then the element (0x4ebe07; 23's 0x4eb009: poison x

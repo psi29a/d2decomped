@@ -366,6 +366,16 @@ int main() try {
         line = attack_line(skill_tables, rabies, env, 5, fighter, 5);
         assert(line.damage && line.two && line.min == 3 + 2 && line.max == 9 + 4 && line.damage_colour == 1);
         assert(line.min2 == 1 && line.max2 == 40 && line.colour2 == 9);
+        // descdam 15 (Dragon Talon, FUN_004eba30): the kick 10-20 at its 30 % + ln12 (5 + 7 x 4 = 33 %),
+        // + MinDam..MaxDam 4-8 at 33 %, in colour 3: tools/emu/panel_damage.py.
+        Skill talon = skill_tables.rows[0];
+        talon.descdam = 15; talon.par[0] = 5; talon.par[1] = 7; talon.hitshift = 8; talon.mindam = 4; talon.maxdam = 8;
+        talon.mindam_lev = talon.maxdam_lev = {}; talon.dmg_sym = {};
+        Fighter booted = fighter;
+        booted.kick_lo = 10; booted.kick_hi = 20; booted.kick_pct = 30;
+        line = attack_line(skill_tables, talon, env, 5, booted, 5);
+        assert(line.damage && !line.two && line.min == 10 + 10 * 63 / 100 + 4 + 4 * 33 / 100 && line.max == 20 + 20 * 63 / 100 + 8 + 8 * 33 / 100);
+        assert(line.damage_colour == 3);
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.
         Skill arrow = skill_tables.rows[0];
