@@ -160,6 +160,22 @@ int main() try {
         assert((d2gs::c2s::select_skill(0, false) == d2d::net::Bytes{ 0x3c, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff }));
         // 0x31: 9 bytes, the host's size check (54ba90); Atma's 304 heard.
         assert((d2gs::c2s::quest_message(0x12345678, 304) == d2d::net::Bytes{ 0x31, 0x78, 0x56, 0x34, 0x12, 0x30, 0x01, 0x00, 0x00 }));
+        // FUN_00597e20 sends A1/S1 through these two correction-bearing forms.
+        const d2d::net::Bytes point_packet{ 0x6b, 123, 0, 0, 0, 12, 111, 0, 222, 0, 0, 0, 77, 1, 188, 1 };
+        const auto at_point = d2gs::s2c::monster_command(point_packet);
+        assert(at_point && at_point->id == 123 && at_point->command == 12 && !at_point->target);
+        assert(at_point->point && at_point->point->first == 111 && at_point->point->second == 222);
+        assert(at_point->correction && at_point->correction->first == 333 && at_point->correction->second == 444);
+        const d2d::net::Bytes unit_packet{ 0x6c, 123, 0, 0, 0, 10, 0, 142, 2, 0, 0, 0, 77, 1, 188, 1 };
+        const auto at_unit = d2gs::s2c::monster_command(unit_packet);
+        assert(at_unit && at_unit->command == 10 && !at_unit->point && at_unit->correction == at_point->correction);
+        assert(at_unit->target && at_unit->target->first == 0 && at_unit->target->second == 654);
+        assert(!d2gs::s2c::monster_command(std::span(point_packet).first(15)));
+        auto uncorrected = point_packet;
+        uncorrected[0] = 0x69;
+        uncorrected.resize(12);
+        const auto command_without_correction = d2gs::s2c::monster_command(uncorrected);
+        assert(command_without_correction && !command_without_correction->correction);
         // 0x27 mode 1: Atma's greeting (kind 0) and a topic (kind 2); a lone
         // kind 3 is a number, not lines. 0x5d's record 8 (Radament) is word 9.
         d2d::net::Bytes info(40, 0);

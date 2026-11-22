@@ -50,6 +50,7 @@ struct NetGame {
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
+        std::optional<std::pair<float, float>> attack_aim;
         std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;   // another player's: by item id (0x9d)
         int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id
         std::uint32_t skill_ms = 0;   // when (steady ms)
