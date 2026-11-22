@@ -288,7 +288,7 @@ struct Fight {
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
         // It stops nothing; a hit while it runs is a get-hit (FUN_0057cee0), unless one is already running (FUN_0057edd0).
         std::uint32_t stunned = 0;
-        std::vector<std::pair<int, std::uint32_t>> strafe;   // Strafe's arrows to come: target, when
+        std::vector<int> strafe;                   // Strafe's arrows to come: their targets (-1 the cast point), one a restarted swing
         int channel = -1, last_frame = -1;     // Inferno's skill while its cast lasts
         // The monster being attacked (walked up to, then struck), the player's
         // non-walking mode (A1 attack, GH get-hit, BL block, DT dying, DD dead;
@@ -1071,9 +1071,10 @@ struct Fight {
     // it. Do 19 (FUN_005c8ca0, Inferno): a flame of calc1 ticks per frame
     // while the cast lasts.
     // The nova aims at rules::kNovaRing (0x6e1288 / 0x6e1388).
-    // ponytail: Strafe's arrows go out on a timer
-    // (3 ticks apart), not a repeated attack animation; Inferno's channel
-    // is its cast's animation (no held button, no mana per frame).
+    // Strafe's arrows: one a do, the swing starting over between them (strafe_shot, restart_swing).
+    // ponytail: Strafe's targets are listed at the first do (cycled), not picked after each arrow
+    // (FUN_005dba40's ring pick from the last); Inferno's channel is its cast's animation (no held
+    // button, no mana per frame).
     void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) {   // the player's: its ammo spent first
         if (needs_ammo(skill)) spend_ammo();
         fire(skill, now_ms, player_caster(skill.id));
@@ -1348,6 +1349,10 @@ struct Fight {
     // of the frames played, Zeal's and Fury's 100 from frame 0); none in
     // reach, the swing plays out and the hits left are lost.
     void repeat_hit(int struck, std::uint32_t now_ms);
+    // The swing starting over now (FUN_0056e210 -> FUN_00553b10): from (100 - keep) % of the frames played.
+    void restart_swing(int keep, std::uint32_t now_ms);
+    // Strafe's next arrow (do 12, FUN_005dba40): at the queue's first target, calc2 its damage %.
+    void strafe_shot(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // The monsters in reach, by unit id (d2d's index), as FUN_0056b7e0
     // walks the units in the rooms around the player with flags 0x2a783:
     // within FUN_0056e510's radius (the weapon's range + 4, squared
