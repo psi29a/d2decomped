@@ -84,20 +84,21 @@ int game_check(const GameData& data) {
 }  // namespace
 
 int main(int argc, char** argv) try {
-    base_check();
     const bool cases = argc > 1 && std::string_view(argv[1]) == "--mode-rates";
+    if (!cases) base_check();   // made-up rows: runs without the game's files
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) {
         if (cases) { std::fputs("--mode-rates needs D2_MPQ_DIR\n", stderr); return 1; }
-        std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)");
-        return D2D_TEST_SKIPPED;
+        std::puts("SKIP (the game check): no d2data.mpq (D2_MPQ_DIR)");
+        return 0;
     }
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    if (!data || !data->patched) {
+    if (!data) { std::puts("FAIL: load_game_data failed"); return 1; }
+    if (!data->patched) {
         if (cases) { std::fputs("--mode-rates needs the 1.14d data (D2_PATCH_INSTALLER)\n", stderr); return 1; }
-        std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)");
-        return D2D_TEST_SKIPPED;
+        std::puts("SKIP (the game check): needs the 1.14d data (D2_PATCH_INSTALLER)");
+        return 0;
     }
     if (!cases) return game_check(*data);
     return rate_cases(*data);
