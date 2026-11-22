@@ -67,6 +67,7 @@ auto ClientSession::load_keys() -> void {
         update_hotkey_names();
         load_skill_sheet(character.name);
         load_touch_sheet(character.name);
+        pad.teleport.clear(); touch_teleport.clear(); touch_skill_hold.clear(); touch_stop_chase = false;
         touch_input.clear(); touch_input.alternate = false; touch_player = {};
         touch_item_finger = -1; touch_ground_finger = -1; touch_item = touch_stock = -1; touch_item_hint.clear();
         touch_fingers = 0; touch_item_drag = false; touch_pointer = {}; touch_sheet = {}; touch_identify_target = -1;

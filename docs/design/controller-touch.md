@@ -294,6 +294,42 @@ keep taking taps. Round chrome fills are light (about 15% of the old dim);
 the Attack icon is scaled to fill its ring; belt potion frames are centred
 in their circles.
 
+## Held combat and teleport previews
+
+Touch skill taps still cast on release. Repeatable attacks and spells begin
+repeating after a 300ms hold, retaining an eligible target and acquiring another
+in the same direction when it disappears. A drag steers the cast; moving beyond
+the drag projection plus its 16px margin cancels it. Releasing a hold does not
+add another cast. Auras, buffs, summons, corpse/ally/pet skills, trap placement,
+and Teleport remain release actions rather than repeated casts. Radial casts
+resolve at the caster instead of selecting an enemy.
+
+Repetition uses local animation/cooldown readiness, or rate-limited retries for
+a remote host. Existing commands and server eligibility/mana checks remain
+authoritative. Untargeted casts use the existing stand-still command flag.
+A panel, focus loss, character change or input handoff drops touch ownership;
+ending a held melee chase also cancels its queued approach.
+
+Teleport shows a gold destination ring or a red invalid-destination cross.
+Its preview reuses the current room, warp-spot and line-of-sight validation.
+A dragged release must still resolve to the valid destination last displayed;
+otherwise it cancels, rather than jumping to an unseen replacement. A quick
+un-dragged touch tap retains the existing release behavior.
+
+In the opt-in skill-button controller preset, the primary controller also
+previews Teleport while its assigned button is held and commits on release.
+The aiming stick's deadzone-adjusted magnitude controls preview distance.
+Panels, focus loss, input handoff and controller removal clear its preview.
+Other local seats retain their existing immediate controller dispatch.
+Markers draw on the world framebuffer, including widescreen, independently of
+whether the compact touch HUD is enabled. These are input UX choices, not
+claims of original-game touch/controller parity.
+
+Re-check with `test_touch_holds`, `test_teleport_aim`, `test_touch_input`,
+`test_gamepad` and the existing `touch_controls_d2d` / `touch_corpse_d2d`
+SDL scenarios (the latter need local game data). Physical-device readability
+and remote-host timing still need play testing.
+
 ## Touch HUD and binding navigation
 
 Menu controls use distinct pictograms with their text captions, including a

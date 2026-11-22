@@ -331,6 +331,9 @@ private:
     bool inside_ = true;
 };
 
+/** Build a right-hand cast at the caster without a locked enemy. */
+[[nodiscard]] inline Target caster_target(int skill, float x, float y) { return { skill, -1, x, y, false, true }; }
+
 class Input {
 public:
     bool belt_expanded = false;
@@ -348,6 +351,9 @@ public:
     [[nodiscard]] bool move_held() const { return movement_ != -1; }
     [[nodiscard]] bool owns(std::int64_t finger) const { return finger != -1 && (finger == movement_ || finger == attack_ || finger == skill_); }
 
+    void consume_release() { release_consumed_ = true; }
+    [[nodiscard]] bool owns_skill(std::int64_t finger) const { return finger != -1 && skill_ == finger; }
+
     /** Drop ownership for a finger that lifted (routes that skip event() must call this). */
     void release_finger(std::int64_t finger) {
         if (finger == attack_) feedback.release(kAttackBind);
@@ -364,7 +370,7 @@ public:
     void clear() {
         potion_press.clear(); belt_expanded = false; feedback.reset();
         movement_ = skill_ = attack_ = -1;
-        skill_feedback_ = -1;
+        skill_feedback_ = -1; release_consumed_ = false;
         move_x = move_y = 0;
         aiming = dragged = attack_down = attack_press = false;
         casts.clear();
@@ -407,28 +413,28 @@ public:
                     belt_last_ = index; belt_ms_ = now_ms; belt_x_ = x; belt_y_ = y;
                     return;
                 }
-            if (chrome.move.contains(x, y) && movement_ < 0) {
+            if (chrome.move.contains(x, y) && movement_ == -1) {
                 const bool second = now_ms > 0 && move_tap_ms_ > 0
                     && deliberate_double_tap(move_tap_x_, move_tap_y_, x, y, move_tap_ms_, now_ms);
                 if (second) { run_toggle = true; move_tap_ms_ = 0; }
                 movement_ = finger; move_origin_x_ = x; move_origin_y_ = y; move_down_ms_ = now_ms;
                 move_dragged_ = false;
             }
-            else if (chrome.attack.contains(x, y) && attack_ < 0) {
+            else if (chrome.attack.contains(x, y) && attack_ == -1) {
                 attack_ = finger; attack_press = attack_down = true;
                 feedback.press(kAttackBind, now_ms);
-                if (skill_ < 0 && (target.valid || target.skill >= 0)) {
+                if (skill_ == -1 && (target.valid || target.skill >= 0)) {
                     stationary = immediate;
-                    skill_ = finger; aiming = true; dragged = false;
+                    skill_ = finger; aiming = true; dragged = false; release_consumed_ = false;
                     skill_feedback_ = kAttackBind;
                     origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
                 }
             }
-            else if (skill_ < 0)
+            else if (skill_ == -1)
                 for (const auto& box : chrome.skills)
                     if (box.contains(x, y)) {
                         stationary = immediate;
-                        skill_ = finger; aiming = true; dragged = false;
+                        skill_ = finger; aiming = true; dragged = false; release_consumed_ = false;
                         skill_feedback_ = int(&box - chrome.skills.data());
                         feedback.press(std::size_t(skill_feedback_), now_ms);
                         origin_x = aim_x = x; origin_y = aim_y = y; preview = target;
@@ -462,7 +468,7 @@ public:
             if (phase == Phase::Up) {
                 const bool in_band = x >= 0 && x < 800 && y >= 0 && y < 600;
                 const bool accepted = in_band && preview.valid;
-                if (accepted) casts.push_back(preview);
+                if (accepted && !release_consumed_) casts.push_back(preview);
                 if (skill_feedback_ >= 0) {
                     feedback.release(std::size_t(skill_feedback_));
                     feedback.pulse(std::size_t(skill_feedback_), in_band ? (accepted ? FeedbackKind::Accepted : FeedbackKind::Rejected) : FeedbackKind::Cancelled, now_ms);
@@ -473,6 +479,7 @@ public:
         }
     }
 private:
+    bool release_consumed_ = false;
     int skill_feedback_ = -1;
     std::int64_t movement_ = -1, skill_ = -1, attack_ = -1;
     float move_origin_x_ = 0, move_origin_y_ = 0;

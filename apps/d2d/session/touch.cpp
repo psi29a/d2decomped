@@ -17,6 +17,7 @@
 #include "touch_belt.hpp"
 #include "touch_binding.hpp"
 #include "touch_feedback.hpp"
+#include "touch_gestures.hpp"
 #include "touch_glyph.hpp"
 #include "touch_icon.hpp"
 #include "touch_input.hpp"
@@ -31,9 +32,7 @@
 #include <dc6.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
-#include <level_ids.hpp>
 #include <log.hpp>
-#include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 
@@ -200,76 +199,6 @@ void ClientSession::save_touch_sheet(const std::string& name) const {
  * aim uses screen drag distance; self casts, eligible corpses and Teleport each apply their own
  * target policy.
  */
-touch::Target ClientSession::resolve_skill(PadPlayer& player_pad, int skill, float dx, float dy, bool manual, const UnitState* owner, std::string_view owner_name) const {
-    touch::Target target;
-    target.skill = skill;
-    if (skillpad::panel_index(skill) >= 0) { target.valid = true; return target; }
-    if (!scene || !skill_known(owner_name.empty() ? std::string_view(character.name) : owner_name, skill)) return target;
-    const auto* info = scene->skills.get(skill);
-    if (!info || info->passive) return target;
-    if (skillpad::portal_name(info->name)) {
-        target.valid = portal_tome(owner_name.empty() ? std::string_view(character.name) : owner_name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
-        return target;
-    }
-    const auto& unit = owner ? *owner : view.player;
-    target.valid = true;
-    target.x = unit.x; target.y = unit.y;
-    if (info->aura || self_cast(*info) || info->srvdofunc == d2d::rules::ServerDoFunction::kNova) return target;
-    if (info->srvdofunc == d2d::rules::ServerDoFunction::kWarCry && !manual) return target;
-    const bool teleport = info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport;
-    if (manual) {
-        // A drag is a screen direction and distance, never an enemy chase.
-        const float screen_x = std::clamp(dx * 2.f, -370.f, 370.f);
-        const float screen_y = std::clamp(dy * 2.f, -250.f, 210.f);
-        // Inverse isometric projection. Range grows with drag distance, and
-        // the preview stays in the visible viewport instead of off-screen.
-        target.x += screen_x / kIsoW + screen_y / kIsoH;
-        target.y += screen_y / kIsoH - screen_x / kIsoW;
-    } else {
-        target.x += player_pad.face_x * (teleport ? 6.f : 3.f);
-        target.y += player_pad.face_y * (teleport ? 6.f : 3.f);
-    }
-    if (info->target_corpse || info->srvdofunc == d2d::rules::ServerDoFunction::kCorpseExplosion) {
-        const float wanted_x = manual ? target.x : unit.x, wanted_y = manual ? target.y : unit.y;
-        float distance = manual ? 4.f : 12.f;
-        target.valid = false;
-        for (const auto& corpse : view.monsters)
-            if (corpse.usable_corpse()) {
-                const float apart = std::hypot(corpse.unit.x - wanted_x, corpse.unit.y - wanted_y);
-                if (apart < distance) {
-                    distance = apart; target.valid = true;
-                    target.x = corpse.unit.x; target.y = corpse.unit.y; target.unit = corpse.id;
-                }
-            }
-        return target;
-    }
-    if (teleport && level) {
-        // Preview the same room constraint and nearest free subtile the
-        // existing do-27 path uses (FUN_005ca360 / FUN_0064e7b0).
-        if (d2d::rules::level_ids::is_town(level->id) || level->teleport == 0) target.valid = false;
-        const int spot_x = int(std::floor(target.x * 5)), spot_y = int(std::floor(target.y * 5));
-        const auto rooms = missile_rooms(*scene, *level, unit.x, unit.y, &world.fight.spawning);
-        if (!std::ranges::any_of(rooms, [&](const auto& room) {
-            const int sub_x = spot_x + level->world_x * 5, sub_y = spot_y + level->world_y * 5;
-            return sub_x >= room[0] && sub_y >= room[1] && sub_x < room[0] + room[2] && sub_y < room[1] + room[3];
-        })) target.valid = false;
-        const auto spot = level->warp_spot(spot_x, spot_y);
-        if (!spot) target.valid = false;
-        else if (*spot != std::pair{ spot_x, spot_y }) {
-            target.x = (float(spot->first) + .5f) / 5; target.y = (float(spot->second) + .5f) / 5;
-        }
-        if (level->teleport == 2) {
-            const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + .5f) / 5, (float(at_y) + .5f) / 5, 0x804); };
-            if (d2d::rules::sight_blocked(int(std::floor(unit.x * 5)), int(std::floor(unit.y * 5)), 2, spot_x, spot_y, 2, wall)) target.valid = false;
-        }
-    }
-    if (!manual && !teleport) {
-        const auto picked = pad_pick(player_pad, unit, false, pad_aim(skill, player_pad.move.aim || player_pad.move.active));
-        if (picked.kind == PadPick::kMonster) { target.x = picked.x; target.y = picked.y; target.unit = picked.id; }
-    }
-    target.left = skillpad::swings({ info->leftskill, !info->srvmissile.empty(), info->range });
-    return target;
-}
 
 /**
  * Dispatch a committed skill preview after rechecking availability and player state. Panel
@@ -297,7 +226,10 @@ void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& ta
         skillbar.choose(false, { choice.next, -1 });
         if (net_game) net_game->hand(choice.next, false);
         send(cmd::SelectSkill{ choice.next, false });
-    } else send(cmd::UseSkill{ target.skill, target.x, target.y, target.unit, target.left, -1 });
+    } else {
+        const auto cast = touch_stationary(target.skill) ? touch::caster_target(target.skill, view.player.x, view.player.y) : target;
+        send(cmd::UseSkill{ cast.skill, cast.x, cast.y, cast.unit, cast.left, -1, cast.unit < 0 });
+    }
 }
 
 /**
@@ -868,55 +800,59 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         }
     }
     touch::Target target;
-    bool immediate = false;
+    bool stationary = false;
     if (phase == touch::Phase::Down) {
         const int slot = touch::bind_slot_at(chrome, x, y);
-        if (slot >= 0 && slot < touch::kSkillButtons) {
-            target = touch_previews[std::size_t(slot)];
-            const auto* info = scene ? scene->skills.get(target.skill) : nullptr;
-            immediate = info && (info->aura || self_cast(*info));
-        } else if (slot == touch::kAttackBind) {
-            target = resolve_skill(touch_player, touch_bound_skill(touch::kAttackBind));
-            const auto* info = scene ? scene->skills.get(target.skill) : nullptr;
-            immediate = info && (info->aura || self_cast(*info));
+        if (slot >= 0) {
+            target = resolve_skill(touch_player, touch_bound_skill(slot));
+            stationary = touch_stationary(target.skill);
         }
     }
     const auto aim_from_drag = [&] {
-        if (!touch_input.aiming) return;
+        if (!touch_input.owns_skill(finger)) return;
         touch_input.aim_x = x;
         touch_input.aim_y = y;
         const float dx = x - touch_input.origin_x, dy = y - touch_input.origin_y;
+        if (touch_skill_hold.finger == finger && touch::beyond_skill_aim(dx, dy)) {
+            touch_skill_hold.cancel();
+            touch_cancel_skill_chase();
+        }
+        if (touch_skill_hold.cancelled) { touch_input.preview.valid = false; return; }
         touch_input.dragged = touch_input.dragged || (!touch_input.stationary && std::hypot(dx, dy) > 10);
-        if (!touch_input.dragged) return;
-        touch_refresh_skill_aim();
+        if (touch_skill_hold.release_casts()) touch_refresh_skill_aim();
     };
-    if (phase != touch::Phase::Down) aim_from_drag();
+    if (phase == touch::Phase::Down && target.skill >= 0 && scene) {
+        const auto* info = scene->skills.get(target.skill);
+        if (info && info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport) touch_teleport.clear();
+    }
+    if (phase == touch::Phase::Move || phase == touch::Phase::Up) aim_from_drag();
+    if (phase == touch::Phase::Up && touch_input.owns_skill(finger) && scene) {
+        const auto* info = scene->skills.get(touch_input.preview.skill);
+        if (info && info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport) {
+            const float dx = touch_input.aim_x - touch_input.origin_x;
+            const float dy = touch_input.aim_y - touch_input.origin_y;
+            const auto current = resolve_skill(touch_player, touch_input.preview.skill, dx, dy, touch_input.dragged);
+            if ((touch_input.dragged || touch_teleport.shown) && !touch_teleport.matches(current))
+                touch_input.preview.valid = false;
+            else touch_input.preview = current;
+            touch_teleport.clear();
+        }
+    }
+    if (phase == touch::Phase::Cancel && touch_input.owns_skill(finger)) touch_teleport.clear();
+    auto input_phase = phase;
+    if ((phase == touch::Phase::Up || phase == touch::Phase::Cancel) && touch_skill_hold.finger == finger) {
+        if (touch_skill_hold.cancelled) input_phase = touch::Phase::Cancel;
+        else if (!touch_skill_hold.release_casts()) touch_input.consume_release();
+        touch_cancel_skill_chase();
+        touch_skill_hold.clear();
+    }
     release.armed = false;
-    touch_input.event(finger, phase, x, y, target, immediate, false, now_ms);
-    if (phase != touch::Phase::Up && phase != touch::Phase::Cancel) aim_from_drag();
+    touch_input.event(finger, input_phase, x, y, target, stationary, false, now_ms);
+    if (phase == touch::Phase::Down) touch_begin_skill_hold(finger);
     return true;
 }
 
-void ClientSession::touch_refresh_skill_aim() {
-    const float dx = touch_input.aim_x - touch_input.origin_x, dy = touch_input.aim_y - touch_input.origin_y;
-    const auto face = pad::world_step(dx, dy, kIsoW, kIsoH, 1.f);
-    touch_player.face_x = face.x;
-    touch_player.face_y = face.y;
-    touch_player.move.aim = true;
-    touch_player.move.aim_x = dx;
-    touch_player.move.aim_y = dy;
-    const int skill = touch_input.preview.skill;
-    if (!scene) {   // resolve_skill gives no target without one
-        touch_input.preview = resolve_skill(touch_player, skill, dx, dy, false);
-        return;
-    }
-    const auto* info = scene->skills.get(skill);
-    const bool directional = info && (info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport
-                                      || info->srvdofunc == d2d::rules::ServerDoFunction::kWarCry);
-    const auto picked = pad_pick(touch_player, view.player, false, pad_aim(skill, true));
-    const bool manual = touch::swipe_aims(touch_input.dragged, directional, picked.kind == PadPick::kMonster);
-    touch_input.preview = resolve_skill(touch_player, skill, dx, dy, manual);
-}
+
 
 void ClientSession::drive_touch_hold(float seconds) {
     touch_hold_fraction = 0.f;
@@ -990,11 +926,17 @@ void ClientSession::drive_touch() {
         touch_panel_state = panel_state;
     }
     if (last_device != touch::LastDevice::Touch) {
+        touch_cancel_skill_chase(); touch_stop_skill_chase(false);
+        touch_skill_hold.clear(); touch_teleport.clear();
         touch_input.clear();
         if (touch_sheet.belt_index >= 0) touch_sheet = {};
         return;
     }
     if (!pad_field() || view.dead) {
+        touch_cancel_skill_chase();
+        if (!view.dead) touch_stop_skill_chase(false);
+        else touch_stop_chase = false;
+        touch_skill_hold.clear(); touch_teleport.clear();
         const Send stop = [this](const Command& command) { send(command); };
         pad_walk(touch_player, view.player, view.dead, false, stop);
         touch_input.clear();
@@ -1011,27 +953,15 @@ void ClientSession::drive_touch() {
         touch_player.face_x = face.x; touch_player.face_y = face.y;
     }
     if (touch_input.run_toggle) send(cmd::Run{ !view.running });
-    if (touch_input.aiming && touch_input.dragged) touch_refresh_skill_aim();
+    if (touch_input.aiming && touch_skill_hold.release_casts()) touch_refresh_skill_aim();
+    if (!touch_input.owns_skill(touch_skill_hold.finger)) {
+        touch_cancel_skill_chase(); touch_skill_hold.clear();
+    }
+    touch_stop_skill_chase(touch_player.move.active);
     pad_walk(touch_player, view.player, false, true, out);
+    drive_touch_skill_hold();
     touch_attack_pick = pad_pick(touch_player, view.player, false);
     touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
-    const int attack_skill = touch_bound_skill(touch::kAttackBind);
-    if (touch_input.attack_down && scene && attack_skill == 0) {
-        const auto* attack_info = scene->skills.get(0);
-        if (attack_info && !attack_info->passive && skill_known(character.name, 0)) {
-            const bool swing = skillpad::swings({ attack_info->leftskill, !attack_info->srvmissile.empty(), attack_info->range });
-            const bool moving = touch_player.move.aim || touch_player.move.active;
-            const PadPick pick = pad_pick(touch_player, view.player, false, pad_aim(0, moving));
-            if (pick.kind == PadPick::kMonster) {
-                touch_player.target = pick.id;
-                out(cmd::UseSkill{ 0, pick.x, pick.y, pick.id, swing, -1 });
-            } else {
-                touch_player.target = -1;
-                const UnitState& unit = view.player;
-                out(cmd::UseSkill{ 0, unit.x + touch_player.face_x * 3.f, unit.y + touch_player.face_y * 3.f, -1, swing, -1 });
-            }
-        }
-    }
     if (touch_input.belt >= 0) send(cmd::UseBelt{ touch_input.belt }); // belt_quick from the adapter; field tap uses the sheet
     for (const auto& target : touch_input.casts) cast_resolved(touch_player, target);
 

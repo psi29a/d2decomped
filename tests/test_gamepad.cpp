@@ -31,6 +31,19 @@ int main() try {
         const Actions actions = mapper.step(drift, Context::Game, 0.016f);
         assert(!actions.move_active && actions.cursor_dx == 0 && actions.cursor_dy == 0);
     }
+    // Teleport preview distance needs stick magnitude separately from unit direction.
+    {
+        Mapper mapper;
+        Sample stick; stick.rx = .55f;
+        const auto half = mapper.step(stick, Context::Game, .016f);
+        stick.rx = 1.f;
+        const auto full = mapper.step(stick, Context::Game, .016f);
+        assert(half.aim_active && full.aim_active && half.aim_x == full.aim_x);
+        assert(half.aim_magnitude > 0 && half.aim_magnitude < full.aim_magnitude);
+        assert(full.aim_magnitude == 1.f);
+        const auto released = mapper.step({}, Context::Game, .016f);
+        assert(!released.aim_active && released.aim_magnitude == 0);
+    }
     // The left stick walks in the game, towards its direction, from a light push on.
     {
         Mapper mapper;

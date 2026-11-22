@@ -474,6 +474,7 @@ auto ClientSession::object_sounds(const Audio& audio, std::uint32_t frame_ms, fl
     }
 
 auto ClientSession::set_pad_config(const pad::Config& config) -> void {
+        pad.teleport.clear();
         pad_config = config;
         lead_mapper = pad::Mapper{ config };
         for (auto& coop_player : coop) coop_player.mapper = pad::Mapper{ config };

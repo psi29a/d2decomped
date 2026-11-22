@@ -118,6 +118,7 @@ auto ClientSession::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mo
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
         draw_touch(framebuffer);
+        draw_combat_previews(framebuffer);
         draw_coop_portraits(framebuffer, left_panel_open());
         return;
     }
@@ -128,6 +129,7 @@ auto ClientSession::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mo
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
+    draw_combat_previews(framebuffer);
     draw_coop_portraits(framebuffer, left_panel_open());       // on the whole frame: widescreen's spare width
 }
 

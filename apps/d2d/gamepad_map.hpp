@@ -301,6 +301,7 @@ struct Actions {
     bool  recentre_cursor = false;
     bool  skill_picker = false;                    // the field's right stick click: open the skill picker
     bool  aim_active = false;                      // the field's aiming stick turns the facing...
+    float aim_magnitude = 0;                       // deadzone-normalized aiming stick throw
     float aim_x = 0, aim_y = 0;                    // ...to this screen direction (unit length)
     bool  move_active = false;                     // the left stick walks the hero...
     float move_x = 0, move_y = 0;                  // ...towards this screen direction (unit length); walk or run is the run toggle's
@@ -505,6 +506,7 @@ public:
             const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
             out.aim_active = context == Context::Game && tilt_aim > 0;
             out.aim_x = face_x; out.aim_y = face_y;
+            out.aim_magnitude = tilt_aim;
 
             if (skills && context == Context::Game && skill_ui == SkillUi::None && hit(Action::GameMenu)) out.panel_strip = true;
             else key(Action::GameMenu, Key::Escape);
@@ -550,6 +552,7 @@ public:
             const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
             out.aim_active = std::hypot(aim_x, aim_y) > std::max(.30f, config_.deadzone);
             out.aim_x = face_x; out.aim_y = face_y;
+            out.aim_magnitude = tilt_aim;
             out.cursor_dx = 0;
             out.cursor_dy = 0;
             out.wheel_step = int(dpad_on[1]) - int(dpad_on[0]);
