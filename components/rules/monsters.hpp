@@ -35,10 +35,7 @@ namespace d2d::rules {
 using Components = std::array<std::uint8_t, 16>;
 std::vector<Components> roll_components(const Components& choices, Rng& rng);
 
-// A monster's look as it's made (FUN_00573cb0 → FUN_005739d0), the first
-// roll of its unit seed: one of its type's region sets (rand(count)); a
-// type the level's region lacks rolls every layer with a choice instead
-// (a layer of one choice still takes a roll).
+// A monster's look as it's made, the first roll of its unit seed.
 Components monster_look(const std::vector<Components>* sets, const Components& choices, Rng& unit_seed);
 
 // FUN_00573cb0, after the look: the Abyss and Oblivion Knights (MonStats
@@ -165,7 +162,7 @@ bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& out_x, i
 
 }  // namespace monster_detail
 
-// A type by rarity from the region (FUN_005bde80) on `seed`.
+// A type by rarity from the region on `seed`.
 int pick_type(const Region& reg, Rng& seed);
 
 // FUN_0054dc40: a spot in the room (the rect shrunk by one subtile at the
@@ -226,18 +223,12 @@ struct MonStats {
 // The player-count growth past Normal is in Monster::swing_stats.
 int swing_max_damage(const MonStats& stats, std::string_view swing_mode);
 
-// A classic game's swing (FUN_005a4f50 0x5a5112, game +0x70 0): past Normal
-// a monster whose MonStats Align (+0x4c) isn't 1 swings for x 10 / 12 of its
-// damage (min and max) and x 10 / 15 of its to-hit, truncated; its elements
-// as they are, and no player-count growth (that's the expansion branch).
+// A classic game's swing.
 void classic_swing(MonStats& stats, int difficulty, int row_align);
 
-// A hostile monster's swing growth past Normal, in 128ths (FUN_005a4f20 on
-// its stat 0x64, table 0x6e21f4): 8 a player past the first to 8, then n x 8 - 16.
+// A hostile monster's swing growth past Normal, in 128ths: 8 a player past the first to 8, then n x 8 - 16.
 int player_swing_128ths(int players);
-// The player-count bonus in % (FUN_005738f0 life, table 0x6e1590;
-// FUN_00573910 experience, 0x6e15b4): 50 a player past the first up to 8,
-// then (n - 2) x 50 and (5n + 130) x 2.
+// The player-count bonus in %: 50 a player past the first up to 8, then (n - 2) x 50 and (5n + 130) x 2.
 int player_life_pct(int players);
 int player_exp_pct(int players);
 
@@ -276,28 +267,18 @@ MonRanges monster_ranges(const Monsters& monsters, int type, int difficulty, int
 struct RevivedLife { int life_fine = 0, level = 0; };
 RevivedLife revive_life(const Monsters& monsters, int type, int difficulty, int level, int clvl, Rng& rng);
 
-// The level a spawned monster starts at (FUN_00573cb0 0x573e15..0x573e70):
-// its MonStats Level / Level(N) / Level(H); in an expansion game on
-// Nightmare or Hell the area's Levels.txt MonLvl2Ex / MonLvl3Ex instead
-// (FUN_0061a1b0 -> FUN_0061dca0), unless the row is noRatio (MonStats flag
-// +0xc & 4) or boss (+0xc & 0x40: masks 0x6ce270 / 0x6ce280), which keep
-// their own. `area_level` is that Levels.txt column of the area the unit is
-// made in, -1 when the area isn't known (the MonStats level, as before).
+// The level a spawned monster starts at.
 int start_level(const MonType& type_info, int difficulty_index, int area_level);
 
 MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1, int area_level = -1);
 
-// The AI's distance to a unit, subtiles (FUN_005dc530): half of the
-// smaller delta plus twice the larger.
+// The AI's distance to a unit, subtiles: half of the smaller delta plus twice the larger.
 int ai_distance(int dx, int dy);
 
-// A unique Fallen Shaman's corpse (FUN_005f1380, the callback of its room search FUN_005dd0b0): a dead monster of class 19 or 58, not
-// flagged champion (bit 4) or unique (bit 8: FUN_005a0180 mask 0xc), within its aip4 by the squared distance (the limit is aip4 squared,
-// 0x5f14c8..0x5f14d2). The corpse's own state (DD, the corpse bit, not raised) is the caller's.
+// A unique Fallen Shaman's corpse.
 bool shaman_corpse_reach(int base, bool champion, bool unique, int off_x, int off_y, int aip4);
 
-// A unit's distance to a point less `less` on each axis
-// (FUN_005dc480 / FUN_005dc380 / FUN_006417f0): (max x 2 + min) / 2.
+// A unit's distance to a point less `less` on each axis: (max x 2 + min) / 2.
 int point_apart(int dx, int dy, int less);
 
 // What Diablo's target score reads off a player (FUN_005e8530, stats by
@@ -313,40 +294,23 @@ struct DiabloPick {
     bool state_b = false;
 };
 
-// Diablo's score of a player (FUN_005e8530, C division throughout): the
-// resists ((dr + mr x 2) x 4 + fire + lightning + cold in reach) / 15; the
-// reach (FUN_00622c40) 100 else a clear line (FUN_005dd290: FUN_00622aa0
-// mask 4) 75, plus 100 when Diablo is past 0x55 from his point and the
-// player inside it (FUN_005dc480), both x 5; (the hands' level x attackrank
-// / 4, state 0xb 200, the max damages / 2) x 2; 300 under 20 % life; all
-// / 22, at least 1.
+// Diablo's score of a player.
 int diablo_score(const DiabloPick& pick, int life_pct, bool reach, bool line_clear, bool point_bonus, bool cold_in_reach = true);
 
 inline constexpr std::array<std::array<int, 8>, 8> kNear{ {
     { -1, -1, -1, 0, 2, 4, 6, 8 }, { -1, -1, 0, 1, 2, 4, 6, 8 }, { -1, 0, 0, 2, 3, 5, 7, 8 }, { 0, 1, 2, 2, 4, 5, 7, 8 },
     { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
-// Distance between two units of sizes `size_a` / `size_b` (MonStats2
-// SizeX; a player's 2), subtiles apart (FUN_00641530): close up, the
-// 8x8 table at 0x6eb180 (one less when either is size 3), else the deltas
-// less their half sizes, the smaller plus twice the larger.
+// Distance between two units of sizes `size_a` / `size_b` (MonStats2 SizeX.
 int unit_distance(int dx, int dy, int size_a, int size_b);
 
-// The plain distance (FUN_006416d0, the client's object call): the deltas in
-// subtiles less both half sizes (FUN_00620510: a player 2, an object its
-// objects.txt SizeX), then the smaller plus twice the larger, halved.
+// The plain distance.
 int unit_range(int dx, int dy, int size_a, int size_b);
 
-// A monster's door (FUN_005b0f50 → FUN_005dd0b0 mode 8, FUN_005dcd50):
-// of the closed IsDoor objects about, `spots` their offsets from it in
-// subtiles, the nearest by squared distance (FUN_005b0bd0) under 9, the
-// first on a tie. Its index, or -1.
+// A monster's door.
 int door_pick(std::span<const std::pair<int, int>> spots);
 
-// Can a unit of `size` (MonStats2 SizeX) operate an object of SizeX /
-// SizeY `size_x` / `size_y`, `dx`, `dy` subtiles from it (FUN_00623660)?
-// Touching (unit_distance 0 with the object's SizeX), else within 2 of the
-// object's rect (its spot less half its size), the corners 1 in for a unit
-// under size 3; a sizeless object within 1 of its spot.
+// Can a unit of `size` (MonStats2 SizeX) operate an object of SizeX / SizeY `size_x` / `size_y`, `dx`, `dy`
+// subtiles from it?
 bool object_reach(int dx, int dy, int size, int size_x, int size_y);
 
 // Is the line between two units cut (FUN_00622aa0 -> FUN_00622920 ->
@@ -792,14 +756,7 @@ std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, i
     return toward;
 }
 
-// A chase's check each frame of its move (FUN_00650840 -> FUN_006503f0, a
-// path of type 2 / 0xd / 0xf): 0 stop when its target is within `stop`
-// (+0x93: FUN_00649070, 0 for a walk or run) by unit_distance; 2 re-path
-// when the target, a player or monster (`mover`), is over 5 subtiles on
-// either axis from where it stood when pathed (`moved`: SP2 +0x14 less its
-// spot now), or when the path has run out (`idx` +0x24 at `count` +0x28)
-// short of its end (SP3 +0x18); else 1. With no target only the last test
-// counts.
+// A chase's check each frame of its move.
 int chase_check(bool target, int distance, int stop, bool mover, int moved_x, int moved_y, int idx, int count, bool at_end, int& budget);
 
 // A hostile monster's target search over the player lists (FUN_005dd7f0,
@@ -823,10 +780,7 @@ struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = fals
 struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff, nine = -1, nine_best = 0x7fffffff; };
 SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight);
 
-// A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think
-// (FUN_005fb5b0 / FUN_005fb900 / FUN_005fb9b0): FUN_005dd7f0 first picks
-// the nearest player-list unit under the AI's default distance 35, then the
-// think acts only when that picked unit is within aip1.
+// A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think.
 int trap_target(std::span<const SearchFoe> foes, int reach);
 
 // FUN_00650d70: friends by alignment (stat 0xac: 0 evil, 1 neutral, 2 good).
@@ -917,10 +871,7 @@ int sight_choice(std::span<const SightFoe> foes, const SightPick& pick, PathTo&&
     return pick.first;
 }
 
-// A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0
-// -> FUN_0064fc60): the smaller delta over the larger in 128ths picks an
-// eighth of a quadrant (the table at 0x6eb7e0), folded into its octant.
-// 0 faces +x+y (screen south), counting clockwise on screen.
+// A unit's direction 0..63 from (x, y) to (tx, ty), subtiles.
 int direction64(int x, int y, int target_x, int target_y);
 
 // Andariel's think (MonAI 34 "Andariel", FUN_005f5830; the driver
@@ -939,10 +890,7 @@ inline constexpr std::array<int, 8> kRing{ 29, 28, 27, 26, 25, 24, 31, 30 };
 inline constexpr std::array<std::array<int, 9>, 8> kSweep{ {
     { 27, 14, 15, 3, 99, 7, 21, 22, 31 }, { 26, 12, 13, 2, 99, 6, 19, 20, 30 }, { 25, 10, 11, 1, 99, 5, 17, 18, 29 }, { 24, 8, 9, 0, 99, 4, 15, 16, 28 },
     { 31, 22, 23, 7, 99, 3, 13, 14, 27 }, { 30, 20, 7, 6, 99, 2, 1, 12, 26 }, { 29, 18, 19, 5, 99, 1, 9, 10, 25 }, { 28, 16, 17, 4, 99, 0, 23, 8, 24 } } };
-// Where Andariel's spray missile on SC frame `frame` is aimed, subtiles
-// from her, facing `dir64` (FUN_005cb580): the radius-3 ring point that
-// way (0x6e3188 into the DIR32 ring table FUN_0063e7e0), then frames 4..12
-// sweep across it (0x6e3140, 99 = no offset; frame 8 aims at the ring point).
+// Where Andariel's spray missile on SC frame `frame` is aimed, subtiles from her, facing `dir64`.
 std::pair<int, int> andariel_spray_aim(int dir64, int frame);
 
 // The per-type MonAI thinks (the MonAI table 0x73ca18 + AI * 16: {target
@@ -1162,8 +1110,7 @@ struct ThinkIn {
     std::array<bool, 8> ray_clear{};
 };
 
-// A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
-// MonsterSkillBonus (+0x10 via FUN_00573930).
+// A monster's skill level: Sk*lvl + DifficultyLevels MonsterSkillBonus.
 int monster_skill_level(int sk_lvl, int difficulty);
 
 // FUN_005de200(radius): one side radius off, the other rand(radius), on the seed's low
@@ -1173,12 +1120,7 @@ inline Think think_circle(Rng& rng, int count) { return { MonAct::circle, count,
 // FUN_005dec80 flags 2 when the walk can't set off.
 inline Think walk_failed(Rng& rng) { return rng(100) < 70 ? think_wander(rng, 4) : Think{ MonAct::idle, 10 }; }
 
-// The Gargoyle Trap's shot (srvdofunc 93, FUN_005cc050), in subtiles from
-// the trap at (x, y): the point square on at its target (on the axis it's
-// nearer the target, its own spot moved up to 4 toward the target's; on
-// the other, the target's), then the missile (FUN_0059fa30 flags 3) from
-// a sixth of the way there less a subtile on both axes, flying along that
-// same offset. {from_x, from_y, offset_x, offset_y}.
+// The Gargoyle Trap's shot, in subtiles from the trap at (x, y).
 std::array<int, 4> gargoyle_shot(int x, int y, int target_x, int target_y);
 
 // The desert turret's casting steps (0x6e33a0: subtiles, x aip5) and its
@@ -1187,11 +1129,8 @@ inline constexpr std::array<std::array<int, 2>, 8> kTurretStep{ { { 1, 1 }, { 0,
 inline constexpr std::array<std::array<int, 8>, 8> kTurretTurn{ { { 0, 0, 1, 2, 5, 6, 7, 0 }, { 1, 1, 1, 2, 3, 6, 7, 0 }, { 1, 2, 2, 2, 3, 4, 7, 0 }, { 1, 2, 3, 3, 3, 4, 5, 6 },
                                                                   { 1, 2, 3, 4, 4, 4, 5, 6 }, { 7, 2, 3, 4, 5, 5, 5, 6 }, { 7, 0, 3, 4, 5, 6, 6, 6 }, { 7, 0, 1, 4, 5, 6, 7, 7 } } };
 
-// The desert turret's fan (srvdofunc 105, FUN_005cd6a0): `count`
-// missiles from (x, y) at the point (to_x, to_y), side by side 2
-// subtiles apart across the way (by the offset's signs), centred on it.
-// None when the point is its spot. {from x, from y, offset x, offset y}
-// each.
+// The desert turret's fan: `count` missiles from (x, y) at the point (to_x, to_y), side by side 2 subtiles apart
+// across the way (by the offset's signs), centred on it.
 std::vector<std::array<int, 4>> turret_fan(int x, int y, int to_x, int to_y, int count);
 
 // A search that found no one. FUN_005de890 (search type 1): with a WL
@@ -1226,44 +1165,32 @@ Think countess_think(const ThinkIn& input, const CountessIn& where, std::span<co
 // `other`: on its row's other think.
 bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other);
 
-// The riding imp's init (special 16's, FUN_005e2cd0): one draw on its seed;
-// slot 4 (Skill5, Inferno) on an even draw, else slot 2 (Skill3, Fireball)
-// (0x6e34e0 {2, 4}), the other when it lacks that one, 0 when it has neither.
+// The riding imp's init.
 int imp_ride_pick(Rng& rng, bool has_fireball, bool has_inferno);
 
-// Leader death and minion pack promotion (FUN_0058f530 / FUN_0058f6c0):
-// When a pack's leader dies, the first living minion in the group is elected
-// as the new leader, updating siblings. Returns the elected leader ID or -1 if empty.
+// Leader death and minion pack promotion: When a pack's leader dies, the first living minion in the group is
+// elected as the new leader, updating siblings.
 int ai_minion_elect_leader(std::span<const int> live_minions);
 
 // Ancient AI scratch flag update (FUN_005ef1f0): sets or clears bitmask in +0x18.
 void ancient_flag_apply(std::uint32_t& flags, std::uint32_t mask, bool turn_on);
 
-// Generic spawner initialization (FUN_005e6190): nests/sarcophagus init;
-// sets spawn_class to -1 (none until assigned).
+// Generic spawner initialization: nests/sarcophagus init; sets spawn_class to -1 (none until assigned).
 int generic_spawner_init();
 
-// HighPriest other think (FUN_005e0400): before cooldown frame (+0x14 < frame)
-// yields/waits (event 0); once reached, stands 15 frames.
+// HighPriest other think: before cooldown frame yields/waits (event 0); once reached, stands 15 frames.
 Think high_priest_other_think(int cooldown_frame, int current_frame);
 
-// Act 5 minion melee think (FUN_005e2610): out of melee, walk at target (89%);
-// in melee, A2 attack at target (95%); else stand 10 frames.
+// Act 5 minion melee think: out of melee, walk at target (89%); in melee, A2 attack at target (95%); else stand
+// 10 frames.
 Think minion_melee_think(bool in_melee, Rng& rng);
 
-// MonAI rows with an other think (the fourth word, table 0x73ca18 + ai x
-// 16): 15 SandMaggot, 29 BatDemon, 51 Diablo, 52 FrogDemon, 65 FetishShaman;
-// Diablo's FUN_005e8480 also 147 UberDiablo's, the same code FUN_005fcf30
-// 135 BaalCrab's, 140 BaalCrabClone's and 145 UberBaal's, and FUN_005e5280
-// (that less the kept point's restore, which no toggle of d2d's drops) 61
-// Hireable's, 128 Nihlathak's and 152's. A boss reaches one when Cloak of
-// Shadows' callback toggles it (monster-ai.md "Curse thinks").
+// MonAI rows with an other think.
 bool is_diablo_other(std::string_view ai_name);
 inline bool has_other_think(std::string_view ai_name) { return ai_name == "SandMaggot" || ai_name == "BatDemon" || ai_name == "FetishShaman" || ai_name == "FrogDemon" || is_diablo_other(ai_name); }
 
-// Dim Vision's and Cloak of Shadows' think (special AI 10, FUN_005e8020;
-// search type 1): in melee with a swing it swings (A1, mode 4); else 20 %
-// it wanders 3, else stands 10.
+// Dim Vision's and Cloak of Shadows' think: in melee with a swing it swings (A1, mode 4); else 20 % it wanders
+// 3, else stands 10.
 Think dim_vision_think(const ThinkIn& input, Rng& rng);
 
 // Terror's think (special AI 11, FUN_005e8140; Howl's too, FUN_005ddd00).
