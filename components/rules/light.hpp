@@ -72,15 +72,7 @@ struct Day {
         if (eclipse) dim();
         environment = act == 3 ? light_toward(environment, act4_light(level_id)) : intensity();
     }
-    // S->C 0x53 (FUN_0061c240): the phase, the time (past a day: 0) and the
-    // eclipse; going dark starts from the sun's light and dims a step.
-    void set(int new_phase, int new_time, bool dark) {
-        phase = std::clamp(new_phase, 0, 5);
-        time = new_time > 360 * kDayScale ? 0 : std::max(new_time, 0);
-        dimmed = sun();
-        eclipse = dark;
-        if (eclipse) dim();
-    }
+    void set(int new_phase, int new_time, bool dark);
     [[nodiscard]] int intensity() const { return eclipse ? dimmed : sun(); }
     // FUN_0061bb80: sin(angle) · 128 + 128, the sine halved past 180°;
     // 0..255. Sunrise 128, noon 255, midnight 64.
@@ -136,28 +128,11 @@ struct LightQuality {
     std::uint32_t since_ms = 0;            // 0x7a04b8
     bool counting = false;
     // A frame drawn at `now_ms`: the quality to light it with.
-    int frame(int option, std::uint32_t now_ms) {
-        if (!counting) { counting = true; since_ms = now_ms; }
-        if (now_ms - since_ms > 3000) { fps = frames / 3; since_ms = now_ms; frames = 0; }
-        ++frames;
-        int wanted = option > 0 ? 2 : 0;
-        if (option > 0) {
-            if (fps <= 9) wanted = 0;
-            else if (fps <= 12) wanted = 1;
-            else if (fps <= 15) { if (level >= 1) return level; wanted = 1; }
-        }
-        if (wanted != level) {
-            if (changed && now_ms - changed_ms <= 2000) return level;
-            changed = true; changed_ms = now_ms; level = wanted;
-        }
-        return wanted;
-    }
+    int frame(int option, std::uint32_t now_ms);
 };
 
-// A light's radius in eighths at quality 0 (FUN_004748d0's head): another
-// player's (type 0, not the player's own unit) over 15 is 16, a type 1 one
-// (monsters', missiles') 8, a type 3 one 0 (not stamped). Other qualities
-// and types keep it.
+// A light's radius in eighths at quality 0: another player's (type 0, not the player's own unit) over 15 is 16,
+// a type 1 one (monsters', missiles') 8, a type 3 one 0 (not stamped).
 [[nodiscard]] int light_radius8(int quality, int type, bool own, int radius8);
 
 // One near room, in act tiles, and the light its subtiles take.
@@ -187,32 +162,9 @@ struct LightGrid {
         values.assign(std::size_t(grid_size * grid_size), std::uint8_t(std::clamp(ambient, 0, 255)));
         blocked.assign(std::size_t(grid_size * grid_size), 0);
     }
-    // Cells under each room take that room's light (FUN_00474610, then each
-    // other room of FUN_00619730). A tile is 5 subtiles. The grid starts as
-    // the player's room, so same-level rooms are not passed in.
-    void paint_border_rooms(int world_x, int world_y, std::span<const BorderRoom> rooms) {
-        auto act_tile = [](int subtile) {
-            const int tile = subtile / 5;
-            const int remainder = subtile % 5;
-            return remainder != 0 && subtile < 0 ? tile - 1 : tile;
-        };
-        for (const BorderRoom& room : rooms) {
-            if (room.width <= 0 || room.height <= 0) continue;
-            const auto room_light = std::uint8_t(std::clamp(room.light, 0, 255));
-            for (int row = 0; row < grid_size; ++row) {
-                for (int column = 0; column < grid_size; ++column) {
-                    const int tile_x = world_x + act_tile(origin_x + column);
-                    const int tile_y = world_y + act_tile(origin_y + row);
-                    if (tile_x < room.x || tile_y < room.y || tile_x >= room.x + room.width || tile_y >= room.y + room.height) continue;
-                    values[std::size_t(row * grid_size + column)] = room_light;
-                }
-            }
-        }
-    }
-    // FUN_00475aa0: the entry for subtile (sx, sy), clamped to the edge.
-    [[nodiscard]] int at(int subtile_x, int subtile_y) const {
-        return values[std::size_t(std::clamp(subtile_y - origin_y, 0, grid_size - 1) * grid_size + std::clamp(subtile_x - origin_x, 0, grid_size - 1))];
-    }
+    // Cells under each room take that room's light.
+    void paint_border_rooms(int world_x, int world_y, std::span<const BorderRoom> rooms);
+    [[nodiscard]] int at(int subtile_x, int subtile_y) const;
     // FUN_004747c0: a light's share into the entry at (x, y), capped at 255.
     void add(int x, int y, int amount) {
         const int grid_x = (x >> 3) - origin_x, grid_y = (y >> 3) - origin_y;
@@ -220,26 +172,10 @@ struct LightGrid {
         auto& entry = values[std::size_t(grid_y * grid_size + grid_x)];
         entry = std::uint8_t(std::min(255, entry + amount));
     }
-    // A light at (x, y), radius r, intensity i (FUN_004748d0): each entry
-    // of its square takes (r − d) · i / r, d the distance (FUN_004740d0:
-    // 0.96 · the longer side + 0.4 · the shorter, in 1/1024ths).
-    void stamp(int x, int y, int radius, int intensity) {
-        if (radius < 1 || radius > 255) return;
-        const int step = (intensity << 16) / radius, side = radius * 2 >> 3;   // the light's square
-        const int start_x = (x - (x & 7)) - radius, start_y = (y - (y & 7)) - radius;
-        for (int row = 0; row <= side; ++row)
-            for (int col = 0; col <= side; ++col) {
-                const int cell_x = start_x + col * 8, cell_y = start_y + row * 8;
-                const int dx = std::abs(x - cell_x), dy = std::abs(y - cell_y);
-                const int distance = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
-                if (const int strength = (radius - distance) * step >> 16; strength > 0) add(cell_x, cell_y, strength);
-            }
-    }
-    // A light that walls shadow (types 0: the player, objects; FUN_00474d70
-    // at light quality 2): shade_square round it, then stamp_shaded.
-    void stamp_shadowed(int x, int y, int radius, int intensity) {
-        stamp_shaded(x, y, radius, intensity, shade_square(x, y, radius, [&](int subtile_x, int subtile_y) { return is_blocked(subtile_x, subtile_y); }));
-    }
+    // A light at (x, y), radius r, intensity i: each entry of its square takes (r − d) · i / r, d the distance.
+    void stamp(int x, int y, int radius, int intensity);
+    // A light that walls shadow: shade_square round it, then stamp_shaded.
+    void stamp_shadowed(int x, int y, int radius, int intensity);
     // The shade over a light's square, side ((radius * 2) >> 3) + 1 a side,
     // row by row (FUN_00474d70; FUN_004750f0 keeps it for a static light).
     // Round the light's subtile, 64 x 64: each blocked subtile 16
