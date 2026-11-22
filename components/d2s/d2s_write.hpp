@@ -168,7 +168,8 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
 }  // namespace detail
 
 // The checksum at +0x0C: over the whole file with that field zeroed, each
-// byte added to the sum rotated left by one bit.
+// byte added to the sum rotated left by one bit (FUN_00411130, whose callers
+// zero the field first; verified by tools/emu/bit_buffer.py).
 inline std::uint32_t save_checksum(std::span<const std::byte> bytes) {
     std::uint32_t sum = 0;
     for (std::size_t i = 0; i < bytes.size(); ++i) {
