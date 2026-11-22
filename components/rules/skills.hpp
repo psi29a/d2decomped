@@ -102,6 +102,7 @@ enum class ServerStartFunction : int {
     kRabies = 57,
     kFireClaws = 58,               // FUN_005c7e00
     kImpInferno = 59,              // FUN_005d1280: the flames' end calc1 frames on (at least 1), state 0xc on
+    kCorpseCycler = 63,            // FUN_005d2a10: CorpseCycler / VineCycler, a corpse's recycler delay missile
 };
 
 // Skills.txt srvdofunc (and srvprgfunc1..3, which index the same table):

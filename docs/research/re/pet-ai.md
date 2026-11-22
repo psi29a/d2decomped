@@ -207,6 +207,15 @@ path test (`rules::path_found`) as the merc does.
   life (stat 6 < `FUN_00625d10`) or mana (stat 8 < `FUN_00625d60`) short,
   Skill1 in mode 8 every aip1 frames. Else hit by the target, rand(100)
   under 25 aip4 away from it; no corpse stand aip3; else a walk at it.
+  The cast (start 63, FUN_005d2a10, its MonStats skill CorpseCycler /
+  VineCycler) takes the corpse its path is at without state 0x76, puts the
+  state on and makes the skill's srvmissilea from the owner at it (recycler
+  delay / vine recycler delay). That missile's do (29, FUN_005afd70: life;
+  33, FUN_005afec0: mana) on its Param1th frame (45): the owner alive and
+  under its max in whole points takes MulDiv(max, calc1, 100) (dm12: 3..12 %,
+  1..8 %) at the missile's level, up to the max (0x5afe5f), then the row's
+  overlay (+0x36). d2d: `Fight::pet_cast`, `Fight::missile_tick`,
+  `test_recycler_heal`.
 - **AssassinSentry** (`0x5ea3d0`, init `0x5ea290`: +0x14 the frame,
   +0x18 -1, run as the pet is made: `FUN_0056d940` -> `FUN_005b0e00`) and the trap
   shots `FUN_005ea2b0`: no owner, the owner in town, or +0x18 shots spent
