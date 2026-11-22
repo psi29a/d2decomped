@@ -4,6 +4,7 @@
 
 #include <ai.hpp>
 #include <gamedata.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cstdint>
