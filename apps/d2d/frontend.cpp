@@ -213,10 +213,6 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
             blit_sprite(framebuffer, box.frame(0, 1), pal, x + 256, y);
         }
         if (save_index >= int(scene.saves.size())) continue;
-        // Text, per FUN_004380f0: lines go into the slot's text box (record
-        // 0x84+i: 200x92, left margin 76, top margin 3), right of the
-        // portrait. [title] name in red (hardcore) or gold, "Level N Class"
-        // in white, then "EXPANSION CHARACTER" in green for LoD chars.
         const auto& header = scene.saves[std::size_t(save_index)];
         // Portrait: the character's own composite (FUN_00438ad0 builds it
         // from the save's appearance bytes; FUN_004380f0 parks it at slot
@@ -233,19 +229,30 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
             draw_composite(framebuffer, scene.composite(header.cls, is_ghost ? kModeNU : kModeTN, header.look()),
                            pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
         }
-        const std::string line1 = char_title(header) + header.name;
-        const std::string line2 = level_class_line(scene, header);
-        const int text_x = x + 76, line_height = scene.font.line_height();
-        int text_y = y + 3;
+        // One row each (FUN_004fcff0 / FUN_004fc9b0 append): the title alone
+        // (0x4382b2; FUN_00505640 gives "" untitled, so the row is there,
+        // empty), the name (0x438352), both colour 1 hardcore / 4; the level
+        // line, colour 0; 0x58cb, colour 2.
         const auto& name_rgb = header.hardcore() ? kTextRed : kTextGold;
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, text_x, text_y, line1.c_str(),
-                           name_rgb[0], name_rgb[1], name_rgb[2]);
-        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, text_x, text_y += line_height, line2.c_str());
+        std::vector<std::pair<std::string, const std::uint8_t*>> lines;
+        lines.emplace_back(char_title(header), name_rgb);
+        lines.emplace_back(header.name, name_rgb);
+        lines.emplace_back(level_class_line(scene, header), nullptr);
         if (header.expansion()) {
             std::string exp = "EXPANSION CHARACTER";
-            if (auto found = lookup_string(scene, std::uint16_t(22731))) exp = u16_to_latin1(*found);
-            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, text_x, text_y += line_height, exp.c_str(),
-                               kTextGreen[0], kTextGreen[1], kTextGreen[2]);
+            if (auto found = lookup_string(scene, std::uint16_t(0x58cb))) exp = u16_to_latin1(*found);
+            lines.emplace_back(std::move(exp), kTextGreen);
+        }
+        std::vector<std::string_view> texts;
+        for (const auto& line : lines) texts.emplace_back(line.first);
+        // Record 0x84+i: (x, bottom y + 92), 200x92, Font16, margins 76 / 3,
+        // flags 0x20 (left-aligned, no wrap).
+        const auto rows = d2d::font::text_box_rows(texts, x, y + kSlotH - 1, 200, 92, scene.font.line_height(),
+            [&](std::string_view text) { return scene.font.measure(text); }, 76, 3, 4, d2d::font::kTextBoxNoWrap);
+        for (std::size_t row = 0; row < rows.size(); ++row) {
+            const std::uint8_t* rgb = lines[row].second;
+            scene.font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, rows[row].x, rows[row].baseline,
+                                            rows[row].text, rgb ? rgb[0] : 255, rgb ? rgb[1] : 255, rgb ? rgb[2] : 255);
         }
     }
 
