@@ -145,6 +145,15 @@ void hand_checks() {
     out[2] = 0x77;
     writer.write(1, 0);                                             // 0 bits: zeroes where the pointer was left
     assert(out[2] == 0);
+
+    // game.exe's 32-bit end test wraps on a count near INT32_MAX with bits
+    // used, and it then writes past the buffer; d2d takes it as an overflow.
+    std::vector<std::uint8_t> one = { 0 };
+    BitWriter small(one);
+    small.write(1, 1);
+    small.write(0, INT32_MAX);
+    assert(small.cursor().overflow && small.cursor().byte == 1 && small.cursor().bit == 0);
+    assert(small.pointer() == 0 && one[0] == 1);
 }
 
 }  // namespace
