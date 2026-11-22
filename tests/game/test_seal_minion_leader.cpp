@@ -14,7 +14,6 @@
 #include <world.hpp>
 
 #include <cassert>
-#include <cstdint>
 #include <cstdio>
 #include <exception>
 
