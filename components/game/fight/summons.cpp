@@ -263,6 +263,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.seed = body.seed;
             monster.sighted = body.sighted;                       // the corpse's own AI control: its flag 8 stays (the unit is raised, not made)
         } else {
+            // A made one's unit seed (+0x20): {a game seed step, 666} (FUN_00555230 -> FUN_00552df0 ->
+            // FUN_00650e40), as every unit but a player's gets as it's made (drops.md "the unit seed").
+            monster.seed = d2d::rules::Rng{ spawning.game.next() };
             monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);
         }
         // Its life and damage straight from MonStats' columns (a Raise
@@ -342,23 +345,25 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // the Valkyrie's MonEquip gear, the rows from her level down, made at
         // calc2 or min(max(3 x level, 1), the owner's level). Its stats join
         // hers; a two-handed weapon's damage replaces her A1 (FUN_0057b420).
-        // ponytail: her unit seed (the walk) and the game seed (the items)
-        // are the fight's rng; a Shadow's gear (the owner's items) isn't made,
-        // it fights with the owner's (pet.mirror). Its stats go in before the
-        // life below, so a gear maxhp would get calc1 % (game.exe makes it after).
+        // The walk is on her unit seed, each item made as a drop (two game seed
+        // steps), as a spawn's gear (objgroups.cpp, FUN_00573cb0's end).
+        // ponytail: her seed's earlier draws (FUN_00573cb0's stat rolls, on the
+        // fight's rng here: approximation 18) aren't taken before the walk; a
+        // Shadow's gear (the owner's items) isn't made, it fights with the
+        // owner's (pet.mirror). Its stats go in before the life below, so a
+        // gear maxhp would get calc1 % (game.exe makes it after).
         if (const int first = std::size_t(type) < game_data->mon_equip_first.size() ? game_data->mon_equip_first[std::size_t(type)] : -1;
             first >= 0 && skill.srvdofunc != ServerDoFunction::kMirrorImage) {
             std::uint32_t worn = 0;
             for (const auto& item : actor->character.items)
                 if (item.location == d2d::d2s::item_location::kEquipped && item.slot > 0 && item.slot < 11) worn |= 1u << item.slot;
-            d2d::rules::Rng own{ rng.next() };
             const int ilvl = d2d::rules::summon_gear_level(calc(skill, skill.calc[1], lvl), lvl, clvl);
             std::vector<d2d::d2s::Item> items;
-            for (const auto& gear : d2d::rules::monster_gear(game_data->mon_equip, first, type, lvl, false, 0, worn, own)) {
+            for (const auto& gear : d2d::rules::monster_gear(game_data->mon_equip, first, type, lvl, false, 0, worn, monster.seed)) {
                 const auto& code = game_data->mon_equip[gear.row].item[gear.slot];
                 const std::string base = code.substr(0, code.find_last_not_of(' ') + 1);
                 if (gear.owners || !game_data->rules.item_info.contains(base)) continue;
-                d2d::rules::Rng unit_seed{ rng.next() }, item_seed{ rng.next() };
+                d2d::rules::Rng unit_seed{ spawning.game.next() }, item_seed{ spawning.game.next() };
                 auto item = d2d::rules::generate_item(game_data->rules, base, ilvl, gear.quality, item_seed, &unit_seed, nullptr, false, monster.difficulty);
                 item.location = d2d::d2s::item_location::kEquipped;
                 item.slot = gear.loc;
