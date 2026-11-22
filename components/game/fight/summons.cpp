@@ -233,6 +233,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.stats = body.stats;
             monster.props = body.props;
             monster.seed = body.seed;
+            monster.sighted = body.sighted;                       // the corpse's own AI control: its flag 8 stays (the unit is raised, not made)
         } else {
             monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);
         }

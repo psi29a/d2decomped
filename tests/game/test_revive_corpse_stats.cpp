@@ -67,6 +67,7 @@ int main() try {
     corpse.stats.to_hit = 222;
     corpse.props.thorns = 5;
     corpse.seed = d2d::rules::Rng{ 0xabcd };
+    corpse.sighted = true;                                              // it had found a target before it died
     fight.monsters = { std::move(corpse) };
     fight.summon_one(revive, 0, 1, fight.calc_env(), 12, 12, 1000, 0);
     assert(hero.pets.size() == 1);
@@ -79,7 +80,8 @@ int main() try {
     const int life = range.min_hp + expect(range.max_hp - range.min_hp + 1);
     assert(pet.seed.low == expect.low && pet.seed.high == expect.high);
     assert(pet.max_life_fine() == d2d::rules::summon_life(life << 8, 0));
-    std::puts("OK: a revived corpse keeps its stats and seed (FUN_005c56c0)");
+    assert(pet.sighted);                                                // its AI control's flag 8 stays with the unit
+    std::puts("OK: a revived corpse keeps its stats, seed and sighted flag (FUN_005c56c0)");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
