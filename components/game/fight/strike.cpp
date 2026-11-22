@@ -16,6 +16,7 @@
 #include <d2s_items.hpp>
 #include <leap.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shrines.hpp>
@@ -162,6 +163,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                             int(actor->character.panel.defense), res, boots).ar_base;
             kick->ar_base = fighter.ar_base; kick->ar_pct = fighter.ar_pct; kick->attack_rating = fighter.attack_rating;
             kick->kick_pct = fighter.kick_pct;
+            kick->item_slow = fighter.item_slow;   // its gear's item_slow events read the unit's whole stat, the weapon's in
         }
         return fighter;
     }
@@ -741,6 +743,15 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
             if (!special || rng(100) >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
+        }
+        // Its striker's gear item_slow (ItemStatCost item_slow's events, func 19, FUN_005c0310; FUN_0057c6c0 raises
+        // domeleedamage / domissiledamage on the striker as the hit lands, event 5 / 6): state 0x18 on the target,
+        // held to 50 on a champion, unique, superunique or MonStats boss, 90 on another (rules::item_slow).
+        // ponytail: a fan's side missile (flag 0x10000, rules::missile_fan) skips event 6 in game.exe; not here.
+        if (const auto* slow_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr; blow.slow != 0 && slow_type) {
+            const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
+            if (const int slow = d2d::rules::item_slow(blow.slow, 1, special, slow_type->boss_column, false, target.boss == d2d::rules::Boss::superunique))
+                put_slow(*game_data, target, slow, now_ms);
         }
         if (blow.bleed) {
             target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
