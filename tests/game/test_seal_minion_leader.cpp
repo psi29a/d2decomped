@@ -9,7 +9,6 @@
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
-#include <rules.hpp>
 #include <test_data.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
