@@ -465,6 +465,7 @@ int chill_length(const Fighter& defender, int len);
 // `raw`: the physical before the reduction, in 256ths (what absorbs take from first, StruckBlow::raw).
 // `element_raw` / `element_dealt`: per element type (0 fire, 1 lightning, 2 cold, 4 magic) the rolls summed and what they dealt, whole points.
 struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0, frac = 0, raw = -1;
+             int physical_fine = 0;   // the physical after the reduction, 256ths (signed): the record's +8 when no absorb took from it (Frozen Armor's gate, FUN_005cac50 0x5cac80)
              std::array<int, 5> element_raw{}, element_dealt{}, element_fine{}, element_took{};   // element_took: what the gear's absorb took off each field (256ths, signed)
              std::optional<int> sum; };   // element_fine: each field after the reduction in 256ths, under 0 kept; sum: the record total before the clamp; `damage` / `frac` are it clamped   // by element type: the rolls before the resistance and what they dealt after it (whole points)
 enum class Motion : std::uint8_t { standing, walking, running };

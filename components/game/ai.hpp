@@ -619,8 +619,10 @@ struct Foe {
     std::optional<std::pair<float, float>> knocked_from;   // knocked back this frame by a unit there (result flag 8: Smite)
     bool blocked = false;                     // blocked a hit this frame
     // Who struck at it in melee this frame (Shiver Armor), of those whose blow landed (damagedinmelee,
-    // FUN_0057c6c0 0x57c7a5: result flag 1 (& 1); Clay Golem's slow) and whose did damage (Frozen Armor: the
-    // event's +8 over 0), by Monster::id: monsters born this frame may move the vector.
+    // FUN_0057c6c0 0x57c7a5: result flag 1 (& 1); Clay Golem's slow) and whose landed with physical damage
+    // (Frozen Armor: the record's +8 over 0 in 256ths, Taken::physical_fine; elements alone don't count;
+    // ponytail: an absorb (Energy Shield, event 0xb before the reduction, 0x57c2fc) lowers +8 in game.exe first),
+    // by Monster::id: monsters born this frame may move the vector.
     std::vector<int> melee_by, landed_by, damaged_by;
     std::vector<int> fired_by;                // the owners of the ReturnFire missiles that reached it this frame (Chilling Armor)
     std::vector<int> shot_by;                 // the owners of the monster missiles that hit it this frame (their MonProp events)

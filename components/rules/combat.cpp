@@ -893,6 +893,7 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
     // (+0x4c), which is clamped once (0057c852). A type's rows are one field of the record.
     const int physical_fine = reduce_fine_signed(taken.raw, defender.dr_pct, defender.dr_flat);
     taken.physical = std::max(physical_fine, 0) >> 8;
+    taken.physical_fine = physical_fine;
     std::int64_t total = physical_fine;
     for (const auto& element : attacker.elements) {
         if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
