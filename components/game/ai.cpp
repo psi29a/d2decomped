@@ -317,6 +317,11 @@ bool own_rate_mode(const GameData& game_data, const Monster& monster, std::strin
         || (skill_mode && monster.type >= 0 && monster.type < 0x19a && !npc_row(game_data, monster));
 }
 
+int chill_pct(const GameData& game_data, const Monster& monster) {
+    if (monster.type < 0 || std::size_t(monster.type) >= game_data.monsters.types.size()) return 0;
+    return game_data.monsters.types[std::size_t(monster.type)].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].cold_effect;
+}
+
 int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode) {
     if (mode != "GH" && own_rate_mode(game_data, monster, mode)) {
         const int speed = anim_speed(game_data, monster, mode), rate = std::max(mode_rate(game_data, monster, mode), 1);
@@ -1694,7 +1699,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     // Its walk % this frame (the chill, its think's pace, Spider Lay's -100 % and the rest; FUN_00623f50 0x62414e:
     // at least 25), before any mode's early return: a moving mode's rate reads it (mode_rate), the walk below too.
-    const int walk_chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
+    const int walk_chill = now_ms < monster.chill_until ? chill_pct(game_data, monster) : 0;
     const int walk_pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
     const int walk_pct = std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + walk_pace + walk_chill, 25);
     monster.walk_pct = walk_pct;

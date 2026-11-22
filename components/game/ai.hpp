@@ -608,6 +608,9 @@ int mode_rate(const GameData& game_data, const Monster& monster, std::string_vie
 // Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one (FUN_006214a0:
 // WL, RN; S1..S4 for a class under 0x19a that isn't a MonStats npc), KB, BL, DT, DD.
 bool own_rate_mode(const GameData& game_data, const Monster& monster, std::string_view mode);
+// Its chill's stats (FUN_0057af80: state 0xb with velocitypercent, attackrate and other_animrate each at this,
+// 0x57b0a0..0x57b0bf): its MonStats row's coldeffect on its difficulty (0x57afe2); 0 is no chill.
+int chill_pct(const GameData& game_data, const Monster& monster);
 // The same with the monster's current skill (monster.skill: the one its mode plays) read for its UseAttackRate;
 // an own_rate_mode as mode_rate over its AnimData speed, rounded up so it stays above -100 (GH keeps
 // get_hit_ms / get_hit_rate).

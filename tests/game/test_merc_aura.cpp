@@ -140,6 +140,11 @@ int main() try {
     fight.monster_states(3000);
     assert(chilled.attack_pct == data->skills.get(decrepify)->par[4] && chilled.attack_pct < 0 && chilled.anim_pct == 0);
     chilled.curse = {};
+    // Chilled (FUN_0057af80): its coldeffect on attackrate and other_animrate too, not on the walk % alone.
+    chilled.chill_until = 4000000;
+    fight.monster_states(3000);
+    assert(chill_pct(*data, chilled) < 0 && chilled.attack_pct == chill_pct(*data, chilled) && chilled.anim_pct == chill_pct(*data, chilled));
+    chilled.chill_until = 0;
     // In town its pulse takes no monster.
     world.level = town;
     chilled.unit.x = actor.merc->unit.x + 1;

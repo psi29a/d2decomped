@@ -6,8 +6,8 @@
 // with `| rate`: rules::monster_mode_rate on d2d's MonStats row (its walk /
 // run base, npc, under 0x19a) and the case's stats.
 // `--chill-rates` reads tools/emu/chill_rates.py's cases (`class difficulty`)
-// and prints each with `| put velocity attack other`: d2d's, which puts the
-// coldeffect on the walk % alone.
+// and prints each with `| put velocity attack other`: chill_pct, which d2d puts
+// on the walk %, attackrate and other_animrate alike.
 // Without arguments: the walk / run base d2d derives (FUN_00650f00) on
 // made-up rows, and the get-hit rate as rules::get_hit_rate's.
 
@@ -65,9 +65,12 @@ int chill_cases(const GameData& data) {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
         }
-        const int cold = data.monsters.types[std::size_t(cls)].diff[std::size_t(difficulty)].cold_effect;
+        Monster unit;
+        unit.type = cls;
+        unit.difficulty = difficulty;
+        const int cold = chill_pct(data, unit);
         if (cold == 0) std::printf("%s | 0 0 0 0\n", line.c_str());
-        else std::printf("%s | 1 %d 0 0\n", line.c_str(), cold);
+        else std::printf("%s | 1 %d %d %d\n", line.c_str(), cold, cold, cold);
     }
     return 0;
 }
