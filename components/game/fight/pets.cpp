@@ -409,8 +409,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) pet.target = -1;
             // Its search is its monster's (FUN_005dd7f0): alignment 2 (FUN_005c55c0's FUN_005543b0), so
             // FUN_005dd0b0 mode 5 over the monsters about it (search_foe), the player's side its friends.
-            // ponytail: it runs only when the stand-in has no target (game.exe searches each think), and on a
-            // fresh Monster: the corpse's own AI control flags (its sighted flag 8) aren't carried over.
+            // A revived one keeps its corpse's sighted flag (8: no sight test once it has found one).
+            // ponytail: it runs only when the stand-in has no target (game.exe searches each think).
             if (pet.target < 0) {
                 restamp();                                    // the room lists as they stand now
                 std::vector<Foe> foes;
