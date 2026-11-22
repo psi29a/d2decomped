@@ -299,6 +299,8 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
     monster.unit.mode_ms = now_ms;
     monster.unit.walking = mode == "WL" || mode == "RN";
     monster.scheduled_action_ms.reset();
+    monster.scheduled_anim_position.reset();
+    monster.scheduled_think_first = false;
     // FUN_005539b0 queues the action and mode end from the fixed-point
     // rate at mode start. Chill (FUN_0057af80) refreshes the rate without
     // replacing those events. Verified for Council S1/A1 and standalone Mauler A2.
@@ -318,6 +320,7 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
                 return now_ms + std::uint32_t(ticks * 40);
             };
             monster.scheduled_action_ms = now_ms + action_due_ms(game_data, monster, mode);
+            monster.scheduled_think_first = monster.think_pending() && monster.next_act == *monster.scheduled_action_ms;
             monster.scheduled_anim_position = 0;
             monster.scheduled_anim_ms = now_ms;
             monster.mode_until = deadline(timing.frames);
@@ -1505,9 +1508,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // when none is pending or it'd come sooner. It comes mid-mode or not
     // (FUN_005b1740 reads no mode; monster_update).
     const auto file_think = [&monster, now_ms, wait = act.wait, event = act.event] {
-        if (wait > 0) monster.next_act = now_ms + std::uint32_t(wait) * 40;
-        else if (event > 0 && (!monster.think_pending() || now_ms + std::uint32_t(event) * 40 <= monster.next_act))
+        if (wait > 0) {
+            monster.next_act = now_ms + std::uint32_t(wait) * 40;
+            monster.scheduled_think_first = false;
+        } else if (event > 0 && (!monster.think_pending() || now_ms + std::uint32_t(event) * 40 <= monster.next_act)) {
             monster.next_act = now_ms + std::uint32_t(event) * 40;
+            monster.scheduled_think_first = false;
+        }
     };
     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too. One made
     // outside a group (leader -1) has none to look up, so nothing is sent.
@@ -1851,7 +1858,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             const auto length = std::uint64_t(timing.frames) * 256;
             if (length) {
                 const auto rate = std::uint32_t(std::max(mode_rate(game_data, monster, monster.mode), 0));
-                monster.scheduled_anim_position = std::uint32_t((monster.scheduled_anim_position + std::uint64_t(ticks) * rate) % length);
+                monster.scheduled_anim_position = std::uint32_t((monster.scheduled_anim_position.value_or(0) + std::uint64_t(ticks) * rate) % length);
             }
             monster.scheduled_anim_ms += ticks * 40;
         }
@@ -1941,6 +1948,19 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     // Stunned, it stands (a get-hit plays out first); frozen, a get-hit,
     // block, attack or cast holds (FUN_0057b230 sets no mode).
+    // The original monster event bucket runs same-tick entries in insertion
+    // order (FUN_005416b0 / FUN_00541060). A think queued before this attack
+    // may replace its mode and clear the action before it can fire.
+    if (monster.scheduled_think_first && !monster.struck && monster.scheduled_action_ms == monster.next_act
+        && now_ms >= monster.next_act && now_ms >= monster.stun_until && think_due()) {
+        monster.scheduled_think_first = false;
+        const auto old_mode = monster.mode;
+        const auto old_start = unit.mode_ms;
+        const int pace = path_velocity(type_info.velocity, walk_pct);
+        think(game_data, level, monster, foes, rng, now_ms, pace, pace, crowd, pack, seen, open_door, born,
+              rooms_in_play, players_counted, spawning);
+        if (monster.mode != old_mode || unit.mode_ms != old_start) return false;
+    }
     const bool attack = monster.mode == "A1" || monster.mode == "A2";
     const bool casting = attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC" || (monster.mode == "S3" && monster.skill >= 0)
                       || (monster.mode == "DT" && monster.skill >= 0);   // DT alive: a sequence (the egg's hatch)
