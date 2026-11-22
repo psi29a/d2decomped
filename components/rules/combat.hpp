@@ -25,9 +25,8 @@
 
 namespace d2d::rules {
 
-// Chance to hit in percent (FUN_0057d9b0): negative defense adds to the
-// attack rating (and vice versa); c = AR x 100 / (AR + DEF), then
-// c x 2 x alvl / (alvl + dlvl), clamped to 5..95.
+// Chance to hit in percent: negative defense adds to the attack rating (and vice versa); c = AR x 100 / (AR +
+// DEF), then c x 2 x alvl / (alvl + dlvl), clamped to 5..95.
 int hit_chance(int attack_rating, int def, int alvl, int dlvl);
 
 // Item stats summed by ItemStatCost id: what's worn, charms carried, and
@@ -86,10 +85,7 @@ struct Fighter {
     int prime_evil_pct = 100;                       // FUN_0057c060's percent on a prime evil's blow: a hireling 200, a player's other pet 400
 };
 
-// Builds the Fighter from the worn weapon / shield, the summed item stats
-// (`sum`: everything worn and carried; `weapon_sum`: the weapon and what's
-// socketed in it), the character's stats and class; defense and
-// resistances come from the char panel's sums.
+// Builds the Fighter from the worn weapon / shield, the summed item stats (`sum`.
 Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
                      const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,
                      const ClassGains& gains, int defense, const std::array<int, 4>& res,
@@ -104,20 +100,15 @@ Fighter simple_fighter(int min, int max, int attack_rating, int defense = 0);
 // At v = -cap game.exe's IDIV divides by zero; d2d keeps v (deviations.md #13, as get_hit_rate).
 inline int effective_speed(int speed, int cap = 120) { return speed != 0 && speed != -cap ? cap * speed / (cap + speed) : speed; }
 
-// A player's walk / run / town-walk animation rate, 1/256 frames a tick
-// (FUN_00623f50 on a PlrMode +4 mode): FUN_006213d0's base, RN 0x65, WL and
-// TW 0xd5 (AnimData's speed isn't read), x the walk % (velocitypercent +
-// effective FRW, at least 25) / 100, clamped to 0..0x7fff.
+// A player's walk / run / town-walk animation rate, 1/256 frames a tick.
 int moving_anim_rate(bool run, int walk_percent);
 
-// Ticks an attack animation of `frames` frames at AnimData `rate` takes with
+// Ticks an attack animation of `frames` frames at AnimData `rate` takes with `ias` and weapon speed `wsm`
+// (1.10).
 // `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
-// to -85..75; ticks = ceil(256 x frames / (rate x (100 + EIAS) / 100)).
 int attack_speed(int rate, int ias, int wsm, int sias = 0);
-// The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame `start` and
-// plays `speed` / 256 frames a tick: FUN_005539b0 files the strike there, max(1, ceil(256 (frame - start) / speed)), and the end of the swing
-// (game.exe's floor for the end is 2 ticks: the two differ only when one tick covers the rest of the animation, no player record's case)
-// (tools/emu/swing_start.py runs it).
+// The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame
+// `start` and plays `speed` / 256 frames a tick.
 int frame_tick(int frame, int start, int speed);
 int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0);
 // The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
@@ -142,28 +133,11 @@ inline constexpr std::array<AttackStart, 9> kAttackStart = {{
 }};
 int attack_start_frame(int player_class, std::string_view wclass);
 
-// Frame count after a speed stat (FCR / FHR / FBR) shortens `base_frames`:
-// E = 120 v / (120 + v); shown = ceil(base x 256 / (256 + floor(256 E / 100))).
-// Emergent breakpoints — Sorc SC base 14 sweeps 14/13/12/11/10/9/8 at
-// stat 0/9/20/37/63/105/200.
+// Frame count after a speed stat (FCR / FHR / FBR) shortens `base_frames`: E = 120 v / (120 + v); shown =
+// ceil(base x 256 / (256 + floor(256 E / 100))).
 int speed_frames(int base_frames, int speed_stat);
 
-// The get-hit test on a landed hit (FUN_0057cb00, called by FUN_0057cee0 on
-// result flag 4 unless the unit is stunned: the player branch at 0x57d37a,
-// the monster's at 0x57d0c8). No get-hit for a frozen unit (state 1), a hit
-// that is all poison (record [10] == [0x13]) or one under a point; else the
-// divisor by the record's hit class, the jump table at 0x57cbf8: 8 for
-// classes 2, 6, 10, 11; 32 for 4, 8; 64 for 5; 16 for 1, 3, 7, 9, 12 and any
-// other value. FUN_0057ce30 fixes the class up first: 13 for none, and an
-// element's bits (0x20 .. 0x50 when the record's fire, lightning, cold or
-// poison is over 0) or a doubled hit's 0x10 (record flag 0x2000, 0x57b929: the
-// mastery crit, critical strike or deadly strike roll of FUN_0057b7d0 landed)
-// OR-ed in, which puts it past 12: a blow that carries an element divides by
-// 16 whatever the weapon. Under max / d: none; under 2 max / d: a roll of 2 on
-// the unit's seed (FUN_00472210) of 0 is none; then under 4 max / d: a roll of
-// 4 of 0 is none; else a get-hit. So the bands: 37.5 % from max / d, 75 % from
-// 2 max / d, sure from 4 max / d. A monster also needs MonStats2's GH mode
-// (FUN_0046c140 bit 3), asked after the rolls (0x57cbda). Its oracle: tools/emu/hit_rule.py against test_combat --get-hit.
+// The get-hit test on a landed hit.
 // `max_life` and `damage` in 256ths; `marked`: an element or a doubled hit.
 int get_hit_divisor(int hit_class);
 bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, bool marked, Rng& rng);
@@ -233,10 +207,7 @@ void store_total(StruckBlow& blow, std::int64_t total);
 // FUN_005c8780, Cyclone Armor's pool on one field in 256ths (FUN_005c87a0 calls it on fire, cold, then lightning): only a field
 // above 0; the pool takes all of it it can. Returns the cut.
 int cyclone_take(int& pool, int field);
-// The gear's absorb of one elemental or magic field (FUN_0057bf10, which FUN_0057bf80 calls last unless the record ignores
-// resistances, 0x57c027): the percent stat (142 / 144 / 146 / 148) at most 40 takes MulDiv(field, percent, 100) (a field under 0 is
-// taken the same way, which moves it toward 0), then the flat stat (143 / 145 / 147 / 149, whole points << 8) takes at most what
-// is left (a field under 0 is cleared to 0).
+// The gear's absorb of one elemental or magic field.
 int absorbed_fine(int field, int pct, int flat);
 // FUN_0057bf80 on an elemental or magic field in 256ths after the absorb: one at or under 0 is stored as 0; else the flat magic
 // reduction comes off FIRST (and may leave it under 0, which is stored and summed), then the resistance on what is still above 0
@@ -253,13 +224,7 @@ std::int64_t absorb_heal(std::span<const StruckBlow> blows, std::int64_t life, s
 // (physical_now before `raw` changed).
 void settle_blow(StruckBlow& blow, std::int64_t old);
 
-// A state's absorb pool on the frame's blows: FUN_0057c1e0 raises state event 0xb
-// (FUN_005c0c30, 0x57c2fc) on each record before it sums the total +0x4c, so the
-// pool empties record by record in landing order and each blow loses only its own
-// part: Bone Armor (FUN_005c6370) from the physical field, Cyclone Armor
-// (FUN_005c87a0) from fire, cold, then lightning. A pool that outlasts the field
-// takes the fraction too. Returns what the pool took, in 256ths of the unreduced
-// field.
+// A state's absorb pool on the frame's blows.
 int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental);
 
 // FUN_0057cb00 once per landed blow (FUN_0057c6c0 then FUN_0057cee0 per
@@ -268,40 +233,19 @@ int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental);
 // get-hit if any is.
 bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed);
 
-// The get-hit's animation rate, 1/256 frames a tick (FUN_00623f50's get-hit
-// branch, 0x62409f..0x624385, a player's mode 4 or a monster's mode 3): the
-// AnimData speed x (50 + the effective FHR, FUN_00621740's 120 v / (120 + v)
-// of stat 99 for v != 0, truncated toward zero) / 100. Chill, attackrate and
-// other_animrate aren't read there.
+// The get-hit's animation rate, 1/256 frames a tick.
 int get_hit_rate(int speed, int fhr);
 
-// How many server ticks the get-hit mode holds (FUN_005539b0, the mode's
-// events, from FUN_0057fe30 / FUN_005a7c20): from frame 0 it adds the rate a
-// tick while the frame stays under frames x 256, held such ticks, and queues
-// the mode end (event 1: FUN_00581020 plays NU, a monster's FUN_005a8030) at
-// the game frame + max(held, 1) + 1; a rate of 0 ends it the next frame. 11
-// of 1.14d's 187 GH records have one (frame 0: BAGH 1HT / 2HS / 2HT / XBW,
-// IP, SL, ...).
+// How many server ticks the get-hit mode holds.
 int get_hit_ticks(int frames, int speed, int fhr);
 
-// The block animation's rate, 1/256 frames a tick (FUN_00623f50's block branch, 0x62403d..0x624084, a player's mode 9):
-// the AnimData speed x (50 + the effective FBR, FUN_00621740's 120 v / (120 + v) of stat 102, + 50 with Holy Shield's
-// state 0x65) / 100, at least 1. Its length is the get-hit's (FUN_005539b0): block_ticks. Negative FBR: not read (U).
+// The block animation's rate, 1/256 frames a tick.
 int block_rate(int speed, int fbr, bool holy_shield);
 int block_ticks(int frames, int speed, int fbr, bool holy_shield);
 
-// The frame game.exe's client draws `tick` ticks into a get-hit (tick 0 the
-// mode set): the client steps the unit's 8.8 frame position by its rate a
-// tick while position + rate stays under frames x 256 (FUN_004b1280 on the
-// monster mode table's get-hit row at 0x7252e0 + 3 x 12, [0, 1, 2]:
-// FUN_006217c0's "over", else FUN_00623e00's step; a player's FUN_00463390
-// at 0x463487 the same) and the draw shows position >> 8 (FUN_00621810), so
-// the animation plays once at the get-hit rate and stands on its last stepped
-// frame for the rest of the hold; it never loops. A rate of 0 stays on 0.
+// The frame game.exe's client draws `tick` ticks into a get-hit (tick 0 the mode set).
 int get_hit_frame(int frames, int rate, int tick);
-// A player's (FUN_00463390, row 4 of 0x711e00): get_hit_frame's stepping, but
-// re-testing after the step the client's mode ends a tick before the server's
-// event, `held` ticks after the mode was set: -1 from then (the client stands).
+// A player's.
 int player_get_hit_frame(int frames, int rate, int tick, int held);
 
 // A player's attack sequence (mode SQ, 0x12) runs 30 points slower than its attack rate: FUN_00623f50's attack branch takes 30 off the
@@ -334,11 +278,7 @@ int cast_ticks(int frames, int rate, int fcr);
 // Lightning).
 int cast_sequence_ticks(int steps, int rate, int fcr);
 
-// The tick of a cast mode's action frame, counted from its start: the animation scheduler
-// (FUN_005539b0) files the event on the first tick whose position (steps of the cast speed
-// from 0) reaches the frame (tools/emu/cast_mana.py runs game.exe's code for it, V run, for the
-// first Sorceress SC record only; other classes' SC records and A1-mode casts such as Magic Arrow
-// are not in the oracle, U).
+// The tick of a cast mode's action frame, counted from its start.
 int cast_action_ticks(int frame, int rate, int fcr);
 
 // Open Wounds (item_openwounds, stat 135; its item event is FUN_005bfe60): a hit that rolls it puts state 0x3e on the struck
@@ -408,29 +348,16 @@ struct EnergyShield {
     }
 };
 
-// Energy Shield on the frame's blows. The mana is drained field by field, record by record in
-// landing order. The physical field is taken from `raw` as absorb_blows leaves it (Bone Armor
-// first).
+// Energy Shield on the frame's blows.
 void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield);
 
-// Static Field's record on one unit (FUN_005c96a0), in 256ths before the
-// resistance, or -1 when it makes none. Life is the unit's in whole points
-// (stat 6 >> 8): nothing under 1, nothing at or under floor % of its max
-// life (DifficultyLevels StaticFieldMin, expansion games only), else pct %
-// of it (MulDiv) leaving at least 1 point, then at least `low` (calc2).
+// Static Field's record on one unit, in 256ths before the resistance, or -1 when it makes none.
 int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res);
 
-// Corpse Explosion's blow (do 55, FUN_005c4df0): the corpse's life, a
-// monster's FUN_006538a0 range at its level (stat 0xc) averaged, 256ths
-// ((min + max) << 7, 0x5c4ecd); calc1..calc2 % of it (FUN_00483360 with
-// the % as its value and the life as the times, 0x5c4f31 / 0x5c4f57: a life
-// over 0x10000 is cut to hundredths first), the
-// roll on the corpse's unit seed (+0x20, FUN_0045c3e0: high - low, none
-// when that's 0); a corpse above the caster's level cut to clvl / its level.
+// Corpse Explosion's blow.
 int corpse_life_fine(const Monsters& monsters, int type, int difficulty, int level);
 int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed, int corpse_level, int caster_level);
-// calc3 % (0..100) of that blow goes to the skill's EType when it has one
-// (FUN_0056c8e0), the rest stays physical (0x5c4fc2..0x5c503a): {physical,
+// calc3 % (0..100) of that blow goes to the skill's EType when it has one, the rest stays physical: {physical,
 // element}, 256ths.
 std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental);
 // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
@@ -438,9 +365,9 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
 inline std::pair<int, int> corpse_blast_reach(int aura_range) { return { (aura_range + 1) / 2, aura_range / 2 }; }
 
-// Life Tap (FUN_005c61e0): the striker's life after a hit on the cursed unit, 256ths.
+// Life Tap: the striker's life after a hit on the cursed unit, 256ths.
 std::int64_t life_tap_life(std::int64_t life_fine, std::int64_t max_fine, int damage_fine, int pct);
-// Iron Maiden (FUN_005c5f50): the +8 of the hit back on the cursed unit, 256ths; none when it hits nothing.
+// Iron Maiden: the +8 of the hit back on the cursed unit, 256ths; none when it hits nothing.
 [[nodiscard]] std::optional<int> iron_maiden_fine(bool monster, bool hireling, bool struck_player, int phys_fine, int calc1, int calc2, int calc3);
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
@@ -520,10 +447,7 @@ struct Swing {
     bool missile = false;                 // a missile's blow: Crushing Blow's divisor doubled (event 6, FUN_005bffc0)
 };
 
-// A player's leech of a blow (FUN_0057c6c0 0x57c7f8 -> FUN_0057c420), in 256ths: the physical (record +8, after
-// resistance) is cut to the target's life; the steal % is shifted left 6 and divided by the difficulty's
-// LifeStealDivisor / ManaStealDivisor (whole division); then MulDiv by the physical over 100, MulDiv by the
-// monster's Drain over 100 (skipped at 100), and / 64 toward zero. A Drain of 0 or less takes nothing.
+// A player's leech of a blow, in 256ths.
 int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
@@ -532,19 +456,8 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 // takes the life left / the target's divisor (less physical resistance).
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {});
 
-// A monster's attack on the player (`motion`: its mode, standing, WL or RN;
+// A monster's attack on the player (`motion`.
 // `missile`: a spike rather than a swing): hit chance against defense plus
-// the vs-melee / vs-missile bonus, but a swing at a running player always
-// lands (FUN_0057ec10: mode 3 skips FUN_0057d9b0); then the defender's rolls
-// (FUN_0057dfb0 / FUN_0057dd60): block (a third while running, FUN_00622d00
-// and mode not 2: walking keeps it whole), Weapon Block standing (two claws:
-// weapon class HT2), then evade
-// while moving, else dodge a swing / avoid a missile (`sure`: none of
-// these, the record's hit bit set without FUN_0057ec10: DiabRun's
-// ResultFlags 1, DiabCold's, a monster's Charge); then physical damage
-// less damage-reduced % then flat (it can reach 0), and each elemental
-// attack (at its chance) less resistance, fire / lightning / cold less
-// magic damage reduction.
 int chill_length(const Fighter& defender, int len);
 // `physical` / `elemental` (fire, lightning, cold): the parts of `damage`
 // Bone Armor (22) and Cyclone Armor (25) absorb.
@@ -559,30 +472,17 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
                    bool missile = false, bool sure = false, bool exact = false);
 
 
-// A kill's experience by the level difference (FUN_0057e2f0), in 256ths:
-// the character above the monster by 6..10+ 207 / 159 / 110 / 61 / 13
-// (0x6e1668); the monster above by 6..10+ 225 / 174 / 92 / 38 / 5
-// (0x6e1694), or clvl / mlvl once the character's level is 25 or more.
+// A kill's experience by the level difference, in 256ths.
 std::int64_t kill_exp(int exp, int clvl, int mlvl);
 
-// A kill award's ExpRatio step (FUN_0057e390): `award` unapplied outside
+// A kill award's ExpRatio step.
 // `shift` 1..31 or at 0 or less; otherwise (award >> shift) x ratio when
-// award x ratio would overflow INT32_MAX, else award x ratio >> shift.
 std::int64_t exp_ratio_apply(std::int64_t award, int ratio, int shift);
 
-// What a kill gives a unit of level `clvl` (FUN_0057e480): 1 for a kill
-// worth none, 0 at `max_level` (Experience.txt MaxLvl); else kill_exp, then
-// the level's ExpRatio (`ratios`, by level) through exp_ratio_apply, then
-// + item_addexperience % of that.
+// What a kill gives a unit of level `clvl`.
 std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<const int> ratios, int shift, int max_level);
 
-// A kill's experience shared by the party members who share it
-// (FUN_0057e6c0), by their character levels: two or more make the total
-// the kill's + (n - 1) x exp x 89 / 256 (32-bit, rounded toward zero), and
-// each member's share is its level x (total / the levels' sum), the
-// quotient a float (x87 FSTP) and the product truncated (_ftol). Each share
-// then takes its member's level penalty (kill_exp). One member (or none):
-// the kill's, unshared.
+// A kill's experience shared by the party members who share it, by their character levels.
 std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 
 // Adds experience; every level reached (exp_next[level] = experience for
@@ -591,15 +491,10 @@ std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 // all three. Returns the levels gained.
 int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains);
 
-// Stamina a running frame costs outside town (FUN_0057f240, 8.8 fixed):
-// CharStats RunDrain x 2, x (armor.txt speed / 10 + 1) for the body armor
-// worn, less item_staminadrainpct (stat 154) percent; at least 1.
+// Stamina a running frame costs outside town.
 int stamina_drain(int run_drain, int armor_speed, int slower_pct);
 
-// A frame's stamina regen (FUN_00580500): max >> 8 standing / town
-// standing (modes 1 / 5), >> 9 walking (2, 6; walking only above 1.0),
-// none running or otherwise unless staminarecoverybonus (stat 28) is 1000+;
-// plus bonus percent.
+// A frame's stamina regen.
 std::int64_t stamina_regen(std::int64_t cur, std::int64_t max, int mode, int bonus);
 
 }  // namespace d2d::rules
