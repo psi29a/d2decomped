@@ -15,9 +15,11 @@ Velocity is kept to 1..60 (MonStats has far less): game.exe's 32-bit Velocity x 
 A monster's base stat 0x43 is game.exe's own: its stat initialiser FUN_00573cb0 runs (monster_base43: the
 MonStats row / difficulty lookups and the helpers it calls hooked, SetStat FUN_00627260 recorded) up to its
 SetStat(0x45), and the value it set for stat 0x43 (velocitypercent) is the base: 75 (0x573f16), not 100.
+A merc and a pet are monster units too (FUN_00555230's type-1 case, 0x5553a0 -> FUN_00574250 -> FUN_00573cb0),
+so their base is the same.
 Modelled, not traced (the inputs of stat 0x43, d2d's own split of it): a monster's that base + d2d speed_pct
-+ boss_speed + its think's pace (move) - 100 laid + coldeffect chilled; a merc's 100 + move; a pet's
-100 + move + speed_pct + its aura's velocitypercent; a player's 100 (running: RunVelocity x 100 /
++ boss_speed + its think's pace (move) - 100 laid + coldeffect chilled; a merc's that base + move; a pet's
+that base + move + speed_pct + its aura's velocitypercent; a player's 100 (running: RunVelocity x 100 /
 WalkVelocity) + velocitypercent - 50 chilled.
 
 d2d side: the REAL build (`test_walk_velocity --walk-velocity`, tests/game/test_walk_velocity.cpp): monster_update (one
@@ -230,11 +232,11 @@ def game(path, exe=None):
                 idx = mon[name][0]
             elif kind == 2:
                 mode, vel, move = map(int, f[3:6])
-                st[0x43] = 100 + move
+                st[0x43] = base43 + move
                 idx = 0
             else:
                 name, mode, vel, move, speed, buff = f[2], *map(int, f[3:])
-                st[0x43] = 100 + move + speed + buff
+                st[0x43] = base43 + move + speed + buff
                 idx = mon[name][0]
             emu.mu.mem_write(monstats + idx * 0x1a8 + 0x32, struct.pack("<h", vel))
             emu.w32(unit, 1)
