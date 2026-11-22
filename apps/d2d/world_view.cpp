@@ -29,8 +29,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <map>
 #include <span>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -497,8 +499,18 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 auto frame = (elapsed_ms - unit.mode_ms) * per_256 / (40u * 256u) % frames;
                 if (unit.missile->clt_do == 5 && unit.missile_dies > unit.mode_ms) {
                     // Client do 5 (FUN_004d3540 / FUN_004d30c0): rise once, burn in SubStart..SubStop, sink at the end.
-                    // ponytail: the jump's draw is game.exe's client unit seed (+0x20), not traced; d2d seeds by spot and birth.
-                    d2d::rules::Rng seed{ unit.mode_ms ^ (std::uint32_t(std::lround(unit.x * 5)) << 16) ^ std::uint32_t(std::lround(unit.y * 5)) };
+                    // The jump's draw on the client unit's seed (+0x20: FUN_00465fd0, client_unit_seed at its spot's room),
+                    // taken once as it's first drawn and kept for its life (a ground fire stands: its row, birth and
+                    // subtile name it); each frame draws from that one seed, not a fresh one off the room's stream.
+                    // ponytail: the draws other client missiles in the room took before it aren't counted.
+                    using FireKey = std::tuple<const void*, std::uint32_t, int, int>;
+                    static std::map<FireKey, std::pair<d2d::rules::Rng, std::uint32_t>> fire_seeds;   // the seed, and when it ends
+                    std::erase_if(fire_seeds, [&](const auto& kept) { return kept.second.second < elapsed_ms; });
+                    const FireKey key{ unit.missile, unit.mode_ms, int(std::floor(unit.x * 5)), int(std::floor(unit.y * 5)) };
+                    auto kept = fire_seeds.find(key);
+                    if (kept == fire_seeds.end())
+                        kept = fire_seeds.emplace(key, std::pair{ d2d::game::client_unit_seed(level, d2d::game::room_of(level, unit.x, unit.y)), unit.missile_dies }).first;
+                    d2d::rules::Rng seed = kept->second.first;
                     const int ticks = int((elapsed_ms - unit.mode_ms) / 40u), life = int((unit.missile_dies - unit.mode_ms) / 40u);
                     frame = std::uint32_t(d2d::rules::ground_fire_frame(std::min(ticks, life), life, unit.missile->anim_len, unit.missile->sub_start,
                                                                         unit.missile->sub_stop, unit.missile->sub_loop != 0 && unit.missile->loop_anim != 0, int(per_256), seed)) % frames;
