@@ -737,7 +737,7 @@ struct Fight {
     // each monster whose melee blow landed on the pet this frame (its foe's landed_by) is slowed
     // (rules::clay_slow, put_slow).
     void clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms);
-    void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms, bool curse_in_swing = false);   // a pet's melee blow, and its thorns back; curse_in_swing: built by pet_swing
+    void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& blow, std::uint32_t now_ms);   // a pet's melee blow, and its thorns back
     // A monster with GH and KB modes knocked back away from (from_x, from_y): land's knockback, a monster foe's (Smite, MonProp knock).
     void knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms);
     // A landed hit's event 4 on it (Monster::struck_event), after its get-hit and knockback.
@@ -1239,6 +1239,8 @@ struct Fight {
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
+    // A Shadow's: the owner's fighter with its own damagepercent (a curse's) in.
+    [[nodiscard]] static d2d::rules::Fighter shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter);
     [[nodiscard]] d2d::rules::Fighter pet_swing(const Pet& pet) const;   // its own A1 blow, a curse's damagepercent in
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
