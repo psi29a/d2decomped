@@ -37,6 +37,10 @@
 
 namespace d2d::game {
 
+// A summoning skill d2d builds (the do spawns the `summon` row through
+// FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
+// Skeleton and Skeletal Mage (31, from a corpse), Valkyrie (16), the
+// Druid's Raven (114), Spirit Wolf, Fenris and Grizzly (119).
 auto Fight::summon_skill(const d2d::rules::Skill& skill) const -> bool {
         if (skill.srvdofunc == ServerDoFunction::kRevive) return true;                  // Revive: the corpse's own monster
         return !skill.summon.empty() && game_data->monsters.row(skill.summon) >= 0
@@ -47,6 +51,10 @@ auto Fight::summon_skill(const d2d::rules::Skill& skill) const -> bool {
                 || (skill.srvdofunc == ServerDoFunction::kTrap && trap_shot(skill) >= 0));
     }
 
+// A trap's shooting skill: the first of its sumskills that fires a
+// missile d2d builds (the monster skills 'sentry lightning',
+// 'BoltSentry', 'death sentry ltng'); -1 for the others (Wake of Fire's
+// and Inferno's do 125 / 95, Death Sentry's corpse blast do 55).
 auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
         for (const auto& name : skill.sumskill)
             if (const auto found = game_data->skills.by_name.find(name); !name.empty() && found != game_data->skills.by_name.end())
@@ -94,6 +102,10 @@ auto Fight::corpse_near(float x, float y, d2d::rules::ServerStartFunction start)
         return best;
     }
 
+// Iron Golem's item (FUN_005c32a0, start 20 and do 57's check): a ground
+// item (type 4, mode 3) of a metal base (FUN_00629cc0: Items bitfield1 & 2),
+// identified (flag 0x10), at the cast's subtile, else the nearest within a
+// cell: its index in loot.ground, or -1.
 auto Fight::golem_item_at(float x, float y) const -> int {
         if (loot.ground_level != level) return -1;
         const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
@@ -109,6 +121,16 @@ auto Fight::golem_item_at(float x, float y) const -> int {
         }
         return best;
     }
+
+// The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
+// as its MonStats row at the row's level, then set to its level
+// (rules::summon_level: Raven's and the Druid's forced to max(calc2,
+// 1), else min(max(clvl x 3 / 4 + the skill level, 1), clvl) for Raise,
+// the golems, the Decoy, the Valkyrie and the traps), with MonLvl's
+// defense and attack rating at it added (stats 31 / 19), life + calc1
+// %. Past petmax of its pettype the oldest goes. Iron Golem wears the
+// metal item it's cast at (golem_item_at). A skill by its name as the
+// tables write it (Fire Golem's sumskill says 'holy fire').
 
 // The skill's passive stats, aurastats and sumskills land on it as
 // summons.cpp has them (FUN_005c4470; the masteries come in that way),
@@ -126,6 +148,12 @@ auto Fight::skill_named(std::string_view name) const -> const d2d::rules::Skill*
         return nullptr;
     }
 
+// The missile row a pet's skill shoots: its srvmissile, else
+// srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
+// variant (+0xf of its monster data) to it: necromage1..4, rolled at
+// the raise (FUN_005c4180: the caster's seed & 3).
+// d2d's rng(4) is that step on Fight::rng (summon_one): deviations.md
+// approximation 18.
 auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> const GameData::MissileInfo* {
         std::string name = skill.srvmissile.empty() ? skill.srvmissilea : skill.srvmissile;
         if (skill.srvdofunc == ServerDoFunction::kVariantMissile && !name.empty() && name.back() == '1') name.back() = char('1' + std::clamp(variant, 0, 3));

@@ -19,6 +19,7 @@ add_library(game STATIC
     fight/missiles.cpp
     fight/pets.cpp
     fight/setup.cpp
+    fight/skill_checks.cpp
     fight/states.cpp
     fight/strike.cpp
     fight/summons.cpp

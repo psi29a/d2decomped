@@ -234,6 +234,10 @@ auto Fight::merc_gives() -> void {
         }
     }
 
+// The merc's turn. Hits use its attack rating against the monster's
+// defense and its damage. Killed, it plays its death and is gone (the
+// save's merc is dead until resurrected).
+
 // Standing, at its think (MonAI Hireable, rules::hireable_think) it
 // follows the player, wanders, stands or fights the foe its search
 // finds (FUN_005ddc30): the attack think and its skill pick

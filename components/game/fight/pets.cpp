@@ -78,6 +78,9 @@ bool shadow_may_have(const d2d::rules::Skill* skill, const d2d::rules::MonType& 
     return skill->pettype.empty() || skill->pettype != summoning.pettype;
 }
 
+// Clay Golem's damagedinmelee event (func 27, FUN_005c6760), on a pet whose summoning skill hooks it:
+// each monster whose melee blow landed on the pet this frame (its foe's landed_by) is slowed
+// (rules::clay_slow, put_slow).
 auto Fight::clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms) -> void {
         // FUN_005c4470 hooks the summoning skill's own aura events (0x5c48ce..0x5c4931): only a pet whose skill
         // carries damagedinmelee func 27 (Clay Golem's) has it; the value is its whole item_slow, gear's too.
@@ -143,6 +146,9 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
             if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - pet.monster.unit.x, monsters[i].unit.y - pet.monster.unit.y) * 5 <= float(radius))
                 land(i, d2d::rules::missile_blow(damage, target_of(i), {}, rng), false, now_ms, pet.monster.id);
     }
+
+// The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
+// trap's (32 firespike_explode, FUN_005a3d20), 4 frames after it dies.
 
 // The Fire Golem's death blast: FUN_005b1cf0 (case BaseId 0x124) gives it
 // MonUMod 31 goboom (FUN_005a4850(0x1f, 0)); its hook FUN_005a3800 queues
@@ -227,6 +233,8 @@ auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
         return true;
     }
 
+// A Shadow's (MonUMod 42 lightningdeath, FUN_005a2910), from golem_blast.
+
 // A Shadow's death nova (MonUMod 42, FUN_005a2910 4 frames after its death,
 // hook 1 FUN_005a3800): 64 of missile 90 (nova) round it (FUN_0056d400),
 // Nova's damage at rules::shadow_nova_level, hitting monsters.
@@ -282,6 +290,9 @@ auto Fight::shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter) -> d2d::
         return fighter;
     }
 
+// A SkillDamage pet's swing damage and to-hit at its owner's level in the
+// summoning skill now (FUN_0056e000: FUN_00644aa0, FUN_00647bc0 /
+// FUN_00647d00 >> 8, FUN_006449f0), run each frame before it acts.
 auto Fight::pet_skill_damage(Pet& pet) -> void {
         const auto* skill = pet.skill_damage && skill_level ? game_data->skills.get(pet.skill) : nullptr;
         if (!skill) return;
@@ -303,6 +314,13 @@ auto Fight::pet_skill_damage(Pet& pet) -> void {
         stats.to_hit2 += more_to_hit; stats.to_hit_s1 += more_to_hit;
         pet.skill_low = low; pet.skill_high = high; pet.skill_to_hit = to_hit;
     }
+
+// The pets' turn, the merc's way: each goes for the nearest monster
+// within 8 of the player that has noticed them (or within 4 of the
+// pet), strikes it in reach on its A1's action frame (its damage and
+// attack rating against the monster's defense), and otherwise follows
+// the player. A dead one plays its death and is gone.
+// The traced AIs (rules::traced_pet_ai) run their own thinks instead.
 
 // Of the 1.14d player summons only a revived monster reaches this
 // think (its own MonStats AI): every other summon's AI is traced, and
@@ -502,6 +520,9 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float /* elapsed: a turn
         }
         return monster.mode != "NU" || now_ms < monster.next_act;
     }
+
+// The owner's other pets, the merc among them, within 2 of this one
+// (FUN_00574de0 with FUN_005e3900): a think's mode 4 crowd.
 
 // FUN_00574de0 walks the owner's pet list (player data +0x44), every
 // PetType row from 1, and FUN_005e3900 counts each unit but this pet with

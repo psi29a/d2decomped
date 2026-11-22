@@ -128,11 +128,16 @@ auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t unt
         actor->self_states.push_back({ skill.id, lvl, until });
     }
 
+// A state's States.txt group (+0x1e), 0 none (FUN_0056c740's test).
 auto Fight::state_group(const std::string& aurastate) const -> int {
         const auto info = game_data->states.find(aurastate);
         return info != game_data->states.end() ? info->second.group : 0;
     }
 
+// Werewolf / Werebear's shift back (do 116, FUN_005c6ec0): every state of
+// its aurastate's States.txt group on the player, its own too, comes off
+// (FUN_0056c740 with 1: the wolf, the bear, maul, feralrage, ...). False:
+// none was on (or the group is 0), so the state goes on instead.
 auto Fight::shift_back(const d2d::rules::Skill& skill) -> bool {
         const int group = state_group(skill.aurastate);
         return group != 0 && std::erase_if(actor->self_states, [&](const SelfState& state) {
@@ -152,6 +157,11 @@ auto Fight::self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         add_state(skill, lvl, until);
     }
 
+// A self cast's state (FUN_005c9480 and kin): auralen frames — none
+// (Bone Armor, Cyclone Armor) lasts until its absorb is spent. Bone /
+// Cyclone Armor fill their pool (stat bonearmor, 256ths); Cloak of
+// Shadows (FUN_005d6630) blinds the monsters within aurarange
+// (auratargetstate cloaked) as long.
 auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) -> void {
         const int len = calc(skill, skill.auralen, lvl);
         const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
@@ -174,6 +184,15 @@ auto Fight::state_of(std::string_view name) const -> const SelfState* {
         return nullptr;
     }
 
+// The player's buffs as the fight goes (their aura events, +0x84):
+// Frozen Armor freezes a melee attacker for calc1 frames (func 2),
+// Shiver Armor hits one with its cold (3), Chilling Armor answers a
+// ReturnFire missile with its bolt at the shooter (1); Bone / Cyclone
+// Armor absorb physical / elemental (22 / 25) and Energy Shield takes calc1 % of the damage
+// from mana at calc2 / 16 mana a point (24). Blaze leaves its fire
+// where the player walks; Thunder Storm strikes the monsters within
+// Param7 subtiles in turn, every perdelay frames.
+// Traced in skills.md "Aura event functions" and "Thunder Storm".
 auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         using namespace d2d::d2s;
         // The hit in 256ths, as game.exe's damage records hold it: the absorbs below take from it and what they
@@ -499,6 +518,7 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
         }
     }
 
+// The player's charges' progressive_tohit (stat 0x145, their aurastat 325s): Dragon Flight's to-hit % on top of its own.
 auto Fight::progressive_tohit() -> int {
         const auto env = calc_env();
         int total = 0;
@@ -508,6 +528,9 @@ auto Fight::progressive_tohit() -> int {
         return total;
     }
 
+// A row with no Skill: its own physical and element at level lvl with
+// their synergies (DmgSymPerCalc, EDmgSymPerCalc on `env`), the weapon
+// at its SrcDamage.
 auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const -> d2d::rules::MissileDamage {
         auto damage = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev, missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
         if (damage.etype >= 0 && lvl >= 1 && !missile_info.edmg_sym.empty()) {   // FUN_0064b100 / FUN_0064b1d0
