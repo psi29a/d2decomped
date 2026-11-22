@@ -400,7 +400,6 @@ struct Fight {
     // Material 1.
     [[nodiscard]] int floor_material_at(float x, float y) const;
     std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
-    std::vector<std::pair<int, int>> burned;             // this frame's burns: monster, skill
     std::vector<int> told;                 // skills logged as not built yet
     // The stats as a save keeps them: the maxima without items or Battle Orders.
     [[nodiscard]] d2d::d2s::Stats own_stats() const;

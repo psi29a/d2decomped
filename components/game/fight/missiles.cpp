@@ -681,8 +681,8 @@ auto Fight::land_range(const GameData::MissileInfo& missile_info, float dx, floa
 // 256ths a frame (FUN_004cc7c0).
 // Also Strafe's queued arrows and Inferno's flames.
 // A guided one cast at nothing (do 10) flies to the point and ends there.
-// ponytail: a burner hits a monster once a frame however many overlap
-// (by skill).
+// ponytail: a burner takes the newest monster in its footprint; across rooms game.exe walks
+// the near list's rooms in order (FUN_00641cb0), which d2d's one list doesn't keep.
 // The acting player's own shots this frame: Strafe's arrows due, a
 // channelled skill's (Inferno, Blade Fury).
 auto Fight::player_shots(std::uint32_t now_ms) -> void {
@@ -745,7 +745,6 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         const int frame = int(now_ms / 40);
         if (frame == missile_frame) return;
         missile_frame = frame;
-        burned.clear();
         // The player's side's are seeded as made (launch); a visual-only one takes none: some are
         // the server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
         // A monster's are seeded as its think returns (Fight::world); here only what neither seeded.
@@ -834,11 +833,14 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = 0, .elo = missile.fixed, .ehi = missile.fixed }
                                   : missile_info.skill.empty() ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
                                                                : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
-                for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
-                        && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
-                        burned.emplace_back(int(i), missile.skill);
+                // Each flame its own (FUN_005ae1f0 -> FUN_00641cb0): the first unit its footprint finds, then
+                // FUN_005adf10 on it and no other this frame; overlapping flames each burn (no list across
+                // missiles: FUN_0064a470 is the missile's own last unit, for LastCollide rows, none of these).
+                // A room's units run newest first (its list's head, FUN_0064c2c0); monsters is oldest first.
+                for (std::size_t i = monsters.size(); i-- > 0;)
+                    if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)) {
                         burn(i, damage, now_ms, soft_hit(missile, rng));
+                        break;
                     }
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
