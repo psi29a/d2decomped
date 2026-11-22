@@ -234,6 +234,13 @@ screens) and nothing is playing, `FUN_00514990` plays a random
 not-yet-played track of an 8-track list. Once all 8 have played,
 `FUN_00514860` clears the played flags.
 
+`FUN_005148f0(1)` with the playlist off clears the flags too and sets
+`DAT_0088179c`. The next pick then takes track 0 (`0x514a21`: `ESI` 0
+into `FUN_00514710`), not a random one, and clears `DAT_0088179c`. So
+each time the menus come up, at launch or back from a game, they start on
+introedit (LoD) / common\options (classic). d2d:
+`frontend_track` (apps/d2d/title_rules.hpp).
+
 The list depends on the launch config's expansion flag (`FUN_00514530`
 → `DAT_00881790`):
 - LoD, at `0x72f8b8`: introedit, act5\icecaves, act5\xtemple,
