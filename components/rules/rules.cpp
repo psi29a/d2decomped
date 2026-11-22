@@ -23,6 +23,8 @@
 
 namespace d2d::rules {
 
+// The store level (FUN_00576890): clvl + 5, capped in Normal by the act
+// (12, 20, 28, 36, 45).
 int store_level(int clvl, int act, int difficulty) {
     static constexpr std::array<int, 5> kCap = { 12, 20, 28, 36, 45 };
     const int level = clvl + 5;
@@ -43,6 +45,10 @@ std::pair<int, int> item_size(const Tables& tables, const std::string& code) {
     const auto info = tables.item_info.find(code);
     return info != tables.item_info.end() ? std::pair{ info->second.width, info->second.height } : std::pair{ 1, 1 };
 }
+
+// Where an inventory grid takes an item it's given (FUN_00560200 ->
+// FUN_0063b950 -> FUN_0063b850): a w x h spot in the cols x rows grid of
+// placed items, wholly free (FUN_0063a8a0). {-1, -1} if none.
 
 // A player's grid (its owner unit type 0: `players`) takes the best fit,
 // the most edges and items touching the spot's sides (FUN_0063b340; all
@@ -141,6 +147,9 @@ bool is_repair_vendor(int hc_idx) {
     return hc_idx == kCharsi || hc_idx == kFara || hc_idx == kHratli || hc_idx == kHalbu || hc_idx == kLarzuk;
 }
 
+// The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
+// cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
+// sell and repair alike; any other item keeps its cost.
 int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int cost) {
     const auto base = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
@@ -178,6 +187,11 @@ int stat_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int pr
     return total;
 }
 
+// What an item type's staff mods add (FUN_0062edd0): each item_singleskill
+// (stat 107) costs (2 x level - 1) x (the skill's cost mult x price / 1024 +
+// cost add), a sale's / 4096; above 0xffff the mult is divided, not the price.
+// `buy` picks the branch.
+
 // Any item type: the check against ItemTypes StaffMods (+0x1f != 7) never
 // fails, as an empty StaffMods loads as 0xff (emu-read).
 int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
@@ -206,6 +220,11 @@ bool priced_by_contents(const Tables& tables, const d2d::d2s::Item& item) {
     return type == "book" || type == "bowq" || type == "xboq";
 }
 
+// A stack's share of its extras (FUN_0062efb0's local_1c): a stackable
+// (Items.txt +0x132, FUN_006289f0) priced as a stack takes its quality
+// extras, stat costs (FUN_00628e70) and staff mods (FUN_0062edd0), each
+// divided by its most when that is 2 or more. FUN_00628e70 and FUN_0062edd0
+// divide unsigned.
 bool priced_as_stack(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     return found != tables.item_base.end() && found->second.stackable && !priced_by_contents(tables, item);
@@ -219,6 +238,8 @@ int unsigned_share(int total, int divisor) {
     return int(std::uint32_t(total) / std::uint32_t(divisor));
 }
 
+// What a stack lacks of its most (0062fc97): none when it's full or it
+// replenishes itself (item_replenish_quantity, stat 0xfd: 0062fca4).
 int stack_missing(const Tables& tables, const d2d::d2s::Item& item) {
     const int count = std::max(item.quantity, 1), most = stack_most(tables, item);
     const bool replenishes = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == kReplenishQuantity && prop.value != 0; });
@@ -346,11 +367,19 @@ bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
     return has(item.props) || std::ranges::any_of(item.socketed_items, [&](const d2d::d2s::Item& filled) { return has(socket_props(tables, item, filled)); });
 }
 
+// A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
+// FUN_006289f0) and throwable (FUN_0062ba80) — every stacking weapon.
 bool restocks(const Tables& tables, const d2d::d2s::Item& item) {
     const auto base = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
     return base != tables.item_base.end() && base->second.stackable && info != tables.item_info.end() && info->second.kind == 2;
 }
+
+// What an item's missing charges add to its repair (FUN_00628d30, called
+// with 10000 by FUN_0062efb0): each stat 204 below its max, (max - left) x
+// (cost mult x (level + 2 + reqlevel / 6 x 2) x 10000 / 1024 + cost add)
+// / max, Skills.txt's cost mult / cost add (+0x234 / +0x238) and reqlevel
+// (+0x174).
 
 // Not an ethereal item's (FUN_0062a8d0, item flag 0x400000).
 int charges_repair_cost(const Tables& tables, const d2d::d2s::Item& item) {
@@ -367,6 +396,10 @@ int charges_repair_cost(const Tables& tables, const d2d::d2s::Item& item) {
     }
     return cost;
 }
+
+// A repair's recharge (FUN_0055fe80, after FUN_005761c0's durability; the
+// cube's recharge flag 0x400, FUN_00565ab0): each stat 204 below its max
+// back to max (FUN_0065c940). True if any was.
 
 // game.exe lists a stat's entries with FUN_006261d0, which reads only a
 // list with the expanded flag 0x80000000 (tools/emu/stats_unit_list.py);
@@ -387,6 +420,7 @@ bool has_durability(const Tables& tables, const d2d::d2s::Item& item) {
     return found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0 && max_durability(item) != 0 && !indestructible(tables, item);
 }
 
+// The item's ItemTypes row has Repair (FUN_0062b400 -> FUN_00555c90 +8).
 bool type_mends(const Tables& tables, const d2d::d2s::Item& item) {
     const auto info = tables.item_info.find(item.code);
     const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
@@ -398,6 +432,9 @@ bool repairable(const Tables& tables, const d2d::d2s::Item& item) {
     return charge_missing(item) || (type_mends(tables, item) && (restocks(tables, item) || has_durability(tables, item)));
 }
 
+// What Repair All counts (FUN_0062fe60): a repairable item with durability
+// below or above its max, a restocking stack (FUN_0062e5d0: its type has
+// Repair, not ethereal) short of its max stack, or a charge missing.
 bool needs_repair(const Tables& tables, const d2d::d2s::Item& item) {
     const int max = max_durability(item);
     if (repairable(tables, item) && has_durability(tables, item) && item.durability != max) return true;
@@ -476,6 +513,9 @@ bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
     return true;
 }
 
+// Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
+// restocking stack back to its max, durability to its max, charges full.
+
 // A broken one goes through FUN_0055f900: flag 0x200 on, 0x100 off; its
 // hand-skill pass (FUN_0055c5c0) is World::hand_skills, run by the repair.
 bool mend(const Tables& tables, d2d::d2s::Item& item) {
@@ -488,15 +528,24 @@ bool mend(const Tables& tables, d2d::d2s::Item& item) {
     return true;
 }
 
+// Repairs item i (gold first from the inventory, then the stash, as a
+// buy). False if it needs none (`needs_repair`: a whole item's price is
+// still 1), it's priced 0 or you can't pay.
 bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
     if (!needs_repair(tables, item)) return false;
     const int cost = repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost > 0 && pay(stats, cost) && mend(tables, item);
 }
 
+// An item Repair All takes (FUN_0062fe60): a worn one, the 13 body slots
+// (FUN_0063bde0(inventory, 0..0xc)), never the inventory grid, that
+// `needs_repair`.
 bool repair_all_takes(const Tables& tables, const d2d::d2s::Item& item) {
     return item.location == d2d::d2s::item_location::kEquipped && needs_repair(tables, item);
 }
+
+// What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
+// each item it takes, at its repair price.
 
 // game.exe sums them in a 32-bit int (FUN_0062fe60's local_8), so past
 // 2^31 the sum wraps negative and paying it credits the gold (bugs.md 50).
@@ -508,6 +557,13 @@ int repair_all_cost(const Tables& tables, const Store& store, const std::vector<
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return std::int32_t(std::uint32_t(cost));
 }
+
+// Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
+// them oldest first, one with items scores 1 + each non-gold item's repair
+// cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at
+// 0x5698a8..0x5698b4; a whole repairable item 1, as repair_cost has it);
+// the highest, a tie the later (`best <= score`, jb at 0x5698d1). -1: none
+// has items.
 
 // combat.md "Saving".
 int corpse_to_save(const Tables& tables, const std::vector<const std::vector<d2d::d2s::Item>*>& corpses, const std::string& npc_id,
@@ -525,6 +581,9 @@ int corpse_to_save(const Tables& tables, const std::vector<const std::vector<d2d
     }
     return best;
 }
+
+// Repair all (FUN_00578050, flag 0x80000000): the sum is paid at once
+// (FUN_00576d90).
 
 // Short of it, nothing is repaired and the client is told it hasn't
 // the gold (12, line 0x9e4): nullopt. Paid, a second FUN_0062fe60
@@ -544,12 +603,17 @@ std::optional<int> store_repair_all(const Tables& tables, const Store& store, st
     return mended;
 }
 
+// A scroll's tome (Books.txt pairs tsc / tbk, isc / ibk) for `scroll`:
+// true when `book` is one with room (FUN_0055ef20: quantity, stat 70,
+// under its max).
 bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const d2d::d2s::Item& book) {
     const std::string tome = scroll.code == "tsc" ? "tbk" : scroll.code == "isc" ? "ibk" : "";
     const auto base = tables.item_base.find(book.code);
     return !tome.empty() && book.code == tome && book.location == d2d::d2s::item_location::kStored && base != tables.item_base.end() && book.quantity < base->second.max_stack;
 }
 
+// The vendor's perm items (FUN_00576ed0): its PermStoreItems, and in an
+// expansion game greater and super potions.
 bool store_perm(const Store& store, const std::string& code) {
     static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
     return std::ranges::find(store.perm, code) != store.perm.end() || (store.header.expansion() && std::ranges::find(kStrongPotions, code) != kStrongPotions.end());
@@ -647,6 +711,10 @@ Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::
     }
 }
 
+// Sells item i (FUN_00579510): gold up by the sell value, what
+// passes the carried cap (clvl x 10000) returned to drop at the player's
+// feet (FUN_0055b060).
+
 // The vendor stocks a copy at full durability and stack (stats 72 / 70)
 // unless it's Cracked (LowQualityItems row 1), broken (0x100), unique,
 // personalized, ethereal, holds something in its sockets (FUN_0055f590:
@@ -703,6 +771,10 @@ const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item) {
     return found != tables.item_info.end() ? &found->second : nullptr;
 }
 
+// game.exe's value x times / over (FUN_00483360), truncated: over 0 gives 0;
+// value past 0x100000 goes value / over x times when over <= value >> 4, times
+// past 0x10000 times / over x value when over <= times >> 4; else in 64 bits when
+// either is that large, 32 (wrapping) when neither is.
 int scale(int value, int times, int over) {
     if (over == 0) return 0;
     if (value > 0x100000) return over <= value >> 4 ? value / over * times : int(std::int64_t(value) * times / over);
@@ -728,6 +800,7 @@ bool meets_stats(const ItemInfo& info, const d2d::d2s::Item& item, int str, int 
     return str >= 1 && str >= req_str && dex >= 1 && dex >= req_dex && lvl >= (required_level >= 0 ? required_level : info.req_lvl);
 }
 
+// The class, stat and level requirements alone (FUN_0062eaf0's, any slot).
 bool meets_requirements(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer, int required_level) {
     const auto* info = info_of(tables, item);
     if (!info) return false;
@@ -736,6 +809,9 @@ bool meets_requirements(const Tables& tables, const d2d::d2s::Item& item, const 
     return meets_stats(*info, item, wearer.str, wearer.dex, wearer.lvl, required_level, &tables);
 }
 
+// Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat and
+// level requirements, identified: FUN_0062eaf0), ignoring what's already
+// equipped?
 bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer, int required_level) {
     const auto* info = info_of(tables, item);
     if (!info || !item.identified) return false;
@@ -744,11 +820,17 @@ bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const 
     return meets_requirements(tables, item, wearer, required_level);
 }
 
+// A two-handed weapon fills both hands (a Barbarian swings 1or2handed
+// ones in one, FUN_0062a1e0); only a bow's own quiver joins it (hands_ok).
 bool blocks_other_hand(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer) {
     const auto* info = info_of(tables, item);
     return info && info->two_handed && !(wearer.cls == d2d::d2s::kBarbarian && info->one_or_two);
 }
 
+// Can a and b be held in the two hands together (FUN_0063dbc0)? A bow or
+// crossbow with what its type Shoots (bowq / xboq); any other pair with a
+// quiver or a two-hander, never; two weapons only for a Barbarian (or an
+// Assassin's two claws); else a weapon with a shield.
 bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2d::d2s::Item& second, const Wearer& wearer) {
     const auto* first_info = info_of(tables, first);
     const auto* second_info = info_of(tables, second);
@@ -764,6 +846,8 @@ bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2d::d2s:
     return first_weapon != second_weapon;
 }
 
+// A body slot's other side (FUN_0055f240): the arms 4 <-> 5, the rings
+// 6 <-> 7, the switch arms 11 <-> 12; 0 for the rest.
 int other_side(int slot) {
     switch (slot) {
     case 4: return 5; case 5: return 4; case 6: return 7; case 7: return 6;
@@ -772,6 +856,10 @@ int other_side(int slot) {
     }
 }
 
+// Where a corpse's item from `slot` goes (FUN_0055f2d0): `taken` the
+// player's slot, `other_taken` its other side's. An arm then pairs with
+// what the other hand holds (hands_ok), a ring with nothing.
+
 // Both free: its own; both taken: none (-1, the inventory); its own taken,
 // the other free: the other side (0x55f333..0x55f33a); else its own.
 int corpse_slot(int slot, bool taken, bool other_taken) {
@@ -779,6 +867,11 @@ int corpse_slot(int slot, bool taken, bool other_taken) {
     return taken ? other_side(slot) : slot;
 }
 
+// The item cursor. D2 moves one item at a time: picking up takes it out
+// of the list into `held`; putting down places it, swapping with the one
+// item it lands on (into `held`), and fails when it would overlap two or
+// more, doesn't fit, or isn't allowed there. Each put returns whether it
+// changed anything.
 bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                  int panel, int cols, int rows, int col, int row) {
     if (!held || (panel == d2d::d2s::item_panel::kCube && held->code == "box")) return false;   // the cube can't go in itself
@@ -802,6 +895,9 @@ bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::
     return true;
 }
 
+// A hand's stack `held` joins (FUN_0063dd90's first test, code 6, C->S
+// 0x21 -> FUN_0055e7c0): its index in `items`, -1 none.
+
 // FUN_0062c850 (a Stackable base, FUN_006289f0, and stacks_with).
 int hand_stack(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& held, int slot) {
     if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
@@ -812,6 +908,10 @@ int hand_stack(const Tables& tables, const std::vector<d2d::d2s::Item>& items, c
     return -1;
 }
 
+// The cursor's stack onto `target` (FUN_0055e590): past the target's most
+// (stack_most, FUN_006295b0) the target fills and the rest stays held;
+// else the target takes it all, the lower durability of the two (stat
+// 0x48, an item with durability: FUN_00629930), and nothing is held.
 void stack_onto(const Tables& tables, d2d::d2s::Item& target, std::optional<d2d::d2s::Item>& held) {
     const int most = stack_most(tables, target), total = held->quantity + target.quantity;
     if (total > most) {
@@ -834,6 +934,7 @@ bool weapon_item(const Tables& tables, const d2d::d2s::Item& item) {
     return info && type_is(tables, info->type, "weap");
 }
 
+// The item in hand `slot`, if any (FUN_0063bde0 on cell 4 or 5).
 int hand_index(const std::vector<d2d::d2s::Item>& items, int slot) {
     for (std::size_t i = 0; i < items.size(); ++i)
         if (items[i].location == d2d::d2s::item_location::kEquipped && items[i].slot == slot) return int(i);
@@ -867,6 +968,12 @@ void wield_leaves(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d:
     const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - leaving.slot;
     if (const int index = hand_index(items, other); index >= 0 && item_usable(items[std::size_t(index)])) wield(items, items[std::size_t(index)]);
 }
+
+// A loaded character's hands: each item enters in the save's order
+// (FUN_005335e0 -> FUN_00531210, a worn one through FUN_005606b0 with the
+// requirements skipped, which calls FUN_0063d1d0 for slots 4 / 5); a new
+// character's starting gear the same way, in CharStats order (FUN_00534d60
+// -> FUN_00534bb0 -> FUN_005606b0).
 
 // Before each worn item but the switch's (0xb / 0xc) goes in, FUN_005606b0
 // keeps the weapon wielded then (FUN_0063bef0 -> FUN_006233a0, the
@@ -1035,6 +1142,10 @@ bool equip_from_bag(const Tables& tables, std::vector<d2d::d2s::Item>& items, co
     return true;
 }
 
+// An empty hand clicked with nothing held, beside a two-hander (Items
+// +0x11c, FUN_006289c0): FUN_0063dd90's code 4, and the client takes the
+// two-hander (C->S 0x1c with the other hand's slot, FUN_00490780 /
+// FUN_00490ba0). Its unit id, -1 none.
 int two_hander_beside(const Tables& tables, const std::vector<d2d::d2s::Item>& items, int slot) {
     if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
     const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot;
@@ -1083,6 +1194,9 @@ std::vector<d2d::d2s::Item> spill_belt(const Tables& tables, std::vector<d2d::d2
     return dropped;
 }
 
+// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
+// 0.
+
 // Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
 // product wraps); a bigger times over at most times / 16 divides it first,
 // as a bigger value over at most value / 16 does the value (each multiply
@@ -1097,6 +1211,13 @@ int mul_div(int value, int times, int over) {
     }
     return int(std::int64_t(value) * times / over);
 }
+
+// The player's mana a frame (FUN_005806f0 up to 0x58079e, 256ths), in its
+// 32-bit math: unless state 0x55 (nomanaregen, `no_regen`: 0x580724) is
+// on, the max (FUN_00625d60) over the CharStats ManaRegen byte x 25 frames
+// (7500 when it's 0; idiv), at least 1, then MulDiv(that, 100 +
+// manarecoverybonus (27), 100) (FUN_00483360); plus manarecovery (26),
+// flat, the add wrapping. The caller caps it at what's missing.
 
 // tools/emu/mana_frame.py runs it against game.exe
 // (tests/test_mana_frame.cpp).
@@ -1132,6 +1253,12 @@ int spend_stat_points(d2d::d2s::Stats& stats, int stat, int count, const ClassGa
     return count;
 }
 
+// Akara's Reset Stat/Skill Points (FUN_00570360, FUN_00570c80): every
+// skill's points come back (stat 5) and its level goes to 0; each stat
+// goes back to the class's CharStats base (str, energy, dex, vit — `base`
+// in stat order), the difference to or from stat 4; energy and vitality
+// take their mana / life and stamina max with them (current too when they
+// rise, else clamped to the new max).
 void respec(d2d::d2s::Stats& stats, const std::array<int, 4>& base, const ClassGains& gains) {
     using namespace d2d::d2s;
     for (auto& skill_level : stats.skills) { stats.values[kSkillPts] += skill_level; skill_level = 0; }
@@ -1149,6 +1276,11 @@ void respec(d2d::d2s::Stats& stats, const std::array<int, 4>& base, const ClassG
     }
 }
 
+// Can skill i (0..29 of class cls) take a point: a level to go, the
+// character level, and every prerequisite learned? (FUN_004ac200 greys
+// out the icons that can't.)
+// The base levels (points spent), no item +skills: its max test reads
+// FUN_006442a0(.., 0) (+0x28 alone), a prerequisite +0x28 >= 1 (FUN_006447d0).
 bool can_learn(const Tables& tables, int cls, int skill_index, const std::array<std::uint8_t, 30>& levels, int clvl) {
     if (cls < 0 || cls > 6 || skill_index < 0 || std::size_t(skill_index) >= tables.class_skills[std::size_t(cls)].size()) return false;
     const auto& class_skill = tables.class_skills[std::size_t(cls)][std::size_t(skill_index)];
@@ -1164,6 +1296,11 @@ bool learn_skill(const Tables& tables, int cls, int skill_index, std::array<std:
     return true;
 }
 
+// Healers restore life and mana when you talk to them (FUN_00578e70's
+// hcIdx list): Akara, Atma, Fara, Ormus, Jamella, Malah.
+// The cures are Fight::cure (FUN_00578d30). The save's max
+// life/mana are base values without gear (current can be higher), so
+// healing only raises to them; the true max needs item stat totals.
 bool is_healer(int hc_idx) {
     using namespace monster_ids;
     return hc_idx == kAkara || hc_idx == kAtma || hc_idx == kFara || hc_idx == kOrmus || hc_idx == kJamella || hc_idx == kMalah;
@@ -1328,11 +1465,17 @@ void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemP
     }
 }
 
+// Affix level for an item of level ilvl with base qlvl (FUN_005c1560):
+// max(ilvl, qlvl) plus the base's "magic lvl" (wands, staves, circlets),
+// or without one less qlvl/2 below 99 - qlvl/2, else 2*level - 99; 1..99.
 int affix_level(int ilvl, int qlvl, int magic_lvl) {
     const int level = std::max(ilvl, qlvl);
     return std::clamp(magic_lvl ? level + magic_lvl : level < 99 - qlvl / 2 ? level - qlvl / 2 : 2 * level - 99, 1, 99);
 }
 
+// A random affix row for an item of `type` at affix level alvl, weighted
+// by frequency (x the row's level with a magic lvl, FUN_005c1560); skips
+// groups already taken. 0 = none fits.
 int pick_affix(const Tables& tables, const std::vector<Affix>& list, const std::string& type, int alvl, bool rare,
                const std::vector<int>& groups, Rng& rng, bool by_level) {
     std::vector<std::pair<int, int>> ok;                   // (row, frequency)
@@ -1354,11 +1497,19 @@ int pick_affix(const Tables& tables, const std::vector<Affix>& list, const std::
     return ok.back().first;
 }
 
+// A scroll's or tome's Books.txt row (FUN_005c2540, EDX 1 for a scroll):
+// the first whose ScrollSpellCode (`scroll`) or BookSpellCode is `code`,
+// the row count when none is (0sc, the plain Scroll, gets 3).
 int books_row(const Tables& tables, const std::string& code, bool scroll) {
     for (std::size_t row = 0; row < tables.books.size(); ++row)
         if ((scroll ? tables.books[row].first : tables.books[row].second) == code) return int(row);
     return int(tables.books.size());
 }
+
+// A new item of `code` at level ilvl and quality (4 magic, 5 set, 6 rare,
+// 7 unique; a set / unique none fits is remade, below), identified, with
+// its defence and durability rolled. A set 29 (the Cow King's) drops only
+// from a Hell Bovine (`bovine`).
 
 // A made drop (FUN_00558d90) passes its unit seed (+0x20): the base rolls
 // (FUN_00557ab0) come off it: arrows / bolts (ItemTypes Quiver) min +
@@ -1783,6 +1934,10 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     return item;
 }
 
+// The item as roll_item makes it, with its unit's seed: the fingerprint
+// (unit +0x28, what a save keeps) is the low word the unit seed starts from
+// (FUN_00552df0: a step of the game seed, then FUN_00650e40 {it, 666}), and
+// the seed goes on from where the making left it (Item::seed_kept).
 d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                              Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
                              int difficulty, int special_wanted) {
@@ -1797,6 +1952,9 @@ d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int 
     return item;
 }
 
+// The item's unit seed (+0x20): where the making left it while it's in play,
+// else fresh from its fingerprint, as a loaded item's (FUN_0062cbe0 at
+// 0x62cd16 seeds the unit {fingerprint, 666}).
 Rng item_seed(const d2d::d2s::Item& item) {
     if (!item.seed_kept) return Rng{ item.uid };
     Rng seed;
@@ -1811,6 +1969,11 @@ bool sellable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto info = tables.item_info.find(item.code);
     return !(base != tables.item_base.end() && base->second.quest) && !(info != tables.item_info.end() && info->second.type == "ques");
 }
+
+// Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
+// bit 0, not gold, no flag 0x1000, not socketed (flag 0x800) nor holding
+// anything (FUN_0062a270), not a quest item but Wirt's leg, quality low /
+// normal / superior.
 
 // A throwable type (FUN_0062ba80) is refused in a classic game only: the
 // unit's +0xc8 bit 0x2000000 is the game's expansion flag (game +0x70,
@@ -1827,6 +1990,9 @@ bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion) 
     return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
 }
 
+// The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
+// anew, rare (+0x30 = 6), item level player_ilvl plus 4 when that is past
+// 5, a fresh seed; ethereal stays so (flag 4 / 2) and a personalized name is kept.
 d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
     const int ilvl = player_ilvl(clvl);
     auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, rng);
@@ -1836,6 +2002,8 @@ d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int 
     return made;
 }
 
+// Exceptional / elite upgrade weights out of 10000 for a gamble at clvl
+// (FUN_00629370): (clvl - qlvl) * 100 / 2 + 1 and * 100 / 4 + 1.
 std::pair<int, int> gamble_upgrade(const Tables& tables, const std::string& code, int clvl) {
     const auto found = tables.item_base.find(code);
     if (found == tables.item_base.end()) return { 0, 0 };
@@ -1847,6 +2015,8 @@ std::pair<int, int> gamble_upgrade(const Tables& tables, const std::string& code
     return { weight(found->second.ubercode, 2), weight(found->second.ultracode, 4) };
 }
 
+// The most sockets `item` may have (FUN_0062bc20): its gemsockets, capped
+// by its type's MaxSock1 / 25 / 40 for item level <= 25, <= 40, above.
 int most_sockets(const Tables& tables, const d2d::d2s::Item& item) {
     const auto base = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
@@ -1856,6 +2026,10 @@ int most_sockets(const Tables& tables, const d2d::d2s::Item& item) {
     return std::min(base->second.gem_sockets, type->second.max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)]);
 }
 
+// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, no
+// flag 0x1000, not a quest item but Wirt's leg, not broken (flag 0x100),
+// holding nothing (FUN_0062a270), not socketed (flag 0x800), most_sockets
+// above 0 (FUN_0062bc20) and no item_numsockets (stat 194, FUN_006299b0).
 bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     if (item.code == "gld" || (item.flags & kItemNoService) || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
@@ -1863,6 +2037,10 @@ bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
     const bool numsockets = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == 194 && prop.value != 0; });
     return !item.socketed && item.sockets == 0 && !numsockets && most_sockets(tables, item) > 0;
 }
+
+// Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
+// at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
+// the rest the most.
 
 // FUN_0062bcb0 caps them at the grid and 6. The item's seed is its unit's
 // (item_seed): fresh from its fingerprint for one loaded from a save,
@@ -1882,6 +2060,10 @@ d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& item) {
     return made;
 }
 
+// Whether Anya's personalizing takes `item` (FUN_0062c6a0): not gold, a
+// quiver or an ear (types 5..7), not broken or personalized already, not a
+// compact-save item (Items +0x143) and nameable (+0x145); no flag 0x1000,
+// not broken (0x100).
 bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
@@ -1890,6 +2072,9 @@ bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     return found->second.nameable && !item.personalized && !item.simple;
 }
 
+// Gheed's price for gambling on `item_code` (FUN_00629370): rings and amulets
+// cost their "gamble cost"; the rest mix the base, exceptional and elite
+// costs by upgrade odds and scale with character level.
 int gamble_price(const Tables& tables, const std::string& item_code, int clvl, int reduced) {
     // An upgraded base (exceptional or elite) is priced as its normal one: FUN_006287d0's normcode.
     const auto item = tables.item_base.find(item_code);
@@ -1909,6 +2094,8 @@ int gamble_price(const Tables& tables, const std::string& item_code, int clvl, i
     return int(price_reduced((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15, reduced));
 }
 
+// The gamble table (FUN_00638cc0, built at load): gamble.txt's bases sorted
+// by level with game.exe's qsort (FUN_00638ac0 compares Items +0xfd).
 std::vector<std::string> gamble_by_level(const Tables& tables) {
     std::vector<std::string> codes;
     for (const auto& code : tables.gamble) if (tables.item_base.contains(code)) codes.push_back(code);
@@ -1916,6 +2103,10 @@ std::vector<std::string> gamble_by_level(const Tables& tables) {
     return codes;
 }
 
+// The gamble upgrade (FUN_005786a0, expansion games only): the ubercode at
+// (level - its level) x GambleUber + 1 of 10000 on the proxy seed, failing
+// that the ultracode at GambleUltra's; no roll when that weight is under 1
+// or the code is none (the ultracode isn't tried then either).
 std::string gamble_upgrade_code(const Tables& tables, const std::string& code, int level, const GambleRates& rates, Rng& proxy) {
     const auto found = tables.item_base.find(code);
     if (found == tables.item_base.end()) return code;
@@ -1929,6 +2120,13 @@ std::string gamble_upgrade_code(const Tables& tables, const std::string& code, i
     const int ultra = weight(found->second.ultracode, rates.ultra);
     return ultra >= 1 && proxy(10000) < ultra ? found->second.ultracode : code;
 }
+
+// Gheed's gamble screen (FUN_00578790, rolled when it opens): 14 items on
+// the proxy seed, each a level clvl - 5 + rand(10) (5 .. 99), a base
+// rand(the bases up to that level) from gamble_by_level (a classic game
+// rolls again past expansion bases), the first two a ring and an amulet
+// instead, then the upgrade, then the quality: rand(100000) under rare +
+// set + unique is unique / set / rare by those odds, else magic.
 
 // Each is made as a drop (FUN_00559ce0: two game seed steps,
 // generate_item), unidentified, and put on its type's page; one that
@@ -1971,6 +2169,10 @@ Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int diffic
     return store;
 }
 
+// Gambles on stock item i of the open tab: pays its gamble price
+// (FUN_00629370 on its code; carried gold, then the stash) and takes it
+// into the inventory, identified (C->S 37 -> FUN_00578640). False if it
+// can't be paid for or doesn't fit.
 Trade store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     auto item = tab[std::size_t(index)];
@@ -1991,6 +2193,9 @@ Trade store_gamble(const Tables& tables, Store& store, int index, std::vector<d2
     return Trade::done;
 }
 
+// The list: the entries in name order, each a game seed step, then ten
+// picks of rand(names) on the game seed, each moving on past a taken
+// entry (wrapping; back at its start the picking ends).
 std::vector<HireEntry> hire_entries(int names, Rng& game) {
     std::vector<HireEntry> entries;
     for (int name = 0; name < names; ++name) entries.push_back({ name, game.next() });
@@ -2006,11 +2211,19 @@ std::vector<HireEntry> hire_entries(int names, Rng& game) {
     return entries;
 }
 
+// The seller's names (FUN_00575ff0: its first row's NameFirst..NameLast)
+// for act (0-based), difficulty and version.
 int hire_names(const Tables& tables, bool expansion, int act, int diff) {
     for (const auto& hireling : tables.hirelings)
         if (hireling.act == act + 1 && hireling.difficulty == diff + 1 && hireling.version == (expansion ? 100 : 0)) return hireling.names;
     return 0;
 }
+
+// An entry's offer (FUN_006637f0) for act (0-based) and difficulty (0-2),
+// on its own seed {seed, 666}: FUN_00656580 lists
+// the rows of that act, difficulty and version (100 = LoD) sharing the
+// first one's Level; one is picked, the level is clvl - 5 + rand(5)
+// (at least 2), and with d = level - the row's Level:
 
 //   life = HP + HP/Lvl * d (>= 40), str/dex = base + (per-level * d >> 3)
 //   (>= 10), cost = Gold * (15d + 100) / 100 (>= Gold), exp =
@@ -2069,6 +2282,12 @@ MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     return merc;
 }
 
+// The merc's share of its owner's kill (FUN_0057e990 -> FUN_0057e860):
+// `award` is the kill's experience at the merc's level (FUN_0057e480);
+// 86 / 256 of it (to zero) unless the merc struck the blow, then twice that
+// added while the merc is under its owner's level and level 98
+// (Experience.txt MaxLvl - 1, FUN_00611830(0)). The new experience; the
+// level follows from it (merc_stats).
 std::uint32_t merc_kill_exp(std::uint32_t merc_exp, std::int64_t award, bool merc_blow, int merc_level, int owner_level) {
     if (!merc_blow) award = award * 0x56 / 256;
     if (award <= 0 || merc_level >= owner_level || merc_level >= 98) return merc_exp;
@@ -2089,6 +2308,8 @@ bool hire(const MercOffer& offer, d2d::d2s::Header& header, d2d::d2s::Stats& sta
     return true;
 }
 
+// A dead merc's resurrection (FUN_006637b0): level^2 / 2 * 15, at most
+// 50,000.
 int merc_resurrect_cost(int merc_level) {
     return std::min((merc_level * merc_level / 2) * 15, 50000);
 }
@@ -2107,6 +2328,11 @@ Trade resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& 
     return Trade::hireling;
 }
 
+// Drinks the potion at the bottom of belt column `col` (box col, 0..3):
+// the item goes, those stacked above it (boxes col + 4, + 8, + 12) drop
+// a row. Returns its code, "" when there's no potion there.
+// A potion drunk from where it's carried: gone, and a belt one's column
+// moves down. Returns its code, "" if it isn't a potion.
 std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::vector<d2d::d2s::Item>::iterator potion) {
     if (potion == items.end() || !tables.potions.contains(potion->code) || potion->location == d2d::d2s::item_location::kEquipped) return {};
     std::string code = potion->code;
@@ -2117,6 +2343,11 @@ std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& items, s
             for (auto& item : items) if (item.location == d2d::d2s::item_location::kBelt && item.column == box) item.column = box - 4;
     return code;
 }
+
+// The runeword `item`'s sockets spell (FUN_0062bed0), or null: not magic
+// .. tempered (quality 4..9) nor a quest item (Items +0x12a), every socket
+// filled, its fillers Rune1.. in order, a `complete` row, none of its
+// etypes, one of its itypes.
 
 // A `ladder` row only in a ladder game (FUN_00562660: game +0x74), which
 // d2d's never are.
@@ -2134,6 +2365,11 @@ const Tables::Runeword* runeword_row(const Tables& tables, const d2d::d2s::Item&
     }
     return nullptr;
 }
+
+// The last filler in (FUN_00562660 -> FUN_006600a0): a runeword its
+// sockets spell, not one already, takes the runeword flag (0x4000000)
+// and its T1 mods as the runeword list (stat list 0xab / 0x40), each
+// through FUN_0065fd70 kind 6 on the item's seed.
 
 // The seed is the item's unit's (item_seed): fresh from its fingerprint
 // for one loaded from a save, where its making left it for one made in
@@ -2169,6 +2405,11 @@ std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items,
     return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kBelt && item.column == col; }));
 }
 
+// Find Potion's potion (FUN_005d8100): a row by the act (the level id
+// against 0x6eb2f0's starts 1, 40, 75, 103, 109) + difficulty x 5 of the
+// table at 0x741b58 {healing, mana, rejuvenation}; the caster's roll
+// (rand(100)) below Param3 takes the mana potion, below Param3 + Param4 the
+// rejuvenation, else the healing one.
 std::string find_potion(int level_id, int difficulty, int roll, int mana_chance, int rejuv_chance) {
     static constexpr std::array<std::array<const char*, 3>, 15> kPotions{ {
         { "hp2", "mp2", "rvs" }, { "hp3", "mp3", "rvs" }, { "hp3", "mp3", "rvs" }, { "hp4", "mp4", "rvl" }, { "hp4", "mp4", "rvl" },
@@ -2190,6 +2431,9 @@ int potion_amount(int calc, int cls, bool life, int stat, Rng& rng) {
     return amount;
 }
 
+// The potion's state (healthpot / manapot) gives it over `len` frames on
+// top of what's left of the last one: per frame (old x left + amount) /
+// (left + len), for left + len frames (FUN_005be3f0).
 int potion_rate(int old_rate, int left, int amount, int len) {
     return left + len > 0 ? (old_rate * left + amount) / (left + len) : 0;
 }
@@ -2223,6 +2467,7 @@ int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& ite
     return !second_worn && goes_with(*first_worn) ? second : -1;
 }
 
+// The item's own ItemTypes row is Beltable (FUN_0062bad0; no Equiv chain).
 bool beltable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto* info = info_of(tables, item);
     const auto type_row = info ? tables.types.find(info->type) : tables.types.end();
@@ -2249,6 +2494,11 @@ int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, con
     for (int col = 0; col < 4 && autobelt; ++col) if (!box[std::size_t(col)]) return col;
     return -1;
 }
+
+// Shift + left click on an inventory item (C->S 0x63, FUN_0054d520), the
+// hand empty: an item stored in the inventory (FUN_00628250 page 0; not
+// the stash, cube or belt) moves to belt_box's box. No box: it stays where
+// it is (not into the hand).
 
 // No tome or stack step comes first, so a scroll goes only to a column
 // whose bottom is the same scroll. FUN_00535610's trade gate passes for
@@ -2320,6 +2570,9 @@ Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2
     return Pickup::kGone;
 }
 
+// Cain's "Identify Items" (FUN_0062a530 counts, FUN_00578460 identifies):
+// the unidentified ones worn (node 3) or stored in the inventory or the cube
+// (node 1, page 0 / 3); not the belt (node 2) or the stash.
 bool cain_identifies(const d2d::d2s::Item& item) {
     using namespace d2d::d2s;
     return !item.identified && (item.location == item_location::kEquipped
@@ -2344,5 +2597,6 @@ int ring_pick(std::span<const int> ids, int last) {
     }
     return above >= 0 ? above : lowest;
 }
+
 
 }
