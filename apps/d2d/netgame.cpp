@@ -538,12 +538,20 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0x69: case 0x6b:   // a monster's unit command at x, y (+5; net-packets.md "The unit command")
     case 0x6a: case 0x6c:   // ... on a unit
-        if (size >= 6) {
-            auto& unit = unit_at(1, read_u32(packet, 1));
-            if (packet[5] == 8 && unit.mode != 8 && unit.mode != 9 && unit.cls == d2d::rules::monster_ids::kAndariel)
+        if (const auto command = d2d::net::d2gs::s2c::monster_command(packet)) {
+            auto& unit = unit_at(1, command->id);
+            if (command->correction) place(unit, command->correction->first, command->correction->second);
+            if (command->command == 8 && unit.mode != 8 && unit.mode != 9 && unit.cls == d2d::rules::monster_ids::kAndariel)
                 quest_quakes.push_back(d2d::rules::QuestQuake::andariel);
-            unit.mode = packet[5];
+            unit.mode = command->command;
             unit.mode_ms = steady_ms();
+            unit.attack_aim.reset();
+            if (command->point) unit.attack_aim = *command->point;
+            else if (command->target) {
+                const auto target = units.find(key(command->target->first, command->target->second));
+                if (target != units.end() && &target->second != &unit)
+                    unit.attack_aim = {target->second.x, target->second.y};
+            }
             if (unit.mode == 8 || unit.mode == 9) { unit.life = 0; unit.moving = false; }   // dying / dead: no hit says so
         }
         break;

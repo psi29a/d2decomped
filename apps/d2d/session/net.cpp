@@ -544,6 +544,10 @@ auto ClientSession::net_overlay() -> void {
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
             monster.mode = host_mode(unit, monster.npc);
+            if ((monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1") && unit.attack_aim) {
+                const auto [aim_x, aim_y] = *unit.attack_aim;
+                if (aim_x != unit.x || aim_y != unit.y) monster.unit.dir = direction16(aim_x - unit.x, aim_y - unit.y);
+            }
             if (monster.mode != monster.last_mode) monster.unit.mode_ms = world_ms;   // the animation starts over
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             monster.host_states = host_states(unit.states);

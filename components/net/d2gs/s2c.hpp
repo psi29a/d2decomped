@@ -11,9 +11,30 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace d2d::net::d2gs::s2c {
+
+struct MonsterCommand {
+    std::uint32_t id;
+    std::uint8_t command;
+    std::optional<std::pair<std::uint16_t, std::uint16_t>> point, correction;
+    std::optional<std::pair<std::uint8_t, std::uint32_t>> target;
+};
+
+// FUN_0045cea0 / FUN_0045cef0 dispatch the aim. FUN_0045cf40 /
+// FUN_0045cfb0 first correct the monster to the subtiles at +0xc and +0xe.
+inline auto monster_command(std::span<const std::uint8_t> packet) -> std::optional<MonsterCommand> {
+    if (packet.empty() || packet[0] < 0x69 || packet[0] > 0x6c) return std::nullopt;
+    const bool corrected = packet[0] >= 0x6b;
+    if (packet.size() != (corrected ? 16u : 12u)) return std::nullopt;
+    MonsterCommand out{read_u32(packet, 1), packet[5], {}, {}, {}};
+    if (packet[0] == 0x69 || packet[0] == 0x6b) out.point = {read_u16(packet, 6), read_u16(packet, 8)};
+    else out.target = {packet[6], read_u32(packet, 7)};
+    if (corrected) out.correction = {read_u16(packet, 12), read_u16(packet, 14)};
+    return out;
+}
 
 // 0x27 NPC info, mode 1: the NPC's quest lines for this player
 // (FUN_004a1600 -> FUN_00661510): +2 u32 the NPC's id, +6 u8 count (< 8),

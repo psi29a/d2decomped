@@ -191,9 +191,19 @@ state 1 is clear and drops it if the living monster is already frozen.
 The checker scripts the state query and captures the action callback.
 The d2d fixture passed for all three classes: freeze before update at
 tick 4 suppressed the shot through thaw, and freeze at tick 5 left the
-shot that already fired. These fixtures do not
-establish whether an AI mode change or a hit runs before a separately
-queued action on the same game tick.
+shot that already fired.
+
+`tools/emu/council_event_order.py --exe <local game.exe>` runs the
+original timed insertion and dispatch. Within the monster bucket,
+the older entry runs first. When a think was filed first, its
+mode-change clear (`FUN_00553990`) removes the still-pending action.
+If the action was filed first, the think cannot undo it. Player
+action events dispatch before monster action events in either
+insertion order. The probe substitutes the think decision and
+player action callback; it does not run player damage calculation.
+In d2d, player modes are processed before the monster update, and
+the Council test checks a real get-hit mode change on either side
+of that update as well as both insertion orders for the AI think.
 
 With the stock MonStats rows, the original rate helper
 `FUN_00623f50` (tools/emu/mode_rates.py) returned these S1 rates for
@@ -239,11 +249,18 @@ in 1/256-frame units. The d2d regression checks that same pose history
 while the melee action still resolves at tick 8. This test drives the
 animation step and scheduled action separately.
 
-Mode changes clear the scheduled action; starting a tracked mode
-initializes its visible position and tick. Local views copy the
-simulated monster state. Joined clients continue to draw from their
-replicated mode and rate because that wire format carries no accumulated
-position. Player, hireling and pet attack clocks use their own paths.
+Mode changes clear the scheduled action and pose. Starting a tracked
+mode initializes its visible position and tick. The local view copies
+the simulated pose, and d2d LAN protocol 11 carries the optional pose
+in monster state updates. A joined d2d client draws that position
+when present. The original-game TCP/IP path instead receives a monster mode command.
+With synthetic point and unit targets, `tools/emu/council_host_packets.py`
+runs `FUN_00597e20` and captures A1 commands 11/10 and S1 commands
+12/13 in packets 0x6b/0x6c, respectively. Both variants carry the
+monster's position correction at +0xc and +0xe. The original client
+applies it before dispatching the command (`FUN_0045cf40` / `FUN_0045cfb0`).
+d2d applies the correction and uses the aim to face A1, A2 and S1.
+Player, hireling and pet attack clocks use their own paths.
 
 The d2d regressions map original Council IDs 345–347 to reordered
 local rows, so both attack paths exercise the loader's ID mapping.
