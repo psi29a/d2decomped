@@ -196,6 +196,8 @@ int charge_velocity(int walk_velocity, int run_velocity, int velocity_percent, b
     return mul_div(run_velocity << 8, velocity + param1, 100);
 }
 
+// The *Lev1..5 brackets (FUN_00644b70): Lev1 for each level 2..8, Lev2
+// 9..16, Lev3 17..22, Lev4 23..28, Lev5 from 29.
 int level_bonus(const std::array<int, 5>& lev, int lvl) {
     if (lvl < 2) return 0;
     if (lvl > 28) return (lvl - 28) * lev[4] + (lev[3] + lev[2]) * 6 + lev[1] * 8 + lev[0] * 7;
@@ -210,15 +212,23 @@ int calc_dm(int base, int per_level, int lvl) {
     return std::min((110 * lvl / (lvl + 6)) * (per_level - base) / 100 + base, per_level);
 }
 
+// What a cast must have in mana, in 256ths (FUN_0056c160, the check):
+// (mana + lvlmana x (lvl - 1)) << manashift. No minmana floor here.
 int mana_formula(const Skill& skill, int lvl) {
     if (lvl < 1) return 0;
     return (skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31);
 }
 
+// The cost shown for a skill, and the most a payment takes: the formula, at
+// least minmana points (FUN_0056bfe0).
 int mana_cost(const Skill& skill, int lvl) {
     if (lvl < 1) return 0;
     return std::max(mana_formula(skill, lvl), skill.minmana * 256);
 }
+
+// What the payment takes off `mana` (FUN_0056bfe0): nothing for a row with
+// no mana and no lvlmana, nothing when the mana is short of mana_cost (the
+// cast has happened by then), else mana_cost.
 
 // A unit in state 0x72 pays through FUN_005d2b60 instead
 // (Fight::blood_pay); srvdofunc 116 passes the check at once (not
@@ -228,6 +238,11 @@ int mana_paid(const Skill& skill, int lvl, std::int64_t mana) {
     const int cost = mana_cost(skill, lvl);
     return mana < cost ? 0 : cost;
 }
+
+// Elemental damage in 256ths (FUN_00644d50 / FUN_00644e40): (EMin + brackets)
+// << HitShift, plus EDmgSymPerCalc percent of that (MulDiv); with `mastery`
+// (the flag), plus the element's mastery % of the sum (FUN_00644c90: fire
+// 329, lightning 330, cold 331, poison 332; env.stat).
 
 // The min takes its synergy only above one point or with an EMinLev1
 // (FUN_00644d50 at 0x644db3; the max always): a lightning skill's 1-x stays
@@ -242,6 +257,8 @@ int elem_damage(const SkillTables& skill_tables, const Skill& skill, const CalcE
     return damage;
 }
 
+// Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels
+// 2..8, 9..16, 17 up, plus ELenSymPerCalc percent.
 int length_bonus(const std::array<int, 3>& lengths, int lvl) {
     return lvl < 2 ? 0 : lvl < 9 ? (lvl - 1) * lengths[0] : lvl < 17 ? (lvl - 8) * lengths[1] + lengths[0] * 7
                       : (lvl - 16) * lengths[2] + lengths[1] * 8 + lengths[0] * 7;
@@ -254,6 +271,8 @@ int elem_length(const SkillTables& skill_tables, const Skill& skill, const CalcE
     return length;
 }
 
+// The skill's own physical damage in 256ths (FUN_00647bc0 without the
+// weapon share): (MinDam + brackets) plus DmgSymPerCalc percent, << HitShift.
 int skill_phys(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, bool max, int depth) {
     if (lvl < 1) return 0;
     int damage = (max ? skill.maxdam : skill.mindam) + level_bonus(max ? skill.maxdam_lev : skill.mindam_lev, lvl);
@@ -287,6 +306,7 @@ MissileDamage missile_damage(const SkillTables& skill_tables, const Skill& skill
     return damage;
 }
 
+// Attack rating bonus % (FUN_006449f0): ToHitCalc, else ToHit + LevToHit x (lvl - 1).
 int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int depth) {
     if (lvl < 1) return 0;
     if (!skill.tohit_calc.empty()) return eval_calc(skill_tables, skill.tohit_calc, env, skill.id, lvl, depth + 1);
@@ -702,6 +722,9 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     return line;
 }
 
+// One operand (FUN_00646460, codes in skillcalc.txt order).
+// The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
+
 // skpt (+0x170, the skill points calc) reads 0: no 1.14d calc (Skills.txt,
 // Missiles.txt) names it.
 int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
@@ -751,6 +774,11 @@ int calc_operand(const SkillTables& skill_tables, const Skill& skill, const Calc
     }
 }
 
+// Every skill with passive stats the player has a level in (env.level >
+// 0) but a summoner, its stats up to the first empty passivestat: the passives, and the
+// Paladin's auras — theirs sit in the passivestate while the aura is off
+// (the state at +0x80 holds FUN_00646d60 off) and in the aura's own state
+// while it's on (FUN_005cf3a0 fills it from +0x98), so they're always on.
 std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, const CalcEnv& env) {
     std::vector<PassiveStat> out;
     for (const auto& skill : skill_tables.rows) {
@@ -778,10 +806,17 @@ SummonStats summon_stats(const SkillTables& skill_tables, const Skill& skill, co
     return out;
 }
 
+// Its max life in 256ths (0x5c4752..0x5c4821): the max with its passives in
+// (FUN_00625d10) and calc1 % (`pct`) of it, set as stats 7 and 6; the percent
+// is MulDiv (FUN_00483360) inlined, so its 32-bit product wraps as rules::mul_div
+// says (bugs.md 123), and so does the sum.
 int summon_life(int max_fine, int pct) {
     return int(std::uint32_t(max_fine) + std::uint32_t(mul_div(max_fine, pct, 100)));
 }
 
+// Its skills (FUN_0056deb0): sumskill k at sumsk calc k, the ones at level 1
+// or more, in order, as (skill id, level). A name is looked up as written,
+// then ignoring case.
 std::vector<std::pair<int, int>> summon_skill_levels(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
     std::vector<std::pair<int, int>> out;
     const auto named = [&](const std::string& name) -> const Skill* {
@@ -873,6 +908,9 @@ int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& 
     return stack.empty() ? 0 : stack.back();
 }
 
+// Frames between Whirlwind's hits (FUN_005d9320) by the weapon's attack
+// length in frames (FUN_0062a710): under 12 → 4, 15 → 6, 18 → 8, 20 → 10,
+// 23 → 12, then 14, and 16 past 25; 10 bare-handed.
 int whirlwind_gap(int attack_frames) {
     const int frames = attack_frames;
     return frames < 12 ? 4 : frames < 15 ? 6 : frames < 18 ? 8 : frames < 20 ? 10 : frames < 23 ? 12 : frames > 25 ? 16 : 14;
@@ -905,6 +943,14 @@ ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, co
     return bonus;
 }
 
+// Item bonuses to one skill (FUN_00644180, a player's), over the item
+// properties the character wears (ItemStatCost ids): 127 +all skills (any
+// skill it has, its class's or not); for its own class's 83 +class skills
+// (param = class), 188 +skill tab (param = class x 8 + tab, tab = SkillDesc
+// page - 1) and 97 oskill at most 3, another class's 97 in full; 126
+// +elemental skills (param = game.exe's EType: 1 fire, 2 lightning, 3
+// magic, 4 cold, 5 poison) and 107 +single skill (param = skill id).
+
 // Its other two terms: the skill record's +0x2c, which only the client
 // fills (the bonus the server sends: FUN_004c6140 / FUN_004d88a0 ->
 // FUN_00647aa0), and FUN_00644150's 2 under state 0x86 (the skill shrine),
@@ -929,6 +975,9 @@ int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::Item
     return bonus + (own ? std::min(oskill, 3) : oskill);
 }
 
+// Whether worn items give the character a skill it has no points in
+// (FUN_0055b800, ItemMode.cpp: stat 97 for any skill, 107 for its own
+// class's adds the skill at 0 points).
 bool item_grants_skill(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
     const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];
     return std::ranges::any_of(props, [&](const d2d::d2s::ItemProp& prop) { return prop.param == skill.id && prop.value > 0 && (prop.stat == 97 || (prop.stat == 107 && own)); });
@@ -942,5 +991,6 @@ std::vector<std::pair<int, int>> monster_curse_stats(int pick, int param7) {
         default: return {};
     }
 }
+
 
 }
