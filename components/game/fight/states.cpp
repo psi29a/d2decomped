@@ -59,6 +59,9 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
     slot = {};
 }
 
+// A timed state on a monster: a curse state in its curse slot, any other in
+// its state's node (FUN_0056e970); and a state's end (fight/).
+
 // A timed state put on a monster (FUN_0056e970) in its state's node: the
 // same skill at the same level only runs longer, one at a higher level
 // stays (the put fails); else the one there comes off (end_state). Other

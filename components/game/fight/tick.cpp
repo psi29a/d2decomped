@@ -9,6 +9,7 @@
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "log.hpp"
+#include "missile_flight.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>

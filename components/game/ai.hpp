@@ -137,10 +137,7 @@ struct Crowd {
     }
 };
 
-// A town NPC's first think, 2 frames after `now_ms`: game.exe files it as
-// the NPC's room comes into play (its first client, FUN_0053a8e0, or made
-// in one already in play, FUN_00554850) through FUN_00573780: mode NU,
-// event 2 at frame + 2 (0x5737c0).
+// A town NPC's first think, 2 frames after `now_ms`.
 void file_first_think(UnitState& state, std::uint32_t now_ms);
 
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)
@@ -188,7 +185,7 @@ bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& cro
 // the unit on its subtile's centre (FUN_006507b0; with no path or no step
 // too).
 bool follow_path(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, bool* blocked = nullptr);
-// A monster's frame off a walk: its turn on a step toward the goal (FUN_00648640), a dir set since taken at once.
+// A monster's frame off a walk: its turn on a step toward the goal, a dir set since taken at once.
 void turn_frame(UnitState& unit);
 // An action's facing: `dir` (16-way) taken at once, the walk's pending turn dropped.
 void face(UnitState& unit, int dir);
@@ -578,26 +575,8 @@ struct Monster {
     }
 };
 
-// A monster's mode rate over its AnimData speed, % more (FUN_00623f50,
-// 0x623f50): its attack modes (A1, A2: 0x6e8b90 / 0x6e8cd0 mark them so
-// for every monster, FUN_00621580) at 100 + attack_pct (attackrate from
-// auras) + its MonProp IAS, clamped 15..175; its cast mode (SC,
-// FUN_006216e0) at 100 + its FCR, at most 175, no attackrate /
-// other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
-// table at 0x6e8e24). S1..S4 and SQ (a skill's sequence) are attack modes
-// too while the monster's current skill has UseAttackRate (FUN_00621580:
-// the mode row's +8, Skills record byte +6 & 8; `skill_attack_rate`), unless
-// they're moving ones (S1..S4 below class 0x19a: own_rate_mode). Any
-// other at 100 + anim_pct (other_animrate), clamped 15..175. The modes whose
-// rate isn't a % of their AnimData speed (moving ones, GH, BL, KB, DT, DD)
-// take the GameData overload below (mode_rate).
-// A get-hit's length in ms: rules::get_hit_ticks on the mode's AnimData
-// record (frames and speed, the COF's for a mode animdata lacks) and the
-// unit's FHR, a tick 40 ms.
-inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
-    const int frames = int(timing.frames ? timing.frames : timing.cof_frames), speed = int(timing.speed ? timing.speed : timing.cof_speed);
-    return std::uint32_t(d2d::rules::get_hit_ticks(frames, speed, fhr)) * 40u;
-}
+// A monster's mode rate over its AnimData speed, % more.
+std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr);
 
 inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool skill_attack_rate = false) {
     const bool skill_mode = mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4" || mode == "SQ";
@@ -610,8 +589,7 @@ inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool ski
 // UseAttackRate, MonProp IAS / FCR / FHR, attack_pct (+ aura_rate) and anim_pct. d2d's monsters have no
 // FBR or state 0x65.
 int mode_rate(const GameData& game_data, const Monster& monster, std::string_view mode);
-// Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one (FUN_006214a0:
-// WL, RN; S1..S4 for a class under 0x19a that isn't a MonStats npc), KB, BL, DT, DD.
+// Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one, KB, BL, DT, DD.
 bool own_rate_mode(const GameData& game_data, const Monster& monster, std::string_view mode);
 // Its chill's stats (FUN_0057af80: state 0xb with velocitypercent, attackrate and other_animrate each at this,
 // 0x57b0a0..0x57b0bf): its MonStats row's coldeffect on its difficulty (0x57afe2); 0 is no chill.
@@ -717,59 +695,22 @@ inline float leap_cells_per_frame(int run) { return float(std::max(run, 0)) / 80
 // The cells a takeoff has flown `elapsed_ms` in, at `pace` cells a frame, up to its `length`.
 inline float leap_moved(float pace, std::uint32_t elapsed_ms, float length) { return std::min(float(elapsed_ms) * pace / 40.f, length); }
 
-// How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the
-// takeoff's pace (FUN_005d9f70) when it has one, else along `span_ms`, the sequence's time.
-inline float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms) {
-    const float length = std::hypot(monster.leap_to_x - monster.leap_from_x, monster.leap_to_y - monster.leap_from_y);
-    if (monster.leap_pace > 0 && length > 0) return leap_moved(monster.leap_pace, elapsed_ms, length) / length;
-    return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
-}
+// How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the takeoff's pace when it has one,
+// else along `span_ms`, the sequence's time.
+float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms);
 
-// A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
-// pet or the merc): at the knockback's pace to its leap_to, then it stands
-// till the mode ends (LAB_005a8630 steps the path each frame and leaves
-// only at the mode's end, FUN_006217c0). True while the mode lasts.
-inline bool knock_slide(Monster& monster, std::uint32_t now_ms) {
-    const float dx = monster.leap_to_x - monster.leap_from_x, dy = monster.leap_to_y - monster.leap_from_y, length = std::hypot(dx, dy);
-    const float done = length > 0 ? knock_moved(now_ms - monster.unit.mode_ms, length) / length : 1.f;
-    monster.unit.x = monster.leap_from_x + dx * done;
-    monster.unit.y = monster.leap_from_y + dy * done;
-    return now_ms < monster.mode_until;
-}
+// A knocked-back unit's slide (mode KB, Fight::knock_back.
+bool knock_slide(Monster& monster, std::uint32_t now_ms);
 
-// A monster's MonProp hit events on a foe it hit (FUN_005c0c30 over its
-// event list +0x90; the melee event, or the missile one, 6, for its
-// missile's): each draws on the monster's seed.
-// - Knockback (stat 81, func 7, FUN_005bf960): a draw's low 7 bits under
-//   the foe's `knock_under`, result flag 8 from where the monster stands;
-//   a player slides in Fight::hurt_side, a pet or the merc as a monster does.
-// - Crushing Blow (stat 136, func 16, FUN_005bffc0): a draw % 100 under
-//   the value; it takes current life / the foe's `crush_divisor`, doubled
-//   for a missile, less its damageresist (crushing_blow), after the hit.
-inline void monprop_hit(Monster& monster, Foe& foe, bool missile) {
-    if (monster.props.knock > 0 && int(monster.seed.next() & 0x7f) < foe.knock_under) foe.knocked_from = std::pair{ monster.unit.x, monster.unit.y };
-    if (monster.props.crush > 0 && int(monster.seed.next() % 100) < monster.props.crush)
-        foe.crushed.push_back(foe.crush_divisor * (missile ? 2 : 1));
-}
+// A monster's MonProp hit events on a foe it hit: each draws on the monster's seed.
+void monprop_hit(Monster& monster, Foe& foe, bool missile);
 
-// What a Crushing Blow takes off `life` (FUN_005bffc0): life / divisor,
-// less its share of the raw damageresist (stat 0x24, 100 at most; none
-// when 0 or less), not the 50 % a hit's reduction stops at.
-inline std::int64_t crushing_blow(std::int64_t life, int divisor, int damage_resist) {
-    const std::int64_t crush = life / std::max(divisor, 1);
-    return crush - (damage_resist > 0 ? crush * std::min(damage_resist, 100) / 100 : 0);
-}
+// What a Crushing Blow takes off `life`: life / divisor, less its share of the raw damageresist, not the 50 % a
+// hit's reduction stops at.
+std::int64_t crushing_blow(std::int64_t life, int divisor, int damage_resist);
 
-// A monster unit (a pet, or a monster made a foe by Confuse or Attract) as
-// MonProp knock and crush see it. Knock: under 0x20 for a MonStats2 large
-// one, 0x80 (always) a small one (FUN_005bf960: MonStats2 +5 & 8 / & 4,
-// [0x6ce274] / [0x6ce270]). Crush: Monster::crush_divisor.
-inline void monster_foe_props(const GameData& game_data, const Monster& monster, Foe& foe) {
-    const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
-    foe.neutral = monster.mode == "NU";
-    foe.knock_under = type_info.large ? 0x20 : type_info.small ? 0x80 : 0x40;
-    foe.crush_divisor = monster.crush_divisor(game_data);
-}
+// A monster unit (a pet, or a monster made a foe by Confuse or Attract) as MonProp knock and crush see it.
+void monster_foe_props(const GameData& game_data, const Monster& monster, Foe& foe);
 
 constexpr float kMeleeReach = 1.1f;           // cells between centres
 
@@ -843,15 +784,7 @@ struct Missile {
     d2d::rules::Rng client_seed;              // the client unit's (FUN_00465fd0, client_unit_seed), once client_seeded
     bool client_seeded = false;
 };
-// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when one step
-// of the missile's own seed (+0x20: low * 0x6ac690c5 + high) has its low 7
-// bits under dParam1 (+0x78). The step is kept, the roll passed or not. `rng`
-// only gives a missile with no seed yet its first value (see Missile::seed).
-inline bool soft_hit(Missile& missile, d2d::rules::Rng& rng) {
-    if (!missile.info || missile.info->dmg_func != 3) return false;
-    if (!missile.seed) missile.seed = d2d::rules::Rng(rng.next());   // {a step, 666}: FUN_00552df0
-    return int(missile.seed->next() & 0x7f) < missile.info->dmg_par1;
-}
+bool soft_hit(Missile& missile, d2d::rules::Rng& rng);
 
 // A missile's speed, cells/s, for its velocity: FUN_0059fa30's path
 // velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
@@ -863,142 +796,26 @@ inline constexpr std::array<int, 16> kRingWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -
 inline float missile_speed(const GameData::MissileInfo& info, int level) {
     return missile_speed(d2d::rules::missile_velocity(info.vel, info.vel_lev, level));
 }
-// FUN_0059fa30's flag 2: the target point [7] / [8] subtiles from the
-// start's subtile (a nova's ring, FUN_0056d400; PrimePoisonNova's;
-// Frozen Orb's spin and burst), in cells: that subtile's centre, for
-// Missile::to.
-inline std::pair<float, float> offset_target(float x, float y, int offset_x, int offset_y) {
-    return { (std::floor(x * 5) + float(offset_x) + 0.5f) / 5, (std::floor(y * 5) + float(offset_y) + 0.5f) / 5 };
-}
+std::pair<float, float> offset_target(float x, float y, int offset_x, int offset_y);
 
-// One frame of a moving missile's flight (FUN_005ae1f0's move): launched
-// on its first, re-aimed at `retarget` when set (FUN_00649970 -> FUN_006492f0:
-// the path's one point that unit's subtile, the fine position kept,
-// FUN_0064fe40 -> FUN_0064fc60 from it to the point's centre, the room
-// followed once the point is outside it; none over 99 subtiles off). Nothing
-// moves a flying missile by hand (Blessed Hammer flies its route,
-// rules::hammer_route). Its subtiles are the act's; `blocked` tests the 0x04 bit, and a
-// subtile off its rooms reads 0x27 (blocked). False: the flight is over (a
-// wall, or off its rooms).
-template <class Reach>
-bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
-    const int origin_x = level.world_x * 5, origin_y = level.world_y * 5;
-    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-    if (!missile.launched) {
-        const int from_x = origin_x + subtile(missile.x), from_y = origin_y + subtile(missile.y);
-        const int path_velocity = int(std::lround(std::hypot(missile.velocity_x, missile.velocity_y) * 4096 / 5));
-        const int max_velocity = missile.info ? missile.info->max_vel << 8 : path_velocity, accel = missile.info ? missile.info->accel : 0;
-        const bool aimed = missile.to.has_value();
-        int to_x = aimed ? origin_x + subtile(missile.to->first) : from_x, to_y = aimed ? origin_y + subtile(missile.to->second) : from_y;
-        if (to_x == from_x && to_y == from_y) { ++to_x; ++to_y; }   // FUN_0059fa30: target = start moves + (1, 1)
-        missile.flight = d2d::rules::MissileFlight::launch(from_x, from_y, to_x, to_y, path_velocity, max_velocity, accel);
-        if (!missile.route.empty()) missile.flight.points = missile.route;
-        if (missile.bolt >= 0 && aimed) {                    // FUN_005c9290 / FUN_005cd110: 77 frames at most, its wiggle
-            missile.dies = std::min(missile.dies, missile.born + 77 * 40);
-            d2d::rules::Rng seed{ std::uint32_t(to_x + missile.bolt) };
-            if (!missile.wall_maker || seed.next() % 100 >= 20)
-                missile.flight.points = d2d::rules::wiggle_points(from_x, from_y, to_x, to_y, int(missile.dies - missile.born) / 40, seed);
-        }
-        missile.rooms = reach(missile.x, missile.y);
-        const auto& room = missile.rooms.empty() ? std::array<int, 4>{} : missile.rooms.front();
-        missile.follow = to_x < room[0] || to_y < room[1] || to_x >= room[0] + room[2] || to_y >= room[1] + room[3];   // FUN_006492f0: path flag 1 when the target lies outside the room
-        missile.launched = true;
-    } else if (const auto retarget = std::exchange(missile.retarget, std::nullopt)) {
-        const int to_x = origin_x + subtile(retarget->first), to_y = origin_y + subtile(retarget->second);
-        const int at_x = missile.flight.subtile_x(), at_y = missile.flight.subtile_y();
-        if (std::abs(to_x - at_x) <= 99 && std::abs(to_y - at_y) <= 99 && to_x != 0 && to_y != 0) {
-            std::tie(missile.flight.aim_x, missile.flight.aim_y) = d2d::rules::missile_aim(missile.flight.x, missile.flight.y, (std::uint32_t(to_x) << 16) + 0x8000, (std::uint32_t(to_y) << 16) + 0x8000);
-            const auto& room = missile.rooms.empty() ? std::array<int, 4>{} : missile.rooms.front();
-            if (to_x < room[0] || to_y < room[1] || to_x >= room[0] + room[2] || to_y >= room[1] + room[3]) missile.follow = true;   // path flag 1
-        }
-    }
-    const auto inside = [](const std::array<int, 4>& rect, int x, int y) { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]; };
-    // FUN_00463740 reads the room's near list as it is now: a room come up since the list
-    // was taken holds its room1, so a miss asks the list again, round its own room.
-    const auto reached = [&](int x, int y) {
-        const auto in_list = [&] { return std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
-        if (missile.rooms.empty() || in_list()) return true;
-        const auto& own = missile.rooms.front();
-        missile.rooms = reach((float(own[0] + own[2] / 2 - origin_x) + 0.5f) / 5, (float(own[1] + own[3] / 2 - origin_y) + 0.5f) / 5);
-        return missile.rooms.empty() || in_list();
-    };
-    bool flying = missile.flight.step([&](int x, int y) {
-        return !reached(x, y) || level.blocked((float(x - origin_x) + 0.5f) / 5, (float(y - origin_y) + 0.5f) / 5, 0x04);
-    });
-    missile.x = float((double(missile.flight.x) / 65536 - origin_x) / 5);
-    missile.y = float((double(missile.flight.y) / 65536 - origin_y) / 5);
-    const int at_x = missile.flight.subtile_x(), at_y = missile.flight.subtile_y();
-    if (flying && missile.follow && !missile.rooms.empty() && !inside(missile.rooms.front(), at_x, at_y)) {   // FUN_0064fad0
-        if (reached(at_x, at_y)) missile.rooms = reach(missile.x, missile.y);
-        else flying = missile.flight.stop();
-    }
-    return flying;
-}
+// A foe of `size` at (x, y) cells is in a subtile a missile entered this frame.
+bool missile_struck(const Level& level, const Missile& missile, float x, float y, int size);
 
-// A foe of `size` at (x, y) cells is in a subtile a missile entered this
-// frame (FUN_005ae1f0 -> FUN_00641cb0).
-inline bool missile_struck(const Level& level, const Missile& missile, float x, float y, int size) {
-    const int foe_x = level.world_x * 5 + int(std::floor(x * 5)), foe_y = level.world_y * 5 + int(std::floor(y * 5));
-    const int missile_size = missile.info ? missile.info->size : 1;
-    return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size, missile_size); });
-}
+// A standing missile (no velocity) strikes from its own subtile every frame.
+bool standing_struck(const Missile& missile, float x, float y, int size);
 
-// A standing missile (no velocity) strikes from its own subtile every frame
-// (FUN_005ae1f0, nothing crossed): a Size 2 shard takes a size 1 unit on its
-// own and the 4 neighbouring subtiles, a size 2 unit on 13, size 3 on 21; a
-// Size 1 Fire Wall flame 1 / 5 / 9. A row with no Size 1..3 keeps the half
-// cell it always had here.
-inline bool standing_struck(const Missile& missile, float x, float y, int size) {
-    const int missile_size = missile.info ? missile.info->size : 0;
-    if (missile_size < 1 || missile_size > 3) return std::hypot(x - missile.x, y - missile.y) <= 0.5f;
-    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-    return d2d::rules::missile_touches(subtile(missile.x), subtile(missile.y), subtile(x), subtile(y), size, missile_size);
-}
+// A missile's facing for a heading with no point to aim at (a velocity, a ring's or a burst's spoke).
+int missile_heading(float dx, float dy);
+// A missile's facing from (x, y) at the point (dx, dy) cells on.
+int missile_facing(float x, float y, float dx, float dy);
 
-// A missile's facing for a heading with no point to aim at (a velocity, a
-// ring's or a burst's spoke): the 64-step direction of its angle, scaled
-// to 255 subtiles along (direction64's 32-bit sums wrap past 258).
-inline int missile_heading(float dx, float dy) {
-    const float longer = std::max(std::abs(dx), std::abs(dy));
-    if (longer <= 0) return 0;
-    return d2d::rules::direction64(0, 0, int(std::lround(dx * 255 / longer)), int(std::lround(dy * 255 / longer)));
-}
-// A missile's facing from (x, y) at the point (dx, dy) cells on: game.exe's
-// 64-step direction between their subtiles (rules::direction64, as
-// FUN_0059fa30 aims at the target; 0 straight down, clockwise on screen),
-// floored as missile_fly flies it. The draw takes its frame from it
-// (missile_direction). A step of a cell or less is a unit heading (a
-// spoke's cos / sin), not a point: its angle.
-inline int missile_facing(float x, float y, float dx, float dy) {
-    if (std::hypot(dx, dy) <= 1.01f) return missile_heading(dx, dy);
-    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-    return d2d::rules::direction64(subtile(x), subtile(y), subtile(x + dx), subtile(y + dy));
-}
-
-// `element` onto a missile's stats: poison per frame / frames in MonStats::poison_*,
-// any other type as an A2 El row in whole points (shared by missile_blow and the
-// map's trap missiles).
-inline void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::MissileDamage& element) {
-    if (element.etype == 3) {
-        stats.poison_min = element.elo; stats.poison_max = element.ehi; stats.poison_len = element.elen;
-    } else if (element.etype >= 0)
-        stats.elements[0] = { element.etype, 100, element.elo >> 8, element.ehi >> 8, element.elen, "A2" };
-}
-// A monster missile's blow (andariel_missile): its row's physical in
-// 256ths, `element` (its row's or a carried skill's at the level); it always
-// hits. Poison goes in MonStats::poison_*: per frame in 256ths for ELen frames,
-// the record's +0x34 / +0x38 / +0x3c, which monster_blow applies as it is (an
+// `element` onto a missile's stats: poison per frame / frames in MonStats::poison_*, any other type as an A2 El
+// row in whole points (shared by missile_blow and the map's trap missiles).
+void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::MissileDamage& element);
+// A monster missile's blow (andariel_missile): its row's physical in 256ths, `element` (its row's or a carried
+// skill's at the level); it always hits.
 // `elements` entry of type 3 is the MonStats El convention, roll x 10 a frame
-// for 2 x dur frames, up to 62x as much).
-inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
-    d2d::rules::MonStats stats;
-    stats.level = monster_level;
-    stats.no_hit_roll = !info.to_hit;                                // a ToHit row rolls its owner's attack rating (the caller's)
-    stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
-    stats.unblockable = !(info.min > 0 && info.max > 0);              // FUN_005ad730: can-block is the record's physical (+8) != 0 (Fallen Shaman fire has none)
-    put_missile_element(stats, element);
-    return stats;
-}
+d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level);
 // What a monster's MissA / MissS1 / MissC shot carries (Ai::tick, FUN_0059f900 ->
 // FUN_0064b860): the physical part in 256ths, as FUN_0064af20 / FUN_0064aff0 make
 // it: the owner's damage x SrcDamage / 128 (the stat is points, so x 256 first,
@@ -1006,320 +823,22 @@ inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, cons
 // MinDamage / MaxDamage and its MinLevDam / MaxLevDam level brackets
 // (FUN_00644b70, `lvl` the missile's level), shifted left by HitShift.
 struct MonsterShotPhys { int low = 0, high = 0; };
-inline MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl) {
-    const int shift = info.hitshift & 31;
-    const auto part = [&](int src, int row, const std::array<int, 5>& lev) {
-        const int owner = cast || info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
-        return owner + ((row + d2d::rules::level_bonus(lev, lvl)) << shift);
-    };
-    return { part(src_min, info.min, info.min_lev), part(src_max, info.max, info.max_lev) };
-}
-// The owner's stats as the missile carries them (what monster_blow rolls on
-// impact): the physical as a2_min / a2_max whole points, the owner's own
-// El rows of the shot's mode as A2's, and the row's own element (FUN_0064b100 /
-// 0064b1d0 / 0064b2a0 at the missile's level: Sand Maggot poison, the pots) in a
-// free slot; poison goes into MonStats::poison_min / poison_max / poison_len
-// instead (per frame in 256ths for ELen frames, what the record's +0x34 / +0x38 /
-// +0x3c hold and what monster_blow applies on every hit); the owner's own poison is
-// dropped on a SrcDamage-0 row and summed in otherwise (the rule below).
-inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
-    const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
-    const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
-    const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
-    stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
-    if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
-    stats.no_hit_roll = !info.to_hit;
-    stats.unblockable = !(phys.low > 0 && phys.high > 0);            // FUN_005ad730: can-block is the record's physical (+8) != 0
-    if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
-        for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
-    const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
-    // The owner's poison (game.exe, V read: FUN_0064b860 / FUN_0064a930 / FUN_0064aa60; V run: the
-    // re-verifier's vm_game2 oracle, goospit1 with owner poison 40 / 40 / 300, whole OP set): added
-    // only when SrcDamage != 0 (+0x12d; all 32 poison rows of Missiles.txt have 0, so the owner's
-    // is dropped); then the rate pair (owner + row) is scaled by SrcDamage / 128 (truncated toward
-    // 0) and the LENGTH (owner + row) is summed, unscaled. U: whether a cast (MissC) shot takes the same path.
-    // SrcDamage is read as an unsigned byte there (V read: movzx at 0x64b8ed), so a -1 row is 255; the
-    // other branch (a missile with a Skill, 0x64b9da) maps 0xff to 0, which this plain-shot path does not
-    // take. No monster Miss row has -1 (only player skill missiles do), so it is not reachable today.
-    const int src_damage = info.src_damage & 0xff;
-    const bool row_poison = row.etype == 3 && (row.ehi > 0 || row.elo > 0);
-    if (src_damage == 0) stats.poison_min = stats.poison_max = stats.poison_len = 0;
-    if (row_poison) { stats.poison_min += row.elo; stats.poison_max += row.ehi; stats.poison_len += row.elen; }
-    if (src_damage != 0) {
-        stats.poison_min = int(std::int64_t(stats.poison_min) * src_damage / 128);
-        stats.poison_max = int(std::int64_t(stats.poison_max) * src_damage / 128);
-    }
-    // A boss's enchants are its own stats 0x30..0x38 (fire / lightning / cold min, max, the
-    // cold's length): FUN_0064a930 adds the owner's to the record in 256ths (EBX 8 at
-    // 0x64becf) only when SrcDamage isn't 0, then FUN_0064aa60 scales the record by
-    // SrcDamage / 128, the length too; so an A1, A2 or S1 shot alike. Kept in whole points.
-    // A MissC shot takes this plain branch too: FUN_0064b860's other one is for a row with a Skill
-    // (+0x194), and the only MissC rows in 1.14d, the Wills o' the Wisp's willowisplightningbolt /
-    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu).
-    // ponytail: whether the Wisp's cast carries its enchants and physical (FUN_0064a930 by SrcDamage;
-    // the owner's stats 21 / 22 as its SC mode set them, FUN_005a4f50) isn't traced; d2d drops both.
-    if (cast || src_damage == 0) stats.enchants = {};
-    for (auto& enchant : stats.enchants)
-        if (enchant) *enchant = { enchant->first * src_damage / 128, enchant->second * src_damage / 128 };
-    stats.enchant_len = stats.enchant_len * src_damage / 128;
-    if (!row_poison && row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
-        if (const auto free_slot = std::ranges::find_if(stats.elements, [](const auto& element) { return element.type < 0 || element.mode.empty(); }); free_slot != stats.elements.end())
-            *free_slot = { row.etype, 100, row.elo >> 8, row.ehi >> 8, row.elen, "A2" };
-    return stats;
-}
-// `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level,
-// monster level), with its own row's blow.
-inline Missile missile_from(const Missile& from, const GameData::MissileInfo& info, float x, float y, float dx, float dy, std::uint32_t now_ms) {
-    const auto element = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, from.level);
-    Missile out{ &info, x, y, dx, dy, missile_facing(x, y, dx, dy), now_ms,
-                 now_ms + std::uint32_t(std::max(info.range + info.lev_range * from.level, 1)) * 40, missile_blow(info, element, from.src.level) };
-    out.level = from.level; out.owner = from.owner;
-    return out;
-}
+MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl);
+// The owner's stats as the missile carries them (what monster_blow rolls on impact).
+d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl);
+// `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level, monster level), with its own row's
+// blow.
+Missile missile_from(const Missile& from, const GameData::MissileInfo& info, float x, float y, float dx, float dy, std::uint32_t now_ms);
 
-// Missiles fly (missile_fly; FUN_005ae1f0): a frame's move, then its
-// range, then, from its Activate'th frame, a foe whose footprint holds a
-// subtile it entered (rolling its to-hit) spends it either way
-// (CollideKill), as does the missile barrier (0x04) or its rooms' end.
-// `reach`: missile_rooms for (x, y) cells.
-// A standing missile (no velocity) strikes from its own subtile
-// (standing_struck). Its physical carries the owner's at SrcDamage / 128
-// (monster_shot_phys).
-// Flat on the ground: Missiles.txt Xoffset / Yoffset / Zoffset (row +0xa2 /
-// +0xa4 / +0xa6) only shift the drawn sprite (the client's FUN_004dc7b0,
-// unit type 3); no server code reads them, so a flight and its hits have
-// no height.
-// A friendly one asks `hits_monster` (true: it struck one, spent), and
-// `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
-// 1), its hit with no unit); a monster's hit spawn goes off there too.
-template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver>
-void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over) {
-    std::vector<Missile> laid;
-    const int frame = int(now_ms / 40);
-    const auto spent = [&](Missile& missile) {
-        missile.flight.crossed.clear();
-        const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
-        // Its flight over, no unit is asked that frame (FUN_005ae1f0 returns after
-        // FUN_005adf10(0, 1), before the subtiles' unit test).
-        if (moving && !missile_fly(level, missile, reach)) {
-            missile.flight_over = true;
-            if (missile.friendly) flight_over(missile);
-            return true;
-        }
-        if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
-        // The client's do 55 (FUN_004d8260, "ancient death center"): every
-        // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
-        // from a subtile -1..0 off it each way, sent at that start's -10..9
-        // off (x the first draw, y the second), the start x then y by the
-        // third and fourth's bit 0: four steps of the missile's client seed
-        // (+0x20: client_unit_seed at its spot, made as the client first runs it).
-        if (missile.info && missile.info->clt_do == 55 && missile.sub && missile.frame != frame && (int(now_ms - missile.born) / 40) % 3 == 0) {
-            missile.frame = frame;
-            if (!missile.client_seeded) {
-                missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));
-                missile.client_seeded = true;
-            }
-            auto& seed = missile.client_seed;
-            const int off_x = int(seed.next() % 20) - 10, off_y = int(seed.next() % 20) - 10;
-            const float from_x = std::floor(missile.x * 5) + float(seed.next() & 1) - 1, from_y = std::floor(missile.y * 5) + float(seed.next() & 1) - 1;
-            Missile cloud = missile_from(missile, *missile.sub, (from_x + 0.5f) / 5, (from_y + 0.5f) / 5, 0, 0, now_ms);
-            cloud.visual_only = true;
-            cloud.to = std::pair{ (from_x + float(off_x) + 0.5f) / 5, (from_y + float(off_y) + 0.5f) / 5 };
-            const float speed = missile_speed(*missile.sub, 0), dx = float(off_x), dy = float(off_y), length = std::max(std::hypot(dx, dy), 0.01f);
-            cloud.velocity_x = dx / length * speed; cloud.velocity_y = dy / length * speed;
-            laid.push_back(std::move(cloud));
-        }
-        if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
-        if (missile.friendly) return hits_monster(missile);
-        // A monster's guided one (missile do 7, FUN_005ae780: Bone Spirit)
-        // turns to its foe every Param1 frames (0: 5) while that's 4..24 off
-        // (FUN_006416d0: each axis less half the sizes, (short + 2 long) / 2);
-        // its owner dead (FUN_005541b0), it ends.
-        if (missile.info && missile.info->srv_do == 7 && !owner_alive(missile.owner)) return true;
-        if (missile.info && missile.info->srv_do == 7 && missile.target >= 2) {          // past the player and merc: found again by id, or lost
-            const auto found = std::ranges::find(foes, missile.target_id, &Foe::id);
-            missile.target = found == foes.end() ? -1 : int(found - foes.begin());
-        }
-        if (missile.info && missile.info->srv_do == 7 && missile.target >= 0 && std::size_t(missile.target) < foes.size()
-            && (int(now_ms - missile.born) / 40) % (missile.info->param1 < 1 ? 5 : missile.info->param1) == 0) {
-            const auto& foe = foes[std::size_t(missile.target)];
-            const float dx = foe.x - missile.x, dy = foe.y - missile.y;
-            const int across = std::max(int(std::abs(dx) * 5) - foe.size / 2, 0), down = std::max(int(std::abs(dy) * 5) - foe.size / 2, 0);
-            if (const int apart = (std::min(across, down) + 2 * std::max(across, down)) / 2; foe.alive && apart >= 4 && apart <= 24) {
-                const float speed = std::hypot(missile.velocity_x, missile.velocity_y), length = std::max(std::hypot(dx, dy), 0.01f);
-                missile.velocity_x = dx / length * speed; missile.velocity_y = dy / length * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
-                missile.retarget = std::pair{ foe.x, foe.y };   // FUN_00649970 at it
-            }
-        }
-        // A monster's fire wall: the maker (do 6) lays SubMissile1 where it
-        // is each frame; the fire (do 5) burns a foe within half a cell each
-        // frame, once a frame for the cast (they share `struck`), its row's
-        // element in 256ths less magic damage reduction, then resistance
-        // (FUN_0057bf80); the MDR scaled by the row's DamageRate / 1024
-        // (FUN_0057c1e0, rules::frame_rate_flat). The life takes the record
-        // total in 256ths (0057c852): the fraction is kept (Foe::frac), no draw.
-        // A monster's maker (do 31: Baal's cold missiles) lays SubMissile1
-        // where it is each frame, going its way; the maker strikes nothing.
-        if (missile.info && missile.info->srv_do == 31) {
-            if (missile.sub && missile.frame != frame) {
-                missile.frame = frame;
-                Missile trail = missile;
-                trail.info = missile.sub; trail.sub = nullptr; trail.born = now_ms;
-                trail.dies = now_ms + std::uint32_t(std::max(missile.sub->range, 1)) * 40;
-                laid.push_back(std::move(trail));
-            }
-            return false;
-        }
-        // A control (do 34, FUN_005b04a0: Baal Taunt's): from its Param1'th
-        // frame, each frame one of SubMissile1 / 2 by rand (those with a
-        // delay, Param2 / Param3), laid where it is when its age divides by
-        // that delay. The pick is on its seed (+0x20) set each frame to {its
-        // subtile x, 666} (0x5b0561).
-        if (missile.info && missile.info->srv_do == 34) {
-            const int age = int(now_ms - missile.born) / 40;
-            if (missile.frame == frame || age < missile.info->param1) return false;
-            missile.frame = frame;
-            const std::array delays{ missile.info->param2, missile.info->param3 };
-            const int ways = !missile.info->subs[0] || delays[0] < 1 ? 0 : !missile.info->subs[1] || delays[1] < 1 ? 1 : 2;
-            if (ways == 0) return true;
-            d2d::rules::Rng seed{ std::uint32_t(int(std::floor(missile.x * 5))) };
-            if (const int pick = seed(ways); age % delays[std::size_t(pick)] == 0)
-                laid.push_back(missile_from(missile, *missile.info->subs[std::size_t(pick)], missile.x, missile.y, 0, 0, now_ms));
-            return false;
-        }
-        if (missile.info && (missile.info->srv_do == 5 || missile.info->srv_do == 6) && missile.row) {
-            if (missile.frame == frame) return false;
-            missile.frame = frame;
-            if (missile.sub) {
-                Missile fire = missile;
-                fire.info = missile.sub; fire.sub = nullptr; fire.velocity_x = fire.velocity_y = 0; fire.born = now_ms;
-                fire.dies = now_ms + std::uint32_t(std::max(missile.sub->range + missile.sub->lev_range * missile.level, 1)) * 40;
-                laid.push_back(std::move(fire));
-                return false;
-            }
-            if (missile.info->srv_do != 5) return false;
-            std::erase_if(*missile.struck, [&](int key) { return key / 16 < frame; });
-            for (auto& foe : foes) {
-                const int key = frame * 16 + int(&foe - foes.data());
-                if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.5f || std::ranges::contains(*missile.struck, key)) continue;
-                missile.struck->push_back(key);
-                const auto& row = *missile.row;
-                const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
-                                                           foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
-                const int dealt = burn >> 8;
-                foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
-                d2d::rules::StruckBlow blow{ dealt, 0, true, 0, dealt, false, burn & 255 };   // its own record (absorbed alone), no get-hit
-                blow.landed = false;
-                blow.striker = missile.owner;
-                foe.blows.push_back(blow);
-                if (missile.owner >= 0) foe.striker_id = missile.owner;
-                // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
-                // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
-                foe.hit_class = missile.info->hit_class;
-                if (soft_hit(missile, rng)) ++foe.soft_hits;
-            }
-            return false;
-        }
-        // A LastCollide cloud (rules' last_unit_rule) strikes one foe a frame, never the one it struck
-        // last (FUN_005a8730, FUN_0064a400): two in it take turns. Spent only with CollideKill: each hit
-        // function returns 3 (end) for it, else 2 (FUN_005adf10).
-        const bool last_unit = missile.info && missile.info->last_unit_rule();
-        if (last_unit && missile.last_hit_ms == now_ms) return false;
-        for (auto& foe : foes) {
-            if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : !standing_struck(missile, foe.x, foe.y, foe.size))) continue;
-            if (last_unit) {
-                if (missile.last_hit == foe.id) continue;
-                missile.last_hit = foe.id;
-                missile.last_hit_ms = now_ms;
-            } else {
-                const int key = -100 - int(&foe - foes.data());     // a ring's missiles strike each foe once
-                if (std::ranges::contains(*missile.struck, key)) continue;
-                missile.struck->push_back(key);
-            }
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
-            foe.take(taken, missile.owner);
-            if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
-            if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);
-            if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
-            if (missile.info && missile.info->return_fire && missile.owner >= 0) foe.fired_by.push_back(missile.owner);
-            return !missile.info || missile.info->collide_kill;
-        }
-        return false;
-    };
-    // Gone into a unit or a wall, its ExplosionMissile plays there; run
-    // out, only when AlwaysExplode (FUN_004d30c0 -> FUN_004d2d70). An
-    // explosion starts at frame 0: RandStart (+0x17c) is read only by the
-    // client's grid maker FUN_004ced60, not by FUN_004cdba0 or FUN_0059fa30
-    // (missiles.md).
-    // ponytail: one that flies on through units (CollideKill 0) doesn't
-    // burst at each; a guided one losing its owner bursts as a hit.
-    // At its end Baal Taunt's lightning control (hit 58, FUN_005acdf0) sends
-    // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it,
-    // drawn x then y on its seed (+0x20) set to {its subtile x, 666};
-    // the poison one (hit 59, FUN_005acf20 -> FUN_005a9370) sends it the 8
-    // ways of 0x6e2510 / 0x6e24d0's even entries at Param1 << 7, and every
-    // sHitPar1'th odd one at Param2 << 7 (FUN_0059fa30 flags 0x14: x 75 / 100).
-    const auto hit_spawn = [&](const Missile& missile) {
-        const auto* sub = missile.info ? missile.info->hit_sub_info : nullptr;
-        if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59)) return;
-        const int spread = std::max(missile.info->hit_par1, 1);
-        if (missile.info->hit_func == 58) {
-            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
-            d2d::rules::Rng spot{ std::uint32_t(at_x) };
-            int spot_x = at_x - spread + spot(2 * spread + 1);
-            int spot_y = at_y - spread + spot(2 * spread + 1);
-            const float speed = missile_speed(*sub, missile.level);
-            // FUN_0059fa30 (0x59fbbe): moving, with no target unit, a spot on its start subtile goes to (+1, +1).
-            if (speed != 0 && spot_x == at_x && spot_y == at_y) { ++spot_x; ++spot_y; }
-            const float to_x = float(spot_x) + 0.5f, to_y = float(spot_y) + 0.5f;
-            const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f);
-            laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
-            laid.back().to = { missile.x + dx, missile.y + dy };
-            return;
-        }
-        const auto ring = [&](int first, int step, int velocity) {
-            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
-            for (int way = first; way < 16; way += step) {
-                const int dx = kRingWayX[std::size_t(way)], dy = kRingWayY[std::size_t(way)];
-                const float span = std::hypot(float(dx), float(dy));
-                const float speed = missile_speed((velocity << 7) * 75 / 100);   // flags 0x14: the velocity as is
-                laid.push_back(missile_from(missile, *sub, missile.x, missile.y, float(dx) / span * speed, float(dy) / span * speed, now_ms));
-                // FUN_005a9370 flags 0x17 include flag 2: this offset is the target, relative to the start.
-                laid.back().to = { (float(at_x + dx) + 0.5f) / 5.f, (float(at_y + dy) + 0.5f) / 5.f };
-            }
-        };
-        ring(0, 2, sub->param1);
-        ring(1, spread, sub->param2);
-    };
-    std::erase_if(ms_, [&](Missile& missile) {
-        if (!spent(missile)) return false;
-        if (now_ms >= missile.dies || missile.flight_over) hit_spawn(missile);
-        if (const auto* explosion = missile.info ? missile.info->explosion : nullptr; explosion && !missile.visual_only && (now_ms < missile.dies || missile.info->always_explode)) {
-            Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
-            burst.visual_only = true;
-            laid.push_back(std::move(burst));
-        }
-        return true;
-    });
-    std::ranges::move(laid, std::back_inserter(ms_));
-}
-
-// A random unique's name (the client's FUN_004ac870): on {name seed, 666},
-// a suffix then a prefix into string 0x6b9 ("%0 %1"); then rand(100) < 50
-// builds it again, appellation, suffix, prefix, into 0x6ba ("%0 %1 %2").
+// A random unique's name.
 std::string unique_name(const GameData& game_data, int name_seed);
 
-// A champion / unique / superunique / minion (rules/uniques.hpp,
-// FUN_005a2120): a higher level, more life, damage and to-hit,
-// resistances, speed, an element; its name. At full life. `players`: in
-// the game (rules::monster_stats' bonus). `gear`: what it wears from the
-// start (wear_gear), before its mods scale it.
+// A champion / unique / superunique / minion: a higher level, more life, damage and to-hit, resistances, speed,
+// an element; its name.
 void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
                int difficulty, d2d::rules::Rng& rng, int players = 1, const d2d::rules::GearSum* gear = nullptr);
-// A made monster's MonEquip items (rules::SpawnGear), each made as a drop on
-// its seeds, summed (rules::gear_sum); and that gear on its stats: every
-// mode's blow as FUN_0057b420 reads it, its defence (stat 31).
+// A made monster's MonEquip items (rules::SpawnGear), each made as a drop on its seeds, summed
+// (rules::gear_sum).
 [[nodiscard]] d2d::rules::GearSum spawn_gear(const GameData& game_data, std::span<const d2d::rules::SpawnGear> gear, int difficulty);
 void wear_gear(d2d::rules::MonStats& stats, const d2d::rules::GearSum& gear);
 // The rest of its gear's stats, after a boss's mods (its life scaling read the
@@ -1329,7 +848,7 @@ void wear_gear_stats(Monster& monster, const d2d::rules::GearSum& gear);
 // A boss's base life (256ths) after FUN_005a0d20 for each of `pcts` (hpmultiply, the champion
 // kind; 0: that mod isn't there, no call): each reads the whole max life, its gear's included.
 [[nodiscard]] int boss_life_fine(int life, std::initializer_list<int> pcts, const d2d::rules::GearSum* gear);
-// MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
+// MonUMod poison hit's init: its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
 // FUN_005dd480; FUN_00623470, FUN_005b0da0): not state 0x36, MonStats2 mWL, not MonStats
@@ -1340,41 +859,30 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 // (FUN_005da540), Nest (FUN_005cbd10) and Jump (FUN_005cb730, no monster's),
 // each clearing it at its end (Monster::uninterruptable).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
-// The AI search's pick for `monster` among `foes` (FUN_005dd7f0, ai.cpp): its index, or -1.
+// The AI search's pick for `monster` among `foes`: its index, or -1.
 int search_foe(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, const Crowd& crowd);
-// The Cursed umod's hit hook (FUN_005a2530), on a melee or missile hit that
-// lands: a unique's or superunique's 3 in 4 on its own seed (a draw's low 2
-// bits), Amplify Damage (skill 66) at level mlvl / 5 + 1 on every foe within
-// its aurarangecalc (1..40 subtiles) of the one struck (FUN_0056dbc0 round
-// FUN_0056d2c0's target; FUN_005a23d0, enemies only).
+// The Cursed umod's hit hook, on a melee or missile hit that lands.
 void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes, const Foe& struck);
-// A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
+// A monster's skill missile toward (dx, dy) cells.
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
-// A monster turned into MonStats row `type` in place (FUN_00574370: the same unit id,
-// its group and spot, a new init for the class, FUN_00574250).
+// A monster turned into MonStats row `type` in place.
 void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players);
-// Baal's Vile Effigy (FUN_005fc860): baalclone +- 12 subtiles (two draws of his seed) about
-// (at_x, at_y), a third of his life, no regen (stat 0x4a 0); none without the row.
+// Baal's Vile Effigy: baalclone +- 12 subtiles (two draws of his seed) about (at_x, at_y), a third of his life,
+// no regen; none without the row.
 std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players);
-// A monster's missile made at its target, (dx, dy) cells away (FUN_0056ede0 -> FUN_0059fa30
-// flag 1: the record's +0x14 / +0x18), heading a subtile on at (+1, +1).
+// A monster's missile made at its target, (dx, dy) cells away, heading a subtile on at (+1, +1).
 void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                        std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // A monster's skill strike (Whirlwind, Leap Attack): its A1 swing at the skill's damage, to-hit and element (ai.cpp).
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl);
-// Fire Hit's and Jab's hit (FUN_005cae40, FUN_005db2d0): the swing's S1 damage,
-// to-hit and S1 elements as A1's, plus the skill's to-hit as points (FUN_006449f0
-// into FUN_0057ec10, as skill_strike).
-inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables& skill_tables, const d2d::rules::Skill& skill, int lvl) {
-    stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max;
-    stats.to_hit = stats.to_hit_s1 + d2d::rules::skill_tohit(skill_tables, skill, {}, lvl);
-    for (auto& element : stats.elements) element.mode = element.mode == "S1" ? "A1" : "";
-}
+// Fire Hit's and Jab's hit: the swing's S1 damage, to-hit and S1 elements as A1's, plus the skill's to-hit as
+// points.
+void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables& skill_tables, const d2d::rules::Skill& skill, int lvl);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster: a curse state in its curse slot, any other in
-// its state's node (FUN_0056e970); and a state's end (fight/).
+// A timed state on a monster: a curse state in its curse slot, any other in its state's node; and a state's end
+// (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 // State 0x18 (slowed) put by an item_slow event (FUN_005c6760) for
@@ -1383,21 +891,13 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // only runs longer, its velocity cut kept, its rates set anew (0x56ea87).
 void put_slow(const GameData& game_data, Monster& monster, int slow, std::uint32_t now_ms);
 
-// A plain monster of MonStats row `type` at (x, y) cells: its components
-// and stats rolled (a boss's by make_boss instead: `stats` false), for
-// `players` in the game.
-// Levels.txt MonLvl1Ex / MonLvl2Ex / MonLvl3Ex of the level `level_id` for the
-// difficulty (what FUN_0061dca0 returns in an expansion game; 1 for an id off
-// the table or under 1, as it does); -1 when the level isn't known.
-[[nodiscard]] inline int area_monster_level(const GameData& game_data, int level_id, int difficulty) {
-    if (level_id < 0) return -1;
-    if (level_id == 0 || std::size_t(level_id) >= game_data.area_level.size()) return 1;
-    return game_data.area_level[std::size_t(level_id)][std::size_t(std::clamp(difficulty, 0, 2))];
-}
+// A plain monster of MonStats row `type` at (x, y) cells: its components and stats rolled (a boss's by make_boss
+// instead: `stats` false), for `players` in the game.
+[[nodiscard]] int area_monster_level(const GameData& game_data, int level_id, int difficulty);
 
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1, int level_id = -1);
-// A monster move's path to subtile (to_x, to_y) (FUN_00649970) by its
-// path type and Monster::path_steps, into Monster::steps (ai.cpp).
+// A monster move's path to subtile (to_x, to_y) by its path type and Monster::path_steps, into Monster::steps
+// (ai.cpp).
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd);
 // The players among the foes (not a pet, not a monster): the game's.
 [[nodiscard]] int players_in(std::span<const Foe> foes);
@@ -1407,27 +907,18 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
 std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, const d2d::rules::Region& region,
                                     d2d::rules::Rng& rng, int difficulty, int players = 1, int level_id = -1);
 
-// Baal Corpse Explode's corpses (srvdo 141, FUN_005d2e80): FUN_0056dcc0's
-// area (0x56dcc0, flags 0x3002, radius 40) through FUN_0065aa40
-// (0x65aa40): a monster whose subtile is within the radius of the
-// caster's (dx² + dy² <= r²; every near room passes, bugs.md #23), flag
-// 0x1000 only in mode DD (a DT corpse isn't one); not spent before.
-inline bool baal_corpse_spent(const Monster& corpse, int off_x, int off_y) {
-    return !corpse.alive() && corpse.mode == "DD" && !corpse.corpse_used && off_x * off_x + off_y * off_y <= 40 * 40;
-}
+// Baal Corpse Explode's corpses.
+bool baal_corpse_spent(const Monster& corpse, int off_x, int off_y);
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 // The frame of a mode's end event (unit event 1) as the mode starts at
 // `frame`: its frames on, plus one (the mode starts' FUN_005417d0(1, (unit
 // +0xdc >> 8) + 1 + frame), FUN_0054fe10). FUN_005415a0(1) reads it back.
 int mode_end_event(const GameData& game_data, const Monster& monster, std::string_view mode, int frame);
 
-// Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
-// by rules::get_hit (FUN_0057cb00); either way it notices.
-// True when this killed it.
+// Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH) by rules::get_hit; either way it
+// notices.
 // `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
-// its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
 // `crush` (256ths) is a Crushing Blow's share of the damage: the life it takes
-// is not in the record's total (+0x4c), which is the get-hit's size (FUN_0057cb00).
 bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false, int crush = 0);
 // A landed player blow on a monster (Fight::land): Bone Armor's pool takes the physical, then `hurt`, the crush kept out of the get-hit's size.
 bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms);
@@ -1439,8 +930,7 @@ inline void freeze(Monster& monster, std::uint32_t until) {
     monster.frozen_until = std::max(monster.frozen_until, until);
     monster.stun_until = std::max(monster.stun_until, until);
 }
-// Bone Armor's absorb on a monster (event 22, FUN_005c6370): the pool takes
-// the hit's physical; at 0 the state goes. All in 256ths: the damage left.
+// Bone Armor's absorb on a monster: the pool takes the hit's physical; at 0 the state goes.
 int soak(Monster& monster, int physical, int damage);
 
 // A monster that blocked plays its block (BL), when it has one.
@@ -1450,20 +940,10 @@ void block_anim(const GameData& game_data, Monster& monster, std::uint32_t now_m
 // something's in the way.
 bool monster_step(const Level& level, Monster& monster, float target_x, float target_y, float step, const Crowd& crowd);
 
-// A monster's frame: finish an attack / get-hit / death; flee; notice the
-// player within 8 cells (then keep after them within 16), walk up and
-// attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs
-// the foe's defense, then block, damage reduction, resistances), wait
-// aidel ticks between attacks;
-// otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
-// random spot within 3 cells.
-// An AI whose think isn't traced (rules::traced_ai) gets one melee think
-// (MonStats aip1..8 unread); distances and timings by eye; chasing goes
-// straight at the player, sliding to a stop at walls. No monster a level
-// places has one (every level, map seeds 1..4 and 7): it's a safety net;
-// town NPCs, pets and quest NPCs think elsewhere.
-// A unique's attack starting (the mode-change hook, event 0): Spectral Hit
-// picks this attack's element (uniques.hpp kSpectralElement), in el[2].
+// A monster's frame: finish an attack / get-hit / death; flee; notice the player within 8 cells (then keep after
+// them within 16), walk up and attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs the foe's
+// defense, then block, damage reduction, resistances), wait aidel ticks between attacks; otherwise wander near
+// home (Levels.txt MonWndr): stand 2-5 s, walk to a random spot within 3 cells.
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.

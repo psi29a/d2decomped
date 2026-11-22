@@ -8,6 +8,7 @@
 #include <combat.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <missile_flight.hpp>
 #include <rules.hpp>
 
 #include <array>
