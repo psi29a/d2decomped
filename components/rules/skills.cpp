@@ -592,9 +592,8 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     } else if (skill.descdam == 16) {                         // FUN_004ebb50 (Dragon Tail)
         // EType's colour (FUN_004e6fb0); 15's sum with the charge-ups' share alone as the skill's % (no
         // ln12), MinDam..MaxDam with level arg 0; each end + MulDiv(end, calc1, 100)
-        // (FUN_00646ca0 on +0x138: 0x4ebc2f..0x4ebc57); then, the hands' weapons' stats off (FUN_00627910),
+        // (FUN_00646ca0 on +0x138: 0x4ebc2f..0x4ebc57); then, the hands' weapons' stats off (FUN_00627910, unit.kick),
         // FUN_004e89a0's elements, clamp and damblue / damred: one value.
-        // ponytail: both hands' weapons (type 0x2d) go off in game.exe; unit.kick has the wielded one's off.
         line.damage = true;
         const Fighter& bare = unit.kick ? *unit.kick : fighter;
         const int own_low = skill_phys(skill_tables, skill, env, lvl, false) >> 8, own_high = skill_phys(skill_tables, skill, env, lvl, true) >> 8;
