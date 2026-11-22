@@ -170,7 +170,7 @@ int golem_check(const GameData& data) {
     assert(monsters[champion].slow_speed == 50 && monsters[champion].slow_until == until);
     assert(monsters[hydra].slow_until == 0);
     world->fight.monster_states(100040);
-    assert(monsters[zombie].speed_pct == -slow && monsters[zombie].anim_pct == -slow && monsters[champion].speed_pct == -50);
+    assert(monsters[zombie].speed_pct == -slow && monsters[zombie].anim_pct == -slow && monsters[zombie].attack_pct == -slow && monsters[champion].speed_pct == -50);
     // A re-hit while it's on (FUN_0056e970 0x56ea87): longer, the velocity cut kept, the rates anew.
     put_slow(data, monsters[zombie], 30, 110000);
     assert(monsters[zombie].slow_speed == slow && monsters[zombie].slow_rate == 30 && monsters[zombie].slow_until == 110000 + std::uint32_t(d2d::rules::kClaySlowFrames) * 40);

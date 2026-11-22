@@ -95,6 +95,7 @@ int main() try {
         sent_monster.id = 1;
         sent_monster.type = 0;
         sent_monster.anim_pct = 25;
+        sent_monster.attack_pct = 25;
         sent_monster.props.ias = 60;
         sent_monster.props.fcr = 40;
         sent.monsters = { std::move(sent_monster) };
@@ -121,14 +122,17 @@ int main() try {
         View rates;
         ViewEncoder rate_encoder;
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
-        assert(rates.monsters.size() == 1 && rates.monsters[0].anim_pct == 25 && rates.monsters[0].props.ias == 60 && rates.monsters[0].props.fcr == 40);
+        assert(rates.monsters.size() == 1 && rates.monsters[0].anim_pct == 25 && rates.monsters[0].attack_pct == 25 && rates.monsters[0].props.ias == 60 && rates.monsters[0].props.fcr == 40);
         assert(anim_rate_pct(rates.monsters[0], "A1") == 65 && anim_rate_pct(rates.monsters[0], "SC") == 30);   // a cast reads no attackrate (FUN_006216e0)
-        sent.monsters[0].anim_pct = 30;
+        sent.monsters[0].attack_pct = 30;
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
         assert(anim_rate_pct(rates.monsters[0], "A1") == 70);
         sent.monsters[0].aura_rate = 20;   // Fanaticism's: a host's aura reaches the swing as drawn
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
         assert(anim_rate_pct(rates.monsters[0], "A1") == 75 && anim_rate_pct(rates.monsters[0], "SC") == 30);   // 100 + 30 + 20 + 40 capped at 175 (FUN_00623f50)
+        sent.monsters[0].attack_pct = -50;   // Decrepify's attackrate (stat 68) alone: the swing slows, its other modes don't
+        assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
+        assert(rates.monsters[0].attack_pct == -50 && anim_rate_pct(rates.monsters[0], "A1") == 10 && anim_rate_pct(rates.monsters[0], "NU") == 25);
     }
     {
         // Event 1's deadline is specific to the operate function: most
@@ -181,7 +185,7 @@ int main() try {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /
         // (120 + v)); knock and crush on its seed (FUN_005bf960, FUN_005bffc0).
         Monster monster;
-        monster.props.ias = 30; monster.props.fcr = 15; monster.anim_pct = 10;
+        monster.props.ias = 30; monster.props.fcr = 15; monster.anim_pct = monster.attack_pct = 10;
         assert(anim_rate_pct(monster, "A1") == 34 && anim_rate_pct(monster, "A2") == 34);
         assert(anim_rate_pct(monster, "SC") == 13 && anim_rate_pct(monster, "WL") == 10 && anim_rate_pct(monster, "S1") == 10);
         monster.seed = d2d::rules::Rng(77);

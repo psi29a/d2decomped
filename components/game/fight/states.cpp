@@ -401,7 +401,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
 // FUN_005dd610).
 auto Fight::monster_states(std::uint32_t now_ms) -> void {
         for (auto& monster : monsters) {
-            monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = 0;
+            monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = monster.attack_pct = 0;
             monster.align = 0;                                // Confuse's / Attract's end (FUN_005c3db0 / 0x5c3b00), or another curse in its place
             monster.afraid = false;
             std::vector<Monster::SkillState*> effects{ &monster.curse, &monster.frenzy, &monster.self_state };
@@ -414,8 +414,10 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 for (std::size_t aura_stat = 0; aura_stat < skill->aurastat.size(); ++aura_stat) {
                     if (skill->aurastat[aura_stat] == 25) monster.dmg_pct += calc(*skill, skill->aura_calc[aura_stat], effect->level);
                     if (skill->aurastat[aura_stat] == 67) monster.speed_pct += calc(*skill, skill->aura_calc[aura_stat], effect->level);
-                    if (skill->aurastat[aura_stat] == 68 || skill->aurastat[aura_stat] == 69)   // attackrate, other_animrate: the same rate (MonFrenzy)
-                        monster.anim_pct = std::max(monster.anim_pct, calc(*skill, skill->aura_calc[aura_stat], effect->level));
+                    // attackrate and other_animrate: each the sum of its lists (FUN_00625480; objects.md), stat 68 the
+                    // attack modes', 69 the others' (FUN_00623f50 0x624200 / 0x624334): Decrepify's -50 is 68's alone.
+                    if (skill->aurastat[aura_stat] == 68) monster.attack_pct += calc(*skill, skill->aura_calc[aura_stat], effect->level);
+                    if (skill->aurastat[aura_stat] == 69) monster.anim_pct += calc(*skill, skill->aura_calc[aura_stat], effect->level);
                 }
                 const auto& targets = skill->auratarget;
                 if (targets == "ironmaiden") monster.reflect_pct += calc(*skill, skill->calc[0], effect->level);
@@ -424,22 +426,22 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
             std::erase_if(monster.states, [](const Monster::SkillState& held) { return held.skill < 0; });   // ended (end_state)
-            // State 0x18 (put_slow): its own list's velocitypercent and attackrate / other_animrate (one rate).
+            // State 0x18 (put_slow): its own list's velocitypercent, attackrate and other_animrate.
             if (now_ms < monster.slow_until) {
                 monster.speed_pct -= monster.slow_speed;
                 monster.anim_pct -= monster.slow_rate;
+                monster.attack_pct -= monster.slow_rate;
             }
             // The enemy auras over it (the player's, the merc's): Holy Freeze's
-            // velocitypercent and attackrate / other_animrate (one rate), -dm34.
+            // velocitypercent, attackrate and other_animrate, -dm34 each.
             if (monster.alive())
                 for (const auto& aura : enemy_auras(monster)) {
-                    int rate = 0;
                     for (std::size_t aura_stat = 0; aura_stat < aura.skill->aurastat.size(); ++aura_stat) {
                         const int value = d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[aura_stat], aura.env, aura.skill->id, aura.level);
                         if (aura.skill->aurastat[aura_stat] == 67) monster.speed_pct += value;
-                        if (aura.skill->aurastat[aura_stat] == 68 || aura.skill->aurastat[aura_stat] == 69) rate = value;
+                        if (aura.skill->aurastat[aura_stat] == 68) monster.attack_pct += value;
+                        if (aura.skill->aurastat[aura_stat] == 69) monster.anim_pct += value;
                     }
-                    monster.anim_pct += rate;
                 }
             // The chill's end (LAB_0057ad80) takes shatter (107) off only while
             // it lives (FUN_005541b0, 0x57ada5): one that died chilled keeps it.

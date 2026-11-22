@@ -16,14 +16,14 @@ using namespace d2d::game;
 
 int main() {
     Monster monster;
-    monster.anim_pct = 200;                          // Fanaticism-like
+    monster.anim_pct = monster.attack_pct = 200;     // Fanaticism-like
     assert(anim_rate_pct(monster, "A1") == 75);      // capped at 175
     assert(anim_rate_pct(monster, "S3") == 75);
     assert(anim_rate_pct(monster, "WL") == 75);      // without GameData: as any other mode
-    monster.anim_pct = -90;                          // Holy Freeze-like
+    monster.anim_pct = monster.attack_pct = -90;     // Holy Freeze-like
     assert(anim_rate_pct(monster, "A2") == -85);     // floored at 15
     assert(anim_rate_pct(monster, "NU") == -85);
-    monster.anim_pct = 50;
+    monster.anim_pct = monster.attack_pct = 50;
     assert(anim_rate_pct(monster, "SC") == 0);       // no attackrate on a cast
     monster.props.fcr = 1000;
     assert(anim_rate_pct(monster, "SC") <= 75);

@@ -25,7 +25,7 @@ namespace d2d::net::lan {
 using Bytes = std::vector<std::uint8_t>;
 
 // Bumped whenever a frame or payload changes shape: a host refuses other versions.
-inline constexpr std::uint32_t kProtocolVersion = 10;   // 2: Save, the goodbye that waits for it; 3: Resync; 4: Say, Message (stage 9); 5: a unit's place in 16.16; 6: UseSkill's stand still; 7: a monster record carries Monster::rising; 8: the View carries the hands' skill status; 9: a missile record carries its dies; 10: a monster's look carries Monster::walk_pct
+inline constexpr std::uint32_t kProtocolVersion = 10;   // 2: Save, the goodbye that waits for it; 3: Resync; 4: Say, Message (stage 9); 5: a unit's place in 16.16; 6: UseSkill's stand still; 7: a monster record carries Monster::rising; 8: the View carries the hands' skill status; 9: a missile record carries its dies; 10: a monster's look carries Monster::walk_pct and attack_pct
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players

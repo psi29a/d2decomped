@@ -385,7 +385,8 @@ struct Monster {
     // damage % and speed %, the share of its melee damage it takes back
     // (Iron Maiden), Terror's state (0x38) on it.
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
-    int anim_pct = 0;                         // attackrate / other_animrate (stats 68 / 69): its modes play faster
+    int anim_pct = 0;                         // other_animrate (stat 69) from its states and the auras on it: its other modes play faster
+    int attack_pct = 0;                       // attackrate (stat 68) from them: its attack modes (Decrepify's -50 alone, Bloodlust's)
     // State 0x18 (slowed) from a Clay Golem it struck (put_slow): -velocitypercent
     // and -attackrate / other_animrate until then.
     int slow_speed = 0, slow_rate = 0;
@@ -574,7 +575,7 @@ struct Monster {
 
 // A monster's mode rate over its AnimData speed, % more (FUN_00623f50,
 // 0x623f50): its attack modes (A1, A2: 0x6e8b90 / 0x6e8cd0 mark them so
-// for every monster, FUN_00621580) at 100 + anim_pct (attackrate from
+// for every monster, FUN_00621580) at 100 + attack_pct (attackrate from
 // auras) + its MonProp IAS, clamped 15..175; its cast mode (SC,
 // FUN_006216e0) at 100 + its FCR, at most 175, no attackrate /
 // other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
@@ -595,13 +596,13 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
 
 inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool skill_attack_rate = false) {
     const bool skill_mode = mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4" || mode == "SQ";
-    if (mode == "A1" || mode == "A2" || (skill_attack_rate && skill_mode)) return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
+    if (mode == "A1" || mode == "A2" || (skill_attack_rate && skill_mode)) return std::clamp(100 + monster.attack_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
     if (mode == "SC") return std::min(100 + d2d::rules::effective_speed(monster.props.fcr), 175) - 100;
     return std::clamp(100 + monster.anim_pct, 15, 175) - 100;
 }
 // Its rate in a mode, the speed word FUN_00623f50 stores (rules::monster_mode_rate) on the mode's AnimData
 // speed: its walk % (walk_pct), MonStats row (the walk / run base, npc, under 0x19a), current skill's
-// UseAttackRate, MonProp IAS / FCR / FHR and anim_pct (+ aura_rate on an attack). d2d's monsters have no
+// UseAttackRate, MonProp IAS / FCR / FHR, attack_pct (+ aura_rate) and anim_pct. d2d's monsters have no
 // FBR or state 0x65.
 int mode_rate(const GameData& game_data, const Monster& monster, std::string_view mode);
 // Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one (FUN_006214a0:
