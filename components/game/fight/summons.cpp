@@ -406,7 +406,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             else if (pet_missile(given) && skill.srvdofunc != ServerDoFunction::kVine && skill.srvdofunc != ServerDoFunction::kTrap) { pet.ranged = given.id; pet.ranged_level = given_level; }
         }
         monster.unit.x = monster.home_x = x; monster.unit.y = monster.home_y = y;
-        monster.unit.dir = actor->player.dir;
+        face(monster.unit, actor->player.dir);
         pet.skill = skill.id;
         pet.level = lvl;
         pet.where = level;

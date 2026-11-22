@@ -72,6 +72,7 @@ struct UnitState {
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
     int dir = 0;                      // its facing drawn, 16 directions in DCC order
     d2d::rules::Facing facing;        // a walk's facing in 64 (path +0x64 / +0x65 / +0x66)
+    bool turns_on = false;            // a monster's: a turn still going when its walk ends goes on a step a frame (turn_frame)
     bool walking = false;
     bool greets = false;              // a town NPC's think greeted the player just now (unit sound 0x12; World plays it)
     std::size_t next = 0;             // path point being walked to
@@ -187,6 +188,10 @@ bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& cro
 // the unit on its subtile's centre (FUN_006507b0; with no path or no step
 // too).
 bool follow_path(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, bool* blocked = nullptr);
+// A monster's frame off a walk: its turn on a step toward the goal (FUN_00648640), a dir set since taken at once.
+void turn_frame(UnitState& unit);
+// An action's facing: `dir` (16-way) taken at once, the walk's pending turn dropped.
+void face(UnitState& unit, int dir);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;

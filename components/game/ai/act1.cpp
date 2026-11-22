@@ -73,7 +73,7 @@ struct Act1Ai : ThinkCtx {
     void gargoyle_aim() {
         const bool down = std::abs(target_x - x) < std::abs(target_y - y);
         monster.skill_x = down ? x : target_x; monster.skill_y = down ? target_y : y;
-        unit.dir = direction16(float(monster.skill_x - x), float(monster.skill_y - y));
+        face(unit, direction16(float(monster.skill_x - x), float(monster.skill_y - y)));
     }
     // Andariel's spray and bolt (her rules think gives their Skills.txt
     // ids): the spray in SC (SQ: seq_andarielspray plays SC), the bolt in A1.
