@@ -261,11 +261,13 @@ decompile's.
 - `bitreader_bytes_used(reader)` is word +8, plus one when word +0xc is
   nonzero: the bytes consumed, a partly read byte counted whole.
 - `FUN_00411020(reader, n)` reads n bits; `FUN_0062e430` reads the `JM` mark
-  (16 bits) through `FUN_00411030(reader, 0x10)`, a second reader entry whose
-  difference from `FUN_00411020` is not traced here.
-- d2d: not ported by name; `d2s::Bits` (components/d2s/d2s_items.hpp) is the
-  same idea. Agrees: its `read(n)` is bit by bit and the loader's `JM` check
-  is a 16-bit read (cited from the decompile, no oracle run).
+  (16 bits) through `FUN_00411030(reader, 0x10)`, the signed read (bit n - 1
+  extended above n < 32: bit-buffer.md).
+- d2d: the reader is ported as `d2d::net::d2gs::BitReader` and verified
+  (bit-buffer.md, `tools/emu/bit_buffer.py`). `d2s::Bits`
+  (components/d2s/d2s_items.hpp) stays its own reader: the same bits in
+  range, but it throws past the end where game.exe returns the bits left
+  and sets a flag. The loader's `JM` check is a 16-bit read (cited).
 
 ### Arming the replenish events (`FUN_00558530`, `FUN_00558580`)
 
