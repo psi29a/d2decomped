@@ -341,6 +341,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         auto panel_fighter = player_fighter(&panel_kick, &st_sum, &passives, nullptr, nullptr, true);
         panel_fighter.ar_base_bare = actor->player_combat.ar_base_bare;
         panel_unit.kick = &panel_kick;
+        panel_unit.progressive_tohit = progressive_tohit();
         for (const auto& held : actor->charges)
             if (held.count > 0) panel_unit.charges.push_back({ held.skill, held.level, held.count });   // stat 0x15f: the level it was put on at
         d2d::rules::Fighter main_fighter, off_fighter;

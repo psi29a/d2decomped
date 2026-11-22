@@ -576,7 +576,6 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     its % + ln12 %, + MinDam..MaxDam at ln12 %; 16 (FUN_004ebb50, Dragon
 //     Tail): the kick at its % + MinDam..MaxDam, x calc1 %, then the
 //     elements with the weapon's stats off (PanelUnit::kick).
-// ponytail: stat 325 (an Assassin's progressive to-hit) is left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
 // armblue 0x13 / armred 0x19, rfblue 0x14 / rfred 0x1a, rcblue 0x15 /
@@ -620,6 +619,7 @@ struct PanelUnit {
     const Fighter* kick = nullptr;   // the unit with its hands' weapons' stats off (FUN_00627910): Dragon Tail's elements
     // The charge-ups held (the listed states' stats 0x15e skill, 0x15f level, the row's first aurastat the
     // charges): their share and adds (FUN_004e6ff0, FUN_004e7120).
+    int progressive_tohit = 0;   // stat 325 (0x145): the charge-ups' to-hit %, a finisher's rating takes it
     struct Charged { int skill = 0, level = 0, count = 0; };
     std::vector<Charged> charges;
 };

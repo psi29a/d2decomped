@@ -180,6 +180,10 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     FUN_004e93a0, each hand with its own item (and mastery).
   `tools/emu/panel_damage.py` runs all five.
   - 3 (0x4e9590, FUN_004e9160) throws, 4 (0x4e95c0) the other hand.
+  - FUN_004e8ec0 and FUN_004e9040 add the unit's stat 0x145 (325,
+    progressive_tohit) to the % for a finishing skill (+4 & 8), colour 3;
+    FUN_004e9160 doesn't. Oracle: `tools/emu/panel_damage.py` (ratings).
+    d2d: `PanelUnit::progressive_tohit`.
   - Colour 3 / 1 when the states (FUN_0063a3c0 / FUN_0063a3e0, damage:
     FUN_0063a380 / FUN_0063a3a0) say so.
 - Hover tooltips (chance to hit / be hit): FUN_004a7340, FUN_004a74a0,
@@ -193,7 +197,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)

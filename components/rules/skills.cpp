@@ -664,7 +664,10 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min += line.min * share / 100;
         line.max += line.max * share / 100;
     }
-    const int tohit = skill_tohit(skill_tables, skill, env, lvl);
+    // A finisher's (flag +4 & 8) stat 325 joins the % in FUN_004e8ec0 and FUN_004e9040 (colour 3); FUN_004e9160's
+    // throw takes none.
+    const int progressive = skill.finishing && skill.descatt != 3 ? unit.progressive_tohit : 0;
+    const int tohit = skill_tohit(skill_tables, skill, env, lvl) + progressive;
     const auto rating = [](const Fighter& hand, int pct) { return int(std::int64_t(hand.ar_base) * pct / 100 + hand.ar_base); };
     // FUN_004e8ec0 on one hand: its rating with its weapon's mastery (342, FUN_00645830 flag 0), 0 for a
     // throwing potion (type 0x26, FUN_0062b400).
@@ -688,11 +691,12 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     } else if (skill.descatt == 3) {
         // FUN_004e9160: the throw mastery's to-hit (FUN_00645830 flag 0 under state throwingmastery) for the
         // melee one; 0 for a throwing potion.
-        line.attack_rating = unit.thrown.potion ? 0 : rating(fighter, fighter.ar_pct - mastery_tohit + unit.thrown.tohit + tohit);
+        line.attack_rating = unit.thrown.potion ? 0 : rating(fighter, fighter.ar_pct - mastery_tohit + unit.thrown.tohit + tohit - progressive);
     } else if (skill.descatt == 4) {
         // FUN_004e95c0: FUN_004e93a0's second value moved to the first (0x4e95ed..0x4e95ff).
         if (unit.dual_class && unit.both_hands && unit.off_hand.fighter) line.attack_rating = weapon_rating(*unit.off_hand.fighter, unit.off_hand.thrown);
     }
+    if (progressive != 0) line.ar_colour = 3;
     line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
     if (line.attack_rating2 != 0) line.ar_colour2 = line.ar_colour;
     return line;
