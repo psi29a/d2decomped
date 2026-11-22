@@ -16,6 +16,42 @@
 
 namespace d2d::net::d2gs::s2c {
 
+struct AnimationStats {
+    int velocity = 0, attack_rate = 0, ias = 0, frw = 0;
+    [[nodiscard]] bool empty() const { return velocity == 0 && attack_rate == 0 && ias == 0 && frw == 0; }
+};
+
+struct StateStats {
+    AnimationStats animation;
+    int skill = -1, level = 0;
+};
+
+// FUN_0045ee20 and FUN_0045efa0 read state lists using ItemStatCost's send widths.
+// The animation stats selected below are signed in 1.14d and have no param bits.
+inline auto read_state_stats(BitReader& bits, std::span<const std::pair<int, int>> send_bits)
+    -> std::optional<StateStats> {
+    StateStats out;
+    for (;;) {
+        const auto stat = bits.read(9);
+        if (bits.cursor().overflow) return std::nullopt;
+        if (stat == 0x1ff) return out;
+        if (stat >= send_bits.size()) return std::nullopt;
+        const auto [width, param] = send_bits[stat];
+        if (width <= 0 || width > 32 || param < 0 || param > 32) return std::nullopt;
+        bits.read(param);
+        switch (stat) {
+        case 67: out.animation.velocity = bits.read_signed(width); break;
+        case 68: out.animation.attack_rate = bits.read_signed(width); break;
+        case 93: out.animation.ias = bits.read_signed(width); break;
+        case 96: out.animation.frw = bits.read_signed(width); break;
+        case 0x15e: out.skill = int(bits.read(width)); break;
+        case 0x15f: out.level = int(bits.read(width)); break;
+        default: bits.read(width); break;
+        }
+        if (bits.cursor().overflow) return std::nullopt;
+    }
+}
+
 struct MonsterCommand {
     std::uint32_t id;
     std::uint8_t command;

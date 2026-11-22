@@ -478,7 +478,7 @@ auto ClientSession::net_overlay() -> void {
             }
             return unit.moving ? "WL" : "NU";
         };
-        for (const auto& [unit_key, unit] : net_game->units) {
+        for (auto& [unit_key, unit] : net_game->units) {
             if (unit.type == 0) {
                 if (unit.id == net_game->self_id) continue;
                 View::OtherPlayer other{ .cls = unit.cls, .name = unit.name, .id = unit.id };
@@ -545,16 +545,30 @@ auto ClientSession::net_overlay() -> void {
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
             monster.scheduled_anim_position.reset();
-            const bool council_melee = unit.cls >= 345 && unit.cls <= 347 && (unit.mode == 10 || unit.mode == 11)
+            const bool council_attack = d2d::rules::monster_ids::is_council(unit.cls) && unit.mode >= 10 && unit.mode <= 13
                 && unit.life != 0;
-            if (council_melee) {
-                // FUN_00623e00 steps the pose in 1/256 frames each game tick.
-                // Start from the time of the latest command, including repeated A1s.
-                const auto& anim = scene->npc_anim(monster.npc, "A1");
+            if (council_attack) {
+                // FUN_00623f50 derives each rate from the client unit's stats;
+                // FUN_00623e00 advances the existing pose at that rate.
+                const bool melee = unit.mode <= 11;
+                const std::string_view mode = melee ? "A1" : "S1";
+                const auto& anim = scene->npc_anim(monster.npc, mode);
+                const auto& type = scene->monsters.types[std::size_t(monster.type)];
+                const auto stats = unit.animation_stats();
+                // FUN_004b13a0 skips the living monster's step in state 1.
+                const auto rate = std::ranges::contains(unit.states, 1) ? 0 : d2d::rules::monster_mode_rate({
+                    .mode = melee ? 4 : 8,
+                    .speed = int(anim.speed ? anim.speed : anim.cof_speed),
+                    .base = {type.walk_base, type.run_base},
+                    .velocity_pct = unit.animation_base_velocity.value_or(d2d::game::kMonsterVelocityPct + monster.boss_speed)
+                        + stats.velocity,
+                    .frw = stats.frw, .ias = monster.props.ias + stats.ias,
+                    .attack_rate = 100 + stats.attack_rate,
+                });
                 const auto elapsed = net_game->steady_now() - unit.mode_ms;
-                monster.scheduled_anim_position = d2d::rules::fixed_animation_position(
-                    elapsed, anim.speed ? anim.speed : anim.cof_speed, anim.frames ? anim.frames : anim.cof_frames);
-                monster.mode = monster.scheduled_anim_position ? "A1" : unit.moving ? "WL" : "NU";
+                monster.scheduled_anim_position = unit.attack_pose.advance(
+                    elapsed, std::uint32_t(rate), anim.frames ? anim.frames : anim.cof_frames);
+                monster.mode = monster.scheduled_anim_position ? mode : unit.moving ? "WL" : "NU";
             } else {
                 monster.mode = host_mode(unit, monster.npc);
             }

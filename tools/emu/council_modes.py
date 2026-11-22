@@ -206,11 +206,70 @@ def check(exe, record, melee_record):
     print("Not tested: rate derivation, real event queue, missile creation, full AI, built d2d")
 
 
+def compare_host_pose(exe, animdata, actual):
+    """Compare each d2d pose to the original animation step."""
+    oracle = Emu(exe=str(exe))
+    records = {4: animation_record(animdata, b"HPA1HTH"), 8: animation_record(animdata)}
+    oracle.hook(0x639df0, lambda machine: int(machine.arg(1) == 1), 2)
+    oracle.hook(0x464820, lambda _machine: 0, 0)  # a living monster
+    cases = set()
+    count = 0
+    previous = None
+    finished = False
+    for line in actual.read_text(encoding="utf-8").splitlines():
+        monster, mode, scenario, tick, rate, got = map(int, line.split())
+        key = monster, mode, scenario
+        record = records[mode]
+        frames = struct.unpack_from("<I", record, 8)[0]
+        if key != previous:
+            assert tick == 0 and key not in cases
+            assert previous is None or finished
+            cases.add(key)
+            previous = key
+            unit = oracle.alloc(0x200)
+            oracle.w32(unit, 1)
+            oracle.w32(unit + 4, monster)
+            oracle.w32(unit + 0x10, mode)
+            oracle.w32(unit + 0x48, frames << 8)
+            oracle.w32(unit + 0x50, oracle.put(record))
+            last_tick = -1
+            finished = False
+        assert tick == last_tick + 1 and not finished
+        last_tick = tick
+        slowed = scenario == 1 and 3 <= tick < 8
+        frozen = scenario == 2 and 3 <= tick < 8
+        expected_rate = (84 if slowed else 168) if mode == 4 else (
+            (168 + (monster - 345) * 56) * (45 if slowed else 75) // 100
+        )
+        assert rate == (0 if frozen else expected_rate), (key, tick, rate, expected_rate)
+        expected = 0
+        if frozen:
+            oracle.call(0x4b13a0, ecx=unit, limit=10000)
+            assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+            expected = oracle.r32(unit + 0x44)
+        elif tick:
+            oracle.mu.mem_write(unit + 0x4c, struct.pack("<h", rate))
+            finished = bool(oracle.call(0x6217c0, unit, limit=10000))
+            assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+            oracle.call(0x623e00, unit, limit=10000)
+            assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+            expected = -1 if finished else oracle.r32(unit + 0x44)
+        assert got == expected, (key, tick, got, expected)
+        count += 1
+    assert cases == {(monster, mode, scenario) for monster in (345, 346, 347) for mode in (4, 8) for scenario in (0, 1, 2)}
+    assert finished
+    print(f"PASS: {count} pose ticks across {len(cases)} original-host Council animation cases")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--animdata", required=True, type=Path)
+    parser.add_argument("--compare-host-pose", type=Path, help="output from test_council_a1 --host-pose")
     args = parser.parse_args()
+    if args.compare_host_pose:
+        compare_host_pose(args.exe, args.animdata, args.compare_host_pose)
+        return
     check(args.exe, animation_record(args.animdata), animation_record(args.animdata, b"HPA1HTH"))
 
 

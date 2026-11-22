@@ -11,21 +11,55 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <string_view>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() try {
+int main(int argc, char** argv) try {
+    if (argc == 2 && std::string_view(argv[1]) == "--host-pose") {
+        for (const int class_id : {345, 346, 347}) {
+            for (const int mode : {4, 8}) {
+                for (const int scenario : {0, 1, 2}) {
+                    d2d::rules::FixedAnimationClock clock;
+                    const auto frames = mode == 4 ? 10u : 14u;
+                    for (std::uint32_t tick = 0; tick < 80; ++tick) {
+                        const bool interrupted = tick >= 3 && tick < 8;
+                        const bool slowed = scenario == 1 && interrupted;
+                        const auto rate = scenario == 2 && interrupted ? 0 : d2d::rules::monster_mode_rate({
+                            .mode = mode, .speed = mode == 4 ? 168 : 200,
+                            .base = {168 + (class_id - 345) * 56, 0},
+                            .velocity_pct = slowed ? 45 : 75, .attack_rate = slowed ? 50 : 100,
+                        });
+                        const auto pose = clock.advance(tick * 40, std::uint32_t(rate), frames);
+                        std::printf("%d %d %d %u %d %d\n", class_id, mode, scenario, tick, rate,
+                                    pose ? int(*pose) : -1);
+                        if (!pose) break;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+
     // HPA1HTH at 168: FUN_00623e00 gives frame 1 on tick 3 and
     // frame 3 on tick 6. Dividing by a rounded 60 ms gives 2 and 4.
-    using d2d::rules::fixed_animation_position;
+    d2d::rules::FixedAnimationClock clock;
     constexpr std::array original_positions{0u, 168u, 336u, 504u, 672u, 840u, 1008u, 1176u, 1344u};
     for (std::size_t tick = 0; tick < original_positions.size(); ++tick) {
         const auto elapsed = std::uint32_t(tick) * 40;
-        if (fixed_animation_position(elapsed, 168, 10) != original_positions[tick]
-            || fixed_animation_position(elapsed + 39, 168, 10) != original_positions[tick]) return 1;
+        if (clock.advance(elapsed, 168, 10) != original_positions[tick]
+            || clock.advance(elapsed + 39, 168, 10) != original_positions[tick]) return 1;
     }
-    if (fixed_animation_position(639, 168, 10) != 2520u || fixed_animation_position(640, 168, 10)) return 1;
+    if (clock.advance(639, 168, 10) != 2520u || clock.advance(640, 168, 10)) return 1;
+    clock = {};
+    if (clock.advance(80, 168, 10) != 336u || clock.advance(120, 84, 10) != 420u
+        || clock.advance(160, 0, 10) != 420u || clock.advance(200, 168, 10) != 588u) return 1;
+    for (const auto rate : {126u, 168u, 210u}) {
+        clock = {};
+        const auto end_tick = std::uint32_t(d2d::rules::frame_tick(14, 0, int(rate)));
+        if (!clock.advance((end_tick - 1) * 40, rate, 14) || clock.advance(end_tick * 40, rate, 14)) return 1;
+    }
 
     GameData data;
     data.monsters.types.resize(32);

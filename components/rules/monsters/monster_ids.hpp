@@ -38,6 +38,7 @@ inline constexpr int kOrmus = 255;
 inline constexpr int kHalbu = 257;
 inline constexpr int kCampCain = 265;      // cain5: in the Rogue Encampment once rescued
 inline constexpr int kBloodRaven = 267;
+inline constexpr bool is_council(int row) { return row >= 345 && row <= 347; }
 inline constexpr int kHellBovine = 391;
 inline constexpr int kJamella = 405;
 inline constexpr int kLarzuk = 511;

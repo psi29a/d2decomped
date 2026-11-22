@@ -4,6 +4,7 @@
 #include "game_api.hpp"
 #include "panels/party.hpp"
 
+#include <d2gs/bit_buffer.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2gs/c2s_names.hpp>
 #include <d2gs/exe_tables.hpp>
@@ -29,6 +30,7 @@
 #include <filesystem>
 #include <format>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -43,10 +45,8 @@ using d2d::net::d2gs::read_u32;
 
 auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(type) << 32 | id; }
 
-// States.txt cloak_of_shadows, and the stats a state's list names its skill
-// and level by (FUN_004d87e0 reads 0x15e / 0x15f).
+// States.txt cloak_of_shadows (FUN_004d87e0).
 constexpr int kCloakOfShadowsState = 153;
-constexpr std::uint32_t kStateSkillStat = 0x15e, kStateLevelStat = 0x15f;
 
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
@@ -275,6 +275,17 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
         unit.x += dx / distance * step;
         unit.y += dy / distance * step;
     }
+}
+
+auto NetGame::Unit::animation_stats() const -> d2d::net::d2gs::s2c::AnimationStats {
+    d2d::net::d2gs::s2c::AnimationStats total;
+    for (const auto& [state, stats] : animation_states) {
+        total.velocity += stats.velocity;
+        total.attack_rate += stats.attack_rate;
+        total.ias += stats.ias;
+        total.frw += stats.frw;
+    }
+    return total;
 }
 
 auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
@@ -545,6 +556,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
                 quest_quakes.push_back(d2d::rules::QuestQuake::andariel);
             unit.mode = command->command;
             unit.mode_ms = steady_ms();
+            unit.attack_pose = {};
             unit.attack_aim.reset();
             if (command->point) unit.attack_aim = *command->point;
             else if (command->target) {
@@ -555,69 +567,57 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (unit.mode == 8 || unit.mode == 9) { unit.life = 0; unit.moving = false; }   // dying / dead: no hit says so
         }
         break;
-    case 0xa8:   // set state: +1 type, +2 id, +6 length, +7 the state, from +8 its stat list (0x45ee20)
-        if (size >= 8) {
-            if (packet[1] == 0 && read_u32(packet, 2) == self_id && !std::ranges::contains(self_states, int(packet[7]))) self_states.push_back(packet[7]);
+    case 0xa7:   // set a state without a stat list (FUN_0045ede0)
+        if (size >= 7) {
+            auto& states = unit_at(packet[1], read_u32(packet, 2)).states;
+            if (!std::ranges::contains(states, int(packet[6]))) states.push_back(packet[6]);
+            if (packet[1] == 0 && read_u32(packet, 2) == self_id && !std::ranges::contains(self_states, int(packet[6])))
+                self_states.push_back(packet[6]);
+        }
+        break;
+    case 0xa8:   // set state, with its stat list (FUN_0045ee20)
+        if (size >= 8 && packet[6] >= 8) {
+            const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
-            if (!std::ranges::contains(unit.states, int(packet[7]))) unit.states.push_back(packet[7]);
-            if (packet[7] == kCloakOfShadowsState) {
-                std::size_t bit_at = 8 * 8;
-                const std::size_t end = std::min<std::size_t>(size, packet[6]) * 8;
-                auto bits = [&](int count) {
-                    std::uint32_t value = 0;
-                    for (int bit = 0; bit < count && bit_at < end; ++bit, ++bit_at) value |= std::uint32_t(packet[bit_at / 8] >> (bit_at % 8) & 1) << bit;
-                    return value;
-                };
-                // Our own unit's spot is host_x / host_y (0x95 / 0x96 move only those).
-                const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;
-                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
-                for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
-                    if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) break;   // widths unknown: the rest can't be read
-                    bits(stat_send_bits[stat].second);
-                    const auto value = int(bits(stat_send_bits[stat].first));
-                    if (stat == kStateSkillStat) cast.skill = value;
-                    else if (stat == kStateLevelStat) cast.level = value;
-                }
-                cloak_casts.push_back(cast);
+            const int state = packet[7];
+            if (own && !std::ranges::contains(self_states, state)) self_states.push_back(state);
+            if (!std::ranges::contains(unit.states, state)) unit.states.push_back(state);
+            d2d::net::d2gs::BitReader bits{std::span(packet).first(std::min<std::size_t>(size, packet[6])).subspan(8)};
+            if (const auto stats = d2d::net::d2gs::s2c::read_state_stats(bits, stat_send_bits)) {
+                if (stats->animation.empty()) unit.animation_states.erase(state);
+                else unit.animation_states.insert_or_assign(state, stats->animation);
+                if (state == kCloakOfShadowsState)
+                    cloak_casts.push_back({ .skill = stats->skill, .level = stats->level,
+                                           .x = own ? host_x : unit.x, .y = own ? host_y : unit.y });
             }
         }
         break;
-    case 0xa9:   // end state: +1 type, +2 id, +6 the state
+    case 0xa9:   // end state (FUN_0045ef60)
         if (size >= 7) {
             if (packet[1] == 0 && read_u32(packet, 2) == self_id) std::erase(self_states, int(packet[6]));
-            std::erase(unit_at(packet[1], read_u32(packet, 2)).states, int(packet[6]));
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            std::erase(unit.states, int(packet[6]));
+            unit.animation_states.erase(packet[6]);
         }
         break;
-    case 0xaa:   // a unit's states as it comes into view: +1 type, +2 id, +6 length; bits from +7 (FUN_0045efa0)
-        if (size >= 8) {
+    case 0xaa:   // state snapshot as the unit comes into view (FUN_0045efa0)
+        if (size >= 8 && packet[6] >= 8) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
-            const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;   // our spot is host_x / host_y
-            auto& states = unit.states;
-            states.clear();
-            std::size_t bit_at = 7 * 8;
-            const std::size_t end = std::min<std::size_t>(size, packet[6]) * 8;
-            auto bits = [&](int count) {
-                std::uint32_t value = 0;
-                for (int bit = 0; bit < count && bit_at < end; ++bit, ++bit_at) value |= std::uint32_t(packet[bit_at / 8] >> (bit_at % 8) & 1) << bit;
-                return value;
-            };
-            // 8 bits a state (0xff ends), 1 bit it has stats, then a stat list
-            // as 0xa8's: 9 bits a stat id till 0x1ff, its param and value in
-            // ItemStatCost's send bits.
-            // Each state's setfunc runs as it's read (FUN_004d9e60): state
-            // 153's dips the ambient (FUN_004d87e0).
-            for (std::uint32_t state = 0; bit_at + 8 <= end && (state = bits(8)) != 0xff;) {
-                if (!std::ranges::contains(states, int(state))) states.push_back(int(state));
-                CloakCast cast{ .x = own ? host_x : unit.x, .y = own ? host_y : unit.y };
-                if (bits(1))
-                    for (std::uint32_t stat = 0; bit_at + 9 <= end && (stat = bits(9)) != 0x1ff;) {
-                        if (stat >= stat_send_bits.size() || stat_send_bits[stat].first <= 0) { bit_at = end; break; }   // widths unknown: the rest can't be read
-                        bits(stat_send_bits[stat].second);
-                        const auto value = int(bits(stat_send_bits[stat].first));
-                        if (stat == kStateSkillStat) cast.skill = value;
-                        else if (stat == kStateLevelStat) cast.level = value;
-                    }
-                if (state == kCloakOfShadowsState) cloak_casts.push_back(cast);
+            const bool own = packet[1] == 0 && read_u32(packet, 2) == self_id;
+            unit.states.clear();
+            unit.animation_states.clear();
+            d2d::net::d2gs::BitReader bits{std::span(packet).first(std::min<std::size_t>(size, packet[6])).subspan(7)};
+            for (;;) {
+                const int state = int(bits.read(8));
+                if (bits.cursor().overflow || state == 0xff) break;
+                if (!std::ranges::contains(unit.states, state)) unit.states.push_back(state);
+                const auto stats = bits.read(1) ? d2d::net::d2gs::s2c::read_state_stats(bits, stat_send_bits)
+                                                : std::optional{d2d::net::d2gs::s2c::StateStats{}};
+                if (!stats || bits.cursor().overflow) break;
+                if (!stats->animation.empty()) unit.animation_states.insert_or_assign(state, stats->animation);
+                if (state == kCloakOfShadowsState)
+                    cloak_casts.push_back({ .skill = stats->skill, .level = stats->level,
+                                           .x = own ? host_x : unit.x, .y = own ? host_y : unit.y });
             }
         }
         break;
@@ -703,14 +703,22 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 15) {
             auto& unit = unit_at(1, read_u32(packet, 1));
             walk(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (const auto pct = std::int16_t(read_u16(packet, 0xd)); pct != 0) unit.velocity_pct = pct;
+            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = packet[5];
+            if (const auto pct = std::int16_t(read_u16(packet, 0xd)); pct != 0) {
+                unit.velocity_pct = pct;
+                unit.animation_base_velocity = pct - unit.animation_stats().velocity;
+            }
         }
         break;
     case 0x68:   // monster to a unit (+0xa type, +0xb id), from where it is; +0x12 its velocity %
         if (size >= 20) {
             auto& unit = unit_at(1, read_u32(packet, 1));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (const auto pct = std::int16_t(read_u16(packet, 0x12)); pct != 0) unit.velocity_pct = pct;
+            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = packet[5];
+            if (const auto pct = std::int16_t(read_u16(packet, 0x12)); pct != 0) {
+                unit.velocity_pct = pct;
+                unit.animation_base_velocity = pct - unit.animation_stats().velocity;
+            }
             if (const auto target = units.find(key(packet[0xa], read_u32(packet, 0xb))); target != units.end() && &target->second != &unit) {
                 walk(unit, target->second.x, target->second.y);   // then followed (kFollowRepathMs)
                 unit.follow = target->first;
@@ -719,7 +727,12 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         }
         break;
     case 0x6d:   // monster stops at x, y
-        if (size >= 10) { auto& unit = unit_at(1, read_u32(packet, 1)); place(unit, read_u16(packet, 5), read_u16(packet, 7)); unit.life = packet[9]; }
+        if (size >= 10) {
+            auto& unit = unit_at(1, read_u32(packet, 1));
+            place(unit, read_u16(packet, 5), read_u16(packet, 7));
+            unit.life = packet[9];
+            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = 7;
+        }
         break;
     case 0x4c:   // a skill on a unit: +1 caster type, +2 id, +6 u16 skill, +9 target type, +0xa id
     case 0x4d:   // ... at x, y: +6 u32 skill, +0xb x, +0xd y

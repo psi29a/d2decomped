@@ -53,7 +53,42 @@ def check(exe):
             print(f"{name}: packet {packet[0]:#04x}, command {packet[5]}, correction {correction}")
 
 
+def check_state_stats(exe):
+    """Run the original 0xa8 decoder through the signed send fields."""
+    oracle = Emu(exe=str(exe))
+    tables, rows, unit = (oracle.alloc(size) for size in (0x1000, 0x144 * 97, 0x200))
+    oracle.w32(0x744304, tables)
+    oracle.w32(tables + 0xbcc, rows)
+    oracle.w32(tables + 0xbd4, 97)
+    signed_flag = oracle.mu.mem_read(0x6ce26c, 1)[0]
+    expected = [(67, -30), (68, -50), (93, 20), (96, -10)]
+    for (stat, _), width in zip(expected, (10, 10, 9, 9), strict=True):
+        row = rows + stat * 0x144
+        oracle.w32(row + 4, signed_flag)
+        oracle.mu.mem_write(row + 8, bytes([width]))
+
+    decoded = []
+
+    def add_stat(machine):
+        value = struct.unpack("<i", struct.pack("<I", machine.arg(2)))[0]
+        decoded.append((machine.arg(1), value))
+        return 0
+
+    oracle.hook(0x463990, lambda _machine: unit, 0)
+    oracle.hook(0x4d9b20, lambda _machine: 0, 0)
+    oracle.hook(0x4d9d70, add_stat, 4)
+    oracle.hook(0x4d9e60, lambda _machine: 0, 0)
+    body = bytes.fromhex("43c427e27c170a60ecff07")
+    packet = struct.pack("<BBIBB", 0xa8, 1, 42, 8 + len(body), 11) + body
+    oracle.call(0x45ee20, ecx=oracle.put(packet), limit=10000)
+    assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+    assert decoded == expected, decoded
+    print(f"0xa8 signed animation stats: {decoded}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
-    check(parser.parse_args().exe)
+    args = parser.parse_args()
+    check(args.exe)
+    check_state_stats(args.exe)
