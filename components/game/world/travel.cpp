@@ -40,6 +40,12 @@
 
 namespace d2d::game {
 
+// Leaving the level: past its edge, collision and drawing already
+// use the level next to it in the act (Level::nearby), so the player
+// walks straight on; once they stand outside this map they belong to
+// that level — everything moves by the offset between the two. A
+// click toward a level the layout placed but d2d doesn't build yet
+// (Cold Plains) is logged.
 auto World::cross_level() -> void {
         const float world_x = float(level->world_x) + actor->target_x, world_y = float(level->world_y) + actor->target_y;
         bool known = level->inside(actor->target_x, actor->target_y);
@@ -176,6 +182,11 @@ auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> 
         fight.start_swing(now_ms, true);
     }
 
+// Taking a warp (a cave mouth): a click by one walks there; close to
+// it, the player goes to the level it leads to and stands at that
+// level's warp back, at its ExitWalk. Everything with the player
+// (merc, pets) comes along; the automap and monsters are the new level's.
+
 // Close (FUN_00548b00 case 5): warp_close, tested when the click comes
 // and when the walk ends (LAB_00580e73), not on the way; a click
 // further off walks toward its tile unit (drlg.md "Taking a warp").
@@ -268,6 +279,9 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through {} from {}", level_name(*level), free_x, free_y, how, level_name(*from));
     }
 
+// The party left `from`: a town's vendors restock at their next
+// opening (FUN_00537340).
+
 // The party left `from` (FUN_005380d0 -> FUN_00537340: from one of the five
 // towns, none left in it, FUN_00537230's last argument set): each vendor a
 // trade has stocked (its record's +0x1c and +0x20) loses its stock
@@ -296,6 +310,9 @@ auto World::set_act(int act) -> void {
 auto World::owe_returns(const Level& town) -> void {
         if (in_town(&town)) actor->returning = d2d::rules::NpcReturns::due(congrats(), d2d::rules::level_ids::act_of(town.id));
     }
+
+// Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
+// - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the
 
 //   level's span (0 / 5 / 10), never below the level's start + 1;
 // - gold (FUN_005357d0): min(level, 20) % of carried and stashed gold,
@@ -333,6 +350,9 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
         d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", actor->exp_lost, lost, purse - lost);
     }
 
+// The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
+// corpse where the player lies with what they wore and held, and 75% of
+// the experience lost. They go on without it.
 auto World::make_corpse(std::uint32_t now_ms) -> void {
         // With 16 corpses already (rules::death_makes_corpse) there is no new
         // one: FUN_0057f540 takes the item in hand, then each body slot's
@@ -367,6 +387,13 @@ auto World::make_corpse(std::uint32_t now_ms) -> void {
         for (const auto& item : corpse.items) item_event(item.code, now_ms, true);
         actor->corpses.push_back(std::move(corpse));
     }
+
+// Taking one's corpse (FUN_0057fb70): its experience back, each item to
+// its slot when that's free (FUN_00562f30), its requirements met
+// (FUN_0062eaf0: rules::can_wear) and held with the other hand's
+// (FUN_0055f2d0: its own slot taken and the other side free, it goes
+// there, rules::corpse_slot), else to the inventory; what doesn't fit
+// stays on it.
 
 // The body slots in order, 1..12 (FUN_00562f30's walk). It goes once
 // it's empty.
@@ -418,6 +445,12 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         cues.cue("item_pickup", now_ms, actor->player.x, actor->player.y);
     }
 
+// Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
+// item, FUN_0055e170 -> books.txt pSpell 2, FUN_005be290): the pair
+// opens on this tick, no cast, whatever the player is doing; not dead,
+// not in town, not with an item in hand. The skill bar's Town Portal
+// (skill 220, srvdofunc 113) is the cast.
+
 // The old pair goes first; the scroll's used up, or the tome's quantity
 // goes down, only when the new one opened.
 auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms) -> void {
@@ -435,8 +468,15 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "player_townportal_cast", now_ms, actor->player.x, actor->player.y);
     }
 
+// Town Portal's action frame: a portal by the player and its twin at the
+// town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
+// the old pair goes. By the player: portal_spot from the caster; none,
+// no portal (false).
 auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y, now_ms); }
 
+// A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
+// on the Summit counts out of the Rite (RiteQuest::portal_closed); a
+// player walking to either end stops taking it (take_portal -1).
 auto World::close_portal_pair(std::size_t pair) -> void {
         for (const std::size_t end : { pair, pair + 1 })
             if (portal[end].level && portal[end].level->id == d2d::rules::RiteQuest::kSummit) rite.portal_closed();
@@ -491,6 +531,7 @@ auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms,
         return true;
     }
 
+// Walking into one: out by the other (OperateFn 15, FUN_00584870).
 auto World::use_portal(std::uint32_t now_ms) -> void {
         if (actor->take_portal < 0 || !portal[std::size_t(actor->take_portal)].level) return;
         const auto& taken = portal[std::size_t(actor->take_portal)];

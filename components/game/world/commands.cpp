@@ -59,6 +59,8 @@ void right_skill_set(Fight::Hero& hero, int skill) {
 
 }  // namespace
 
+// A belt put on or taken off: what the boxes it lacks held, to the
+// inventory or the floor (rules::spill_belt, FUN_005608c0).
 auto World::spill_belt(std::uint32_t now_ms) -> void {
         const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls)];
         const int boxes = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))].boxes;
@@ -66,6 +68,9 @@ auto World::spill_belt(std::uint32_t now_ms) -> void {
         if (!dropped.empty()) loot.enter(level);
         for (auto& item : dropped) loot.place(std::move(item), actor->player.x, actor->player.y, now_ms);
     }
+
+// After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
+// slot, a weapon switch): each hand skill fits what the hands hold now.
 
 // FUN_0055c5c0, each hand in turn: the left skill by the wielded weapon, the
 // right by the other hand's (FUN_0055c470: slot 5's when the wielded is slot

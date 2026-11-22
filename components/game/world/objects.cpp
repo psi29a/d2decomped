@@ -55,6 +55,10 @@ static void take_blast(std::int64_t& life, int taken) {
     if (life < 256) life = 0;
 }
 
+// Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
+// (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
+// drops at the area level).
+// In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
 auto World::drop_wirt_gold(std::uint32_t now_ms) -> void {
     // FUN_00594630: one pile every ten frames, on the corpse's level.
     for (auto entry = wirt_gold.begin(); entry != wirt_gold.end();) {
@@ -85,6 +89,8 @@ auto World::blast(const Npc& object, float x, float y, int size, std::int64_t li
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
 }
 
+// A chest round's drops put as they're rolled (FUN_0055a550 for chest_round),
+// round `object` on `onto` (null: this level).
 auto World::chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto) -> d2d::rules::Placement {
     return [this, &object, here, now_ms, onto](const d2d::rules::Drop& dropped, int) {
         return fight.remote_monsters || loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms, false, 0, onto);   // a joined game: the host drops them (S->C 0x9c)
@@ -702,6 +708,8 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
+// This level's slime doors OP long enough go ON (event 1, FUN_00581490).
+
 // A slime door's event 1: with Mode2 (objects.bin +0x141, 0x582209)
 // FUN_005821a0 queues it at FrameCnt1 + 1 frames on (FUN_005417d0,
 // 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
@@ -758,6 +766,9 @@ auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
         return true;
     }
 
+// An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
+// whoever's within 3 subtiles and sets off the unopened ones nearer
+// than 3.
 auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         const auto& barrel = level->npcs[std::size_t(npc_index)];
@@ -878,6 +889,11 @@ auto World::spring_traps(std::uint32_t now_ms) -> void {
             else spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, due.due);
         }
     }
+
+// A chest's trap (the table at 0x732cec, docs/research/re/objects.md
+// "Trap monsters"). 5 / 7 leave two fires (no damage traced); 8
+// raises the level's undead. `undead`: 8's count (0: 1 or 2); a
+// casket's or barrel's undead is one.
 
 // The trap monster acts once and is gone, so its shot goes straight
 // from the chest at the target its monster search picks: missile

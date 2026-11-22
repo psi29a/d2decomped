@@ -69,6 +69,8 @@ auto World::quest_talk(int hc_idx, bool fresh) -> std::vector<d2d::rules::QuestM
         return out;
     }
 
+// Tools of the Trade: whether the player has the Horadric Malus
+// (FUN_00558110 'hdm '); the malus stand operated (OperateFn 21).
 auto World::holding_malus() const -> bool {
         return carries("hdm");
     }
@@ -336,6 +338,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         if (radament.state == 4) d2d::log::info("Radament's Lair: Radament is dead, return to Atma");
     }
 
+// (x, y) in the room of (from_x, from_y) or one next to it (FUN_00463740).
 auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
         const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
         return room_near_holds(*game_data, fight.spawning, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
@@ -655,6 +658,8 @@ auto World::music_cue_near(std::string_view sound, float x, float y) -> void {
         each_player([&](Player& player) { if (near_room(player.player.x, player.player.y, x, y)) music_cue(sound); });
     }
 
+// A later player's quest joins (FUN_00546270's +0xd8 loop), each act's.
+
 // FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").
 auto World::join_more() -> void {
         if (hosted_quests) return;
@@ -761,6 +766,12 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", spot_x, spot_y);
     }
 
+// The Den's monsters after a death (a1q1.cpp FUN_00590260): the last
+// five are counted down in the quest log; the last one clears it, and a
+// player who's earned the reward says so (event 0x23: the class's
+// act1_complete_den, LAB_005900e0).
+// Nothing till every Den room has populated (rules::DenQuest::killed);
+// counted at each death (FUN_00590260), resent at log 4 with 6 or more.
 auto World::den_count(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::DenQuest::kDen || fight.mon_level != level) return;
         const int left = int(std::ranges::count_if(fight.monsters, &Monster::alive));

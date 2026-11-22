@@ -22,6 +22,9 @@
 
 namespace d2d::game {
 
+// Each act's quests at the World's quest hooks (world/quests/actN.cpp),
+// called act by act; a new act adds its file and a call at each hook.
+// The quest log's states (World::view).
 auto World::act1_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const -> void {
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         log = { 0, std::uint8_t(den.log_state(bits)), std::uint8_t(burial.log_state(bits)),
@@ -29,6 +32,7 @@ auto World::act1_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
                 std::uint8_t(tower.log_state(bits)), std::uint8_t(andy.log_state(bits)) };
     }
 
+// A new game's join (FUN_00546270): each record's join, the chains.
 auto World::act1_join() -> void {
         cow_portal_opened = false;
         den = {};

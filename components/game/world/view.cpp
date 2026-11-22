@@ -264,6 +264,9 @@ auto World::save_bytes(std::span<const std::byte> raw) -> std::expected<std::vec
         }
     }
 
+// The character to the CharacterStore: the save's header with what the
+// game changed (level, when last played, the gear's look), its stats and
+// items. "" when it's written, else why not.
 auto World::save() -> std::string {
         if (!characters) return "no character store";
         const auto header = save_header();

@@ -435,9 +435,7 @@ struct World {
     // party already too wide is let through.
     static constexpr float kLeashWidth = 620, kLeashHeight = 380;
     void leash(std::span<const std::pair<float, float>> before);
-    // The other players come to `destination` round (x, y) with their mercs
-    // and pets (one screen, one level: docs/design/local-coop.md); `tell`:
-    // their clients hear of a level change (not for a jump within one).
+    // The other players come to `destination` round (x, y) with their mercs and pets (one screen, one level.
     void bring_party(const Level* from, const Level* destination, float x, float y, bool keep_map, bool tell = true);
     const GameData* game_data = nullptr;
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
@@ -606,17 +604,16 @@ struct World {
     std::array<bool, d2d::rules::kQuestFlagCount> closed_at_join{};  // quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
-    // Its congratulations bits (the save's +0x2E5: rules::NpcReturns).
+    // Its congratulations bits.
     std::uint64_t& congrats();
-    // Each act's quests at the World's quest hooks (world/quests/actN.cpp),
-    // called act by act; a new act adds its file and a call at each hook.
-    // The quest log's states (World::view).
+    // Each act's quests at the World's quest hooks (world/quests/actN.cpp), called act by act; a new act adds
+    // its file and a call at each hook.
     void act1_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act2_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act3_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act4_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act5_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
-    // A new game's join (FUN_00546270): each record's join, the chains.
+    // A new game's join: each record's join, the chains.
     void act1_join();
     void act2_join();
     void act3_join();
@@ -733,23 +730,11 @@ struct World {
     World(const World&) = delete;
 
     // What the client is told (View).
-    // A monster's colour as the client picks it (FUN_00466360): its
-    // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
-    // own seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
-    // difficulty; a superunique's own Utrans; 30 and up fall back to 2.
-    // Utrans 0xff (necroskeleton, necromage) is 1 for a pet of the viewer
-    // or of a player not hostile to them, else 0 (FUN_004791b0: the 0x7a pet
-    // list's owner, the roster's flag 8; 0x46665c): 0 here, where pets aren't
-    // (Player::pets). Both draw untinted.
-    // That seed (FUN_00477620 via FUN_00650e40): {unit id + the name seed's
-    // low byte, 666}, one step (the 0xac handler keeps only the low byte of
-    // the 16-bit name seed, 0x45f387: bugs.md).
     [[nodiscard]] int monster_colour(const Monster& monster) const;
     [[nodiscard]] View view() const;
 
-    // The character to the CharacterStore: the save's header with what the
-    // game changed (level, when last played, the gear's look), its stats and
-    // items. "" when it's written, else why not.
+    // The character to the CharacterStore: the save's header with what the game changed (level, when last
+    // played, the gear's look), its stats and items.
     std::string save();
     // The acting player's character as a whole .d2s built on `raw` (the save it came from),
     // what save() would write: a LAN joiner's, sent back to its own machine (lan-host.md).
@@ -761,10 +746,7 @@ struct World {
     void owe_returns(const Level& town);
     void show_palace();
 
-    // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
-    // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
-    // drops at the area level).
-    // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
+    // Operating a shrine or a chest.
     void drop_wirt_gold(std::uint32_t now_ms);
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     // C->S 0x44 from the orifice's item panel (FUN_005852e0): cmd::ObjectItem.
@@ -795,7 +777,7 @@ struct World {
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
     void set_door_mode(int npc_index, int mode, std::uint32_t now_ms);
-    // This level's slime doors OP long enough go ON (event 1, FUN_00581490).
+    // This level's slime doors OP long enough go ON.
     void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
     void reopen_doors();
@@ -805,9 +787,8 @@ struct World {
     // A monster's door at its think (Fight::open_door): found, operated in reach.
     void display_swing(int skill, float x, float y, std::uint32_t now_ms);   // a joined game: swing at a host monster, for show
     bool monster_door(const Monster& monster, std::uint32_t now_ms);
-    // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
-    // whoever's within 3 subtiles and sets off the unopened ones nearer
-    // than 3.
+    // An exploding barrel: open, it hurts whoever's within 3 subtiles and sets off the unopened ones nearer than
+    // 3.
     void explode(int npc_index, std::uint32_t now_ms);
     // An object's blast on a unit at (x, y) of `size` (rules::object_blast
     // on the object's unit seed): none in town nor through a wall. 256ths.
@@ -818,10 +799,7 @@ struct World {
     // (FUN_00649560 / FUN_00649400).
     [[nodiscard]] bool wall_to(const Npc& object, int x, int y, int size) const;
 
-    // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
-    // "Trap monsters"). 5 / 7 leave two fires (no damage traced); 8
-    // raises the level's undead. `undead`: 8's count (0: 1 or 2); a
-    // casket's or barrel's undead is one.
+    // A chest's trap.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
     // A container's trap as it opens (FUN_00582510): trap 8 with no undead
     // family in act 1 is nothing (FUN_00582250); else its event 4 springs
@@ -837,15 +815,12 @@ struct World {
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
     void enter(const Character& entering);
-    // Another player joins the game under way (docs/design/local-coop.md):
-    // their character (full life, as entering), beside the first player,
-    // their merc along. The one acting stays.
+    // Another player joins the game under way (docs/design/local-coop.md): their character (full life, as
+    // entering), beside the first player, their merc along.
     Player& join(const Character& entering);
-    // A later player's quest joins (FUN_00546270's +0xd8 loop), each act's.
+    // A later player's quest joins, each act's.
     void join_more();
-    // A player leaves: their character saved (save's message, "" written),
-    // gone from the game. The first player's place goes to the next player
-    // (their state moves into slot [0]). The last player can't leave this way.
+    // A player leaves: their character saved (save's message, "" written), gone from the game.
     std::string leave(int id);
     // The entering character, refilled (enter / join).
     void take_character(const Character& entering);
@@ -865,8 +840,7 @@ struct World {
     // The player came to `level` from `from`: `from`'s NPC states are kept,
     // `level`'s taken back (made at their start the first time).
     void swap_npcs(const Level* from);
-    // The party left `from`: a town's vendors restock at their next
-    // opening (FUN_00537340).
+    // The party left `from`: a town's vendors restock at their next opening.
     void leave_town(const Level* from);
     void swap_npc_states(const Level* from);         // swap_npcs without the players' level change hooks
     void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
@@ -874,26 +848,16 @@ struct World {
     bool stones_pending = false;           // on Stony Field, the stones not up yet
     int stones_portal_in = 0;              // quest steps to the stones' portal: 1 tick (0x59366e -> FUN_00592d50), 0 none
 
-    // Leaving the level: past its edge, collision and drawing already
-    // use the level next to it in the act (Level::nearby), so the player
-    // walks straight on; once they stand outside this map they belong to
-    // that level — everything moves by the offset between the two. A
-    // click toward a level the layout placed but d2d doesn't build yet
-    // (Cold Plains) is logged.
+    // Leaving the level: past its edge, collision and drawing already use the level next to it in the act
+    // (Level::nearby), so the player walks straight on; once they stand outside this map they belong to that
+    // level — everything moves by the offset between the two.
     void cross_level();
-    // The Den's monsters after a death (a1q1.cpp FUN_00590260): the last
-    // five are counted down in the quest log; the last one clears it, and a
-    // player who's earned the reward says so (event 0x23: the class's
-    // act1_complete_den, LAB_005900e0).
-    // Nothing till every Den room has populated (rules::DenQuest::killed);
-    // counted at each death (FUN_00590260), resent at log 4 with 6 or more.
+    // The Den's monsters after a death.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 
-    // Taking a warp (a cave mouth): a click by one walks there; close to
-    // it, the player goes to the level it leads to and stands at that
-    // level's warp back, at its ExitWalk. Everything with the player
-    // (merc, pets) comes along; the automap and monsters are the new level's.
+    // Taking a warp (a cave mouth): a click by one walks there; close to it, the player goes to the level it
+    // leads to and stands at that level's warp back, at its ExitWalk.
     void use_warp();
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
@@ -933,7 +897,7 @@ struct World {
     void blood_raven_died(std::uint32_t now_ms);
     void radament_died(const Fight::Kill& kill, std::uint32_t now_ms);
     [[nodiscard]] std::string killer_name(const Fight::Hero::Striker& killer) const;   // the slain message's (FUN_0049eb10), "" none
-    // (x, y) in the room of (from_x, from_y) or one next to it (FUN_00463740).
+    // (x, y) in the room of (from_x, from_y) or one next to it.
     [[nodiscard]] bool near_room(float from_x, float from_y, float x, float y) const;
     void transmute(std::uint32_t now_ms);
     void canyon_portal(std::uint32_t now_ms);
@@ -956,15 +920,13 @@ struct World {
     void footstep_frame(std::uint32_t tick_ms);   // the player's footsteps on this tick (FUN_004caf60)
     void find_voice(std::uint32_t tick_ms);       // the class's find line 62 ticks into a level (FUN_004cc270)
     [[nodiscard]] bool game_quest_done(std::size_t quest) const;   // the game's flag 13 on a quest
-    // A town NPC's greeting row (FUN_004e0590, `kind` as rules::greeting_row), never the
-    // one it said last (twenty draws), 0 none.
+    // A town NPC's greeting row, never the one it said last (twenty draws), 0 none.
     int greet_sound(const Npc& npc, int kind);
     std::unordered_map<int, int> greeted_with;   // by MonStats class: its last greeting (the record's +0x10)
     std::unordered_map<int, std::array<int, 2>> group_last;   // by a sound group's first row: its last two plays (+0x64 / +0x68)
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
-    // Tools of the Trade: whether the player has the Horadric Malus
-    // (FUN_00558110 'hdm '); the malus stand operated (OperateFn 21).
+    // Tools of the Trade: whether the player has the Horadric Malus; the malus stand operated (OperateFn 21).
     bool holding_malus() const;
     void malus_stand(int npc_index, std::uint32_t now_ms);
     // The Search for Cain's objects (the tree, the stones, the Gibbet).
@@ -1003,35 +965,21 @@ struct World {
     void item_event(std::string_view code, std::uint32_t now_ms, bool corpse = false);
     void set_waypoint(int index) { if (index >= 0 && index < 40) actor->character.header.waypoints[std::size_t(actor->character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
-    // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
-    // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the
+    // Dying, killed by a monster: - experience: DifficultyLevels DeathExpPenalty % of the.
     void death_penalty(std::uint32_t now_ms);
-    // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
-    // corpse where the player lies with what they wore and held, and 75% of
-    // the experience lost. They go on without it.
+    // The death played out: a corpse where the player lies with what they wore and held, and 75% of the
+    // experience lost.
     void make_corpse(std::uint32_t now_ms);
-    // Taking one's corpse (FUN_0057fb70): its experience back, each item to
-    // its slot when that's free (FUN_00562f30), its requirements met
-    // (FUN_0062eaf0: rules::can_wear) and held with the other hand's
-    // (FUN_0055f2d0: its own slot taken and the other side free, it goes
-    // there, rules::corpse_slot), else to the inventory; what doesn't fit
-    // stays on it.
+    // Taking one's corpse.
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
-    // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
-    // item, FUN_0055e170 -> books.txt pSpell 2, FUN_005be290): the pair
-    // opens on this tick, no cast, whatever the player is doing; not dead,
-    // not in town, not with an item in hand. The skill bar's Town Portal
-    // (skill 220, srvdofunc 113) is the cast.
+    // Reading a Scroll of Town Portal or a Tome's charge.
     void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
-    // Town Portal's action frame: a portal by the player and its twin at the
-    // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
-    // the old pair goes. By the player: portal_spot from the caster; none,
-    // no portal (false).
+    // Town Portal's action frame: a portal by the player and its twin at the town's portal spot; the old pair
+    // goes.
     void open_portal(std::uint32_t now_ms);
-    // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
-    // on the Summit counts out of the Rite (RiteQuest::portal_closed); a
-    // player walking to either end stops taking it (take_portal -1).
+    // A town portal pair `pair` closes: an end on the Summit counts out of the Rite (RiteQuest::portal_closed);
+    // a player walking to either end stops taking it (take_portal -1).
     void close_portal_pair(std::size_t pair);
     bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair = -1);   // -1: the actor's own pair
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
@@ -1042,22 +990,19 @@ struct World {
     // Who's in whose way on the player's level now: the players, their
     // mercs, the monsters and pets about (Fight::crowd).
     [[nodiscard]] Crowd crowd_now();
-    // Walking into one: out by the other (OperateFn 15, FUN_00584870).
+    // Walking into one: out by the other.
     void use_portal(std::uint32_t now_ms);
 
     // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
     // identifying, hiring. True when `c` was one.
     bool deal(const Command& command, std::uint32_t now_ms);
-    // A belt put on or taken off: what the boxes it lacks held, to the
-    // inventory or the floor (rules::spill_belt, FUN_005608c0).
+    // A belt put on or taken off: what the boxes it lacks held, to the inventory or the floor.
     void spill_belt(std::uint32_t now_ms);
-    // A chest round's drops put as they're rolled (FUN_0055a550 for chest_round),
-    // round `object` on `onto` (null: this level).
+    // A chest round's drops put as they're rolled, round `object` on `onto` (null: this level).
     [[nodiscard]] d2d::rules::Placement chest_place(const Npc& object, int here, std::uint32_t now_ms, const Level* onto = nullptr);
-    // After a change of gear (FUN_0055c5c0: a mend, an item on or off a body
-    // slot, a weapon switch): each hand skill fits what the hands hold now.
+    // After a change of gear: each hand skill fits what the hands hold now.
     void hand_skills(std::uint32_t now_ms);
-    // Each player's Player::hand_status, at the end of a level's tick (what FUN_00467880 asks).
+    // Each player's Player::hand_status, at the end of a level's tick.
     void hand_statuses(std::uint32_t now_ms);
 
     // A command from the player, checked and applied.

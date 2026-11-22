@@ -166,6 +166,9 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
     }
 }
 
+// The other players come to `destination` round (x, y) with their mercs
+// and pets (one screen, one level: docs/design/local-coop.md); `tell`:
+// their clients hear of a level change (not for a jump within one).
 auto World::bring_party(const Level* from, const Level* destination, float x, float y, bool keep_map, bool tell) -> void {
     static constexpr std::array<std::pair<float, float>, 4> kAround{ { { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f }, { 0.f, -1.f } } };
     std::size_t around = 0;
@@ -189,6 +192,7 @@ auto World::bring_party(const Level* from, const Level* destination, float x, fl
 }
 
 auto World::quests() -> d2d::rules::QuestBits& { return actor->character.header.quests[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))]; }
+// Its congratulations bits (the save's +0x2E5: rules::NpcReturns).
 auto World::congrats() -> std::uint64_t& { return actor->character.header.congrats[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))]; }
 
 auto World::item_ids() -> void {
@@ -196,6 +200,18 @@ auto World::item_ids() -> void {
         if (actor->held && actor->held->id < 0) actor->held->id = next_item_id++;
     }
 
+// What the client is told (View).
+// A monster's colour as the client picks it (FUN_00466360): its
+// TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
+// own seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
+// difficulty; a superunique's own Utrans; 30 and up fall back to 2.
+// Utrans 0xff (necroskeleton, necromage) is 1 for a pet of the viewer
+// or of a player not hostile to them, else 0 (FUN_004791b0: the 0x7a pet
+// list's owner, the roster's flag 8; 0x46665c): 0 here, where pets aren't
+// (Player::pets). Both draw untinted.
+// That seed (FUN_00477620 via FUN_00650e40): {unit id + the name seed's
+// low byte, 666}, one step (the 0xac handler keeps only the low byte of
+// the 16-bit name seed, 0x45f387: bugs.md).
 auto World::monster_colour(const Monster& monster) const -> int {
         const auto& npc = monster.npc;
         const int difficulty_index = std::clamp(monster.difficulty, 0, 2);
@@ -261,6 +277,10 @@ auto World::lay_save_corpse(const Character& entering) -> void {
         actor->corpses.push_back({ town, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
     }
 
+// Another player joins the game under way (docs/design/local-coop.md):
+// their character (full life, as entering), beside the first player,
+// their merc along. The one acting stays.
+
 // The quests hear of them through their +0xd8s (join_more), not the
 // +0xd4s the game's first player ran (FUN_00546270).
 auto World::join(const Character& entering) -> Player& {
@@ -290,6 +310,9 @@ auto World::join(const Character& entering) -> Player& {
         return player;
     }
 
+// A player leaves: their character saved (save's message, "" written),
+// gone from the game. The first player's place goes to the next player
+// (their state moves into slot [0]). The last player can't leave this way.
 auto World::leave(int id) -> std::string {
         const auto found = std::ranges::find(players, id, [](const auto& player) { return player->id; });
         if (found == players.end()) return "no such player";

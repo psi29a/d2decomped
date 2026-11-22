@@ -115,6 +115,8 @@ auto World::killer_name(const Fight::Hero::Striker& killer) const -> std::string
     return {};
 }
 
+// A town NPC's greeting row (FUN_004e0590, `kind` as rules::greeting_row), never the
+// one it said last (twenty draws), 0 none.
 auto World::greet_sound(const Npc& npc, int kind) -> int {
         const auto* greeting = d2d::rules::sound_ids::greeting_of(npc.hc_idx);
         if (!greeting) return 0;
@@ -898,6 +900,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         loot.standing = nullptr;                                 // the crowd dies with this tick
     }
 
+// Each player's Player::hand_status, at the end of a level's tick (what FUN_00467880 asks).
 auto World::hand_statuses(std::uint32_t now_ms) -> void {
         each_player([&](Player& player) {
             const auto& header = player.character.header;
