@@ -32,9 +32,10 @@ namespace d2d::client {
 // draws the resulting rows. See frontend-text-box.md for the Latin path.
 static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::font::Font& font,
                           const std::string& line, int x, int y, int width, int height,
-                          std::uint8_t shade = 255, int margin_x = 0, int margin_y = 0) {
+                          std::uint8_t shade = 255, int margin_x = 0, int margin_y = 0,
+                          int flags = d2d::font::kTextBoxCentre) {
     const auto rows = d2d::font::text_box_rows(line, x, y, width, height, font.line_height(),
-        [&](std::string_view text) { return font.measure(text); }, margin_x, margin_y);
+        [&](std::string_view text) { return font.measure(text); }, margin_x, margin_y, 4, flags);
     for (const auto& row : rows) {
         font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
                                  row.x, row.baseline, row.text, shade, shade, shade);
@@ -255,6 +256,12 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
                                             rows[row].text, rgb ? rgb[0] : 255, rgb ? rgb[1] : 255, rgb ? rgb[2] : 255);
         }
     }
+
+    // Record 0x9c (85, bottom 78), 466x42, Font42, flags 0x22: FUN_004390a0
+    // puts the selected character's name there, colour 0 (0x4391f9).
+    if (select_ui.selected >= 0 && select_ui.selected < int(scene.saves.size()))
+        draw_text_box(framebuffer, scene, scene.font42, scene.saves[std::size_t(select_ui.selected)].name, 85, 78, 466, 42,
+                      255, 0, 0, d2d::font::kTextBoxCentre | d2d::font::kTextBoxNoWrap);
 
     if (const int max = charselect_max_scroll(int(scene.saves.size()));
         max > 0 && scene.charselect_scroll.frames_per_direction() >= 5) {
