@@ -19,7 +19,11 @@ can't change its findings (unless its .clang-tidy's IgnoreHeaders lets it
 reach H that way, as apps/d2d reaches the game's headers: those TUs too). A header whose change is comments only (--base
 tells, or the `comment` mark) needs one TU. A changed .inc: every TU that
 reaches it. --transitive: every TU that reaches a changed file (for checks
-that don't follow the include rule, such as GCC's -Wshadow).
+that don't follow the include rule, such as GCC's -Wshadow). --lean: one TU
+for any changed header, as for a comment-only one: what presubmit --quick
+reports (findings on the branch's lines and include-cleaner in its changed
+files) shows from any TU that compiles the header; its includers' own
+findings are in files the branch didn't change.
 
 --annotate --base REV: print the changed list with the comment-only headers
 marked, and nothing else (validate-linux.sh runs it on the host, where git is).
@@ -123,7 +127,7 @@ def read_changed(source):
     return out
 
 
-def select(changed, tus, forward, reverse, transitive=False):
+def select(changed, tus, forward, reverse, transitive=False, lean=False):
     """The TUs (realpaths, a subset of `tus`) to tidy for `changed` [(path, comment_only)]."""
     def reaching(path):
         """Every TU that includes `path`, directly or not."""
@@ -169,7 +173,7 @@ def select(changed, tus, forward, reverse, transitive=False):
         if transitive or not path.endswith(HEADER):
             picked |= reaching(path)
             continue
-        if marked:
+        if marked or lean:
             cover(path)
             continue
         picked |= {tu for tu in reverse.get(path, ()) if tu in tus}
@@ -193,6 +197,7 @@ def main(argv=None) -> int:
     parser.add_argument("--base", help="mark headers whose change since BASE is comments only")
     parser.add_argument("--annotate", action="store_true", help="print the changed list, marked, and stop")
     parser.add_argument("--transitive", action="store_true", help="every TU that reaches a changed file")
+    parser.add_argument("--lean", action="store_true", help="one TU for any changed header (presubmit --quick)")
     args = parser.parse_args(argv)
     if args.changed != "-" and not os.path.exists(args.changed):
         return 0
@@ -211,7 +216,7 @@ def main(argv=None) -> int:
     entries = [entry for entry in entries if "/_deps/" not in entry["file"] and "/build/" not in entry["file"]]
     files = {os.path.realpath(os.path.join(entry["directory"], entry["file"])): entry["file"] for entry in entries}
     forward, reverse = include_graph(sorted(set(project_files()) | set(files)))
-    picked = select(changed, set(files), forward, reverse, args.transitive)
+    picked = select(changed, set(files), forward, reverse, args.transitive, args.lean)
     if picked is None:                               # fall back to every project TU
         picked = set(files)
     for tu in sorted(files[path] for path in picked):

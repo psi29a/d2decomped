@@ -14,6 +14,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <missile_flight.hpp>
 #include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>

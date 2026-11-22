@@ -47,6 +47,7 @@ constexpr int kTerror = 77;                     // Skills.txt Terror: Howl's sta
 
 }  // namespace
 
+// Concentration's share at (x, y) of a skill with that Param1, % (FUN_006461d0): Blessed Hammer's.
 auto Fight::concentration_share(float x, float y, int param1) const -> int {
         const auto auras = friendly_auras(x, y);
         const AuraOn* strongest = nullptr;
@@ -65,6 +66,11 @@ auto Fight::other_target() -> void {
         actor->attack_mon = d2d::rules::ring_pick(reach, actor->attack_mon);   // FUN_0056bd10
         actor->player.dir = direction16(monsters[std::size_t(actor->attack_mon)].unit.x - actor->player.x, monsters[std::size_t(actor->attack_mon)].unit.y - actor->player.y);
     }
+
+// Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
+// stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
+// throwable in either hand (right first), else the weapon itself when
+// it's a throwable.
 
 // Its index in the items with some left, or -1; at -1 the cast is
 // refused and a spent stack in hand swapped out (FUN_005da8b0 ->
@@ -92,6 +98,10 @@ auto Fight::ammo_index() const -> int {
         return found >= 0 && d2d::rules::quantity_left(tables, actor->character.items[std::size_t(found)]) ? found : -1;
     }
 
+// A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
+// (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
+// for any other weapon.
+
 // The plain attack (do 1, FUN_0056f070) fires it from where the player
 // stands.
 auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
@@ -115,6 +125,9 @@ auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
         return found != game_data->missiles.end() ? &found->second : nullptr;
     }
 
+// Whether the shot takes ammo: the plain attack's (not a magic arrow:
+// FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
+// (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
 auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
         if (skill.srvdofunc == ServerDoFunction::kAttack) {
             const auto* shot = weapon_missile();
@@ -134,6 +147,11 @@ auto Fight::spend_ammo(int index) -> void {
         if (spent.quantity <= 0) out_of_ammo(std::size_t(index));
     }
 
+// Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
+// (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
+// the inventory's first of its code (not broken) takes its slot if it
+// can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does; then,
+// none taking it, ReEquip (reequip).
 auto Fight::out_of_ammo(std::size_t index) -> void {
         using namespace d2d::d2s;
         auto& item = actor->character.items[index];
@@ -201,6 +219,9 @@ auto Fight::reequip() -> bool {
         return true;
     }
 
+// One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
+// other weapon 4 % to lose 1 durability.
+
 // At 0 armour breaks; a stack loses one of its quantity and comes back
 // whole (its last: out of ammo); any other weapon stays at 0.
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -237,6 +258,13 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         item.durability = d2d::rules::max_durability(item);
     }
 
+// A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
+// weapon when the player hits, one worn armour when the player is hit —
+// picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
+// / gloves 2) among the slots holding armour.
+// The slot and weight draws (FUN_0045c3e0 twice) and FUN_00559e30's
+// % 100 step the unit's seed (+0x20) in game.exe, d2d's rng here:
+// deviations.md approximation 18.
 auto Fight::wear_weapon(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
@@ -265,6 +293,10 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
             pick -= kSlots[slot_index].second;
         }
     }
+
+// Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
+// calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
+// its quantity (stat 70, FUN_0056c3f0) instead.
 
 // At 0 durability the weapon breaks (FUN_0055f850).
 auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
@@ -295,6 +327,18 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
             }
     }
 
+// The missile a skill fires, when d2d builds it: its srvmissile after
+// its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
+// -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,
+// FUN_005da8b0, only checks the ammo), or its srvmissilea from its do:
+// 8 (a fan), 17 (Charged Bolt), 22 (a nova), 10 (Guided Arrow, Bone
+// Spirit), 12 (Strafe), 26 (Chain Lightning), 28 (Meteor, Blizzard,
+// Eruption), 24 (Fire Wall), 19 (Inferno, Arctic Blast), 73 (Blessed
+// Hammer), 80 (Fist of the Heavens), 117 (Firestorm), 118 (Twister,
+// Tornado), 123 (Volcano), 43 (Shock Web), 48 (Blade Fury). The row
+// carries the skill's damage (Skill) or none (the weapon's at
+// SrcDamage: Multiple Shot, Strafe); its hit functions: `burst`.
+// `any_owner`: a trap's shot, whose row names the player's skill.
 auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const -> const GameData::MissileInfo* {
         static constexpr ServerDoFunction kDo[] = { ServerDoFunction::kMissileFan, ServerDoFunction::kScatteredBolts, ServerDoFunction::kNova, ServerDoFunction::kGuidedMissile,
             ServerDoFunction::kStrafe, ServerDoFunction::kChainLightning, ServerDoFunction::kMissileAtTarget, ServerDoFunction::kMissileWall,
@@ -316,6 +360,11 @@ auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const
     }
 
 auto Fight::missile_skill(const d2d::rules::Skill& skill) const -> bool { return skill_missile(skill) != nullptr; }
+
+// Casting one at (tx, ty): its mana, then its animation (A1 at the
+// attack's speed for the bow skills, else SC with FCR); the missiles
+// leave on the action frame (fire), which starts the skill's delay
+// (+400, FUN_0056ef90: start_delay).
 
 // A cast sequence (anim SQ, seqtrans SC: Lightning) holds SC for its
 // steps (rules::cast_sequence_ticks), its action its event-1 step and each
@@ -373,6 +422,10 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         return true;
     }
 
+// A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
+// `range` ticks (0 velocity: it stays put).
+// FUN_0059f940's chance (skill_pierce + item_pierce) and whether either stat
+// is set (FUN_005adf10 asks only then). A merc's come from its gear.
 auto Fight::pierce_chance(bool for_merc) const -> int {
         using namespace d2d::d2s;
         if (!for_merc) return int(actor->psum[kSkillPierce] + actor->psum[kItemPierce]);
@@ -423,6 +476,9 @@ auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector
         return nearby;
     }
 
+// Strafe's next arrow (do 12, FUN_005dba40): at strafe_at, calc2 its damage %; then, with arrows
+// left, the next target (FUN_0056bd10 within aurarange from this one), none ending the run.
+
 // Do 12 (FUN_005dba40): the unit it keeps by id (FUN_00552f60), gone or dead the pick from it
 // (FUN_0056bd10, aurarange, flags 3); none: no arrow. The arrow at it (faced, FUN_00620c10), one fewer;
 // with some left the next pick from it is kept, and only then does the swing start over (FUN_0056e210).
@@ -447,6 +503,28 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
         return d2d::rules::eval_calc(game_data->skills, calc_row, calc_env(), skill.id, lvl);
     }
 
+// The missiles leave the caster at their velocity for Range + LevRange x
+// level ticks: one toward the cast point; do 8 (FUN_005db410) calc1 of
+// them at points a step apart across the line to it (the step: the
+// line's direction turned a right angle and halved to at most ~1.7
+// subtiles, FUN_0056d3b0), centred on it; do 17 (FUN_005c9300) calc1
+// toward it, each wandering (FUN_005c9290); do 22 (FUN_005c9b50 ->
+// FUN_0056d400) 64 all round, for Range + calc1 ticks.
+// Do 10 (FUN_005db6d0: Guided Arrow, Bone Spirit): one at the monster
+// clicked, which it seeks (missile do 7); calc1 is its damage %
+// (stat 25 through the callback 0x5db6a0). Do 12 (FUN_005dba40,
+// Strafe): st 8 (FUN_005dacd0) counts the monsters within aurarange
+// and clamps that between min(calc3, calc1) and calc1; each do then
+// shoots one at the next of them (FUN_0056bd10), calc2 its damage %.
+// Do 26 (FUN_005ca1b0, Chain Lightning): one carrying calc1 hops. Do 28
+// (FUN_005ca3e0 -> FUN_0056ede0: Meteor, Blizzard, Eruption): the row
+// at the cast point. Do 24 (FUN_005c9ea0, Fire Wall): from the target
+// two makers out across the line from the caster, and srvmissileb on
+// it. Do 19 (FUN_005c8ca0, Inferno): a flame of calc1 ticks per frame
+// while the cast lasts.
+// The nova aims at rules::kNovaRing (0x6e1288 / 0x6e1388).
+// Strafe's arrows: one a do, the swing starting over between them (strafe_shot, restart_swing).
+// ponytail: Inferno's channel is its cast's animation (no held button, no mana per frame).
 auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const auto& missile_info = *skill_missile(skill);
         const int lvl = caster.level;
@@ -582,6 +660,26 @@ auto Fight::land_range(const GameData::MissileInfo& missile_info, float dx, floa
         return std::max(int(std::hypot(dx, dy) / per_frame), 1);
     }
 
+// Once a frame for the player's skill missiles (their pSrvDoFunc):
+// 7 (FUN_005ae780) turns a guided one to its target every Param1
+// frames; 6 (FUN_005ae680, Fire Wall's maker) and 23 (FUN_005af790,
+// Firestorm) leave SubMissile1 at their subtile on a frame they entered
+// a new one (FUN_006505c0); 10 / 25 (FUN_005aea60 / FUN_005af880 -> FUN_005a9820:
+// Blizzard, Eruption) every calc2 frames drop SubMissile1 at a random
+// point -(calc1 - 1)..(calc1 - 2) subtiles from it on each axis; 5
+// (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze) burns whoever
+// stands in its footprint (standing_struck) every frame, CollideKill 0. Hit function 14 (FUN_005aabb0,
+// Meteor) goes off where the row's Range ends: the skill's damage on
+// everything within sHitPar1 (else aurarange) subtiles, then
+// HitSubMissile1 at the 18 offsets of 0x6e2550 / 0x6e2598 (every
+// sHitPar2th; FUN_005aaa90), each burning Param3 + Param4 x (level - 1)
+// 256ths a frame (FUN_004cc7c0).
+// Also Strafe's queued arrows and Inferno's flames.
+// A guided one cast at nothing (do 10) flies to the point and ends there.
+// ponytail: a burner hits a monster once a frame however many overlap
+// (by skill).
+// The acting player's own shots this frame: Strafe's arrows due, a
+// channelled skill's (Inferno, Blade Fury).
 auto Fight::player_shots(std::uint32_t now_ms) -> void {
         const int frame = int(now_ms / 40);
         if (frame == actor->last_frame) return;
@@ -767,6 +865,12 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         merc_blow = casting_merc = false;
     }
 
+// An element in 256ths a frame on monster i (a burner's): less its
+// resistance, gathered until whole points come off (no hit recovery:
+// its record has result flag 1 alone). `soft`: pSrvDmgFunc 3's roll gave
+// it 0x4000 (FUN_0057cee0's monster branch: the last command 0x13,
+// FUN_005734c0, and the mods' event 4, FUN_005a43a0: Lightning
+// Enchanted's bolts); without it a burn sets off neither.
 auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft) -> void {
         static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };
         if (damage.etype < 0 || damage.etype > 4 || damage.ehi <= 0) return;
@@ -785,6 +889,13 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
     }
 
 auto Fight::pierce() const -> std::array<int, 4> { return { int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) }; }
+
+// A skill's missile reaching monster i (FUN_0064b860's record): with a
+// weapon share (the skill's SrcDam, or a row with no Skill its
+// SrcDamage) the weapon's blow at that share, attack rating rolled;
+// else a sure hit (ToHit missiles roll the attack rating); then the
+// skill's damage (missile_blow). With no unit it goes off at a wall or
+// where its Range runs out too (burst, kNoUnitHit).
 
 // True: it's spent — a CollideKill missile is, unless it may pierce
 // (Missiles.txt Pierce) and stat 328's chance lets it fly on. Hit
@@ -991,6 +1102,9 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         stand(monster_index, frozen, now_ms);
     }
 
+// A blow's freeze length (record +0x34) on monster i (FUN_0057b230,
+// rules::monster_freeze): its chill goes on the blow; stand() then
+// stands it for the freeze, after the blow lands.
 auto Fight::freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze) -> d2d::rules::Freeze {
         d2d::rules::Freeze frozen;
         // State 0x36 (uninterruptable) takes no freeze and no chill for it (FUN_0057b230's first test).
@@ -1019,6 +1133,33 @@ auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze, one_roll ? &roll : nullptr);
     }
 
+// A missile's hit function where it is — with the unit it struck, or
+// none where its Range ran out (FUN_005adf10 calls it either way), once:
+// 1 (FUN_005a9a70) the skill's damage within sHitPar1 (else calc1)
+// subtiles; 3 (bomb on ground) within aurarange; 13 (FUN_005aa8b0,
+// Glacial Spike) within sHitPar1 (else aurarange), freezing sHitPar2
+// (else auralen) frames; 2 (FUN_005a9d80 -> FUN_005a9370) a ring of
+// HitSubMissile1 (Plague Javelin's clouds, the gas potions'); 4 / 36 / 51
+// (FUN_005b07a0, FUN_005abf70) HitSubMissile1 there (Exploding /
+// Freezing Arrow's blast, the traps on the ground); 9 (FUN_005aa250,
+// Immolation Arrow) the damage within sHitPar1 (else calc1) and its fire
+// over that ground (FUN_005a9530); 14 (Meteor, FUN_005aabb0) and 47
+// (FUN_005ac550, Molten Boulder) the damage within sHitPar1 (else
+// aurarange) and HitSubMissile1 at 0x6e2550's 18 offsets; 20
+// (FUN_005ab370, Lightning Fury) HitSubMissile1 from here at up to
+// calc1 monsters within aurarange; 22 (FUN_005add20, Fist of the Heavens)
+// the damage within aurarange of its target, then HitSubMissile1 at
+// each undead in it; 29 (FUN_005abb00, Frozen Orb) HitSubMissile1 in
+// every sHitPar1th of 64 directions; 48 (FUN_005ac6d0) HitSubMissile1
+// on toward where it was sent.
+// Immolation's ground fire burns its own row a frame (FUN_0064b100,
+// its synergy through the Missiles.txt calc evaluator FUN_0064b7c0) for
+// SHitCalc1 frames (FUN_005aa250 -> FUN_005a9530).
+// With no unit (FUN_005adf10(0, 1)) it goes off where the Range runs
+// out and where its flight ends (FUN_00554ca0 gives 2: a wall, off its
+// rooms), for the hit functions that act with none (kNoUnitHit).
+// pSrvDmgFunc 3 (FUN_005ad220) is the burners' soft hit (burn).
+// `struck`: the monster the missile struck (FUN_005adf10's unit), -1 none.
 auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || missile.frame >= 0) return;
@@ -1203,6 +1344,19 @@ auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rul
         if (cost > 0) actor->no_mana_regen = changed > 0;
     }
 
+// The aura's pulse, every perdelay ticks while it's on: a friendly
+// one's hitpoints heal the player (Prayer: edns, 256ths); an enemy one
+// (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster
+// within aurarangecalc subtiles that its aurafilter takes (FUN_0056b7e0
+// -> FUN_0056b3e0, aura_takes: Sanctuary undead only, Holy Freeze no
+// prime evil) with the skill's element (FUN_0056e0c0, the mastery in;
+// Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
+// target state (+0x82) and target_of (and monster_states, Holy Freeze's
+// slow) applies them while the monster is in range and its aurafilter
+// takes it (enemy_auras). A pulse's next is aura_due
+// (rules::aura_next_frame). A cost (Sanctuary's) is paid only for a
+// target state put.
+
 // Redemption's callback (FUN_005d0d70) is aura_pulse's own; the rest of
 // do 66 share FUN_005cf2a0.
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
@@ -1328,6 +1482,11 @@ auto Fight::in_aura(const Monster& monster) -> bool {
             && aura_takes(*skill, monster, actor->player.x, actor->player.y);
     }
 
+// Monster i as the player's blows see it: an enemy aura's aurastats
+// while it's in range (Conviction: resistances and defense down;
+// resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
+// 45 poison, 171 defense %).
+
 // A cut to a resistance of 100 or more counts a fifth
 // (FUN_005c3540, apply_target_stats); Holy Freeze's slow is the
 // monster's (monster_states).
@@ -1348,6 +1507,8 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         return target;
     }
 
+// The same under the merc's blow: a MonStats boss (+0xc & 0x40) takes the game's
+// HireableBossDamagePercent (FUN_0057c060).
 auto Fight::merc_target(std::size_t monster_index) -> d2d::rules::Target {
         auto target = target_of(monster_index);
         if (const int type = monsters[monster_index].type; type >= 0 && game_data->monsters.types[std::size_t(type)].boss_column)

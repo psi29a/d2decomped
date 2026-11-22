@@ -42,6 +42,14 @@
 
 namespace d2d::game {
 
+// The player as combat sees them: item stats summed like the char
+// panel's (worn, charms, what's socketed), the weapon and shield worn,
+// the panel's defense and resistances; the passives' stats (`passives`):
+// those with no passiveitype join the sum, a mastery (342..344) only
+// when the weapon is its type, the best one (FUN_00645830), Weapon Block
+// (348) with two claws when either hand is (FUN_0057dca0, class HT2);
+// the set bonuses (set_bonus_props, set_props); nothing from a broken item.
+
 // Throwing a throwable with Throw, Left Hand Throw or Double Throw, the
 // throw masteries (345..347) count in the melee ones' place
 // (FUN_00645720).
@@ -383,6 +391,12 @@ auto Fight::calc_env() -> d2d::rules::CalcEnv {
     }
 
 auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, false); }
+// The enemy auras (do 66, Holy Freeze's 81) over the monster the same
+// way: the player's and the merc's (an Act 2 merc's Holy Freeze), each
+// only when its aurafilter takes the monster from its holder's spot
+// (FUN_0056b7e0 runs the aura's callback, its state and aurastats, only
+// on a unit FUN_0056b3e0 takes): none behind a wall for 0x200, none in
+// town, Holy Freeze's slow not on a prime evil.
 auto Fight::enemy_auras(const Monster& monster) const -> std::vector<AuraOn> { return auras_at(monster.unit.x, monster.unit.y, true, &monster); }
 
 auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -> std::vector<AuraOn> {
@@ -433,6 +447,11 @@ auto Fight::impossible(std::uint32_t now_ms) -> void {
         class_voice(kImpossible[std::size_t(std::clamp(actor->character.character_class, 0, 6))], now_ms);
     }
 
+// A swing starts: the skill in use when it's built, paid for from mana
+// (FUN_0056c160's cost); short of mana, a skill with AttackNoMana
+// swings a plain attack instead, any other doesn't swing. The host's
+// swing in a joined game (shown) is for show: not asked.
+
 // Its animation (A1, KK for the kicks) at the swing's speed; Dragon
 // Talon's kick count is calc1 (FUN_005d5970).
 auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
@@ -470,6 +489,12 @@ auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
         return true;
     }
 
+// An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
+// the weapon class) at the attack's speed; with no frames for the
+// weapon it swings once.
+// ponytail: the sequence's rate taken as the class's A1 (animdata)
+// through attack_ticks, 30 points slower for a UseAttackRate skill
+// (rules::sequence_sias); seqinput isn't read.
 auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         actor->seq = {};
         actor->seq_struck = 0;
@@ -496,6 +521,15 @@ auto Fight::skill_sequence() const -> std::span<const d2d::rules::SeqFrame> {
         return d2d::rules::sequence(skill->seqnum, weapon_class);
     }
 
+// The movement a moving skill starts with (its srvstfunc):
+// Whirlwind (FUN_005d8f50) at the class's walk velocity (FUN_0056e5b0:
+// CharStats +0x40) along a type 7 path to the point found with mask
+// 0xc01 (FUN_00648ce0: walls, no units) and walked with 0x401 to its
+// last point, its sequence over and over; no path, no whirl (FUN_00571b70);
+// Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
+// percent, 50) + par1) / 100 (velocitypercent: 100 + Fighter::velocity_pct,
+// FUN_00620e80's run bonus, chill's -50, Burst of Speed, Holy Freeze's
+// slow, ...); Leap Attack (FUN_005da540) waits for its takeoff event.
 auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         actor->smove = {};
         actor->seq_loop = false;
@@ -541,6 +575,10 @@ auto Fight::seq_view(std::uint32_t now_ms) const -> std::pair<int, std::uint32_t
         return { frame.mode, now_ms - mpf * frame.frame - mpf / 2 };
     }
 
+// The swing's animation: KK for kicks, S1 for Smite, else A1. An SQ
+// skill is drawn by its sequence's frames (view_seq, draw.cpp).
+// ponytail: an SQ skill's mode is A1 here, game.exe's sequence mode 0x12
+// (skills.md, Whirlwind's start).
 auto Fight::swing_mode() const -> int {
         const auto* skill = game_data->skills.get(actor->swing_skill);
         if (!skill || actor->swing_skill == 0) return kModeA1;
@@ -548,6 +586,12 @@ auto Fight::swing_mode() const -> int {
         // Skills.txt also uses S3 for the Druid's Rabies and Hunger attacks.
         return skill->anim == "KK" ? kModeKK : skill->anim == "S1" ? kModeS1 : skill->anim == "S3" ? kModeS3 : skill->anim == "S4" ? kModeS4 : kModeA1;
     }
+
+// What the swing's skill adds to the blow: the Bash family's toht,
+// calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
+// a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
+// physical damage, the last kick knocking back (100% on normal
+// monsters, FUN_005d5a30).
 
 // A finisher's charges add their stat 325 to-hit (add_charges), Dragon
 // Flight's too (progressive_tohit). Their states and conversion come
@@ -562,6 +606,9 @@ auto Fight::swing() -> d2d::rules::Swing {
         return skill_swing(*skill, skill_level ? skill_level(actor->swing_skill) : 1, calc_env(), true);
     }
 
+// A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
+// merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
+// Dragon Talon's last-kick knockback read the player's state.
 auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::rules::CalcEnv& env, bool by_player) -> d2d::rules::Swing {
         d2d::rules::Swing swing;
         const auto* skill = &skill_row;
@@ -630,6 +677,17 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
         return swing;
     }
 
+// A hit on monster i (the player's or the merc's): blocked, it blocks; otherwise the damage, life/mana leech
+// (the player's), poison and bleeding over time, a chill, a knockback.
+// `striker`: the Foe::id it came from (-1 none), kept even on a miss or
+
+// A hit on monster i (the player's or the merc's): blocked, it blocks;
+// otherwise the damage, life/mana leech (the player's), poison and
+// bleeding over time, a chill, a knockback. A kill counts. False when
+// nothing landed: a miss, a block, a target out of reach (under the sand,
+// aloft) or converted (FUN_00554200); no thorns come back then.
+// `striker`: the Foe::id it came from (-1 none), kept even on a miss or
+// a block (FUN_0057c6c0 → FUN_00621d50, before the result's flags).
 auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool by_player, std::uint32_t now_ms, int striker) -> bool {
         using namespace d2d::d2s;
         auto& target = monsters[monster_index];
@@ -843,6 +901,8 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && actor->swing_skill != 0 && skill->srvdofunc == ServerDoFunction::kRepeatedHit) repeat_hit(struck, now_ms);
     }
 
+// The fighter a blow swings with (FUN_00535bc0): with two weapons, the hand the skill's weapsel picks.
+
 // FUN_00535bc0 by the skill's weapsel (+0x168) with two weapons in hand: 1 the left hand's, 3 by the
 // sequence row (unit +0x38 >> 8: odd the left, the row Frenzy and Double Swing turn to another
 // target on, as other_target here: the even event), 4 none (kicks: the kick fighter), else the right
@@ -855,6 +915,8 @@ auto Fight::blow_fighter(const d2d::rules::Skill* skill) const -> d2d::rules::Fi
         const bool left = weapsel == 1 || (weapsel == 3 && actor->seq_struck % 2 == 0 && !actor->seq.empty());
         return actor->hand_combat[left ? 1 : 0];
     }
+
+// One hand's throw (Double Throw's do, FUN_005d88b0): that slot's throwing weapon flies.
 
 // One hand's throw of Double Throw (FUN_005d88b0): its weapon's missile (weapons.txt missiletype) at
 // the cast point with calc1 damage % (stat 25) and toht (stat 19, FUN_006449f0), one of it spent; none
@@ -873,6 +935,12 @@ auto Fight::throw_hand(const d2d::rules::Skill& skill, int lvl, int slot, std::u
         spend_ammo(int(hand - items.begin()));   // FUN_0056ecb0 -> FUN_0056c3f0 -> FUN_0056c310
     }
 
+// Do 13's next hit (FUN_005dbc60), on the hit's action frame: one hit
+// fewer; with hits left, the next in reach above `struck` (FUN_0056bd10,
+// handed the struck one's id even dead) and the swing starts over now
+// (FUN_0056e210 -> FUN_00553b10, Param2 at +0x14c: from (100 - Param2) %
+// of the frames played, Zeal's and Fury's 100 from frame 0); none in
+// reach, the swing plays out and the hits left are lost.
 auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
         if (actor->kicks_left <= 0) return;
         --actor->kicks_left;
@@ -882,6 +950,7 @@ auto Fight::repeat_hit(int struck, std::uint32_t now_ms) -> void {
         restart_swing(game_data->skills.get(actor->swing_skill)->par[1], now_ms);
     }
 
+// The swing starting over now (FUN_0056e210 -> FUN_00553b10): from (100 - keep) % of the frames played.
 auto Fight::restart_swing(int keep, std::uint32_t now_ms) -> void {
         const auto played = (now_ms - actor->player.mode_ms) / 40;   // game frames into the swing
         const auto frames_kept = played * std::uint32_t(std::clamp(100 - keep, 0, 100)) / 100;   // the animation's frames kept
@@ -973,6 +1042,10 @@ auto Fight::turn_good(Monster& turned, int caster_level) -> void {
         }
     }
 
+// Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
+// monster struck, on away from the player (to twice its spot less the
+// player's), each wandering as Charged Bolt's (FUN_005c9290).
+
 // Lightning Strike (do 14, FUN_005dbe50): from the monster struck at
 // another within calc1 subtiles (FUN_0056bd10), carrying calc2 hops
 // (Chain Lightning's hit 12).
@@ -1004,6 +1077,10 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         launch(found->second, skill, lvl, x, y, next_target.unit.x - x, next_target.unit.y - y, found->second.range, now_ms).hops = calc(skill, skill.calc[1], lvl);
     }
 
+// Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
+// sentry'): rules::corpse_blast_fine, calc3 % of it fire and the rest
+// physical, on what its aurafilter takes within half the aurarange.
+
 // `fire_pierce`: the caster's (FUN_0057c6c0), 0 for a pet's.
 auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t corpse_index, int caster_level, int fire_pierce, std::uint32_t now_ms) -> void {
         auto& corpse = monsters[corpse_index];
@@ -1031,6 +1108,17 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
             land(j, blow, true, now_ms, player_foe_id());
         }
     }
+
+// Skills that act where they're cast, with no missile of their own:
+// Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
+// monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
+// uniques, bosses), Mind Blast (51, FUN_005d76e0: the skill's physical
+// and stun within aurarange of the point, or a conversion instead),
+// Static Field (20, FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
+// aurarange of the caster, as lightning), Corpse Explosion (55,
+// FUN_005c4df0: corpse_blast), Poison Explosion (63,
+// FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
+// FUN_005ca360: to the point, where it's open; not in town).
 
 // Static Field's walk takes its aurafilter (0x8783) from the
 // caster: a clear line (0x200), out of town.
@@ -1316,6 +1404,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
         }
     }
 
+// The player's combat modes this frame: dead, the death plays out
+// (true once it's over: a Resurrect may respawn); a swing strikes, and
+// ends — `held` (the left skill sent again), the next follows; a
+// flinch or block ends.
 auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool {
         if (dead()) {
             if (actor->pmode == kModeDT && now_ms >= actor->pmode_until) set_pmode(kModeDD, now_ms);
@@ -1399,6 +1491,15 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         if (!actor->smove.fly && (whirl ? level->unit_blocked(next_x, next_y, walk_shape) : level->unit_blocked(next_x, next_y))) { if (whirl) actor->pmode_until = now_ms; return; }
         actor->player.x = next_x; actor->player.y = next_y;
     }
+
+// A moving skill's event frame (its srvdofunc):
+// Whirlwind (FUN_005d9580): when its hit timer allows (FUN_005d9320:
+// every 4..16 frames by the attack's speed), one hit (two with two
+// weapons) on the next enemy within 5 (round by id);
+// Charge (FUN_005cf900): running, the monster in reach jumps the
+// sequence to its attack; the attack's event hits (knockback);
+// Leap Attack (FUN_005da7e0): takeoff, landing beside the monster, the
+// strike (FUN_005da660: knockback, a stun on it ends).
 
 // Whirlwind's hit gap (FUN_005d9320): the weapon FUN_00535bc0 picks for
 // weaponsel 2 (the wielded hand's, look component 5) gives its attack

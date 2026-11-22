@@ -61,6 +61,11 @@ bool rise_spot_blocked(const Level* level, const Crowd& crowd, std::span<const F
 
 }  // namespace
 
+// Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
+// physical damage, on every monster within aurarangecalc subtiles of
+// the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0); the
+// mastery is the player's stat 329 (psum: items, passives).
+
 // The blast is centred on the unit kicked (FUN_00553540's, esi at
 // 0x5d71f7), so it's in it.
 auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms) -> void {
@@ -76,6 +81,14 @@ auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int 
             if (hurt(*game_data, monster, d2d::rules::resisted(fire, target_of(i).res[2]), now_ms)) killed(i, now_ms);
         }
     }
+
+// A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
+// the fight"), each tick: Lightning Enchanted answers a drop in its life
+// with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2,
+// wandering as Charged Bolt's) at
+// most every 10 frames; 4 frames after it dies (the event 7 its death
+// queues), Fire Enchanted's blast and Cold Enchanted's nova
+// (FUN_005a2bd0: coldunique, level mlvl / 2).
 
 // A hit taken in GH fires the bolts 2 frames on (event 7,
 // FUN_005a37d0).
@@ -313,6 +326,8 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
         }
     }
 
+// A boss's missile from where it stands, at level mlvl / 2 (at least
+// 1), the row's own element (FUN_0064b100 ..).
 auto Fight::boss_missile(const Monster& monster, const char* name, float dx, float dy, const std::shared_ptr<std::vector<int>>& ring, std::uint32_t now_ms, int missile_level) -> void {
         const auto found = game_data->missiles.find(name);
         if (found == game_data->missiles.end()) return;
@@ -380,6 +395,9 @@ auto Fight::blast_reaches(const Monster& monster, const Foe& foe, int radius) co
         });
     }
 
+// Fire Enchanted's death blast (uniques.hpp fire_blast): physical and
+// fire, each a 64th of the roll in 256ths, on everyone within
+// difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
 auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto [low, high] = d2d::rules::fire_blast(monster.stats.hit_points, monster.difficulty);
         const int pts = (low + rng(std::max(high - low, 1))) * 64 / 256;
@@ -464,6 +482,9 @@ auto Fight::merc_share(const Monster& monster) -> void {
         }
     }
 
+// The players in the game (game_players: the /players count when it's
+// larger) and those of them alive (the party on the level: one screen),
+// for NoDrop (Loot::drop); alone, game_players() and 1.
 auto Fight::drop_counts() -> std::pair<int, int> {
         if (heroes.size() == 1) return { game_players(), 1 };
         Hero& was = *actor;

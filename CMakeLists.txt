@@ -94,6 +94,14 @@ else()
         add_compile_options(-Werror)
     endif()
 endif()
+# GCC's stand-ins for MSVC's Windows-leg warnings (tools/validate-linux.sh's
+# flags): -Wshadow (C4458), -Wconversion (C4244 / C4267). In the build itself,
+# so ninja reports them as it compiles, only for what it rebuilds, and
+# tools/presubmit.py needs no second GCC pass. Clang's versions differ: GCC only.
+option(D2D_MSVC_PROXY_WARNINGS "GCC: -Wshadow -Wconversion, as the Linux validator" ON)
+if(D2D_MSVC_PROXY_WARNINGS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wshadow;-Wconversion;-Wno-sign-conversion>")
+endif()
 
 # newlib (the Vita's, the Switch's) hides POSIX (fileno, strnlen, gethostname,
 # ftruncate) from a strict -std=c++NN; glibc's g++ defines this itself.

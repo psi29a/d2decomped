@@ -9,6 +9,7 @@
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "log.hpp"
+#include "missile_flight.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>
@@ -65,11 +66,16 @@ d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> r
     return pick;
 }
 
+// A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
+// that skill) is a charge and no mana, else the skill's mana.
+
 // A cast's cost (FUN_0056bfe0, after the skill's start or do function):
 // from a charged entry for that skill, one charge (FUN_0056bec0) and no
 // mana; else its mana.
 auto Fight::from_charges(int skill) const -> bool { return actor->item_charge.item >= 0 && actor->item_charge.skill == skill; }
 
+// The cast's entry still there at cast time (FUN_00647840): its item
+// active, the same level, charges left.
 auto Fight::charge_live() const -> bool {
         const auto& cast = actor->item_charge;
         return std::ranges::any_of(charged_skills(actor->character.items),
@@ -82,6 +88,11 @@ auto Fight::cast_level(int skill) const -> int {
     }
 
 auto Fight::cost_of(const d2d::rules::Skill& skill, int lvl) const -> int { return from_charges(skill.id) ? 0 : d2d::rules::mana_formula(skill, lvl); }
+
+// Whether the player's skill can go now (FUN_00647960), game.exe's status: 0, or the first
+// of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of),
+// 4 restrict (Skill::restrict_form), 1 startmana x 256 out of state inferno, 8 skilldelay on
+// and the skill's delay above 0.
 
 // In state 0x72 (Blood Mana's curse, curses[0]) the cost is asked of life (FUN_00647540: stat 6,
 // not 8). FUN_00647840's status 2 (an entry's item at 0 charges) never comes: the stat hook takes
@@ -117,6 +128,10 @@ auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
         return 0;
     }
 
+// The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
+// AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
+// the skill that goes.
+
 // Else -1 and the status's line (0x711ddc): 1 needmana, 2..4 impossible, 6..8 none.
 auto Fight::ask(int skill, std::uint32_t now_ms) -> int {
         int status = skill_status(skill, now_ms);
@@ -130,6 +145,12 @@ auto Fight::ask(int skill, std::uint32_t now_ms) -> int {
         return -1;
     }
 
+// The end of the swing skill's do (FUN_0056f7f0 at LAB_0056fa93): its delay (Skills.txt
+// `delay`, frames) above 0 puts the player in skilldelay till now plus it (FUN_0056ef90).
+// An SQ skill (anim 0x12) only while its sequence position (unit +0x38, units.md) is under
+// a row: only an event on row 0, Charge's, whose delay is 0. Dragon Flight's events (rows 9,
+// 14) never start it, so the sequence path doesn't call this. A shift back (shift_back)
+// starts it too (FUN_0056f020).
 auto Fight::start_delay(std::uint32_t now_ms) -> void {
         const auto* row = game_data->skills.get(actor->swing_skill);
         if (!row) return;
@@ -182,6 +203,10 @@ auto Fight::settle_cast() -> void {
         if (skill) pay(*skill, owed.lvl);
     }
 
+// Holy Shield (FUN_005c9480): the holyshield state for auralencalc
+// ticks, its aurastats (toblock dm56) on the player. Without a shield
+// it is refused before this (weapon_gate: itypea1 shld).
+
 // Its row has no auraevent and no passivestat, so the aura events
 // (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
 auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
@@ -197,6 +222,9 @@ auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         return true;
     }
 
+// Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
+// up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
+// dm34, attackrate dm56) are taken at that level.
 auto Fight::frenzy(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
@@ -213,6 +241,8 @@ auto Fight::next_target() -> bool {
         return actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive();
     }
 
+// The range of the weapon in hand (FUN_00622870: FUN_0063c9b0's, the
+// right hand's else the left's; its rangeadder), 0 with none.
 auto Fight::weapon_range() const -> int {
         for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
             const auto held = std::ranges::find_if(actor->character.items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
@@ -271,6 +301,8 @@ auto Fight::engage(std::uint32_t now_ms) -> std::optional<std::pair<float, float
         return std::pair{ target.unit.x, target.unit.y };
     }
 
+// The monster is in the player's melee reach (FUN_00622c40: the unit distance and the line of mask
+// 0x804), as the walk's end has it (`blow` false) or as the blow's to-hit test does (true).
 auto Fight::melee_reach_to(const Monster& target, bool blow) const -> bool {
         // FUN_00622c40(player, monster, extra): within the weapon's range + extra + 1 by FUN_00641530
         // (always at 0 or less; a tentacle or its head within the range + 8) and no wall of mask 0x804
@@ -296,6 +328,8 @@ auto Fight::crowd(Crowd& crowd_out) -> void {
             if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
     }
 
+// The same about (x, y): the monsters within 12 of it and every hero's pets on the level (FUN_0064d870's
+// grid holds every unit's stamp, wherever the acting player stands).
 auto Fight::crowd_around(Crowd& crowd_out, float x, float y) -> void {
         for (auto& monster : monsters)
             if (monster.targetable() && std::abs(monster.unit.x - x) < 12 && std::abs(monster.unit.y - y) < 12) crowd_out.units.push_back(&monster.unit);
@@ -942,6 +976,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         else if (!died && (foe.hits > 0 || foe.soft_hits > 0) && actor->pmode != kModeGH && actor->pmode != kModeDT && actor->pmode != kModeDD) play_player_hit(now_ms);
     }
 
+// Bosses' auras (Aura Enchanted), each at its level within its
+// aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
+// to the monsters there; Conviction cuts the foes' resistances and
+// defense; Holy Fire, Shock and Freeze strike the foes every perdelay,
+// less magic damage reduction as a monster's element (monster_blow).
+
 // Fanaticism's attackrate speeds their attacks (Monster::aura_rate);
 // Holy Freeze's slow is the player's stats (update_fighters).
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {
@@ -992,6 +1032,12 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
         }
     }
 
+// A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
+// Storm Shrine's 16 fireballs (FUN_00582da0, missile 62) toward x = +-5k
+// subtiles (k 1..4, + for odd k), y 5, -10, 15, -20; the Exploding and
+// Poison Shrines' 6 potions (FUN_005830e0 / FUN_00583410, missiles 45 /
+// 48) toward (-6, 6), (-6, -6), (0, 6), (0, -6), (6, 6), (6, -6).
+
 // ponytail: they hit monsters only (game.exe's are the shrine's own and
 // may hit players too: other players wait for networking); the poison
 // potion's cloud is a burst of its row's poison.
@@ -1021,6 +1067,9 @@ auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t 
         }
     }
 
+// The player went to `to`: an outdoor level's monsters come back, the
+// last one's are kept as they were; nothing in flight follows.
+// Its monsters come as its rooms come into play (rooms_up).
 auto Fight::enter(const Level* destination) -> void {
         if (in_town(destination) || destination == mon_level) return;
         if (mon_level) kept[mon_level] = std::move(monsters);
@@ -1045,6 +1094,10 @@ auto Fight::take_turn(const Level* destination) -> void {
         mon_level = destination;
     }
 
+// The player at (x, y) in `here`: the rooms coming into play round
+// the player populate (player_moved), their monsters joining `monsters`
+// or the level's `kept`. `arrived`: just came in through a warp.
+// (Named `here` because `level` would shadow the class member.)
 auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void {
         for (const auto& [grown, from] : player_moved(*game_data, spawning, here, x, y, arrived)) {
             if (remote_monsters) continue;          // the rooms still come up (their objects); the host has the monsters

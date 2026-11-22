@@ -6,6 +6,8 @@ hit on PRs #15-#97, and the patterns behind most of their review comments.
     tools/presubmit.py                  # everything: lint, strict build, clang-tidy, ctest
     tools/presubmit.py --quick          # lint, review checks, and GCC + clang-tidy on the changed
                                         # files when an earlier build left compile_commands.json
+                                        # (GCC: an incremental build when it has the flags;
+                                        # clang-tidy: one TU per changed header)
     tools/presubmit.py --docker         # CI's tools/validate-linux.sh in place of the local build
     tools/presubmit.py --base REF       # diff base (default: upstream/main, else origin/main)
     tools/presubmit.py --build DIR      # build dir (default: build-presubmit)
@@ -377,13 +379,43 @@ def find_gcc():
     return None
 
 
-def select_units(tree, build, sources, base=None, transitive=False):
+def build_has_ci_flags(build):
+    """True when `build` compiles with GCC and CI_FLAGS' warnings (CMake's D2D_MSVC_PROXY_WARNINGS, on
+    for GCC): then the build's own compile reports what check_gcc would, for what it rebuilds."""
+    try:
+        entries = json.loads((build / "compile_commands.json").read_text())
+    except (OSError, ValueError):
+        return False
+    entry = next((entry for entry in entries if "/_deps/" not in entry["file"] and entry["file"].endswith(".cpp")), None)
+    if not entry:
+        return False
+    args = entry.get("arguments") or shlex.split(entry["command"])
+    if not {"-Wshadow", "-Wconversion"} <= set(args):
+        return False
+    version = subprocess.run([args[0], "--version"], capture_output=True, text=True, check=False).stdout
+    return "Free Software Foundation" in version
+
+
+def check_gcc_build(build):
+    """An incremental build of `build` (its GCC has CI_FLAGS' warnings): ninja recompiles only what
+    changed since the last build, and its errors are check_gcc's."""
+    run = subprocess.run(["cmake", "--build", str(build), "--", "-k", "0", "-j", str(build_jobs())],
+                         capture_output=True, text=True, check=False)
+    errors = sorted(set(re.findall(r"^\S+:\d+:\d+: (?:fatal )?error: .*$", run.stdout + run.stderr, re.M)))
+    if run.returncode and not errors:
+        errors = re.findall(r"^FAILED: .*$", run.stdout, re.M) or [f"cmake --build {build} exited {run.returncode}"]
+    report("FAIL" if errors else "ok", "gcc", "\n      ".join(errors[:15]) if errors else
+           f"the build's own GCC ({CI_FLAGS}), incremental: {build.name}")
+
+
+def select_units(tree, build, sources, base=None, transitive=False, lean=False):
     """The translation units to check for the changed files (tools/tidy-pr-select.py): for
     clang-tidy its pick (a header's own includers; one TU for a comment-only header, against
-    `base`), for GCC's warnings every TU that reaches a changed file (`transitive`)."""
+    `base`, or for any header with `lean`), for GCC's warnings every TU that reaches a changed
+    file (`transitive`)."""
     # tidy-pr-select reads changed.txt from its cwd: run it in the build dir, not the worktree
     (build / "changed.txt").write_text("".join(f"{tree / path}\n" for path in sources))
-    flags = (["--transitive"] if transitive else []) + (["--base", base] if base else [])
+    flags = (["--transitive"] if transitive else []) + (["--lean"] if lean else []) + (["--base", base] if base else [])
     select = subprocess.run([sys.executable, str(tree / "tools/tidy-pr-select.py"), *flags], cwd=build, capture_output=True,
                             text=True, env={**os.environ, "BUILD_DIR": str(build)}, check=False)
     return select.stdout.split() if select.returncode == 0 and select.stdout.strip() else \
@@ -462,8 +494,12 @@ def check_cpp(tree, changed, numbers, build, quick, docker, base=None):
                 # configured yet (a new test) would pass unchecked
                 report("FAIL", "compile commands", f"{known.name}/compile_commands.json lacks {', '.join(stale[:8])}: "
                        f"run `cmake --build {os.path.relpath(known, tree)}` (or a full tools/presubmit.py) first")
-            check_gcc(known, select_units(tree, known, sources, transitive=True))
-            check_tidy(tree, known, select_units(tree, known, sources, base), numbers, set(changed))
+            if build_has_ci_flags(known):
+                check_gcc_build(known)
+            else:
+                check_gcc(known, select_units(tree, known, sources, transitive=True))
+            # one TU per changed header: --quick reports only what shows on the branch's own lines
+            check_tidy(tree, known, select_units(tree, known, sources, base, lean=True), numbers, set(changed))
         elif sources:
             report("WARN", "gcc", "no compile_commands.json yet: one full tools/presubmit.py run makes it")
         return False
@@ -514,7 +550,8 @@ def check_cpp(tree, changed, numbers, build, quick, docker, base=None):
     report("ok", "strict-build", CI_FLAGS)
     if not sources:
         return True
-    check_gcc(build, select_units(tree, build, sources, transitive=True))
+    if not build_has_ci_flags(build):                 # a GCC strict build already compiled every TU with CI_FLAGS
+        check_gcc(build, select_units(tree, build, sources, transitive=True))
     check_tidy(tree, build, select_units(tree, build, sources, base), numbers, set(changed))
     return True
 

@@ -40,6 +40,8 @@
 
 namespace d2d::game {
 
+// A skill start's cast overlay (FUN_004c6140, rules::cast_overlay_starts) on its caster's
+// one-shots `shown`: the player's, a monster's, the merc's or a pet's.
 auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, d2d::rules::OneShots& shown, std::uint32_t now_ms) const -> void {
         const auto& rows = game_data->overlay_rows;
         const int row = d2d::rules::cast_overlay_row(game_data->overlay_row(skill.cast_overlay), game_data->overlay_row(skill.item_cast_overlay), from_item);
@@ -121,6 +123,7 @@ auto Fight::merc_joins() -> void {
         actor->merc_given = { actor->id };
     }
 
+// The merc's stats and skill levels for its experience (FUN_00572840).
 auto Fight::merc_level_stats() -> void {
         const auto& header = actor->character.header;
         actor->merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
@@ -156,12 +159,25 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
         if (actor->merc) { actor->merc->unit.x = actor->player.x + 1; actor->merc->unit.y = actor->player.y + 1; actor->merc->unit.path.clear(); actor->merc->mode = "NU"; actor->merc_target = -1; }
     }
 
+// Keys 1-4 drink the belt's bottom-row potion in that column: healing
+// and mana potions restore their amount (the class's bonus, a chance
+// of double: rules::potion_amount) over their length, joined with
+// what's left of the last one; a rejuvenation its percentages at once
+// (FUN_005beac0, no bonus).
+
 // The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
 // on d2d's rng here (rules::potion_amount): deviations.md
 // approximation 18.
 auto Fight::drink(int col, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_belt(game_data->rules, actor->character.items, col), now_ms);
     }
+
+// Shift with the key: the merc drinks it (FUN_00562390 with the merc
+// flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
+// counts as hpot; anything else stays in the belt). A healing potion
+// heals it over its length, a rejuvenation its % at once. d2d keeps
+// no merc chill for thawing to end. Healing as rules::potion_amount
+// has it for a non-player (x2; doubled on its gear's vitality).
 
 // An antidote ends its poison; either puts its state (+50 resist, +10
 // max) on it as on the player (FUN_005bef90, FUN_005beda0).
@@ -176,6 +192,8 @@ auto Fight::feed_merc(int col, std::uint32_t now_ms) -> void {
         merc_drinks(d2d::rules::drink_belt(tables, actor->character.items, col), now_ms);
     }
 
+// A healing, antidote or thawing potion in hand given to the merc (0x61,
+// FUN_005bf240): true when it drank it.
 auto Fight::feed_merc_item(const d2d::d2s::Item& item, std::uint32_t now_ms) -> bool {
         const auto& tables = game_data->rules;
         if (dead() || !actor->merc || actor->merc->hit_points <= 0 || !tables.item_info.contains(item.code) || !tables.potions.contains(item.code)) return false;
@@ -245,6 +263,13 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         cues.cue("item_potion_drink", now_ms, actor->player.x, actor->player.y);
     }
 
+// A healer's and a well's cure (FUN_00578d30 / FUN_00585720): poison
+// (state 2), freeze (state 1: a player's is chill, FUN_0057b230, so
+// none) and the curses (FUN_00578c20, the states flagged at
+// DataTables+0xfc); chill stays. Each pet and the merc (FUN_00574de0)
+// gets its life filled and its poison and curse cleared (FUN_00578ca0 /
+// FUN_005856a0). True when anything was: for a well (`well`) a pet's or
+// the merc's life only, as FUN_005856a0 counts.
 auto Fight::cure(std::uint32_t now_ms, bool well) -> bool {
         bool counts = now_ms < actor->curses[0].until;
         counts |= std::erase_if(actor->regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
@@ -264,6 +289,10 @@ auto Fight::cure(std::uint32_t now_ms, bool well) -> bool {
             }
         return counts;
     }
+
+// Potions and poison, then the steady regeneration: replenish life
+// (hpregen, N/256 a tick) and mana (rules::mana_per_frame, FUN_005806f0:
+// max mana over CharStats ManaRegen seconds, a frame at a time).
 
 // Poison is negative hpregen, and the player's regen tick (FUN_00580610)
 // never takes life below 1: poison can't kill a player
@@ -458,6 +487,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         if (sounds->footstep_layer > 0 && int(sound_rng(100)) < sounds->fs_chance) play(sounds->footstep_layer, now_ms);
     }
 
+// The floor's material at (x, y) cells (FUN_004cadb0): the first floor tile's DT1 flags, else the level's SoundEnviron Material 1.
 auto Fight::floor_material_at(float x, float y) const -> int {
         const int cell_x = int(std::floor(x)), cell_y = int(std::floor(y));
         // FUN_004cadb0: the unit's room (FUN_004cace0), then each room of its
@@ -489,6 +519,9 @@ auto Fight::player_anim(int mode) const -> const GameData::AnimTiming& {
         return game_data->composite_timing(std::max(actor->character.character_class, 0), mode, gfx());
     }
 
+// Impact and the class cry (FUN_004cc410). A hit too small for mode 4 still
+// plays them: the client's command 0x13 calls FUN_004cc5b0 with mode 0x13,
+// and that slot is the same struck handler. It does not change pmode.
 auto Fight::play_player_hit(std::uint32_t now_ms) -> void {
         const bool dying = actor->pmode == kModeDT || actor->pmode == kModeDD;
         const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, dying);
@@ -504,6 +537,10 @@ auto Fight::play_player_hit(std::uint32_t now_ms) -> void {
 auto Fight::action_at() const -> std::uint32_t {
         return attack_mode(actor->pmode) ? actor->action_ms : std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate);
     }
+
+// A swing takes attack_ticks for the item attack speed and weapon
+// speed; a cast takes cast_ticks (FCR), get-hit and block recover
+// faster with FHR / FBR (rules::speed_frames on the base frame count).
 
 // Sets the actor's player mode and runs the start-of-mode cues, incl. the inferno list of cltstfunc 15 (LAB_004e3060).
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {

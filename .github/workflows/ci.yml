@@ -491,7 +491,9 @@ jobs:
   tidy:
     name: Names and includes (${{ matrix.shard }}/3)
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Pull requests only: a tag or a push to main has no changed list, so it would tidy
+    # every file, and a release shouldn't wait on (or go red for) the style checks.
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     strategy:
@@ -816,7 +818,6 @@ jobs:
       - build
       - ports
       - flatpak
-      - tidy
     runs-on: ubuntu-latest
     permissions:
       contents: write
