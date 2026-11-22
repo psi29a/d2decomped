@@ -1326,6 +1326,11 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     }
 }
 
+// Room `index` of `level` coming into play (FUN_0052d0f0, objgroups.cpp):
+// its seed step (FUN_0054f060), its preset objects (FUN_005559a0) on the
+// game's object seed, its preset monsters, object groups (FUN_00552610)
+// and population (FUN_0054ec90) into the level's spawns. Returns the room
+// seed as it stands.
 d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index) {
     if (index >= level.rooms.size() || !game_data.builder) return {};
     auto& pop = rooms_of(game_data, spawning, level);
@@ -1348,6 +1353,8 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     return pop.seed;
 }
 
+// Every room of the level that populates (FUN_00642be0's count: not
+// ObjectRooms::none) has (the objrgn record's +4 reaching it).
 bool every_room_populated(const Spawning& spawning, const Level& level) {
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end()) return false;
@@ -1357,6 +1364,8 @@ bool every_room_populated(const Spawning& spawning, const Level& level) {
     return true;
 }
 
+// The level's collision as room_objects sees it (FUN_0064ca50's words, 0x27
+// off the rooms up), level subtiles row-major: drlg-dump drops.
 std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level) {
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end() || !found->second.objects) return {};

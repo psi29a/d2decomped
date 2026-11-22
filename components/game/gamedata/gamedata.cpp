@@ -5,6 +5,7 @@
 #include "gamedata.hpp"
 
 #include "ai.hpp"
+#include "game.hpp"
 #include "log.hpp"
 
 #include <compcode.hpp>
@@ -22,6 +23,7 @@
 #include <room_tiles.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
+#include <skills.hpp>
 #include <tile_pick.hpp>
 #include <txt.hpp>
 #include <unit_size.hpp>
@@ -432,6 +434,11 @@ bool keep_camp_seeds(const GameData& game_data, const Level& level, Spawning::Le
     return true;
 }
 
+// The level's own monster of MonStats `row`'s family (FUN_0063ec70): the
+// first of the level's list (Levels.bin +0x33 / +0x36: Mon1..10) of that
+// BaseId; else up the family's chain (NextInClass, at most its count,
+// MonStats +0x4a) while the next's Level is at most MonLvl1Ex + 1. A level
+// with no list keeps `row`.
 int level_monster(const GameData& game_data, const Level& level, int row) {
     const auto& types = game_data.monsters.types;
     if (row < 0 || std::size_t(row) >= types.size() || std::ranges::none_of(level.mon.mon, [](int mon_row) { return mon_row >= 0; })) return row;
@@ -465,6 +472,8 @@ std::uint32_t area_id_at(const GameData& game_data, const Level& level, float fr
     return 0;
 }
 
+// The near list (room2 +8, FUN_0066c370) of the room holding (x, y) cells:
+// each (level, room index) in game.exe's order; empty outside every room.
 std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y) {
     std::vector<std::pair<const Level*, int>> rooms;
     const int room = room_holding(room_rects(level), level, x, y);
@@ -474,6 +483,13 @@ std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, 
 }
 
 
+// Where a missile in the room holding (x, y) cells can be: that room's rect,
+// then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
+// +0 / +0x24). Empty when no room holds it. With `spawning`, a near room
+// counts once it's come up (Spawning::LevelState::order): room1 +0 holds
+// null for one whose room1 isn't made, and FUN_00463740 skips it. A level
+// no rooms are kept for (no state): all count. The fight, the thinks and the
+// client pass the World's.
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y, const Spawning* spawning) {
     const int room = room_holding(room_rects(level), level, x, y);
     if (room < 0) return {};
@@ -503,6 +519,10 @@ std::vector<AutomapRoom> automap_rooms(const GameData& game_data, const Level& l
     return rooms;
 }
 
+// The player at (x, y), cells, in `level`: rooms coming into play round
+// the player's room populate, newest first. `arrived`: the player just
+// came in, and its own room populates first (FUN_0056cf40). Returns each
+// level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived) {
     std::vector<std::pair<const Level*, std::size_t>> grown;
@@ -659,6 +679,9 @@ void stamp_footprint(Level& level, Npc& npc) {
     if (npc.root != "objects") return;                  // NPCs are units: the Crowd's (ai.hpp)
     set_footprint(level, npc, npc.collision >> mode_index(npc.mode) & 1);
 }
+
+// An object's footprint into (solid) or out of the walk grid, leaving the
+// subtiles a tile blocks too (FUN_0064de30 / FUN_0064dc00).
 
 // An object's rect (FUN_0064d0d0: its spot less half its size, SizeX x
 // SizeY) gets its stamp bits set (FUN_0064cd70) or cleared (FUN_0064cce0).
@@ -1122,6 +1145,13 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
     d2d::log::info("  {}: rooms laid again ({} ms)", level.name, d2d::log::ms() - start_ms);
 }
 
+// A preset level's (no generated rooms: the towns) rooms laid as game.exe
+// splits it (FUN_00666680, 8x8, each at the list's head) and walks each
+// (FUN_00666ac0: its (w+1)x(h+1) slice of every floor layer, then every
+// wall layer, then the shadow): its 8x8 rooms in split order, with their
+// tiles, each picked from GameData::prest_automap_dt1s (none: no picks);
+// `assets`: any generated level's (the presets' rows and DS1s).
+
 // The camp's split (room_rects, made order) laid as camp_rooms lays it for
 // the level next door, here in the preset level's own tiles.
 // ponytail: no DT1s or tile seeds (as camp_rooms): every word the walk
@@ -1470,6 +1500,10 @@ std::vector<int> walk_links(const GameData& game_data, int id) {
     return out;
 }
 
+// A client unit's first seed (FUN_00465fd0 via FUN_00466730, 0x46606a..0x466093): {1, 666}, then, with
+// a room at its spot, that room's seed (+0x6c / +0x70) stepped once (FUN_00650e40) and its low word
+// as {low, 666}. `room` is a Level::rooms index, -1 none.
+
 // The client builds its rooms with the same DRLG code as the server, so each client room seed
 // starts at that room's room1 seed (taken so, not compared on a client). The unit order is the
 // level's object order, not the client's packet order.
@@ -1492,6 +1526,9 @@ d2d::rules::Rng client_unit_seed(const Level& level, int room) {
     return d2d::rules::Rng{ level.client_rooms[index].next() };
 }
 
+// Each object of the level without one its client seed (its room, else the room at its spot), in the
+// level's object order: as the level is built, then as each room's objects are made. A level with no
+// room list (a camp) leaves them be: object_frame_delta seeds each from its spot.
 void seed_client_units(Level& level) {
     // A camp keeps no room list (its rooms are the DS1's, no room1 seed d2d knows): its objects keep
     // their spot as the seed (object_frame_delta), not one {1, 666} for all.
@@ -1567,6 +1604,143 @@ void want_nearby(const GameData& game_data, const Level& level) {
                 game_data.want_level(other_placement.level);
     for (const auto& warp : level.warps) game_data.want_level(warp.destination);
     for (const int walk : walk_links(game_data, level.id)) game_data.want_level(walk);
+}
+
+
+// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
+std::string u16_to_latin1(std::u16string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    for (char16_t code_unit : text) {
+        // Keep printable Latin-1 (0x20..0xFF) and line breaks (two-line
+        // labels like "Fire\nResistance"), drop the rest — D2 UI strings
+        // are ASCII with occasional accented chars, all inside Latin-1.
+        if ((code_unit >= 0x20 && code_unit <= 0xFF) || code_unit == '\n') out.push_back(char(code_unit));
+    }
+    return out;
+}
+
+int direction16(float dx, float dy) {
+    const auto& kFromSector = kDir16FromSector;
+    const float screen_x = (dx - dy) * (kIsoW / 2), screen_y = (dx + dy) * (kIsoH / 2);
+    const float angle = std::atan2(-screen_x, screen_y);                    // 0 = down, + = clockwise
+    const int sector = int(std::lround(angle / (2 * 3.14159265f / 16)));
+    return kFromSector[std::size_t((sector % 16 + 16) % 16)];
+}
+
+// A composite's direction for a 16-direction facing: 0..7 are the eight
+// compass points, 8..15 the ones between; an 8-direction composite (town
+// NPCs, mercs) takes the neighbouring point for those — clamping them
+// made NPCs walk backwards. The neighbour clockwise, as game.exe's 64-step
+// table rounds a unit's direction too (FUN_005ff760 -> FUN_00600c90, the
+// same as missile_direction: test_game_rules).
+std::uint8_t cof_direction(int dir16, int dirs) {
+    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 5, 1, 6, 2, 7, 3, 4 };
+    const int dir = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
+    return std::uint8_t(std::clamp(dir, 0, std::max(dirs - 1, 0)));
+}
+
+// A missile's frame in a sprite of `dirs` directions for its 64-step
+// facing `dir64` (FUN_00600c90: the table at 0x6e45a0, [log2(dirs) + 1]
+// [dir64]; fireball.dcc and firebolt.dcc have 16). The table rounds the
+// 64 steps to the nearest of the sprite's own, clockwise from straight
+// down, in D2's DCC order for that count (8: S SW W NW N NE E SE; 4 by
+// angle; 2's row is all 0). Checked against it for every step and for 1,
+// 2, 4, 8, 16 and 32 directions (tools/emu/missile_dirs.py table).
+std::uint8_t missile_direction(int dir64, int dirs) {
+    if (dirs <= 2) return 0;
+    const int step = 64 / std::min(dirs, 64);
+    const int sector = ((dir64 & 0x3f) + step / 2) / step % dirs;
+    if (dirs == 32) return std::uint8_t(kDir32FromSector[std::size_t(sector)]);
+    if (dirs == 16) return std::uint8_t(kDir16FromSector[std::size_t(sector)]);
+    if (dirs == 8) return std::uint8_t(kDir16FromSector[std::size_t(sector * 2)]);
+    return std::uint8_t(sector);
+}
+
+// Loading and building (gamedata.cpp).
+// Translate a DS1-embedded tileset path (e.g.
+// "\d2\data\global\tiles\act1\town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
+// DS1 files store paths as they were on Blizzard's build box, with a
+// leading "\d2\" prefix and forward slashes never — normalize both.
+[[nodiscard]] std::string ds1_path_to_mpq(std::string_view path) {
+    if (path.size() > 4 && (path.starts_with("\\d2\\") || path.starts_with("/d2/")))
+        path.remove_prefix(4);
+    else if (!path.empty() && (path[0] == '\\' || path[0] == '/'))
+        path.remove_prefix(1);
+    std::string out(path);
+    for (auto& letter : out) if (letter == '/') letter = '\\';
+    return out;
+}
+
+// Encode (style, sequence, type) into a single lookup key. Style + sequence
+// are DS1-record bytes; type is the DT1 orientation code (0..16 per D2's
+// tile-type table). 24 bits × 24 bits × 16 bits comfortably fits u64.
+[[nodiscard]] std::uint64_t tile_key(int style, int seq, int type) {
+    return (std::uint64_t(std::uint32_t(style)) << 40)
+         | (std::uint64_t(std::uint32_t(seq  )) << 16)
+         |  std::uint64_t(std::uint16_t(type ));
+}
+
+// The weapon class in a monster's COF name (FUN_0064f5b0, its monster case):
+// death (DT) and dead (DD) are hth unless MonStats2 compositeDeath
+// (FUN_004638a0 bit 0x10, the MonStats2 loader names it at 0x658197); other modes BaseW.
+std::string_view cof_weapon_class(const Npc& npc, std::string_view mode) {
+    if (npc.root == "monsters" && !npc.composite_death && (mode == "DT" || mode == "DD")) return "hth";
+    return npc.base_w;
+}
+
+// One FUN_0061a790 age step as FUN_0052d240 uses it. `up` deliberately is
+// not cleared: room2 keeps the populated bit while room1 is absent.
+bool age_live_room(Spawning::LevelState& state, std::size_t room, bool held) {
+    if (room >= state.live.size() || !state.live[room]) return false;
+    if (state.idle_sweeps.size() != state.live.size()) state.idle_sweeps.resize(state.live.size());
+    if (held) { state.idle_sweeps[room] = 0; return false; }
+    if (state.idle_sweeps[room] < UINT8_MAX) ++state.idle_sweeps[room];
+    if (state.idle_sweeps[room] <= 10) return false;
+    state.live[room] = false;
+    std::erase(state.order, room);
+    std::erase(state.client_order, room);
+    return true;
+}
+
+// A missile row's own elemental damage in 256ths (FUN_0064b100 /
+// FUN_0064b1d0): (EMin + MinELev brackets) plus its EDmgSymPerCalc % of
+// that (FUN_00483360), then << HitShift.
+int missile_elem(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
+    int damage = (max ? missile.emax : missile.emin) + d2d::rules::level_bonus(max ? missile.emax_lev : missile.emin_lev, lvl);
+    if (const int bonus = missile.edmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.edmg_sym, env, skill_id, lvl); bonus != 0)
+        damage += int(std::int64_t(damage) * bonus / 100);
+    return damage << (missile.hitshift & 31);
+}
+
+// Its physical part in 256ths (FUN_0064af20 / FUN_0064aff0): (MinDamage /
+// MaxDamage, +0xb0 / +0xb4, + MinLevDam / MaxLevDam brackets) plus its
+// DmgSymPerCalc (+0xe0) % of that, then << HitShift (+0x196).
+int missile_phys(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
+    int damage = (max ? missile.max : missile.min) + d2d::rules::level_bonus(max ? missile.max_lev : missile.min_lev, lvl);
+    if (const int bonus = missile.dmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.dmg_sym, env, skill_id, lvl); bonus != 0)
+        damage += int(std::int64_t(damage) * bonus / 100);
+    return damage << (missile.hitshift & 31);
+}
+
+// The rate object_frame_delta(npc, mode) would give, without drawing: the
+// cached one while the unit is in that mode, else the roll its seed makes
+// next. A timing query (object_op_ticks) uses it so asking about a mode the
+// unit is not in neither changes the animation cache nor steps the seed.
+int object_frame_delta_peek(const Npc& npc, std::size_t mode) {
+    if (npc.sync) return npc.frame_delta[mode];
+    if (npc.client_seeded && npc.client_mode == int(mode)) return npc.client_frame_delta;
+    auto seed = npc.client_seeded ? npc.client_seed : d2d::rules::Rng{ std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5) };
+    const int delta = npc.frame_delta[mode];
+    return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
+}
+
+// The game's object seed: {the game seed's second step, 666}
+// (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
+d2d::rules::Rng object_seed(std::uint32_t map_seed) {
+    d2d::rules::Rng game{ map_seed };
+    game.next();
+    return d2d::rules::Rng{ game.next() };
 }
 
 }  // namespace d2d::game
