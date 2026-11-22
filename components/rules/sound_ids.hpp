@@ -104,11 +104,10 @@ template <class Roll> int group_member(int first, int group, const std::array<in
 // FUN_004e01b0's history step as `row` of the group starting at `first` plays.
 inline void group_played(std::array<int, 2>& last, int row) { last = { row, last[0] }; }
 
-// A footstep's row (FUN_004caeb0): its first, + 4 a floor material past dirt
-// (1 dirt, 2 indoor stone, 3 outdoor stone, 4 sand, 5 snow, 6 wood), + 24 running.
+// A footstep's row: its first, + 4 a floor material past dirt (1 dirt, 2 indoor stone, 3 outdoor stone, 4 sand,
+// 5 snow, 6 wood), + 24 running.
 int footstep(int first, int material, bool running);
-// A floor tile's material by its DT1 material flags (FUN_004cad60), 0 none:
-// the level's SoundEnviron Material 1 then (FUN_004cadb0).
+// A floor tile's material by its DT1 material flags, 0 none: the level's SoundEnviron Material 1 then.
 int floor_material(unsigned flags);
 // The first floor tile in one room's list (FUN_004cace0's match): its flags,
 // or `level_material` when they name none. -1 when the list has no tile there.
@@ -146,10 +145,9 @@ int floor_material_near(const Steps& steps, int cell_x, int cell_y, int level_ma
     }
     return level_material;
 }
-// A step plays on the tick whose animation position `pos` (256ths of a frame,
-// `rate` a tick) is nearer a footfall than the ticks either side (FUN_004caf60):
-// footfalls `offset` + k x `length` / `count` apart, distances round the
-// period (FUN_004e4180).
+// A step plays on the tick whose animation position `pos` (256ths of a frame, `rate` a tick) is nearer a
+// footfall than the ticks either side.
+// `rate` a tick) is nearer a footfall than the ticks either side:
 int around(int from, int point, int period);
 bool footfall(int pos, int rate, int length, int count, int offset);
 

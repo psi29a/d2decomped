@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of sound_ids.hpp's functions; their notes are in the header.
+// The bodies of sound_ids.hpp's functions, with the research behind each.
 #include "sound_ids.hpp"
 
 #include <algorithm>
@@ -21,14 +21,22 @@ const Greeting* greeting_of(int monster_class) {
     return found != kGreetings.end() ? &*found : nullptr;
 }
 
+// A footstep's row (FUN_004caeb0): its first, + 4 a floor material past dirt
+// (1 dirt, 2 indoor stone, 3 outdoor stone, 4 sand, 5 snow, 6 wood), + 24 running.
 int footstep(int first, int material, bool running) {
     return first <= 0 ? 0 : first + 4 * (std::clamp(material, 1, 6) - 1) + (running ? 24 : 0);
 }
 
+// A floor tile's material by its DT1 material flags (FUN_004cad60), 0 none:
+// the level's SoundEnviron Material 1 then (FUN_004cadb0).
 int floor_material(unsigned flags) {
     return flags & 0x20 ? 1 : flags & 0x08 ? 2 : flags & 0x10 ? 3 : flags & 0x40 ? 4 : flags & 0x80 ? 6 : flags & 0x400 ? 5 : 0;
 }
 
+// A step plays on the tick whose animation position `pos` (256ths of a frame,
+// `rate` a tick) is nearer a footfall than the ticks either side (FUN_004caf60):
+// footfalls `offset` + k x `length` / `count` apart, distances round the
+// period (FUN_004e4180).
 int around(int from, int point, int period) {
     if ((period & (period - 1)) == 0) { from &= period - 1; point &= period - 1; }
     else { from %= period; point %= period; }
@@ -91,5 +99,7 @@ std::optional<int> charge_up(const ChargeUp& skill) {
     const bool counted = skill.progressive && skill.state >= 0 && skill.state < skill.states && skill.stat >= 0 && skill.stat < skill.stats && skill.listed;
     return skill.prg_sound + (counted ? std::clamp(skill.count, 1, 3) - 1 : 0);
 }
+
+
 
 }
