@@ -202,26 +202,19 @@ inline bool edge_shared(const Placed& first, const Placed& second) {
     return (dx == 0 && dy < 0) || (dy == 0 && dx < 0);
 }
 
-// A placed outdoor level's generator input. Vis starts as Levels.txt's
-// and each chain link adds the pair both ways in the first free slot
-// (vis 0, warp -1; FUN_006772c0 -> FUN_00642920); the walkable ones
-// (warp -1) that were placed are its neighbours.
-inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id) {
-    OutdoorLevel level;
+// A level's Vis0..7 / Warp0..7 as its level record holds them once the act
+// is made (FUN_0066c040's): Levels.txt's, and each chain link adds the pair
+// both ways in the first free slot (vis 0, warp -1; FUN_006772c0 ->
+// FUN_00642920). {vis, warp}.
+inline std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id) {
     auto placed = [&](int level_id) -> const Placed* {
         for (const auto& placement : layout) if (placement.level == level_id) return &placement;
         return nullptr;
     };
-    if (const auto* placement = placed(id)) level.rect = *placement;
-    if (const auto* town = placed(level_ids::kActTowns[std::size_t(level_ids::act_of(id))])) level.town = *town;
-    const auto row = level_row(levels, id);
-    if (!row) return level;
-    level.sub_type = to_int(levels.get(*row, "SubType"), -1);
-    level.sub_theme = to_int(levels.get(*row, "SubTheme"), -1);
-    level.sub_waypoint = to_int(levels.get(*row, "SubWaypoint"), -1);
-    level.sub_shrine = to_int(levels.get(*row, "SubShrine"), -1);
-    level.level_type = to_int(levels.get(*row, "LevelType"), 2);
     std::array<int, 8> vis{}, warp{};
+    warp.fill(-1);
+    const auto row = level_row(levels, id);
+    if (!row) return { vis, warp };
     for (int i = 0; i < 8; ++i) {
         vis[std::size_t(i)] = to_int(levels.get(*row, "Vis" + std::to_string(i)));
         warp[std::size_t(i)] = to_int(levels.get(*row, "Warp" + std::to_string(i)), -1);
@@ -253,6 +246,27 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
     share_edges(level_ids::kFrigidHighlands, level_ids::kArreatPlateau);
     if (id != level_ids::kFrigidHighlands) share_edges(level_ids::kBloodyFoothills, level_ids::kFrigidHighlands);
     share_edges(level_ids::kHarrogath, level_ids::kBloodyFoothills);
+    return { vis, warp };
+}
+
+// A placed outdoor level's generator input: its Vis (level_vis); the
+// walkable ones (warp -1) that were placed are its neighbours.
+inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id) {
+    OutdoorLevel level;
+    auto placed = [&](int level_id) -> const Placed* {
+        for (const auto& placement : layout) if (placement.level == level_id) return &placement;
+        return nullptr;
+    };
+    if (const auto* placement = placed(id)) level.rect = *placement;
+    if (const auto* town = placed(level_ids::kActTowns[std::size_t(level_ids::act_of(id))])) level.town = *town;
+    const auto row = level_row(levels, id);
+    if (!row) return level;
+    level.sub_type = to_int(levels.get(*row, "SubType"), -1);
+    level.sub_theme = to_int(levels.get(*row, "SubTheme"), -1);
+    level.sub_waypoint = to_int(levels.get(*row, "SubWaypoint"), -1);
+    level.sub_shrine = to_int(levels.get(*row, "SubShrine"), -1);
+    level.level_type = to_int(levels.get(*row, "LevelType"), 2);
+    const auto [vis, warp] = level_vis(levels, layout, id);
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
             if (const auto* placement = placed(vis[std::size_t(i)])) {

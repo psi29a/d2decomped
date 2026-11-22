@@ -271,17 +271,21 @@ void sort_near(std::vector<NearRoom>& list) {
 
 // A room's near list (room2 +8, FUN_0066c370): its level's rooms close to
 // it in the level's list order (newest first), itself included, sorted;
-// then each close room of a level next to it (FUN_0066be80), and for a
-// warp to another level that level's room with the warp back
-// (FUN_0066be10), each appended and the list sorted again (FUN_0066bda0).
-// ponytail: game.exe links only rooms flagged (+0x28 bits 0x10..0x800) for
-// the level next door; closeness stands in for the flag. The flags are the
-// room's DS1 vis tiles: FUN_00667970 sets bit n + 4 for a wall tile of type
-// 10 or 11 whose sub-index (word bits 20..25) n is under 8 (orientation 0 or
-// 4, or bit 31). FUN_0066c370 walks the room's set bits: vis n's level, and
-// in it (FUN_0066c220) the index of this level in that level's own Vis list,
-// whose bit FUN_0066be80 tests on each of its rooms. d2d's built rooms keep
-// no such bits.
+// then, for each vis slot n its flags hold (+0x28 & 0x10 << n, FUN_00667970:
+// a wall tile of type 10 / 11 and style n; none in level 0x85), that slot's
+// level (FUN_0066c220). Its rooms are tested for the bit of a slot j of its
+// own Vis that names this level (FUN_0066be80, list order): for a walk
+// across (Warp n -1), each such room close to this one, the first j that
+// finds any; for a warp, the first such room, j the k-th slot back with k
+// this slot's rank among this level's slots to that level, else the first
+// j that finds one (FUN_0066be10 links it). Each append sorts the list
+// again (FUN_0066bda0). tools/emu/near_rooms.py (test_room_near --near).
+// ponytail: a walk across is by closeness to a level whose Vis or this
+// one's names the other (Warp -1): an outdoor border room's slot flags
+// (game.exe's +0x28 0x70 along a Cold Plains edge) aren't kept, only a
+// preset's own vis walls (warps). A level with no flags (the camp, a level
+// not generated) takes every close room of its next-door levels, and its
+// warps by the warp back's room.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
     const auto& self = rects[std::size_t(room)];
@@ -289,7 +293,45 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
     for (std::size_t i = rects.size(); i-- > 0;)
         if (close(self, rects[i])) list.push_back({ &level, int(i), rects[i] });
     sort_near(list);
+    const auto flagged = [](const Level& other) { return !other.rooms.empty() && other.room_flags.size() == other.rooms.size(); };
+    const auto flags = flagged(level) ? level.room_flags[std::size_t(room)] : 0;
+    if (flagged(level) && level.id != 0x85)
+        for (std::size_t slot = 0; slot < 8; ++slot) {
+            // A warp's level is built here as game.exe does (FUN_006424a0).
+            const bool warp = level.vis_warp[slot] != -1;
+            if (!warp || !(flags & (0x10u << slot)) || level.vis[slot] <= 0) continue;
+            const Level* other = game_data.level(level.vis[slot]);
+            if (!other || !flagged(*other)) continue;
+            const auto other_rects = room_rects(*other);
+            // FUN_0066be80 on the other level's slot j.
+            const auto take = [&](std::size_t back) {
+                bool found = false;
+                for (std::size_t i = other_rects.size(); i-- > 0;) {
+                    if (!(other->room_flags[i] & (0x10u << back))) continue;
+                    if (warp) { list.push_back({ other, int(i), other_rects[i] }); sort_near(list); return true; }
+                    if (close(self, other_rects[i])) { list.push_back({ other, int(i), other_rects[i] }); sort_near(list); found = true; }
+                }
+                return found;
+            };
+            bool done = false;
+            if (warp) {
+                const auto rank = std::count(level.vis.begin(), level.vis.begin() + std::ptrdiff_t(slot), level.vis[slot]);
+                std::ptrdiff_t seen = 0;
+                for (std::size_t back = 0; back < 8 && !done; ++back) {
+                    if (other->vis[back] != level.id) continue;
+                    if (seen++ == rank) { done = take(back); break; }
+                }
+            }
+            for (std::size_t back = 0; back < 8 && !done; ++back)
+                if (other->vis[back] == level.id) done = take(back);
+        }
+    const auto walks_to = [](const Level& from, int id) {
+        for (std::size_t slot = 0; slot < 8; ++slot) if (from.vis[slot] == id && from.vis_warp[slot] == -1) return true;
+        return false;
+    };
     for (const auto& neighbour : level.nearby) {
+        // A link is added both ways (FUN_00642920), so either side's Vis naming the other holds.
+        if (flagged(level) && flagged(*neighbour.level) && !walks_to(level, neighbour.level->id) && !walks_to(*neighbour.level, level.id)) continue;
         const auto other = room_rects(*neighbour.level);
         for (std::size_t i = other.size(); i-- > 0;)
             if (close(self, other[i])) { list.push_back({ neighbour.level, int(i), other[i] }); sort_near(list); }
@@ -298,6 +340,7 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
         if (room_holding(rects, level, warp.x, warp.y) != room) continue;
         const Level* destination = game_data.level(warp.destination);
         if (!destination || destination->rooms.empty()) continue;
+        if (flagged(level) && flagged(*destination)) continue;                // the flags' (above)
         const auto back = std::ranges::find(destination->warps, level.id, &Level::Warp::destination);
         if (back == destination->warps.end()) continue;
         const auto other = room_rects(*destination);
@@ -1477,6 +1520,7 @@ void install_level(const GameData& game_data, int id, std::unique_ptr<Level> lev
         }
     }
     if (level) seed_client_units(*level);
+    if (level && level->assets) std::tie(level->vis, level->vis_warp) = d2d::drlg::level_vis(level->assets->levels, game_data.layout_of(id), id);
     game_data.levels[id] = std::move(level);
 }
 

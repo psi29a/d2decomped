@@ -151,6 +151,14 @@ distinct Ids (bugs.md #13).
   side's first flagged room (FUN_0066be10); each appended and the list
   sorted again (FUN_0066bda0). So the camp's edge rooms bring up the
   Blood Moor's, and the Den's mouth room brings up the Den's first room.
+  The slot's level is the level record's Vis n (Levels.txt's plus the
+  act's links, added both ways: FUN_00642920); in it FUN_0066c220 takes the
+  slots j whose Vis names this level, for a warp the k-th of them (k this
+  slot's rank among this level's slots to it) first. So a close level that
+  neither Vis names (the Black Marsh's east edge by the Monastery Gate)
+  brings nothing up. Oracle: `tools/emu/near_rooms.py` (FUN_0061b730 on each
+  room, room2 +8 / +0x2c) against `test_room_near --near`: seeds 0x1234 and
+  0xbeef, 56 levels of all five acts, 3877 rooms, all lists equal (2026-11-22).
 - **Populating** (FUN_0052d160, each game tick while an act is marked):
   the act's room list from the head (newest first), every room1 without
   flag 1 (+0x34): its presets (FUN_005559a0), FUN_00542b40, FUN_00552610,
