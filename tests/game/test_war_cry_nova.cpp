@@ -29,6 +29,7 @@ int main() try {
     auto& data = fixture.data;
     auto& overseer = fixture.monster(0, "overseer1");
     overseer.velocity = 4;
+    overseer.walk_base = 256;   // its S1 plays at its walk rate (a moving mode under class 0x19a: FUN_006214a0)
     fixture.mon_level(1, 100, 10, 10, 10);
     auto& cry = fixture.skill(1, "Shout");
     cry.srvdofunc = d2d::rules::ServerDoFunction::kWarCry;

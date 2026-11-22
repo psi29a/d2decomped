@@ -598,6 +598,9 @@ int chill_pct(const GameData& game_data, const Monster& monster);
 // an own_rate_mode as mode_rate over its AnimData speed, rounded up so it stays above -100 (GH keeps
 // get_hit_ms / get_hit_rate).
 int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode);
+// The ms from a mode's start to its action event (the strike, the shot): the tick game.exe files it on, at the
+// mode's rate (mode_rate); halfway through a mode with no event frame.
+std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, std::string_view mode);
 
 // Whoever the monsters are after (the player, the merc), and what they
 // did to it this frame. The player comes first and its pets after it, as in
