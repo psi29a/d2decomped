@@ -15,6 +15,7 @@
 #include <font.hpp>
 #include <palette.hpp>
 #include <text_box.hpp>
+#include <unicode.hpp>
 
 #include <algorithm>
 #include <array>
@@ -233,11 +234,13 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         // One row each (FUN_004fcff0 / FUN_004fc9b0 append): the title alone
         // (0x4382b2; FUN_00505640 gives "" untitled, so the row is there,
         // empty), the name (0x438352), both colour 1 hardcore / 4; the level
-        // line, colour 0; 0x58cb, colour 2.
+        // line, colour 0; 0x58cb, colour 2. FUN_004fcff0 reads its text as
+        // UTF-8 into 0x400 units (FUN_00526e40).
         const auto& name_rgb = header.hardcore() ? kTextRed : kTextGold;
+        const auto as_utf8 = [](std::string_view text) { return u16_to_latin1(tbl::copy_utf8(text, 0x400)); };
         std::vector<std::pair<std::string, const std::uint8_t*>> lines;
-        lines.emplace_back(char_title(header), name_rgb);
-        lines.emplace_back(header.name, name_rgb);
+        lines.emplace_back(as_utf8(char_title(header)), name_rgb);
+        lines.emplace_back(as_utf8(header.name), name_rgb);
         lines.emplace_back(level_class_line(scene, header), nullptr);
         if (header.expansion()) {
             std::string exp = "EXPANSION CHARACTER";

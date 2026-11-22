@@ -121,9 +121,11 @@ JPN/KOR use a different glyph pipeline entirely (multi-byte).
 | `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
 | `0x526100` | `FUN_00526100` | Decodes one UTF-8 sequence to one 16-bit unit and returns its byte length. |
 | `0x526320` | `FUN_00526320` | Converts a complete NUL-terminated UTF-8 value. |
+| `0x526e40` | `FUN_00526e40` | Copies NUL-terminated UTF-8 into at most n 16-bit units through `FUN_006c7410`. |
 | `0x5276e0` | `FUN_005276e0` | 1 for a lead byte: from 0x20 and outside every `default.map` range. |
 | `0x527790` | `FUN_00527790` | Loads `default.map` and its mapping/multibyte tables. |
 | `0x527d50` | `FUN_00527d50` | Counts value characters for allocation, using the optional font multibyte table. |
+| `0x6c7410` | `FUN_006c7410` | The second UTF-8 reader: surrogate pairs, 0xfffd past 0x10ffff. |
 
 ## Loader globals (six per TBL, 3 TBLs)
 
@@ -155,6 +157,57 @@ containing functions when we need to trace the boot sequence.
 `components/tbl/tbl.hpp` parses the hash nodes into key and ID lookup maps.
 Values go through `d2d::tbl::utf8_units`, game.exe's UTF-8 decoder
 (`FUN_00526100`) described above.
+
+## The second UTF-8 reader (`FUN_006c7410`, `FUN_00526e40`)
+
+`FUN_006c7410(out, capacity, text, length, &units, &taken)` (stdcall, ret
+0x18) is a second reader, laid out like Unicode's `ConvertUTF8toUTF16`. The
+byte table at 0x6fcca0 gives each lead byte's trailing count (0 up to 0xbf,
+then 1, 2, 3, 4, 5 from 0xc0, 0xe0, 0xf0, 0xf8, 0xfc), the dwords at
+0x6fcc88 the offsets `0, 0x3080, 0xe2080, 0x3c82080, 0xfa082080,
+0x82082080`. For each sequence:
+
+1. If its last byte is at or past the end (0x6c746f), it stops with
+   `-1 - trailing count`.
+2. It sums the bytes in, shifting 6 between (32-bit), and takes the
+   offset off. Continuation bits aren't checked: a stray continuation byte
+   reads as itself, an overlong form as its value (`C0 80` is a 0), a bad
+   sequence as whatever the sum is.
+3. With the output full it stops with 1 (0x6c74cf), tested after step 1.
+4. Up to 0xffff: one unit, and a 0 unit stops it with 0. Over 0x10ffff (a
+   sum under its offset among them): 0xfffd. Otherwise a surrogate pair,
+   or 1 when only one unit is left.
+5. At the end of the input: -1.
+
+`taken` is the bytes before the sequence it stopped on (all of them at the
+end); `units` counts what it wrote, a 0 included. A length of 0x7fffffff
+means no end.
+
+`FUN_00526e40` (fastcall: ECX the output, EDX the text, the capacity `n` on
+the stack, ret 4) reads `strlen + 1` bytes into a 0x3ff-unit scratch on its
+stack. Any status but 0 leaves the scratch empty (0x526e8c), so text that
+needs more than 0x3fe units, or ends inside a sequence (the NUL taken as
+its tail, or a tail past it), copies as "". It then copies units while they
+aren't 0 and fewer than `n` were copied, and stores the 0 after them when
+the next scratch unit is 0 (0x526f09), else over the last one copied
+(0x526eeb). Text of exactly `n` units keeps them all, its 0 at unit `n`;
+longer text keeps `n - 1` (bugs.md #132).
+
+Callers: `FUN_004fcff0` (a char-select row, 0x400 units: `FUN_004380f0`
+passes the title, then the name) and 13 not traced: `FUN_0043b9f0`,
+`FUN_0043f730`, `FUN_00447ab0`, `FUN_00448150`, `FUN_004484e0`,
+`FUN_00448540`, `FUN_004485a0`, `FUN_00448610`, `FUN_00448680`,
+`FUN_00448810`, `FUN_00448a60`, `FUN_004496b0`, `FUN_0047bdf0`.
+
+d2d: `d2d::tbl::read_utf8` / `copy_utf8` (components/tbl/unicode.cpp); the
+char-select rows read the title and the name through `copy_utf8`.
+Verified: `tools/emu/utf8_copy.py` runs both on 20,000 generated cases
+(ASCII, valid and overlong sequences, surrogates, codes past 0x10ffff,
+stray bytes, cut tails, embedded NULs, text past the scratch; capacities
+0..40 for the reader, and 1..40, 0x400 and the text's length and one either
+side for the copy). `tests/test_utf8_copy.cpp` answers them with d2d's port
+and the diff is empty; 600 are its fixture. `coverage` reaches every
+instruction of both bodies but the no-end length's.
 
 ## String table leaves (traced)
 
