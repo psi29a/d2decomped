@@ -101,6 +101,13 @@ int main(int argc, char** argv) try {
     assert(empty.size() == 1 && empty[0].text.empty());
     const auto tiny = d2d::font::text_box_rows("abc", 0, 100, 1, 100, 10, measure);
     assert(tiny.size() == 3 && tiny[0].text == "a" && tiny[2].text == "c");
+    // A char-select slot (record 0x84: (37, 178), 200x92, margins 76 / 3,
+    // flags 0x20): no wrap in 200 - 2 * 76, rows start at x + 76.
+    const auto slot = d2d::font::text_box_rows({ "Slayer", "Name", "Level 90 Sorceress", "EXPANSION CHARACTER" },
+                                               37, 178, 200, 92, 10, measure, 76, 3, 4, d2d::font::kTextBoxNoWrap);
+    assert(slot.size() == 4 && slot[0].text == "Slayer" && slot[2].text == "Level 90 Sorceress");
+    assert(slot[0].x == 113 && slot[3].x == 113);
+    assert(slot[0].baseline == 99 && slot[1].baseline == 113 && slot[3].baseline == 141);
     baseline_pixels();
     std::puts("text-box regression checks passed");
     return 0;
