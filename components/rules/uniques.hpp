@@ -84,8 +84,8 @@ inline int pick(const UMods& umods, const MonType& type, Rng& seed, Weight&& wei
 // repeats, 8 at most). Rolls the monster's own seed.
 BossInfo roll_boss(const UMods& umods, const MonType& type, int difficulty, bool champions, Rng& seed, bool name = true);
 
-// A superunique's mods (FUN_005a49b0): SuperUniques Mod1..3 (24 skipped),
-// then `difficulty` more unique mods (upick, none twice), at most 5 before.
+// A superunique's mods: SuperUniques Mod1..3 (24 skipped), then `difficulty` more unique mods (upick, none
+// twice), at most 5 before.
 std::vector<int> superunique_mods(const UMods& umods, const MonType& type, const std::vector<int>& fixed, int difficulty, Rng& seed);
 
 // An act boss as it's made (FUN_005b1cf0 from FUN_005b2a00, by MonStats
@@ -111,10 +111,7 @@ struct ActBoss {
 };
 std::optional<ActBoss> act_boss(int monstats_row, int base);
 
-// The ancients' gear (FUN_005b1c50, from FUN_005b1cf0 for base 0x21c): four
-// items each from the table at 0x6e2c90 (8 bytes a row per class, rows 0x18
-// apart: the code, then the BodyLocs row it's worn on), by MonStats row
-// 0x21c..0x21e (Talic, Madawc, Korlic).
+// The ancients' gear.
 std::vector<std::pair<std::string, int>> ancient_gear(const Tables& tables, int monstats_row, int difficulty);
 
 // The label under a boss's name (client FUN_004adea0, from FUN_00452580):
@@ -150,11 +147,7 @@ inline constexpr std::array<Immunity, 6> kImmunities{ { { 36, 0x2765, 4 }, { 37,
                                                         { 41, 0x2763, 9 }, { 43, 0x2762, 3 }, { 45, 0x2764, 2 } } };
 std::vector<Immunity> immunity_lines(std::string_view monstats_id, const std::array<int, 6>& resists);
 
-// The MonSounds row a monster plays (client FUN_004ca410, UnitSnd.cpp): a
-// superunique's own SuperUniques MonSound (record +0x18) when set (the
-// Countess's, the Smith's); else, for flag 8 or 0x10 (champions, uniques,
-// superuniques, minions), MonStats UMonSound (+0x16) when set (zombies:
-// zombieunique); else MonStats MonSound (+0x14).
+// The MonSounds row a monster plays.
 const std::string& boss_sound(const MonType& type, Boss kind, const std::string& superunique_sound);
 
 // A champion's name (client FUN_004ac870, run through the mod table at
@@ -201,9 +194,7 @@ inline int boss_elem_length(const BossStats& stats, int level, int max_level) { 
 inline constexpr std::array<int, 3> kBossBonus{ 90, 75, 66 };
 BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, const std::vector<int>& mods, int difficulty);
 
-// What a unique's mods do in the fight (the event hooks at 0x73c0b8, six
-// a mod, run by FUN_005a4270; docs/research/re/monsters.md "Boss mods in
-// the fight"). Only for the boss itself (flag 8), not its minions.
+// What a unique's mods do in the fight.
 std::vector<int> family_mods(int base_id);
 
 // What MonUMod 14 (spcdamage) sets on a trap monster (FUN_005a3b50, hook 0):
@@ -271,10 +262,7 @@ std::array<KillSelf, 5> killself_hooks(int radamentdeath_range);
 int shadow_nova_level(int shadow_warrior_level, int life_percent);
 
 std::pair<int, int> fire_blast(int max_life, int difficulty);
-// What a Mana Burn monster's landed hit takes off a player's mana, in 256ths: the damage build (FUN_0057b7d0, a plain
-// monster) rolls FUN_0057a8e0 over stats 62 / 63, which FUN_005a1f90 stores as `x << 8` and the roll shifts by 8 again,
-// so `(least << 16)` up to (not including) `(most << 16)` on the unit's seed (`least` and `most` the whole points of
-// Monster::mana_lo / mana_hi): 256 times the points the stat looks like.
+// What a Mana Burn monster's landed hit takes off a player's mana, in 256ths.
 int mana_burn_fine(int least, int most, Rng& rng);
 // Spectral hit (FUN_005a3040 / FUN_005a21d0): each attack, one of five
 // elements (0x6e21b8: fire, lightning, magic, cold, poison; as Skill::etype

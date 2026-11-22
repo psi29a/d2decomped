@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of uniques.hpp's functions; their notes are in the header.
+// The bodies of uniques.hpp's functions, with the research behind each.
 #include "uniques.hpp"
 
 #include "montypes.hpp"
@@ -56,6 +56,8 @@ BossInfo roll_boss(const UMods& umods, const MonType& type, int difficulty, bool
     return boss;
 }
 
+// A superunique's mods (FUN_005a49b0): SuperUniques Mod1..3 (24 skipped),
+// then `difficulty` more unique mods (upick, none twice), at most 5 before.
 std::vector<int> superunique_mods(const UMods& umods, const MonType& type, const std::vector<int>& fixed, int difficulty, Rng& seed) {
     using namespace unique_detail;
     std::vector<int> mods;
@@ -88,6 +90,11 @@ std::optional<ActBoss> act_boss(int monstats_row, int base) {
     default: return std::nullopt;
     }
 }
+
+// The ancients' gear (FUN_005b1c50, from FUN_005b1cf0 for base 0x21c): four
+// items each from the table at 0x6e2c90 (8 bytes a row per class, rows 0x18
+// apart: the code, then the BodyLocs row it's worn on), by MonStats row
+// 0x21c..0x21e (Talic, Madawc, Korlic).
 
 // In Nightmare the code is its record's ubercode (+0x88), in Hell its
 // ultracode (+0x8c); the ring's are 0 (Misc.txt has neither column), so no
@@ -133,6 +140,11 @@ std::vector<Immunity> immunity_lines(std::string_view monstats_id, const std::ar
     return lines;
 }
 
+// The MonSounds row a monster plays (client FUN_004ca410, UnitSnd.cpp): a
+// superunique's own SuperUniques MonSound (record +0x18) when set (the
+// Countess's, the Smith's); else, for flag 8 or 0x10 (champions, uniques,
+// superuniques, minions), MonStats UMonSound (+0x16) when set (zombies:
+// zombieunique); else MonStats MonSound (+0x14).
 const std::string& boss_sound(const MonType& type, Boss kind, const std::string& superunique_sound) {
     if (kind == Boss::superunique && !superunique_sound.empty()) return superunique_sound;
     if (kind != Boss::none && !type.usound.empty()) return type.usound;
@@ -247,6 +259,10 @@ BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, const s
     return stats;
 }
 
+// What a unique's mods do in the fight (the event hooks at 0x73c0b8, six
+// a mod, run by FUN_005a4270; docs/research/re/monsters.md "Boss mods in
+// the fight"). Only for the boss itself (flag 8), not its minions.
+
 // Fire enchanted's death blast (FUN_005a2620): v = max life x
 // MonsterCEDamagePercent (DifficultyLevels +0x3c: 50 / 35 / 20) / 100,
 // then 3/4, 2/3 or 1/8 by difficulty; rolled from 60 % of v to v (the
@@ -320,6 +336,11 @@ std::pair<int, int> fire_blast(int max_life, int difficulty) {
     return { value * 60 / 100, value };
 }
 
+// What a Mana Burn monster's landed hit takes off a player's mana, in 256ths: the damage build (FUN_0057b7d0, a plain
+// monster) rolls FUN_0057a8e0 over stats 62 / 63, which FUN_005a1f90 stores as `x << 8` and the roll shifts by 8 again,
+// so `(least << 16)` up to (not including) `(most << 16)` on the unit's seed (`least` and `most` the whole points of
+// Monster::mana_lo / mana_hi): 256 times the points the stat looks like.
+
 // FUN_0057c6c0 then takes it off the player's mana (FUN_0057aa60). tools/emu/mana_burn.py checks it
 // against game.exe.
 int mana_burn_fine(int least, int most, Rng& rng) {
@@ -337,5 +358,7 @@ BossAura boss_aura(int mlvl, int name_seed, int super) {
     const auto& row = kRows[pick];
     return { row.skill, std::clamp((row.add + mlvl) * row.mul / row.div, 1, 99) };
 }
+
+
 
 }
