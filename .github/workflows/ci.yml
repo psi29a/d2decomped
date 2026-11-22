@@ -837,6 +837,38 @@ jobs:
           if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" --repo "$REPOSITORY" \
               --title "D2: Decomped - $TAG" --generate-notes
+            NEW_RELEASE=1
           fi
           gh release upload "$TAG" --repo "$REPOSITORY" \
             release-assets/* --clobber
+          echo "NEW_RELEASE=${NEW_RELEASE:-0}" >> "$GITHUB_ENV"
+
+      # Posts the new release to Discord once: only the run that created it, after
+      # its assets are up (a re-run of the job finds the release and stays quiet).
+      # Skipped with no DISCORD_WEBHOOK secret set, as the gap map's announcement.
+      - name: Announce the release on Discord
+        if: env.NEW_RELEASE == '1'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+        run: |
+          [ -n "$DISCORD_WEBHOOK" ] || exit 0
+          python3 - <<'PY'
+          import json, os, urllib.request, zlib
+          tag, url = os.environ["TAG"], os.environ["URL"]
+          messages = [
+              f"🔥⛧🔥 **A new release rises from the Burning Hells** 🔥⛧🔥\n"
+              f"😈 D2: Decomped **{tag}** is out\n💀 Claim it: {url}",
+              f"🕯️ **Stay awhile and listen...** 🕯️\n"
+              f"📜 Deckard Cain has word of **{tag}**: a new D2: Decomped release\n🔥 {url}",
+              f"✨ **A Horadric Cube transmutes a new build** ✨\n"
+              f"⛧ D2: Decomped **{tag}** is ready\n🩸 {url}",
+              f"💎 **A unique item drops!** 💎\n"
+              f"🟨 D2: Decomped **{tag}** lies on the ground. Pick it up before it vanishes\n🗡️ {url}",
+          ]
+          body = {"content": messages[zlib.crc32(tag.encode()) % len(messages)]}
+          request = urllib.request.Request(os.environ["DISCORD_WEBHOOK"], json.dumps(body).encode(),
+                                           {"Content-Type": "application/json", "User-Agent": "d2decomped-release"})
+          urllib.request.urlopen(request, timeout=30)
+          PY
