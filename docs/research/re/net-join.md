@@ -367,6 +367,65 @@ Read from each function's disassembly, with the callers from
 | `FUN_0052f940` | ECX: a record, EDX: a name. When the probe `FUN_0052f8b0(EDX)` is nonzero, the name is copied as it is to `+0x2a` (`FUN_004135d0`, bound 0x7fffffff). Otherwise the name is copied into a 16-byte buffer, cut to 11 bytes when its length is 13 to 15 (a longer name is copied whole), and the candidates are tried in order: name + `~%d` with EDX itself (the pointer, not a count; the format at `0x6e0754` is `~%d`), then `name~1` to `name~98` (format `%s~%d` at `0x6e074c`). The first candidate the probe accepts (nonzero) is copied to `+0x2a`. `name~99` is not copied: the fatal report (line 0x263) follows it either way. A name of 16 or more bytes is copied past the 16-byte buffer, and the first candidate can run past it too (bugs.md #112) | `FUN_00530930`, `FUN_00530bf0` |
 | `FUN_00530820` | ECX: a table object (mask at `+0x24`, bucket base at `+0x1c`, a list head at `+8`, a node base at `+4`); stack a0 (the key), a2, a3 (`ret 0x10`; a1 is not read). The bucket is `a0 & mask` (`FUN_00530600` is called on it, but both branches use the same index). Its address (`[+0x1c] + bucket * 12`) goes to vtable slot 1 (`[*ECX + 4]`) with a2 and a3, which returns a record's address. The record's link is at the record plus the dword at `+4` (the link's offset in a record); a result of 0 takes the head at `+8` as the link. A link already in a list is taken out first, then it is put in the list at `+8` (the pointers at +0 and +4 of the link), and a0 is stored at the record's first dword (`mov [eax], ecx` at `0x5308ad`). The result is not tested before that store | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
 
+### The server's game list
+
+A host keeps its games in two places. The slot array at `0x882d38`
+holds 0x400 dwords, cleared by `FUN_00530690`; a game id (a u16, game
+`+0x28`) picks slot `[0x882d34 + id × 4]`, so ids run from 1, and a slot of 0
+or −1 is empty. The value in a slot is the key for the table object at
+`DAT_00883d38`: a hash table whose lock is at `+0x50` and whose lookup
+`FUN_0052e650` runs on `+0x44`. Its records are tagged
+`.?AUSGAMEDATA@@` (`0x70f56c`). `FUN_0052e860` looks a key up and returns the
+game with its own lock (`+0x18`) held. Most of the table's helpers are
+the same code as the `CELLIST` table's in celcmp.md, call targets aside
+(`tools/emu`, an instruction-by-instruction compare). The routines that
+lock `0x882d18` and read a slot by game id are unused in 1.14d, except
+`FUN_0052eff0`.
+
+Read from each function's disassembly and decompile, with callers from
+`game-calls.tsv` and a byte scan of game.exe for rel32 calls and raw
+pointers. Not run in `tools/emu`. Rows run in address order.
+
+| Function | Operation | Callers |
+|---|---|---|
+| `FUN_0052cbe0` | ECX client id: 1 when `FUN_00538b70` doesn't find the id (or the id table is off), else 0 | `FUN_0053f100`, C->S 0x6e (`0x53f343`): a 1 runs `FUN_00530270(id, 0)`, which reaches `FUN_0052caf0` (the drop) for a client on its game's list |
+| `FUN_0052cc10` | ECX x: `FUN_0053b220()`, then `FUN_0052b570(x)`. The callees are not traced | orphan (stubs.md) |
+| `FUN_0052daf0`, `FUN_0052db00` | return 1. The same code as `FUN_00564ca0` (frontier-ring.md) | `FUN_0053f100`: C->S 0x6a tests `FUN_0052daf0` (`0x53f2af`) before the game list, C->S 0x6c tests `FUN_0052db00` (`0x53f31b`) before `FUN_0052db10` (the upload) |
+| `FUN_0052dba0` | (a, b; `ret 8`): `*a` := `FUN_0040a040(0)`, `*b` := `DAT_00883d48` | orphan (stubs.md) |
+| `FUN_0052dbc0` | EBX: 128 unit chains. The count of units in all of them (the next unit: `FUN_00552db0`) | `FUN_0052ed10` (each of the five chain tables, `0x52edaa`..`0x52ede2`), `FUN_0052eff0` (players) |
+| `FUN_0052dc00` | returns its argument (`ret 4`) | orphan (stubs.md) |
+| `FUN_0052dc20` | EAX list head, EDI class id, stack flag (`ret 4`): a null head is fatal (line 0x139e). Walks the 0x90-byte nodes (next `+0x8c`) for the class id; found, `+4` (flag set) or `+8` (flag 0) + 1. Otherwise a new zeroed node (line 0x13af) with the id and that count at 1 goes in right after the head | orphan's callee (stubs.md): `FUN_0052f160` only |
+| `FUN_0052dfa0` | (n; `ret 4`): `DAT_00883d44` := n | the call at `0x44d5dd`, code Ghidra has no function for |
+| `FUN_0052e0a0` | the same code as celcmp.md's `FUN_00601b80` (enter `+0x50`, `*out` := 1 or −1) | orphan (stubs.md) |
+| `FUN_0052e0d0` | the same code as celcmp.md's `FUN_00601cb0` (1 when the argument is 1) | orphan (stubs.md) |
+| `FUN_0052e0e0` | the same code as celcmp.md's `FUN_00601d00` (key & `+0x24`) | orphan (stubs.md) |
+| `FUN_0052e440` | ECX game: for each client on the game's list (`+0x88`, next `+0x4a8`), `FUN_0052e320(game, 1)`, the flush. The client isn't passed, so the flush runs once per client | `FUN_005645e0` (`0x56460c`), right after the frame `FUN_0052d870` |
+| `FUN_0052e470`, `FUN_0052e570` | the same code as celcmp.md's `FUN_00602090` (leave `+0x50` when the flag is set) | orphan (stubs.md) |
+| `FUN_0052e490` | the same code as celcmp.md's `FUN_006021e0` (unlink a record's two links) | `FUN_0052e590`, `FUN_0052e5b0`, `FUN_0052e5d0` |
+| `FUN_0052e510` | the same code as celcmp.md's `FUN_00602260` (an item's next) | orphan (stubs.md) |
+| `FUN_0052e530` | the same code as celcmp.md's `FUN_00602310` | orphan (stubs.md) |
+| `FUN_0052e590`, `FUN_0052e5b0` | the same code as celcmp.md's `FUN_00602620` (unlink and delete a record) | orphan (stubs.md) |
+| `FUN_0052e5d0` | the same code as celcmp.md's `FUN_00602a10` (as `FUN_00602620`, then leave `+0x50` when the flag is set) | `FUN_0052e770` (`0x52e84a`, flag −1) |
+| `FUN_0052e600` | ECX list, stack item (`ret 4`): the item's next (0 when not positive), then unlinks the item (`FUN_0044f820`) and frees it (`FUN_00412650`, tag `0x70f56c`, line −2). Returns the next | orphan (stubs.md) |
+| `FUN_0052e6b0` | the same code as celcmp.md's `FUN_00603250` (the lookup: `FUN_0052e650(key, +0x44)`) | orphan (stubs.md) |
+| `FUN_0052e710` | the same code as celcmp.md's `FUN_00603400` (enter `+0x50`, look up, leave on a miss) | orphan (stubs.md) |
+| `FUN_0052e770` | ECX game key: closes the game. With the table set, enters its lock and looks the key up; a miss leaves the lock. With a GS interface (`DAT_00883d50`, its slot 0 set) calls slot 0 (game `+0x90`, frames `+0xa8` / 25); a bad code pointer is fatal (line 0x107c). A game without a lock is fatal (0x108d); else enters it, tears the game down (`FUN_0052c7f0`, act1-end.md) and deletes the record, leaving the table lock (`FUN_0052e5d0`, −1) | `FUN_0052e9c0` (`0x52ea90`), `FUN_0052fd90` (`0x52fe7c`, the empty-game close), `FUN_005645e0` (`0x564671`) |
+| `FUN_0052e8e0` | (client; `ret 4`): the game list. For each live slot whose game is found, one S->C 0xB2 (`FUN_0053b1b0`: ECX client, EDX game id `+0x28`, then the u16 `+0x8c` and a copy of the name `+0x2a`); then one with id 0xffff, 0 and an empty string | `FUN_0052e9b0` |
+| `FUN_0052e9b0` | ECX client: `FUN_0052e8e0(client)` | `FUN_0053f100`, C->S 0x6a (`0x53f2ba`) |
+| `FUN_0052eb50` | (out, n; `ret 8`): zeroes n + 1 u16; for each live game, `out[min(+0x8c, n)]` + 1 | orphan (stubs.md) |
+| `FUN_0052ebe0` | (out, n; `ret 8`): zeroes n u16; for each live game, `out[min(+0xa8 / 7500, n − 1)]` + 1: the games by age in 7500-frame (5-minute) steps | orphan (stubs.md) |
+| `FUN_0052ec90` | (game id; `ret 4`): game `+0x8c`. No game: fatal line 0x12c6 | orphan (stubs.md) |
+| `FUN_0052ed10` | (game id, out; `ret 8`): 0 without a game; else fills a 0xb0-byte record and returns 1: `+0` id, `+4` game `+0x7c`, `+8` `+0x8c`, `+0xc..+0x1c` the unit counts (players, monsters, objects, items, missiles: `FUN_0052dbc0` on `+0x1120`..`+0x1920`), `+0x28..+0x3c` `+0x90..+0xa4`, `+0x40..+0x50` the five counters `+0x1d78`, `+0x1d84`, `+0x1d88`, `+0x1d74`, `+0x1dac` × 100 / `+0x1db4`, `+0x54` `+0x1db4` (above 200 the 0x48 bytes at `+0x1d70` are cleared), `+0x58` frames / 100, `+0x5c` (GetTickCount − `+0x1dbc`) / 60000, `+0x60` `+0xac`, `+0x64` name (16), `+0x74` `+0x3a` (16), `+0x84` `+0x4a` (32), bytes `+0x6b`, `+0x6c`, `+0x6e` at `+0xa4..+0xa6`, `+0xa8` the game flags (`FUN_0053fd40`), `+0xac` `+0x1c`. `FUN_0052fc20` writes the speed factor to `+0x1dbc` (network.md), so the minutes field reads it as if it were a start tick | orphan (stubs.md) |
+| `FUN_0052ef70` | (out, n; `ret 8`): writes the ids (`+0x28`) of up to n live games as u16; returns how many | orphan (stubs.md) |
+| `FUN_0052eff0` | (game id; `ret 4`): the number of players in the game (`FUN_0052dbc0` on `+0x1120`); 0 without a game | `FUN_0044cf20` (`0x44cfa2`, id 1) |
+| `FUN_0052f160` | (game id, list, type; `ret 0xc`): for unit type 0..4 (chains `+0x1120 + type × 0x200`), counts each unit's class id (unit `+4`) into the list (`FUN_0052dc20`, flag 1); then for each node calls the type's entry in `0x73107c` (`0x52dcf0`, `0x52ddf0`, `0x52de40`, `0x52de80`, `0x52dec0`) with ECX = node + 0xc, EDX = the class id; a bad code pointer is fatal (line 0x1450). A type above 4 leaves the chain base 0 | orphan (stubs.md) |
+| `FUN_0052f3e0` | (out; `ret 4`): out[0..3] := 0; for each live game, out[0] + 1, out[1] + its monsters (`+0x1320`), out[3] + its players (`+0x1120`); out[2] stays 0 | orphan (stubs.md) |
+| `FUN_0052f720` | (record; `ret 4`): `FUN_0052f4c0(record[0], record[1], record + 8)`; returns 1 | orphan's callee (stubs.md): the thread start `FUN_0052f740` passes it to `CreateThread` (`0x52f78b`) |
+| `FUN_0052f740` | ECX a, EDX b, stack text (`ret 4`): a 0x108-byte record (line 0x1621) with a, b and the text (at most 0xff bytes, ended at `+0x107`), then `CreateThread(FUN_0052f720, record)` | orphan (stubs.md) |
+| `FUN_0052f7b0` | ECX name: the slot value of the game whose name (`+0x2a`) matches (`FUN_00413590`, no case), else 0 | orphan (stubs.md) |
+| `FUN_005302d0` | (name, a1; `ret 8`): the client id by name (`FUN_00538bf0`); 0 when absent, else `FUN_00530270` and 1 | orphan (stubs.md) |
+| `FUN_00530690` | the server's start: reads the registry value `Diablo II` / `PlayerPos` into `DAT_00883d4c` (`FUN_00414f10`), clears the 0x400 slots, initializes the lock `0x882d18`, then `FUN_005376c0`, `FUN_0052b5c0(FUN_005300f0)` and `FUN_00536f80`; returns 1 | the call at `0x44bcef`, right after `FUN_0052c0a0` and `DAT_007a0458` := 1; `0x44bb70` (the same store, then a jump here) has no reference |
+
 ### Verified in the emulator (`tools/emu/clients_small.py`)
 
 `clients_small.py` runs 30 GAME/Clients.cpp functions and the getter at `0x538230` from game.exe 1.14d on random client
