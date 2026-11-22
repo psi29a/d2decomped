@@ -14,6 +14,7 @@
 #include "protocol.hpp"
 
 #include <combat.hpp>
+#include <compcode.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <light.hpp>

@@ -4,7 +4,10 @@
 
 #include <ai.hpp>
 #include <gamedata.hpp>
+#include <monsters.hpp>
+#include <rules.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>

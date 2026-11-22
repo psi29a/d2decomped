@@ -8,9 +8,12 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <montypes.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>

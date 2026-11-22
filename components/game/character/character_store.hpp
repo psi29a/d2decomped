@@ -9,6 +9,7 @@
 
 #include "gamedata.hpp"
 
+#include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
