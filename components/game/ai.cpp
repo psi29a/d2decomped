@@ -2270,14 +2270,26 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // A war cry from a monster (do 68, FUN_005d83e0; Madawc's Shout):
                     // the nova of its srvmissilea (FUN_0056d400) and its aurastate on
                     // itself for auralen frames (FUN_005d8290); the nova reaching an
-                    // ally (hit 18, FUN_005ab0b0) puts it there too.
-                    // ponytail: an ally within the missile's reach (speed x Range), as the
-                    // player's war cries; the nova's missiles aren't drawn.
+                    // ally (hit 18, FUN_005ab0b0) puts it there too. The nova's 64 go out
+                    // on rules::kNovaRing (as do 27's) for their Range.
+                    // ponytail: the nova is drawn but hits nothing: the state goes on each ally
+                    // within its reach (speed x Range) at the cast, as the player's war cries.
                     const auto shout = game_data.missiles.find(cast->srvmissilea);
                     const float reach = shout == game_data.missiles.end() ? 0.f : missile_speed(shout->second, lvl) * float(shout->second.range) * 0.04f;
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 1);
                     const Monster::SkillState state{ monster.skill, lvl, now_ms + std::uint32_t(frames) * 40 };
                     if (!cast->aurastate.empty()) put_state(game_data, monster, state, now_ms);
+                    for (int k = 0; shout != game_data.missiles.end() && k < 64; ++k) {
+                        const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                        const std::size_t had = missiles.size();
+                        andariel_missile(game_data, monster, cast->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, cast);
+                        if (missiles.size() > had) {
+                            auto& ring_missile = missiles.back();
+                            ring_missile.visual_only = true;
+                            ring_missile.dies = now_ms + std::uint32_t(std::max(shout->second.range, 1)) * 40;
+                            ring_missile.to = offset_target(unit.x, unit.y, aim_x, aim_y);
+                        }
+                    }
                     for (auto& ally : pack)
                         if (&ally != &monster && ally.alive() && ally.align == monster.align && std::hypot(ally.unit.x - unit.x, ally.unit.y - unit.y) <= reach)
                             put_state(game_data, ally, state, now_ms);
