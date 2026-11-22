@@ -229,8 +229,9 @@ struct Monster {
     int struck_by = -1;                       // the Foe::id that last struck at it, -1 none (unit +0xa0, FUN_00621d50 from FUN_0057c6c0)
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
     std::optional<std::uint32_t> scheduled_action_ms;  // action deadline set when the mode starts
-    std::uint32_t scheduled_anim_position = 0;  // 256ths of a frame for the visible scheduled mode
+    std::optional<std::uint32_t> scheduled_anim_position;  // visible position, in 256ths of a frame
     std::uint32_t scheduled_anim_ms = 0;        // last whole tick included in that position
+    bool scheduled_think_first = false;        // a same-tick think was pending when this action was queued
     bool lifeless = false;                    // its life rolled 0 (FUN_00573cb0): held at one point, any landed hit kills it
     // Its think event (unit event 2): due at next_act, pending while that's
     // after thought_ms, when its think last ran. One due runs mid-mode too.

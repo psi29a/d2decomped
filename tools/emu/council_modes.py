@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Trace the stock Council S1 event with original game.exe code.
 
-uv run python council_s1.py --exe /private/game.exe --animdata /private/animdata.d2
+uv run python council_modes.py --exe /private/game.exe --animdata /private/animdata.d2
 
 Read both files from your own installation. The AnimData record stays local.
 This is an isolated scheduler/dispatch check, not a built-d2d differential.

@@ -265,8 +265,8 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;
         if (!row && !down && monster.mode != "GH") {
-            if (monster.scheduled_action_ms && (monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1"))
-                out.back().composite_elapsed = (monster.scheduled_anim_position / 256) * mpf;
+            if (monster.scheduled_anim_position && (monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1"))
+                out.back().composite_elapsed = (*monster.scheduled_anim_position / 256) * mpf;
             else
                 out.back().rate = float(100 + anim_rate_pct(scene, monster, monster.mode)) / 100.f;
         }

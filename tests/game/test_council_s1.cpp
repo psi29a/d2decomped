@@ -19,7 +19,7 @@ using namespace d2d::game;
 int main() try {
     GameData data;
     data.monsters.types.resize(32);
-    data.mon_bin.resize(348);
+    data.mon_bin.resize(734);
     data.mon_bin[345] = 12;
     data.mon_bin[346] = 10;
     data.mon_bin[347] = 11;
@@ -137,6 +137,45 @@ int main() try {
                         class_id, freeze_tick, missiles.size(), expected);
             matches &= missiles.size() == expected;
         }
+        row.ai_name = "HighPriest";
+        row.diff[0].aip[0] = 100;
+        for (const bool think_first : {false, true}) {
+            Monster monster = council;
+            monster.type = type;
+            monster.aware = true;
+            monster.walk_pct = 100;
+            monster.speed_pct = 100 - kMonsterVelocityPct;
+            foes.front().x = 0.5f;
+            d2d::rules::Rng rng{7};
+            std::vector<Missile> missiles;
+            const auto due = start + 4 * tick_ms;
+            if (think_first) monster.next_act = due;
+            set_mode(data, monster, "S1", start);
+            if (!think_first) monster.next_act = due;
+            monster_update(data, level, monster, foes, rng, due, 0.04f, crowd, missiles);
+            const auto expected = std::size_t(!think_first);
+            std::printf("Council %d, think queued %s shot: %zu missile(s), mode %.*s\n",
+                        class_id, think_first ? "before" : "after", missiles.size(),
+                        int(monster.mode.size()), monster.mode.data());
+            matches &= missiles.size() == expected && monster.mode == "A1";
+        }
+        row.can_get_hit = true;
+        for (const bool hit_first : {false, true}) {
+            Monster monster = council;
+            monster.type = type;
+            monster.hit_points = monster.stats.hit_points = 100;
+            monster.walk_pct = 100;
+            monster.speed_pct = 100 - kMonsterVelocityPct;
+            d2d::rules::Rng rng{7};
+            std::vector<Missile> missiles;
+            const auto due = start + 4 * tick_ms;
+            set_mode(data, monster, "S1", start);
+            if (hit_first) hurt(data, monster, 80, due);
+            monster_update(data, level, monster, foes, rng, due, 0.04f, crowd, missiles);
+            if (!hit_first) hurt(data, monster, 80, due);
+            matches &= monster.mode == "GH" && monster.alive() && missiles.size() == std::size_t(!hit_first);
+        }
+        foes.front().x = 2;
     }
     return matches ? 0 : 1;
 } catch (const std::exception& error) {
