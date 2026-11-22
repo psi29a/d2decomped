@@ -4,6 +4,10 @@
 
 #include "monster_ids.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
 namespace d2d::rules {
 
 inline constexpr int kCritterPlayer = 0, kCritterMonster = 1;   // unit +0x00
@@ -16,6 +20,17 @@ inline constexpr int kCritterPlayer = 0, kCritterMonster = 1;   // unit +0x00
     if (critter_dead) return false;
     if (unit_type == kCritterPlayer) return true;
     return unit_type == kCritterMonster && row != monster_ids::kChicken && row != monster_ids::kBunny;
+}
+
+// A bird's flight end (FUN_00648e70(path, 0x5a), kept under 0x4d): its path
+// is a line a subtile a step on its longer axis, 77 steps at most, so past
+// that it stops at the 77th: the longer axis 77 subtiles on, the other in
+// proportion. Cells in and out.
+// ponytail: the shorter axis's rounding on that step isn't traced.
+[[nodiscard]] inline std::pair<float, float> flight_end(float from_x, float from_y, float to_x, float to_y) {
+    const float steps = std::max(std::abs(to_x - from_x), std::abs(to_y - from_y)) * 5, most = 77.f;
+    if (steps <= most) return { to_x, to_y };
+    return { from_x + (to_x - from_x) * most / steps, from_y + (to_y - from_y) * most / steps };
 }
 
 }  // namespace d2d::rules
