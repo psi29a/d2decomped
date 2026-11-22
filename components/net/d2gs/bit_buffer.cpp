@@ -66,7 +66,7 @@ auto BitReader::read_signed(std::int32_t count) -> std::int32_t {
 
 // game.exe's stores go through its byte pointer (word +0), which moves
 // with the byte but not on an overflow (below): a write of 0 bits after
-// one zeroes the byte the pointer was left state. At the very end (a count of
+// one zeroes the byte the pointer was left at. At the very end (a count of
 // 0 or less with every bit used) FUN_00410eb0 stores its zero one byte past
 // the buffer; d2d skips it.
 auto BitWriter::zero_current() -> void {
@@ -74,12 +74,16 @@ auto BitWriter::zero_current() -> void {
 }
 
 // FUN_00410eb0: a write past the end writes nothing and moves to byte
-// bits / 8, bit 0, the pointer left where it was. Otherwise each chunk ORs (low byte of value & mask) <<
-// bit in; a byte filled moves on and zeroes the next while in range, and
-// the value shifts right (sar: a count over 32 writes its sign).
+// bits / 8, bit 0, the pointer left where it was. Otherwise each chunk ORs
+// (low byte of value & mask) << bit in; a byte filled moves on and zeroes
+// the next while in range, and the value shifts right (sar: a count over
+// 32 writes its sign). game.exe's end test is a 32-bit sum, so a count
+// near 0x7fffffff with bits used wraps it and writes past the buffer; d2d
+// tests the true end too and takes that as an overflow.
 auto BitWriter::write(std::int32_t value, std::int32_t count) -> void {
     BitCursor& state = cursor_;
-    if (wrap(std::int64_t(state.bit) + wrap(std::int64_t(state.byte) * 8) + count) > state.bits) {
+    const bool past_end = count > 0 && std::int64_t(state.bit) + std::int64_t(state.byte) * 8 + count > state.bits;
+    if (past_end || wrap(std::int64_t(state.bit) + wrap(std::int64_t(state.byte) * 8) + count) > state.bits) {
         state.overflow = true;
         state.byte = state.bits / 8;
         state.bit = 0;

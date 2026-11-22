@@ -80,7 +80,8 @@ Two edges follow from the pointer and the 0x410ef3 store:
 
 A count of `0x7fffffff` with bits already used wraps the test negative,
 and game.exe then writes past the buffer. The oracle gives that count only
-at bit 0.
+at bit 0. d2d also tests the true (64-bit) end of a positive count, and
+takes such a write as an overflow instead.
 
 `FUN_00411070(state)`: mid-byte, the pointer and the index move to the
 next byte, the bit goes to 0, and that byte is zeroed while
