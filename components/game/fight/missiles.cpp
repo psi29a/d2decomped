@@ -409,6 +409,11 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         return pending.back();
     }
 
+auto Fight::seed_missiles(std::size_t from) -> void {
+        for (std::size_t k = from; k < missiles.size(); ++k)
+            if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
+    }
+
 auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl) -> int {
         return d2d::rules::eval_calc(game_data->skills, calc_row, calc_env(), skill.id, lvl);
     }
@@ -580,10 +585,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         burned.clear();
         // The player's side's are seeded as made (launch); a visual-only one takes none: some are
         // the server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
-        // ponytail: a monster's (made in its think, with no game seed at hand) is seeded at the frame's
-        // first missile tick, not as it's made, so a drop in the frame it was made comes before its step.
-        for (auto& missile : missiles)
-            if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
+        // A monster's are seeded as its think returns (Fight::world); here only what neither seeded.
+        seed_missiles(0);
         for (std::size_t k = 0; k < missiles.size(); ++k) {
             auto& missile = missiles[k];
             if (!missile.friendly || missile.skill < 0 || !missile.info) continue;   // the player's side's (a monster's carries its skill too)

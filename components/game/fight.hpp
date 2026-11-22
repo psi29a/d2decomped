@@ -1045,6 +1045,9 @@ struct Fight {
     [[nodiscard]] int pierce_chance(bool for_merc) const;
     [[nodiscard]] bool pierce_armed(bool for_merc) const;
     void seed_pierce(Missile& missile, bool for_merc);
+    // Missiles from `from` on with no seed yet take their unit seed off the game seed, in order (a
+    // visual-only one none): a monster's as its think returns, any left at the frame's missile tick.
+    void seed_missiles(std::size_t from);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
     [[nodiscard]] int calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl);
