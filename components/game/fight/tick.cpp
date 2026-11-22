@@ -414,7 +414,15 @@ auto Fight::zealots_spare() const -> bool {
 // A LastCollide row passes the unit it struck last (FUN_005a8730); a
 // Pierce row with a charge left flies on, as skill_missile_hits'.
 auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
-        auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(monster_index), missile.level, rng);
+        // The merc's arrow (Missiles.txt arrow: no Skill, so the owner's weapon damage x SrcDamage / 128, FUN_0064b860)
+        // as its swing's blow (merc_strike): its gear's elements, leech, Crushing Blow (halved), Open Wounds, item_slow,
+        // which a record with SrcDamage carries into the owner's event 6 (record flag 0x20, 0x5ad893).
+        d2d::rules::Swing flight{ .srcdam = missile.info ? missile.info->src_damage : 128 };
+        flight.missile = true;
+        auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
+        struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_strike)
+        auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)
+                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.level, rng);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
         land(monster_index, blow, false, now_ms, merc_foe_id());
         monster_return_fire(monster_index, missile, true, now_ms);
