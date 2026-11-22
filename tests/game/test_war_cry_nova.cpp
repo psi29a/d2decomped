@@ -2,13 +2,14 @@
 // test-links: game
 // A war cry from a monster (do 68, FUN_005d83e0: Shout): on its action
 // frame the nova of its srvmissilea (FUN_0056d400: 64 on rules::kNovaRing,
-// drawn, hitting nothing) and its aurastate on itself and an ally in reach.
+// drawn, hitting nothing) and its aurastate on itself; an ally gets it as the nova reaches it (hit 18).
 // Made-up rows (test_data.hpp): the rule, not the game's numbers.
 
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <level_ids.hpp>
+#include <missile_flight.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <test_data.hpp>
@@ -19,6 +20,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -29,6 +31,7 @@ int main() try {
     auto& data = fixture.data;
     auto& overseer = fixture.monster(0, "overseer1");
     overseer.velocity = 4;
+    overseer.size = 2;                                            // MonStats2 SizeX: a unit the nova can touch (missile_touches)
     overseer.walk_base = 256;   // its S1 plays at its walk rate (a moving mode under class 0x19a: FUN_006214a0)
     fixture.mon_level(1, 100, 10, 10, 10);
     auto& cry = fixture.skill(1, "Shout");
@@ -38,6 +41,7 @@ int main() try {
     fixture.state("shout");
     auto& shout = data.missiles["shout"];
     shout.name = "shout"; shout.vel = 10; shout.range = 10;
+    shout.hit_func = 18; shout.size = 1;                          // Missiles.txt shout: pSrvHitFunc 18 (FUN_005ab0b0), Size 1
     Level here;
     here.id = d2d::rules::level_ids::kBloodyFoothills;
     here.ds1 = d2d::ds1::Map(16, 16, 1, 1);
@@ -65,6 +69,14 @@ int main() try {
     std::printf("Shout: %zu missiles\n", shots.size());
     assert(shots.size() == 64);
     for (const auto& shot : shots) assert(shot.visual_only && shot.info == &data.missiles.at("shout"));
+    // The ally 0.4 cells off gets the state once the nova reaches it (hit 18), not at the cast.
+    assert(std::ranges::none_of(pack[1].states, [&](const Monster::SkillState& held) { return held.skill == 1; }));
+    std::array<Foe, 1> nobody{};
+    for (std::uint32_t now = kStart + 40; now < kStart + 2000 && !shots.empty(); now += 40) {
+        missiles_update(here, shots, std::span<Foe>(nobody.data(), 0), rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },
+                        [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});   // the flight (crossed subtiles)
+        war_cry_reach(data, here, shots, pack, now);
+    }
     assert(std::ranges::any_of(pack[1].states, [&](const Monster::SkillState& held) { return held.skill == 1; }));
     std::puts("OK: a monster's Shout sends its nova (64, drawn) and puts its state on an ally");
     return 0;
