@@ -489,7 +489,16 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 start_state(skill, lvl, now_ms);   // its allies as the nova reaches them (missile_tick)
             }
         } else if (skill.srvdofunc == ServerDoFunction::kGuidedMissile) {
-            auto& missile = send(dx, dy, range);
+            // Do 10 (FUN_005db6d0): at its unit; with none, flags 0x420, its range the frames to the point
+            // (flag 0x400, FUN_0056ee90: FUN_006417f0's subtile distance, at least 1, << 16 over velocity << 4),
+            // and nothing to seek (do 7 steers only at a unit).
+            int reach = range;
+            if (target < 0) {
+                const int velocity = d2d::rules::missile_velocity(missile_info.vel, missile_info.vel_lev, lvl);
+                const int apart = std::max(d2d::rules::ai_distance(int(std::floor(caster.to_x * 5)) - int(std::floor(caster.x * 5)), int(std::floor(caster.to_y * 5)) - int(std::floor(caster.y * 5))), 1);
+                if (velocity > 0) reach = std::max(int((std::int64_t(apart) << 16) / (std::int64_t(velocity) << 4)), 1);
+            }
+            auto& missile = send(dx, dy, reach);
             missile.target = target; missile.ed_pct = calc1;
         } else if (skill.srvdofunc == ServerDoFunction::kStrafe) {
             // St 8 (FUN_005dacd0): the clicked unit, else FUN_0056bd10's pick from -1 within aurarange; as many
@@ -647,13 +656,6 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 }
             }
             if (missile_info.srv_do == 7 && age % std::max(missile_info.param1, 1) == 0) {
-                if (missile.target < 0 && skill->srvstfunc == ServerStartFunction::kNone) {
-                    float best = 1e9f;
-                    for (std::size_t i = 0; i < monsters.size(); ++i)
-                        if (const float distance = std::hypot(monsters[i].unit.x - actor->cast_x, monsters[i].unit.y - actor->cast_y); monsters[i].targetable() && distance < best) {
-                            best = distance; missile.target = int(i);
-                        }
-                }
                 if (missile.target >= 0 && monsters[std::size_t(missile.target)].alive()) {
                     const auto& target = monsters[std::size_t(missile.target)];
                     const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = target.unit.x - missile.x, dy = target.unit.y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
