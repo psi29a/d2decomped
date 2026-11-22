@@ -34,6 +34,7 @@
 #include "roster.hpp"
 #include "scene.hpp"
 #include "session.hpp"
+#include "title_rules.hpp"
 #include "touch_input.hpp"
 #include "ui.hpp"
 #include "video.hpp"
@@ -81,7 +82,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <functional>
 #include <future>
 #include <initializer_list>
 #include <ios>
@@ -875,6 +875,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         session.enter();
     }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
+    bool frontend_restart = true;             // the playlist starts at track 0 (frontend_track)
     std::uint32_t last_ms = 0;
 
     // Watchdog — writes to stderr the second the main thread stops
@@ -1351,20 +1352,18 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         if ((prev_screen == Screen::InGame || prev_screen == Screen::Video) && !game_screen) audio.stop_world();
         if (screen == Screen::Video && prev_screen == Screen::InGame) audio.pause_world(true);
         // Frontend music (FUN_00516250's music thread + FUN_00514990): on
-        // the menus, whenever nothing plays, a random not-yet-played track
-        // of the 8-track list (the LoD one at 0x72f8b8; classic uses
-        // 0x72f878's), each played by path at full volume; all played ->
-        // start over (FUN_00514860). Entering a game stops it.
+        // the menus, whenever nothing plays, the next track of the 8-track
+        // list (the LoD one at 0x72f8b8; classic uses 0x72f878's), played
+        // by path at full volume (frontend_track picks it). Entering a game
+        // stops it (FUN_00514930); back on the menus it starts over.
+        if (screen == Screen::InGame) frontend_restart = true;
         if (scene && screen != Screen::InGame && screen != Screen::Video && audio.ok && audio.music.sound == 0) {
             static constexpr const char* kFrontendMusic[8] = {
                 R"(data\global\music\introedit.wav)", R"(data\global\music\act5\icecaves.wav)",
                 R"(data\global\music\act5\xtemple.wav)", R"(data\global\music\act2\desert.wav)",
                 R"(data\global\music\act2\sewer.wav)", R"(data\global\music\act3\kurast.wav)",
                 R"(data\global\music\act3\kurastsewer.wav)", R"(data\global\music\act4\diablo.wav)" };
-            if (std::ranges::all_of(frontend_played, std::identity{})) frontend_played.fill(false);
-            int pick = session.rng(8);
-            while (frontend_played[std::size_t(pick)]) pick = (pick + 1) % 8;
-            frontend_played[std::size_t(pick)] = true;
+            const int pick = frontend_track(frontend_played, frontend_restart, session.rng(8));
             audio.play_music_path(*scene, kFrontendMusic[pick], -(pick + 1), 1.f, false);
         }
         if (scene) {
