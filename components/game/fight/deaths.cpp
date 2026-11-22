@@ -512,14 +512,9 @@ auto Fight::player_thorns(std::size_t target, const d2d::rules::Blow& blow) -> v
             actor->self_hurt += std::int64_t(std::max(thorns * (100 - hero.dr_pct) / 100 - hero.dr_flat, 0)) << 8;
 }
 
-auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms, bool curse_in_swing) -> void {
+// A curse's damagepercent (Weaken) is in the blow before its roll: pet_swing's, or a Shadow's shadow_fighter.
+auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& blow, std::uint32_t now_ms) -> void {
         const int thorns = monsters[target].props.thorns;
-        auto blow = struck;
-        // A curse's damagepercent (Weaken) is in a blow built by pet_swing (before the roll, curse_in_swing); one
-        // from another fighter (a Shadow's owner's, its kick's) takes its share here.
-        // ponytail: those blows' stat 25 isn't joined to their fighter's percent before the roll.
-        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); !curse_in_swing && percent != 0 && blow.hit)
-            blow.damage = std::max(blow.damage + d2d::rules::resisted(blow.phys * percent / 100, target_of(target).res[0]), 0);
         const int target_life = monsters[target].life_fine();               // as FUN_005c6530 reads it: before the blow's loss
         const bool landed = land(target, blow, false, now_ms, pet.monster.id);
         // Blood Golem's life steal (its skill's domeleedamage event, func 23: rules::blood_golem_steal), on the

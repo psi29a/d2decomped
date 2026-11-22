@@ -3,7 +3,8 @@
 // A pet's own swing with a curse's damagepercent (Weaken) in it: FUN_0057b420
 // sums stat 25, the pet's own (summons.cpp, baked into A1) and the curse's,
 // floors it at -90 (0x57b5a8) and scales both ends before the roll, so the
-// blow's physical carries it (Fight::pet_swing). Synthetic rows: no game data.
+// blow's physical carries it (Fight::pet_swing); a Shadow's owner's fighter
+// takes it in the same sum (Fight::shadow_fighter). Synthetic rows: no game data.
 
 #include <combat.hpp>
 #include <cues.hpp>
@@ -66,18 +67,26 @@ int main() try {
     d2d::rules::classic_swing(cut, 2, 0);
     const auto classic_swing_blow = fight.pet_swing(classic_pet);
     assert(cut.a1_max < 120 && classic_swing_blow.max == cut.a1_max + cut.a1_max * -33 / 100);
-    // pet_strike: the curse is in the swing now, so nothing more comes off a pet's blow after the roll; a
-    // Shadow (it swings its owner's fighter) still takes its share there.
+    // A Shadow swings its owner's fighter with the curse in its damage % sum before the roll (shadow_fighter),
+    // floored at -90 with the rest, and in its kick's; pet_strike adds nothing after the roll.
     pet.buff_stats[d2d::d2s::kDamagePercent] = -33;
+    d2d::rules::Fighter owner;
+    owner.phys_lo = 10 << 8; owner.phys_hi = 10 << 8; owner.phys_pct = 50; owner.kick_pct = 20;
+    const auto shadow = Fight::shadow_fighter(pet, owner);
+    assert(shadow.phys_pct == 50 - 33 && shadow.kick_pct == 20 - 33 && shadow.phys_lo == owner.phys_lo);
+    owner.phys_pct = -70;
+    assert(Fight::shadow_fighter(pet, owner).phys_pct == -90);
+    d2d::rules::Target target;
+    d2d::rules::Rng roll{ 1 };
+    const auto shadow_blow = d2d::rules::player_blow(Fight::shadow_fighter(pet, owner), target, 99, roll);
+    if (shadow_blow.hit) assert(shadow_blow.phys == 1);                    // 10 points at -90 %, rolled on that
     auto& struck = fight.monsters.emplace_back();
     struck.type = 0; struck.id = 900; struck.stats.hit_points = struck.hit_points = 1000; struck.mode = "NU";
     d2d::rules::Blow blow{ .hit = true };
     blow.damage = blow.phys = 10; blow.phys_fine = 10 << 8;
-    fight.pet_strike(pet, 0, blow, 1000, true);                       // a pet_swing blow: the curse is in it
+    fight.pet_strike(pet, 0, blow, 1000);
     assert(struck.hit_points == 1000 - 10);
-    fight.pet_strike(pet, 0, blow, 2000);                             // another fighter's (a Shadow's): its share here
-    assert(struck.hit_points == 1000 - 10 - (10 + 10 * -33 / 100));
-    std::puts("OK: a pet's swing takes a curse's damagepercent with its own, floored at -90, before the roll; pet_strike adds it only to a blow from another fighter");
+    std::puts("OK: a pet's swing, and a Shadow's owner's fighter, take a curse's damagepercent with their own, floored at -90, before the roll");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_pet_weaken: %s\n", error.what());

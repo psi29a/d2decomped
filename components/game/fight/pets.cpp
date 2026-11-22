@@ -271,6 +271,17 @@ auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
         return d2d::rules::simple_fighter(std::max(swung.a1_min + base[0] * curse / 100, 0), std::max(swung.a1_max + base[1] * curse / 100, 0), swung.to_hit);
     }
 
+// A Shadow's blow is its owner's Fighter (its copied gear) with its own
+// stat 25 (a curse on it: Weaken) in the same damage % sum before the roll,
+// as FUN_0057b420 reads the unit's stat 25 whole: the weapon's, floored at
+// -90 (0x57b5a8), and the kick's (FUN_00646280).
+auto Fight::shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter) -> d2d::rules::Fighter {
+        const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent);
+        fighter.phys_pct = std::max(fighter.phys_pct + percent, -90);
+        fighter.kick_pct += percent;
+        return fighter;
+    }
+
 auto Fight::pet_skill_damage(Pet& pet) -> void {
         const auto* skill = pet.skill_damage && skill_level ? game_data->skills.get(pet.skill) : nullptr;
         if (!skill) return;
@@ -339,9 +350,9 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
-                        auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : pet_swing(pet), target, monster.stats.level, rng);
+                        auto blow = d2d::rules::player_blow(pet.mirror ? shadow_fighter(pet, actor->player_combat) : pet_swing(pet), target, monster.stats.level, rng);
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
-                        pet_strike(pet, monster_index, blow, now_ms, !pet.mirror);
+                        pet_strike(pet, monster_index, blow, now_ms);
                     }
                 }
                 if (now_ms < monster.mode_until) continue;
@@ -1201,7 +1212,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
             auto& unit = pet.monster.unit;
             put_near(*level, crowd, unit, foe.x, foe.y);
             unit.path.clear(); unit.walking = false;
-            auto fighter = actor->pf_kick;
+            auto fighter = shadow_fighter(pet, actor->pf_kick);
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
             add_charges(pet.charges, fighter, swing, false);
             const auto target_view = target_of(std::size_t(target));
@@ -1217,7 +1228,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         // As the player's hit: a charge-up's hit adds a charge, a finisher
         // takes the charges' bonus and releases them on a hit.
         auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
-        auto fighter = swing.kick ? actor->pf_kick : actor->player_combat;
+        auto fighter = shadow_fighter(pet, swing.kick ? actor->pf_kick : actor->player_combat);
         if (const int length = pet_buff_stat(pet, d2d::d2s::kPoisonLength); length > 0) {   // Venom: its poison on the blow
             auto& [low, high] = fighter.elem[3];
             low += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage) * length / 256; high += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage) * length / 256;
@@ -1298,7 +1309,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng), now_ms, true);
+            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng), now_ms);
     }
 
 }  // namespace d2d::game
