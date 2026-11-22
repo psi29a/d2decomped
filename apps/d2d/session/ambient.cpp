@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <format>
 #include <optional>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -218,9 +219,7 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
                 if (critter.seed.next() & 1) across = -across;
                 if (critter.seed.next() & 1) down = -down;
                 float to_x = 3 * (player_x + float(across) / 5) - 2 * critter.x, to_y = 3 * (player_y + float(down) / 5) - 2 * critter.y;
-                const float length = std::hypot(to_x - critter.x, to_y - critter.y), most = 77.f / 5;
-                // ponytail: cut short along the line; game.exe's path stops at its 77th subtile, same line for a flyer.
-                if (length > most) { to_x = critter.x + (to_x - critter.x) * most / length; to_y = critter.y + (to_y - critter.y) * most / length; }
+                std::tie(to_x, to_y) = d2d::rules::flight_end(critter.x, critter.y, to_x, to_y);   // 77 steps at most
                 walk_to(critter, to_x, to_y, 0);
                 continue;
             }
