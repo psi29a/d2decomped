@@ -143,8 +143,19 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     boots' mindam / maxdam, their Str / DexBonus + stat 25 at least -90, +
     stat 17, the weapon's stats off), then each end kick + MulDiv(kick, %
     out, 100) + (MinDam / MaxDam >> 8) + MulDiv(that, the skill's %, 100)
-    (0x4ebab7..0x4ebb00), + FUN_004e7120's adds; one value. d2d keeps no
-    charge-ups' share or adds.
+    (0x4ebab7..0x4ebb00), + FUN_004e7120's adds; one value.
+  - The charge-ups: FUN_004e6ff0 sums, over the listed states (data
+    +0x16c / +0x170) the player has, ln12 (FUN_004e6ca0, ECX stat 0x15e's
+    row, EDX stat 0x15f the level, 0x4e70e4) x the row's first aurastat
+    (+0x54, the charges) for a prgdam-1 row (+0x44: Tiger Strike).
+    FUN_004e86f0 adds it to the % when the skill's flag +4 & 8 is set
+    (finishing: the field entry at 0x6165b7, bit 3 at 0x6165c7; Attack and
+    the Dragon skills), colour 3. FUN_004e7120 adds each one's SkillDesc
+    p<n>dmmin / p<n>dmmax (+0x24 / +0x30 + 4n, FUN_00646d00) at n = its
+    charges clamped 1..3, colour by p<n>dmelem (+0x1f + n, 1..0xc,
+    FUN_004e6fb0); without a SkillDesc row EMin / EMax with mastery >> 8.
+    FUN_004e89a0 calls it after its clamp, for a finisher only; 15 calls
+    it itself. d2d: `PanelUnit::charges`.
   - 16 (0x4ebb50; Dragon Tail): EType's colour (FUN_004e6fb0); 15's sum
     with FUN_004e6ff0's share alone as the skill's % (no ln12) and
     FUN_00647bc0 / FUN_00647d00's last argument 0; each end + MulDiv(end,
@@ -182,7 +193,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: the charge-ups' share and adds in 15 / 16, stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: stat 325, barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)

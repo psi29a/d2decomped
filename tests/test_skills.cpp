@@ -390,6 +390,29 @@ int main() try {
         const int tail_low = 10 + 10 * 30 / 100 + 4, tail_high = 20 + 20 * 30 / 100 + 8;
         assert(line.damage && !line.two && line.min == tail_low + tail_low * 50 / 100 + 1 && line.max == tail_high + tail_high * 50 / 100 + 2);
         assert(line.damage_colour == 3);
+        {   // The charge-ups (FUN_004e6ff0 / FUN_004e7120): a prgdam-1 row's ln12 at its level x its charges
+            // (Tiger Strike's 100 + 20 at level 2, x 3: 360) joins a finisher's weapon % (flag bit 3, colour 3);
+            // a described row's p<n>dmmin / max at its charges (2: 3-9 fire) goes on after the clamp.
+            SkillTables charged_tables = skill_tables;
+            Skill tiger_row = charged_tables.rows[0];
+            tiger_row.id = int(charged_tables.rows.size()); tiger_row.prgdam = 1; tiger_row.par[0] = 100; tiger_row.par[1] = 20;
+            charged_tables.rows.push_back(tiger_row);
+            Skill fists_row = charged_tables.rows[0];
+            fists_row.id = int(charged_tables.rows.size()); fists_row.prgdam = 4; fists_row.described = true;
+            fists_row.prg_dmg_min[1] = compile("3"); fists_row.prg_dmg_max[1] = compile("9"); fists_row.prg_dmg_elem[1] = 0;
+            charged_tables.rows.push_back(fists_row);
+            PanelUnit charged;
+            charged.charges = { { tiger_row.id, 2, 3 }, { fists_row.id, 4, 2 } };
+            Skill attack = weapon_skill;
+            attack.descdam = 7; attack.srcdam_raw = 128; attack.ddam_calc1 = {}; attack.ddam_calc2 = {};
+            const auto plain = attack_line(charged_tables, attack, env, 5, fighter, 5, 0, 0, 0, charged);   // not a finisher
+            const auto unheld = attack_line(charged_tables, attack, env, 5, fighter, 5);
+            assert(plain.min == unheld.min && plain.max == unheld.max);
+            attack.finishing = true;
+            const auto finished = attack_line(charged_tables, attack, env, 5, fighter, 5, 0, 0, 0, charged);
+            assert(finished.min - unheld.min == 3 * 490 / 100 - 3 * 130 / 100 + 3 && finished.max - unheld.max == 7 * 490 / 100 - 7 * 130 / 100 + 9);
+            assert(finished.damage_colour == 1);
+        }
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.
         Skill arrow = skill_tables.rows[0];

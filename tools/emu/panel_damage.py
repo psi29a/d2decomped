@@ -630,6 +630,9 @@ def d2d_weapon_sum(case):
     else:
         low, high = max(low, 1), max(high, 2)
     pct = case["calc1"] + stats.get(25, 0) + case["mastery"]
+    colour = 0
+    if case["finishing"] and case["charge_share"]:              # FUN_004e6ff0's share, a finisher's (flag +4 & 8)
+        pct += case["charge_share"]; colour = 3
     if case["wielded"]:
         if case["str_bonus"]:
             pct += trunc_div(stats.get(0, 0) * case["str_bonus"], 100)
@@ -641,7 +644,7 @@ def d2d_weapon_sum(case):
     normal = case["normal"] if case["wielded"] else 0
     low = trunc_div((stats.get(18, 0) + 100 + pct) * low, 100) + normal + case["calc2"]
     high = trunc_div((stats.get(17, 0) + 100 + pct) * high, 100) + normal + case["calc2"]
-    colour = 1 if case["red"] else 3 if case["blue"] else 0
+    colour = 1 if case["red"] else 3 if case["blue"] else colour
     return low, high, colour
 
 
@@ -663,6 +666,7 @@ def main_weapon_sum():
     e.hook(DEX_BONUS, lambda _e: case["dex_bonus"] & 0xFFFF, 1)
     e.hook(DAM_BLUE, lambda _e: int(case["blue"]), 1)
     e.hook(DAM_RED, lambda _e: int(case["red"]), 1)
+    e.hook(CHARGE_SHARE, lambda _e: case["charge_share"] & 0xFFFFFFFF, 0)
     rng = random.Random(1186)
     out = e.alloc(0x10)
     bad = 0
@@ -674,11 +678,13 @@ def main_weapon_sum():
             calc1=rng.choice((0, 0, 50, 180, -40)), calc2=rng.choice((0, 0, 3, 12)), mastery=rng.choice((0, 0, 30, 95)),
             str_bonus=rng.choice((0, 0, 50, 100)), dex_bonus=rng.choice((0, 0, 50, 75)), normal=rng.choice((0, 0, 4, 17)),
             blue=rng.random() < 0.2, red=rng.random() < 0.2,
+            finishing=rng.random() < 0.5, charge_share=rng.choice((0, 0, 100, 360, -50)),
             stats={21: rng.randrange(-3, 40), 22: rng.randrange(-3, 90), 23: rng.randrange(-3, 60), 24: rng.randrange(-3, 150),
                    25: rng.choice((0, 0, 30, 125, -95)), 0: rng.randrange(10, 300), 2: rng.randrange(10, 250),
                    17: rng.choice((0, 0, 50, 150)), 18: rng.choice((0, 0, 40, 99))})
         e.mu.mem_write(row, bytes(0x23C))
         e.mu.mem_write(row + 0x1A5, bytes((case["srcdam"],)))
+        e.mu.mem_write(row + 4, bytes((8 if case["finishing"] else 0,)))   # flag dword +4 bit 3: finishing
         e.mu.mem_write(out, bytes(0x10))
         e.call(WEAPON_SUM, out, out + 4, out + 8, case["calc2"], node, case["share"], 0, 0, ecx=unit, regs={"EAX": case["calc1"] & 0xFFFFFFFF})
         got = (signed(e.r32(out)), signed(e.r32(out + 4)), e.r32(out + 8))
