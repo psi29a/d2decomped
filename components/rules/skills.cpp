@@ -549,12 +549,14 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.max += skill.par[4] * line.max / 100;
         elements_of(fighter, line);
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
-    } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
-        // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
-        // then the element (0x4ebe07); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0
-        // the weapon (0x4ebe5b).
+    } else if (skill.descdam == 17 || skill.descdam == 23) {   // FUN_004ebd50 (Charged / Lightning Strike), FUN_004eaf90 (Rabies)
+        // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale:
+        // both push share 0x80, 0x4ebdbc / 0x4eafb5), then the element (0x4ebe07; 23's 0x4eb009: poison x
+        // ELen); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0 the weapon (0x4ebe5b).
+        // 23 pushes no ddam calcs (0 at 0x4eafbb, EAX 0).
         line.damage = true;
-        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+        const bool calcs = skill.descdam == 17;
+        weapon(calcs ? calc_of(skill.ddam_calc1) : 0, calcs ? calc_of(skill.ddam_calc2) : 0);
         line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
         const AttackLine upper = line;
         line.min = line.max = line.damage_colour = 0;

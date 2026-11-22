@@ -132,6 +132,10 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     FUN_00643ce0; IMUL 0x51eb851f, truncated: 0x4eb9c4..0x4eb9f9), then
     FUN_004e89a0 and one value (FUN_004e96e0). Oracle:
     `tools/emu/panel_damage.py`.
+  - 23 (0x4eaf90; Rabies): 17's (0x4ebd50) with no ddam calcs (0 pushed
+    at 0x4eafbb, EAX 0); both push share 0x80 to FUN_004e86f0 (0x4eafb5 /
+    0x4ebdbc: the weapon unscaled whatever the row's SrcDam, Rabies' 0),
+    then FUN_004e72d0's element (poison x ELen) under it.
 - **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
   When either is set: `"%s\nAttack Rating"` (0xfdf; 0xfe1 `"%s\nRating"`
   for skill 0, Attack) with the upper-cased name, font6, halves at y-4 /
@@ -161,7 +165,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 15, 16, 23 (the Assassin's kicks, the Druid's Rabies), stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: descdam 15, 16 (the Assassin's kicks), stat 325, barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)

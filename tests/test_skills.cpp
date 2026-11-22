@@ -359,6 +359,13 @@ int main() try {
         hunger.descdam = 14; hunger.par[4] = -75;
         line = attack_line(skill_tables, hunger, env, 5, fighter, 5);
         assert(line.damage && !line.two && line.min == 3 * 130 / 100 + (-75 * (3 * 130 / 100)) / 100 + 2 && line.max == 9 + (-75 * 9) / 100 + 4 && line.damage_colour == 1);
+        // descdam 23 (Rabies, FUN_004eaf90): 17's line without its ddam calcs, the weapon's 3-9 + fire
+        // 2-4 over the element (poison x ELen in Rabies' row; lightning 1-40 here).
+        Skill rabies = strike;
+        rabies.descdam = 23; rabies.emin = 1; rabies.emax = 40;
+        line = attack_line(skill_tables, rabies, env, 5, fighter, 5);
+        assert(line.damage && line.two && line.min == 3 + 2 && line.max == 9 + 4 && line.damage_colour == 1);
+        assert(line.min2 == 1 && line.max2 == 40 && line.colour2 == 9);
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.
         Skill arrow = skill_tables.rows[0];

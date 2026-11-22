@@ -564,7 +564,8 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //   damage, descdam 18 (FUN_004ec040, Royal Strike): 7's (FUN_004ea010).
 //   damage, descdam 14 (FUN_004eb940, Hunger): the weapon part (no ddam
 //     calcs) + Param5 % of each end (-75), then its elements.
-// ponytail: descdam 15, 16, 23 (Dragon Talon / Flight, Dragon Tail, Rabies) show no line;
+//   damage, descdam 23 (FUN_004eaf90, Rabies): 17's, no ddam calcs.
+// ponytail: descdam 15, 16 (Dragon Talon / Flight, Dragon Tail) show no line;
 // stat 325 (an Assassin's progressive to-hit) is left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
