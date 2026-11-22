@@ -32,23 +32,13 @@ struct Drop { std::string code; int quality = 2; int gold = 0; int mul = 0; int 
 // spot takes it into account. An empty one places every drop.
 using Placement = std::function<bool(const Drop&, int made)>;
 
-// The item's quality at item level ilvl (FUN_00558640, all draws off the
-// dropper's seed): a type flagged Normal stays normal; a base that only
-// drops unique (Items +0x129), or a quest item of a Magic type, is unique.
-// A Magic type is magic past those; else magic (mf undiminished),
-// superior, normal, low. mod: Unique, Set, Rare, Magic.
+// The item's quality at item level ilvl.
 int roll_quality(const Tables& tables, const std::string& code, int ilvl, const std::array<int, 4>& mod, Rng& rng, int magic_find = 0);
 
-// The quality an item asked for at `quality` is made at (FUN_00557450):
-// an always-magic type's quest base unique, else magic at least; no rare
-// where the type can't be; an only-unique base unique; an always-normal
-// type (or none) normal.
+// The quality an item asked for at `quality` is made at.
 int made_quality(const Tables& tables, const std::string& code, int quality);
 
-// A stand's item's quality (FUN_00556f60, nothing asked for), the first
-// draw on its own seed: unique, rare, set, magic, superior, normal in
-// turn, each won at rand(base - past / divisor) == 0 (odds under 1 win),
-// past being ilvl - qlvl, at least 1. A quest base is normal.
+// A stand's item's quality, the first draw on its own seed.
 int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed);
 
 // One TreasureClassEx item cell (FUN_00654440): the code, then comma
@@ -58,13 +48,10 @@ int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& 
 struct TreasureEntry { std::string code; int flags = 0; int index = 0; };
 TreasureEntry treasure_entry(std::string cell);
 
-// A gold pile's coins (FUN_00557ab0, the first draw on the new item's
-// unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
-// a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
+// A gold pile's coins: ilvl + rand(5 ilvl), at least 1; a ",mul=N" entry scales it by N / 256.
 int gold_amount(int ilvl, int mul, Rng& item_seed);
 
-// A monster's class moved on by level (FUN_00654e00): while the next row
-// of its group has a level <= lvl.
+// A monster's class moved on by level: while the next row of its group has a level <= lvl.
 std::string tc_upgrade(const Tables& tables, std::string name, int lvl);
 
 namespace detail {
@@ -112,11 +99,7 @@ int chest_round(const Tables& tables, const std::string& treasure_class, Rng& un
 struct AutoBase { std::string code, type, type2; int level = 0; };
 void add_auto_treasure(Tables& tables, const std::vector<std::string>& type_order, const std::vector<AutoBase>& bases);
 
-// A vendor's item (FUN_00576330) for a fill's ask: in Nightmare above clvl
-// 25 rand(100000) on the proxy seed under ilvl * 64 + 4000 takes the
-// ubercode, else the NightmareUpgrade; in Hell an expansion game's roll under
-// ilvl * 16 + 1000 the ultracode, else under ilvl * 128 + 5000 the ubercode,
-// then the HellUpgrade wins.
+// A vendor's item for a fill's ask.
 std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreAsk& ask, int difficulty, int clvl, bool expansion,
                                               Rng& proxy, Rng& game, std::vector<bool>* found_uniques);
 

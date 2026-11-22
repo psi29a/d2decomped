@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of drops.hpp's functions; their notes are in the header.
+// The bodies of drops.hpp's functions, with the research behind each.
 #include "drops.hpp"
 
 #include "replenish.hpp"
@@ -18,6 +18,12 @@
 #include <vector>
 
 namespace d2d::rules {
+
+// The item's quality at item level ilvl (FUN_00558640, all draws off the
+// dropper's seed): a type flagged Normal stays normal; a base that only
+// drops unique (Items +0x129), or a quest item of a Magic type, is unique.
+// A Magic type is magic past those; else magic (mf undiminished),
+// superior, normal, low. mod: Unique, Set, Rare, Magic.
 
 // Then unique, set, rare (Rare types) in turn: odds (base - (ilvl - qlvl)
 // / divisor) * 128, with magic find times 100 / (mf + 100, diminished past
@@ -59,6 +65,11 @@ int roll_quality(const Tables& tables, const std::string& code, int ilvl, const 
     return normal < 1 || rng(normal) < 128 ? 2 : 1;
 }
 
+// The quality an item asked for at `quality` is made at (FUN_00557450):
+// an always-magic type's quest base unique, else magic at least; no rare
+// where the type can't be; an only-unique base unique; an always-normal
+// type (or none) normal.
+
 // A unique / set answers as asked even with no row; game.exe makes it rare
 // / magic (FUN_005573f0 / FUN_00557380), and the only reader
 // (open_container: FUN_00585f60's FUN_0062a0f0, quality 4..9) counts both
@@ -76,6 +87,11 @@ int made_quality(const Tables& tables, const std::string& code, int quality) {
     if (base->second.only_unique) quality = 7;
     return type.always_normal ? 2 : quality;
 }
+
+// A stand's item's quality (FUN_00556f60, nothing asked for), the first
+// draw on its own seed: unique, rare, set, magic, superior, normal in
+// turn, each won at rand(base - past / divisor) == 0 (odds under 1 win),
+// past being ilvl - qlvl, at least 1. A quest base is normal.
 
 // None: superior (args +0x80 & 0x40, set by FUN_005594c0 / FUN_00559630).
 // Then made.
@@ -106,6 +122,10 @@ TreasureEntry treasure_entry(std::string cell) {
     return entry;
 }
 
+// A gold pile's coins (FUN_00557ab0, the first draw on the new item's
+// unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
+// a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
+
 // Gold find (FUN_005589a0: times 100 + the killer's stat 0x4f, / 100) is
 // the caller's (Loot::put).
 int gold_amount(int ilvl, int mul, Rng& item_seed) {
@@ -113,6 +133,9 @@ int gold_amount(int ilvl, int mul, Rng& item_seed) {
     const int gold = std::max(ilvl + item_seed(5 * ilvl), 1);
     return mul ? gold * mul >> 8 : gold;
 }
+
+// A monster's class moved on by level (FUN_00654e00): while the next row
+// of its group has a level <= lvl.
 
 // lvl 0 (normal difficulty, a MonStats noRatio or boss row:
 // FUN_0055afa0) keeps it.
@@ -234,6 +257,12 @@ void add_auto_treasure(Tables& tables, const std::vector<std::string>& type_orde
     }
 }
 
+// A vendor's item (FUN_00576330) for a fill's ask: in Nightmare above clvl
+// 25 rand(100000) on the proxy seed under ilvl * 64 + 4000 takes the
+// ubercode, else the NightmareUpgrade; in Hell an expansion game's roll under
+// ilvl * 16 + 1000 the ultracode, else under ilvl * 128 + 5000 the ubercode,
+// then the HellUpgrade wins.
+
 // Made as a drop (FUN_00559ce0 -> FUN_00558d90: two game seed steps, the
 // type flags, generate_item); a "Cracked" low one (LowQualityItems row 1) is
 // thrown away and made again, five tries. FUN_00576330's other remake (the
@@ -270,5 +299,7 @@ std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreA
     }
     return std::nullopt;
 }
+
+
 
 }
