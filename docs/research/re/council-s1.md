@@ -260,6 +260,10 @@ runs `FUN_00597e20` and captures A1 commands 11/10 and S1 commands
 monster's position correction at +0xc and +0xe. The original client
 applies it before dispatching the command (`FUN_0045cf40` / `FUN_0045cfb0`).
 d2d applies the correction and uses the aim to face A1, A2 and S1.
+For an original host's Council A1 command, d2d draws the stock-rate
+pose from the elapsed 40 ms ticks and restarts its clock on each command.
+`FUN_00623e00` gives zero-based frames 1 and 3 at ticks 3 and 6 at
+rate 168. The elapsed renderer's integer 60 ms division gave 2 and 4.
 Player, hireling and pet attack clocks use their own paths.
 
 The d2d regressions map original Council IDs 345–347 to reordered

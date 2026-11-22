@@ -9,6 +9,7 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <combat.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
@@ -543,7 +544,20 @@ auto ClientSession::net_overlay() -> void {
             monster.unit.x = cell_x(unit.x);
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
-            monster.mode = host_mode(unit, monster.npc);
+            monster.scheduled_anim_position.reset();
+            const bool council_melee = unit.cls >= 345 && unit.cls <= 347 && (unit.mode == 10 || unit.mode == 11)
+                && unit.life != 0;
+            if (council_melee) {
+                // FUN_00623e00 steps the pose in 1/256 frames each game tick.
+                // Start from the time of the latest command, including repeated A1s.
+                const auto& anim = scene->npc_anim(monster.npc, "A1");
+                const auto elapsed = net_game->steady_now() - unit.mode_ms;
+                monster.scheduled_anim_position = d2d::rules::fixed_animation_position(
+                    elapsed, anim.speed ? anim.speed : anim.cof_speed, anim.frames ? anim.frames : anim.cof_frames);
+                monster.mode = monster.scheduled_anim_position ? "A1" : unit.moving ? "WL" : "NU";
+            } else {
+                monster.mode = host_mode(unit, monster.npc);
+            }
             if ((monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1") && unit.attack_aim) {
                 const auto [aim_x, aim_y] = *unit.attack_aim;
                 if (aim_x != unit.x || aim_y != unit.y) monster.unit.dir = direction16(aim_x - unit.x, aim_y - unit.y);

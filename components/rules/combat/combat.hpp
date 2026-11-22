@@ -112,6 +112,16 @@ int attack_speed(int rate, int ias, int wsm, int sias = 0);
 // The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame
 // `start` and plays `speed` / 256 frames a tick.
 int frame_tick(int frame, int start, int speed);
+
+// Position in 1/256 frames for a constant-rate animation starting at frame 0.
+// An empty result means the animation is missing, stopped, or has ended.
+constexpr std::optional<std::uint32_t> fixed_animation_position(
+    std::uint32_t elapsed_ms, std::uint32_t speed, std::uint32_t frames) {
+    const auto position = std::uint64_t(elapsed_ms / 40) * speed;
+    if (speed == 0 || position >= std::uint64_t(frames) * 256) return std::nullopt;
+    return std::uint32_t(position);
+}
+
 int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0);
 // The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
 int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0);
