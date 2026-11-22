@@ -566,9 +566,11 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     calcs) + Param5 % of each end (-75), then its elements.
 //   damage, descdam 23 (FUN_004eaf90, Rabies): 17's, no ddam calcs.
 //   damage, descdam 15 (FUN_004eba30, Dragon Talon / Flight): the kick at
-//     its % + ln12 %, + MinDam..MaxDam at ln12 %.
-// ponytail: descdam 16 (Dragon Tail) shows no line;
-// stat 325 (an Assassin's progressive to-hit) is left out.
+//     its % + ln12 %, + MinDam..MaxDam at ln12 %; 16 (FUN_004ebb50, Dragon
+//     Tail): the kick at its % + MinDam..MaxDam, x calc1 %, then the
+//     elements with the weapon's stats off (PanelUnit::kick).
+// ponytail: stat 325 (an Assassin's progressive to-hit) is left out, and
+// so are the charge-ups' share and adds in 15 / 16 (FUN_004e6ff0, FUN_004e7120).
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
 // armblue 0x13 / armred 0x19, rfblue 0x14 / rfred 0x1a, rcblue 0x15 /
@@ -609,6 +611,7 @@ struct PanelUnit {
     Hand main_hand, off_hand;
     int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
     bool armed = true;           // a weapon wielded (FUN_0063bef0); without one FUN_004e86f0 adds the strength to the %
+    const Fighter* kick = nullptr;   // the unit with the wielded weapon's stats off (FUN_00627910): Dragon Tail's elements
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,

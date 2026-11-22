@@ -376,6 +376,20 @@ int main() try {
         line = attack_line(skill_tables, talon, env, 5, booted, 5);
         assert(line.damage && !line.two && line.min == 10 + 10 * 63 / 100 + 4 + 4 * 33 / 100 && line.max == 20 + 20 * 63 / 100 + 8 + 8 * 33 / 100);
         assert(line.damage_colour == 3);
+        // descdam 16 (Dragon Tail, FUN_004ebb50): the kick 10-20 at its 30 % + MinDam..MaxDam 4-8, x calc1
+        // 50 %, then the elements of the unit with its weapon off (cold 1-2 here, not the weapon's fire),
+        // in cold's colour: tools/emu/panel_damage.py.
+        Skill tail = talon;
+        tail.descdam = 16; tail.etype = 0; tail.calc[0] = compile("50");
+        Fighter weapon_off = booted;
+        weapon_off.elem = {};
+        weapon_off.elem[2] = { 1, 2 };
+        PanelUnit tail_unit;
+        tail_unit.kick = &weapon_off;
+        line = attack_line(skill_tables, tail, env, 5, booted, 5, 0, 0, 0, tail_unit);
+        const int tail_low = 10 + 10 * 30 / 100 + 4, tail_high = 20 + 20 * 30 / 100 + 8;
+        assert(line.damage && !line.two && line.min == tail_low + tail_low * 50 / 100 + 1 && line.max == tail_high + tail_high * 50 / 100 + 2);
+        assert(line.damage_colour == 3);
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.
         Skill arrow = skill_tables.rows[0];
