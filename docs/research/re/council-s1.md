@@ -6,28 +6,31 @@ immediate. No game rule is changed by this contribution.
 
 ## Scope and result
 
-For an ordinary, unmodified Council S1 animation starting at frame zero,
-the original scheduler files one action event at **start + 4 game ticks**
-(160 ms at 25 ticks/s). The event is type 0, with animation event value 2
-and action index 0. Dispatching that event through the original mode
-dispatcher reaches the S1 missile request.
+The original scheduler (`FUN_005539b0`) files one action event, type 0
+with animation event value 2 and action index 0, on the first tick whose
+animation position reaches the event frame: tick max(1, ceil(256 x 3 /
+rate)), where rate is the word `FUN_00623f50` stores at unit +0x4c.
+Dispatching that event through the original mode dispatcher reaches the S1
+missile request.
 
 The local MonStats rows for councilmember1, councilmember2 and
 councilmember3 use code HP, AI HighPriest and MissS1
-`highpriestlightning`. Their MonStats2 S1mv fields are blank: this is the
-stationary-mode path. The local AnimData record HPS1HTH has 14 frames,
-rate 200 (in 1/256-frame units per tick), and its only event is value 2
-at frame index 3. The scheduler reaches that index on tick 4, not on the
-AI's initial choice of mode 8.
+`highpriestlightning`. The local AnimData record HPS1HTH has 14 frames,
+rate 200 and its only event, value 2, at frame index 3. That 200 is
+**not** the rate S1 plays at: game.exe's mode row for S1 at `0x6e8b90`
+(classes under 0x19a, `+0x14 x 8 + 4` = 1) makes it a moving mode for
+`FUN_006214a0`, so `FUN_00623f50` stores the MonStats walk base times
+velocitypercent (stat 0x43), as for WL. With the stock velocitypercent
+75 (`FUN_00573cb0`) the rates are 126, 168 and 210, and the shot comes
+**7, 5 and 4 ticks** after the mode starts for classes 345, 346 and 347.
+The first section's fixtures write 200 at +0x4c, where the event is at
+start + 4 ticks.
 
-Current d2d already waits for its animation deadline before emitting
-MissS1. At the source revision used here (`7d5b3a5c`), the unmodified
-deadline is `(40 * 256 / 200) * 3 = 153` ms using integer division. On
-40-ms ticks its first eligible update is 160 ms. This is an arithmetic
-check of the source expression, **not an executed C++ differential** or
-a measurement of the installed 0.8.0 binary. The old "fires at once"
-description is therefore stale; full timing parity remains a separate
-check.
+d2d files its shot on the same tick (`ai.hpp` `action_due_ms`:
+`rules::frame_tick` on `mode_rate`), checked against game.exe over walk %
+and anim % below. The old ms deadline gave the same ticks over that grid;
+it differed elsewhere (at a 254 rate for this record, tick 3 against 4:
+`tests/game/test_action_tick.cpp`).
 
 ## Original-code route
 
@@ -102,11 +105,24 @@ synthetic metadata and require no game files.
 - Difficulty lookup supplies MonsterSkillBonus 0; the missile-creation
   sink records the request and returns zero. No real projectile or
   post-spawn hook is executed.
-- No speed modifiers, chill, Fanaticism, animation restart, offscreen
-  update, full AI choice, damage or to-hit comparison is claimed.
-- No built-d2d differential, live test of D2D 0.8.0, or independent
-  maintainer re-run has been performed.
+- No full AI choice, damage or to-hit comparison is claimed.
 
-The remaining task is a narrowly scoped d2d differential or runtime
-check, especially for speed modifiers. A change to the animation rules
-should be based on that comparison rather than on the obsolete todo.
+## The built-d2d differential
+
+`test_action_tick --council` prints the Council's S1 in d2d over walk %
+25..175 and anim % -85..75 (105 rows: class, walk %, anim %, d2d's rate
+and tick). `council_s1.py compare` runs game.exe's `FUN_00623f50` on each
+row (mode_rates.py's rig and hooks: the stats are the row's) and then
+`FUN_005539b0` with that rate on the stock HPS1HTH record, and compares
+rate and tick:
+
+```sh
+set -o pipefail; build/tests/test_action_tick --council | grep '^D ' > d2d.tsv
+cd tools/emu && uv run python council_s1.py compare ../../d2d.tsv
+```
+
+Result (2026-11-22): **105 rows, 0 differ**. A row with its tick changed
+by one is reported (`DIFF ...`, exit 1). Chill changes velocitypercent
+and other_animrate alike (`chill_pct`), so it is inside the grid. Not
+covered: IAS, FRW (S1 here is a moving mode: FRW would count), the event
+queue's own ordering and interruption.

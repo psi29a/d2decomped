@@ -360,6 +360,18 @@ int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string
     return anim_rate_pct(monster, mode, skill && skill->use_attack_rate);
 }
 
+// FUN_005539b0 walks the animation from FUN_00623b10's start frame (0 for a
+// monster that isn't transformed) at the unit's rate (+0x4c, FUN_00623f50:
+// mode_rate) and files the event frame's marker on the first tick that
+// reaches it, rules::frame_tick (council-s1.md).
+// ponytail: a mode with no event frame files no marker there, so game.exe
+// fires nothing; d2d still strikes it halfway, as it did before.
+std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const auto& timing = game_data.npc_timing(monster.npc, mode);
+    if (timing.action < 0) return timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
+    return std::uint32_t(d2d::rules::frame_tick(timing.action, 0, std::max(mode_rate(game_data, monster, mode), 1))) * 40;
+}
+
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
     for (const auto& npc : level.npcs) out.push_back({ .x = Fine(npc.x), .y = Fine(npc.y), .shape = npc.shape });
@@ -2011,7 +2023,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     ++monster.seq_sounds;
                 }
             }
-        } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, monster.mode))) {
+        } else if (!monster.struck && now_ms >= unit.mode_ms + action_due_ms(game_data, monster, monster.mode)) {
             monster.struck = true;
             due = 1;
         }
