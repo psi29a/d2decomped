@@ -63,7 +63,7 @@ inline constexpr std::array<std::array<int, 2>, 64> kNovaRing{ {
 // ((Vel + VelLev x lvl / 8) << 8) x 75 / 100.
 int missile_velocity(int vel, int vel_lev, int level);
 
-// Its life in frames, Range + LevRange x lvl (FUN_0064a330 keeps it a short).
+// Its life in frames, Range + LevRange x lvl.
 int missile_range(int range, int lev_range, int level);
 
 // FUN_0059f940: a Pierce row's charges as FUN_0059fa30 makes it (its stat
@@ -110,45 +110,21 @@ inline constexpr std::array<std::int8_t, 64> kDiffDirections{
 struct Facing {
     std::uint8_t now = 0, goal = 0;
     std::int8_t step = 0;
-    // FUN_006485f0 for a player's or monster's path: a new goal and its step.
-    void aim(int dir64) {
-        dir64 &= 0x3f;
-        if (dir64 == goal) return;
-        goal = std::uint8_t(dir64);
-        step = kDiffDirections[std::size_t((dir64 - now) & 0x3f)];
-    }
-    // FUN_00648640: a frame's turn, onto the goal once it reaches or passes it.
-    void turn() {
-        if (now == goal) return;
-        now = std::uint8_t((now + step) & 0x3f);
-        const int past = (now - goal) & 0x3f;
-        if ((past > 0x1f && step < 0) || (past < 0x1f && step >= 0)) now = goal;
-    }
+    void aim(int dir64);
+    void turn();
 };
 
-// Royal Strike's third release (FUN_005d5080): one missile's aim, in
-// subtiles, off the target.
+// Royal Strike's third release: one missile's aim, in subtiles, off the target.
 std::pair<int, int> release_spread_offset(Rng& seed);
 
-// A charge-up's scatter release (srvprgfunc 39, FUN_005d3f90): one try's
-// offset off the target in subtiles, radius - rand(2 x radius) on x, then
-// on y (0x5d4080..0x5d409c: EDX = EDI + EDI), so -radius + 1..radius. A
-// try further than radius (squared) makes nothing (the caller's test).
+// A charge-up's scatter release.
 std::pair<int, int> release_scatter_offset(Rng& seed, int radius);
 
-// Charged Bolt's path (FUN_005c9290 -> path type 10, FUN_0067a240): from
-// subtile (x, y), steps / 2 hops of two subtiles, each the 8-way way
-// toward (to_x, to_y) (FUN_00678c10 -> DAT_006f1518's first) turned -1, 0
-// or +1 by a draw on `seed` (low & 31 into -1, 0, 1, -1, ... with 31 at +1).
+// Charged Bolt's path.
 std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, int to_y, int steps, Rng seed);
 
-// Do 143's missiles' route (FUN_005d4870's path callback FUN_005d4680, path
-// type 10): `count` points (the range, 77 at most) from subtile (x, y), each
-// two subtiles on (0x6e32ac x, 0x6e328c y) along the 8-way (0x745600:
-// (dir + 4) / 8) of a heading that starts at direction64 toward (to_x, to_y)
-// and turns by turn x sign at every point: sign +1 when the first draw on
-// `seed` is odd, else -1; turn the next draw % 3 + 2 (DAT_00741b10). After
-// points 0, 15, 30 ... (DAT_00741b0c) the sign flips and turn is drawn again.
+// Do 143's missiles' route.
+// `seed` is odd, else -1; turn the next draw % 3 + 2. After
 std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, int count, Rng& seed);
 
 // Blessed Hammer's route (FUN_005d0040 gives its path type 14; FUN_00649760
@@ -178,16 +154,7 @@ struct MissileFlight {
     std::size_t point = 0;
     std::vector<std::pair<int, int>> crossed;
 
-    // FUN_0059fa30: from subtile (x, y)'s centre at (to_x, to_y)'s (path
-    // type 4 straight on: FUN_006492f0 -> FUN_0064fe40), never at itself.
-    static MissileFlight launch(int x, int y, int to_x, int to_y, int velocity, int max_velocity, int accel) {
-        if (to_x == x && to_y == y) { ++to_x; ++to_y; }
-        MissileFlight flight;
-        flight.x = (std::uint32_t(x) << 16) + 0x8000; flight.y = (std::uint32_t(y) << 16) + 0x8000;
-        std::tie(flight.aim_x, flight.aim_y) = missile_aim(flight.x, flight.y, (std::uint32_t(to_x) << 16) + 0x8000, (std::uint32_t(to_y) << 16) + 0x8000);
-        flight.velocity = velocity; flight.max_velocity = max_velocity; flight.accel = accel;
-        return flight;
-    }
+    static MissileFlight launch(int x, int y, int to_x, int to_y, int velocity, int max_velocity, int accel);
     [[nodiscard]] int subtile_x() const { return std::int16_t(x >> 16); }   // game.exe's subtiles are shorts
     [[nodiscard]] int subtile_y() const { return std::int16_t(y >> 16); }
 
@@ -298,29 +265,7 @@ bool walk_frame(std::uint32_t& x, std::uint32_t& y, std::span<const std::pair<in
     return going;
 }
 
-// The frame a client do 5 missile (the ground fires: blaze, firewall, meteorfire, immolationfire) shows after `ticks`
-// client frames of its `life` (frames left at birth, missile data +0x10), its frame counter (unit +0x44) in 256ths.
-// Each frame FUN_004d3540 first picks: at frame SubStart - 1 a jump of rand(SubStop - SubStart) (FUN_0045c3e0 on the
-// unit's seed); else with SubStart frames left, frame SubStart - 3; else with fewer left, two frames back (each at
-// least 0). Then FUN_004d30c0 steps it by the rate (+0x4c): with LoopAnim and SubLoop and more than
-// AnimLen - SubStop + 1 frames left, FUN_00621330 wraps it from SubStop back to SubStart; otherwise FUN_00621310
-// wraps it at AnimLen; then one frame less is left. So the fire rises once, burns in SubStart..SubStop - 1 from a
-// random point, and sinks as it runs out.
-inline int ground_fire_frame(int ticks, int life, int anim_len, int sub_start, int sub_stop, bool sub_loop, int rate, Rng& seed) {
-    int frame = 0;   // 256ths
-    for (int tick = 0; tick < ticks; ++tick) {
-        const int left = life - tick, whole = frame >> 8;
-        if (whole == sub_start - 1) frame = (whole + seed(sub_stop - sub_start)) << 8;
-        else if (left == sub_start) frame = std::max(sub_start - 3, 0) << 8;
-        else if (left < sub_start) frame = std::max(whole - 2, 0) << 8;
-        frame += rate;
-        if (sub_loop && left > anim_len - sub_stop + 1) {
-            if (frame >= sub_stop << 8) frame += (sub_start - sub_stop) << 8;
-        } else if (frame >= anim_len << 8) {
-            frame -= anim_len << 8;
-        }
-    }
-    return frame >> 8;
-}
+// The frame a client do 5 missile (the ground fires.
+int ground_fire_frame(int ticks, int life, int anim_len, int sub_start, int sub_stop, bool sub_loop, int rate, Rng& seed);
 
 }  // namespace d2d::rules

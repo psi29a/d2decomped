@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of missiles.hpp's functions; their notes are in the header.
+// The bodies of missiles.hpp's functions, with the research behind each.
 #include "missiles.hpp"
 
 #include "monsters.hpp"
@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,7 @@ int missile_velocity(int vel, int vel_lev, int level) {
     return ((vel + vel_lev * level / 8) << 8) * 75 / 100;
 }
 
+// Its life in frames, Range + LevRange x lvl (FUN_0064a330 keeps it a short).
 int missile_range(int range, int lev_range, int level) {
     return std::clamp(range + lev_range * level, -0x8000, 0x7fff);
 }
@@ -61,6 +63,9 @@ int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uin
     return aim.west ? (dir + 8) & 0x3f : (((-dir - 1) & 0x3f) + 8) & 0x3f;
 }
 
+// Royal Strike's third release (FUN_005d5080): one missile's aim, in
+// subtiles, off the target.
+
 // Each axis is a step of `seed` modulo 0x28, then less 0x14, so
 // -20..19. A (0, 0) pair is stored as x = 0x14.
 std::pair<int, int> release_spread_offset(Rng& seed) {
@@ -70,11 +75,20 @@ std::pair<int, int> release_spread_offset(Rng& seed) {
     return { offset_x, offset_y };
 }
 
+// A charge-up's scatter release (srvprgfunc 39, FUN_005d3f90): one try's
+// offset off the target in subtiles, radius - rand(2 x radius) on x, then
+// on y (0x5d4080..0x5d409c: EDX = EDI + EDI), so -radius + 1..radius. A
+// try further than radius (squared) makes nothing (the caller's test).
 std::pair<int, int> release_scatter_offset(Rng& seed, int radius) {
     const int offset_x = radius - seed(2 * radius);
     const int offset_y = radius - seed(2 * radius);
     return { offset_x, offset_y };
 }
+
+// Charged Bolt's path (FUN_005c9290 -> path type 10, FUN_0067a240): from
+// subtile (x, y), steps / 2 hops of two subtiles, each the 8-way way
+// toward (to_x, to_y) (FUN_00678c10 -> DAT_006f1518's first) turned -1, 0
+// or +1 by a draw on `seed` (low & 31 into -1, 0, 1, -1, ... with 31 at +1).
 
 // The seed is {target x + the bolt's index, 666} (FUN_00650e40).
 std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, int to_y, int steps, Rng seed) {
@@ -95,6 +109,13 @@ std::vector<std::pair<int, int>> wiggle_points(int x, int y, int to_x, int to_y,
     return points;
 }
 
+// Do 143's missiles' route (FUN_005d4870's path callback FUN_005d4680, path
+// type 10): `count` points (the range, 77 at most) from subtile (x, y), each
+// two subtiles on (0x6e32ac x, 0x6e328c y) along the 8-way (0x745600:
+// (dir + 4) / 8) of a heading that starts at direction64 toward (to_x, to_y)
+// and turns by turn x sign at every point: sign +1 when the first draw on
+// `seed` is odd, else -1; turn the next draw % 3 + 2 (DAT_00741b10). After
+// points 0, 15, 30 ... (DAT_00741b0c) the sign flips and turn is drawn again.
 std::vector<std::pair<int, int>> wobble_route(int x, int y, int to_x, int to_y, int count, Rng& seed) {
     static constexpr std::array<int, 8> kStepX{ 2, 2, 0, -2, -2, -2, 0, 2 }, kStepY{ 0, 2, 2, 2, 0, -2, -2, -2 };
     constexpr int kFlipEvery = 15, kTurnLeast = 2;
@@ -142,6 +163,60 @@ bool missile_touches(int x, int y, int unit_x, int unit_y, int size, int missile
         case 5: case 7: return (across < 3 && down < 2) || (down < 3 && across <= 1);
         default: return across <= 2 && down <= 2;
     }
+}
+
+
+// The frame a client do 5 missile (the ground fires: blaze, firewall, meteorfire, immolationfire) shows after `ticks`
+// client frames of its `life` (frames left at birth, missile data +0x10), its frame counter (unit +0x44) in 256ths.
+// Each frame FUN_004d3540 first picks: at frame SubStart - 1 a jump of rand(SubStop - SubStart) (FUN_0045c3e0 on the
+// unit's seed); else with SubStart frames left, frame SubStart - 3; else with fewer left, two frames back (each at
+// least 0). Then FUN_004d30c0 steps it by the rate (+0x4c): with LoopAnim and SubLoop and more than
+// AnimLen - SubStop + 1 frames left, FUN_00621330 wraps it from SubStop back to SubStart; otherwise FUN_00621310
+// wraps it at AnimLen; then one frame less is left. So the fire rises once, burns in SubStart..SubStop - 1 from a
+// random point, and sinks as it runs out.
+int ground_fire_frame(int ticks, int life, int anim_len, int sub_start, int sub_stop, bool sub_loop, int rate, Rng& seed) {
+    int frame = 0;   // 256ths
+    for (int tick = 0; tick < ticks; ++tick) {
+        const int left = life - tick, whole = frame >> 8;
+        if (whole == sub_start - 1) frame = (whole + seed(sub_stop - sub_start)) << 8;
+        else if (left == sub_start) frame = std::max(sub_start - 3, 0) << 8;
+        else if (left < sub_start) frame = std::max(whole - 2, 0) << 8;
+        frame += rate;
+        if (sub_loop && left > anim_len - sub_stop + 1) {
+            if (frame >= sub_stop << 8) frame += (sub_start - sub_stop) << 8;
+        } else if (frame >= anim_len << 8) {
+            frame -= anim_len << 8;
+        }
+    }
+    return frame >> 8;
+}
+
+
+// FUN_006485f0 for a player's or monster's path: a new goal and its step.
+auto Facing::aim(int dir64) -> void {
+    dir64 &= 0x3f;
+    if (dir64 == goal) return;
+    goal = std::uint8_t(dir64);
+    step = kDiffDirections[std::size_t((dir64 - now) & 0x3f)];
+}
+
+// FUN_00648640: a frame's turn, onto the goal once it reaches or passes it.
+auto Facing::turn() -> void {
+    if (now == goal) return;
+    now = std::uint8_t((now + step) & 0x3f);
+    const int past = (now - goal) & 0x3f;
+    if ((past > 0x1f && step < 0) || (past < 0x1f && step >= 0)) now = goal;
+}
+
+// FUN_0059fa30: from subtile (x, y)'s centre at (to_x, to_y)'s (path
+// type 4 straight on: FUN_006492f0 -> FUN_0064fe40), never at itself.
+auto MissileFlight::launch(int x, int y, int to_x, int to_y, int velocity, int max_velocity, int accel) -> MissileFlight {
+    if (to_x == x && to_y == y) { ++to_x; ++to_y; }
+    MissileFlight flight;
+    flight.x = (std::uint32_t(x) << 16) + 0x8000; flight.y = (std::uint32_t(y) << 16) + 0x8000;
+    std::tie(flight.aim_x, flight.aim_y) = missile_aim(flight.x, flight.y, (std::uint32_t(to_x) << 16) + 0x8000, (std::uint32_t(to_y) << 16) + 0x8000);
+    flight.velocity = velocity; flight.max_velocity = max_velocity; flight.accel = accel;
+    return flight;
 }
 
 }
