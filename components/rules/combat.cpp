@@ -124,6 +124,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
     fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
     fighter.open_wounds = int(stat(kOpenWounds));
+    fighter.item_slow = int(stat(kItemSlow));
     fighter.knockback = stat(kKnockback) > 0;
     fighter.prevent_heal = stat(kPreventHeal) > 0;
     fighter.life_steal = int(stat(kLifeDrainMinDamage)); fighter.mana_steal = int(stat(kManaDrainMinDamage));
@@ -812,6 +813,7 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
     blow.life = leech_fine(fine, after_crush, fighter.life_steal, target.life_steal_divisor);
     blow.mana = leech_fine(fine, after_crush, fighter.mana_steal, target.mana_steal_divisor);
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
+    blow.slow = fighter.item_slow;   // its gear's domeleedamage / domissiledamage (event 5 / 6) carry item_slow's func 19
     if (blow.bleed) blow.bleed_fine = open_wounds_fine(clvl, target.special);
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(stun, 250);

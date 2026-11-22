@@ -60,6 +60,7 @@ struct Fighter {
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
+    int item_slow = 0;                    // item_slow (stat 150): gear's event 19 (FUN_005c0310) slows the unit a landed hit strikes
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
@@ -318,6 +319,7 @@ struct Target {
 struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int bleed_fine = 0;                  // Open Wounds' life regeneration if `bleed`, 256ths a frame, for kOpenWoundsFrames (open_wounds_fine)
+    int slow = 0;                        // the striker's item_slow when it landed (gear's event 19, FUN_005c0310): Fight::land slows the target
     int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
