@@ -29,6 +29,10 @@ def gen(count, seed):
     for dx, dy in ((0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (2, 1), (-3, 2), (10, 0), (0, -10), (7, -7), (40, 3)):
         for number, mid in ((1, 0), (2, 0), (3, 0), (5, 0), (24, 0), (5, 2), (6, 2), (2, 5), (0, 0), (4, 1)):
             print(1000, 1000, 1000 + dx, 1000 + dy, number, mid)
+    for sx, tx in ((-30000, 30000), (30000, -30000), (0, 46341), (0, 65536), (-0x7fff0000, 0x7fff0000)):
+        for number in (1, 3, 5):
+            print(sx, 100, tx, 107, number, 2)
+            print(100, sx, 107, tx, number, 0)
     for _ in range(count):
         sx, sy = rng.randint(100, 30000), rng.randint(100, 30000)
         reach = rng.choice((rng.randint(0, 3), rng.randint(0, 12), rng.randint(0, 60)))
