@@ -404,6 +404,7 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
         missile.subtile_x = int(std::floor(x * 5)); missile.subtile_y = int(std::floor(y * 5));   // the subtile it starts in (the trail makers')
         seed_pierce(missile, casting_merc);
+        missile.seed = d2d::rules::Rng{ spawning.game.next() };   // its unit seed off the game seed as it's made
         pending.push_back(std::move(missile));
         return pending.back();
     }
@@ -577,9 +578,10 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         if (frame == missile_frame) return;
         missile_frame = frame;
         burned.clear();
-        // ponytail: seeded at the frame's first missile tick, not as each is made, so a drop in the
-        // frame it was made comes before its step. A visual-only one takes none: some are the
-        // server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
+        // The player's side's are seeded as made (launch); a visual-only one takes none: some are
+        // the server's (the Cairn Stones', seeded where made), others the client's (do 55's clouds, the ice).
+        // ponytail: a monster's (made in its think, with no game seed at hand) is seeded at the frame's
+        // first missile tick, not as it's made, so a drop in the frame it was made comes before its step.
         for (auto& missile : missiles)
             if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
         for (std::size_t k = 0; k < missiles.size(); ++k) {
