@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A monster's animation rate in each of its modes (unit +0x4c, FUN_00623f50) as the oracle, from the function's entry.
 
-    uv run python mode_rates.py gen 100000 1 > cases.txt     # `class mode skill speed vel frw fhr fbr held ias rate69`
+    uv run python mode_rates.py gen 100000 1 > cases.txt     # `class mode skill speed vel frw fhr fbr held ias rate68 rate69`
     uv run python mode_rates.py game < cases.txt > game.txt   # each case and `| rate`
     ../../build/tests/test_mode_rates --mode-rates < cases.txt | grep ' | ' > d2d.txt
     uv run python mode_rates.py compare game.txt d2d.txt      # `N cases, M differ`; exit 1 on a difference or a bad input
@@ -12,8 +12,8 @@ FUN_00621630 DT / DD's own speed) and the get-hit, block and knockback branches,
 loaded tables (drlg.boot): the moving base is MonStats +0x36 (WL) / +0x38 (RN), which the loader derives
 (FUN_00650f00). A case: the class and mode, the Skills.txt row of the unit's current skill (UseAttackRate decides
 S1..S4 / SQ), the AnimData speed (the mode record's +0xc), stat 0x43 velocitypercent, the raw stats 96 (FRW), 99 (FHR),
-102 (FBR) that FUN_00621740 diminishes, whether state 0x65 is on (a block at 100 more), stat 93 (IAS) and stats
-68 / 69 (attackrate, other_animrate: one value). Each line: the case, then the rate as stored (a signed word).
+102 (FBR) that FUN_00621740 diminishes, whether state 0x65 is on (a block at 100 more), stat 93 (IAS), stat 68
+(attackrate) and stat 69 (other_animrate), apart. Each line: the case, then the rate as stored (a signed word).
 Hooked (inputs and side effects, not the claim): the stat getters FUN_00625480 / FUN_00625500 (the case's stats), the
 mode record lookup FUN_00645270 / FUN_00620f00 (unit +0x50 is the case's record), the current skill FUN_00620250 /
 FUN_00643ce0 (a zeroed skill instance: its +0xc flags, which FUN_006214a0 reads through FUN_006446a0 for
@@ -48,7 +48,8 @@ def gen(count, seed):
         print(rng.randrange(rows), mode, rng.choice(skills), rng.choice((256, 256, 128, 200, rng.randint(1, 512))),
               rng.choice((75, 75, 25, 125, rng.randint(-150, 300))), rng.choice((0, 0, rng.randint(-100, 300))),
               rng.choice((0, 0, rng.randint(-100, 300))), rng.choice((0, 0, rng.randint(-100, 300))), int(rng.random() < 0.2),
-              rng.choice((0, 0, rng.randint(-100, 200))), rng.choice((100, 100, 150, 50, rng.randint(-100, 300))))
+              rng.choice((0, 0, rng.randint(-100, 200))), rng.choice((100, 100, 150, 50, rng.randint(-100, 300))),
+              rng.choice((100, 100, 150, 50, rng.randint(-100, 300))))
 
 
 class Rig:
@@ -70,10 +71,10 @@ class Rig:
     def state(self, e):
         return self.held if e.arg(0) == self.unit and e.arg(1) == 0x65 else 0
 
-    def run(self, cls, mode, skill, speed, vel, frw, fhr, fbr, held, ias, rate69):
+    def run(self, cls, mode, skill, speed, vel, frw, fhr, fbr, held, ias, rate68, rate69):
         e = self.e
         self.skill, self.held = skill, held
-        self.stats = {0x43: vel, 96: frw, 99: fhr, 102: fbr, 93: ias, 0x44: rate69, 0x45: rate69}
+        self.stats = {0x43: vel, 96: frw, 99: fhr, 102: fbr, 93: ias, 0x44: rate68, 0x45: rate69}
         e.mu.mem_write(self.unit, bytes(0x200))
         e.mu.mem_write(self.record, bytes(0x40))
         e.w32(self.unit, 1)
@@ -94,7 +95,7 @@ def game():
         field = line.split()
         if not field:
             continue
-        print(line.strip(), "|", rig.run(*(int(f) for f in field[:11])))
+        print(line.strip(), "|", rig.run(*(int(f) for f in field[:12])))
 
 
 def integer(field):
@@ -115,8 +116,8 @@ def rows(path):
                 sys.exit(f"malformed line in {path}: {line.strip()!r}")
             case, result = line.split("|", 1)
             case, result = case.split(), result.split()
-            if len(case) != 11 or len(result) != 1 or not all(integer(field) for field in case + result):
-                sys.exit(f"malformed line in {path}: {line.strip()!r} (11 case fields and 1 result, integers)")
+            if len(case) != 12 or len(result) != 1 or not all(integer(field) for field in case + result):
+                sys.exit(f"malformed line in {path}: {line.strip()!r} (12 case fields and 1 result, integers)")
             out.append((case, result))
     return out
 
