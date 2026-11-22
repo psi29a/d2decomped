@@ -364,6 +364,7 @@ struct Skill {
     std::array<ServerDoFunction, 3> prgfunc{};   // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     std::array<Calc, 3> prgcalc;           // prgcalc1..3 (+0x38..): by the charges held (FUN_005d3da0)
     bool prgstack = false;                 // a release runs srvprgfunc 1..n, not just n (FUN_005d5220)
+    bool finishing = false;                // Skills.txt finishing (flag dword +4 bit 3, 0x6165c7)
     std::string srvmissileb, srvmissilec;  // +0x4a / +0x4c: 2 / 3 charges' missile (FUN_005d3cf0)
     int page = 0;                          // SkillDesc SkillPage: 1..3 its class's tabs
     int list_row = 0;                      // SkillDesc ListRow: the picker row (0..4, general at 0)
@@ -373,6 +374,12 @@ struct Skill {
     std::string str_alt;                   // SkillDesc "str alt": the char panel's attack block name
     int descdam = 0, descatt = 0;          // SkillDesc: the char panel's damage / attack rating kind
     Calc ddam_calc1, ddam_calc2;           // SkillDesc "ddam calc1" (damage %) / "ddam calc2" (flat)
+    // SkillDesc p1..p3dmmin / dmmax / dmelem (+0x24 / +0x30 / +0x20): a charge-up's damage on the panel at
+    // 1..3 charges (FUN_004e7120), its element's colour (Skill::etype order, -1 none); `described`: a
+    // SkillDesc row is there (else FUN_004e7120 takes EMin / EMax).
+    std::array<Calc, 3> prg_dmg_min, prg_dmg_max;
+    std::array<int, 3> prg_dmg_elem{ -1, -1, -1 };
+    bool described = false;
     std::string str_long, str_short, str_mana;   // SkillDesc "str long" / "str short" / "str mana": the tooltips' texts
     std::array<std::string, 3> desc_missile;     // SkillDesc descmissile1..3 (+0x3c): the rows its tooltip shows (calcs' m1en..)
     // SkillDesc's tooltip lines as game.exe holds them (the record from
@@ -569,8 +576,7 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     its % + ln12 %, + MinDam..MaxDam at ln12 %; 16 (FUN_004ebb50, Dragon
 //     Tail): the kick at its % + MinDam..MaxDam, x calc1 %, then the
 //     elements with the weapon's stats off (PanelUnit::kick).
-// ponytail: stat 325 (an Assassin's progressive to-hit) is left out, and
-// so are the charge-ups' share and adds in 15 / 16 (FUN_004e6ff0, FUN_004e7120).
+// ponytail: stat 325 (an Assassin's progressive to-hit) is left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
 // armblue 0x13 / armred 0x19, rfblue 0x14 / rfred 0x1a, rcblue 0x15 /
@@ -612,6 +618,10 @@ struct PanelUnit {
     int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
     bool armed = true;           // a weapon wielded (FUN_0063bef0); without one FUN_004e86f0 adds the strength to the %
     const Fighter* kick = nullptr;   // the unit with the wielded weapon's stats off (FUN_00627910): Dragon Tail's elements
+    // The charge-ups held (the listed states' stats 0x15e skill, 0x15f level, the row's first aurastat the
+    // charges): their share and adds (FUN_004e6ff0, FUN_004e7120).
+    struct Charged { int skill = 0, level = 0, count = 0; };
+    std::vector<Charged> charges;
 };
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0,

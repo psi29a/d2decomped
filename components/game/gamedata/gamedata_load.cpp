@@ -625,6 +625,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             skill_row.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));
         }
         skill_row.prgstack = text("prgstack") == "1";
+        skill_row.finishing = text("finishing") == "1";
         skill_row.srvmissileb = text("srvmissileb"); skill_row.srvmissilec = text("srvmissilec");
         skill_row.edmg_sym = calc("EDmgSymPerCalc"); skill_row.elen_sym = calc("ELenSymPerCalc"); skill_row.dmg_sym = calc("DmgSymPerCalc");
         for (std::size_t class_index = 0; class_index < 7; ++class_index)
@@ -652,6 +653,14 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             };
             desc_calc("ddam calc1", skill_row.ddam_calc1);
             desc_calc("ddam calc2", skill_row.ddam_calc2);
+            skill_row.described = true;
+            for (std::size_t charges = 0; charges < 3; ++charges) {
+                const auto prefix = "p" + std::to_string(charges + 1) + "dm";
+                desc_calc(prefix + "min", skill_row.prg_dmg_min[charges]);
+                desc_calc(prefix + "max", skill_row.prg_dmg_max[charges]);
+                const auto prg_element = std::ranges::find(kEl, skill_desc.get(found->second, prefix + "elem"));
+                skill_row.prg_dmg_elem[charges] = prg_element == kEl.end() || prg_element - kEl.begin() >= 5 ? -1 : int(prg_element - kEl.begin());
+            }
             for (std::size_t line = 0; line < skill_row.desc_lines.size(); ++line) {
                 const auto [prefix, line_number] = line < 6 ? std::pair{ std::string("desc"), line + 1 } : line < 10 ? std::pair{ std::string("dsc2"), line - 5 } : std::pair{ std::string("dsc3"), line - 9 };
                 const auto suffix = std::to_string(line_number);

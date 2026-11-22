@@ -301,6 +301,30 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     if (usable != 0 && usable != 1 && usable != 6 && usable != 8) return line;   // FUN_004d9fc0
     constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
     const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
+    // FUN_004e6ff0: the charge-ups' share of the damage %: each held one whose row is prgdam 1 (+0x44:
+    // Tiger Strike), ln12 at its level (stat 0x15f; FUN_004e6ca0 at 0x4e70e4, ECX the id) x its charges.
+    int charge_share = 0;
+    for (const auto& held : unit.charges)
+        if (const auto* row = skill_tables.get(held.skill); row && row->prgdam == 1 && held.count > 0) charge_share += calc_ln(row->par[0], row->par[1], held.level) * held.count;
+    // FUN_004e7120: each held one's damage on top, SkillDesc p<n>dmmin / p<n>dmmax (FUN_00646d00) at n = its
+    // charges (1..3), p<n>dmelem's colour when set (FUN_004e6fb0); a row without SkillDesc its EMin / EMax
+    // with mastery >> 8.
+    const auto charge_adds = [&](AttackLine& out) {
+        for (const auto& held : unit.charges) {
+            const auto* row = skill_tables.get(held.skill);
+            if (!row || held.count <= 0 || held.level <= 0) continue;
+            if (!row->described) {
+                out.min += elem_damage(skill_tables, *row, env, held.level, false, 0, true) >> 8;
+                out.max += elem_damage(skill_tables, *row, env, held.level, true, 0, true) >> 8;
+                continue;
+            }
+            const auto slot = std::size_t(std::clamp(held.count, 1, 3) - 1);
+            const auto value = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, row->id, held.level); };
+            out.min += value(row->prg_dmg_min[slot]);
+            out.max += value(row->prg_dmg_max[slot]);
+            if (const int element = row->prg_dmg_elem[slot]; element >= 0 && element < 5) out.damage_colour = kElemColour[element];
+        }
+    };
     // FUN_004e86f0 + FUN_004e89a0 on one fighter into `out`: its damage x its % + `pct`, + `flat`, its
     // elements on top (each colouring it), held to 1 and min + 1 when there is any.
     // Bare hands (the unit's own fighter, no weapon wielded): + the strength (stat 0) to the %, where a
@@ -313,15 +337,17 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
             if (low != 0 || high != 0) out.damage_colour = kElemColour[elem];
         }
         if (out.max > 0) { out.min = std::max(out.min, 1); out.max = std::max(out.max, out.min + 1); }
+        if (skill.finishing) charge_adds(out);                        // after the clamp, a finisher's (FUN_004e89a0)
     };
     // FUN_004e86f0: stats 21 / 22 (23 / 24 two-handed; +1 / +2 bare), at least 1 / 2, x (100 + stat
     // 18 / 17 + the %) / 100, + the weapon's own stat 111 + `flat` (0x4e8873..0x4e88c0); the % is
     // `pct` + damagepercent + the weapon mastery + its Str / DexBonus share (bare hands: the strength),
-    // at least -90. Then FUN_004e89a0 (tools/emu/panel_damage.py runs FUN_004e86f0 itself). The
-    // skill-flag-8 share (a Druid's / Assassin's) isn't kept.
+    // at least -90, with a finisher's charge share (charge_share). Then FUN_004e89a0
+    // (tools/emu/panel_damage.py runs FUN_004e86f0 itself).
     const auto weapon_base = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {   // FUN_004e86f0 alone
         const bool bare = &hand == &fighter && !unit.armed;
         const int low = std::max(hand.stat_lo + (bare ? 1 : 0), 1), high = std::max(hand.stat_hi + (bare ? 2 : 0), 2);
+        if (skill.finishing && charge_share != 0) { pct += charge_share; out.damage_colour = 3; }   // the share, a finisher's (0x4e8a4b)
         const int total = std::max(hand.phys_pct + pct + (bare ? unit.str : 0), -90);
         out.min = int((std::int64_t(hand.unit_min_pct) + 100 + total) * low / 100) + hand.item_normal + flat;
         out.max = int((std::int64_t(hand.unit_max_pct) + 100 + total) * high / 100) + hand.item_normal + flat;
@@ -555,24 +581,25 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         // % on top: the Fighter's kick_lo / kick_hi / kick_pct) + MulDiv(kick, both %s, 100), + MinDam /
         // MaxDam >> 8 (FUN_00647bc0 / FUN_00647d00) + MulDiv(them, the skill's %, 100) (0x4ebab7..0x4ebb00),
         // then the charge-ups' adds (FUN_004e7120); one value, no damblue / damred.
-        // ponytail: FUN_004e6ff0's share and FUN_004e7120's adds (the charge-ups' charges) aren't kept: 0.
         line.damage = true;
-        const int pct = calc_ln(skill.par[0], skill.par[1], lvl);
+        const int pct = charge_share + calc_ln(skill.par[0], skill.par[1], lvl);
         const int kick_pct = pct + fighter.kick_pct;
         const int own_low = skill_phys(skill_tables, skill, env, lvl, false) >> 8, own_high = skill_phys(skill_tables, skill, env, lvl, true) >> 8;
         line.min = fighter.kick_lo + mul_div(fighter.kick_lo, kick_pct, 100) + own_low + mul_div(own_low, pct, 100);
         line.max = fighter.kick_hi + mul_div(fighter.kick_hi, kick_pct, 100) + own_high + mul_div(own_high, pct, 100);
         line.damage_colour = pct != 0 ? 3 : 0;
+        charge_adds(line);
     } else if (skill.descdam == 16) {                         // FUN_004ebb50 (Dragon Tail)
         // EType's colour (FUN_004e6fb0); 15's sum with the charge-ups' share alone as the skill's % (no
-        // ln12; 0 here, as 15's), MinDam..MaxDam with level arg 0; each end + MulDiv(end, calc1, 100)
+        // ln12), MinDam..MaxDam with level arg 0; each end + MulDiv(end, calc1, 100)
         // (FUN_00646ca0 on +0x138: 0x4ebc2f..0x4ebc57); then, the hands' weapons' stats off (FUN_00627910),
         // FUN_004e89a0's elements, clamp and damblue / damred: one value.
         // ponytail: both hands' weapons (type 0x2d) go off in game.exe; unit.kick has the wielded one's off.
         line.damage = true;
         const Fighter& bare = unit.kick ? *unit.kick : fighter;
-        line.min = fighter.kick_lo + mul_div(fighter.kick_lo, fighter.kick_pct, 100) + (skill_phys(skill_tables, skill, env, lvl, false) >> 8);
-        line.max = fighter.kick_hi + mul_div(fighter.kick_hi, fighter.kick_pct, 100) + (skill_phys(skill_tables, skill, env, lvl, true) >> 8);
+        const int own_low = skill_phys(skill_tables, skill, env, lvl, false) >> 8, own_high = skill_phys(skill_tables, skill, env, lvl, true) >> 8;
+        line.min = fighter.kick_lo + mul_div(fighter.kick_lo, fighter.kick_pct + charge_share, 100) + own_low + mul_div(own_low, charge_share, 100);
+        line.max = fighter.kick_hi + mul_div(fighter.kick_hi, fighter.kick_pct + charge_share, 100) + own_high + mul_div(own_high, charge_share, 100);
         const int more = calc_of(skill.calc[0]);
         line.min += mul_div(line.min, more, 100);
         line.max += mul_div(line.max, more, 100);

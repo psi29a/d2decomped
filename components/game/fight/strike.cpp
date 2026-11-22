@@ -9,6 +9,7 @@
 #include "gamedata.hpp"
 #include "item_text.hpp"
 #include "log.hpp"
+#include "skill_text.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>
@@ -324,6 +325,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         auto panel_fighter = player_fighter(&panel_kick, &st_sum, &passives, nullptr, nullptr, true);
         panel_fighter.ar_base_bare = actor->player_combat.ar_base_bare;
         panel_unit.kick = &panel_kick;
+        for (const auto& held : actor->charges)
+            if (held.count > 0) panel_unit.charges.push_back({ held.skill, held.level, held.count });   // stat 0x15f: the level it was put on at
         d2d::rules::Fighter main_fighter, off_fighter;
         panel_unit.dual_class = actor->character.character_class == 4 || actor->character.character_class == 6;
         if (panel_unit.dual_class) {
@@ -345,11 +348,12 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 }
             }
         }
+        const auto panel_env = skill_text::with_missiles(*game_data, env);   // FUN_00646d00: SkillDesc calcs with their missiles' operands
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k) {
             if (const auto* skill = game_data->skills.get(int(chosen[k]))) {
                 panel_unit.concentration = concentration_share(actor->player.x, actor->player.y, skill->par[0]);
-                panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
+                panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, panel_env, skill_level ? skill_level(skill->id) : 1,
                                                           panel_fighter, panel_fighter.mastery_tohit, panel.blue, panel.red,
                                                           skill_status(skill->id, now_ms), panel_unit);   // FUN_004d9fc0: 0, 1, 6, 8 draw
             }
