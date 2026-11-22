@@ -889,6 +889,8 @@ void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster: a curse state in its curse slot, any other in its state's node; and a state's end
 // (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms);
+// A monster's war cry nova (do 68) this frame: its state on each ally of its owner it reaches (hit 18).
+void war_cry_reach(const GameData& game_data, const Level& level, std::span<const Missile> missiles, std::span<Monster> monsters, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 // State 0x18 (slowed) put by an item_slow event (FUN_005c6760) for
 // rules::kClaySlowFrames: none on a MonStats npc or a MonStats2 row without

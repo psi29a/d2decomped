@@ -375,6 +375,24 @@ std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, s
     return std::uint32_t(d2d::rules::frame_tick(timing.action, 0, std::max(mode_rate(game_data, monster, mode), 1))) * 40;
 }
 
+// A monster's war cry nova (do 68: Madawc's Shout, the overseers'): hit 18 (FUN_005ab0b0) on each unit
+// it reaches, an ally of its owner by FUN_00554de0 (same alignment, FUN_00650d70), runs FUN_005d8290
+// on it: the skill's aurastate for auralen frames at the missile's level. Its 64 strike nothing else
+// (visual_only), so they fly on.
+void war_cry_reach(const GameData& game_data, const Level& level, std::span<const Missile> missiles, std::span<Monster> monsters, std::uint32_t now_ms) {
+    for (const auto& missile : missiles) {
+        if (missile.friendly || !missile.info || missile.info->hit_func != 18 || missile.skill < 0) continue;
+        const auto* cry = game_data.skills.get(missile.skill);
+        const auto owner = std::ranges::find(monsters, missile.owner, &Monster::id);
+        if (!cry || cry->srvdofunc != d2d::rules::ServerDoFunction::kWarCry || cry->aurastate.empty() || owner == monsters.end()) continue;
+        const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cry->auralen, {}, missile.skill, missile.level), 1);
+        for (auto& ally : monsters)
+            if (&ally != &*owner && ally.alive() && ally.align == owner->align && ally.type >= 0 && std::size_t(ally.type) < game_data.monsters.types.size()
+                && missile_struck(level, missile, ally.unit.x, ally.unit.y, game_data.monsters.types[std::size_t(ally.type)].size))
+                put_state(game_data, ally, { missile.skill, missile.level, now_ms + std::uint32_t(frames) * 40 }, now_ms);
+    }
+}
+
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
     for (const auto& npc : level.npcs) out.push_back({ .x = Fine(npc.x), .y = Fine(npc.y), .shape = npc.shape });
@@ -2346,10 +2364,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // itself for auralen frames (FUN_005d8290); the nova reaching an
                     // ally (hit 18, FUN_005ab0b0) puts it there too. The nova's 64 go out
                     // on rules::kNovaRing (as do 27's) for their Range.
-                    // ponytail: the nova is drawn but hits nothing: the state goes on each ally
-                    // within its reach (speed x Range) at the cast, as the player's war cries.
+                    // The nova hits nothing: each ally it reaches gets the state there
+                    // (Fight::world_step's pass over the monsters' hit-18 missiles).
                     const auto shout = game_data.missiles.find(cast->srvmissilea);
-                    const float reach = shout == game_data.missiles.end() ? 0.f : missile_speed(shout->second, lvl) * float(shout->second.range) * 0.04f;
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 1);
                     const Monster::SkillState state{ monster.skill, lvl, now_ms + std::uint32_t(frames) * 40 };
                     if (!cast->aurastate.empty()) put_state(game_data, monster, state, now_ms);
@@ -2362,11 +2379,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             ring_missile.visual_only = true;
                             ring_missile.dies = now_ms + std::uint32_t(std::max(shout->second.range, 1)) * 40;
                             ring_missile.to = offset_target(unit.x, unit.y, aim_x, aim_y);
+                            ring_missile.skill = monster.skill; ring_missile.level = lvl; ring_missile.owner = monster.id;   // its state, for hit 18
                         }
                     }
-                    for (auto& ally : pack)
-                        if (&ally != &monster && ally.alive() && ally.align == monster.align && std::hypot(ally.unit.x - unit.x, ally.unit.y - unit.y) <= reach)
-                            put_state(game_data, ally, state, now_ms);
                     d2d::log::info("{} shouts ({} frames)", monster.npc.name, frames);
                 } else if (cast->srvdofunc == ServerDoFunction::kSiegeBeastStomp) {
                     // Siege Beast Stomp (do 134, FUN_005d2320): it needs a srvmissilea

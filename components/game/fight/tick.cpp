@@ -663,6 +663,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 merc_blow = casting_merc = missile.by_merc;
                 burst(missile, now_ms);
             });
+            war_cry_reach(*game_data, *level, missiles, monsters, now_ms);   // a monster's nova on its allies (hit 18): the subtiles it just crossed
             merc_blow = casting_merc = false;
             for (auto& foe : foes)                               // the shooters' hit hooks: MonProp's events (knock, crush), Cursed
                 for (const int owner : foe.shot_by)
