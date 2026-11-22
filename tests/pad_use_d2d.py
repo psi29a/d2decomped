@@ -563,6 +563,7 @@ if skill_buttons:
     press("a")
     press("back")
     press("a")
+    until("the assigned Inventory button opens the panel", lambda: state()["inventory"] == "1")
     cmd("debug equip cap 1"); frames(5)
     cap = cmd("items").split("[cap ")[1].split(" id=")[1].split()[0].rstrip("]")
     words = cmd(f"debug itemat {cap}").split()
@@ -707,13 +708,27 @@ if skill_buttons:
     # queued pickup with an attack (FUN_00462930's held-unit gate).
     cmd("debug kill"); frames(5)
     before = int(state()["items"])
-    cmd("debug give r01"); frames(5)
-    drop = next(line.split("\t") for line in cmd("ground").splitlines() if line.startswith("r01\t"))
+    rune_id = cmd("debug give r01").split()[1]
+    frames(5)
+    drop = next(row for line in cmd("ground").splitlines()
+                if len(row := line.split("\t")) == 7 and row[4] == rune_id)
     drop_x, drop_y = float(drop[5]), float(drop[6])
-    cmd(f"debug warp {drop_x + 3} {drop_y}"); frames(5)
+    # Keep the start outside pickup distance and inside targeting range,
+    # with a clear route to this drop instead of warping through scenery.
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        if all(cmd(f"debug blocked {drop_x + dx * step / 5} {drop_y + dy * step / 5}").split()[1] == "0"
+               for step in range(1, 13)):
+            cmd(f"debug warp {drop_x + dx * 2.4} {drop_y + dy * 2.4}")
+            break
+    else:
+        raise AssertionError("could not place the player on a clear approach to the rune")
+    frames(5)
+    until("the player can act after the waypoint", lambda: state()["pad_field"] == "1" and state()["pmode"] == "-")
     face(drop_x, drop_y)
-    cmd("pad 0 righttrigger down"); frames(50)
-    cmd("pad 0 righttrigger up"); frames(5)
-    assert int(state()["items"]) == before + 1, "held Attack/Use abandoned its pickup"
+    cmd("pad 0 righttrigger down")
+    try:
+        until("held Attack/Use finishes its pickup", lambda: int(state()["items"]) == before + 1)
+    finally:
+        cmd("pad 0 righttrigger up"); frames(5)
 
 print("ok: pad Attack/Use takes portals and waypoints" + ("; wheel inventory and both tomes work" if skill_buttons else ""))
