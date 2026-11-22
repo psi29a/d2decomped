@@ -42,6 +42,11 @@ void blow_check() {
     d2d::rules::Rng rng{ 9 };
     const auto blow = d2d::rules::player_blow(fighter, target, 30, rng, {});
     assert(blow.hit && blow.slow == 30);
+    d2d::rules::Swing smite;
+    smite.smite = true;
+    fighter.smite_lo = fighter.smite_hi = 3;
+    const auto smitten = d2d::rules::player_blow(fighter, target, 30, rng, smite);
+    assert(smitten.slow == 30);   // a Smite is a melee record (event 5) too
     std::puts("OK: a landed blow carries its fighter's item_slow");
 }
 

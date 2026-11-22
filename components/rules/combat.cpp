@@ -765,6 +765,7 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
     // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
     const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
     if (swing.smite) {
+        blow.slow = fighter.item_slow;   // a Smite is a melee record too: event 5 carries item_slow's func 19
         blow.damage = phys;
         blow.knockback = swing.knockback;
         blow.stun_ticks = std::min(stun, 250);
