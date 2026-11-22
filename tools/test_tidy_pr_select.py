@@ -77,6 +77,10 @@ class SelectionTests(unittest.TestCase):
     def test_comment_only_header_takes_one_tu(self):
         self.assertEqual(len(self.run_select(["components/lib/core.hpp\tcomment"])), 1)
 
+    def test_lean_header_takes_one_tu(self):
+        self.assertEqual(len(self.run_select(["components/lib/core.hpp"], "--lean")), 1)
+        self.assertEqual(self.run_select(["components/lib/c.cpp"], "--lean"), ["components/lib/c.cpp"])
+
     def test_transitive_takes_every_tu_that_reaches_it(self):
         self.assertEqual(self.run_select(["components/lib/core.hpp"], "--transitive"),
                          ["apps/app/d.cpp", "components/lib/a.cpp", "components/lib/b.cpp"])
