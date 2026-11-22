@@ -1692,6 +1692,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     if (monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive) pick = &foes[std::size_t(monster.chase)];
     Foe& foe = *pick;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    // Its walk % this frame (the chill, its think's pace, Spider Lay's -100 % and the rest; FUN_00623f50 0x62414e:
+    // at least 25), before any mode's early return: a moving mode's rate reads it (mode_rate), the walk below too.
+    const int walk_chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
+    const int walk_pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
+    const int walk_pct = std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + walk_pace + walk_chill, 25);
+    monster.walk_pct = walk_pct;
     // Its think event comes due mid-mode too (FUN_005b1740 reads no mode) and
     // its act replaces the mode (FUN_005a7c20 stops none), but not under
     // state 0x36 (FUN_005a7c20's error 0x753) or frozen (FUN_005a7f80 drops
@@ -2723,10 +2729,6 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // think's pace, Spider Lay's -100 % and the rest; the walk % is their
     // sum, at least 25 (FUN_00623f50, 0x62414e): laid (-100 %), it
     // creeps at that floor in game.exe too.
-    const int chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
-    const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
-    const int walk_pct = std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + pace + chill, 25);
-    monster.walk_pct = walk_pct;   // its moving modes' rate (mode_rate)
     const int walk = path_velocity(type_info.velocity, walk_pct);
     // A moving mode's path velocity is MonStats Velocity (FUN_00621360,
     // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes
