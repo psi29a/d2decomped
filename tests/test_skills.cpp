@@ -412,6 +412,13 @@ int main() try {
             const auto finished = attack_line(charged_tables, attack, env, 5, fighter, 5, 0, 0, 0, charged);
             assert(finished.min - unheld.min == 3 * 490 / 100 - 3 * 130 / 100 + 3 && finished.max - unheld.max == 7 * 490 / 100 - 7 * 130 / 100 + 9);
             assert(finished.damage_colour == 1);
+            // A finisher's rating takes stat 325 (FUN_004e8ec0 / FUN_004e9040), colour 3; a throw's doesn't.
+            charged.progressive_tohit = 30;
+            const auto aimed = attack_line(charged_tables, attack, env, 5, fighter, 5, 0, 0, 0, charged);
+            const int base = fighter.ar_base, pct = fighter.ar_pct + skill_tohit(charged_tables, attack, env, 5);
+            assert(finished.attack_rating == base * pct / 100 + base && aimed.attack_rating == base * (pct + 30) / 100 + base && aimed.ar_colour == 3);
+            attack.descatt = 3;
+            assert(attack_line(charged_tables, attack, env, 5, fighter, 5, 0, 0, 0, charged).ar_colour == 0);
         }
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.

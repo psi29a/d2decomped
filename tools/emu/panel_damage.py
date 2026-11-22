@@ -557,12 +557,13 @@ SKILL_RECORD, BASE_AR, SKILL_TOHIT, UNIT_TYPE, ATT_BLUE, ATT_RED, STATS_ACTIVE =
 
 def d2d_rating(descatt, case):
     """rules::attack_line's attack ratings: (rating, colour, second, colour2)."""
-    colour = 1 if case["ar_red"] else 3 if case["ar_blue"] else 0
+    progressive = case["stats"].get(0x145, 0) if case["finishing"] and descatt != 3 else 0   # a finisher's stat 325 (FUN_004e8ec0, FUN_004e9040)
+    colour = 1 if case["ar_red"] else 3 if case["ar_blue"] or progressive else 0
     potion = case["wielded"] and case["potion"]
 
     def rating(hand, mastery):
         base, own = (case[f"ar_base_{hand}"], case[f"own119_{hand}"]) if hand else (case["ar_base"], case["own119"])
-        return 0 if (case[f"potion_{hand}"] if hand else potion) else trunc_div(base * (mastery + own + case["tohit"]), 100) + base
+        return 0 if (case[f"potion_{hand}"] if hand else potion) else trunc_div(base * (mastery + own + case["tohit"] + progressive), 100) + base
 
     first = second = 0
     both = case["dual"] and all(case[f"hand_{hand}"] and case[f"usable_{hand}"] and not case[f"potion_{hand}"] for hand in "ab")
@@ -580,7 +581,7 @@ def d2d_rating(descatt, case):
         first = rating("b", case["ar_mastery_b"]) if both and case["other"] else 0
     elif descatt == 5:
         base = case["ar_base_bare"] if case["wielded"] else case["ar_base"]        # FUN_00622560 with the weapon's stats off
-        first = trunc_div(base * (case["own119"] + case["tohit"]), 100) + base    # stat 119 after they're back on
+        first = trunc_div(base * (case["own119"] + case["tohit"] + progressive), 100) + base    # stat 119 after they're back on
     return first, colour if first else 0, second, colour if second else 0
 
 
@@ -595,7 +596,9 @@ def main_rating(e, case, rng, hooks):
             ar_base=rng.randrange(-20, 900), ar_base_a=rng.randrange(-20, 900), ar_base_b=rng.randrange(-20, 900), ar_base_bare=rng.randrange(-20, 900),
             own119=rng.choice((0, 0, 20, 85, -10)), own119_a=rng.choice((0, 20, 85)), own119_b=rng.choice((0, 15, 60)),
             tohit=rng.choice((0, 15, 50, 120)), ar_mastery=rng.choice((0, 0, 30, 95)), ar_mastery_a=rng.choice((0, 20, 95)), ar_mastery_b=rng.choice((0, 40, 75)), ar_blue=rng.random() < 0.2, ar_red=rng.random() < 0.2,
-            potion=rng.random() < 0.15)
+            potion=rng.random() < 0.15, finishing=rng.random() < 0.5)
+        case["stats"][0x145] = rng.choice((0, 0, 30, 90))
+        e.mu.mem_write(row + 4, bytes((8 if case["finishing"] else 0,)))
         hooks["active"].clear()
         e.mu.mem_write(out, bytes(0x20))
         e.call(e.r32(AR_TABLE + 4 * descatt), row, 5, out, out + 4, out + 8, out + 12, ecx=unit, edx=node)
