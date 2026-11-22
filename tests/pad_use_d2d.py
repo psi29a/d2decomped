@@ -710,8 +710,12 @@ if skill_buttons:
     before = int(state()["items"])
     rune_id = cmd("debug give r01").split()[1]
     frames(5)
-    drop = next(row for line in cmd("ground").splitlines()
-                if len(row := line.split("\t")) == 7 and row[4] == rune_id)
+    def rune_on_ground():
+        return next((row for line in cmd("ground").splitlines()
+                     if len(row := line.split("\t")) == 7 and row[4] == rune_id), None)
+
+    drop = rune_on_ground()
+    assert drop is not None, "the spawned rune did not appear on the ground"
     drop_x, drop_y = float(drop[5]), float(drop[6])
     # Keep the start outside pickup distance and inside targeting range,
     # with a clear route to this drop instead of warping through scenery.
@@ -727,7 +731,8 @@ if skill_buttons:
     face(drop_x, drop_y)
     cmd("pad 0 righttrigger down")
     try:
-        until("held Attack/Use finishes its pickup", lambda: int(state()["items"]) == before + 1)
+        until("held Attack/Use picks up the spawned rune",
+              lambda: int(state()["items"]) == before + 1 and rune_on_ground() is None)
     finally:
         cmd("pad 0 righttrigger up"); frames(5)
 
