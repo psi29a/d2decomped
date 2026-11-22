@@ -427,7 +427,20 @@ auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -
         for (const auto& pet : actor->pets)
             if (pet.monster.alive() && pet.where == level)
                 add(pet.aura, pet.aura_level, { skill_base, skill_level, no_skills, int(actor->character.stats.get(kLevel)), nullptr }, pet.monster.unit.x, pet.monster.unit.y);
-        return out;
+        // FUN_005cedc0 puts an aura's state through FUN_0056e970 (do 65 on allies; do 66's FUN_005cf2a0, 0x5cf349, and Holy
+        // Freeze's FUN_005d07c0, 0x5d0885, on enemies): a unit holds one list per state, a second source failing under a
+        // higher stored level and only extending an equal one. So of two sources of one aura (the player's and the merc's
+        // Holy Freeze) one's stats count, the higher level's; each caster's pulse still hits (aura_pulse).
+        // At an equal level game.exe keeps the first list but each pulse rewrites its stats (FUN_00627150, 0x5cef1e); here the first
+        // listed (the player's). ponytail: that differs only for a caster-dependent value at one level (no Act 2 merc aura has one).
+        std::vector<AuraOn> one_each;
+        const auto state = [](const AuraOn& aura) { return !aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate; };
+        for (auto& aura : out) {
+            const auto held = std::ranges::find_if(one_each, [&](const AuraOn& other) { return state(other) == state(aura); });
+            if (held == one_each.end()) one_each.push_back(std::move(aura));
+            else if (aura.level > held->level) *held = std::move(aura);
+        }
+        return one_each;
     }
 
 auto Fight::merc_calc_env() -> d2d::rules::CalcEnv {
