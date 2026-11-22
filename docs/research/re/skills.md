@@ -1713,6 +1713,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
     (+0x138) frames' freeze (+0x34; FUN_0057c6c0), the skill's overlay
     (+0x110): resisted by cold res less pierce, then FUN_0057b230 (a special
     is chilled; others frozen at coldeffect < 0, / MonsterFreezeDivisor).
+    Nothing in it reads the wearer's type: the merc's runs the same, with
+    its calc1 and cold pierce (d2d: `Fight::frozen_armor_freeze` for both).
   - **3** Shiver Armor (FUN_005cad40, attackedinmelee): the skill's
     element (FUN_0056e0c0) as a hit (result 0x4021, flags 0xd;
     FUN_0057c6c0, FUN_0057cee0), the overlay.

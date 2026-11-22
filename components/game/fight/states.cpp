@@ -263,41 +263,16 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
 
 auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         // Frozen Armor (event 2, FUN_005cac50, damagedinmelee): a striker whose
-        // blow did damage gets a hit carrying only calc1 as its freeze length
-        // (record +0x34) through FUN_0057c6c0. The length is cut by the cold
-        // resist less the wearer's cold pierce (none through immunity; row 6
-        // of the table at 0x732980). FUN_0057b230: a special (MonStats boss,
-        // monster data +0x16 & 8: champions, uniques, superuniques) is chilled
-        // for it (FUN_0057af80: not at coldeffect 0, / MonsterColdDivisor when
-        // negative, at least a tick); any other is frozen only at a negative
-        // coldeffect, for length / MonsterFreezeDivisor, and not chilled.
-        // Shiver Armor (3, FUN_005cad40, attackedinmelee): its element
-        // (FUN_0056e0c0) on any.
-        // Not on state 0x36 (uninterruptable). The chill rolls shatter (state
-        // 0x6b) as a blow's does; a length / divisor of 0 is state 1 for no frame.
+        // blow did damage (frozen_armor_freeze). Shiver Armor (3, FUN_005cad40,
+        // attackedinmelee): its element (FUN_0056e0c0) on any.
         // The freeze's think at its end + 1 gives way to the thaw's (mon_think).
         for (const int striker : foe.melee_by) {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
             const auto monster_index = std::size_t(found);
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0 && !monsters[monster_index].uninterruptable()) {
+            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker)) {
                 const auto* skill = game_data->skills.get(frozen_armor->skill);
-                auto& struck = monsters[monster_index];
-                const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
-                const auto difficulty = std::size_t(struck.difficulty);
-                const int cold_effect = struck_type.diff[difficulty].cold_effect;
-                int res = target_of(monster_index).res[4];
-                if (res < 100) res = std::max(res - pierce()[2], -100);
-                const int length = d2d::rules::resisted(calc(*skill, skill->calc[0], frozen_armor->level), res);
-                const bool special = struck_type.boss_column || (struck.boss != d2d::rules::Boss::none && struck.boss != d2d::rules::Boss::minion);
-                if (length > 0 && special && cold_effect != 0) {
-                    const int divisor = game_data->cold_divisor[difficulty];
-                    const int ticks = std::max(cold_effect < 0 && divisor != 0 ? length / divisor : length, 1);
-                    struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
-                    struck.shatter = struck.seed.next() % 100 < 20 && !struck.npc.dead_col;
-                } else if (const int divisor = game_data->freeze_divisor[difficulty]; length > 0 && !special && cold_effect < 0 && divisor != 0 && length / divisor > 0) {
-                    freeze(struck, now_ms + std::uint32_t(length / divisor) * 40);
-                }
+                frozen_armor_freeze(monster_index, calc(*skill, skill->calc[0], frozen_armor->level), pierce()[2], now_ms);
             }
             if (const auto* shiver_armor = state_of("shiverarmor")) {
                 const auto* skill = game_data->skills.get(shiver_armor->skill);
@@ -334,16 +309,39 @@ auto Fight::monster_return_fire(std::size_t monster_index, const Missile& missil
     }
 
 auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
+        // The same event 2 (FUN_005cac50) on the merc: it reads nothing of its wearer but its calc1 at the
+        // wearer's level (0x5cace6) and, through FUN_0057c6c0, the wearer's cold pierce (frozen_armor_freeze).
         const auto* skill = actor->merc_buff.skill >= 0 && now_ms < actor->merc_buff.until ? game_data->skills.get(actor->merc_buff.skill) : nullptr;
         if (!skill || skill->aurastate != "frozenarmor") return;
-        const int frames = std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], merc_calc_env(), skill->id, actor->merc_buff.level), 1);
-        for (const int striker : foe.damaged_by) {                    // as the player's (buff_events): its strikers freeze
+        const int length = d2d::rules::eval_calc(game_data->skills, skill->calc[0], merc_calc_env(), skill->id, actor->merc_buff.level);
+        const int cold_pierce = int(merc_gear().sum[d2d::d2s::kPassiveColdPierce]);
+        for (const int striker : foe.damaged_by) {
             const int found = this->monster_index(striker);
-            if (found < 0 || !monsters[std::size_t(found)].alive() || monsters[std::size_t(found)].uninterruptable()) continue;   // state 0x36: FUN_0057b230's first test
-            const auto monster_index = std::size_t(found);
-            freeze(monsters[monster_index], now_ms + std::uint32_t(frames) * 40);
-            monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
+            if (found >= 0 && monsters[std::size_t(found)].alive()) frozen_armor_freeze(std::size_t(found), length, cold_pierce, now_ms);
         }
+    }
+
+// Frozen Armor's event (2, FUN_005cac50) on a striker whose blow on its wearer did damage: a hit record carrying
+// the length (calc1) as its freeze (+0x34) through FUN_0057c6c0, so FUN_0057b230's rule (rules::monster_freeze):
+// cut by the cold resist less the wearer's cold pierce; a special (MonStats boss, champions, uniques,
+// superuniques) is chilled for it instead (FUN_0057af80: not at coldeffect 0, / MonsterColdDivisor when negative,
+// at least a tick; shatter rolled as a blow's chill), any other frozen only at a negative coldeffect for the
+// length / MonsterFreezeDivisor. None on state 0x36 (FUN_0057b230's first test).
+auto Fight::frozen_armor_freeze(std::size_t monster_index, int length, int cold_pierce, std::uint32_t now_ms) -> void {
+        auto& struck = monsters[monster_index];
+        if (struck.type < 0 || struck.uninterruptable()) return;
+        const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
+        const auto difficulty = std::size_t(struck.difficulty);
+        const int cold_effect = struck_type.diff[difficulty].cold_effect;
+        const bool special = struck_type.boss_column || (struck.boss != d2d::rules::Boss::none && struck.boss != d2d::rules::Boss::minion);
+        const auto frozen = d2d::rules::monster_freeze(length, target_of(monster_index), cold_pierce, special, cold_effect, game_data->freeze_divisor[difficulty]);
+        if (frozen.chill_ticks > 0 && cold_effect != 0) {
+            const int divisor = game_data->cold_divisor[difficulty];
+            const int ticks = std::max(cold_effect < 0 && divisor != 0 ? frozen.chill_ticks / divisor : frozen.chill_ticks, 1);
+            struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
+            struck.shatter = struck.seed.next() % 100 < 20 && !struck.npc.dead_col;
+        }
+        stand(monster_index, frozen, now_ms);
     }
 
 auto Fight::buff_tick(std::uint32_t now_ms) -> void {

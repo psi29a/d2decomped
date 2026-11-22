@@ -295,7 +295,7 @@ struct Fight {
         int   merc_seq_done = 0;
         // A self cast's state on the merc (Frozen Armor, do 18 FUN_005c9480):
         // the skill, its level, until when. Its aurastats go on its fighter
-        // (skill_armor_percent), melee strikers freeze (merc_buff_events), and
+        // (skill_armor_percent), a melee striker freezes or chills (merc_buff_events), and
         // the pick passes it over while it runs (FUN_005e4d30, its state on).
         struct MercBuff { int skill = -1, level = 0; std::uint32_t until = 0; } merc_buff;
         // A war cry's state on it (hit 18, FUN_005ab0b0 -> FUN_005d8290: Shout's
@@ -405,6 +405,8 @@ struct Fight {
     [[nodiscard]] d2d::d2s::Stats own_stats() const;
     [[nodiscard]] int merc_cry_stat(int stat) const;
     void merc_buff_events(Foe& foe, std::uint32_t now_ms);
+    // Frozen Armor's event (2, FUN_005cac50) on the monster that struck its wearer: `length` the wearer's calc1, its cold pierce.
+    void frozen_armor_freeze(std::size_t monster_index, int length, int cold_pierce, std::uint32_t now_ms);
     // A footstep at subtile (x, y): written over the oldest, the cursor on.
     void footstep(int x, int y, std::uint32_t now_ms) {
         actor->footsteps[std::size_t(actor->footstep_cursor)] = { x, y };
