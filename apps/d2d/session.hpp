@@ -26,7 +26,9 @@
 #include "skillbar.hpp"
 #include "skillpad.hpp"
 #include "store.hpp"
+#include "teleport_aim.hpp"
 #include "tile_blit.hpp"
+#include "touch_gestures.hpp"
 #include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
@@ -311,9 +313,10 @@ struct ClientSession {
     // toggle says; `attack` / `attack_down` / `alt` are its buttons, which
     // hit what is in reach. The first player's is set each frame by main,
     // the other co-op players' by coop_pad.
-    struct PadMove { float x = 0, y = 0; bool active = false, attack = false, attack_down = false, alt = false; bool aim = false; float aim_x = 0, aim_y = 0; };
+    struct PadMove { float x = 0, y = 0; bool active = false, attack = false, attack_down = false, alt = false; bool aim = false; float aim_x = 0, aim_y = 0, aim_magnitude = 0; };
     struct PadPlayer {
         PadMove move;
+        TeleportAim teleport;
         bool walking = false;                     // last frame's stick walk, to send a fresh walk once
         float face_x = 0.707f, face_y = 0.707f;   // the facing the pad last pointed (world, south at first)
         int target = -1;                          // the monster the held button stays on
@@ -535,6 +538,9 @@ struct ClientSession {
     [[nodiscard]] bool touch_compact_field() const;
     void drive_touch_hold(float seconds);
     touch::Input touch_input;
+    touch::SkillHold touch_skill_hold;
+    TeleportAim touch_teleport;
+    bool touch_stop_chase = false;
     PadPlayer touch_player;
     std::map<std::string, skillpad::Sheet> touch_sheets;
     std::array<touch::Target, 4> touch_previews{};
@@ -581,13 +587,19 @@ struct ClientSession {
     [[nodiscard]] int touch_bound_skill(int slot) const;
     [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
-    /** Facing plus resolve_skill: swipe-aim when directional or when pad_pick has no monster. */
+    /** Refresh the latched skill preview from drag direction and its current target. */
     void touch_refresh_skill_aim();
+    void touch_begin_skill_hold(std::int64_t finger);
+    [[nodiscard]] bool touch_stationary(int skill) const;
+    void drive_touch_skill_hold();
+    void touch_cancel_skill_chase();
+    void touch_stop_skill_chase(bool keep_walk);
+    void draw_combat_previews(std::vector<std::uint8_t>& framebuffer);
     void drive_touch();
     void draw_touch(std::vector<std::uint8_t>& framebuffer);
     void load_touch_sheet(const std::string& name);
     void save_touch_sheet(const std::string& name) const;
-    [[nodiscard]] touch::Target resolve_skill(PadPlayer& player_pad, int skill, float dx = 0, float dy = 0, bool manual = false, const UnitState* owner = nullptr, std::string_view owner_name = {}) const;
+    [[nodiscard]] touch::Target resolve_skill(PadPlayer& player_pad, int skill, float dx = 0, float dy = 0, bool manual = false, const UnitState* owner = nullptr, std::string_view owner_name = {}, int sticky = -1) const;
     void cast_resolved(PadPlayer& player_pad, const touch::Target& target);
     pad::Actions skill_actions;
     std::map<std::string, skillpad::Sheet> skill_sheets;

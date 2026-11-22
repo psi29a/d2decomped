@@ -326,13 +326,16 @@ target_sources(d2d PRIVATE
     session/skillpad.cpp
     session/staff_show.cpp
     session/touch.cpp
+    session/touch_combat.cpp
     session/update.cpp
     session/use_item.cpp
     session/view.cpp
     session/walk.cpp
     skilltree.cpp
     store.cpp
+    teleport_aim.cpp
     tile_blit.cpp
+    touch_gestures.cpp
     ui.cpp
     use_item.cpp
     window.cpp

@@ -966,6 +966,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             if (session.touch_enabled && screen == Screen::InGame) {
                 if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+                    session.touch_cancel_skill_chase(); session.touch_stop_skill_chase(false);
+                    session.pad.teleport.clear(); session.touch_teleport.clear(); session.touch_skill_hold.clear();
                     session.touch_input.clear(); session.touch_item_finger = -1; session.touch_fingers = 0;
                     session.touch_pointer = {}; session.touch_sheet = {}; session.touch_item_drag = false;
                 }
@@ -1057,6 +1059,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                                                          : session.pad_field() ? pad::Context::Game : pad::Context::Panel)
                                            : screen == Screen::Title  ? pad::Context::Title : pad::Context::Menu;
             const auto pad_changes = gamepads.changes();
+            if (!pad_changes.went.empty()) session.pad.teleport.clear();
             if (screen == Screen::InGame) {                      // hotplug, shown: a pad in or out mid-game (not the Deck's own controls: docked, they play no one)
                 for (const auto& pad : pad_changes.came) if (!pad.built_in) session.add_chat(pad.name + " connected");
                 for (const auto& pad : pad_changes.went) if (!pad.built_in) session.add_chat(pad.name + " disconnected");
@@ -1304,7 +1307,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             session.pad.move = screen == Screen::InGame
                 ? ClientSession::PadMove{ pad_actions.move_x, pad_actions.move_y, pad_actions.move_active,
                                 pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press,
-                                pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y }
+                                pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y, pad_actions.aim_magnitude }
                 : ClientSession::PadMove{};
             if (session.touch_enabled && session.last_device == touch::LastDevice::Touch && session.pad_field()) session.pad.move = {};
         }

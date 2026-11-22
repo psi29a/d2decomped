@@ -7,10 +7,13 @@
 #include "gamepad_map.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
+#include "teleport_aim.hpp"
+#include "touch_input.hpp"
 
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
+#include <skills.hpp>
 
 #include <algorithm>
 #include <array>
@@ -363,12 +366,31 @@ auto ClientSession::drive_strip(const pad::Actions& actions) -> void {
 auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                            bool expansion, const pad::Actions& actions, const Send& out) -> void {
     ensure_skill_sheet(name);
-    if (!field || dead) return;
+    if (!field || dead) {
+        player_pad.teleport.clear();
+        return;
+    }
     const auto& move = player_pad.move;
     if (move.aim || move.active) {
         const auto face = move.aim ? pad::world_step(move.aim_x, move.aim_y, kIsoW, kIsoH, 1.f) : pad::world_step(move.x, move.y, kIsoW, kIsoH, 1.f);
         player_pad.face_x = face.x;
         player_pad.face_y = face.y;
+    }
+    auto& teleport = player_pad.teleport;
+    if (&player_pad == &pad && last_device != touch::LastDevice::Gamepad) teleport.clear();
+    if (teleport.button >= 0) {
+        const bool down = teleport.button == skillpad::kSlots ? actions.main_skill_down
+            : actions.slot_down[std::size_t(teleport.button)];
+        if (down) {
+            teleport.manual = move.aim;
+            const auto [dx, dy] = teleport_stick_drag(move.aim_x, move.aim_y, move.aim_magnitude);
+            teleport.dx = dx; teleport.dy = dy;
+            teleport.preview = resolve_skill(player_pad, teleport.preview.skill, teleport.dx, teleport.dy, teleport.manual, &unit, name);
+        } else {
+            const auto current = resolve_skill(player_pad, teleport.preview.skill, teleport.dx, teleport.dy, teleport.manual, &unit, name);
+            if (teleport.matches(current)) out(cmd::UseSkill{ current.skill, current.x, current.y, current.unit, current.left, -1 });
+            teleport.clear();
+        }
     }
     if (actions.swap_tap && expansion) out(cmd::SwapWeapons{});
     const auto interact = [&]() {
@@ -455,6 +477,17 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
         if (id == kResurrectSkill) {
             if (press && skillbar.coop)
                 if (const auto* body = body_near(unit.x, unit.y, 4.f)) out(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
+            return;
+        }
+        const auto* info = scene ? scene->skills.get(id) : nullptr;
+        if (&player_pad == &pad && info && info->srvdofunc == d2d::rules::ServerDoFunction::kTeleport) {
+            if (press && last_device == touch::LastDevice::Gamepad && teleport.button < 0 && skill_known(name, id)) {
+                teleport.button = button;
+                teleport.manual = move.aim;
+                const auto [dx, dy] = teleport_stick_drag(move.aim_x, move.aim_y, move.aim_magnitude);
+                teleport.dx = dx; teleport.dy = dy;
+                teleport.preview = resolve_skill(player_pad, id, teleport.dx, teleport.dy, teleport.manual, &unit, name);
+            }
             return;
         }
         cast(id, press, button_down, used);
