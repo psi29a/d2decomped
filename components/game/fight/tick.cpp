@@ -477,9 +477,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             act_as(*heroes.front());
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
-                if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play, game_players(), &spawning))
-                    killed(i, now_ms);                           // on a player's thorns
+                if (!near_players(monster.unit.x, monster.unit.y)) continue;
+                const std::size_t made_from = missiles.size();
+                const bool thorns_kill = monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door,
+                                                        rooms_in_play, game_players(), &spawning);
+                // What its think made takes its unit seed off the game seed now, in the order made, as game.exe
+                // seeds a missile as it's made (a visual-only one none).
+                seed_missiles(made_from);
+                if (thorns_kill) killed(i, now_ms);              // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
             for (std::size_t i = allies; i < foes.size(); ++i) {
