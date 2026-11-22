@@ -1598,7 +1598,15 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   (FUN_005d3140, Psychic Hammer): the skill's damage on the unit, knockback
   at calc1 % (calc2 champion, calc3 unique, calc4 boss). **51**
   (FUN_005d76e0, Mind Blast): physical and stun within aurarange (or
-  prgcalc), conversion through FUN_005d7680. **20** (FUN_005c9800 ->
+  prgcalc), conversion through FUN_005d7680: FUN_005d7430 first, and a
+  unit it turns takes no blow. FUN_005d72b0 lets a monster (type 1) that
+  isn't a hireling (FUN_0063ee90), is evil (FUN_006259b0) and swaps its AI
+  (FUN_0056e2f0, EDX 0xb), when rand(100) on the caster's seed (+0x20) is
+  at most dm(Param5, Param6) (FUN_00645c10; SETLE at 0x5d72f9: 15..40).
+  State 0x35 goes on for Param3 + rand(Param4) frames (0x5d7457: 150 +
+  rand(100)), an old one only taking the new end (FUN_006260b0); then
+  Conversion's turn (FUN_005d0350's, end callback FUN_005d7310), down to
+  the caster's stat 0xc. **20** (FUN_005c9800 ->
   FUN_005c96a0, Static Field): calc1 % of life within aurarange; its walk
   (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
   Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
