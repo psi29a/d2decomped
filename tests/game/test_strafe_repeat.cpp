@@ -56,7 +56,7 @@ int main() try {
     bow.flags = quiver.flags = 0x10;                                // identified
     bow.quality = quiver.quality = 2;                               // normal
     bow.identified = quiver.identified = true;
-    character.items = { bow, quiver };
+    character.items = { std::move(bow), std::move(quiver) };
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
     auto world = std::make_unique<World>(&*data, -1, -1);
     world->enter(character);

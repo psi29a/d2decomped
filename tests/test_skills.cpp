@@ -309,7 +309,7 @@ int main() try {
         assert(line.damage && line.min == (10 << 8) * 25 / 3 >> 8 && line.max == (20 << 8) * 25 / 3 >> 8 && line.damage_colour == 3);
         // descdam 12 (Blessed Hammer, FUN_004eb830): its magic 10-20 and blue, + Concentration's share
         // in an expansion game, + damagepercent (at least -90) in a classic one; truncated.
-        Skill hammer = inferno;
+        Skill hammer = std::move(inferno);
         hammer.descdam = 12;
         line = attack_line(skill_tables, hammer, env, 5, fighter, 5, 0, 0, 0, { true, 50 });
         assert(line.damage && line.min == 15 && line.max == 30 && line.damage_colour == 3);
@@ -319,7 +319,7 @@ int main() try {
         assert(line.min == 1 && line.max == 2);
         // descdam 11 (Vengeance, FUN_004eb640): calc1..3 % of stats 21 / 22 (at least 1 / 2), each with
         // its mastery; no element or weapon share here, so white turns blue.
-        Skill vengeance = hammer;
+        Skill vengeance = std::move(hammer);
         vengeance.descdam = 11; vengeance.etype = -1; vengeance.srcdam_raw = 0;
         vengeance.calc = { compile("70"), compile("30"), compile("0"), {} };
         Fighter bare = fighter;
@@ -331,7 +331,7 @@ int main() try {
         assert(line.damage && line.min == 0 + 0 && line.max == 7 + 4 && line.damage_colour == 3);
         // descdam 10 (Smite, FUN_004eb460): the shield's 2-4 x (Param3 + Param4 x 2) %, item_mindamage_percent
         // added to the product (0x4eb5ec), not the %; none with no shield.
-        Skill smite = vengeance;
+        Skill smite = std::move(vengeance);
         smite.descdam = 10; smite.par[2] = 15; smite.par[3] = 15;
         PanelUnit holding;
         holding.shield = { true, 2, 4, 0, 0 };
@@ -361,7 +361,7 @@ int main() try {
         assert(line.damage && !line.two && line.min == 3 * 130 / 100 + (-75 * (3 * 130 / 100)) / 100 + 2 && line.max == 9 + (-75 * 9) / 100 + 4 && line.damage_colour == 1);
         // descdam 23 (Rabies, FUN_004eaf90): 17's line without its ddam calcs, the weapon's 3-9 + fire
         // 2-4 over the element (poison x ELen in Rabies' row; lightning 1-40 here).
-        Skill rabies = strike;
+        Skill rabies = std::move(strike);
         rabies.descdam = 23; rabies.emin = 1; rabies.emax = 40;
         line = attack_line(skill_tables, rabies, env, 5, fighter, 5);
         assert(line.damage && line.two && line.min == 3 + 2 && line.max == 9 + 4 && line.damage_colour == 1);
@@ -379,7 +379,7 @@ int main() try {
         // descdam 16 (Dragon Tail, FUN_004ebb50): the kick 10-20 at its 30 % + MinDam..MaxDam 4-8, x calc1
         // 50 %, then the elements of the unit with its weapon off (cold 1-2 here, not the weapon's fire),
         // in cold's colour: tools/emu/panel_damage.py.
-        Skill tail = talon;
+        Skill tail = std::move(talon);
         tail.descdam = 16; tail.etype = 0; tail.calc[0] = compile("50");
         Fighter weapon_off = booted;
         weapon_off.elem = {};
@@ -434,7 +434,7 @@ int main() try {
         assert(line.min2 == 2 + 4 && line.max2 == 3 + 6 && line.colour2 == 1);
         // descdam 21 (Lightning Bolt, FUN_004ea790): the javelin's throw 10-20 at +50 % (its own item %
         // 18 / 17 plus damagepercent) and the throw mastery's 20 %, x SrcDam 64 / 128, then the lightning.
-        Skill lightning_bolt = arrow;
+        Skill lightning_bolt = std::move(arrow);
         lightning_bolt.descdam = 21; lightning_bolt.etype = 1; lightning_bolt.srcdam_raw = 64; lightning_bolt.emin = 1; lightning_bolt.emax = 30;
         Fighter javelin = fighter;
         javelin.throw_lo = 10; javelin.throw_hi = 20; javelin.unit_min_pct = javelin.unit_max_pct = 20;
@@ -448,7 +448,7 @@ int main() try {
         assert(!attack_line(skill_tables, lightning_bolt, sharp, 1, javelin, 5, 0, 0, 0, {}).damage);   // nothing throwable: no line
         // descdam 22 (the javelins, FUN_004eaaa0): the same throw with the gear's fire 2-4 on it (red), x SrcDam,
         // over the skill's lightning; nothing throwable leaves the element alone.
-        Skill fury_jav = lightning_bolt;
+        Skill fury_jav = std::move(lightning_bolt);
         fury_jav.descdam = 22;
         line = attack_line(skill_tables, fury_jav, sharp, 1, javelin, 5, 0, 0, 0, throwing);
         // (18 + 2) / 2, (36 + 4) / 2.
@@ -497,7 +497,7 @@ int main() try {
         // then the skill's element; 4 (Left Hand Throw, FUN_004eaa30): the other hand's throw alone.
         Skill throw_skill = frenzy;
         throw_skill.descdam = 3; throw_skill.srcdam_raw = 64;
-        PanelUnit thrower = barbarian;
+        PanelUnit thrower = std::move(barbarian);
         thrower.thrown = { .held = true, .mastery = 50 };
         line = attack_line(skill_tables, throw_skill, plain, 5, main_throw, 5, 0, 0, 0, thrower);
         assert(!line.two && line.min == (15 + 2) / 2 && line.max == (30 + 4) / 2 && line.damage_colour == 1);
@@ -530,7 +530,7 @@ int main() try {
         rated_throw.thrown.potion = true;                           // a throwing potion: no rating
         assert(attack_line(skill_tables, rated, env, 5, fighter, 5, 0, 0, 0, rated_throw).attack_rating == 0);
         // descdam 2 (Kick, FUN_004ea450): MinDam << (HitShift - 8) + the unit's own stat 137, both ends.
-        Skill kick = frenzy;
+        Skill kick = std::move(frenzy);
         kick.descdam = 2; kick.mindam = 3; kick.hitshift = 10;
         PanelUnit kicker;
         kicker.base_kick = 5;

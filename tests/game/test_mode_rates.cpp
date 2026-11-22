@@ -96,6 +96,7 @@ int game_check(const GameData& data) {
             assert(d2d::rules::monster_mode_rate({ .mode = 3, .speed = speed, .fhr = fhr }) == d2d::rules::get_hit_rate(speed, fhr));
     Monster zombie;
     zombie.type = data.monsters.row("zombie1");
+    assert(zombie.type >= 0);
     zombie.npc = data.mon_npc[std::size_t(zombie.type)];
     zombie.anim_pct = -150;
     zombie.walk_pct = 25;

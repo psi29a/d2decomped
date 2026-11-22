@@ -133,7 +133,7 @@ int main() try {
     d2d::d2s::Item sword, shield;
     sword.code = "ssd"; sword.location = d2d::d2s::item_location::kEquipped; sword.slot = d2d::d2s::body_location::kRightArm; sword.wielded = true;
     shield.code = "buc"; shield.location = d2d::d2s::item_location::kEquipped; shield.slot = d2d::d2s::body_location::kLeftArm;
-    items.push_back(sword); items.push_back(shield);
+    items.push_back(std::move(sword)); items.push_back(std::move(shield));
     actor->pmode = -1;
     actor->attack_mon = -1;
     actor->player.walking = false;

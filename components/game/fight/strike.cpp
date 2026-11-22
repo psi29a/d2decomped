@@ -327,6 +327,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             d2d::rules::PanelUnit::Thrown thrown;
             if (!item || !throwable(*game_data, item->code)) return thrown;
             const auto base = game_data->rules.item_base.find(item->code);
+            if (base == game_data->rules.item_base.end()) return thrown;   // throwable() found it; kept for the reader
             const std::string type = type_of(*item);
             thrown = { .held = true, .potion = d2d::rules::type_is(game_data->rules, type, "tpot"),
                        .str_bonus = base->second.str_bonus, .dex_bonus = base->second.dex_bonus };

@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -100,7 +101,7 @@ int main() try {
     items.erase(in_hand(d2d::d2s::body_location::kRightArm));
     d2d::d2s::Item buckler;
     buckler.code = "buc"; buckler.location = d2d::d2s::item_location::kEquipped; buckler.slot = d2d::d2s::body_location::kLeftArm;
-    items.push_back(buckler);
+    items.push_back(std::move(buckler));
     fight.update_fighters(now);
     const auto plain_bare = world.actor->character.panel.attack[1];
     in_hand(d2d::d2s::body_location::kLeftArm)->props.push_back({ d2d::d2s::kStr, 0, 100 });
@@ -114,7 +115,7 @@ int main() try {
     items.erase(in_hand(d2d::d2s::body_location::kLeftArm));
     d2d::d2s::Item axe;
     axe.code = "tax"; axe.location = d2d::d2s::item_location::kEquipped; axe.slot = d2d::d2s::body_location::kRightArm; axe.wielded = true; axe.quantity = 20;
-    items.push_back(axe);
+    items.push_back(std::move(axe));
     world.actor->attack_skill = 0;
     fight.update_fighters(now);
     fight.update_fighters(now);
