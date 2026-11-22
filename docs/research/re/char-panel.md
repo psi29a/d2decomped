@@ -197,8 +197,8 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: barehanded strength (FUN_004e86f0 adds it
-with no weapon), tooltips.
+Not done: the tooltips. (Barehanded strength is in: `PanelUnit::armed`,
+`test_panel_hands`.)
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)
 
