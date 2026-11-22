@@ -88,20 +88,31 @@ int main() try {
     world->tick({ &order, 1 }, now, now - kTickMs);
     assert(actor->swing_skill == strafe);
     std::vector<int> shot_at;
-    std::size_t seen = 0;
+    std::vector<std::pair<float, float>> aims;                     // each arrow's heading, in the order made
+    std::vector<std::uint32_t> seen;                               // the arrows recorded, by birth (one a swing): one gone doesn't hide the next
     for (int frame = 1; frame < 120 && actor->pmode >= 0; ++frame) {
         now += kTickMs;
         world->tick({}, now, now - kTickMs);
-        std::size_t arrows = 0;
-        for (const auto& missile : fight.missiles) arrows += missile.friendly && missile.skill == strafe;
-        for (const auto& missile : fight.pending) arrows += missile.friendly && missile.skill == strafe;
-        for (; seen < arrows; ++seen) shot_at.push_back(frame);
+        std::vector<const Missile*> arrows;
+        for (const auto& missile : fight.missiles) if (missile.friendly && missile.skill == strafe) arrows.push_back(&missile);
+        for (const auto& missile : fight.pending) if (missile.friendly && missile.skill == strafe) arrows.push_back(&missile);
+        std::ranges::sort(arrows, {}, &Missile::born);
+        for (const Missile* arrow : arrows) {
+            if (std::ranges::contains(seen, arrow->born)) continue;
+            seen.push_back(arrow->born);
+            assert(arrow->to.has_value());                          // aimed at its monster's spot, not start + (1, 1)
+            shot_at.push_back(frame);
+            aims.emplace_back(arrow->velocity_x, arrow->velocity_y);
+        }
     }
     std::printf("Strafe: %zu arrows at frames", shot_at.size());
     for (const int frame : shot_at) std::printf(" %d", frame);
     std::printf("\n");
     assert(shot_at.size() == 3);                                    // three in range, calc3 (2) .. calc1 (5)
     assert(shot_at[1] - shot_at[0] > 1 && shot_at[1] - shot_at[0] == shot_at[2] - shot_at[1]);   // one a restarted swing
+    // At the ground: FUN_0056bd10's pick from -1, the lowest id, then each next above the last (monsters 0, 1, 2:
+    // south of east, east, north of east).
+    assert(aims[0].second < aims[1].second && aims[1].second < aims[2].second && aims[0].second < 0.f && aims[2].second > 0.f);   // they walk in meanwhile
     std::printf("test_strafe_repeat: ok\n");
     return 0;
 } catch (const std::exception& error) {

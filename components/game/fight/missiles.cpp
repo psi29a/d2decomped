@@ -413,19 +413,34 @@ auto Fight::seed_missiles(std::size_t from) -> void {
             if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
     }
 
+auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector<int> {
+        const int radius = calc(skill, skill.aurarange, lvl);
+        std::vector<int> nearby;
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - actor->player.x, monsters[i].unit.y - actor->player.y) * 5 <= float(radius)
+                && filter_takes(0xa783, monsters[i], actor->player.x, actor->player.y))   // FUN_0056bd10's walk: flags 3 | 0xa783 (enemies, a clear line, no town)
+                nearby.push_back(int(i));
+        return nearby;
+    }
+
+// Do 12 (FUN_005dba40): the unit it keeps by id (FUN_00552f60), gone or dead the pick from it
+// (FUN_0056bd10, aurarange, flags 3); none: no arrow. The arrow at it (faced, FUN_00620c10), one fewer;
+// with some left the next pick from it is kept, and only then does the swing start over (FUN_0056e210).
 auto Fight::strafe_shot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
-        if (actor->strafe.empty()) return;
-        const int target = actor->strafe.front();
-        actor->strafe.erase(actor->strafe.begin());
-        const auto& missile_info = *skill_missile(skill);
+        if (actor->strafe_left <= 0) return;
         const int lvl = skill_level ? skill_level(skill.id) : 1;
-        float target_x = actor->cast_x, target_y = actor->cast_y;
-        if (target >= 0 && std::size_t(target) < monsters.size() && monsters[std::size_t(target)].alive()) {
-            target_x = monsters[std::size_t(target)].unit.x; target_y = monsters[std::size_t(target)].unit.y;
-            actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);   // FUN_00620c10: faced
-        }
-        launch(missile_info, skill, lvl, actor->player.x, actor->player.y, target_x - actor->player.x, target_y - actor->player.y, missile_info.range + missile_info.lev_range * lvl, now_ms).ed_pct
-            = calc(skill, skill.calc[1], lvl);
+        int target = actor->strafe_at;
+        if (target < 0 || std::size_t(target) >= monsters.size() || !monsters[std::size_t(target)].alive()) target = d2d::rules::ring_pick(strafe_reach(skill, lvl), target);
+        if (target < 0) { actor->strafe_left = 0; return; }
+        const auto& missile_info = *skill_missile(skill);
+        const float target_x = monsters[std::size_t(target)].unit.x, target_y = monsters[std::size_t(target)].unit.y;
+        actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
+        auto& arrow = launch(missile_info, skill, lvl, actor->player.x, actor->player.y, target_x - actor->player.x, target_y - actor->player.y, missile_info.range + missile_info.lev_range * lvl, now_ms);
+        arrow.ed_pct = calc(skill, skill.calc[1], lvl);
+        arrow.to = std::pair{ target_x, target_y };                      // its flight's aim (FUN_0059fa30), as a cast arrow's
+        if (--actor->strafe_left <= 0) return;
+        actor->strafe_at = d2d::rules::ring_pick(strafe_reach(skill, lvl), target);
+        if (actor->strafe_at < 0) actor->strafe_left = 0;
     }
 
 auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl) -> int {
@@ -477,16 +492,12 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             auto& missile = send(dx, dy, range);
             missile.target = target; missile.ed_pct = calc1;
         } else if (skill.srvdofunc == ServerDoFunction::kStrafe) {
-            const int radius = calc(skill, skill.aurarange, lvl);
-            std::vector<int> nearby;
-            if (target >= 0) nearby.push_back(target);
-            for (std::size_t i = 0; i < monsters.size(); ++i)
-                if (int(i) != target && monsters[i].targetable()
-                    && std::hypot(monsters[i].unit.x - caster.x, monsters[i].unit.y - caster.y) * 5 <= float(radius)) nearby.push_back(int(i));
+            // St 8 (FUN_005dacd0): the clicked unit, else FUN_0056bd10's pick from -1 within aurarange; as many
+            // arrows as monsters there, held between min(calc3, calc1) and calc1.
+            const auto nearby = strafe_reach(skill, lvl);
             const int high = calc1, low = std::min(calc(skill, skill.calc[2], lvl), high);
-            const int count = std::clamp(int(nearby.size()), low, high);
-            actor->strafe.clear();
-            for (int k = 0; k < count; ++k) actor->strafe.push_back(nearby.empty() ? -1 : nearby[std::size_t(k) % nearby.size()]);
+            actor->strafe_left = std::clamp(int(nearby.size()), low, high);
+            actor->strafe_at = target >= 0 ? target : d2d::rules::ring_pick(nearby, -1);
             strafe_shot(skill, now_ms);                         // the first on this action frame, the rest each restart's
         } else if (skill.srvdofunc == ServerDoFunction::kChainLightning) {
             send(dx, dy, range).hops = calc1;
