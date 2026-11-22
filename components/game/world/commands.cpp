@@ -909,6 +909,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             (void)fight.start_swing(now_ms);
         };
         const bool zeal = skill && skill->srvstfunc == ServerStartFunction::kRepeatedHit;
+        // A held Inferno / Arctic Blast while it burns, at the ground or a unit (C->S 0x0f / 0x10, both on to
+        // FUN_005809d0 and the skill's start): its next cast, from where the player stands (Fight::breath_again).
+        if (skill && skill->srvdofunc == ServerDoFunction::kBreath && actor->pmode >= 0 && actor->channel == use_skill.skill && now_ms < actor->burning) {
+            (void)fight.cast_missile(use_skill.skill, live ? target->unit.x : use_skill.x, live ? target->unit.y : use_skill.y, now_ms);
+            return;
+        }
         if (skill && !skill->in_town && !in_moor) {
             if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
             else class_cue("not_in_town_2", now_ms);
