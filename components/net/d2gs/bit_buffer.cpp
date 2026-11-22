@@ -60,7 +60,7 @@ auto BitReader::read(std::int32_t count) -> std::uint32_t {
 // bits above it.
 auto BitReader::read_signed(std::int32_t count) -> std::int32_t {
     std::uint32_t value = read(count);
-    if (count < 32 && (value & (1u << (std::uint32_t(count - 1) & 31u))) != 0) value |= ~((1u << (std::uint32_t(count) & 31u)) - 1u);
+    if (count < 32 && (value & (1u << ((std::uint32_t(count) - 1u) & 31u))) != 0) value |= ~((1u << (std::uint32_t(count) & 31u)) - 1u);
     return std::int32_t(value);
 }
 

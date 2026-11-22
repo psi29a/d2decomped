@@ -125,6 +125,10 @@ void hand_checks() {
     assert(reader.read_signed(3) == -3);                           // 101: bit 2 set, sign-extended
     assert(reader.read(12) == 1 && reader.cursor().overflow);      // 12 asked, 8 left: those 8 come back
     assert(reader.cursor().byte == 2 && reader.cursor().bit == 0);
+    // A count of INT32_MIN wraps game.exe's 32-bit past-the-end sum to
+    // 0x7ffffff0: all 16 bits come back, bit 31 clear, so no sign.
+    BitReader whole(packet);
+    assert(whole.read_signed(INT32_MIN) == 0x1b4 && whole.cursor().overflow);
 
     // A write zeroes the byte it starts and the next whole one; a write
     // that doesn't fit writes nothing and jumps to the end.
