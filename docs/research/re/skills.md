@@ -777,7 +777,7 @@ into 8 before then. Status 8 voices nothing; the buttons draw it as not
 usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
 delay_meteor_no_mana. d2d: `Fight::start_delay` at each do's action
 frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
-(`FUN_005c8e30`: 20 frames from the start, 6 past each later flame).
+(`FUN_005c8e30`: 20 frames from the start, 6 past each later start while it is on: "Inferno's channel").
 
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value
@@ -1411,6 +1411,7 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   lay theirs on the same test, at the unit's subtile.
 - **Do 19** (FUN_005c8ca0, Inferno, Arctic Blast; st 11 FUN_005c8fa0
   checks the mana): a flame per call lasting calc1 frames (flags 0x8020).
+  See "Inferno's channel" below for how a held cast loops it.
 - Missile do **5** (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze)
   stands and collides every frame; damage func **3** (FUN_005ad220) only
   rolls a hit flag (0x4000) against a percentage (the missile's seed & 0x7f
@@ -1432,7 +1433,52 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   srv_do / param1..2 / hit_par2 / sub / hit_sub (loaded to a fixed point
   of SubMissile1 / HitSubMissile1). Not traced: FUN_0056bd10's pick (the
   nearest), DamageRate's use, Charged Bolt's and Strafe's timing (arrows
-  3 ticks apart), Inferno's held channel (it lasts the cast).
+  3 ticks apart).
+
+### Inferno's channel (traced 2026-11-22)
+
+Read in the disassembly (`Disasm 005c8c10 005c9000`) and run where marked
+(`tools/emu/inferno_channel.py`). Inferno and Arctic Blast are anim SQ,
+`repeat` 1, srvstfunc 11, srvdofunc 19.
+
+- **Start** (st 11 `FUN_005c8fa0`): with state 0xc (inferno) off, mana under
+  startmana x 256 refuses; then `FUN_005c8e30`. A monster's start sets its
+  skill entry's +0x18 to now + calc2 (+0x13c); a player's doesn't (0x5c8e6d).
+  - State 0xc's list missing: a new one (`FUN_006251f0` kind 2, timeout now +
+    0x14), event 0xc at the same frame, the removal callback `0x5c8bf0`
+    (state off, unit +0xc4 |= 0x40: it ends no mode), state 0xc on, and the
+    entry's +0x18 = 0. No flame.
+  - The list there (a held cast): `FUN_00553c70(game, unit, 1)`, the list's
+    timeout now + 6 (`FUN_006260b0`), event 0xc then, and the do at once
+    (0x5c8f84).
+  - The cost is paid after a start that returns 1 (`FUN_0056f640`, 0x56f72b).
+- **Do** (`FUN_005c8ca0`): a flame when the entry's +0x18 isn't 0
+  (0x5c8d22), then +0x18 = 1. So a fresh start's first do makes none. For a
+  player (unit type not 1) it then calls `FUN_00553c70(game, unit, 1)` and
+  returns. A monster's sets +0x44 = 0xb00, files the next do two ticks on
+  while now < +0x18 and state 0xc is on, else ends (`FUN_005c8c10`).
+- **`FUN_00553c70(.., 1)`** takes the queued type-0 and type-1 events off,
+  moves the mode's start (+0x44 >> 8) one tick later and files the
+  animation's events again from there. Run: 6 ticks into a 14-frame mode
+  with its do on frame 6, the do comes again a tick on and the end 9 on. So
+  each do holds the cast on its frame and brings the next: a flame a tick.
+- **A held cast mid-channel** is taken: `FUN_005809d0` asks
+  `FUN_0057edd0`, which lets SQ (or SC) start a new SQ / SC / A1 only while
+  a mode-end event is queued. Run: queued 0 refuses, queued 1 allows. A
+  channel always has one queued.
+
+d2d: `Fight::breath_do` (the do: the first arms, each pushes the mode's
+start and end a tick), `Fight::breath_again` (a held cast while
+`Hero::burning`: 6 frames, the do at once, the cost), the start's 20
+frames in `cast_missile`, and the command's re-route in `World::apply`.
+Test: `tests/game/test_inferno_channel.cpp`.
+
+Not traced: what ends a released player's channel in game.exe. The
+player branch re-files the do with no end of its own, and the removal
+callback ends no mode. d2d stops the dos when the list runs out and
+lets the sequence's frames after the do play out (a `ponytail:` in
+`Fight::breath_do`). Also not traced: how often the client re-sends a held
+repeat skill.
 
 ### Pets (phase 6, part 2)
 - **FUN_005c4470** is how the masteries reach pets: the summoning skill's

@@ -372,6 +372,9 @@ auto Fight::missile_skill(const d2d::rules::Skill& skill) const -> bool { return
 auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
+        if (skill_row && !dead() && skill_row->srvdofunc == ServerDoFunction::kBreath && actor->pmode >= 0 && actor->swing_skill == skill
+            && actor->channel == skill && now_ms < actor->burning)
+            return breath_again(*skill_row, target_x, target_y, now_ms);
         if (!skill_row || dead() || actor->pmode >= 0 || (!missile_skill(*skill_row) && !spot_skill(*skill_row))) return false;
         // Throw is a spot skill: a held one (engage) whose last one's gone, or the weapons
         // swapped since the command, stops here (FUN_004610c0's status 2).
@@ -409,6 +412,9 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         // before any cost.
         if (skill_row->srvstfunc == d2d::rules::ServerStartFunction::kCorpseBlast && corpse_near(target_x, target_y, skill_row->srvstfunc) < 0) return false;
         owe(*skill_row, lvl);
+        // Inferno's start (srvstfunc 11 -> FUN_005c8e30) with state 0xc off: the state's list for 20 frames
+        // and the skill entry's +0x18 at 0, so its first do makes no flame (breath_do).
+        if (skill_row->srvdofunc == ServerDoFunction::kBreath) { actor->burning = now_ms + 20 * 40; actor->channel_armed = false; }
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
@@ -524,7 +530,6 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
 // while the cast lasts.
 // The nova aims at rules::kNovaRing (0x6e1288 / 0x6e1388).
 // Strafe's arrows: one a do, the swing starting over between them (strafe_shot, restart_swing).
-// ponytail: Inferno's channel is its cast's animation (no held button, no mana per frame).
 auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const auto& missile_info = *skill_missile(skill);
         const int lvl = caster.level;
@@ -608,7 +613,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             if (caster.merc || caster.pet) send(dx, dy, range);            // one a cast: the channel is the player's (missile_tick)
             else {
                 actor->channel = skill.id;
-                if (skill.srvdofunc == ServerDoFunction::kBreath) actor->burning = now_ms + 20 * 40;   // state inferno (FUN_005c8e30)
+                if (skill.srvdofunc == ServerDoFunction::kBreath) breath_do(skill, now_ms);   // the action frame's do
             }
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             // Its path ignores the aim; a click on the caster aims one subtile on each axis (FUN_0059fa30's
@@ -686,17 +691,53 @@ auto Fight::player_shots(std::uint32_t now_ms) -> void {
         actor->last_frame = frame;
         if (actor->channel >= 0) {
             const auto* skill = game_data->skills.get(actor->channel);
-            if (!skill || actor->pmode != kModeSC || actor->swing_skill != actor->channel) actor->channel = -1;
+            if (!skill || (actor->pmode != kModeSC && !attack_mode(actor->pmode)) || actor->swing_skill != actor->channel) actor->channel = -1;   // Inferno's sequence plays as A1
             else {
                 const int lvl = skill_level ? skill_level(skill->id) : 1;
                 const auto& missile_info = *skill_missile(*skill);
                 if (skill->srvdofunc == ServerDoFunction::kBreath) {
-                    actor->burning = std::max(actor->burning, now_ms + 6 * 40);   // FUN_005c8e30: each flame keeps it 6 frames on
-                    launch(missile_info, *skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, std::max(calc(*skill, skill->calc[0], lvl), 1), now_ms);
+                    if (now_ms < actor->burning) breath_do(*skill, now_ms);   // the do FUN_00553c70 filed a tick on
+                    else actor->channel = -1;                  // the state's list is over: the rest of the sequence plays out
                 } else if (frame % 3 == 0)                     // Blade Fury (FUN_005d68a0): one per attack frame
                     launch(missile_info, *skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, missile_info.range, now_ms);
             }
         }
+    }
+
+// Inferno's and Arctic Blast's do (srvdofunc 19, FUN_005c8ca0): a flame of calc1 frames (flags 0x8020) at
+// the target point once the skill entry's +0x18 is set; the first do after a fresh start only sets it. A
+// player's then files the next do a tick on (FUN_00553c70(game, unit, 1): the mode's start, so its end
+// too, one tick later, its events filed again from there; tools/emu run: the do's marker a tick on, the
+// end event pushed with it), so the cast stands on its do frame and flames each tick.
+// ponytail: game.exe's player branch re-files the do with no end of its own; what stops a released
+// channel there isn't traced. d2d stops the dos when the state's list (Hero::burning) runs out, and the
+// sequence's frames after the do then play out.
+auto Fight::breath_do(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
+        actor->last_frame = int(now_ms / 40);          // this tick's do: no second one from player_shots
+        actor->player.mode_ms += 40;                   // FUN_00553c70(.., 1)
+        actor->pmode_until += 40;
+        if (!std::exchange(actor->channel_armed, true)) return;
+        const int lvl = skill_level ? skill_level(skill.id) : 1;
+        launch(*skill_missile(skill), skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
+               std::max(calc(skill, skill.calc[0], lvl), 1), now_ms);
+    }
+
+// A held Inferno's next cast while its state is on (C->S 0x0c / 0x0f): from SQ the server's mode switch
+// takes it while a mode-end event is queued (FUN_0057edd0), as a channel always has one. Its start
+// (FUN_0056f640 -> srvstfunc 11 FUN_005c8fa0 -> FUN_005c8e30) finds the state's list: the list 6 frames
+// on (FUN_006260b0, event 0xc), the do run at once (0x5c8f84); then the cost (d2d_skills_mana_cost,
+// 0x56f72b). A cast the ask refuses (no mana) sends nothing: the channel runs on till the list ends.
+auto Fight::breath_again(const d2d::rules::Skill& skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
+        if (ask(skill.id, now_ms) != skill.id) return false;
+        actor->cast_x = target_x; actor->cast_y = target_y;
+        actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
+        actor->burning = now_ms + 6 * 40;
+        actor->pstruck = true;                         // the do has run: the action frame's won't again
+        actor->player.mode_ms += 40;                   // the start's own FUN_00553c70(.., 1) (0x5c8f4c), then the do's
+        actor->pmode_until += 40;
+        breath_do(skill, now_ms);
+        pay(skill, cast_level(skill.id));
+        return true;
     }
 
 auto Fight::missile_tick(std::uint32_t now_ms) -> void {

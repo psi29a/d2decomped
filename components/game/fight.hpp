@@ -120,8 +120,8 @@ struct Fight {
         // their Monster::one_shots.
         d2d::rules::OneShots one_shots;
         std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
-        // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, kept
-        // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
+        // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, and
+        // 6 frames past each start while it's on (a held cast). State skilldelay (0x79, FUN_0056ef90): till the frame
         // the last skill's do plus its delay.
         std::uint32_t burning = 0, skill_delay = 0;
         // The client's own state-inferno list (LAB_004e3060: FUN_006251f0 flags 2, +0x18 timeout 0x15 frames, on the
@@ -133,6 +133,7 @@ struct Fight {
         std::uint32_t stunned = 0;
         int strafe_left = 0, strafe_at = -1;       // Strafe's arrows to come (one a restarted swing) and the next one's target
         int channel = -1, last_frame = -1;     // Inferno's skill while its cast lasts
+        bool channel_armed = false;            // its do has run once (the skill entry's +0x18, FUN_005c8ca0): a flame each do from then
         // The monster being attacked (walked up to, then struck), the player's
         // non-walking mode (A1 attack, GH get-hit, BL block, DT dying, DD dead;
         // -1 none) and when it ends.
@@ -761,6 +762,8 @@ struct Fight {
     [[nodiscard]] static int land_range(const GameData::MissileInfo& missile_info, float dx, float dy);
     // Once a frame for the player's skill missiles (their pSrvDoFunc).
     void player_shots(std::uint32_t now_ms);
+    void breath_do(const d2d::rules::Skill& skill, std::uint32_t now_ms);   // one do of Inferno's channel (FUN_005c8ca0)
+    bool breath_again(const d2d::rules::Skill& skill, float target_x, float target_y, std::uint32_t now_ms);   // a held re-cast while it burns
     int missile_frame = -1;                // the frame missile_tick last ran
     void missile_tick(std::uint32_t now_ms);
     // An element in 256ths a frame on monster i (a burner's): less its resistance, gathered until whole points
