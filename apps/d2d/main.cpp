@@ -964,10 +964,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             }
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
+            if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST && screen == Screen::InGame) session.pad.teleport.clear();
             if (session.touch_enabled && screen == Screen::InGame) {
                 if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
                     session.touch_cancel_skill_chase(); session.touch_stop_skill_chase(false);
-                    session.pad.teleport.clear(); session.touch_teleport.clear(); session.touch_skill_hold.clear();
+                    session.touch_teleport.clear(); session.touch_skill_hold.clear();
                     session.touch_input.clear(); session.touch_item_finger = -1; session.touch_fingers = 0;
                     session.touch_pointer = {}; session.touch_sheet = {}; session.touch_item_drag = false;
                 }
