@@ -414,8 +414,13 @@ struct Level {
     // FUN_00552560 (FUN_0061abb0) places no object groups there.
     std::vector<bool> road_rooms;
     // The room2 flags FUN_00552560 reads (0x800000, 0x30000; 0x80 a
-    // plain room's path), and each unit's room, by `rooms` index.
+    // plain room's path; 0x10 << n its vis slot n, FUN_00667970), and each
+    // unit's room, by `rooms` index.
     std::vector<std::uint32_t> room_flags;
+    // Its level record's Vis0..7 / Warp0..7 (drlg::level_vis): the level a
+    // room flag 0x10 << n reaches, and slot n's LvlWarp (-1 a walk across).
+    std::array<int, 8> vis{};
+    std::array<int, 8> vis_warp{ -1, -1, -1, -1, -1, -1, -1, -1 };
     std::vector<std::pair<int, int>> starts;           // drlg BuiltRoom::starts, the rooms' in build order
     std::vector<int> unit_rooms;                       // by `units` index
     // What populating a room made before its monsters (room_objects,
