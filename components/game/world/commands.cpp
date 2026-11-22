@@ -865,7 +865,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // (FUN_005d97f0: Berserk) and 29 (FUN_005ce790: Sacrifice) return 0 with no target (FUN_00553540).
         // Zeal's start (37, FUN_005daf40) takes a foe in reach instead (FUN_0056bd10, flags 0x20003, the last
         // id -1: the lowest), and with none returns 0 too: zeal_spot.
-        // ponytail: a skill with no start (Frenzy, Smite: srvstfunc 0) is started and swung at nothing; not here.
+        // A melee skill with no start (srvstfunc 0: Smite, Double Swing, Frenzy, Hunger) has nothing to refuse
+        // it: FUN_0056f640 runs it at the spot, swung at nothing (its do finds no unit): none_spot.
         const auto attack_spot = [&] {
             const auto* attack = game_data->skills.get(0);
             actor->interact_npc = actor->pick_item = -1;
@@ -891,6 +892,16 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->attack_skill = use_skill.skill;
             actor->attack_charge = entry;
             if (!fight.start_swing(now_ms)) actor->attack_mon = -1;
+        };
+        const auto none_spot = [&] {
+            actor->interact_npc = actor->pick_item = -1;
+            if (actor->pmode >= 0 || fight.dead()) return;
+            actor->attack_mon = -1;
+            actor->attack_skill = use_skill.skill;
+            actor->attack_charge = entry;
+            actor->player.walking = false;
+            actor->player.dir = direction16(use_skill.x - actor->player.x, use_skill.y - actor->player.y);
+            (void)fight.start_swing(now_ms);
         };
         const bool zeal = skill && skill->srvstfunc == ServerStartFunction::kRepeatedHit;
         if (skill && !skill->in_town && !in_moor) {
@@ -923,16 +934,20 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             attack_spot();
         } else if (zeal && !live && use_skill.unit < 0) {
             zeal_spot();
+        } else if (skill && !live && use_skill.unit < 0 && skill->srvstfunc == ServerStartFunction::kNone && skill->range == "h2h") {
+            none_spot();
         } else if (live && use_skill.stand && skill && !fight.missile_skill(*skill) && !fight.spot_skill(*skill) && !moving_skill(*skill)
                    && std::hypot(target->unit.x - actor->player.x, target->unit.y - actor->player.y) > kMeleeReach) {
             // Shift held and the unit out of reach: a melee skill (FUN_00645460 1, h2h or a melee weapon's
             // both) swings where the player stands, at the click (FUN_00461c70: flag 0x20 -> FUN_00461700(0)),
-            // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot;
-            // another skill's isn't swung (its start refuses, above), but an earlier walk stops all the same,
+            // and nothing walks; without shift FUN_00481030 walks to it. Attack's swing is attack_spot, a
+            // melee skill with no start's none_spot (as at a ground click, FUN_0056f640); another skill's
+            // isn't swung (its start refuses, above), but an earlier walk stops all the same,
             // and a queued pickup or interaction goes with it, as attack_spot's does (the skill takes their place).
             actor->attack_mon = -1;
             if (use_skill.skill == 0) attack_spot();
             else if (zeal) zeal_spot();
+            else if (skill->srvstfunc == ServerStartFunction::kNone && skill->range == "h2h") none_spot();
             else {
                 actor->interact_npc = actor->pick_item = -1;
                 actor->player.walking = false;

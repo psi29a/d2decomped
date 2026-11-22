@@ -125,6 +125,32 @@ int main() try {
     zeal_at(6.f);
     assert(actor->attack_mon == -1 && actor->pmode < 0);
 
+    // Smite at a spot (no start, srvstfunc 0: FUN_0056f640 has nothing to refuse it): swung at nothing,
+    // turned to the click, with a shield in hand.
+    const int smite = data->skills.by_name.at("Smite");
+    auto& items = actor->character.items;
+    std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped; });
+    d2d::d2s::Item sword, shield;
+    sword.code = "ssd"; sword.location = d2d::d2s::item_location::kEquipped; sword.slot = d2d::d2s::body_location::kRightArm; sword.wielded = true;
+    shield.code = "buc"; shield.location = d2d::d2s::item_location::kEquipped; shield.slot = d2d::d2s::body_location::kLeftArm;
+    items.push_back(sword); items.push_back(shield);
+    actor->pmode = -1;
+    actor->attack_mon = -1;
+    actor->player.walking = false;
+    actor->character.stats.values[d2d::d2s::kMana] = 100 << 8;
+    fight.monsters[0].unit.x = actor->player.x + 6.f;
+    const Order smite_order{ actor->id, cmd::UseSkill{ smite, actor->player.x, actor->player.y + 2.f, -1, true, -1, true } };
+    world->tick({ &smite_order, 1 }, now, now - kTickMs);
+    assert(actor->swing_skill == smite && actor->attack_mon == -1 && actor->pmode >= 0 && actor->player.dir == direction16(0, 2));
+    // ... and shift-clicked on a monster out of reach: the same swing at the click (FUN_00461700(0)), no walk.
+    now += 100 * kTickMs;
+    world->tick({}, now, now - kTickMs);
+    actor->pmode = -1;
+    actor->swing_skill = -1;
+    actor->character.stats.values[d2d::d2s::kMana] = 100 << 8;
+    const Order far_smite{ actor->id, cmd::UseSkill{ smite, fight.monsters[0].unit.x, fight.monsters[0].unit.y, fight.monsters[0].id, true, -1, true } };
+    world->tick({ &far_smite, 1 }, now, now - kTickMs);
+    assert(actor->swing_skill == smite && actor->attack_mon == -1 && actor->pmode >= 0 && !actor->player.walking && actor->player.dir == direction16(1, 0));
     std::printf("test_stand_attack: ok\n");
     return 0;
 } catch (const std::exception& error) {
