@@ -41,8 +41,8 @@ address	name	evidence
 00410e40	bitreader_init	(reader, buffer, bytes): +0 buffer, +4 bit length (bytes * 8), +8 / +0xc / +0x10 zeroed; a null reader exits with assert id 0x13c
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00410f60	bits_read	(reader, n): reads n bits LSB-first (masks 0x6ce38c, 0x6ce368), byte by byte; reading past the end (+8 bytes × 8 vs +4 bits) sets the overflow flag +0x10 and returns what was there. Callers FUN_00411020, FUN_00411030 (unnamed-frontier.md)
-00411070	bits_align_byte	A reader mid-byte moves to the next byte (+0xc = 0) and, while in range, zeroes it. Only caller FUN_006312b0 (unnamed-frontier.md)
-00411170	checksum_bytes	The sum of the table 0x6ce398 (256 dwords) over the bytes. Only caller FUN_0056a620 (unnamed-frontier.md)
+00411070	bits_align_byte	A writer mid-byte moves to the next byte (+0xc = 0) and, while in range, zeroes it. Only caller FUN_006312b0 (unnamed-frontier.md)
+00411170	count_set_bits	The sum of the table 0x6ce398 (256 dwords, each byte's set-bit count) over the bytes: the set bits in the run (bit-buffer.md). Only caller FUN_0056a620 (unnamed-frontier.md)
 004111a0	lowest_set_bit_index	The index of the lowest set bit through the byte table 0x6ce798 (+8, +0x10, +0x18 by byte), -1 for 0. Callers FUN_00570e30, FUN_005711d0, FUN_005d6410 (unnamed-frontier.md)
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00411710	storm_handle_lock	EAX handle: its block (+4 word × 0x10000), the block's lock (0x776cc0 + index × 0x18) entered, its index out; returns the block. Callers FUN_00412a60, FUN_00413310, FUN_004133d0 (unnamed-frontier.md)
