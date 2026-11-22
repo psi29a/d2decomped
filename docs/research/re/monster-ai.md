@@ -255,6 +255,20 @@ Act 1's last untraced MonAIs (MonStats AI column, levels 2..39): fetish1 (Cataco
 - **Second target (FUN_005ddc30).** The skill-set target (FUN_005dd610), else FUN_005dd0b0 mode 6 (callback FUN_005dcbd0: the near rooms' units, enemies by FUN_005dc970, FUN_005dc380 distance under 0x31, sight always (mask 4), threat 2 or more primary, else secondary), then FUN_005dd510 (merc-ai.md: the type 2 path test, `rules::path_found`; d2d's monster, merc and pet searches all ask it). The Bighead (only whether there is one), CorruptArcher, SkeletonMage and Vampire act at it; their thinks are checked natively in `tools/emu/mon_ais.py` (`tests/mon_ais_act1_cases.inc`).
 - **Skills.** Spider Lay is srvdofunc 23 (FUN_005c9c10; aurastate spiderlay = state 0x16, auralen 300, aurastat velocitypercent −100, anim A2). VampireFireball and VampireMissile are srvmissile vampirefireball / firehead (SC). VampireFirewall is srvdofunc 24 (FUN_005c9ea0, the Countess's), VampireMeteor 28 (FUN_005ca3e0). The srvdofunc table is at 0x7322b0. vampire5's aip5 is 1, so in Act 1 it only shoots.
 
+## Thinks no level places: ElementalBeast, FlyingScimitar, TownRogue, QuillMother
+
+Four MonAI rows (0x73ca18 + AI × 16, the think at +8; all search type 1, no init) whose monsters no 1.14d table or preset places: none is in a Levels.txt mon / nmon / umon column, a preset DS1 (every file lvlprest.txt names, read for type-1 units; rogue3 is MonPreset Act 1 row 22, which none places), a MonStats minion column or SuperUniques.txt. The ElementalBeast's four are not even enabled. A spawn by class id in code is not ruled out (no `push` of their ids found, but an id passed in a register would not show). d2d ports them anyway (`rules::mon_think`), checked against game.exe's own runs (`tools/emu/mon_ais_act1.py`, `tests/mon_ais_unplaced_cases.inc`). Params block as above.
+
+| AI (row) | think | MonStats rows | what it does |
+|---|---|---|---|
+| ElementalBeast (46) | FUN_005f6b70 | firebeast, iceglobe, lightningbeast, poisonorb (not enabled) | state word +0x14: 2 dies (FUN_0057ccb0, the target as killer); 0 with the target under aip2, or hit (FUN_005dd2b0), S1 at it, state 1; not 1 stands aip3; 1 in melee S1 and its action event a frame on (FUN_005417d0 type 0), state 2; else aip1 % walks in (FUN_005dec80(target, 0)), else wanders 8 |
+| FlyingScimitar (47) | FUN_005f6ca0 | flyingscimitar | out of melee aip1 % keeps 1 off, 8 at most (FUN_005de6d0), then aip1 % walks in (flags 7); in melee aip2 % A1, then aip4 % circles 2 (FUN_005df7d0(target, 2, 0)); else stands aip3 |
+| TownRogue (62) | FUN_005e7d60 | rogue3 | A1 at the second target (FUN_005ddc30) under 25, else stands 50 |
+| QuillMother (75) | FUN_005fb2a0 | quillbear1..5 | hit: its group command 1 at the target (FUN_0058f730, "AI commands" below), then in melee A1, else walks in (flags 7); not hit: out of melee aip2 % walks in, else stands aip4; in melee aip1 % A1, else stands aip3 |
+
+- **Special AI 8.** Its think (special table 0x73d358, row 8 +8 = 0x73d3e0) is FUN_005e7dc0, the TownRogue's code again (the same instructions and call targets). No call to the AI toggle FUN_005b0e00 passes a constant 8; several pass a variable, so which monster gets it is not traced. d2d gives no monster special AI 8.
+- **The strike.** The ElementalBeast's type-0 event is the action event a mode's own frames would file (council-s1.md), filed early, so its S1 hits a frame after it starts. `mon_ais_act1.py` logs it as the `strike` effect, not as a think event; ai.cpp does not act on it (a ponytail note in thinks/act1.hpp).
+
 ## Act 2's thinks
 
 Act 2's MonAIs (MonStats AI on levels 40..74, MonAI table 0x73ca18 + ai × 16: `{search type, init, think, other think}`). Params block as above: [0] AI control (+0x14 / +0x18 / +0x1c), [2] target, [5] AI distance, [6] in melee, [7] MonStats row. Search types 1 and 4 skip the think when none is found (FUN_005b1650), so every think below has a target.
