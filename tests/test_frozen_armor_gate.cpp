@@ -13,8 +13,9 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using namespace d2d::rules;
     Rng rng{ 5 };
     Fighter defender = simple_fighter(1, 1, 100, 0);
@@ -36,4 +37,7 @@ int main() {
     assert(grazed.hit && grazed.physical_fine > 0 && grazed.physical_fine < 256 && grazed.damage == 0);
     std::printf("OK: a swing the flat reduction strips to its fire has a +8 of 0 (%d points of damage), a fraction of a physical point a +8 of %d\n", burnt.damage, grazed.physical_fine);
     return 0;
+} catch (const std::exception& error) {
+    std::printf("test_frozen_armor_gate: %s\n", error.what());
+    return 1;
 }
