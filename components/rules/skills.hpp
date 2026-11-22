@@ -225,6 +225,7 @@ enum class ServerDoFunction : int {
     kImpInferno = 126,             // FUN_005d1350: a flame at the target every 3 frames till the start's end
     kCryHelp = 128,                // FUN_005d1800: the caster's group at the target for calc1 frames
     kImpTeleport = 129,            // FUN_005d1ab0: onto its mount, off it, else as MonTeleport
+    kVineAttack = 130,             // FUN_005d1cd0 -> FUN_005d1c30: calc1 plague vines from the target's spot
     kOverseerWhip = 131,           // FUN_005d1f70: bloodlust on the minion, or it turns suicide minion
     kImpFireMissile = 132,         // FUN_005d2090: srvmissilea + TransLvl at the target, once
     kImpregnate = 133,             // FUN_005d2250: state 0x6e on a monster; dead, its summon comes out

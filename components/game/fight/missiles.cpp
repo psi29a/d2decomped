@@ -673,6 +673,13 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const int life = missile_info.srv_do == 6 ? sub->second.range + sub->second.lev_range * missile.level : sub->second.range;
                 launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, life, now_ms);
             }
+            // 26 (FUN_005af980, the vines): every Param1 frames (at least 1) SubMissile1 at its subtile
+            // (FUN_0056ede0), at its level; a sub row naming a Skill carries that skill (Plague Poppy's trail).
+            if (missile_info.srv_do == 26 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
+                const auto* trail_skill = skill_named(sub->second.skill);
+                launch(sub->second, trail_skill ? *trail_skill : *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0,
+                       sub->second.range + sub->second.lev_range * missile.level, now_ms);
+            }
             if ((missile_info.srv_do == 10 || missile_info.srv_do == 25) && sub != game_data->missiles.end()) {
                 const int every = std::max(calc(*skill, skill->calc[1], missile.level), 1), radius = std::max(calc(*skill, skill->calc[0], missile.level), 1);
                 if (age % every == 0) {

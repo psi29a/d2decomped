@@ -1119,8 +1119,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // state on, then the skill's srvmissilea (the recycler delays) from the
 // owner at the corpse (FUN_0059fa30), at the cast's level; its do heals
 // (missile_tick, missile do 29 / 33).
-// ponytail: Vine Attack (do 130, FUN_005d1cd0 -> FUN_005d1c30) as its
-// published effect, not traced; the recycler's client vines aren't drawn.
+// Vine Attack (do 130): its plague vines from the target's spot, laying a
+// trail every Param1 frames (missile do 26) that poisons who stands in it.
+// ponytail: the recycler's client vines aren't drawn.
 // Blade Shield's strike (do 54, a periodic skill every perdelay frames:
 // FUN_005d7e10 -> FUN_005d7ce0, each unit by FUN_005d7c40): every monster
 // within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
@@ -1288,9 +1289,22 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (const auto* pet_skill = game_data->skills.get(pet.skill); pet_skill && pet_skill->srvdofunc == ServerDoFunction::kVine) {
             using namespace d2d::d2s;
-            if (pet_skill->etype == 3 && alive) {                      // Poison Creeper
-                const auto damage = d2d::rules::missile_damage(game_data->skills, *pet_skill, calc_env(), monster.stats.level);
-                land(std::size_t(target), d2d::rules::missile_blow(damage, target_of(std::size_t(target)), pierce(), rng), false, now_ms, pet.monster.id);
+            if (skill->srvdofunc == ServerDoFunction::kVineAttack && alive) {   // Poison Creeper's Vine Attack
+                // Do 130 (FUN_005d1cd0): calc1 at least 1, then FUN_005d1c30: that many of its srvmissilea
+                // (plague vines) from the target's spot (flags 3), the k-th heading (0, 1), (0, -1), (1, 0),
+                // (-1, 0) by k & 3 (0x6e3254 / 0x6e3264), each wandering by k (FUN_005c9290, as Charged Bolt).
+                const auto vines = game_data->missiles.find(skill->srvmissilea);
+                int cast_level = 1;
+                for (const auto& [given_id, given_level] : d2d::rules::summon_skill_levels(game_data->skills, *pet_skill, calc_env(), pet.level))
+                    if (given_id == skill->id) cast_level = given_level;
+                const int count = calc(*skill, skill->calc[0], cast_level);
+                if (vines == game_data->missiles.end() || count < 1) return;
+                static constexpr int kHeadX[4] = { 0, 0, 1, -1 }, kHeadY[4] = { 1, -1, 0, 0 };
+                const auto& spot = monsters[std::size_t(target)].unit;
+                casting_unit = pet.monster.id;
+                for (int k = 0; k < count; ++k)
+                    launch(vines->second, *skill, cast_level, spot.x, spot.y, float(kHeadX[k & 3]), float(kHeadY[k & 3]), vines->second.range, now_ms).bolt = k;
+                casting_unit = -1;
             } else if (!alive && !monsters[std::size_t(target)].corpse_used && skill->srvstfunc == ServerStartFunction::kCorpseCycler) {   // Carrion Vine / Solar Creeper
                 const auto recycler = game_data->missiles.find(skill->srvmissilea);
                 if (recycler == game_data->missiles.end()) return;
