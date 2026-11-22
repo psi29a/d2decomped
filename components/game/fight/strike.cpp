@@ -133,9 +133,25 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         if (kick) {                                          // the weapon's stats off, its attack rating kept
             auto bare = sum;
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
+            const auto weapon_off = bare;                        // the panel's: the wielded weapon alone off (FUN_004e9040 -> FUN_00627910)
+            // FUN_00646280 (0x646300..): the other hand's item too when it is a weapon (type 0x2d), usable and its
+            // stats on (FUN_00629bb0, FUN_0062a4e0, FUN_00625820), as FUN_004ebb50 does.
+            for (const auto& item : actor->character.items) {
+                if (&item == weapon || item.location != d2d::d2s::item_location::kEquipped || !gear_active(item)) continue;
+                if (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm) continue;
+                const auto info = game_data->rules.item_info.find(item.code);
+                if (info == game_data->rules.item_info.end() || !d2d::rules::type_is(game_data->rules, info->second.type, "weap")) continue;
+                d2d::rules::StatSum other{};
+                add(other, item.props);
+                for (const auto& socketed : item.socketed_items) add(other, socket_props(*game_data, item, socketed));
+                for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= other[i];
+            }
             *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, bare, {}, actor->character.stats, gains,
                                              int(actor->character.panel.defense), res, boots);
-            fighter.ar_base_bare = kick->ar_base;               // the weapon's stats off (FUN_00627910 in FUN_004e9040)
+            // The panel's base (descatt 5): only the wielded weapon's stats off (FUN_00627910 in FUN_004e9040),
+            // so the other hand's to-hit stays in it; the kick itself has both off.
+            fighter.ar_base_bare = d2d::rules::make_fighter(game_data->rules, nullptr, shield, weapon_off, {}, actor->character.stats, gains,
+                                                            int(actor->character.panel.defense), res, boots).ar_base;
             kick->ar_base = fighter.ar_base; kick->ar_pct = fighter.ar_pct; kick->attack_rating = fighter.attack_rating;
             kick->kick_pct = fighter.kick_pct;
         }

@@ -333,7 +333,9 @@ flag 0x2000, set by what isn't traced.
   mindam/maxdam (the file's first pair; a shield's is its smite damage) ×
   (1 + ED % + boots StrBonus × str / 100 + DexBonus × dex / 100 + stat 25
   (at least −90) + stat 17), rolled between. The weapons' stats are taken
-  off the unit meanwhile, and the record is marked built (flags | 3), so
+  off the unit meanwhile (FUN_00646280: the wielded one, then the other
+  hand's item when it too is type 0x2d `weap`, usable and its stats on;
+  d2d: `Fight::pf_kick`), and the record is marked built (flags | 3), so
   FUN_0057b7d0 skips the weapon damage and the crit / deadly doubling but
   still adds the rest of the gear's elemental damage and leech.
 - The last kick's knockback (FUN_005d5a30): 100 % on normal monsters,

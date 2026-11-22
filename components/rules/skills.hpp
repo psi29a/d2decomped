@@ -617,7 +617,7 @@ struct PanelUnit {
     Hand main_hand, off_hand;
     int base_kick = 0;           // the unit's own stat 137 (FUN_00625500, not its items'); none on a d2d player
     bool armed = true;           // a weapon wielded (FUN_0063bef0); without one FUN_004e86f0 adds the strength to the %
-    const Fighter* kick = nullptr;   // the unit with the wielded weapon's stats off (FUN_00627910): Dragon Tail's elements
+    const Fighter* kick = nullptr;   // the unit with its hands' weapons' stats off (FUN_00627910): Dragon Tail's elements
     // The charge-ups held (the listed states' stats 0x15e skill, 0x15f level, the row's first aurastat the
     // charges): their share and adds (FUN_004e6ff0, FUN_004e7120).
     struct Charged { int skill = 0, level = 0, count = 0; };

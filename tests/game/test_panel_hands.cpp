@@ -79,6 +79,19 @@ int main() try {
     assert(both.min == alone.min && both.max == alone.max);
     assert(both.min2 == alone.min && both.max2 > alone.max);
     std::printf("OK: Attack %d-%d over %d-%d with two axes\n", both.min, both.max, both.min2, both.max2);
+    // A kick has both hands' weapons off (FUN_00646280): the other axe's fire isn't in it.
+    left->props.push_back({ 48, 0, 5 }); left->props.push_back({ 49, 0, 9 });
+    fight.update_fighters(now);
+    assert(world.actor->player_combat.elem[0].second >= 9 && world.actor->pf_kick.elem[0].second == 0);
+    left->props.resize(left->props.size() - 2);
+    // The panel's kick base (descatt 5, FUN_004e9040) takes only the wielded weapon off: the other axe's
+    // +100 to-hit (stat 19) stays in it.
+    const int bare_before = world.actor->player_combat.ar_base_bare;
+    left->props.push_back({ d2d::d2s::kToHit, 0, 100 });
+    fight.update_fighters(now);
+    std::printf("kick base %d -> %d with +100 to-hit on the other axe\n", bare_before, world.actor->player_combat.ar_base_bare);
+    assert(world.actor->player_combat.ar_base_bare == bare_before + 100);
+    left->props.pop_back();
     assert(world.actor->character.panel.attack[0].skill == frenzy && world.actor->character.panel.attack[0].two);
 
     // Bare hands (the axe off, a buckler with +100 strength in the other hand): the whole strength,
