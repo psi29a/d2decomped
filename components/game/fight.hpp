@@ -1096,9 +1096,9 @@ struct Fight {
     // sHitPar2th; FUN_005aaa90), each burning Param3 + Param4 x (level - 1)
     // 256ths a frame (FUN_004cc7c0).
     // Also Strafe's queued arrows and Inferno's flames.
+    // A guided one cast at nothing (do 10) flies to the point and ends there.
     // ponytail: a burner hits a monster once a frame however many overlap
-    // (by skill); a Bone
-    // Spirit cast at nothing seeks the monster nearest the cast point.
+    // (by skill).
     // The acting player's own shots this frame: Strafe's arrows due, a
     // channelled skill's (Inferno, Blade Fury).
     void player_shots(std::uint32_t now_ms);

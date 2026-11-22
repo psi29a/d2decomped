@@ -1353,7 +1353,9 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
 - Tables: srvdofunc 0x7322b0, missile pSrvDoFunc 0x73c768, pSrvHitFunc
   0x73c840, pSrvDmgFunc 0x73c960 (4-byte entries, index = the column).
 - **Do 10** (FUN_005db6d0: Guided Arrow, Bone Spirit): srvmissilea at the
-  target unit (flags 0x20; 0x420 with none); calc1 through the callback
+  target unit (flags 0x20; 0x420 with none: flag 0x400, FUN_0056ee90, its
+  range the frames to the point, so it ends there; nothing seeks one, do 7
+  steering only at the unit it was given; `test_guided_no_target`); calc1 through the callback
   **0x5db6a0**, which adds it to the missile's stat 25 (damage %). Missile
   do **7** (FUN_005ae780) re-aims at the target every Param1 (0: 5) frames
   while it's 4..24 off (FUN_006416d0), a live hostile unit, the owner alive
