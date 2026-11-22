@@ -10,6 +10,8 @@
 
 #include "panels/party.hpp"
 
+#include <combat.hpp>
+#include <d2gs/s2c.hpp>
 #include <d2s_items.hpp>
 #include <join.hpp>
 #include <net_log.hpp>
@@ -51,6 +53,7 @@ struct NetGame {
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
         std::optional<std::pair<float, float>> attack_aim;
+        d2d::rules::FixedAnimationClock attack_pose;
         std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;   // another player's: by item id (0x9d)
         int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id
         std::uint32_t skill_ms = 0;   // when (steady ms)
@@ -59,6 +62,9 @@ struct NetGame {
         std::uint32_t follow_ms = 0;  // when it last was (steady ms)
         int velocity_pct = 100;       // a monster's stat 0x43 velocitypercent, from its moves (0x67 / 0x68)
         std::vector<int> states;      // the States.txt rows the host has on it (0xa8 / 0xaa set, 0xa9 end)
+        std::optional<int> animation_base_velocity;
+        std::unordered_map<int, d2d::net::d2gs::s2c::AnimationStats> animation_states;
+        [[nodiscard]] auto animation_stats() const -> d2d::net::d2gs::s2c::AnimationStats;
         int boss_flags = 0;           // a monster's 0xac boss bits: 1 champion, 2 unique, 4 superunique, 8 minion, 0x10 ghostly
         int super = -1;               // its SuperUniques row, -1 none
         std::vector<int> mods;        // its MonUMod mods

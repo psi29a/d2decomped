@@ -4,6 +4,7 @@
 // synthetic Huffman table (no game.exe bytes): docs/design/net-join-plan.md
 // M1-M3.
 #include <allow.hpp>
+#include <d2gs/bit_buffer.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/frame.hpp>
@@ -21,6 +22,7 @@
 #include <exception>
 #include <random>
 #include <span>
+#include <utility>
 #include <vector>
 
 using namespace d2d::net;
@@ -176,6 +178,18 @@ int main() try {
         uncorrected.resize(12);
         const auto command_without_correction = d2gs::s2c::monster_command(uncorrected);
         assert(command_without_correction && !command_without_correction->correction);
+        // FUN_0045ee20 reads the selected ItemStatCost fields as signed.
+        std::array<std::pair<int, int>, 97> send_widths{};
+        send_widths[67] = send_widths[68] = {10, 0};
+        send_widths[93] = send_widths[96] = {9, 0};
+        // The same stat list is decoded by game.exe in council_host_packets.py.
+        const std::array<std::uint8_t, 11> state_bytes{ 0x43, 0xc4, 0x27, 0xe2, 0x7c, 0x17, 0x0a, 0x60, 0xec, 0xff, 0x07 };
+        d2gs::BitReader state_bits(state_bytes);
+        const auto rates = d2gs::s2c::read_state_stats(state_bits, send_widths);
+        assert(rates && rates->animation.velocity == -30 && rates->animation.attack_rate == -50
+            && rates->animation.ias == 20 && rates->animation.frw == -10);
+        d2gs::BitReader truncated_state(std::span<const std::uint8_t>(state_bytes).first(10));
+        assert(!d2gs::s2c::read_state_stats(truncated_state, send_widths));
         // 0x27 mode 1: Atma's greeting (kind 0) and a topic (kind 2); a lone
         // kind 3 is a number, not lines. 0x5d's record 8 (Radament) is word 9.
         d2d::net::Bytes info(40, 0);

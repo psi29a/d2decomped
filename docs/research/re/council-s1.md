@@ -260,10 +260,30 @@ runs `FUN_00597e20` and captures A1 commands 11/10 and S1 commands
 monster's position correction at +0xc and +0xe. The original client
 applies it before dispatching the command (`FUN_0045cf40` / `FUN_0045cfb0`).
 d2d applies the correction and uses the aim to face A1, A2 and S1.
-For an original host's Council A1 command, d2d draws the stock-rate
-pose from the elapsed 40 ms ticks and restarts its clock on each command.
-`FUN_00623e00` gives zero-based frames 1 and 3 at ticks 3 and 6 at
-rate 168. The elapsed renderer's integer 60 ms division gave 2 and 4.
+For an original host's Council A1 or S1 command, d2d restarts the pose
+clock and applies each rate to the existing position. `FUN_00623e00`
+gives zero-based A1 frames 1 and 3 at ticks 3 and 6 at rate 168. The
+old 60 ms division gave 2 and 4. S1 at stock velocity stays active
+until ticks 29, 22 and 18 for the three classes. A raw AnimData duration
+ended all three on tick 18.
+
+The client keeps the signed velocity, attack rate, IAS and FRW modifiers
+from 0xa8 / 0xaa state lists and removes them on 0xa9. Those fields'
+send widths and signs come from the 1.14d ItemStatCost table.
+`FUN_0045ee20` and `FUN_0045efa0` feed the state records to the
+client, and `FUN_00623f50` gives the animation rate from the unit's
+stats. The client keeps the accumulated position across those rate
+changes and holds it in freeze state 1, which makes `FUN_004b13a0`
+skip the living monster's step. Its clock starts on receipt of the
+mode command.
+
+`test_council_a1 --host-pose` dumps every active tick and the end tick
+for A1 and S1 on each of the three classes, at stock speed, through a
+slowdown and recovery, and through a freeze and thaw.
+`tools/emu/council_modes.py` accepts
+the dump with `--compare-host-pose` and compares the fixed-point
+position and completion to the original executable's `FUN_00623e00`
+and `FUN_006217c0` at each tick.
 Player, hireling and pet attack clocks use their own paths.
 
 The d2d regressions map original Council IDs 345–347 to reordered
