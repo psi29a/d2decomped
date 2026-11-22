@@ -58,10 +58,20 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   x/y in ECX/EDX (fastcall) and pushes: `+0x14` left margin, `+0x18` top
   margin, `+0x2c` flags (2 centre, 0x10 right, 4 = has scrollbar). Slot
   boxes `0x84+i`: 200x92, **left margin 76, top margin 3**, flags 0x20.
-- Lines, top to bottom: `[title ]name` in red (hardcore) / gold, then
-  `"Level" (string 0xfd9) N ClassName` in white, then string 22731
-  "EXPANSION CHARACTER" in green if status & 0x20, then string 10927 in
-  gold if the ladder byte is set; Battle.net adds an expiry line.
+- Record `0x84` (bytes at `0x70a5d0`): kind 4, (37, bottom 178),
+  200x92, margins 76 / 3, click `0x43a9d0`, font pair `0x7089c4`
+  (Font16), flags 0x20: left-aligned at x + 76 (`FUN_004fbf30`), and no
+  wrap (`FUN_004fc9b0`), which matters: 200 - 2 x 76 leaves 48 px. With
+  Font16's height 10 and the English spacing 4, the rows' baselines are
+  the slot top + 13, then every 14 px.
+- Rows, top to bottom, one `FUN_004fcff0` / `FUN_004fc9b0` each: the
+  title alone (`0x4382b2`; untitled, `FUN_00505640` returns `""`, not
+  NULL, so the row is added empty and the name is always second), then
+  the name (`0x438352`; on Battle.net `" {%s}"` adds the account), both
+  colour 1 (hardcore) / 4; `"Level" (string 0xfd9) N ClassName`, colour
+  0; string
+  0x58cb "EXPANSION CHARACTER", colour 2, if status & 0x20; string 0x2aaf,
+  colour 4, if the ladder byte is set; Battle.net adds an expiry line.
 - Title: `FUN_005068a0(class, progression, hc, lod)` → tier (classic
   <4/<8/<12, LoD <5/<10/<15; hardcore +3), `FUN_00505640` → hard-coded
   "Sir/Dame … King/Queen", "Slayer … Patriarch/Matriarch … Guardian".

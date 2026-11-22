@@ -108,6 +108,10 @@ int main(int argc, char** argv) try {
     assert(slot.size() == 4 && slot[0].text == "Slayer" && slot[2].text == "Level 90 Sorceress");
     assert(slot[0].x == 113 && slot[3].x == 113);
     assert(slot[0].baseline == 99 && slot[1].baseline == 113 && slot[3].baseline == 141);
+    // Untitled: FUN_00505640's "" is still a row, so the name stays second.
+    const auto untitled = d2d::font::text_box_rows({ "", "Name", "Level 1 Sorceress" },
+                                                   37, 178, 200, 92, 10, measure, 76, 3, 4, d2d::font::kTextBoxNoWrap);
+    assert(untitled.size() == 3 && untitled[0].text.empty() && untitled[1].text == "Name" && untitled[1].baseline == 113);
     baseline_pixels();
     std::puts("text-box regression checks passed");
     return 0;
