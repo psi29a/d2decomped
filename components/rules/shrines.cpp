@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The bodies of shrines.hpp's functions; their notes are in the header.
+// The bodies of shrines.hpp's functions, with the research behind each.
 #include "shrines.hpp"
 
 #include "rules.hpp"
@@ -78,6 +78,10 @@ void shrine_recharge(const ShrineRow& shrine, std::int64_t& life, std::int64_t m
     }
 }
 
+// The gem shrine (FUN_00582c40): the first gem in the inventory with a
+// better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,
+// a chipped gem, rand(6) on the player's seed. Returns the code to give,
+// "" when `upgrade` took one.
 std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed) {
     for (auto& item : items) {
         if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
@@ -116,6 +120,11 @@ int door_mode(int mode, bool occupied, bool blocker, bool key) {
     return !occupied && !blocker ? 0 : blocker ? 4 : mode == 5 ? -1 : 5;
 }
 
+// Whether a unit with collision pattern `pattern` at subtile (unit_x, unit_y)
+// stands in a door's doorway, the size_x x size_y rect centred on (door_x,
+// door_y) (FUN_0064d800, mask 0x8180): the own bit it stamps (FUN_0064ea90)
+// meets the rect.
+
 // Patterns 1 / 3 / 5 stamp the plus (FUN_0064dc80), 2 / 4 the 3x3 square
 // round it (FUN_0064ddf0), 0 nothing (collision.md).
 bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int size_x, int size_y) {
@@ -130,6 +139,14 @@ bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int
     }
     return inside(unit_x, unit_y) || inside(unit_x - 1, unit_y) || inside(unit_x + 1, unit_y) || inside(unit_x, unit_y - 1) || inside(unit_x, unit_y + 1);
 }
+
+// An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
+// weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area
+// level, less one above 1), on its room's seed (room +0x6c): of the
+// armor.txt / weapons.txt rows (Tables::stand_bases) up to ilvl (at least
+// 1), one whose rarity is past the act of level id ilvl (sic,
+// FUN_006427f0) takes rand(rarity - act) == 0 (FUN_00555e00); then
+// rand(count) of them. "" when there's none.
 
 // A rack tries 6 times for a base with bitfield1 & 2 (FUN_00629cc0), else
 // keeps the last.
@@ -151,6 +168,10 @@ std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& room) {
     return code;
 }
 
+// A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
+// Parm1 / 256 of their maxima, stamina always; false when none was short
+// (the well keeps its charge). Every well's Parm1 128, Parm3 3.
+// The poison / freeze / curse cures and the merc's drink are Fight::cure.
 bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana, std::int64_t& stamina, std::int64_t max_stamina) {
     bool drank = false;
     for (auto [value, max] : { std::pair{ &life, max_life }, { &mana, max_mana }, { &stamina, max_stamina } })
@@ -158,10 +179,18 @@ bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, s
     return drank;
 }
 
+// The trap a chest's event 4 springs (FUN_005817a0, 35 frames after it
+// opened) on level `level_id`: trap 8 past level 74 (act 4 on), trap 3 in
+// act 1 (levels under 40) but the Tower Cellar 5 (25), and traps 1 / 4 in
+// act 1 are trap 2 (trap-firebolt) instead.
 int trap_on_level(int trap, int level_id) {
     if ((trap == 8 && level_id > 0x4a) || (trap == 3 && level_id < 0x28 && level_id != 0x19) || ((trap == 1 || trap == 4) && level_id < 0x28)) return 2;
     return trap;
 }
+
+// An object's blast on a unit (FUN_005dfa00 on the object's unit seed):
+// the gas / exploding traps, the trap object (30) and the exploding
+// barrel. 0: a miss.
 
 // From the unit's life (256ths), low = life / 32 (at least 1), high = life
 // / 8 (at least low + 1); the hit: (rand(level / 4) + level as a byte) - 5
@@ -177,6 +206,11 @@ int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& 
     return low + seed(high - low + 256);
 }
 
+// Trap 8's family (FUN_005474c0): the first of the level's region monsters
+// (MonStats rows = game ids below the Expansion row) that's a zombie
+// (mummy in act 2, `act` 0-based) or a skeleton, archer or skeleton mage:
+// that family's first id.
+
 // None: 234, a flying scimitar — and in act 1 (FUN_00582250) no trap at
 // all (-1).
 int trap_undead(const std::vector<int>& region, int act) {
@@ -187,5 +221,7 @@ int trap_undead(const std::vector<int>& region, int act) {
     }
     return act == 0 ? -1 : 234;
 }
+
+
 
 }

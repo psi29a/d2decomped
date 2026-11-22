@@ -70,10 +70,8 @@ inline std::string_view shrine_state(int code) { return code >= 6 && code <= 15 
 // on (timer 5), not minutes.
 inline std::uint32_t shrine_reset_frames(int reset) { return reset > 0 ? std::uint32_t(reset) * 1200u + 1 : 0; }
 
-// The gem shrine (FUN_00582c40): the first gem in the inventory with a
-// better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,
-// a chipped gem, rand(6) on the player's seed. Returns the code to give,
-// "" when `upgrade` took one.
+// The gem shrine: the first gem in the inventory with a better grade (misc.txt BetterGem) goes up one; with
+// none, a chipped gem, rand(6) on the player's seed.
 std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed);
 
 // FUN_00585b90: a chest's treasure class, "Act %d%s Chest %s" (FUN_0065a2c0:
@@ -173,23 +171,14 @@ Opened open_container(int operate, int object_id, bool locked, bool sparkle, Rng
 // stands in it is an 0x8000 object (`blocker`: SubClass & 4, Npc::stamp).
 // -1: no change; 4 never changes again.
 int door_mode(int mode, bool occupied, bool blocker = false, bool key = false);
-// Whether a unit with collision pattern `pattern` at subtile (unit_x, unit_y)
-// stands in a door's doorway, the size_x x size_y rect centred on (door_x,
-// door_y) (FUN_0064d800, mask 0x8180): the own bit it stamps (FUN_0064ea90)
-// meets the rect.
+// Whether a unit with collision pattern `pattern` at subtile (unit_x, unit_y) stands in a door's doorway, the
+// size_x x size_y rect centred on (door_x, door_y).
 bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int size_x, int size_y);
-// An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
-// weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area
-// level, less one above 1), on its room's seed (room +0x6c): of the
-// armor.txt / weapons.txt rows (Tables::stand_bases) up to ilvl (at least
-// 1), one whose rarity is past the act of level id ilvl (sic,
-// FUN_006427f0) takes rand(rarity - act) == 0 (FUN_00555e00); then
-// rand(count) of them. "" when there's none.
+// An armor stand's armor or a weapon rack's weapon at item level `ilvl` (the area level, less one above 1), on
+// its room's seed.
 std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& room);
-// A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
-// Parm1 / 256 of their maxima, stamina always; false when none was short
-// (the well keeps its charge). Every well's Parm1 128, Parm3 3.
-// The poison / freeze / curse cures and the merc's drink are Fight::cure.
+// A well's drink: life (Parm3 & 2) and mana (& 1) up Parm1 / 256 of their maxima, stamina always; false when
+// none was short (the well keeps its charge).
 bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana, std::int64_t& stamina, std::int64_t max_stamina);
 
 // What a trap springs (the table at 0x732cec): 1..4 and 6 a trap monster
@@ -204,14 +193,9 @@ inline constexpr std::array<const char*, 6> kBossMissile{ "lightunique", "coldun
                                                           "suicidecorpseexplode", "suicidefireexplode", "suicideiceexplode" };
 inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
                                                           "", "trapfirebolt", "", "" };
-// The trap a chest's event 4 springs (FUN_005817a0, 35 frames after it
-// opened) on level `level_id`: trap 8 past level 74 (act 4 on), trap 3 in
-// act 1 (levels under 40) but the Tower Cellar 5 (25), and traps 1 / 4 in
-// act 1 are trap 2 (trap-firebolt) instead.
+// The trap a chest's event 4 springs on level `level_id`.
 int trap_on_level(int trap, int level_id);
-// An object's blast on a unit (FUN_005dfa00 on the object's unit seed):
-// the gas / exploding traps, the trap object (30) and the exploding
-// barrel. 0: a miss.
+// An object's blast on a unit: the gas / exploding traps, the trap object (30) and the exploding barrel.
 int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& seed);
 // What a blast's damage comes to (FUN_0057c1e0 -> FUN_0057bf80, the
 // resist table at 0x732980): less the flat reduction (physical stat 34,
@@ -225,10 +209,7 @@ inline constexpr std::array<int, 3> kTrapLevel{ 1, 4, 8 };
 // even ones at Param1 << 6, the odd ones between at Param2 << 6 (calc2 2).
 inline constexpr std::array<std::pair<int, int>, 16> kPoisonNova{ { { 0, 2 }, { 1, 2 }, { 2, 2 }, { 2, 1 }, { 2, 0 }, { 2, -1 }, { 2, -2 }, { 1, -2 },
                                                                     { 0, -2 }, { -1, -2 }, { -2, -2 }, { -2, -1 }, { -2, 0 }, { -2, 1 }, { -2, 2 }, { -1, 2 } } };
-// Trap 8's family (FUN_005474c0): the first of the level's region monsters
-// (MonStats rows = game ids below the Expansion row) that's a zombie
-// (mummy in act 2, `act` 0-based) or a skeleton, archer or skeleton mage:
-// that family's first id.
+// Trap 8's family.
 int trap_undead(const std::vector<int>& region, int act);
 
 // A level's act (Levels.txt Act, FUN_006427f0): its id range.
