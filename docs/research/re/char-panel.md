@@ -145,6 +145,14 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
     out, 100) + (MinDam / MaxDam >> 8) + MulDiv(that, the skill's %, 100)
     (0x4ebab7..0x4ebb00), + FUN_004e7120's adds; one value. d2d keeps no
     charge-ups' share or adds.
+  - 16 (0x4ebb50; Dragon Tail): EType's colour (FUN_004e6fb0); 15's sum
+    with FUN_004e6ff0's share alone as the skill's % (no ln12) and
+    FUN_00647bc0 / FUN_00647d00's last argument 0; each end + MulDiv(end,
+    calc1, 100) (FUN_00646ca0 on +0x138); then with an inventory the
+    wielded weapon's and the other hand's weapon's (type 0x2d, usable,
+    stats active) stats off (FUN_00627910), FUN_004e89a0, the wielded
+    one's back on; one value. d2d: the panel's kick fighter
+    (`PanelUnit::kick`), the wielded weapon off only.
 - **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
   When either is set: `"%s\nAttack Rating"` (0xfdf; 0xfe1 `"%s\nRating"`
   for skill 0, Attack) with the upper-cased name, font6, halves at y-4 /
@@ -174,7 +182,7 @@ numbers on the server in `Fight::update_fighters` from the Fighter
 `draw_char_panel` draws them. The weapon damage takes damblue / damred
 (FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
 rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
-Not done: descdam 16 (Dragon Tail), the charge-ups' share and adds in 15, stat 325, barehanded strength (FUN_004e86f0 adds it
+Not done: the charge-ups' share and adds in 15 / 16, stat 325, barehanded strength (FUN_004e86f0 adds it
 with no weapon), tooltips.
 
 ## Attack-rating getter and its helpers (FUN_004eda80, cited)

@@ -13,6 +13,7 @@ Param5 read through the data tables at 0x744304, faked here), 17 (FUN_004ebd50),
 23 (FUN_004eaf90: 17's with no ddam calcs), 15 (FUN_004eba30: the kick, FUN_00646280
 hooked, its % by FUN_004e6ca0 for real on the faked row; FUN_004e6ff0 and
 FUN_004e7120, the charge-ups' share and adds, hooked to none, as d2d keeps none),
+16 (FUN_004ebb50: 15's kick with the share alone, x calc1 %, then FUN_004e89a0),
 18 (FUN_004ec040), 19 (FUN_004ea310),
 20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
@@ -73,7 +74,7 @@ DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x6
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
 DATA_TABLES, SKILLS_TXT, SKILLS_COUNT, SKILL_ROW_ID = 0x744304, 0xB98, 0xBA0, 77
 KICK, CHARGE_SHARE, CHARGE_ADDS = 0x646280, 0x4E6FF0, 0x4E7120
 
@@ -279,6 +280,16 @@ def d2d_line(descdam, case):
         low = case["kick_lo"] + mul_div(case["kick_lo"], kick_pct, 100) + own_low + mul_div(own_low, pct, 100)
         high = case["kick_hi"] + mul_div(case["kick_hi"], kick_pct, 100) + own_high + mul_div(own_high, pct, 100)
         return low, high, 3 if pct else 0
+    elif descdam == 16:
+        low = case["kick_lo"] + mul_div(case["kick_lo"], case["kick_pct"], 100) + (case["phys_min"] >> 8)
+        high = case["kick_hi"] + mul_div(case["kick_hi"], case["kick_pct"], 100) + (case["phys_max"] >> 8)
+        more = case["calcs"][11]
+        low += mul_div(low, more, 100); high += mul_div(high, more, 100)
+        if case["we_low"] or case["we_high"]:
+            low += case["we_low"]; high += case["we_high"]; colour = case["we_colour"]
+        if high > 0:
+            low = max(low, 1); high = max(high, low + 1)
+        return low, high, 1 if case["red"] else 3 if case["blue"] else colour
     elif descdam in (17, 23):
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):

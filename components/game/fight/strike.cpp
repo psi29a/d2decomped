@@ -320,8 +320,10 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         // weapon too (FUN_004e9260: the hand that isn't the wielded one's), that one alone.
         // The panel's own fighter: the melee masteries even after a throw (player_fighter's `melee`); a
         // throw's line takes the throw mastery itself (PanelUnit::Thrown). Its stats are the same frame's.
-        auto panel_fighter = player_fighter(nullptr, &st_sum, &passives, nullptr, nullptr, true);
+        d2d::rules::Fighter panel_kick;
+        auto panel_fighter = player_fighter(&panel_kick, &st_sum, &passives, nullptr, nullptr, true);
         panel_fighter.ar_base_bare = actor->player_combat.ar_base_bare;
+        panel_unit.kick = &panel_kick;
         d2d::rules::Fighter main_fighter, off_fighter;
         panel_unit.dual_class = actor->character.character_class == 4 || actor->character.character_class == 6;
         if (panel_unit.dual_class) {
