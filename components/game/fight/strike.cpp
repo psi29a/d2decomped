@@ -776,10 +776,10 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
                 actor->pstruck = true;
                 // Strafe's do (12, FUN_005dba40) on each action frame: one arrow; with arrows left the swing
                 // starts over (FUN_0056e210, Param6 +0x15c through FUN_004f4110: 50 % of the frames kept).
-                const bool strafing = skill->srvdofunc == ServerDoFunction::kStrafe && !actor->strafe.empty();
+                const bool strafing = skill->srvdofunc == ServerDoFunction::kStrafe && actor->strafe_left > 0;
                 if (strafing) strafe_shot(*skill, now_ms);
                 else { settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
-                if (skill->srvdofunc == ServerDoFunction::kStrafe && !actor->strafe.empty()) restart_swing(skill->par[5], now_ms);
+                if (skill->srvdofunc == ServerDoFunction::kStrafe && actor->strafe_left > 0) restart_swing(skill->par[5], now_ms);
             }
             return;
         }
@@ -1332,7 +1332,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
                     return false;
                 }
                 actor->kicks_left = 0;
-                actor->strafe.clear();                              // arrows left when the swing ends are lost
+                actor->strafe_left = 0;                             // arrows left when the swing ends are lost
                 actor->seq = {};
                 actor->smove = {};
                 actor->seq_loop = false;
