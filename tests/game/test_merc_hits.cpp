@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // The merc's hits as game.exe makes them, with the game's MPQs (D2_MPQ_DIR;
-// the 1.14d ones with D2_PATCH_INSTALLER): its life steal heals it with no
-// LifeStealDivisor (FUN_0057c420: a hireling's leech skips the divisors,
-// 0x57c58a..0x57c597).
+// the 1.14d ones with D2_PATCH_INSTALLER): its arrow (Missiles.txt arrow: no
+// Skill, its weapon's damage at SrcDamage, FUN_0064b860) is built from its
+// gear as its swing is, so its item_slow slows the monster it strikes; and its
+// life steal heals it with no LifeStealDivisor (FUN_0057c420: a hireling's
+// leech skips the divisors, 0x57c58a..0x57c597).
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -72,6 +74,19 @@ int main() try {
     for (int swing = 0; swing < 50 && actor.merc->life_fine() <= 50 * 256; ++swing) fight.merc_strike(fight.monsters.size() - 1, {}, 1000);
     assert(actor.merc->life_fine() > 50 * 256);
     std::printf("OK: the merc's swing heals it by its life steal (%d/256 -> %d/256)\n", 50 * 256, actor.merc->life_fine());
+    actor.merc->set_life_fine(50 * 256);
+    const auto& arrow = data->missiles.at("arrow");
+    bool landed = false;
+    for (int shot = 0; shot < 50 && !landed; ++shot) {
+        Missile missile{ &arrow, struck.unit.x, struck.unit.y, 0, 0, 0, 1000, 2000, {} };
+        missile.by_merc = true;
+        missile.level = 20;
+        fight.plain_missile_hits(missile, fight.monsters.size() - 1, 1000);
+        landed = struck.slow_until > 0;
+    }
+    assert(landed && struck.slow_speed == 40);
+    assert(actor.merc->life_fine() > 50 * 256);
+    std::printf("OK: the merc's arrow slows a zombie by its gear's 40 and its life steal heals it (%d/256 -> %d/256)\n", 50 * 256, actor.merc->life_fine());
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_merc_hits: %s\n", error.what());
