@@ -100,11 +100,8 @@ struct Rain {
         strike_left = roll(0x5dc) + 500;
         wind = wind_to = roll(0x47) + 0x5c;
     }
-    // A Thunder Storm strike (FUN_00472c50, ECX 0): lightning if there's none.
-    void set_off() {
-        if (lightning) return;
-        lightning = true; flash = 1; second = false; heard = false;
-    }
+    // A Thunder Storm strike: lightning if there's none.
+    void set_off();
     // A drawn frame (FUN_00473910): with a flash due it's drawn (white over
     // the view, as the rain's spot test's area; the rain isn't, at over 9
     // frames a second), and as it ends the second comes 3 ticks on; after
@@ -112,26 +109,7 @@ struct Rain {
     // (event_thunder_1, 202) 25 + rand(50) ticks later at -200 + rand(400)
     // each way, when the sound can play (FUN_004b9a00).
     struct Strike { bool flash = false; int thunder = -1, x = 0, y = 0; };
-    // FUN_00473910: this client tick's flash, and past it the next strike's wait and, once a
-    // strike's already been heard, the thunder's delay and position (y rolled before x).
-    Strike frame(Rng& roll, bool sound_on) {
-        Strike out;
-        flashing = false;
-        if (!lightning || flash == 0) return out;
-        if (--flash == 0) {
-            if (!second) { strike_left = 3; second = true; }
-            else {
-                strike_left = roll(0x5dc) + 500;
-                second = false;
-                if (!heard) heard = true;
-                // The two rolls land y then x (FUN_00473910 0x473a02..0x473a2b: the first roll is
-                // pushed and read back as SOUND_PlayEnvironmentSound's nPosY, the second is its nPosX).
-                else if (const int delay = roll(0x32) + 25; sound_on) { out.thunder = delay; out.y = roll(400) - 200; out.x = roll(400) - 200; }
-            }
-        }
-        out.flash = flashing = true;
-        return out;
-    }
+    Strike frame(Rng& roll, bool sound_on);
     // Snow or not (FUN_004726f0; `act` 0-based): in Act 5, rand(100) at
     // least the level's bar (25 in 109..112, else 0) snows, `forced` always
     // (a game joined, the player reassigned: S->C 0x15's flag, 1 in every
@@ -172,18 +150,10 @@ struct Rain {
         lightning = false;
         if (!snow) roll.next();
     }
-    // A game joined in `level` (FUN_00472890): full's base, and snow or not.
-    void join(Rng& roll, int level, int act) {
-        full_base = act == 2 || act == 4 ? 9000 : 3000;
-        decide(roll, level, act, true);
-    }
-    // The player reassigned (S->C 0x15, FUN_004654c0 -> FUN_00472c20): the
-    // drops and splashes go, and snow or not again.
-    void reassign(Rng& roll, int level, int act) {
-        drops.clear();
-        splashes.clear();
-        decide(roll, level, act, true);
-    }
+    // A game joined in `level`: full's base, and snow or not.
+    void join(Rng& roll, int level, int act);
+    // The player reassigned: the drops and splashes go, and snow or not again.
+    void reassign(Rng& roll, int level, int act);
 
     // One client frame (FUN_00473f50): the drops fall, the splashes play,
     // the cycle moves on, drops fill up to the density and the wind turns.
@@ -242,15 +212,9 @@ struct Rain {
         if (lightning && --strike_left == 0) flash = 1;
     }
 
-    // A floor pass begun (FUN_004de730): splashes when 3 client frames have
-    // gone since the last such pass (at volume x 1000 in 1000), bubbles in a
-    // Mud level when 25 have.
-    void floors(bool mud) {
-        threshold = int(double(volume()) * 1000.0);
-        splash_pass = bubble_pass = false;
-        if (splash_at + 3 < clock) { splash_at = clock; splash_pass = threshold != 0; }
-        if (mud && bubble_at + 25 < clock) { bubble_at = clock; bubble_pass = true; }
-    }
+    // A floor pass begun: splashes when 3 client frames have gone since the last such pass (at volume x 1000 in
+    // 1000), bubbles in a Mud level when 25 have.
+    void floors(bool mud);
     // A floor tile whose DT1 material flags have 2 drawn with its top
     // corner at (x, y), y where the tile is drawn (FUN_004de410 passes its
     // draw point; a tile taller than 80 rises above its cell): rand(1000), under the threshold a
@@ -260,36 +224,12 @@ struct Rain {
     // rightward by the row's width, so they sit half a tile right; `centre`
     // (deviations.md #14) takes half the width back, the same draws.
     bool centre = false;
-    void floor(Rng& roll, int x, int y) {
-        const int chance = roll(1000);
-        if (splash_pass && chance < threshold && splashes.size() < kSplashPool) {
-            const int row = roll(80), half = row < 40 ? 40 - row : row - 40, width = (80 - 2 * half) * 2;
-            Splash splash;
-            splash.x = roll(width) + x - (centre ? width / 2 : 0);
-            splash.y = row + y;
-            splash.kind = int(roll.next() & 1) + 2;
-            splashes.push_back(splash);
-        }
-        if (bubble_pass && chance < 100 && bubbles.size() < kBubblePool) {
-            const int row = roll(80), half = row < 40 ? 40 - row : row - 40, width = (80 - 2 * half) * 2;
-            Splash bubble;
-            bubble.x = roll(width) + x - (centre ? width / 2 : 0);
-            bubble.y = row - 30 + y;
-            bubbles.push_back(bubble);
-        }
-    }
-    // A Mud level's frame (FUN_00472d10): the bubbles scroll and play out.
-    void tick_bubbles(int shift_x, int shift_y) {
-        for (auto& bubble : bubbles) { bubble.x -= shift_x; bubble.y -= shift_y; if (--bubble.wait < 1) { ++bubble.frame; bubble.wait = 2; } }
-        std::erase_if(bubbles, [&](const Splash& bubble) { return bubble.frame >= bubble_frames[std::size_t(bubble.kind)]; });
-    }
+    void floor(Rng& roll, int x, int y);
+    // A Mud level's frame: the bubbles scroll and play out.
+    void tick_bubbles(int shift_x, int shift_y);
 };
 
-// The drops' colours by the time of day when they fell (FUN_00472890,
-// made at the join as the palette colours nearest these, FUN_004fb180):
-// tone 0..11. A flake's grey (0x7a898c): 120 + 80 x its index / 12, the
-// index its shape x 12 / 8, halved at dusk and dawn, a quarter at night
-// (FUN_00472fb0, the software modes).
+// The drops' colours by the time of day when they fell: tone 0..11.
 std::array<std::uint8_t, 3> rain_rgb(int kind, int tone);
 int flake_tone(int kind, int size);
 std::array<std::uint8_t, 3> snow_rgb(int tone);
