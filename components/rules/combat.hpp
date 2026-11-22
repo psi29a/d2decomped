@@ -310,6 +310,16 @@ int player_get_hit_frame(int frames, int rate, int tick, int held);
 // Chain Lightning) to the cast branch, which has no such term. tools/emu/seq_rate.py runs the function on every sequence record.
 inline constexpr int kSequenceRatePenalty = 30;
 int sequence_sias(bool use_attack_rate, std::string_view seqtrans);
+// The row a sequence stands on as it reaches row `row`: +0x38 goes on by the
+// rate (`speed`, 256ths of a row a frame) from 0, one step a frame
+// (FUN_00623e00), and an event is read with +0x38 at the step's row
+// (FUN_00621210), the first step at or past `row`.
+constexpr int seq_step_row(int row, int speed) {
+    if (speed <= 0) return row;
+    const int steps = (row * 256 + speed - 1) / speed;
+    return steps * speed / 256;
+}
+static_assert(seq_step_row(9, 256) == 9 && seq_step_row(14, 179) == 14 && seq_step_row(9, 512) == 10);
 
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row

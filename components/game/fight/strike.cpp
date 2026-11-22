@@ -481,6 +481,7 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(actor->swing_skill);   // skill_sequence() found it: a sequence skill's row
         const int sias = actor->player_combat.sias + chill_rate(now_ms) + d2d::rules::sequence_sias(skill->use_attack_rate, skill->seqtrans);
         const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, sias);
+        actor->seq_speed = d2d::rules::attack_speed(int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, sias);
         actor->pmode_until = now_ms + std::uint32_t(ticks) * 40;
         actor->seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(actor->seq.size()), 1);
         actor->prate = 1.f;
@@ -799,6 +800,20 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             const int due = seq_events(now_ms);
             while (actor->seq_struck < due) {
                 ++actor->seq_struck;
+                // Dragon Flight's do (FUN_005d7850) on each event: the row it is read on (unit +0x38 >> 8,
+                // rules::seq_step_row) odd kicks, even flies (its events on rows 9 and 14: at 256 the kick,
+                // then the flight). The cost cast_missile owed is paid at the first; it starts no skill
+                // delay (+0x38 past row 0, skills.md "Skill delay").
+                if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->srvdofunc == ServerDoFunction::kDragonFlight) {
+                    int row = -1;
+                    for (int seen = 0; seen < actor->seq_struck && row + 1 < int(actor->seq.size());)
+                        if (actor->seq[std::size_t(++row)].event == 1) ++seen;
+                    if (actor->seq_struck == 1) { settle_cast(); do_sounds(now_ms); }
+                    flight_part = d2d::rules::seq_step_row(std::max(row, 0), actor->seq_speed) % 2 ? 2 : 1;
+                    spot(*skill, now_ms);
+                    flight_part = 3;
+                    continue;
+                }
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
@@ -1132,8 +1147,18 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 const auto clear_line = [&](float to_x, float to_y) {
                     return !d2d::rules::sight_blocked(from_x, from_y, 2, int(std::floor(to_x * 5)), int(std::floor(to_y * 5)), 2, wall);
                 };
+                // The kick (FUN_005d7850's odd branch): at the unit's target wherever it stands, its to-hit
+                // FUN_006449f0 + stat 0x145, then its charges released, hit or not (FUN_005d5220).
+                const auto dragon_kick = [&] {
+                    auto flight_swing = skill_swing(skill, lvl, env, true);
+                    flight_swing.ar_pct += progressive_tohit();
+                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, flight_swing);
+                    if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
+                    release(std::size_t(tgt), now_ms);
+                };
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
                     if (tgt < 0) break;
+                    if (!(flight_part & 1)) { dragon_kick(); break; }
                     const auto& target = monsters[std::size_t(tgt)];
                     if (std::hypot(target.unit.x - actor->player.x, target.unit.y - actor->player.y) * 5 > float(calc(skill, skill.aurarange, lvl))) break;
                     const float dx = actor->player.x - target.unit.x, dy = actor->player.y - target.unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
@@ -1171,13 +1196,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 actor->player.path.clear(); actor->player.walking = false;
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;
                 actor->reassigned = true;                                           // FUN_00554ea0's 0x10000: the client's 0x15
-                if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {             // the kick, then its charges released, hit or not (FUN_005d5220)
-                    auto flight_swing = skill_swing(skill, lvl, env, true);
-                    flight_swing.ar_pct += progressive_tohit();                     // FUN_005d7850: FUN_006449f0 + stat 0x145
-                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, flight_swing);
-                    if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
-                    release(std::size_t(tgt), now_ms);
-                }
+                if (skill.srvdofunc == ServerDoFunction::kDragonFlight && (flight_part & 2)) dragon_kick();   // with no sequence: both at once
                 break;
             }
             case ServerDoFunction::kTelekinesis:                                         // Telekinesis (do 21): its damage and a knockback on the monster
