@@ -353,6 +353,12 @@ int main() try {
         strike.emin = strike.emax = 0;
         line = attack_line(skill_tables, strike, env, 5, fighter, 5);
         assert(!line.two && line.min == 12 && line.max == 21 && line.damage_colour == 1);
+        // descdam 14 (Hunger, FUN_004eb940): the weapon part (3-7 at +30 %: 3-9, no ddam calcs) less
+        // Param5's 75 % (truncated: 1-3), then its fire 2-4 (red): tools/emu/panel_damage.py.
+        Skill hunger = strike;
+        hunger.descdam = 14; hunger.par[4] = -75;
+        line = attack_line(skill_tables, hunger, env, 5, fighter, 5);
+        assert(line.damage && !line.two && line.min == 3 * 130 / 100 + (-75 * (3 * 130 / 100)) / 100 + 2 && line.max == 9 + (-75 * 9) / 100 + 4 && line.damage_colour == 1);
         // descdam 6 (Exploding Arrow, FUN_004e9d20): the weapon's SrcDam share over the skill's fire with
         // the gear's own fire (stats 48 / 49) on top.
         Skill arrow = skill_tables.rows[0];

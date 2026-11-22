@@ -319,12 +319,15 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
     // `pct` + damagepercent + the weapon mastery + its Str / DexBonus share (bare hands: the strength),
     // at least -90. Then FUN_004e89a0 (tools/emu/panel_damage.py runs FUN_004e86f0 itself). The
     // skill-flag-8 share (a Druid's / Assassin's) isn't kept.
-    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
+    const auto weapon_base = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {   // FUN_004e86f0 alone
         const bool bare = &hand == &fighter && !unit.armed;
         const int low = std::max(hand.stat_lo + (bare ? 1 : 0), 1), high = std::max(hand.stat_hi + (bare ? 2 : 0), 2);
         const int total = std::max(hand.phys_pct + pct + (bare ? unit.str : 0), -90);
         out.min = int((std::int64_t(hand.unit_min_pct) + 100 + total) * low / 100) + hand.item_normal + flat;
         out.max = int((std::int64_t(hand.unit_max_pct) + 100 + total) * high / 100) + hand.item_normal + flat;
+    };
+    const auto weapon_of = [&](const Fighter& hand, int pct, int flat, AttackLine& out) {
+        weapon_base(hand, pct, flat, out);
         elements_of(hand, out);
     };
     const auto weapon = [&](int pct, int flat) { weapon_of(fighter, pct, flat, line); };
@@ -536,6 +539,16 @@ AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, cons
         line.min = line.max = line.damage_colour = 0;
         element_text();
         two_values(upper);
+    } else if (skill.descdam == 14) {                         // FUN_004eb940 (Hunger)
+        // FUN_004e86f0's weapon part with no ddam calcs, each end + end x Param5 / 100 (Skills +0x158, read
+        // through the data tables: Hunger's -75; IMUL by 0x51eb851f, truncated), then FUN_004e89a0's
+        // elements, clamp and damblue / damred: one value.
+        line.damage = true;
+        weapon_base(fighter, 0, 0, line);
+        line.min += skill.par[4] * line.min / 100;
+        line.max += skill.par[4] * line.max / 100;
+        elements_of(fighter, line);
+        line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
     } else if (skill.descdam == 17) {                         // FUN_004ebd50 (Charged Strike, Lightning Strike)
         // The weapon's with ddam calc1 / calc2 (FUN_004e86f0, FUN_004e89a0, as 7's but no SrcDam scale),
         // then the element (0x4ebe07); the weapon 0-0 draws the element (0x4ebe2e), the element 0-0
