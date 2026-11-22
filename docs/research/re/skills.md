@@ -659,8 +659,13 @@ flag 0x2000, set by what isn't traced.
   + stat 325 (FUN_0057ec10), on a hit the kick damage (FUN_005d54b0) with
   ED `ln12` (FUN_004e6ca0), HitClass +0x1a5 (0x80 when 0); then the
   charges are released (FUN_005d5220), hit or not. No knockback.
-- d2d: both on the one action frame (`Fight::spot`, and `shadow_cast` for
-  a Shadow beside its target).
+- The event's parity is the row the do reads, unit +0x38 >> 8 (0x5d7883:
+  `& 0x80000001`): +0x38 steps by the rate from 0 a frame (FUN_00623e00) and
+  an event is read at the step's row, so the kick comes at row 9 and the
+  flight at 14 at the plain rate (bugs.md 131).
+- d2d: the player's on its sequence's events (`Fight::strike`,
+  `rules::seq_step_row`, `test_dragon_flight_events`); `Fight::spot` alone
+  does both (no sequence), as does `shadow_cast` for a Shadow.
 
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,

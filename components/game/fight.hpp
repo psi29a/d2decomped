@@ -395,6 +395,7 @@ struct Fight {
         // already struck.
         std::span<const d2d::rules::SeqFrame> seq{};
         std::uint32_t seq_frame_ms = 40;
+        int seq_speed = 256;                   // the sequence's rate, 256ths of a row a frame (attack_speed: rules::seq_step_row)
         int seq_struck = 0;
         int seq_sounded = 0;                   // its event-3 frames already past (Jab's dosound a)
         bool seq_loop = false;                 // Whirlwind's plays over until it arrives
@@ -787,6 +788,7 @@ struct Fight {
     [[nodiscard]] int striker_of(const Caster& caster) const { return caster.unit_id >= 0 ? caster.unit_id : caster.merc ? merc_foe_id() : player_foe_id(); }
     [[nodiscard]] Caster player_caster(int skill) const;
     bool casting_merc = false;             // launch() marks what's fired as the merc's
+    int flight_part = 3;                   // spot's Dragon Flight: 1 the flight, 2 the kick (one event's, FUN_005d7850), 3 both
     int casting_unit = -1;                 // ... and as a summon's (Missile::striker)
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
