@@ -10,6 +10,7 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 11 (FUN_004eb640),
 7 (FUN_004ea010), 12 (FUN_004eb830), 13 (FUN_004eb240), 14 (FUN_004eb940:
 Param5 read through the data tables at 0x744304, faked here), 17 (FUN_004ebd50),
+23 (FUN_004eaf90: 17's with no ddam calcs),
 18 (FUN_004ec040), 19 (FUN_004ea310),
 20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
@@ -70,7 +71,7 @@ DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x6
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24)
 DATA_TABLES, SKILLS_TXT, SKILLS_COUNT, SKILL_ROW_ID = 0x744304, 0xB98, 0xBA0, 77
 
 
@@ -268,7 +269,7 @@ def d2d_line(descdam, case):
         if w_high > 0:
             w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
         return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else colour
-    elif descdam == 17:
+    elif descdam in (17, 23):
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):
             return lower
