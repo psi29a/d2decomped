@@ -729,6 +729,7 @@ auto Fight::breath_do(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> v
 // 0x56f72b). A cast the ask refuses (no mana) sends nothing: the channel runs on till the list ends.
 auto Fight::breath_again(const d2d::rules::Skill& skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
         if (ask(skill.id, now_ms) != skill.id) return false;
+        if (skill.clt_st_func == 15) inferno_client_start(skill, now_ms);   // the client's start: the list on, 7 frames
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
         actor->burning = now_ms + 6 * 40;

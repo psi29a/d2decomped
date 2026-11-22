@@ -138,6 +138,7 @@ int main() try {
                 assert(rig.cast());
                 assert(mana_before - rig.mana() == cost && rig.flames() == flames_before + 1);
                 assert(rig.world->actor->burning == rig.now + 6 * kTickMs);
+                assert(rig.world->actor->inferno_list == rig.now + 7 * kTickMs);   // the client's list, 7 frames (LAB_004e3060)
                 last = rig.now;
                 ++recasts;
             }
