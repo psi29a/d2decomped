@@ -34,7 +34,7 @@ constexpr Case kCases[] = {
 
 int main() try {
     Monster monster;
-    monster.anim_pct = 30;
+    monster.anim_pct = monster.attack_pct = 30;
     assert(anim_rate_pct(monster, "SQ", true) == 30 && anim_rate_pct(monster, "S2", true) == 30 && anim_rate_pct(monster, "BL", true) == 30);
     monster.props.ias = 60;   // 120 x 60 / 180 = 40 more, on an attack mode only
     assert(anim_rate_pct(monster, "SQ", true) == 70 && anim_rate_pct(monster, "SQ", false) == 30 && anim_rate_pct(monster, "BL", true) == 30);
@@ -53,7 +53,7 @@ int main() try {
         Monster unit;
         unit.skill = one.skill;
         unit.props.ias = one.ias;
-        unit.anim_pct = one.pct - 100;
+        unit.anim_pct = unit.attack_pct = one.pct - 100;   // the oracle sets stats 68 and 69 to one value
         const int rate = std::min((100 + anim_rate_pct(*data, unit, one.mode)) * one.speed / 100, 0x7fff);
         if (rate != one.rate && ++bad <= 5)
             std::printf("FAIL: %.*s skill %d ias %d pct %d speed %d: d2d %d, game.exe %d\n", int(one.mode.size()), one.mode.data(), one.skill, one.ias, one.pct,

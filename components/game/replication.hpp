@@ -130,7 +130,7 @@ inline void monster_look(Out& out, const Monster& monster) {
     out.i32(monster.type).i32(monster.stats.hit_points).i32(monster.stats.level).u8(int(monster.boss)).u8(int(monster.mods.size()));
     for (const int mod : monster.mods) out.u8(mod);
     npc(out, monster.npc);
-    out.i32(monster.anim_pct).i32(monster.walk_pct).i32(monster.aura_rate).i32(monster.props.ias).i32(monster.props.fcr);
+    out.i32(monster.anim_pct).i32(monster.attack_pct).i32(monster.walk_pct).i32(monster.aura_rate).i32(monster.props.ias).i32(monster.props.fcr);
     // Its resists' sources (Monster::target): the hover bar's immunity lines (rules::immunity_lines).
     out.u8(monster.difficulty);
     for (const int resist : monster.boss_res) out.i32(resist);
@@ -142,6 +142,7 @@ inline void monster_look(In& input, Monster& monster) {
     for (int k = input.get<std::uint8_t>(); k > 0 && input.ok; --k) monster.mods.push_back(input.get<std::uint8_t>());
     monster.npc = npc(input);
     monster.anim_pct = input.get<std::int32_t>();
+    monster.attack_pct = input.get<std::int32_t>();
     monster.walk_pct = input.get<std::int32_t>();
     monster.aura_rate = input.get<std::int32_t>();
     monster.props.ias = input.get<std::int32_t>();

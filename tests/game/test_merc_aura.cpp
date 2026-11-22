@@ -127,12 +127,19 @@ int main() try {
     auto& chilled = fight.monsters.back();
     chilled.hit_points = chilled.stats.hit_points = 100000;
     fight.monster_states(3000);
-    assert(chilled.speed_pct < 0 && chilled.anim_pct < 0);
+    assert(chilled.speed_pct < 0 && chilled.anim_pct < 0 && chilled.attack_pct == chilled.anim_pct);
     fight.aura_pulse(3000);
     assert(chilled.hit_points < 100000);                    // its cold (no ELen: the slow is the aurastats')
     chilled.unit.x = actor.merc->unit.x + 40;
     fight.monster_states(3000);
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
+    // Decrepify's attackrate (stat 68, Param5) alone: its attack modes slow, its other modes don't; it adds to the
+    // other states' (FUN_00625480 sums the lists), not the largest of them.
+    const int decrepify = data->skills.by_name.at("Decrepify");
+    chilled.curse = { decrepify, 5, 4000000 };
+    fight.monster_states(3000);
+    assert(chilled.attack_pct == data->skills.get(decrepify)->par[4] && chilled.attack_pct < 0 && chilled.anim_pct == 0);
+    chilled.curse = {};
     // In town its pulse takes no monster.
     world.level = town;
     chilled.unit.x = actor.merc->unit.x + 1;

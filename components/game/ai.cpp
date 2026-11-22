@@ -302,7 +302,7 @@ int mode_rate(const GameData& game_data, const Monster& monster, std::string_vie
     d2d::rules::ModeRateIn rate_in{ .mode = mon_mode(mode), .low_class = monster.type >= 0 && monster.type < 0x19a, .npc = npc_row(game_data, monster),
                                .use_attack_rate = skill && skill->use_attack_rate, .speed = anim_speed(game_data, monster, mode),
                                .velocity_pct = monster.walk_pct, .fhr = monster.props.fhr, .fcr = monster.props.fcr, .ias = monster.props.ias,
-                               .attack_rate = 100 + monster.anim_pct + monster.aura_rate, .other_rate = 100 + monster.anim_pct };
+                               .attack_rate = 100 + monster.attack_pct + monster.aura_rate, .other_rate = 100 + monster.anim_pct };
     if (known) rate_in.base = { game_data.monsters.types[std::size_t(monster.type)].walk_base, game_data.monsters.types[std::size_t(monster.type)].run_base };
     return d2d::rules::monster_mode_rate(rate_in);
 }
