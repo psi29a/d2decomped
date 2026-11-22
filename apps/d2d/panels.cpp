@@ -83,7 +83,8 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
-                    const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two, const d2d::d2s::Header* header) {
+                    const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two, const d2d::d2s::Header* header,
+                    bool player_state_36) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -159,7 +160,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         if (rect[2] <= 0) continue;
         if (item.location == d2d::d2s::item_location::kStored && wearer) {
             const bool under_cursor = hand_empty && mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3];
-            tint_cells(framebuffer, scene, item, *wearer, rect, header, under_cursor);
+            tint_cells(framebuffer, scene, item, *wearer, rect, header, under_cursor, false, player_state_36);
         }
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }

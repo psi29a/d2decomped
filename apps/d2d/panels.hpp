@@ -44,7 +44,8 @@ namespace d2d::client {
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr, bool weapon_set_two = false,
-                    const d2d::d2s::Header* header = nullptr);   // the player's quest words (tint_cells)
+                    const d2d::d2s::Header* header = nullptr,    // the player's quest words (tint_cells)
+                    bool player_state_36 = false);               // the player in state 0x36 (View::uninterruptable): every grid item red
 
 // The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
 // filled at 25 % over what's there (draw mode 0). Red (kind 0) when the wearer
@@ -60,9 +61,8 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
 // that lookup on the palette in use. Its red for cursor mode 8 with
 // Items.txt Transmogrify clear (0x48417a) never runs: mode 8 is only
 // FUN_00468040 with EDX set, and both its calls clear EDX (stubs.md).
-// ponytail: draw_inventory does not know a child stat list flagged 2, or
-// the player in state 0x36. A cursor item kept off the drawn list is not
-// seen either.
+// ponytail: draw_inventory does not know a child stat list flagged 2. A
+// cursor item kept off the drawn list is not seen either.
 inline void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer,
                        const std::array<int, 4>& rect, const d2d::d2s::Header* header = nullptr, bool under_cursor = false,
                        bool stat_list_flag_2 = false, bool player_state_36 = false) {
@@ -182,7 +182,8 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              bool life_text = false, mana_text = false;  // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
              int holy_shield = 0;                        // effective Holy Shield level while state 0x65 is on, else 0 (FUN_00485be0)
              std::array<std::string, 2> run_keys{};      // Toggle Run's keys by name, slot 1 then slot 0; empty: unbound (FUN_00497300)
-             bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false; };   // touch: classic panel X (flags stay off)
+             bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false;     // touch: classic panel X (flags stay off)
+             bool uninterruptable = false; };            // View::uninterruptable: the player in state 0x36 (the grid's tint)
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
