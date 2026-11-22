@@ -2,7 +2,7 @@
 // test-links: game
 // The client's state-inferno list (cltstfunc 15, LAB_004e3060: Inferno, Arctic Blast). While state 0xc is off on the unit the
 // prgsound plays on no unit; the start then makes the client's list (FUN_006251f0 flags 2, timeout 0x15 frames) or, with a list
-// on, sets its timeout to 7 (FUN_006260b0); FUN_00480810 -> FUN_00627460 counts it down a frame at a time. So a second start
+// on, sets its timeout to 7 (FUN_006260b0); with the state off its prgoverlay plays too (0x4e30c2); FUN_00480810 -> FUN_00627460 counts it down a frame at a time. So a second start
 // while the list is on is silent, and one after it ran out plays again.
 #include <character.hpp>
 #include <character_store.hpp>
@@ -10,6 +10,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -67,6 +68,17 @@ int main() try {
     actor.burning = start + 100 * kTickMs;
     const auto fifth = cast(50);
     assert(first == 1 && second == 1 && third == 1 && fourth == 2 && fifth == 2);
+    // Its prgoverlay (arctic_blast_cast) goes on with the sound, not while the state is on (0x4e30c2).
+    const int overlay = data->overlay_row(data->skills.get(skill_id)->prg_overlay);
+    assert(overlay > 0);
+    const auto overlays = [&] { return std::ranges::count(actor.one_shots, overlay, &d2d::rules::OneShot::row); };
+    actor.one_shots.clear();
+    actor.burning = 0; actor.inferno_list = 0;
+    cast(200);
+    const auto with_sound = overlays();
+    actor.one_shots.clear();
+    cast(205);                        // the list is on
+    assert(with_sound == 1 && overlays() == 0);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

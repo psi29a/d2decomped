@@ -358,6 +358,7 @@ struct Skill {
     // castoverlay (+0x106) and ItemCastOverlay (+0x124, cast from an item): Overlay.txt names the
     // client's skill start (FUN_004c6140) plays once on its caster (rules::cast_overlay_starts).
     std::string cast_overlay, item_cast_overlay;
+    std::string prg_overlay;               // prgoverlay (+0x10c): cltstfunc 15's overlay on its start with state inferno off (Arctic Blast)
     int prgdam = 0;
     std::string seqtrans;                  // +0x12: the mode a sequence counts as (SC: FUN_006216e0 times it as a cast)
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit

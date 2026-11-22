@@ -614,6 +614,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
         skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc"); skill_row.aura_filter = std::uint32_t(number("aurafilter"));
         skill_row.srvoverlay = text("srvoverlay"); skill_row.cast_overlay = text("castoverlay"); skill_row.item_cast_overlay = text("ItemCastOverlay");
+        skill_row.prg_overlay = text("prgoverlay");
         skill_row.aurastate = text("aurastate"); skill_row.auratarget = text("auratargetstate");
         for (std::size_t event = 0; event < 3; ++event) {
             skill_row.aura_event[event] = text("auraevent" + std::to_string(event + 1));
