@@ -945,7 +945,8 @@ struct ThinkEffect {
     // Act 5's: the siege beast takes a rider (FUN_005e17e0: the imp's AI word
     // +0x14 its id), a minion takes its command's unit as target (FUN_006416d0).
     // Baal's: a Vile Effigy made (clone, FUN_005fc860).
-    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget, clone } kind;
+    // The ElementalBeast's: its mode's action event filed id frames on (strike, FUN_005417d0 type 0).
+    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget, clone, strike } kind;
     int id = 0, value = 0;
 };
 struct ThinkIn {

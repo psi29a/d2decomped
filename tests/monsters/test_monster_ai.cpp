@@ -426,6 +426,7 @@ int main() try {
 #include "mon_ais_late_cases.inc"
 #include "mon_ais_pace_cases.inc"
 #include "mon_ais_uber_cases.inc"
+#include "mon_ais_unplaced_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's / the late ones' fields.
