@@ -8,7 +8,8 @@ The descdam table at 0x72d768 picks the handler that fills the panel's
 2 (FUN_004ea450), 3 (FUN_004ea990), 4 (FUN_004eaa30), 5
 (FUN_004ead60), 6 (FUN_004e9d20), 8 (FUN_004eb290), 9 (FUN_004eb390), 10 (FUN_004eb460),
 11 (FUN_004eb640),
-7 (FUN_004ea010), 12 (FUN_004eb830), 13 (FUN_004eb240), 17 (FUN_004ebd50),
+7 (FUN_004ea010), 12 (FUN_004eb830), 13 (FUN_004eb240), 14 (FUN_004eb940:
+Param5 read through the data tables at 0x744304, faked here), 17 (FUN_004ebd50),
 18 (FUN_004ec040), 19 (FUN_004ea310),
 20 (FUN_004ea240), the two hands' FUN_004e99f0 / FUN_004e93a0 / FUN_004e9610, 21 (FUN_004ea790), 22 (FUN_004eaaa0)
 with FUN_004ea4a0 (the throw),
@@ -69,7 +70,8 @@ DUAL_CLASS, HAND_ITEM, USABLE, MAIN_HAND, OTHER_HAND, ITEM_STATS = 0x6235A0, 0x6
 SKILL_NODE, HAS_STATE, NODE_LEVEL, PARAM_PCT, DAM_BLUE, DAM_RED = 0x6439B0, 0x639DF0, 0x6442A0, 0x4CC7C0, 0x63A380, 0x63A3A0
 GAME_ETYPE = {-1: 0, 0: 1, 1: 2, 2: 4, 3: 5, 4: 3, 5: 9}     # d2d's etype (fire ltng cold pois mag stun) -> EType byte
 ELEM_COLOUR = (1, 9, 3, 2, 3)                                  # d2d's kElemColour
-HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 24)
+HANDLERS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 24)
+DATA_TABLES, SKILLS_TXT, SKILLS_COUNT, SKILL_ROW_ID = 0x744304, 0xB98, 0xBA0, 77
 
 
 def d2d_line(descdam, case):
@@ -256,6 +258,16 @@ def d2d_line(descdam, case):
         if element[:2] == (0, 0):
             return upper
         return ("two", two_text(*upper[:2]), two_text(*element[:2]), upper[2], element[2])
+    elif descdam == 14:
+        w_low, w_high = case["w_low"], case["w_high"]
+        w_low += trunc_div(case["param5"] * w_low, 100); w_high += trunc_div(case["param5"] * w_high, 100)
+        if case["we_low"] or case["we_high"]:
+            w_low += case["we_low"]; w_high += case["we_high"]; colour = case["we_colour"]
+        else:
+            colour = 0
+        if w_high > 0:
+            w_low = max(w_low, 1); w_high = max(w_high, w_low + 1)
+        return w_low, w_high, 1 if case["red"] else 3 if case["blue"] else colour
     elif descdam == 17:
         upper, lower = weapon_part(), element_part()
         if upper[:2] == (0, 0):
@@ -390,7 +402,10 @@ def main():
     e.w32(unit + 0x60, e.alloc(0x40))                              # an inventory: FUN_004ea4a0 / FUN_004ea790 test it
     e.w32(desc + 0x18, 1); e.w32(desc + 0x1C, 2)                  # ddam calc1 / calc2: calc ids 1 and 2
     e.hook(SKILL_DESC, lambda _e: desc, 0)
-    e.hook(SKILL_ID, lambda _e: 77, 3)
+    e.hook(SKILL_ID, lambda _e: SKILL_ROW_ID, 3)
+    tables = e.alloc(0x1000)                                       # FUN_004eb940 finds the Skills row itself: [0x744304] +0xb98 / +0xba0
+    e.w32(DATA_TABLES, tables)
+    e.w32(tables + SKILLS_TXT, (row - SKILL_ROW_ID * 0x23C) & 0xFFFFFFFF); e.w32(tables + SKILLS_COUNT, 400)
     e.hook(CALC, lambda em: case["calc1"] if em.arg(1) == 1 else case["calc2"], 4)
     rng = random.Random(1114)
     bad = runs = 0
@@ -425,6 +440,7 @@ def main():
                 ("w_low", lambda: rng.randrange(-5, 200)), ("w_high", lambda: rng.randrange(-5, 400)),
                 ("str_bonus", lambda: rng.choice((0, 0, 50, 75))), ("dex_bonus", lambda: rng.choice((0, 0, 30, 100))))},
             throw_state=rng.random() < 0.5, mastery=rng.choice((0, 30, 120, 400)),
+            param5=rng.choice((-75, -75, 0, 30, -100, -150, 7)),
             calcs={11: rng.choice((0, 30, 70, 300)), 12: rng.choice((0, 30, 70, 300)), 13: rng.choice((0, 30, 70, 300, -20))})
         if rng.random() < 0.5:
             case["we_low"] = rng.randrange(0, 40); case["we_high"] = case["we_low"] + rng.randrange(0, 60)
@@ -434,6 +450,7 @@ def main():
         e.w32(row + 0x1A8, case["mindam"]); e.w32(row + 0x1AC, case["maxdam"])
         e.mu.mem_write(row + 0x1DC, bytes((GAME_ETYPE[case["etype"]],)))
         e.w32(row + 0x138, 11); e.w32(row + 0x13C, 12); e.w32(row + 0x140, 13)
+        e.w32(row + 0x158, case["param5"])                        # Param5 (Hunger's -75)
         e.mu.mem_write(record + 0xFE, bytes((case["sh_min"], case["sh_max"])))
 
     for descdam, trial in itertools.product(HANDLERS, range(4000)):

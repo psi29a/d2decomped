@@ -562,7 +562,9 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
 //     throw mastery's to-hit, not the melee one; descatt 4 (FUN_004e95c0,
 //     Left Hand Throw): the other hand's alone, 0 without.
 //   damage, descdam 18 (FUN_004ec040, Royal Strike): 7's (FUN_004ea010).
-// ponytail: descdam 14..16, 23 (Druid / Assassin skills, LoD) show no line;
+//   damage, descdam 14 (FUN_004eb940, Hunger): the weapon part (no ddam
+//     calcs) + Param5 % of each end (-75), then its elements.
+// ponytail: descdam 15, 16, 23 (Dragon Talon / Flight, Dragon Tail, Rabies) show no line;
 // stat 325 (an Assassin's progressive to-hit) is left out.
 // The char panel's state colour bits (States.txt's flags, FUN_00618100:
 // bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
