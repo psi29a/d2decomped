@@ -364,8 +364,11 @@ int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string
 // monster that isn't transformed) at the unit's rate (+0x4c, FUN_00623f50:
 // mode_rate) and files the event frame's marker on the first tick that
 // reaches it, rules::frame_tick (council-s1.md).
-// ponytail: a mode with no event frame files no marker there, so game.exe
-// fires nothing; d2d still strikes it halfway, as it did before.
+// ponytail: a mode with no event frame files no marker there (flags 1, 2, 4
+// only), but a skill's mode can still cast: FUN_005a75c0, the start, runs the
+// skill path when the unit has an active skill entry (council-s1.md), and
+// stock 1.14d's ZMS1HTH (a teleporting zombie's MonTeleport) has no event. Not
+// traced which; d2d strikes such a mode halfway.
 std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, std::string_view mode) {
     const auto& timing = game_data.npc_timing(monster.npc, mode);
     if (timing.action < 0) return timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
