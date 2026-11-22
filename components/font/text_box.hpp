@@ -17,11 +17,14 @@ struct TextBoxRow {
 
 // Latin kind-4 text boxes: FUN_004fc9b0 / FUN_004fcda0 add and wrap
 // rows; FUN_004fbf30 places them. Baselines use the original bottom anchor.
-// `texts`: one FUN_004fc9b0 each, in order.
+// `texts`: one FUN_004fc9b0 each, in order. `flags` is the record's +0x2c
+// (control +0x5c): 2 centres a row, else it starts at x + margin_x;
+// 0x20 skips wrapping.
+inline constexpr int kTextBoxCentre = 2, kTextBoxNoWrap = 0x20;
 template<class Measure>
 auto text_box_rows(const std::vector<std::string_view>& texts, int x, int bottom, int width, int height,
                    int font_height, Measure measure, int margin_x = 0, int margin_y = 0,
-                   int spacing = 4) -> std::vector<TextBoxRow> {
+                   int spacing = 4, int flags = kTextBoxCentre) -> std::vector<TextBoxRow> {
     std::vector<std::string_view> pending(texts.rbegin(), texts.rend());
     std::vector<std::string_view> lines;
     std::vector<TextBoxRow> rows;
@@ -34,7 +37,7 @@ auto text_box_rows(const std::vector<std::string_view>& texts, int x, int bottom
         pending.pop_back();
         const auto first = line.find_first_not_of(" \t\n\r\v\f");
         line = first == std::string_view::npos ? std::string_view{} : line.substr(first);
-        if (measure(line) >= available_width && !line.empty()) {
+        if ((flags & kTextBoxNoWrap) == 0 && measure(line) >= available_width && !line.empty()) {
             std::size_t last_space = std::string_view::npos;
             std::size_t cut = line.size();
             for (std::size_t index = 0; index < line.size(); ++index) {
@@ -61,7 +64,8 @@ auto text_box_rows(const std::vector<std::string_view>& texts, int x, int bottom
     const auto first_row = lines.size() > std::size_t(capacity) ? lines.size() - std::size_t(capacity) : 0;
     for (auto index = first_row; index < lines.size(); ++index) {
         const auto line = lines[index];
-        rows.push_back({ std::string(line), x + std::max(0, (width - measure(line)) / 2), baseline });
+        const int row_x = (flags & kTextBoxCentre) != 0 ? x + std::max(0, (width - measure(line)) / 2) : x + margin_x;
+        rows.push_back({ std::string(line), row_x, baseline });
         remaining_height -= pitch;
         if (pitch <= 0 || pitch > remaining_height) break;
         baseline += pitch;
@@ -71,8 +75,8 @@ auto text_box_rows(const std::vector<std::string_view>& texts, int x, int bottom
 template<class Measure>
 auto text_box_rows(std::string_view text, int x, int bottom, int width, int height,
                    int font_height, Measure measure, int margin_x = 0, int margin_y = 0,
-                   int spacing = 4) -> std::vector<TextBoxRow> {
-    return text_box_rows(std::vector<std::string_view>{ text }, x, bottom, width, height, font_height, measure, margin_x, margin_y, spacing);
+                   int spacing = 4, int flags = kTextBoxCentre) -> std::vector<TextBoxRow> {
+    return text_box_rows(std::vector<std::string_view>{ text }, x, bottom, width, height, font_height, measure, margin_x, margin_y, spacing, flags);
 }
 
 } // namespace d2d::font
