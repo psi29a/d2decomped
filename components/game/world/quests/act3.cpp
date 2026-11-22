@@ -234,11 +234,12 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
                 make_boss(*game_data, fetish_lord, d2d::rules::Boss::unique, {}, -1, int(fight.rng.next() & 0xffff), diff, fight.rng, fight.game_players());
                 const int minion = game_data->monsters.types[std::size_t(d2d::rules::BladeQuest::kGuardian)].minion[0];
                 const int party = 2 + int(fight.rng.next() % 6);
-                fight.add_monster(std::move(fetish_lord));
+                const int leader = fight.add_monster(std::move(fetish_lord));
                 blade.spawned = true; blade.guardian = fight.monsters.back().id;
                 for (int i = 0; minion >= 0 && i < party; ++i) {
                     auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, fight.game_players(), level->id);
                     fetish.boss = d2d::rules::Boss::minion;
+                    fetish.leader = leader;                               // its pack's lord (FUN_005a43e0's group)
                     fight.add_monster(std::move(fetish));
                 }
                 d2d::log::info("The Blade of the Old Religion: the guardians come");
