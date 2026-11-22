@@ -426,6 +426,12 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
             std::erase_if(monster.states, [](const Monster::SkillState& held) { return held.skill < 0; });   // ended (end_state)
+            // The chill's (state 0xb, FUN_0057af80): attackrate and other_animrate at its coldeffect, as its
+            // velocitypercent (the walk %, monster_update).
+            if (now_ms < monster.chill_until) {
+                monster.attack_pct += chill_pct(*game_data, monster);
+                monster.anim_pct += chill_pct(*game_data, monster);
+            }
             // State 0x18 (put_slow): its own list's velocitypercent, attackrate and other_animrate.
             if (now_ms < monster.slow_until) {
                 monster.speed_pct -= monster.slow_speed;
