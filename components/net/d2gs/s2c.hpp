@@ -1,6 +1,7 @@
 // S->C decoders that are more than a field read (net-packets.md).
 #pragma once
 
+#include "bit_buffer.hpp"
 #include "wire.hpp"
 
 #include <algorithm>
@@ -55,28 +56,22 @@ inline auto quest_word_of_record(int record) -> int {
 }
 
 // 0xac assign monster's boss, from its tail (FUN_0045f190, net-packets.md
-// "0xac"): LSB-first bits from +0xd to the length at +0xc. Mode 4,
-// components (1, then 16, each 1 bit under 3 choices, else bit_width(n - 1)
-// with n MonStats2's HDv..S8v count), then the boss: 1, 5 flags (champion,
-// unique, superunique, minion, ghostly), a superunique's SuperUniques row
-// (16), mods 8 bits each till a 0 (at most 9), the name seed (16), then 1
-// and an owning player's id (32); then the owner: 1, its id (31: a pet's
-// or merc's player).
+// "0xac"): LSB-first bits from +0xd to the length at +0xc, read as
+// game.exe does (FUN_00410e40 over +0xd, length +0xc less 0xd; then
+// FUN_00411020). Mode 4, components (1, then 16, each 1 bit under 3
+// choices, else bit_width(n - 1) with n MonStats2's HDv..S8v count), then
+// the boss: 1, 5 flags (champion, unique, superunique, minion, ghostly), a
+// superunique's SuperUniques row (16), mods 8 bits each till a 0 (at most
+// 9), the name seed (16), then 1 and an owning player's id (32); then the
+// owner: 1, its id (31: a pet's or merc's player).
 struct MonsterBoss { int flags = 0; int super = -1; std::vector<int> mods; int name_seed = 0; };   // flags: 1 champion, 2 unique, 4 superunique, 8 minion, 0x10 ghostly
 struct MonsterTail { std::optional<MonsterBoss> boss; std::uint32_t owner = 0; };              // owner 0: none
 inline auto monster_tail(std::span<const std::uint8_t> packet, const std::array<std::uint8_t, 16>& choices) -> std::optional<MonsterTail> {
     if (packet.size() < 0xd || packet[0] != 0xac) return std::nullopt;
-    const std::size_t end = std::min<std::size_t>(packet[0xc], packet.size()) * 8;
-    std::size_t bit_at = 0xd * 8;
-    bool over = false;
-    auto bits = [&](int count) {
-        std::uint32_t value = 0;
-        for (int bit = 0; bit < count; ++bit, ++bit_at) {
-            if (bit_at >= end) { over = true; return 0u; }
-            value |= std::uint32_t(packet[bit_at / 8] >> (bit_at % 8) & 1) << bit;
-        }
-        return value;
-    };
+    const std::size_t end = std::min<std::size_t>(packet[0xc], packet.size());
+    BitReader reader(packet.subspan(0xd, end > 0xd ? end - 0xd : 0));
+    auto bits = [&](int count) { return reader.read(count); };
+    auto more = [&] { return reader.cursor().byte * 8 + reader.cursor().bit < reader.cursor().bits; };   // a bit left
     bits(4);
     if (bits(1))
         for (const int count : choices) bits(count < 3 ? 1 : std::bit_width(unsigned(count - 1)));
@@ -87,12 +82,12 @@ inline auto monster_tail(std::span<const std::uint8_t> packet, const std::array<
         if (boss.flags & 4) boss.super = int(bits(16));
         for (std::uint32_t mod = bits(8); mod != 0 && boss.mods.size() < 9; mod = bits(8)) boss.mods.push_back(int(mod));
         boss.name_seed = int(bits(16));
-        if (bit_at < end && bits(1)) bits(32);
-        if (over) return std::nullopt;
+        if (more() && bits(1)) bits(32);
+        if (reader.cursor().overflow) return std::nullopt;
         out.boss = std::move(boss);
     }
-    if (bit_at < end && bits(1)) out.owner = bits(31);
-    if (over) out.owner = 0;                       // cut short: no owner read
+    if (more() && bits(1)) out.owner = bits(31);
+    if (reader.cursor().overflow) out.owner = 0;                       // cut short: no owner read
     return out;
 }
 inline auto monster_boss(std::span<const std::uint8_t> packet, const std::array<std::uint8_t, 16>& choices) -> std::optional<MonsterBoss> {
