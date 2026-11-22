@@ -8,8 +8,9 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using d2d::client::frontend_track;
     std::array<bool, 8> played{};
     bool restart = true;
@@ -23,4 +24,8 @@ int main() {
     restart = true;   // back from a game: the flags clear and track 0 plays
     assert(frontend_track(played, restart, 3) == 0 && !played[3]);
     std::puts("frontend track: ok");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }
