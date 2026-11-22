@@ -239,6 +239,12 @@ in 1/256-frame units. The d2d regression checks that same pose history
 while the melee action still resolves at tick 8. This test drives the
 animation step and scheduled action separately.
 
+Mode changes clear the scheduled action; starting a tracked mode
+initializes its visible position and tick. Local views copy the
+simulated monster state. Joined clients continue to draw from their
+replicated mode and rate because that wire format carries no accumulated
+position. Player, hireling and pet attack clocks use their own paths.
+
 The d2d regressions map original Council IDs 345–347 to reordered
 local rows, so both attack paths exercise the loader's ID mapping.
 
