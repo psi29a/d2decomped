@@ -687,6 +687,15 @@ unit's death).
   (`FUN_006417f0`, at least 1): d x Range / 12 past 9, else d x Range /
   24 + Range / 2 (`FUN_0064a2b0` / `FUN_0064a330`). The missile stands
   (Vel 0), Activate 30, NextHit 10.
+  The stock sequence has 35 rows of A2 artwork and an action at row
+  13 (zero-based, displayed frame 7). `FUN_00621260` starts at 256
+  sequence units per tick. For DeathMaul, `FUN_00623f50` changes the
+  ordinary animation rate without changing that sequence rate.
+  `FUN_005539b0` queues the action and end at ticks 13 and 35.
+  Standalone `M5A2HTH` instead has 15 frames, rate 224 and an action
+  marker at frame 8, yielding ticks 10 and 18. Reproduce both cases with
+  `tools/emu/death_maul_timing.py --animdata <local AnimData.d2>` and
+  `ctest -R '^test_death_maul_timing$'` with 1.14d data.
 - **Shout** (Madawc, do 68 `FUN_005d83e0`, SC): the nova of srvmissilea
   (`FUN_0056d400`), its hit 18 putting the state on allies, and the
   aurastate on itself for auralen frames (`FUN_005d8290`).

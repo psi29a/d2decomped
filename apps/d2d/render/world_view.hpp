@@ -74,6 +74,7 @@ struct Unit {
     // at AnimSpeed/16 a tick from mode_ms.
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
+    std::optional<std::uint32_t> composite_elapsed = std::nullopt;   // elapsed equivalent of a simulated frame
     int missile_rate = 0;                // a missile's own, in 256ths of a frame a tick (unit +0x4c); 0: its AnimSpeed
     int missile_z = 0;                   // ... and its motion z, pixels down the screen (View::Shot::motion_z)
     std::uint32_t missile_dies = 0;      // ... and when its Range runs out (View::Shot::dies), 0 unknown
