@@ -4,7 +4,8 @@
 // FUN_005afec0): on the missile's Param1th frame (45) the owner, alive and
 // under its max life (29: recycler delay, CorpseCycler's) or mana (33: vine
 // recycler delay, VineCycler's), takes MulDiv(max, calc1, 100) of the skill
-// at the missile's level, up to the max. Needs the game data.
+// at the missile's level, up to the max, and its ProgOverlay plays on the owner.
+// Needs the game data.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -14,10 +15,12 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -77,6 +80,8 @@ int main() try {
         }
         std::printf("%s: +%d at frame %d (want +%d)\n", cycler, jump, healed_at, gain);
         assert(gain >= 2 && healed_at >= 44 && healed_at <= 47 && (jump == gain || jump == gain - 1));   // the heal on whole points, regen's part off
+        const int overlay = data->overlay_row(row.prog_overlay);                                         // steallife / stealmana on the owner
+        assert(overlay > 0 && std::ranges::contains(world.actor->one_shots, overlay, &d2d::rules::OneShot::row));
     }
     std::printf("test_recycler_heal: ok\n");
     return 0;

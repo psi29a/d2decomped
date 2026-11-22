@@ -622,15 +622,18 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             }
             // The recycler delays (missile do 29 / 33, FUN_005afd70 / FUN_005afec0): on their Param1th
             // frame (+0x38: 45) the owner, alive, under its max life (29) or mana (33) in whole points, takes
-            // MulDiv(max, calc1, 100) of its skill at the missile's level (0x5afe5f), up to the max.
-            // ponytail: the row's overlay on the owner (+0x36, FUN_00621e40) isn't played.
+            // MulDiv(max, calc1, 100) of its skill at the missile's level (0x5afe5f), up to the max, then the
+            // row's ProgOverlay (+0x36: steallife / stealmana) on the owner (FUN_00621e40).
             if ((missile_info.srv_do == 29 || missile_info.srv_do == 33) && age >= missile_info.param1 && !missile.healed && !dead()) {
                 missile.healed = true;
                 using namespace d2d::d2s;
                 const bool life = missile_info.srv_do == 29;
                 auto& value = actor->character.stats.values[life ? kLife : kMana];
                 const int most = int(actor->character.stats.values[life ? kMaxLife : kMaxMana] >> 8), now_whole = int(value >> 8);
-                if (now_whole < most) value = std::int64_t(std::min(now_whole + d2d::rules::mul_div(most, calc(*skill, skill->calc[0], missile.level), 100), most)) << 8;
+                if (now_whole < most) {
+                    value = std::int64_t(std::min(now_whole + d2d::rules::mul_div(most, calc(*skill, skill->calc[0], missile.level), 100), most)) << 8;
+                    if (const int overlay = game_data->overlay_row(missile_info.prog_overlay); overlay > 0) d2d::rules::add_one_shot(actor->one_shots, overlay, now_ms);
+                }
             }
             if (missile_info.srv_do == 7 && age % std::max(missile_info.param1, 1) == 0) {
                 if (missile.target < 0 && skill->srvstfunc == ServerStartFunction::kNone) {
