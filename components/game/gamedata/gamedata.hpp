@@ -152,7 +152,8 @@ struct GameData {
     // The look of what's worn (compcode::look). A state on the player with
     // an itemtrans colours worn items of its itemtype (FUN_0062c100's first
     // loop: Enchant's red weapons, Venom Claws' green).
-    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {}) const {
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {},
+                                     d2d::compcode::LookTarget target = d2d::compcode::LookTarget::sprite) const {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& item : items)
             if (item.location == d2d::d2s::item_location::kEquipped) {
@@ -169,7 +170,7 @@ struct GameData {
                         }
                 worn.push_back({ item.slot, item.code, colour });
             }
-        const auto look = d2d::compcode::look(comp, item_pieces, worn), tints = d2d::compcode::tints(item_pieces, worn);
+        const auto look = d2d::compcode::look(comp, item_pieces, worn, target), tints = d2d::compcode::tints(item_pieces, worn);
         Appearance appearance;
         std::copy(look.begin(), look.end(), appearance.begin());
         std::copy(tints.begin(), tints.end(), appearance.begin() + 16);
