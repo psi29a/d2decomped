@@ -28,6 +28,7 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_004239e0` | `sbig_not` | dst, a (`RET 8`): `ESI` = dst, then `FUN_004228c0(a)`; dst = a with its dwords complemented, over a's width (at least one dword): a XOR (2^(32·w) − 1) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a00` | `sbig_or` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_004229d0(a, b)`; dst = a OR b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a20` | `sbig_set_pow2` | dst, n (`RET 8`): `ESI` = dst, then `FUN_00422b00(n)`; dst = 2^n (n >> 5 zero dwords, then 1 << (n & 31)) | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423a40` | `sbig_set_one` | a (`RET 4`): `EDI` = a, then `FUN_00422c60`; a = 1 (used count `+4` = `+0x10` + 1, entry `+0x10` = 1) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a80` | `sbig_shl` | dst, a, n (`RET 0xc`): `EDI` = dst, `EAX` = n, then `FUN_00422d00(a)`; dst = a << n | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423aa0` | `sbig_shr` | dst, a, n (`RET 0xc`): `ESI` = dst, `EAX` = n, then `FUN_00422e70(a)`; dst = a >> n | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423ac0` | `sbig_sub` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00423100(a, b)`; dst = a − b (run for a ≥ b) | no counterpart (as `sbig_pow_mod`) |
