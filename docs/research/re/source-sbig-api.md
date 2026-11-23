@@ -22,3 +22,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_004238b0` | `sbig_from_unsigned` | dst, u (`RET 8`): `ESI` = dst, then `FUN_00423540(u)`; dst = the 32-bit u | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004238d0` | `sbig_inc` | dst, a (`RET 8`): `ESI` = dst, `ECX` = 1, then `FUN_004221f0(a)`; dst = a + 1 | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004238f0` | `sbig_is_odd` | a (`RET 4`): `ESI` = a, then `FUN_00422710`; returns 1 for an odd a, else 0 | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423910` | `sbig_is_one` | a (`RET 4`): `ESI` = a, then `FUN_00422750`; returns 1 when a is 1, else 0 | no counterpart (as `sbig_pow_mod`) |
