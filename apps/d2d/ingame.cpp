@@ -269,7 +269,21 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // top (0x7225fc, 12), 0x145 by 0x70 (npc-talk.md "Box"), so no box
         // lands on it; then the players', the monsters' and the objects' tables.
         // ponytail: each table's own order isn't traced; within each d2d goes in `units` order.
-        auto overhead_slots = overhead_frame_slots(speech && speech->npc >= 0, int(kScreenWidth));
+        // The speech box in the world buffer's pixels (the screen's start at `off`); the touch layout's box
+        // is where draw_speech paints it there (a d2d layout, no game.exe slot of its own).
+        std::optional<OverheadRect> speech_box;
+        if (speech && speech->npc >= 0) {
+            OverheadRect box = speech_slot(int(kScreenWidth));
+            if (hud.touch_compact) {
+                const int box_h = touch_speech_box_height(int(speech->lines.size()), touch::safe_inset.top, touch::safe_inset.bottom);
+                const int box_x = int(touch::safe_inset.left + (800.f - touch::safe_inset.left - touch::safe_inset.right - 0x145) * .5f);
+                const int top = touch_speech_box_top(box_h, touch::safe_inset.top, touch::safe_inset.bottom);
+                box = { box_x, top - 5, box_x + 0x145, top - 5 + box_h };
+            }
+            box.left += off; box.right += off;
+            speech_box = box;
+        }
+        auto overhead_slots = overhead_frame_slots(speech_box);
         const auto speakers = overhead_order(std::span<const Unit>(units), [](const Unit& unit) { return unit.says || !unit.said.empty(); },
                                              [](const Unit& unit) { return unit.npc == -1 || unit.npc <= -4000; });
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
