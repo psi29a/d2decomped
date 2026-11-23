@@ -88,6 +88,11 @@ auto World::init_new_objects() -> void {
                 doors.try_emplace({ level, int(seen) }, Door{ 3, now });
             if (operate_fn == d2d::rules::ToolsQuest::kStand && !tools.active) doors.try_emplace({ level, int(seen) }, Door{ 2, now });
             if (made.root != "objects") continue;
+            // The sewers' stairs (InitFn 41, FUN_005b8660): mode 2 with a3q2 closed (+9) or its stairs open (data +8);
+            // the Durance's (53, FUN_005bbb70): 2 with the orb broken (a3q5 data +0xc).
+            if ((operate_fn == d2d::rules::operate_fn::kSewerStairs && (!khalim.open || khalim.stairs_open))
+                || (operate_fn == d2d::rules::operate_fn::kDuranceStairs && temple.orb_broken))
+                doors.try_emplace({ level, int(seen) }, Door{ 2, now });
             if (made.object_id == d2d::rules::object_ids::kLastPortal)
                 doors.try_emplace({ level, int(seen) }, Door{ std::exchange(last_portal_made, true) ? 2 : 1, now });
             if (made.object_id == d2d::rules::EveQuest::kChamberPortal || made.object_id == d2d::rules::EveQuest::kThronePortal)

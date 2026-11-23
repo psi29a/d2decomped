@@ -64,6 +64,7 @@ inline constexpr int kPortal = 15;          // FUN_00584870: the town portals (o
 inline constexpr int kSlimeDoor = 29;       // FUN_005821a0: objects 229 / 230
 inline constexpr int kWirtBody = 33;        // FUN_00583e70: object 268
 inline constexpr int kStairs = 47;          // FUN_00581f60: objects 194 / 195
+inline constexpr int kDuranceStairs = 50;   // FUN_00582180: open (mode 2), 47's way through; the way down to the Durance (386)
 inline constexpr int kGate = 61;            // FUN_00582080: the town gate (449), the pen door (508)
 inline constexpr int kAncientsAltar = 65;   // FUN_0058d310: the Summit's altar (546)
 inline constexpr int kAncientsDoor = 66;    // FUN_0058d400: to the Worldstone Keep (547)
