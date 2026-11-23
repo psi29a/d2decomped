@@ -606,9 +606,9 @@ auto World::game_quest_done(std::size_t quest) const -> bool {
 // log short of 5), the player's last swing sound (unit +0x7c, set by
 // FUN_004cb6a0 as a swing mode starts) is over 62 ticks old and no class
 // voice is playing (FUN_004b9c20).
-// ponytail: "no class voice playing" is the class's last line within 62 ticks
-// (voice_at); the World has no sound lengths or playing list (Sounds ids
-// 0xb76..0x1230, state not 2).
+// "No class voice playing": the class's last line still runs, its start
+// plus its WAV's length (GameData::sound_ms), as FUN_004b9c20 finds it in
+// the playing list (Sounds ids 0xb76..0x1230, state not 2).
 auto World::find_voice(std::uint32_t tick_ms) -> void {
         constexpr std::uint32_t kWait = 62 * kTickMs;
         // FUN_004cb6a0 (FUN_004cc5b0's A1 / A2, a Barbarian's S3, an Assassin's S4; an SQ sequence plays
@@ -630,14 +630,18 @@ auto World::find_voice(std::uint32_t tick_ms) -> void {
         if (closed_at_join[quest] || game_quest_done(quest) || q::bit(bits, row->quest, 0) || q::bit(bits, row->quest, 1) || q::bit(bits, row->quest, 14)) return;
         if (row->quest == d2d::rules::DenQuest::kQuest && den.log_state(bits) >= 5) return;
         if (actor->swung_at && (tick_ms < actor->swung_at || tick_ms - actor->swung_at <= kWait)) return;   // 0x3e < now - +0x7c to speak (FUN_004cc270)
-        if (actor->voice_at && (tick_ms < actor->voice_at || tick_ms - actor->voice_at < kWait)) return;   // a line still due counts
+        if (tick_ms < actor->voice_until) return;   // a line due or still playing
         class_cue(row->line, tick_ms);
     }
 
 auto World::class_cue(std::string_view line, std::uint32_t at_ms) -> void {
         static constexpr std::array<const char*, 7> kClass{ "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
-        actor->voice_at = std::max(actor->voice_at, at_ms);
-        if (actor->character.header.cls < kClass.size()) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), std::format("{}_{}", kClass[actor->character.header.cls], line), at_ms, actor->player.x, actor->player.y);
+        if (actor->character.header.cls >= kClass.size()) return;
+        const auto sound = std::format("{}_{}", kClass[actor->character.header.cls], line);
+        const auto found = game_data->sound_index.find(sound);
+        const std::uint32_t length = found == game_data->sound_index.end() ? 0 : game_data->sound_ms(found->second);
+        actor->voice_until = std::max(actor->voice_until, at_ms + std::max<std::uint32_t>(length, 1));
+        cues.cue_on(unit_key(kSoundOnPlayer, actor->id), sound, at_ms, actor->player.x, actor->player.y);
     }
 
 // The client's quest music sequence (rules::QuestMusic, FUN_004dcd40).

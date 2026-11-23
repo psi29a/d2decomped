@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// The class's find line (FUN_004cc270) waits 62 ticks after the class last
-// spoke; a quest line still due (class_cue's later at_ms, unit event 0x22
-// and the like) counts as speaking, so no find line goes ahead of it. It
+// The class's find line (FUN_004cc270) waits while a class voice plays
+// (FUN_004b9c20): a line cued runs its WAV's length (GameData::sound_ms) from
+// its start, and one still due (class_cue's later at_ms, unit event 0x22 and
+// the like) counts too, so no find line goes ahead of either. It
 // also needs the player's last swing sound (unit +0x7c, FUN_004cb6a0) more
 // than 62 ticks old (0x3e < now - +0x7c): a swing mode begun 62 ticks
 // before holds it back, 63 does not; a Sorceress's S3 is no swing.
@@ -52,19 +53,30 @@ int main() try {
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 
     constexpr std::uint32_t kWait = 62 * 40;
-    // Into the Den at 1000 ms with the class's last line due at `voice_at`:
+    // Into the Den at 1000 ms with the class's last line ending at `voice_until`:
     // the find lines cued once the 62 ticks are up.
-    const auto find_lines = [&](std::uint32_t voice_at) {
+    const auto find_lines = [&](std::uint32_t voice_until) {
         World world(&*data, -1, -1);
         world.enter(character);
         world.level = den;
-        world.actor->voice_at = voice_at;
+        world.actor->voice_until = voice_until;
         world.find_voice(1000);
         world.find_voice(1000 + kWait);
         return std::ranges::count(world.cues.due, found_line->second, &Cues::Cue::sound);
     };
     assert(find_lines(0) == 1);
     assert(find_lines(1000 + kWait + 5000) == 0);   // a quest line still due
+    // A line cued plays its WAV's length: the class is speaking till it ends, not 62 ticks.
+    {
+        World world(&*data, -1, -1);
+        world.enter(character);
+        const int done_line = data->sound_index.at("sorceress_act1_complete_den");
+        const auto length = data->sound_ms(done_line);
+        assert(length > 2000);                       // a spoken line, seconds long
+        world.class_cue("act1_complete_den", 500);
+        assert(world.actor->voice_until == 500 + length);
+        assert(find_lines(1000 + kWait + 40) == 0 && find_lines(1000 + kWait) == 1);   // the line's end, not its start
+    }
     // A swing begun at `swing_ms` (mode A1, or S3 as `cls`) holds the find line back until 63 ticks on.
     const auto swung_lines = [&](int mode, std::uint32_t swing_ms, std::uint32_t asked_ms) {
         World world(&*data, -1, -1);

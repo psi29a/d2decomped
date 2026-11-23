@@ -276,7 +276,7 @@ struct World {
         std::uint32_t voice_level_at = 0;
         int voice_checked = 0;                 // the last level looked up (0x7c8a04 / 0x7c88cc)
         std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
-        std::uint32_t voice_at = 0;            // when the class last spoke
+        std::uint32_t voice_until = 0;         // when the class's last line ends (its start + its WAV's length)
         std::uint32_t swung_at = 0;            // when the player's last swing sound began (unit +0x7c, FUN_004cb6a0), 0 none
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
         // Talk records (by hc_idx) whose menu greeting has played since the

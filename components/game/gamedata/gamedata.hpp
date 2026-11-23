@@ -782,6 +782,10 @@ struct GameData {
                    bool defer = false, stop_inst = false, solo = false;
                    int compound = 0, priority = 0, group_base = 0; };
     std::unordered_map<std::string, int> sound_index;   // Sounds.txt Sound -> Index
+    // How long Sounds.txt row `index` plays, in ms (its WAV under data\global\sfx, else
+    // data\local\sfx: rules::wav_ms); 0 when it can't be read. Cached.
+    std::uint32_t sound_ms(int index) const;
+    mutable std::unordered_map<int, std::uint32_t> sound_lengths;
     // MonSounds.txt by Id (MonStats MonSound): per attack mode (A1, A2) the
     // attack and weapon sounds, their delays in ticks and the attack sound's
     // chance; the get-hit and death sounds and delays.
