@@ -288,9 +288,8 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
 // at +0xe8). FUN_0064c2c0 inserts at the head, so each room's draws run
 // newest first. monsters is oldest first.
 // Radament's radamentdeath at his spot is drawn too: its client do 32 (missile_flight.hpp) lays the
-// Hands of God.
-// ponytail: Mephisto's mephistodeathcontrol (client do 26: fire wall makers and flying rocks, each a
-// client do of its own) isn't made.
+// Hands of God; Mephisto's mephistodeathcontrol on him (FUN_005dfdb0), its client do 26 the fire wall
+// makers (do 27, laying their fires) and the flying rocks.
 auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
         const auto row = [&](int bin_row) { return std::size_t(bin_row) < game_data->mon_bin.size() ? int(game_data->mon_bin[std::size_t(bin_row)]) : -1; };
         const auto radament = game_data->missiles.find("radamentdeath");
@@ -300,6 +299,13 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
             death.visual_only = true;                               // a server do 19 / client do 32 row with no cel of its own: what shows is the client's
             death.sub = &hands->second;
             death.owner = boss.id;
+            missiles.push_back(std::move(death));
+        }
+        if (const auto control = game_data->missiles.find("mephistodeathcontrol"); boss.type == row(0xf2) && control != game_data->missiles.end()) {
+            Missile death{ &control->second, boss.unit.x, boss.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(control->second.range, 1)) * 40, {} };
+            death.visual_only = true;                               // CelFile null: what shows is its client do 26's
+            death.owner = boss.id;
+            death.level = 1;
             missiles.push_back(std::move(death));
         }
         const auto subtile = [](float value) { return int(std::floor(value * 5)); };

@@ -858,6 +858,7 @@ struct GameData {
                          // The client's: CltSubMissile1 (+0x1e) and InitSteps (+0x135), the row client do 8 lays
                          // and from what age (FUN_004d38d0; game.exe's column table FUN_00661b20).
                          std::string clt_sub; const MissileInfo* clt_sub_info = nullptr; int init_steps = 0;
+                         std::string clt_sub2; const MissileInfo* clt_sub2_info = nullptr;   // CltSubMissile2 (+0x20): client do 26's second
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,
                          // and at its range's end too when AlwaysExplode (+0x18c) (FUN_004d2d70).
                          std::string explosion_name; const MissileInfo* explosion = nullptr; bool always_explode = false;

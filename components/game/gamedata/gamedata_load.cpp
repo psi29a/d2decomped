@@ -346,6 +346,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || name == "cairnstones"                                                    // the Cairn Stones' dip frames (0x46aee0)
                  || name == "orbmist"                                                        // the compelling orb's break (FUN_005dfee0, row 0x170)
                  || name == "radamentdeath" || name == "radamenthandofgod"                  // Radament's death (FUN_0056ede0) and its client do 32's (row 0x15c)
+                 || name == "mephistodeathcontrol" || name == "mephistofirewallmaker" || name == "mephistofirewall"
+                 || name == "mephistoflyingrocksbig"                                        // Mephisto's death (FUN_005dfdb0) and its client do 26's
                  || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
@@ -376,6 +378,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.clt_sub = missiles_table.get(row_index, "CltSubMissile1"); missile_info.init_steps = number("InitSteps");
+        missile_info.clt_sub2 = missiles_table.get(row_index, "CltSubMissile2");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
@@ -397,7 +400,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     for (auto& [name, missile_info] : game_data.missiles)
         for (auto [wanted, into] : { std::pair{ &missile_info.explosion_name, &missile_info.explosion }, std::pair{ &missile_info.sub, &missile_info.subs[0] },
                                   std::pair{ &missile_info.sub2, &missile_info.subs[1] }, std::pair{ &missile_info.hit_sub, &missile_info.hit_sub_info },
-                                  std::pair{ &missile_info.clt_sub, &missile_info.clt_sub_info } })
+                                  std::pair{ &missile_info.clt_sub, &missile_info.clt_sub_info }, std::pair{ &missile_info.clt_sub2, &missile_info.clt_sub2_info } })
             if (const auto found = game_data.missiles.find(*wanted); found != game_data.missiles.end()) *into = &found->second;
     // SuperUniques.txt: name (string key), Class, minions. Replaceable and
     // EClass are never read by game.exe (docs/research/re/superuniques.md).
