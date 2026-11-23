@@ -231,7 +231,7 @@ struct Monster {
     std::optional<std::uint32_t> scheduled_action_ms;  // action deadline set when the mode starts
     std::optional<std::uint32_t> scheduled_anim_position;  // visible position, in 256ths of a frame
     std::uint32_t scheduled_anim_ms = 0;        // last whole tick included in that position
-    bool scheduled_think_first = false;        // a same-tick think was pending when this action was queued
+    std::optional<std::uint32_t> scheduled_older_think_ms;  // think already pending when the mode queued its events
     bool lifeless = false;                    // its life rolled 0 (FUN_00573cb0): held at one point, any landed hit kills it
     // Its think event (unit event 2): due at next_act, pending while that's
     // after thought_ms, when its think last ran. One due runs mid-mode too.
