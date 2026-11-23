@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810 FUN_004218b0 FUN_00421930 FUN_00421980 FUN_004219d0 FUN_004219f0 FUN_00421a50 FUN_00421ab0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810 FUN_004218b0 FUN_00421930 FUN_00421980 FUN_004219d0 FUN_004219f0 FUN_00421a50 FUN_00421ab0 FUN_00421b00
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -62,6 +62,7 @@ MUTATIONS = {
     0x4219F0: ("setb_dwords", "setb_used_unchanged"),
     0x421A50: ("setb_dwords", "setb_wrong_tag"),
     0x421AB0: ("reserve_no_round", "reserve_byte_units", "reserve_cap_0x100"),
+    0x421B00: ("reserve_no_round", "reserve_wrong_tag"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -291,6 +292,8 @@ class Model:
                 changes[4] = n
         if address == 0x421AB0:   # room for +4 + n digits, rounded to the step (sbig_grow_step) when asked, by sbig_resize
             self.grow(rec, a[0] + rec[4], a[1], changes, calls, case, TAG_I, 4, 0x40)
+        if address == 0x421B00:   # the same for a .D byte array (FUN_00421240, FUN_00421770)
+            self.grow(rec, a[0] + rec[4], a[1], changes, calls, case, TAG_D)
         return eax, changes, buffer, calls
 
 

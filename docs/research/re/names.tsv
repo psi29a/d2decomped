@@ -122,6 +122,7 @@ address	name	evidence
 004219f0	sbig_bytes_set_e	ECX array, n, source (ret 8): +0 = n, buffer reallocated (.E) unless both 0, n bytes copied, +4 = n (source-sbig-arrays.md)
 00421a50	sbig_bytes_set_d	ECX array, n, source (ret 8): as FUN_004219f0 with the .D tag (source-sbig-arrays.md)
 00421ab0	sbig_reserve_digits	ECX number, n, flag (ret 8): when +0 < +4 + n, sbig_resize to +4 + n, rounded to +0xc or sbig_grow_step when the flag is set (source-sbig-arrays.md)
+00421b00	sbig_bytes_reserve_d	ECX array, n, flag (ret 8): as FUN_00421630 for a .D array (FUN_00421240, FUN_00421770) (source-sbig-arrays.md)
 00421ba0	sbig_assign_with_step	ECX number, source (ret 4): as sbig_assign, then the source's grow step +0xc copied too; returns the number (source-sbig-arrays.md)
 00421e10	sbig_temps_ctor	Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at +0x14, zeroes +0x154..+0x164. Only caller FUN_00423950 (source-frontier.md)
 00421fe0	sbig_reserve	Makes room for +0x10 + n entries: grows (by +0xc, else sbig_grow_step, rounded up to its multiple) and zero-fills the new part (FUN_0041d300), +4 = that size (source-frontier.md)
