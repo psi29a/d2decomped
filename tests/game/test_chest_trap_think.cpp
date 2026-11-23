@@ -63,8 +63,8 @@ int main() try {
     assert(world.fight.missiles.empty());
     world.spring_traps(made_at + 2 * kTickMs);
     assert(world.fight.missiles.size() == 1);
-    assert(world.fight.missiles.back().to);
-    assert(std::abs(world.fight.missiles.back().to->first - float(world.actor->player.x)) < 0.001f);
+    assert(world.fight.missiles.back().aim_at);
+    assert(std::abs(world.fight.missiles.back().aim_at->first - float(world.actor->player.x)) < 0.001f);
 
     world.fight.missiles.clear();
     world.actor->player.x = trap_x + 5.2f;                // 26 subtiles: searched, outside aip1

@@ -9,6 +9,7 @@
 //   no argument: game.exe's decisions for pinned blows (sixteen: melee, missile, fire).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>

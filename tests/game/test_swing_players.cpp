@@ -4,7 +4,7 @@
 // in an expansion game: FUN_005a4f20 on stat 0x64, table 0x6e21f4 =
 // 0, 0, 8, 16 .. 56, then n x 8 - 16, in 128ths of each value).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <monsters.hpp>
 
 #include <cassert>

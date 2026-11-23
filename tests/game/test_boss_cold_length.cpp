@@ -7,6 +7,7 @@
 // tools/emu/umod_stats.py runs game.exe's init against rules::boss_stats (test_umod_stats).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <monsters.hpp>

@@ -5,7 +5,7 @@
 // {0, 100} past the end); a radamenthandofgod where it stands on a frame left the period divides.
 // Over its life: 375, 350, 325; 300 .. 260 by 10; 248 .. 104 by 8; 96 .. 78 by 6; 72 .. 32 by 4: 42.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>

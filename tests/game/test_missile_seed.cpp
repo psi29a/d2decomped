@@ -5,6 +5,7 @@
 // whether the roll passes or not, and the fight's rng takes no part once the missile has its seed.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>

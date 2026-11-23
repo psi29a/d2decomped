@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Act 3's think inputs (rules/thinks/act3.hpp reads them).
 #include "ai.hpp"
+#include "ai/units.hpp"
 
 #include "gamedata.hpp"
 #include "internal.hpp"
@@ -111,7 +112,7 @@ struct Act3Ai : ThinkCtx {
                 }
         }
         input.wisps = int(wisp_finds.size());
-        input.bless_ok = !target->pet && !target->of && target->alive;
+        input.bless_ok = !target->pet && !target->monster && target->alive;
     }
     // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
     // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles

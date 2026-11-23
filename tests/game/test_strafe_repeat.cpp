@@ -4,7 +4,7 @@
 // and calc1; do 12, FUN_005dba40): one arrow on each action frame, and with arrows left the swing starts
 // over (FUN_0056e210 -> FUN_00553b10) from (100 - Param6) % of its frames, so the arrows come one a
 // shortened swing, all in one A1, at the targets in turn.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s.hpp>
@@ -100,7 +100,7 @@ int main() try {
         for (const Missile* arrow : arrows) {
             if (std::ranges::contains(seen, arrow->born)) continue;
             seen.push_back(arrow->born);
-            assert(arrow->to.has_value());                          // aimed at its monster's spot, not start + (1, 1)
+            assert(arrow->aim_at.has_value());                          // aimed at its monster's spot, not start + (1, 1)
             shot_at.push_back(frame);
             aims.emplace_back(arrow->velocity_x, arrow->velocity_y);
         }

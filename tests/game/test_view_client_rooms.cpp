@@ -6,7 +6,7 @@
 // hides a room that leaves it (FUN_0053a9b0): World::view's monsters, not a
 // radius. No game data: the rooms are built here.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <world.hpp>

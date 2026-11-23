@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ai.hpp: monsters, NPCs and the merc: spawning, paths, the AI step.
 #include "ai.hpp"
+#include "ai/units.hpp"
 
 #include "ai/internal.hpp"
 #include "game.hpp"
@@ -654,7 +655,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
-    missiles.back().level = lvl; missiles.back().to = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
+    missiles.back().level = lvl; missiles.back().aim_at = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
     if (carried) missiles.back().skill = carried->id;
 }
 
@@ -693,7 +694,7 @@ void missile_at_target(const GameData& game_data, const Monster& monster, const 
     if (missiles.size() == before) return;
     auto& centre = missiles.back();
     centre.x += dx; centre.y += dy;
-    centre.to = std::pair{ centre.x + 0.2f, centre.y + 0.2f };
+    centre.aim_at = std::pair{ centre.x + 0.2f, centre.y + 0.2f };
 }
 
 // A Skills.txt row by name, -1 none.
@@ -827,10 +828,10 @@ SightList sight_list(const GameData& game_data, const Level& level, const Monste
         if (room_level != &level) continue;
         for (std::size_t i = foes.size(); i-- > 0;) {
             auto& foe = foes[i];
-            if (foe.of == &monster || room_of(level, foe.x, foe.y) != room) continue;
+            if (foe.monster == &monster || room_of(level, foe.x, foe.y) != room) continue;
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
             auto& entry = list.foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - x, foe_y - y, foe.size), foe.threat,
-                                                                       foe.alive && !town && !d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2) });
+                                                                       foe.alive && !town && !d2d::rules::friends(monster.align, foe.monster ? foe.monster->align : 2) });
             entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, foe.size, x, y, size, wall);
             list.units.push_back(&foe);
         }
@@ -883,9 +884,9 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         nears.reserve(near_of.size());
         for (const int index : near_of) {
             const auto& foe = foes[std::size_t(index)];
-            auto& entry = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
+            auto& entry = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.monster ? foe.monster->align : 2, foe.threat, foe.monster == &monster, foe.monster || foe.pet, !foe.alive, town });
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
-            entry.waking = foe.of && foe.alive && foe.of->sighted && area_id_at(game_data, level, foe.x, foe.y, foe.x, foe.y) == here;
+            entry.waking = foe.monster && foe.alive && foe.monster->sighted && area_id_at(game_data, level, foe.x, foe.y, foe.x, foe.y) == here;
         }
         auto pick = d2d::rules::search_near(nears, align, need_sight);
         if (pick.target >= 0) pick.target = near_of[std::size_t(pick.target)];
@@ -901,9 +902,9 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     // so it also stands for the merc or a pet (game.exe's kind 2).
     if (monster.special == 11 && monster.ai_state3 == 0 && monster.set_kind == 0 && type_info.switch_ai && monster.chase >= 0
         && std::size_t(monster.chase) < foes.size())
-        if (const auto& chased = foes[std::size_t(monster.chase)]; chased.of != &monster) {
-            monster.set_kind = chased.of ? 2 : 1;
-            monster.set_id = chased.of ? chased.of->id : chased.id;
+        if (const auto& chased = foes[std::size_t(monster.chase)]; chased.monster != &monster) {
+            monster.set_kind = chased.monster ? 2 : 1;
+            monster.set_id = chased.monster ? chased.monster->id : chased.id;
         }
     // FUN_005dd510 (from FUN_005dd7f0): with `other` (list 9's nearest, or mode 5's secondary)
     // under 6 off and no type 2 path to `found`, mode 7's pick (another enemy of threat 2 or
@@ -921,7 +922,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
         for (auto& foe : foes)
-            if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
+            if (foe.monster && foe.monster->id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
     } else if (monster.set_kind == 1) {                             // Terror's: a player, the merc or a pet, by Foe::id
         for (auto& foe : foes)
             if (foe.id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
@@ -936,11 +937,11 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         for (auto& foe : foes) {
             // List 9: neutral monsters; a converted one is in its caster's list,
             // with the player's pets (FUN_005b1900).
-            const bool converted = foe.of && foe.of->align == 2 && foe.of->listed && foe.alive;
-            if (foe.of && !(foe.of->align == 1 && foe.alive) && !converted) continue;
+            const bool converted = foe.monster && foe.monster->align == 2 && foe.monster->listed && foe.alive;
+            if (foe.monster && !(foe.monster->align == 1 && foe.alive) && !converted) continue;
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
-            picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet || converted, town && !foe.of, !foe.alive && !foe.of, false,
-                                                      foe.of && !converted ? 9 : 0 });
+            picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet || converted, town && !foe.monster, !foe.alive && !foe.monster, false,
+                                                      foe.monster && !converted ? 9 : 0 });
             auto& pick = picks.back();
             if (pick.pet && pick.dead) pick.distance = 0x7fffffff;
             pick.blocked = need_sight && (pick.list || pick.distance < best) && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
@@ -1229,7 +1230,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     using d2d::rules::Boss;
     const bool special = (monster.boss != Boss::none && monster.boss != Boss::minion) || type_info.boss_column
                       || monster.type == int(game_data.mon_bin[0xfa]);
-    if (special && targeted && best < 0x14 && !target->pet && !target->of && !monster.first_sight) {
+    if (special && targeted && best < 0x14 && !target->pet && !target->monster && !monster.first_sight) {
         monster.first_sight = monster.taunt_sound = true;
         ctx.idle(0x14);
         return true;
@@ -1247,7 +1248,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         Foe* leashed = nullptr;
         int gap = 0x31;
         for (auto& foe : foes) {
-            if (&foe == target || !foe.alive || foe.of == &monster || foe.threat <= 1 || d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2)) continue;
+            if (&foe == target || !foe.alive || foe.monster == &monster || foe.threat <= 1 || d2d::rules::friends(monster.align, foe.monster ? foe.monster->align : 2)) continue;
             const int foe_gap = d2d::rules::merc_gap(x, y, type_info.size, subtile(foe.x), subtile(foe.y));
             if (foe_gap < gap && line_clear(foe)) { leashed = &foe; gap = foe_gap; }
         }
@@ -1789,7 +1790,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // and a flight go at it. With none alive, the nearest of the player's side.
     Foe* pick = &foes[0];
     for (auto& foe : foes)
-        if (!foe.of && foe.alive && (!pick->alive || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(pick->x - unit.x, pick->y - unit.y))) pick = &foe;
+        if (!foe.monster && foe.alive && (!pick->alive || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(pick->x - unit.x, pick->y - unit.y))) pick = &foe;
     if (monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive) pick = &foes[std::size_t(monster.chase)];
     Foe& foe = *pick;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
@@ -2080,7 +2081,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(aim_x, aim_y), 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(unit.x, unit.y, aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
-                x.level = lvl; x.to = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
+                x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
                 x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
@@ -2093,7 +2094,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const float side_distance = std::max(std::hypot(side_x, side_y), 0.01f);
                         Missile y = x;
                         y.velocity_x = side_x / side_distance * speed; y.velocity_y = side_y / side_distance * speed; y.dir = missile_facing(unit.x, unit.y, side_x, side_y);
-                        y.to = { unit.x + side_x, unit.y + side_y };
+                        y.aim_at = { unit.x + side_x, unit.y + side_y };
                         missiles.push_back(std::move(y));
                     }
             } else if (const auto* fired_skill = seq ? game_data.skills.get(monster.skill) : nullptr;
@@ -2115,7 +2116,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (missiles.size() > had) {
                         auto& launched = missiles.back();
                         launched.x = (float(from_x) + 0.5f) / 5; launched.y = (float(from_y) + 0.5f) / 5;
-                        launched.to = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
+                        launched.aim_at = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
                     }
                 }
                 monster.seq_once = true;
@@ -2126,7 +2127,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, tower->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, tower);
-                        if (missiles.size() > had) missiles.back().to = offset_target(unit.x, unit.y, aim_x, aim_y);
+                        if (missiles.size() > had) missiles.back().aim_at = offset_target(unit.x, unit.y, aim_x, aim_y);
                     }
                 monster.seq_once = true;
             } else if (skill("GargoyleTrap")) {                               // srvdofunc 93 (FUN_005cc050): srvmissilea shafire3 square on at its target
@@ -2136,7 +2137,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (missiles.size() > had) {
                     auto& launched = missiles.back();
                     launched.x = (float(from_x) + 0.5f) / 5; launched.y = (float(from_y) + 0.5f) / 5;
-                    launched.to = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
+                    launched.aim_at = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
                 }
             } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // Through FUN_005b2f20 within 1 of the spot, flags 0x4020000 (no
@@ -2316,7 +2317,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const auto named = game_data.overlays.find(cast->srvoverlay);
                     if (const auto row = named == game_data.overlays.end() ? rows.end() : std::ranges::find(rows, &named->second); row > rows.begin() && row != rows.end()) {
                         const int overlay = int(row - rows.begin());
-                        if (foe.of && foe.of >= pack.data() && foe.of < pack.data() + pack.size()) { d2d::rules::add_one_shot(pack[std::size_t(foe.of - pack.data())].one_shots, overlay, now_ms); }
+                        if (foe.monster && foe.monster >= pack.data() && foe.monster < pack.data() + pack.size()) { d2d::rules::add_one_shot(pack[std::size_t(foe.monster - pack.data())].one_shots, overlay, now_ms); }
                         else foe.flashed = overlay;
                     }
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1);
@@ -2384,7 +2385,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             auto& ring_missile = missiles.back();
                             ring_missile.visual_only = true;
                             ring_missile.dies = now_ms + std::uint32_t(std::max(shout->second.range, 1)) * 40;
-                            ring_missile.to = offset_target(unit.x, unit.y, aim_x, aim_y);
+                            ring_missile.aim_at = offset_target(unit.x, unit.y, aim_x, aim_y);
                             ring_missile.skill = monster.skill; ring_missile.level = lvl; ring_missile.owner = monster.id;   // its state, for hit 18
                         }
                     }
@@ -2400,7 +2401,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // place of the last (Fight::curses, a pet's Pet::curse).
                     const int radius = d2d::rules::eval_calc(game_data.skills, cast->aurarange, {}, monster.skill, lvl);
                     for (auto& near_foe : foes)
-                        if (near_foe.alive && !near_foe.of && !foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
+                        if (near_foe.alive && !near_foe.monster && !foe.monster && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
                             near_foe.cursed = { monster.skill, lvl };
                 } else if (cast->srvdofunc == ServerDoFunction::kNova) {
                     const auto ring = game_data.missiles.find(cast->srvmissilea);
@@ -2410,7 +2411,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, cast->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, cast);
-                        if (missiles.size() > had) { missiles.back().dies = now_ms + std::uint32_t(std::max(reach, 1)) * 40; missiles.back().to = offset_target(unit.x, unit.y, aim_x, aim_y); }
+                        if (missiles.size() > had) { missiles.back().dies = now_ms + std::uint32_t(std::max(reach, 1)) * 40; missiles.back().aim_at = offset_target(unit.x, unit.y, aim_x, aim_y); }
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileWall) {
                     countess_firewall(game_data, monster, now_ms, missiles, cast->srvmissilea);
@@ -2432,7 +2433,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const auto* cursed = game_data.skills.get(curse);
                     const int radius = cursed ? d2d::rules::eval_calc(game_data.skills, cursed->aurarange, {}, curse, lvl) : 0;
                     for (auto& near_foe : foes)
-                        if (near_foe.alive && !near_foe.of && !foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
+                        if (near_foe.alive && !near_foe.monster && !foe.monster && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
                             near_foe.cursed = { curse, lvl, curse_index };
                 } else if (cast->srvdofunc == ServerDoFunction::kCorpseExplosion) {
                     // do 55 (FUN_005c4df0, the Necromancer's too) at the corpse its
@@ -2796,7 +2797,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // unit's own events (its absorbs: Bone Armor, Energy Shield, 0x57c2fc) and its reduction, so +8
                 // is what they left. A player's absorbs come off as its blows resolve: its blow carries `reflect`
                 // and Fight::hurt_side sends it back then; a merc or pet has none, so it goes now.
-                const bool absorbs_later = !foe.pet && !foe.of;
+                const bool absorbs_later = !foe.pet && !foe.monster;
                 if (const auto* maiden = monster.curse.skill >= 0 ? game_data.skills.get(monster.curse.skill) : nullptr; taken.hit && maiden && maiden->auratarget == "ironmaiden" && absorbs_later) {
                     if (!foe.blows.empty()) foe.blows.back().reflect = true;
                 } else if (taken.hit && maiden && maiden->auratarget == "ironmaiden") {
@@ -2967,7 +2968,7 @@ void pet_follow(const Level& level, UnitState& unit, float player_x, float playe
 }
 
 int players_in(std::span<const Foe> foes) {
-    return int(std::ranges::count_if(foes, [](const Foe& foe) { return !foe.pet && !foe.of; }));
+    return int(std::ranges::count_if(foes, [](const Foe& foe) { return !foe.pet && !foe.monster; }));
 }
 
 // A plain monster as FUN_005b2a00 makes it; a trap-melee's level is MonUMod 14's (FUN_005a3b50).
@@ -3036,7 +3037,7 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
     const auto* amplify = game_data.skills.get(66);
     const int radius = std::clamp(amplify ? d2d::rules::eval_calc(game_data.skills, amplify->aurarange, {}, 66, curse_level) : 1, 1, 40);
     for (auto& near_foe : foes)
-        if (near_foe.alive && !near_foe.of && std::hypot(near_foe.x - struck.x, near_foe.y - struck.y) * 5 <= float(radius))
+        if (near_foe.alive && !near_foe.monster && std::hypot(near_foe.x - struck.x, near_foe.y - struck.y) * 5 <= float(radius))
             near_foe.cursed = { 66, curse_level };
 }
 
@@ -3411,7 +3412,7 @@ bool soft_hit(Missile& missile, d2d::rules::Rng& rng) {
 // FUN_0059fa30's flag 2: the target point [7] / [8] subtiles from the
 // start's subtile (a nova's ring, FUN_0056d400; PrimePoisonNova's;
 // Frozen Orb's spin and burst), in cells: that subtile's centre, for
-// Missile::to.
+// Missile::aim_at.
 std::pair<float, float> offset_target(float x, float y, int offset_x, int offset_y) {
     return { (std::floor(x * 5) + float(offset_x) + 0.5f) / 5, (std::floor(y * 5) + float(offset_y) + 0.5f) / 5 };
 }

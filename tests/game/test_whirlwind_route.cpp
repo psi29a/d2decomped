@@ -9,7 +9,6 @@
 // banded 4..16; 10 frames with no weapon.
 // Needs the game data (D2_MPQ_DIR); SKIPs without it.
 
-#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

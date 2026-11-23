@@ -6,6 +6,7 @@
 // is now, the points reached coming off the budget; none left, over.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 

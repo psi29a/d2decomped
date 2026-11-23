@@ -6,6 +6,7 @@
 // Fight keeps in the player's one_shots. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

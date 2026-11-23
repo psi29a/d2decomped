@@ -3,6 +3,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -256,7 +257,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
             Missile x{ &missile_info, shadow.unit.x, shadow.unit.y, float(aim_x) / distance * speed, float(aim_y) / distance * speed,
                        missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
-            x.to = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
+            x.aim_at = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
             pending.push_back(std::move(x));
         }
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
@@ -370,7 +371,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         Missile x{ missile_info, unit.x, unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(missile_info->range, 1)) * 40, {} };
                         const float dx = monsters[monster_index].unit.x - unit.x, dy = monsters[monster_index].unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                         x.velocity_x = dx / distance * missile_speed(*missile_info, pet.ranged_level); x.velocity_y = dy / distance * missile_speed(*missile_info, pet.ranged_level);
-                        x.dir = missile_facing(unit.x, unit.y, dx, dy); x.to = { monsters[monster_index].unit.x, monsters[monster_index].unit.y };
+                        x.dir = missile_facing(unit.x, unit.y, dx, dy); x.aim_at = { monsters[monster_index].unit.x, monsters[monster_index].unit.y };
                         x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
                         if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;   // 'hydra' carries the Hydra skill's damage
                         pending.push_back(std::move(x));
@@ -447,7 +448,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     Foe& foe = foes.emplace_back();
                     foe.x = other.unit.x; foe.y = other.unit.y; foe.level = other.stats.level;
                     foe.alive = other.targetable() && other.mode != "DT";
-                    foe.size = other_type.size; foe.threat = other_type.threat; foe.of = &other; foe.id = other.id; foe.room_stamp = other.unit.room_stamp;
+                    foe.size = other_type.size; foe.threat = other_type.threat; foe.monster = &other; foe.id = other.id; foe.room_stamp = other.unit.room_stamp;
                 }
                 pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
@@ -1300,7 +1301,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             Missile x{ missile_info, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(missile_info->range, 1)) * 40, {} };
             const float dx = foe.unit.x - monster.unit.x, dy = foe.unit.y - monster.unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
             x.velocity_x = dx / distance * missile_speed(*missile_info, pet.ranged_level); x.velocity_y = dy / distance * missile_speed(*missile_info, pet.ranged_level);
-            x.dir = missile_facing(monster.unit.x, monster.unit.y, dx, dy); x.to = { foe.unit.x, foe.unit.y };
+            x.dir = missile_facing(monster.unit.x, monster.unit.y, dx, dy); x.aim_at = { foe.unit.x, foe.unit.y };
             x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
             if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;
             pending.push_back(std::move(x));

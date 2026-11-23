@@ -6,6 +6,7 @@
 // flag 8, FUN_0059fa30). Each against game.exe's own, tools/emu/hit_ring.py.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

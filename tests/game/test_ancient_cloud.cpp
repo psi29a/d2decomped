@@ -4,7 +4,7 @@
 // -1..0 off it, sent -10..9 off, four steps of the missile's client seed (+0x20): its room's client
 // stream stepped once, {low, 666} (FUN_00465fd0, client_unit_seed). No game data: rows typed in.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
@@ -50,7 +50,7 @@ int main() try {
     const auto& made = missiles[1];
     assert(made.info == &cloud && made.visual_only);
     assert(std::abs(made.x - (from_x + 0.5f) / 5) < 1e-4f && std::abs(made.y - (from_y + 0.5f) / 5) < 1e-4f);
-    assert(made.to && std::abs(made.to->first - (from_x + float(off_x) + 0.5f) / 5) < 1e-4f && std::abs(made.to->second - (from_y + float(off_y) + 0.5f) / 5) < 1e-4f);
+    assert(made.aim_at && std::abs(made.aim_at->first - (from_x + float(off_x) + 0.5f) / 5) < 1e-4f && std::abs(made.aim_at->second - (from_y + float(off_y) + 0.5f) / 5) < 1e-4f);
     assert(rng.low == before.low && rng.high == before.high);   // the update's rng untouched
     assert(open.client_rooms[0].low == d2d::rules::Rng{ 77 }.next());   // the room's stream stepped once
     std::printf("test_ancient_cloud: ok\n");

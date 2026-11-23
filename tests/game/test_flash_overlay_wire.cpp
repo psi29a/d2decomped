@@ -5,7 +5,7 @@
 // through it, a local game's too (ClientSession::publish), so without it no flash
 // ever reached the draw.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <overlays.hpp>
 #include <replication.hpp>

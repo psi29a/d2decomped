@@ -4,6 +4,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -1093,7 +1094,7 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
             const float to_x = (float(2 * subtile(x) - subtile(actor->player.x)) + 0.5f) / 5, to_y = (float(2 * subtile(y) - subtile(actor->player.y)) + 0.5f) / 5;
             for (int k = 0; k < calc(skill, skill.calc[0], lvl); ++k) {
                 auto& bolt = launch(found->second, skill, lvl, x, y, to_x - x, to_y - y, found->second.range + found->second.lev_range * lvl, now_ms);
-                bolt.to = { to_x, to_y }; bolt.bolt = k;
+                bolt.aim_at = { to_x, to_y }; bolt.bolt = k;
                 bolt.struck->push_back(int(monster_index));
             }
             return;

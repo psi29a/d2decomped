@@ -5,7 +5,7 @@
 // (FUN_005541b0), so it lives and thinks, and a landed hit kills it, life
 // <= 0 after one (0x57c8e2): `lifeless`, as a zero-life monster. A sound
 // summon isn't. Synthetic rows: no game data.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>

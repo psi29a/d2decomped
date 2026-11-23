@@ -10,7 +10,7 @@
 // hook (FUN_005dfe00) is radius 35, and each draw takes the next roll of
 // her seed. No game data: the rooms are built here.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>

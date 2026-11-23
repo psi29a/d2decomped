@@ -4,7 +4,7 @@
 // missile's spot (flags 0x8001), its Range sHitPar1 when that is above 0, else the skill's calc1 at least 5.
 // Each case against game.exe's own, tools/emu/hit_grim_ward.py (Missiles.txt rows 249, 252 and 255).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

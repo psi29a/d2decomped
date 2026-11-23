@@ -7,7 +7,7 @@
 //   a type-1 unit. Needs the MPQs and 1.14d's tables (D2_MPQ_DIR, D2_PATCH_INSTALLER); it skips without.
 //   no argument: game.exe's divisors for pinned rows and kinds.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <montypes.hpp>

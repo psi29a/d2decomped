@@ -6,7 +6,7 @@
 // cut (Monster::res_cut, FUN_004526c0 reads the stat with its states) drops
 // a broken immunity's line.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <montypes.hpp>
 #include <replication.hpp>

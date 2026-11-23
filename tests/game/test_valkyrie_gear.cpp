@@ -7,7 +7,7 @@
 // stats 23 / 24) and her defence takes the armour's. Against the same
 // summon with her MonEquip rows taken away. Her unit seed is the game
 // seed's next step as she's made (FUN_00555230 -> FUN_00552df0), not {0, 666}.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

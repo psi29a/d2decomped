@@ -4,6 +4,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -516,7 +517,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
                     const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                     Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
-                    foe.size = type_info.size; foe.threat = type_info.threat; foe.of = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
+                    foe.size = type_info.size; foe.threat = type_info.threat; foe.monster = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
                     monster_foe_props(*game_data, monster, foe);
                     foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
                                          d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));

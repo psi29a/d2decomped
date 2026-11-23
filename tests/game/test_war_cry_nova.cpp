@@ -6,6 +6,7 @@
 // Made-up rows (test_data.hpp): the rule, not the game's numbers.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <level_ids.hpp>

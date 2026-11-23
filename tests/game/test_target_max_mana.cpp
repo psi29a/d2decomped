@@ -5,7 +5,7 @@
 // (FUN_00625d60, stat 9) is under its max life (FUN_00625d10, 0x625d10,
 // stat 7): the player's foe carries both, in 256ths. Needs the game data.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

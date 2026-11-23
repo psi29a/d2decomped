@@ -6,6 +6,7 @@
 // max life enters get-hit and queues those sounds once.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

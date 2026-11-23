@@ -5,7 +5,7 @@
 // Fenris (FUN_00570590) for auralen frames with its aurastats: Fight::pet_cast
 // puts the buff, pet_strike adds its damagepercent. A live target, or a corpse
 // already used, does nothing. Synthetic rows: no game data.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>

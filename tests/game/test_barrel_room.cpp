@@ -4,7 +4,7 @@
 // monster within 3 subtiles but across in the next room isn't struck; one in
 // its room is, its life taken in 256ths; a barrel of its room under 3 off
 // goes off in the walk (FUN_00584330). No game data: the rooms are built here.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>

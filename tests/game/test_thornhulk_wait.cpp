@@ -6,6 +6,7 @@
 // So the next think is aip5 + the cast's frames + 1 on. Needs the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <monsters.hpp>

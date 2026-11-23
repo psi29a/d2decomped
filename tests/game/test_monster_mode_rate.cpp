@@ -8,6 +8,7 @@
 // any other mode, so it never divides by 100 + anim_pct at or below -100.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 
 #include <cassert>
 #include <cstdio>

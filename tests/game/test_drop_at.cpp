@@ -8,7 +8,7 @@
 // The search reads the rooms FUN_00463740 finds (the dropper's room and its
 // near list), so a drop by a level's edge can land in the next level's room.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>

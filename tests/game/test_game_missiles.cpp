@@ -6,6 +6,7 @@
 // beside them (Baal's tentacles).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>
@@ -99,7 +100,7 @@ int main() try {
             monster_update(*data, here, pack[0], foes, bolt_rng, frame * 40, 0.04f, crowd, missiles, pack);
         assert(!missiles.empty());
         for (std::size_t k = 0; k < missiles.size(); ++k)
-            assert(missiles[k].bolt == int(k) && missiles[k].to && std::abs(missiles[k].to->first - foes[0].x) < 0.01f && std::abs(missiles[k].to->second - foes[0].y) < 0.01f);
+            assert(missiles[k].bolt == int(k) && missiles[k].aim_at && std::abs(missiles[k].aim_at->first - foes[0].x) < 0.01f && std::abs(missiles[k].aim_at->second - foes[0].y) < 0.01f);
         std::printf("OK: a monster's charged bolts wander by their index\n");
     }
 
@@ -516,7 +517,7 @@ int main() try {
         assert(!world.fight.pending.empty());
         for (std::size_t k = 0; k < world.fight.pending.size(); ++k) {
             const auto& bolt = world.fight.pending[k];
-            assert(bolt.bolt == int(k) && bolt.to && subtile(bolt.to->first) == to_x && subtile(bolt.to->second) == to_y);
+            assert(bolt.bolt == int(k) && bolt.aim_at && subtile(bolt.aim_at->first) == to_x && subtile(bolt.aim_at->second) == to_y);
         }
         world.fight.pending.clear();
         world.fight.monsters.pop_back();
@@ -551,7 +552,7 @@ int main() try {
         for (std::size_t k = 0; k < 8; ++k) {
             const auto& bolt = world.fight.pending[k];
             const auto [dir_x, dir_y] = std::array<std::pair<int, int>, 4>{ { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } }[k / 2];
-            assert(bolt.bolt == int(k % 2) && bolt.to && subtile(bolt.to->first) == subtile(enchanted.unit.x) + dir_x && subtile(bolt.to->second) == subtile(enchanted.unit.y) + dir_y);
+            assert(bolt.bolt == int(k % 2) && bolt.aim_at && subtile(bolt.aim_at->first) == subtile(enchanted.unit.x) + dir_x && subtile(bolt.aim_at->second) == subtile(enchanted.unit.y) + dir_y);
         }
         world.fight.pending.clear();
         world.fight.monsters.pop_back();

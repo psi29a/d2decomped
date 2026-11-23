@@ -4,7 +4,7 @@
 // id + the name seed's low byte, 666}, one step (the 0xac handler keeps
 // only the name seed's low byte, 0x45f387: bugs.md #49).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 

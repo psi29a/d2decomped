@@ -6,6 +6,7 @@
 // packed x / y), so subtile -1 is tested as -1, there, not as 65535.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missiles.hpp>

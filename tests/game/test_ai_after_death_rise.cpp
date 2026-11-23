@@ -6,6 +6,7 @@
 // + 1, twice at most. The REAL Fight::boss_events on synthetic game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <montypes.hpp>

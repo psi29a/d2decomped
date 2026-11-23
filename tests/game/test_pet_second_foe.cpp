@@ -8,6 +8,7 @@
 // nearer one. Needs the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

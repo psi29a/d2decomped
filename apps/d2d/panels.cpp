@@ -8,6 +8,7 @@
 #include "storage_close.hpp"
 #include "ui.hpp"
 
+#include <ai/units.hpp>
 #include <automap_cells.hpp>
 #include <automap_miniature.hpp>
 #include <automap_scroll.hpp>

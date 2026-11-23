@@ -9,7 +9,7 @@
 //   1.14d's tables (D2_MPQ_DIR, D2_PATCH_INSTALLER, as test_game); it skips without.
 //   no argument: game.exe's lives for the pinned cases (merc_absorb.py game) through Fight::hurt_side.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

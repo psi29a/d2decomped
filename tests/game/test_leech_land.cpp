@@ -4,7 +4,7 @@
 // positive: FUN_0057a980 and FUN_0057aa00 write nothing for a negative amount (a wrapped mul_div can
 // leave one), and the stats stay under their maxima. No game data: typed in.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>

@@ -9,6 +9,7 @@
 // monster (0x100, 0x2000).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

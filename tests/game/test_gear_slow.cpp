@@ -7,7 +7,6 @@
 // tools/emu/item_slow.py checks): 50 at most on a champion, 90 on another.
 // Without the game data: player_blow carries the value on a hit only.
 
-#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

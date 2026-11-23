@@ -3,6 +3,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -590,7 +591,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                     const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                     const float length = std::hypot(float(aim_x), float(aim_y));
                     auto& shot = missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)];
-                    shot.struck = shared; shot.to = offset_target(target_x, target_y, aim_x, aim_y);   // FUN_0056d400 round the target
+                    shot.struck = shared; shot.aim_at = offset_target(target_x, target_y, aim_x, aim_y);   // FUN_0056d400 round the target
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {
@@ -636,7 +637,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 if (second) {
                     // FUN_005d4870's flags 3: its path's target is the start plus the offset, the type 4 aim its
                     // first frame follows before the route's points (missile_fly).
-                    missile.to = std::pair{ target_x + float(offset.first) / 5, target_y + float(offset.second) / 5 };
+                    missile.aim_at = std::pair{ target_x + float(offset.first) / 5, target_y + float(offset.second) / 5 };
                     const int from_x = level->world_x * 5 + int(std::floor(target_x * 5)), from_y = level->world_y * 5 + int(std::floor(target_y * 5));
                     missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, rng);
                 }

@@ -7,6 +7,7 @@
 // MonsterFreezeDivisor, a champion chilled instead, never frozen.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

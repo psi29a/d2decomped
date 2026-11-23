@@ -9,6 +9,7 @@
 // game.exe's own, tools/emu/hit_fury.py (Missiles.txt row 206).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

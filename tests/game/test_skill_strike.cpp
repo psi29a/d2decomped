@@ -5,6 +5,7 @@
 // + dex x 5), not as a percent of it. No game data: the skill is typed in.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <skills.hpp>
 

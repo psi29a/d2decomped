@@ -6,6 +6,7 @@
 // test_walk_stop.cpp has the stop and the centre through the World's tick.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 
 #include <cassert>

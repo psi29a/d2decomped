@@ -9,6 +9,7 @@
 // tools/emu/knock_pace.py.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

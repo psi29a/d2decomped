@@ -6,7 +6,7 @@
 // FUN_005ada80), and the player's stats do not stand in for the merc's.
 // No game data: the row, the skill and the gear are typed in.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>

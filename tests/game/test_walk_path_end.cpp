@@ -6,6 +6,7 @@
 // asserts the count). The budget isn't spent there.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 

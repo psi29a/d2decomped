@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Act 2's think inputs (rules/thinks/act2.hpp reads them).
 #include "ai.hpp"
+#include "ai/units.hpp"
 
 #include "gamedata.hpp"
 #include "internal.hpp"

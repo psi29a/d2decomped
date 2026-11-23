@@ -7,6 +7,7 @@
 // spot (0x5a4081). The REAL Fight::boss_events. Needs the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

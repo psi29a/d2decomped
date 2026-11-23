@@ -3,7 +3,7 @@
 // A Reanimated Horde in its rise's S1 (Monster::rising, MonUMod 34) crosses the view codec, in a keyframe
 // and in an update, so a joined game does not offer it as a target while the host refuses it.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <montypes.hpp>
 #include <replication.hpp>

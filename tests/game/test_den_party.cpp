@@ -6,7 +6,6 @@
 // local co-op is one party, so the second player, who killed none, gets bits
 // 13 and 1 too, not bit 14. A player already done is left alone.
 
-#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <gamedata.hpp>

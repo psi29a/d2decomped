@@ -9,7 +9,7 @@
 //   no argument: game.exe's lives for the pinned cases (gear_absorb.py game) through Fight::hurt_side; the same cases
 //   through the rules alone are test_gear_absorb_rules; a merc's are test_merc_absorb.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

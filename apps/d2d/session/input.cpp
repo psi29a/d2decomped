@@ -31,6 +31,7 @@
 #include "touch_input.hpp"
 #include "ui.hpp"
 
+#include <ai/units.hpp>
 #include <click_spot.hpp>
 #include <combat.hpp>
 #include <cues.hpp>

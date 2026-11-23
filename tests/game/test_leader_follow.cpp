@@ -11,6 +11,7 @@
 // never walks back.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

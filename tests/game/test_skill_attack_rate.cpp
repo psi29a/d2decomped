@@ -8,6 +8,7 @@
 // runs those from the entry, test_mode_rates).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 

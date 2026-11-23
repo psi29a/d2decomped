@@ -5,6 +5,7 @@
 // Fallen (no fire resistance in normal). Needs the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

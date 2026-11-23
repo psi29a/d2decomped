@@ -2,7 +2,7 @@
 // What the world/ files share: no part of the game's API.
 #pragma once
 
-#include "ai.hpp"
+#include "ai/units.hpp"
 #include "gamedata.hpp"
 
 #include <vector>

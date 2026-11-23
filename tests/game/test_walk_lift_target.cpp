@@ -5,6 +5,7 @@
 // runs onto the target's subtile. With the stamp in place it stops short.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 

@@ -100,7 +100,7 @@ struct Act4Ai : ThinkCtx {
         const bool baal_score = point_far == 0x4b;   // FUN_005fbb00 vs Diablo's FUN_005e8530
         input.has_word = monster.has_point; input.word_x = monster.point_x; input.word_y = monster.point_y;
         input.target = true;
-        input.players_looked = target->pet || target->of ? 0 : 1;
+        input.players_looked = target->pet || target->monster ? 0 : 1;
         const auto& pick = target->pick;
         input.left_skill = pick.left_skill; input.left_level = pick.left_level;
         input.right_skill = pick.right_skill; input.right_level = pick.right_level;
@@ -152,7 +152,7 @@ struct Act4Ai : ThinkCtx {
         const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
         const auto value = [&](const Foe& foe) {
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
-            if (!foe.alive && !foe.pet && !foe.of) return 0;
+            if (!foe.alive && !foe.pet && !foe.monster) return 0;
             const bool reach = d2d::rules::unit_distance(foe_x - x, foe_y - y, type_info.size, foe.size) <= type_info.melee_rng + 1;
             const bool line = !d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
             const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
@@ -162,12 +162,12 @@ struct Act4Ai : ThinkCtx {
         Foe* top = nullptr; int top_score = 0;
         Foe* spare = nullptr; int spare_score = 0;
         const bool player_in = std::ranges::any_of(foes, [&](const Foe& foe) {
-            return !foe.pet && !foe.of && d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y) < 0x3fc; });
+            return !foe.pet && !foe.monster && d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y) < 0x3fc; });
         for (auto& foe : foes) {
-            const bool neutral = foe.of && foe.of->align == 1, good = foe.of && foe.of->align == 2;   // list 9; a converted one is a pet
-            if (foe.of && !neutral && !good) continue;
-            if (!foe.of && !player_in) continue;                    // the player failed FUN_005e8eb0: it and its pets skipped
-            if ((foe.of || foe.pet) && !foe.alive) continue;
+            const bool neutral = foe.monster && foe.monster->align == 1, good = foe.monster && foe.monster->align == 2;   // list 9; a converted one is a pet
+            if (foe.monster && !neutral && !good) continue;
+            if (!foe.monster && !player_in) continue;                    // the player failed FUN_005e8eb0: it and its pets skipped
+            if ((foe.monster || foe.pet) && !foe.alive) continue;
             const int score = value(foe);
             if (neutral) { if (score > spare_score) { spare = &foe; spare_score = score; } }
             else if (score > top_score) { top = &foe; top_score = score; }

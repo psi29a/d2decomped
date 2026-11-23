@@ -4,7 +4,7 @@
 // FUN_005aeda0) lay a piece on each new subtile they enter, calc2 / 2 each (Skills.txt: 8 / 2 = 4) while they fly, across the
 // caster's line, frame by frame, not all at once.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

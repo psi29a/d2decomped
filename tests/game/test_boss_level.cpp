@@ -9,6 +9,7 @@
 // plain monster, made by make_monster alone.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <monsters.hpp>

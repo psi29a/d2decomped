@@ -5,6 +5,7 @@
 // given twice) is passed at once (FUN_0064fe40). tools/emu/walk_step.py; test_walk_step.cpp.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 
 #include <cassert>

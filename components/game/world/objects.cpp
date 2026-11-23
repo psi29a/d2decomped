@@ -4,6 +4,7 @@
 #include "world.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "fight.hpp"
@@ -1012,7 +1013,7 @@ auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_m
             missile.struck = struck;
             // FUN_0059fa30 flag 2 (FUN_005ccd10, FUN_0056d400): a ring's offset in subtiles from
             // the trap's; the missile at the player puts its own point below.
-            missile.to = offset_target(x, y, int(std::lround(dx)), int(std::lround(dy)));
+            missile.aim_at = offset_target(x, y, int(std::lround(dx)), int(std::lround(dy)));
             fight.missiles.push_back(std::move(missile));
         };
         const auto ring = std::make_shared<std::vector<int>>();
@@ -1028,7 +1029,7 @@ auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_m
             }
         } else {
             shoot(target.x - x, target.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
-            fight.missiles.back().to = { target.x, target.y };
+            fight.missiles.back().aim_at = { target.x, target.y };
         }
         d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
     }

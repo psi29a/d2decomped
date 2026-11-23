@@ -2,6 +2,7 @@
 // Act 5's think inputs (rules/thinks/act5.hpp reads them), the traps' and
 // the rest the levels place.
 #include "ai.hpp"
+#include "ai/units.hpp"
 
 #include "gamedata.hpp"
 #include "internal.hpp"
@@ -31,7 +32,7 @@ struct Act5Ai : ThinkCtx {
         input.command_unit = std::ranges::any_of(foes, [&](const Foe& sent) { return sent.id == monster.command_foe && sent.alive; });
         input.command_until = monster.command_until;
     }
-    void succubus() { input.target_player = !target->pet && !target->of; }
+    void succubus() { input.target_player = !target->pet && !target->monster; }
     // The Overseer's search (FUN_005e26d0; Nihlathak's too, FUN_005ee5d0) over
     // the near order: friendly (FUN_00554200) live minions (base 0x1c5) not in
     // Bloodlust (state 0x8d, the whip's), counted; the first under half life
@@ -60,7 +61,7 @@ struct Act5Ai : ThinkCtx {
     void overseer() {
         minion_search(0x240, 0x190);
         const auto struck = std::ranges::find(foes, monster.struck_by, &Foe::id);
-        if (monster.struck_by != -1 && struck != foes.end() && struck->alive && !d2d::rules::friends(monster.align, struck->of ? struck->of->align : 2)) {
+        if (monster.struck_by != -1 && struck != foes.end() && struck->alive && !d2d::rules::friends(monster.align, struck->monster ? struck->monster->align : 2)) {
             input.attacker = true;
             second = &*struck;
         }

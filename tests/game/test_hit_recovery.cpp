@@ -19,7 +19,7 @@
 //   `tools/emu/interrupt_swing.py game` and `compare` check them against FUN_0057eec0.
 //   no argument: the rules (block_rate, block_ticks) and, with the game data (D2_MPQ_DIR), a Paladin's block and the get-hit hold.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

@@ -7,6 +7,7 @@
 // (state 0) takes it off. Overlay rows are kept by row (GameData::overlay_rows).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>

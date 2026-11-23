@@ -10,6 +10,7 @@
 // then the Council's numbers with the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

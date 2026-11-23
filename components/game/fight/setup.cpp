@@ -5,6 +5,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"

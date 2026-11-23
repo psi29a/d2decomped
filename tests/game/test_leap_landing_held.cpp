@@ -6,7 +6,7 @@
 // a leap taken after the crowd was made holds it in that crowd too.
 // Made-up rows (test_data.hpp).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>

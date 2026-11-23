@@ -3,6 +3,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -499,7 +500,7 @@ auto Fight::strafe_shot(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);
         auto& arrow = launch(missile_info, skill, lvl, actor->player.x, actor->player.y, target_x - actor->player.x, target_y - actor->player.y, missile_info.range + missile_info.lev_range * lvl, now_ms);
         arrow.ed_pct = calc(skill, skill.calc[1], lvl);
-        arrow.to = std::pair{ target_x, target_y };                      // its flight's aim (FUN_0059fa30), as a cast arrow's
+        arrow.aim_at = std::pair{ target_x, target_y };                      // its flight's aim (FUN_0059fa30), as a cast arrow's
         if (--actor->strafe_left <= 0) return;
         actor->strafe_at = d2d::rules::ring_pick(strafe_reach(skill, lvl), target);
         if (actor->strafe_at < 0) actor->strafe_left = 0;
@@ -543,7 +544,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
         auto send = [&](float ddx, float ddy, int reach) -> Missile& {
             auto& missile = launch(missile_info, skill, lvl, caster.x, caster.y, ddx, ddy, reach, now_ms);
             missile.target_x = caster.to_x; missile.target_y = caster.to_y;                    // where it was sent (Molten Boulder's roll)
-            missile.to = { caster.x + ddx, caster.y + ddy };                         // its flight's aim (FUN_0059fa30)
+            missile.aim_at = { caster.x + ddx, caster.y + ddy };                         // its flight's aim (FUN_0059fa30)
             return missile;
         };
         if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
@@ -564,7 +565,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                 auto& shot = send(float(aim_x), float(aim_y), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
                 // FUN_0056d400 passes an explicit target offset in subtiles.
-                shot.to = { (std::floor(caster.x * 5) + float(aim_x) + 0.5f) / 5,
+                shot.aim_at = { (std::floor(caster.x * 5) + float(aim_x) + 0.5f) / 5,
                             (std::floor(caster.y * 5) + float(aim_y) + 0.5f) / 5 };
                 shot.struck = shared;
             }
@@ -605,7 +606,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             for (const int side : { 1, -1 }) {
                 const float aim_x = (float(point_x + side * across_x) + 0.5f) / 5, aim_y = (float(point_y + side * across_y) + 0.5f) / 5;
                 const float start_x = (float(point_x) + 0.5f) / 5, start_y = (float(point_y) + 0.5f) / 5;
-                launch(missile_info, skill, lvl, start_x, start_y, aim_x - start_x, aim_y - start_y, range, now_ms).to = std::pair{ aim_x, aim_y };
+                launch(missile_info, skill, lvl, start_x, start_y, aim_x - start_x, aim_y - start_y, range, now_ms).aim_at = std::pair{ aim_x, aim_y };
             }
             if (const auto found = game_data->missiles.find(skill.srvmissileb); found != game_data->missiles.end())
                 launch(found->second, skill, lvl, around_x, around_y, 0, 0, found->second.range + found->second.lev_range * lvl, now_ms);
@@ -884,7 +885,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // Param2 on.
             if (missile_info.srv_do == 15 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
                 const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(missile.turn & 63)];
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms).to
+                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms).aim_at
                     = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_0059fa30 flag 2, from the orb
                 missile.turn += missile_info.param2;
             }
@@ -1112,7 +1113,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
                 const auto& next_target = monsters[std::size_t(best)];
                 auto& hop = launch(missile_info, *skill, missile.level, missile.x, missile.y, next_target.unit.x - missile.x, next_target.unit.y - missile.y, missile_info.range, now_ms);
                 hop.hops = missile.hops - 1;
-                hop.to = { next_target.unit.x, next_target.unit.y };
+                hop.aim_at = { next_target.unit.x, next_target.unit.y };
             }
         }
         if (missile_info.hit_func == 2 || missile_info.hit_func == 4 || missile_info.hit_func == 9 || missile_info.hit_func == 20 || missile_info.hit_func == 47) {
@@ -1363,7 +1364,7 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (sub)
                     for (int k = 0; k < 64; k += std::max(missile_info.hit_par1, 1)) {
                         const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
-                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y)).to = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_005abb00: flag 2
+                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y)).aim_at = offset_target(missile.x, missile.y, aim_x, aim_y);   // FUN_005abb00: flag 2
                     }
                 break;
             case 48: if (sub) sub_at(missile.x, missile.y, missile.target_x - missile.x, missile.target_y - missile.y); break;

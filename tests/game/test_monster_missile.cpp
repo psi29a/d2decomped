@@ -20,6 +20,7 @@
 // monster_blow, no game data (rows typed from Missiles.txt 1.14d).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
