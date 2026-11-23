@@ -160,6 +160,25 @@ int main() try {
                         int(monster.mode.size()), monster.mode.data());
             matches &= missiles.size() == expected && monster.mode == "A1";
         }
+        for (const bool think_first : {false, true}) {
+            Monster monster = council;
+            monster.type = type;
+            monster.aware = true;
+            monster.walk_pct = 100;
+            monster.speed_pct = 100 - kMonsterVelocityPct;
+            constexpr auto due = start + 18 * tick_ms;
+            if (think_first) monster.next_act = due;
+            set_mode(data, monster, "S1", start);
+            if (!think_first) monster.next_act = due;
+            d2d::rules::Rng rng{7};
+            std::vector<Missile> missiles;
+            for (auto now = start; now <= due; now += tick_ms)
+                monster_update(data, level, monster, foes, rng, now, 0.04f, crowd, missiles);
+            std::printf("Council %d, think queued %s mode end: thought at %u, mode %.*s\n",
+                        class_id, think_first ? "before" : "after", monster.thought_ms,
+                        int(monster.mode.size()), monster.mode.data());
+            matches &= monster.thought_ms == due && monster.mode == "A1" && missiles.size() == 1;
+        }
         row.can_get_hit = true;
         for (const bool hit_first : {false, true}) {
             Monster monster = council;

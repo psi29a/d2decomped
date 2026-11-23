@@ -9,6 +9,7 @@
 #include <monsters.hpp>
 #include <rules.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -121,6 +122,12 @@ int main(int argc, char** argv) try {
                 if (expected.interruption == Interruption::slow && tick > 0 && tick <= 8) {
                     constexpr std::array positions{168u, 336u, 420u, 504u, 588u, 672u, 756u, 840u};
                     matches &= monster.scheduled_anim_position == positions[std::size_t(tick - 1)];
+                }
+                if ((expected.interruption == Interruption::freeze || expected.interruption == Interruption::freeze_after)
+                    && tick >= expected.interrupt_tick && tick <= expected.interrupt_tick + 3) {
+                    const int first_frozen = expected.interrupt_tick + (expected.interruption == Interruption::freeze_after ? 1 : 0);
+                    const int held_ticks = std::max(0, std::min(tick + 1, expected.interrupt_tick + 3) - first_frozen);
+                    matches &= monster.scheduled_anim_position == std::uint32_t(tick - held_ticks) * 168;
                 }
                 if (action < 0 && !foes.front().melee_by.empty()) action = tick;
                 if (monster.mode != "A1") {

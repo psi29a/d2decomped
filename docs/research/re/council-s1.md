@@ -201,6 +201,10 @@ If the action was filed first, the think cannot undo it. Player
 action events dispatch before monster action events in either
 insertion order. The probe substitutes the think decision and
 player action callback; it does not run player damage calculation.
+The same probe checks think against mode end. An older think can clear
+the queued end. When the end comes first, the neutral-mode start
+(`FUN_005a73e0`) files the idle think and leaves the current bucket's
+later-queued think to run that tick.
 In d2d, player modes are processed before the monster update, and
 the Council test checks a real get-hit mode change on either side
 of that update as well as both insertion orders for the AI think.
