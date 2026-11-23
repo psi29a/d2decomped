@@ -8,6 +8,7 @@
 // Act 5's quest objects take a click (World::quest_object). No game data.
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <object_ids.hpp>
 #include <quests_act5.hpp>
 #include <world.hpp>

@@ -823,7 +823,7 @@ struct World {
     // leads to and stands at that level's warp back, at its ExitWalk.
     void use_warp();
     // Through `warp` now (FUN_005550b0): to the level it leads to, at that level's warp back and its ExitWalk.
-    void travel_warp(const Level::Warp& warp);
+    void travel_warp(const LevelWarp& warp);
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
     // tile unit's subtile ((x - y) * 16, (x + y) * 8, FUN_00643260), edges in.

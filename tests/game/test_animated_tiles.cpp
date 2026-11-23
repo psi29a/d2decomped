@@ -7,6 +7,7 @@
 // own run of frames. No game data.
 #include <dt1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 
 #include <array>
 #include <cassert>
