@@ -93,12 +93,13 @@ int main(int argc, char** argv) try {
             continue;
         }
         // 0 a monster `row mode difficulty velocity cold speed boss move laid chilled`; 2 a merc `merc_type
-        // mode velocity move`; 3 a pet `row mode velocity move speed buff` (mode 2 WL, 15 RN)
+        // mode velocity move frw`; 3 a pet `row mode velocity move speed buff` (mode 2 WL, 15 RN)
         std::string row_id;
         int mode = 0, difficulty = 0, velocity = 0, cold = 0, speed_pct = 0, boss_speed = 0, move_pct = 0, laid = 0, chilled = 0, buff = 0, merc_type = 0;
         bool parsed = false;
+        int frw = 0;                                     // a merc's gear's faster run/walk (stat 96)
         if (kind == 0) parsed = bool(fields >> row_id >> mode >> difficulty >> velocity >> cold >> speed_pct >> boss_speed >> move_pct >> laid >> chilled);
-        else if (kind == 2) parsed = bool(fields >> merc_type >> mode >> velocity >> move_pct);
+        else if (kind == 2) parsed = bool(fields >> merc_type >> mode >> velocity >> move_pct >> frw);
         else if (kind == 3) parsed = bool(fields >> row_id >> mode >> velocity >> move_pct >> speed_pct >> buff);
         if (!parsed) continue;
         if (kind == 2) {
@@ -140,6 +141,15 @@ int main(int argc, char** argv) try {
             *world.actor = start;
             auto& header = world.actor->character.header;
             header.merc_type = std::uint16_t(merc_type); header.merc_seed = 7; header.merc_dead = false;
+            world.actor->character.merc_items.clear();
+            if (frw != 0) {                              // a cap with only stat 96 on it
+                d2d::d2s::Item cap;
+                cap.code = "cap";
+                cap.location = d2d::d2s::item_location::kEquipped;
+                cap.slot = d2d::d2s::body_location::kHead;
+                cap.props = { { d2d::d2s::kFasterMoveVelocity, 0, frw } };
+                world.actor->character.merc_items.push_back(cap);
+            }
             world.spawn_merc();
             if (world.actor->merc && world.actor->merc->type == int(row->second)) {
                 auto& merc = *world.actor->merc;
