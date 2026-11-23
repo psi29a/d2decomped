@@ -86,6 +86,7 @@ address	name	evidence
 00420eb0	sbig_add_carry	ESI 64-bit accumulator, lo, hi (ret 8): returns the low dword of accumulator + (hi:lo); the accumulator keeps the 65-bit sum >> 32 (source-sbig.md)
 00420f30	sbig_shift_in	ESI 64-bit accumulator, digit (ret 4): accumulator * 2^32 + digit, mod 2^64: the low dword moves up (source-sbig.md)
 00420f60	sbig_make_qword	EAX high dword, digit (ret 4): returns EDX:EAX = EAX * 2^32 + digit (source-sbig.md)
+00420f80	sbig_read_count255	EBX bytes, EDI size, EAX/ESI out position and value: base-255 count up to a 0xff byte, cut to the bytes left. Only caller FUN_004234f0 (source-sbig-arrays.md)
 00420fd0	sbig_entry	ECX number, i (ret 4): the address of dword i of the buffer +8 (source-sbig.md)
 00420fe0	sbig_last_entry	ECX number: the address of the last used entry (+8 + (+4 - 1) * 4), 0 when the used count +4 is 0 (source-sbig.md)
 00421000	sbig_byte_at	ECX number, n (ret 4): buffer +8 + n bytes (source-sbig.md)
