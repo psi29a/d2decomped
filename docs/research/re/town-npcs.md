@@ -297,6 +297,42 @@ Checked: `THINKS=30 diff_drlg.py 1-20 40 npcs` (npcs.py with level 40:
 act 2 made for it, the Jerhyn markers stubbed, each unit's MonAI think):
 20/20.
 
+## Flavie — MonAI Navi (58), FUN_005e7e20
+
+Flavie (navi, MonStats 266; made by FUN_006664a0 at the Blood Moor's way
+to the Cold Plains, MonPreset Act 1 row 20) is an NPC (MonStats `npc`), so
+d2d keeps her out of the fight and runs her think with the town NPCs'
+(`npc_patrol`). ECX game, EDX unit, the driver's block on the stack; AI
+control is block [0].
+
+1. Monster data +0x30 holds a talking player (FUN_00572dc0): stand 10.
+2. FUN_005ddf20(&flag) picks the player she heeds (the visitor search
+   above, FUN_005dde80; none hands back Flavie herself). That a player
+   (type 0), not busy (FUN_00535060), rand(3) on her unit seed not 0
+   (drawn only here, after the busy test) and the flag set: her greeting
+   timer (AI control +0x18) at 0 becomes 60 and she greets
+   (FUN_00553380(unit, 0x12, player): the unit sound the town NPCs'
+   heeding plays); a negative timer goes to 0, a positive one counts down
+   by 1. Stand 20.
+3. Else TownRogue's test (monster-ai.md): A1 (FUN_005ddf90(4)) at her
+   second target (FUN_005ddc30) under 25, else stand 50.
+
+- **The flag word is not set before the search** (0x5e7e62..0x5e7e66: `lea eax, [ebp-4]`,
+  `push eax`, with no store to [ebp-4] before). FUN_005ddf20 writes it only
+  when the player is under 4 off, so past 4 the gate reads whatever the
+  stack held there. Which value that usually is was not traced (the
+  driver's earlier calls at that depth). A bug, confidence high for the
+  read, the effect unknown; not yet in bugs.md. d2d takes the evident
+  intent: the flag only under 4.
+- **d2d:** `rules::navi_think`, `TownAi::navi`. No monster is passed (NPCs
+  don't see the fight), so she never shoots: a ponytail note at the call in
+  ai.cpp's `npc_patrol`.
+- **Checked:** `tools/emu/navi.py` runs FUN_005e7e20 natively on 3000
+  random scenes, the stale flag word a scene input written at [ebp-4]
+  before the call; `--dump tests/navi_cases.inc` is replayed by
+  test_monster_thinks. `tools/emu/ai_good_npc.py` checks eight hand-made
+  cases of the same think.
+
 ## The Kurast Docks (level 75)
 
 The docks' DS1 holds Cain, Asheara, Alkor, Ormus and Meshif with paths
