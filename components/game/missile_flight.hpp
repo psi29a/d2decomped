@@ -155,6 +155,80 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 laid.push_back(std::move(hand));
             }
         }
+        // The client's do 26 (FUN_004d4f20, mephistodeathcontrol), n its CltParam3: when its CltSubMissile1
+        // count (data +0x28) is out, one (FUN_004ce530, flags 2) aimed n-ish subtiles off, rand(2n + 1) - n
+        // on each axis on its client seed (both 0: x rand(n - 1) + 1), its way that offset, the count CltParam1;
+        // likewise its CltSubMissile2 (data +0x2c, flags 0x102: a rand(5) + 1 drawn first, the offset, then its
+        // data +0x28 rand(5) once made), the count CltParam2; each count steps down a frame.
+        // ponytail: the rocks' client hit 33 (CltHitSubMissile1: the small rocks) isn't ported.
+        const auto client_seed = [&]() -> d2d::rules::Rng& {
+            if (!missile.client_seeded) {
+                missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));
+                missile.client_seeded = true;
+            }
+            return missile.client_seed;
+        };
+        const auto aimed = [&](const GameData::MissileInfo& info, int off_x, int off_y) {
+            const float length = std::max(std::hypot(float(off_x), float(off_y)), 0.01f), speed = missile_speed(info, missile.level);
+            Missile made = missile_from(missile, info, missile.x, missile.y, float(off_x) / length * speed, float(off_y) / length * speed, now_ms);
+            made.visual_only = true;
+            made.to = std::pair{ missile.x + float(off_x) / 5, missile.y + float(off_y) / 5 };
+            made.way_x = off_x; made.way_y = off_y;
+            made.subtile_x = int(std::floor(missile.x * 5)); made.subtile_y = int(std::floor(missile.y * 5));
+            return made;
+        };
+        if (missile.info && missile.info->clt_do == 26 && missile.frame != frame) {
+            missile.frame = frame;
+            auto& seed = client_seed();
+            const int spread = missile.info->clt_params[2];
+            const auto offset = [&] {
+                int off_x = int(seed(2 * spread + 1)) - spread;
+                const int off_y = int(seed(2 * spread + 1)) - spread;
+                if (off_x == 0 && off_y == 0) off_x = int(seed(spread - 1)) + 1;
+                return std::pair{ off_x, off_y };
+            };
+            if (const auto* maker = missile.info->clt_sub_info) {
+                if (missile.clt_count[0] <= 0) {
+                    const auto [off_x, off_y] = offset();
+                    laid.push_back(aimed(*maker, off_x, off_y));
+                    missile.clt_count[0] = missile.info->clt_params[0];
+                }
+                --missile.clt_count[0];
+            }
+            if (const auto* rock = missile.info->clt_sub2_info) {
+                if (missile.clt_count[1] <= 0) {
+                    (void)seed(5);                                  // record +0x30
+                    const auto [off_x, off_y] = offset();
+                    laid.push_back(aimed(*rock, off_x, off_y));
+                    (void)seed(5);                                  // the rock's data +0x28
+                    missile.clt_count[1] = missile.info->clt_params[1];
+                }
+                --missile.clt_count[1];
+            }
+        }
+        // The client's do 27 (FUN_004d5090, mephistofirewallmaker): on a frame it entered a new subtile its
+        // CltSubMissile1 there (mephistofirewall); every CltParam1 frames of its age a client seed step turns
+        // its way: & 3 == 0 to ((x - y) x 3 / 4, (y + x) x 3 / 4), == 2 to ((x + y) x 3 / 4, (y - x) x 3 / 4)
+        // (each truncated toward 0), else on; its target its spot plus the way (FUN_00648ad0).
+        if (missile.info && missile.info->clt_do == 27 && missile.frame != frame) {
+            missile.frame = frame;
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+            if (const auto* fire = missile.info->clt_sub_info; fire && (at_x != missile.subtile_x || at_y != missile.subtile_y)) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                Missile flame = missile_from(missile, *fire, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, now_ms);
+                flame.visual_only = true;
+                laid.push_back(std::move(flame));
+            }
+            if (int(now_ms - missile.born) / 40 % std::max(missile.info->clt_params[0], 1) == 0) {
+                const std::uint32_t pick = client_seed().next() & 3;
+                const int way_x = missile.way_x, way_y = missile.way_y;
+                if (pick == 0) { missile.way_x = (way_x - way_y) * 3 / 4; missile.way_y = (way_y + way_x) * 3 / 4; }
+                else if (pick == 2) { missile.way_x = (way_x + way_y) * 3 / 4; missile.way_y = (way_y - way_x) * 3 / 4; }
+                const float length = std::max(std::hypot(float(missile.way_x), float(missile.way_y)), 0.01f), speed = missile_speed(*missile.info, missile.level);
+                missile.velocity_x = float(missile.way_x) / length * speed; missile.velocity_y = float(missile.way_y) / length * speed;
+                missile.to = std::pair{ missile.x + float(missile.way_x) / 5, missile.y + float(missile.way_y) / 5 };
+            }
+        }
         if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
         if (missile.friendly) return hits_monster(missile);
         // A monster's guided one (missile do 7, FUN_005ae780: Bone Spirit)
