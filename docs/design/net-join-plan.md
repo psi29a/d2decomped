@@ -226,7 +226,7 @@ driven by whisper and Miriam by d2d; Act 3 reached the Blackened Temple.
 |---|---|
 | Party portraits, own mana | ✓ fixed: `self_id` came from our corpse's 0x59 (same name); now only a 0x59 at 0, 0 |
 | Warps | ✓ the host walks to the mouth (`nearest_free` + ExitWalk), takes 0x13; d2d arrives on its reassign |
-| Waypoints | ✓ joined, d2d's World doesn't travel; 0x13 + 0x49 from beside the waypoint, again every 3 s until the host's 0x63 / reassign (a 0x49 before its menu, or within 10 s of a level change, is dropped) |
+| Waypoints | ✓ joined, d2d's World doesn't travel; 0x13 + 0x49 from beside the waypoint, again every 3 s until the host's 0x63 / reassign (a 0x49 before its menu, or within 10 s of a level change, is dropped). Checked through devctl's `cmd waypoint`; the panel's row went only to the local World (no 0x49) until it went through `send()` too |
 | Caravan / boat (new act) | ✓ the reassign lands outside every level d2d expects: it goes by the last 0x03's area |
 | A quest door the host makes (Duriel's lair) | ✓ the level of the act that holds the reassign's spot |
 | Town portals, teleport (54) | ✓ the host casts; d2d hops where the host says |
