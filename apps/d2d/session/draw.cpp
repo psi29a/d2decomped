@@ -157,17 +157,6 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
         }
         if (pmode < 0) unit.mode_ms = std::max(unit.mode_ms, walk_ms);     // a swing's end restarts it too
         const int ui_cls = kSaveClassToUi[std::max(character.character_class, 0)];
-        if (const int hovered = hovered_monster(); hovered >= 0 && scene) {        // FUN_00466de0: the unit the cursor took
-            const int cls = view.monsters[std::size_t(hovered)].type;
-            if (cls >= 0 && std::size_t(cls) < scene->monsters.types.size()) {
-                const auto& type_info = scene->monsters.types[std::size_t(cls)];
-                const bool npc = std::size_t(cls) < scene->mon_is_npc.size() && scene->mon_is_npc[std::size_t(cls)];
-                if (!npc && type_info.align != 1 && type_info.is_att) {
-                    panel_tohit_class = cls;
-                    if (!type_info.inert) panel_behit_class = cls;
-                }
-            }
-        }
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
@@ -412,6 +401,18 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
             }
         }
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
+        if (const int hovered = hovered_monster(); hovered >= 0 && scene) {        // FUN_00466de0: the unit the cursor took,
+            // picked this frame against this view (a later publish can refill the index)
+            const int hover_class = view.monsters[std::size_t(hovered)].type;
+            if (hover_class >= 0 && std::size_t(hover_class) < scene->monsters.types.size()) {
+                const auto& type_info = scene->monsters.types[std::size_t(hover_class)];
+                const bool npc = std::size_t(hover_class) < scene->mon_is_npc.size() && scene->mon_is_npc[std::size_t(hover_class)];
+                if (!npc && type_info.align != 1 && type_info.is_att) {
+                    panel_tohit_class = hover_class;
+                    if (!type_info.inert) panel_behit_class = hover_class;
+                }
+            }
+        }
         view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
         draw_hold_cue(framebuffer);
         if ((!coop_hud_hidden() || skillbar.picking) && (!touch_hides_classic_hud() || skillbar.picking != 0))
