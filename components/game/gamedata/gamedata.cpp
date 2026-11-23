@@ -240,7 +240,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     return npc;
 }
 
-// Skills (components/rules/skills.hpp): skillcalc.txt's operand names,
+// Skills (components/rules/combat/skills.hpp): skillcalc.txt's operand names,
 // ItemStatCost's stat names and Skills.txt's rows with their calcs
 // compiled, SkillDesc's tab, icon and name. A calc that doesn't compile is
 // logged and reads 0.

@@ -4,7 +4,7 @@ Our port: `components/rules/items/drops.hpp` (`tc_upgrade`, `roll_drops`,
 `roll_quality`, `made_quality`, `stand_quality`, `chest_round`,
 `gold_amount`, `add_auto_treasure`), `components/rules/world/shrines.hpp`
 (`open_container`, `stand_item`), loaded in
-`components/game/gamedata/gamedata_load.cpp`, used by `components/game/loot.hpp`
+`components/game/gamedata/gamedata_load.cpp`, used by `components/game/items/loot.hpp`
 (kills) and `world/` (chests). Checked against game.exe by
 `tools/emu/drops.py` (see the end) and `tests/game/test_game_tables.cpp`.
 
