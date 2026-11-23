@@ -23,3 +23,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00420eb0` | `sbig_add_carry` | `ESI` a 64-bit accumulator, low and high dwords (`RET 8`): the 65-bit sum; returns its low dword and keeps the rest (sum >> 32) in the accumulator, the carry out of the 64-bit add included (`0x420ec2`..`0x420eed`, `__allmul` by 2^32) | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420f30` | `sbig_shift_in` | `ESI` a 64-bit accumulator, digit (`RET 4`): accumulator × 2^32 + digit (`__allmul`), so its low dword moves up and the digit comes in below | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420f60` | `sbig_make_qword` | `EAX` high dword, digit (`RET 4`): returns `EDX:EAX` = `EAX` × 2^32 + digit | no counterpart (as `sbig_grow_step`) |
+| `FUN_00420fd0` | `sbig_entry` | `ECX` number, i (`RET 4`): `&buffer[i]`, buffer `+8` + i × 4 | no counterpart (as `sbig_grow_step`) |
