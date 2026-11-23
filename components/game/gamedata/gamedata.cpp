@@ -27,6 +27,7 @@
 #include <tile_pick.hpp>
 #include <txt.hpp>
 #include <unit_size.hpp>
+#include <wav_length.hpp>
 
 #include <algorithm>
 #include <array>
@@ -105,6 +106,19 @@ const GameData::AnimTiming& timing_of(const GameData& game_data, std::map<Key, G
     return found->second;
 }
 // A monster's or object's COF timing for a mode, cached by the COF it names.
+std::uint32_t GameData::sound_ms(int index) const {
+    if (index < 0 || std::size_t(index) >= sounds.size()) return 0;
+    if (const auto found = sound_lengths.find(index); found != sound_lengths.end()) return found->second;
+    std::uint32_t length = 0;
+    for (const char* folder : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
+        if (const auto file = mpqs.try_read(std::string(folder) + sounds[std::size_t(index)].file)) {
+            length = d2d::rules::wav_ms(*file).value_or(0);
+            break;
+        }
+    sound_lengths.emplace(index, length);
+    return length;
+}
+
 const GameData::AnimTiming& GameData::npc_timing(const Npc& npc, std::string_view mode) const {
     auto key = npc.root + "/" + npc.code + "/" + std::string(mode) + "/" + std::string(cof_weapon_class(npc, mode));
     for (const auto& component : npc.comp) key += "/" + component;
