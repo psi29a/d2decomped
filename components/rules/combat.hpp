@@ -114,6 +114,10 @@ int frame_tick(int frame, int start, int speed);
 int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0);
 // The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
 int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0);
+// The char panel's hover percentages: the chance to hit (FUN_004a7340: the player's attack rating against
+// the monster's defence, the player's level first) and to be hit (FUN_004a74a0: the monster's rating
+// against the player's defence, its level first), the inputs as the caller scaled them; held to 5..95.
+int panel_hit_chance(int rating, int defense, int attacker_level, int defender_level);
 
 // The frame a player's A1 or A2 swing starts on (FUN_00623b10, 0x623b88 .. 0x623bfa; every other mode and a monster start on frame 0):
 // the weapon in hand (FUN_00623990) gives its class key (FUN_00629fe0: the weapons.txt wclass through the map at 0x7446a0), which picks

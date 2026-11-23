@@ -257,6 +257,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.critter = ms2.get(monstats2_row, "critter") == "1";
             type_info.small = ms2.get(monstats2_row, "small") == "1"; type_info.large = ms2.get(monstats2_row, "large") == "1";
             type_info.is_att = ms2.get(monstats2_row, "isAtt") == "1";
+            type_info.inert = ms2.get(monstats2_row, "inert") == "1";
             type_info.hit_class = num(ms2.get(monstats2_row, "HitClass"));
             type_info.pieces = num(ms2.get(monstats2_row, "TotalPieces"));
             type_info.spawn_col = num(ms2.get(monstats2_row, "spawnCol"));

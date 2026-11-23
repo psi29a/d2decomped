@@ -290,6 +290,7 @@ target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem
     # split over several files keeps them in its own directory (devctl/, session/).
     automap_reveal.cpp
+    char_tooltips.cpp
     common.cpp
     controls.cpp
     cursor.cpp

@@ -296,7 +296,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // it): each "%d" when its ends are equal, else as above with no min + 1;
     // font6, the first at y-6 (y-7 for languages 6..9), the second at y+2
     // (0x72d8d0), each in its own colour.
-    // ponytail: the hover tooltips (FUN_004a7340..) aren't drawn.
+    // The hover tooltips (FUN_004a7340..): draw_char_tooltips, after the panel.
     for (std::size_t block = 0; block < 2; ++block) {
         const auto& line = panel.attack[block];
         const auto* skill = scene.skills.get(line.skill);
@@ -1293,5 +1293,6 @@ void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& 
     at_bottom(scene.level_socket, 0, button.x0, button.y1);
     at_bottom(scene.level_button, held && over_quest_log_button(button, mouse_x, mouse_y) ? 1 : 0, button.x0 + 3, button.y1 - 4);
 }
+
 
 }  // namespace d2d::client

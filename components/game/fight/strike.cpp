@@ -376,6 +376,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 }
             }
         }
+        panel.block = actor->player_combat.block;                          // FUN_00622720, for the defence hover
         const auto panel_env = skill_text::with_missiles(*game_data, env);   // FUN_00646d00: SkillDesc calcs with their missiles' operands
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k) {
