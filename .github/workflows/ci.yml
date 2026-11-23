@@ -227,12 +227,16 @@ jobs:
 
       # ccache 4.x handles MSVC too; CMake picks it up via
       # CMAKE_*_COMPILER_LAUNCHER. StormLib and CLI11 (FetchContent) share it.
-      # MSVC's /Z7 objects carry their debug info: Windows gets 2 GB.
+      # Sized to hold one whole build, so main's copy is all of it: GCC's
+      # RelWithDebInfo objects came to ~1.65 GB (1 GB held 456 of ~750
+      # compiles, 2026-11-23), MSVC's /Z7 ones ~0.9 GB (a cold ARM64 run).
+      # 3 x 1750M + 2 x 1250M stays inside the repo's 10 GB with room for
+      # the FFmpeg, Windows deps and Qt caches.
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           key: ${{ matrix.os }}
-          max-size: ${{ runner.os == 'Windows' && '2G' || '1G' }}
+          max-size: ${{ runner.os == 'Windows' && '1250M' || '1750M' }}
           # Only main saves: each branch run's ~1 GB copy pushed the repo past
           # GitHub's 10 GB and evicted main's, so builds started cold. PRs
           # restore main's.
