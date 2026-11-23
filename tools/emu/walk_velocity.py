@@ -33,7 +33,7 @@ velocity (the 16.16 distance a frame moved them along x, x 4096), against the ve
 
 cases.tsv (tab separated), kind 0 a monster: num 0 monstats-id mode(2 WL / 15 RN) difficulty velocity
 coldeffect speed_pct boss_speed move laid chilled; kind 1 a player: num 1 class run frw vp chilled;
-kind 2 a merc: num 2 merc-type mode velocity move; kind 3 a pet: num 3 monstats-id mode velocity move
+kind 2 a merc: num 2 merc-type mode velocity move frw (its gear's stat 96); kind 3 a pet: num 3 monstats-id mode velocity move
 speed_pct buff. game.tsv: num pct velocity (velocity = what FUN_00648690 gets; pct = the walk %).
 """
 import random
@@ -100,7 +100,7 @@ def gen(n, seed):
         for mode in (2, 15):
             for target_sum in (-200, 0, 9, 10, 11, 24, 25, 26, 50, 100, 101, 150, 400):
                 for merc_type in MERC_TYPES if name == rows_ok[0] else MERC_TYPES[:1]:
-                    rows.append((2, merc_type, mode, vel, target_sum - 100))
+                    rows.append((2, merc_type, mode, vel, target_sum - 100, 0))
                 split = (target_sum - 100) // 3
                 rows.append((3, name, mode, vel, split, split, target_sum - 100 - 2 * split))
     n += len(rows)
@@ -108,7 +108,7 @@ def gen(n, seed):
         pick = rng.random()
         if pick < 0.15:
             rows.append((2, rng.choice(MERC_TYPES), rng.choice((2, 15)), rng.choice((rng.randint(1, 20), rng.randint(1, 60))),
-                         rng.choice((0, 0, rng.randint(-150, 150)))))
+                         rng.choice((0, 0, rng.randint(-150, 150))), rng.choice((0, 0, rng.randint(-100, 300)))))
         elif pick < 0.3:
             name = rng.choice(rows_ok)
             rows.append((3, name, rng.choice((2, 15)), rng.choice((mon[name][1], rng.randint(1, 60))),
@@ -229,20 +229,22 @@ def game(path, exe=None):
             if kind == 0:
                 name, mode, _diff, vel, ce, speed, boss, move, laid, chilled = f[2], *map(int, f[3:])
                 st[0x43] = base43 + speed + boss + move - (100 if laid else 0) + (ce if chilled else 0)
+                st[96] = 0
                 idx = mon[name][0]
             elif kind == 2:
-                mode, vel, move = map(int, f[3:6])
+                mode, vel, move, frw = map(int, f[3:7])
                 st[0x43] = base43 + move
+                st[96] = frw
                 idx = 0
             else:
                 name, mode, vel, move, speed, buff = f[2], *map(int, f[3:])
                 st[0x43] = base43 + move + speed + buff
+                st[96] = 0
                 idx = mon[name][0]
             emu.mu.mem_write(monstats + idx * 0x1a8 + 0x32, struct.pack("<h", vel))
             emu.w32(unit, 1)
             emu.w32(unit + 4, idx)
             emu.w32(unit + 0x10, mode)
-            st[96] = 0
         else:
             cls, run, frw, vp, chilled = map(int, f[2:])
             walk, runv = chars[cls]
