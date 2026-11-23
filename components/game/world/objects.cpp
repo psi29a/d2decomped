@@ -27,6 +27,7 @@
 #include <skills.hpp>
 #include <town_npcs.hpp>
 #include <uniques.hpp>
+#include <units.hpp>
 
 #include <algorithm>
 #include <array>
@@ -367,11 +368,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // The compelling orb (OperateFn 53, FUN_005bb980): hit with Khalim's
         // Will in hand; the second hit breaks it: the Will goes, the orb
         // (0x16e) leaves, the object to mode 1. Else "I can't".
-        // ponytail: the break's FUN_005dfee0 (the orb monster's orbmist, row 368, at object 386, else
-        // 386 to mode 1 and event 1) isn't run: object 386 ("Dummy" stairsr) has no Token, so
-        // add_object makes no Npc for it, and the missile's end (hit function 35, FUN_005abee0) is
-        // fight/missiles.cpp's, not ported. Its OperateFn 50 (LAB_00582180: in mode 2 FUN_00581f60)
-        // has nothing to run on. Traced in ai-control.md.
+        // The break's FUN_005dfee0 (ai-control.md): the orb monster's orbmist (row 0x170) from it to
+        // object 386 (the marker, class 0x182, its DS1 preset), level 1, flags 0x420; its end (hit 35,
+        // FUN_005abee0) puts 386 in mode 1.
+        // ponytail: object 386 ("Dummy" stairsr) has no Token, so add_object makes no Npc for it: the
+        // mist is drawn, its end changes nothing here (OperateFn 50, LAB_00582180, has nothing to run on).
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
             // FUN_0063bef0: the weapon in hand (either arm, item type 0x2d;
@@ -404,6 +405,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e]) && !monster.gone) {
                     monster.gone = true;
                     music_cue_near("music_quest_compelling", monster.unit.x, monster.unit.y);
+                    orb_mist(monster, now_ms);
                 }
             to_mode(1);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
@@ -1029,6 +1031,26 @@ auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_m
             fight.missiles.back().to = { target.x, target.y };
         }
         d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
+    }
+
+// FUN_005dfee0: the marker (FUN_0065a620: object class 0x182 in the orb's room; the level's
+// one, its preset unit), then a missile 0x170 (orbmist) at its spot from the orb, flags 0x420,
+// level 1 (FUN_0059fa30). It ends as it reaches the marker (hit 35 there); drawn only.
+auto World::orb_mist(const Monster& orb, std::uint32_t now_ms) -> void {
+        constexpr int kMarker = 0x182;
+        const auto marker = std::ranges::find_if(level->units, [](const d2d::drlg::Unit& unit) { return unit.type == d2d::rules::unit_type::kObject && unit.id == kMarker; });
+        const auto mist = game_data->missiles.find("orbmist");
+        if (marker == level->units.end() || mist == game_data->missiles.end()) return;
+        const float to_x = (float(marker->x) + 0.5f) / 5, to_y = (float(marker->y) + 0.5f) / 5;
+        const float dx = to_x - orb.unit.x, dy = to_y - orb.unit.y;
+        const std::size_t had = fight.missiles.size();
+        andariel_missile(*game_data, orb, "orbmist", dx, dy, now_ms, fight.missiles, 1);
+        if (fight.missiles.size() == had) return;
+        auto& sent = fight.missiles.back();
+        sent.visual_only = true;
+        const float speed = missile_speed(mist->second, 1);
+        if (speed > 0) sent.dies = std::min(sent.dies, now_ms + std::uint32_t(std::hypot(dx, dy) / speed * 1000.f));
+        d2d::log::info("Khalim's Will: the orb's mist to the stairs");
     }
 
 }  // namespace d2d::game
