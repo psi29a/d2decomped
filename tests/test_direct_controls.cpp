@@ -4,7 +4,7 @@
 // UX decisions; original aura selection uses SelectSkill, not an attack.
 #include "gamepad_map.hpp"
 #include "item_use.hpp"
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 
 #include <cassert>
 #include <cstddef>

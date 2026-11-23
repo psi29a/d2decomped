@@ -8,7 +8,7 @@
 // adds 1. SkillBar::listed calls picker_lists; SkillBar::usable adds the
 // level and the left list's leftskill bit.
 
-#include "skill_list.hpp"
+#include "skills/list.hpp"
 
 #include <d2s_items.hpp>
 #include <skills.hpp>

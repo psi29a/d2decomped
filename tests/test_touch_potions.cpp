@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// Bounded touch HUD potion aggregation (apps/d2d/touch_potions.hpp).
-#include "touch_potions.hpp"
+// Bounded touch HUD potion aggregation (apps/d2d/touch/potions.hpp).
+#include "touch/potions.hpp"
 
 #include <array>
 #include <cassert>

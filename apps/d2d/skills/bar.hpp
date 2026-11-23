@@ -34,8 +34,8 @@
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
-#include "skill_list.hpp"
-#include "skillpad.hpp"
+#include "skills/list.hpp"
+#include "skills/pad.hpp"
 #include "ui.hpp"
 
 #include <character.hpp>
@@ -85,7 +85,7 @@ struct SkillBar {
         const auto* skill = scene->skills.get(id);
         return skill && !skill->passive && (!on_left || skill->leftskill) && level(id) > 0 && listed(*skill);
     }
-    // FUN_004aa3a0's membership test (skill_list.hpp). usable() adds the
+    // FUN_004aa3a0's membership test (skills/list.hpp). usable() adds the
     // level and the left list's leftskill bit.
     [[nodiscard]] bool listed(const d2d::rules::Skill& skill) const { return picker_lists(skill, character.items); }
     // A picker icon, a hand's or a hotkey's skill: its Skills.txt id and,

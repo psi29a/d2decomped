@@ -4,10 +4,10 @@
 #include "common.hpp"
 #include "gamepad_map.hpp"
 #include "scene.hpp"
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 #include "teleport_aim.hpp"
-#include "touch_gestures.hpp"
-#include "touch_input.hpp"
+#include "touch/gestures.hpp"
+#include "touch/input.hpp"
 
 #include <fight.hpp>
 #include <gamedata.hpp>

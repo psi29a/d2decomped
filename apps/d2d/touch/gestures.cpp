@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "touch_gestures.hpp"
+#include "touch/gestures.hpp"
 
 #include "gamepad_map.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 
 #include <cmath>
 #include <cstddef>

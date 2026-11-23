@@ -35,7 +35,7 @@
 #include "scene.hpp"
 #include "session.hpp"
 #include "title_rules.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 #include "ui.hpp"
 #include "video.hpp"
 #include "watchdog.hpp"

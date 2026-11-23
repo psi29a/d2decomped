@@ -1,7 +1,7 @@
 # Skills — research notes and plan (1.14d)
 
 Status: the machinery is traced and phase 1 is built (skills.hpp,
-skillbar.hpp); the per-skill functions aren't traced yet. d2d already has the skill tree (spending points,
+skills/bar.hpp); the per-skill functions aren't traced yet. d2d already has the skill tree (spending points,
 `docs/research/re/skill-tree.md`); no skill can be used yet. The combat these
 skills plug into is in `combat.md`.
 
@@ -2612,7 +2612,7 @@ cited module, not a quoted assert.
   `*charges = +0x38`. Null node asserts (line `0x641`). So it reads an
   **item** entry's fields (skills.md "Skill record" above: +0x34 the item's
   unit id, +0x38 charges). Callers: 00496be0, 004a9a00, 004a9bd0, 004a9fc0,
-  004aa3a0. d2d: **not ported**; `skillbar.hpp` keeps the same four fields
+  004aa3a0. d2d: **not ported**; `skills/bar.hpp` keeps the same four fields
   in its own entry type.
 - **FUN_004a9a90 / FUN_004a9ae0 / FUN_004a9b30** (and FUN_004a9b80, the
   fourth; only 004edea0 calls the first three): fastcall (unit in ECX, skill
@@ -2636,7 +2636,7 @@ cited module, not a quoted assert.
   record has `+8 & 0x10` it calls `FUN_004a9d70(record, FUN_006450f0(node))`.
   So a hotkey bound to a scroll / tome-type skill whose node count is below 1
   is unbound (the count `+0x30`, the real one, unlike the 004a9a90 family).
-  Called once, from `FUN_0048ffe0`. d2d: **not ported**. `skillbar.hpp:26`
+  Called once, from `FUN_0048ffe0`. d2d: **not ported**. `skills/bar.hpp:26`
   says nothing clears `0x7c06c8` for a gone entry: that holds (a gone entry
   is not visited), but a count-0 entry with the record flag does clear it.
   Which skills have record `+8 & 0x10` was not read; `FUN_004aa3a0` below
@@ -2683,7 +2683,7 @@ cited module, not a quoted assert.
   The icon is drawn by `FUN_004a9870`, an item entry by `FUN_004a8d50`
   (level) or `FUN_004aa1f0` (count). The count `FUN_0055c110` adds is stat
   0x46; a scroll (ItemTypes 0x12) whose stat reads 0 is not added, and a
-  book (0x16) whose stat reads 0 is added as 1. d2d: `skillbar.hpp`
+  book (0x16) whose stat reads 0 is added as 1. d2d: `skills/bar.hpp`
   `listed` (ListRow -1 off; a ListRow 4 skill when the carried quantity is
   above 0, on inventory, cube, stash, belt, cursor or worn). The SkillDesc
   `+6` de-duplication is not ported. Nor is the book that comes in with
@@ -2698,7 +2698,7 @@ cited module, not a quoted assert.
   sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then calls
   `FUN_004aa3a0` twice on one side (the asm in the paragraph above).
   Only caller `FUN_00456ee0` (panel draw). d2d: **agrees** in outline with
-  `skillbar.hpp` (two lists).
+  `skills/bar.hpp` (two lists).
 - **FUN_004aa160**(): with the list asserted non-empty (line `0x524`), for each
   of the 60 picker slots whose entry lookup (`FUN_006439f0`, registers not
   read) is non-null and whose record has `+4 & 0x10` clear (not a passive),
@@ -2810,7 +2810,7 @@ No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
 0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
 1. ~~**Skill data + selection + calcs**~~ — done: `skills.hpp` + `test_skills`
    (every calc compiles as game.exe's does; Bone Wall's `par34` reads `par3`),
-   `skillbar.hpp` (buttons at game.exe's positions, picker, F1–F8, the
+   `skills/bar.hpp` (buttons at game.exe's positions, picker, F1–F8, the
    save's skills), skill levels with item bonuses. Using any skill but
    Attack still swings a plain attack (logged once). Not done here: mana
    is spent by skills from phase 2 on; the picker's layout isn't traced.
@@ -2820,7 +2820,7 @@ No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
    buttons and picker; mana cost. Attack (srvdofunc 1) as today's swing.
    Files: `components/rules/skills.hpp` + `tests/test_skills.cpp` (records,
    calc compiler/VM, level brackets, mana cost); `load.hpp` (Skills.txt,
-   skillcalc.txt); `apps/d2d/skillbar.hpp` (buttons, picker, hotkeys, from
+   skillcalc.txt); `apps/d2d/skills/bar.hpp` (buttons, picker, hotkeys, from
    the save's +0x38..0x87); `fight.hpp` (casting through `Fight`).
 2. ~~**Weapon skills**~~ — **done 2026-09-26**: every melee skill game.exe
    resolves with a hit is built, except Double Throw (a missile, phase 4)
@@ -2905,14 +2905,14 @@ IconCel byte from SkillDesc.txt at `[0xb8c] + row*0x120 + 7` where the row
 is Skills.txt `+0x194 SkillDesc`, cel then blitted with FUN_004f64b0.
 Hit-rect is `[x, x+0x30] × [y-0x30, y]` — **icons are 48×48, anchored
 bottom-left**, exactly what our `SkillBar::draw` at
-`apps/d2d/skillbar.hpp:126` does.
+`apps/d2d/skills/bar.hpp:126` does.
 
 SkillDesc.txt columns: `iconcel` (string @ 006e77f4) and `ListRow` (@
 006e7808) are loaded in FUN_00613f80 (the excel loader). ListRow drives
 per-class picker rows; game.exe reads the value from the SkillDesc record
 (0x120 bytes) alongside iconcel. Pass to trace the offset next.
 
-Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
+Our picker vs game.exe (`apps/d2d/skills/bar.hpp`):
 - ✅ icon size 48, bottom-left anchor: match FUN_004a9870.
 - ✅ generic-vs-class icon fallback: match (via `scene->generic_skill_icons`).
 - ✅ ±48 column step: match.

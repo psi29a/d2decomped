@@ -12,7 +12,7 @@
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 #include "ui.hpp"
 
 #include <cues.hpp>

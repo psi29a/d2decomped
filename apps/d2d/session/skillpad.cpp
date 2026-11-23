@@ -5,10 +5,10 @@
 
 #include "common.hpp"
 #include "gamepad_map.hpp"
-#include "skillpad.hpp"
-#include "skilltree.hpp"
+#include "skills/pad.hpp"
+#include "skills/tree.hpp"
 #include "teleport_aim.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 
 #include <d2s_items.hpp>
 #include <level_ids.hpp>

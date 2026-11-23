@@ -10,7 +10,7 @@
 #include "scene.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 #include "ui.hpp"
 #include "watchdog.hpp"
 #include "world_view.hpp"

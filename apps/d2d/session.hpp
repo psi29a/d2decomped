@@ -23,13 +23,13 @@
 #include "roster.hpp"
 #include "scene.hpp"
 #include "scroll.hpp"
-#include "skillbar.hpp"
-#include "skillpad.hpp"
+#include "skills/bar.hpp"
+#include "skills/pad.hpp"
 #include "store.hpp"
 #include "teleport_aim.hpp"
 #include "tile_blit.hpp"
-#include "touch_gestures.hpp"
-#include "touch_input.hpp"
+#include "touch/gestures.hpp"
+#include "touch/input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "use_item.hpp"
@@ -666,7 +666,7 @@ struct ClientSession {
     std::uint32_t amb_next = 0, amb_last = 0;
     d2d::rules::Rng sound_rng{ 0x5eed5u };
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
-    SkillBar skillbar{ scene, character };        // the skill buttons, picker and hotkeys (skillbar.hpp)
+    SkillBar skillbar{ scene, character };        // the skill buttons, picker and hotkeys (skills/bar.hpp)
     int skillbar_set = -1;                        // the weapon set the buttons' skills are for
     // Each local player's charged entries on their hands and hotkeys (the
     // items' ids, -1 none), by Hero::id, while the screen's skillbar is

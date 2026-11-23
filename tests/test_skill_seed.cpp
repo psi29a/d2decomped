@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // First-time controller setup is a UX decision, not an original-game claim.
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 
 #include <array>
 #include <cassert>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-#include "touch_feedback.hpp"
+#include "touch/feedback.hpp"
 
 #include <cassert>
 #include <cmath>

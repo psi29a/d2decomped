@@ -2,7 +2,7 @@
 // test-links: net
 // test-includes: apps/d2d
 // Retail close coordinates from FUN_004ab530; packet decode FUN_0054c870.
-#include "skill_tree_close.hpp"
+#include "skills/tree_close.hpp"
 
 #include <d2gs/c2s.hpp>
 
