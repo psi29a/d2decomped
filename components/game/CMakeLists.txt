@@ -14,6 +14,8 @@ add_library(game STATIC
     ai/act3.cpp
     ai/act4.cpp
     ai/act5.cpp
+    character/character.cpp
+    character/character_store.cpp
     fight/deaths.cpp
     fight/merc.cpp
     fight/missiles.cpp
@@ -27,10 +29,12 @@ add_library(game STATIC
     gamedata/gamedata.cpp
     gamedata/gamedata_load.cpp
     inventory.cpp
+    item_text.cpp
     loot.cpp
     objgroups.cpp
     protocol.cpp
     replication.cpp
+    skill_text.cpp
     world/commands.cpp
     world/objects.cpp
     world/quests/act1.cpp
