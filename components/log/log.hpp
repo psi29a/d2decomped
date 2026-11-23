@@ -1,52 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Logging, after ../opendf's DF::Log: each line, stamped with the UTC time
 // (ISO 8601, ms), goes to stdout (warnings and errors to stderr) and to
-// the log file once one is open. Init sections read like ../thirdeye's
-// ("Initializing X...", details indented under it). Five levels, error
-// .. trace; lines below the level (info by default) are dropped. On a
-// terminal the [ERROR] / [WARNING] tag is red; the file gets plain text.
+// the log file once one is open (log_file.hpp). Init sections read like
+// ../thirdeye's ("Initializing X...", details indented under it). Five
+// levels, error .. trace; lines below the level (info by default) are
+// dropped. On a terminal the [ERROR] / [WARNING] tag is red; the file gets
+// plain text. The clock, the file and the terminal are log.cpp's: this
+// header is in most of the tree.
 #pragma once
 
-#include <atomic>
-#include <chrono>
-#include <cstdio>
-#include <filesystem>
 #include <format>
-#include <fstream>
-#include <ios>
-#include <mutex>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
 
-#ifdef _WIN32
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
-
 namespace d2d::log {
 
 enum class Level { error, warning, info, debug, trace };
-
-inline const auto g_start = std::chrono::steady_clock::now();
-inline std::ofstream g_file;
-inline std::mutex g_mutex;   // the music worker logs too
-inline std::atomic<Level> g_level = Level::info;
 using Sink = void (*)(Level, std::string_view);
-inline std::atomic<Sink> g_sink = nullptr;
 
 // ms since launch — also for "done (N ms)" timings.
-inline long long ms() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - g_start).count();
-}
+long long ms();
 
-inline void set_level(Level level) { g_level = level; }
-inline void set_sink(Sink sink) { g_sink = sink; }
-inline bool enabled(Level level) { return level <= g_level.load(); }
+void set_level(Level level);
+// Called with each warning and error line as written.
+void set_sink(Sink sink);
+bool enabled(Level level);
+// Windows colours only once the app has turned on VT processing for its
+// console (SetConsoleMode) and said so here.
+void set_windows_vt(bool on);
+
 // "error", "warning" (or "warn"), "info", "debug", "trace".
 inline std::optional<Level> parse_level(std::string_view name) {
     if (name == "error") return Level::error;
@@ -57,43 +41,8 @@ inline std::optional<Level> parse_level(std::string_view name) {
     return std::nullopt;
 }
 
-// `append`: add to the file (a server's log across restarts) instead of
-// starting it over.
-inline void open(const std::filesystem::path& path, bool append = false) {
-    std::lock_guard lock(g_mutex);
-    g_file.open(path, append ? std::ios::app : std::ios::trunc);
-    if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", path.string().c_str());
-}
-
-// Windows colours only once the app has turned on VT processing for its
-// console (SetConsoleMode) and set this.
-inline std::atomic<bool> g_windows_vt = false;
-
-inline bool is_terminal(std::FILE* out) {
-#ifdef _WIN32
-    return g_windows_vt && _isatty(_fileno(out)) != 0;
-#else
-    return isatty(fileno(out)) != 0;
-#endif
-}
-
-inline void write(Level level, std::string_view tag, const std::string& msg) {
-    if (!enabled(level)) return;
-    const auto stamp = std::format("{:%FT%TZ} ", std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()));
-    const auto line = stamp + (tag.empty() ? "" : std::string(tag) + " ") + msg + "\n";
-    {
-        std::lock_guard lock(g_mutex);
-        std::FILE* out = level <= Level::warning ? stderr : stdout;
-        if (level <= Level::warning && is_terminal(out))
-            std::fputs(std::format("{}\x1b[31m{}\x1b[0m {}\n", stamp, tag, msg).c_str(), out);
-        else
-            std::fputs(line.c_str(), out);
-        std::fflush(out);
-        if (g_file) g_file << line << std::flush;
-    }
-    if (level <= Level::warning)
-        if (const auto sink = g_sink.load()) sink(level, line);
-}
+// One line at `level`, `tag` before it ("" for none), if the level is on.
+void write(Level level, std::string_view tag, const std::string& msg);
 
 template <class... A> void error(std::format_string<A...> format, A&&... args) {
     write(Level::error, "[ERROR]", std::format(format, std::forward<A>(args)...));
