@@ -236,7 +236,7 @@ Sizes assume one focused developer (or agent) with the existing test harness.
 |---|---|---|
 | 1 | `PlayerSession` / `GameSession` split. Move per-player Fight state (fight.hpp:147-236) and World targets/portals/corpses/held/store/talking into `PlayerSession`. Foe list with owners. Tagged commands. `quests(player)`. Split `create_game` from `join`. | 1.5-2 weeks. It touches most of world/setup.cpp and fight/tick.cpp (~160 `player.` / ~180 `character.` sites). |
 | 2 | Room activation for N: refcounted rooms from each player's `Spawning`, all occupied levels simulated, idle unload after about 4.8 s, per-level monsters and missiles (the `kept` freeze becomes cool-down). | 1 week |
-| 3 | Unify item ids (loot.hpp:48 and world.hpp:176) into one per-game unit id allocator shared with monsters, objects and missiles as game.exe numbers them (check against net-packets.md). | 2-3 days |
+| 3 | Unit ids as game.exe numbers them: one counter per unit type per game (game `+0x90 + type × 4`, `FUN_00552ee0`; [units.md](../research/re/units.md) "Server unit ids"). Items done (`Loot::next_id`); left: players (type 0), the merc as a monster (type 1), objects (type 2, by level index today) and missiles (type 3). | 2-3 days |
 | 4 | Player-count scaling: HP/exp tables, stat 100, NoDrop with near and players, `/players` for game types 1-3. Tests against the tables in section 2. | 2 days |
 | 5 | Parties: C→S 0x5d/0x5e state, party exp split (FUN_0057e6c0), merc share, gold split (FUN_00540900), party and area quest credit, per-killer quest TC, per-player TP ownership. | 1 week |
 | 6 | D2GS codec plus TCP transport, done as step 1. Here only add the missing halves (C→S decode, S→C encode, item bitstream write). | Step 1 cost, plus 1-1.5 weeks |
