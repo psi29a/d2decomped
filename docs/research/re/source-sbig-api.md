@@ -20,3 +20,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_004237d0` | `sbig_copy` | dst, src (`RET 8`): unless dst is src, the digits via `sbig_set_digits` (`FUN_004215c0`, src `+4`, `+8`); then `+0xc` and `+0x10` copied; dst = src | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423800` | `sbig_dec` | dst, a (`RET 8`): `ESI` = dst, `EAX` = 1, then `FUN_00422fc0(a)`; dst = a − 1 (run for a ≥ 1) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004238b0` | `sbig_from_unsigned` | dst, u (`RET 8`): `ESI` = dst, then `FUN_00423540(u)`; dst = the 32-bit u | no counterpart (as `sbig_pow_mod`) |
+| `FUN_004238d0` | `sbig_inc` | dst, a (`RET 8`): `ESI` = dst, `ECX` = 1, then `FUN_004221f0(a)`; dst = a + 1 | no counterpart (as `sbig_pow_mod`) |
