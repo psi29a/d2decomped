@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-#include "skillpad.hpp"
-#include "touch_input.hpp"
+#include "skills/pad.hpp"
+#include "touch/input.hpp"
 
 #include <algorithm>
 #include <cmath>

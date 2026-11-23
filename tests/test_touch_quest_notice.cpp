@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-#include "touch_quest_notice.hpp"
+#include "touch/quest_notice.hpp"
 
 #include <cassert>
 #include <cstdio>

@@ -4,7 +4,7 @@
 // Skill-button sheets: the wheel's angle, which hand a skill uses, and the
 // per-character file. Assigning again keeps the skill; Clear is the only
 // way to empty a slot.
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 
 #include <array>
 #include <cassert>

@@ -24,11 +24,11 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
-#include "skill_tree_close.hpp"
-#include "skillpad.hpp"
-#include "skilltree.hpp"
+#include "skills/pad.hpp"
+#include "skills/tree.hpp"
+#include "skills/tree_close.hpp"
 #include "store.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 #include "ui.hpp"
 
 #include <ai/units.hpp>

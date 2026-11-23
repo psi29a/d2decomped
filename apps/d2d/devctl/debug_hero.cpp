@@ -4,7 +4,7 @@
 
 #include "debug.hpp"
 
-#include "skilltree.hpp"
+#include "skills/tree.hpp"
 
 #include <d2s_items.hpp>
 #include <rules.hpp>

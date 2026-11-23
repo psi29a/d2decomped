@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-#include "skillpad.hpp"
-#include "touch_binding.hpp"
+#include "skills/pad.hpp"
+#include "touch/binding.hpp"
 
 #include <cassert>
 #include <cmath>

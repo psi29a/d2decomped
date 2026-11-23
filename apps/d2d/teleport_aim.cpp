@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "teleport_aim.hpp"
 
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 
 #include <algorithm>
 #include <cmath>

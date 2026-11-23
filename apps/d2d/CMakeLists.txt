@@ -288,7 +288,8 @@ else()
 endif()
 target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem
-    # split over several files keeps them in its own directory (devctl/, session/).
+    # split over several files keeps them in its own directory (devctl/, session/,
+    # skills/, touch/).
     automap_reveal.cpp
     char_tooltips.cpp
     common.cpp
@@ -332,11 +333,11 @@ target_sources(d2d PRIVATE
     session/use_item.cpp
     session/view.cpp
     session/walk.cpp
-    skilltree.cpp
+    skills/tree.cpp
     store.cpp
     teleport_aim.cpp
     tile_blit.cpp
-    touch_gestures.cpp
+    touch/gestures.cpp
     ui.cpp
     use_item.cpp
     window.cpp
@@ -385,7 +386,7 @@ if(NINTENDO_SWITCH)
     nx_generate_nacp(d2d.nacp NAME "d2d" AUTHOR "D2: Decomped" VERSION "${D2D_VERSION}")
     nx_create_nro(d2d NACP d2d.nacp)
 endif()
-d2d_check_headers(d2d_headers SUBDIRS devctl session LINK
+d2d_check_headers(d2d_headers SUBDIRS devctl session skills touch LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})

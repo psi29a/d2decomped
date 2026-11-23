@@ -19,14 +19,14 @@
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
-#include "skill_tree_close.hpp"
-#include "skillpad.hpp"
-#include "skilltree.hpp"
+#include "skills/pad.hpp"
+#include "skills/tree.hpp"
+#include "skills/tree_close.hpp"
 #include "speech_sound.hpp"
 #include "spinner_step.hpp"
 #include "storage_close.hpp"
 #include "store.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 #include "ui.hpp"
 
 #include <chat_commands.hpp>

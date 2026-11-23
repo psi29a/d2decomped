@@ -4,7 +4,7 @@
 
 #include "common.hpp"
 #include "scene.hpp"
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 
 #include <box_pieces.hpp>
 #include <dc6.hpp>

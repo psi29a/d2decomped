@@ -4,7 +4,7 @@
 
 #include "common.hpp"
 #include "scene.hpp"
-#include "touch_quest_notice.hpp"
+#include "touch/quest_notice.hpp"
 
 #include <ai/units.hpp>
 #include <automap_cells.hpp>
@@ -175,7 +175,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // The maxima include what's worn (Fight::item_max).
 // The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
 // the client's frame (`frame`, 25 a second).
-// The skill buttons' icons aren't this draw's: SkillBar (skillbar.hpp)
+// The skill buttons' icons aren't this draw's: SkillBar (skills/bar.hpp)
 // draws them, as FUN_004a9870 (skills.md "Skill HUD").
 struct HudHover { int centre = 0, bottom = 0; TextLine line; };   // a bar's hover text, centred on `centre`
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;

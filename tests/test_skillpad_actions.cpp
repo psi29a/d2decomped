@@ -4,7 +4,7 @@
 // Issue #144: panel assignments survive a reload; Use works in inventory
 // and shops through the right-click path (FUN_004917c0 / FUN_00487740).
 #include "gamepad_map.hpp"
-#include "skillpad.hpp"
+#include "skills/pad.hpp"
 
 #include <cassert>
 #include <cstddef>

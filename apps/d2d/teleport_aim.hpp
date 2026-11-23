@@ -2,7 +2,7 @@
 // Shared display and release validation for predicted Teleport destinations.
 #pragma once
 
-#include "touch_input.hpp"
+#include "touch/input.hpp"
 
 #include <utility>
 

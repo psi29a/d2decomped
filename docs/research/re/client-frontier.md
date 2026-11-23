@@ -62,7 +62,7 @@ The relevant machine-code boundaries are `00453a90..00453a97`,
 No new C++ behavior is needed.
 
 - `centered_glyph_draw` is already reproduced exactly in the character and
-  skill panels (`apps/d2d/panels.cpp` and `apps/d2d/skilltree.cpp`), including
+  skill panels (`apps/d2d/panels.cpp` and `apps/d2d/skills/tree.cpp`), including
   the inclusive `+1`, strict fit comparison and left fallback.
 - d2d owns UI flags and store gamble mode as typed application state, so the
   two raw-global getters have no useful standalone port.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Definitions for skilltree.hpp: the skill tree panel.
-#include "skilltree.hpp"
+// Definitions for skills/tree.hpp: the skill tree panel.
+#include "skills/tree.hpp"
 
 #include "common.hpp"
 #include "items.hpp"
