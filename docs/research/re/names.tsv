@@ -69,6 +69,7 @@ address	name	evidence
 0041fba0	slog_stamp	EAX log record, one argument (ret 4); only with the stamp flag +0x18 (set by slog_open at 0x41fdc4): a GetLocalTime stamp "%u/%u %02u:%02u:%02u.%03u  " (0x6cff0c), refreshed when GetTickCount changes, or ... (source-frontier.md)
 0041fce0	slog_unlock	EAX lock index: LeaveCriticalSection(0x779238 + index * 0x18), the section FUN_0041fa80 entered for a found record (index id & 3); every SLog caller passes it back (source-frontier.md)
 0041fd40	slog_open	CreateFileA for writing (shared read and write, create always); a new log id (DAT_00779230 + 1) out; a log record (FUN_0041fa80) takes the handle; 1. An empty name or null out sets 0x57. Callers the gateway and ... (source-frontier.md)
+0041fdf0	slog_dump	Log id, data, size (ret 0xc): hex dump, 8 bytes a line (%04x: offset, %02x bytes, then the text, 0 as a space, others outside 0x20..0x7e as .); committed, flushed from 0xc000 (source-frontier.md)
 00420190	slog_printf	Formats into the log record's buffer (vsprintf), also to OutputDebugStringA while DAT_007790ac; flushed (FUN_0041fa40) past 0xbfff bytes. Callers FUN_00518300, FUN_00518d40 (source-frontier.md)
 00420310	storm_get_7792f4	Returns DAT_007792f4. Only caller FUN_0041caf0 (source-frontier.md)
 004210a0	sbig_grow_step	Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at +0xc. Callers FUN_00420c50, d2d_sbig_import_le, FUN_00423b30 (source-frontier.md)

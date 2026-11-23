@@ -2,11 +2,12 @@
 
 The `SOURCE` rows (Storm, statically linked) of
 `build/gaps/functions.tsv` with `frontier = true` on 2026-11-18, and
-`FUN_0041fb80`, `FUN_0041fba0`, `FUN_0041fce0` on 2026-11-23. The
+the rest of the SLog functions on 2026-11-23. The
 module's cited functions are in [source-module.md](source-module.md).
 Read from the decompile; no oracle was run for these rows but
 `FUN_0041fba0` (`tools/emu/slog_stamp.py`), `FUN_0041fb80` and
-`FUN_0041fce0` (`tools/emu/slog_helpers.py`). Re-check with
+`FUN_0041fce0` (`tools/emu/slog_helpers.py`), and the SLog calls
+`tools/emu/slog_api.py` lists in its `gaps-runs` line. Re-check with
 `tools/ghidra/fn.py <address>`. The **d2d** column is as in
 [game-frontier.md](game-frontier.md). d2d reads MPQs through StormLib and
 uses the standard library for the rest, so most rows have no counterpart.
@@ -25,6 +26,7 @@ uses the standard library for the rest, so most rows have no counterpart.
 | `FUN_0041fba0` | `slog_stamp` | `EAX` the log record, one stack argument (`RET 4`). Nothing, not even the indent, unless the record's stamp flag `+0x18` is set: `slog_open` sets it to 1 (`0x41fdc4`), and its only other writer `FUN_00420160` has no references. When `GetTickCount` differs from the cached `DAT_007792f0`, `GetLocalTime` goes through `%u/%u %02u:%02u:%02u.%03u  ` (`0x6cff0c`: month/day hour:minute:second.ms, two spaces) into `0x7792b0`, its length into `0x7792a8`. A non-zero argument copies that stamp and its 0 to the end of the text (`+0x1c` + the length `+0xc`); 0 writes as many spaces and a 0. Then `FUN_0041fb40`: `+0x14` spaces (the indent, at most 0x80, none unless positive) and a 0. The length grows by both. Callers `slog_printf` and `FUN_00420070` (argument 1), the hex dump `FUN_0041fdf0` (0: its lines line up under the stamp) | no counterpart (as `slog_open`) |
 | `FUN_0041fce0` | `slog_unlock` | `EAX` a lock index, not masked: `LeaveCriticalSection(0x779238 + index * 0x18)`, one of the four sections `FUN_00420040` initialises. It releases the section the record lookup `FUN_0041fa80` enters and keeps held when it finds the record (its out index is `id & 3`): each caller hands that index back in `EAX` (`MOV EAX,[EBP-4]` at `0x41ffb0`, `0x420207`; `[EBP+8]` at `0x41fdd2`, `0x420148`). Callers `slog_open`, `slog_printf`, `FUN_00420070`, `FUN_0041fdf0`, `FUN_0041ffc0`, `FUN_004200e0`, `FUN_00420120`, `FUN_00420160` | no counterpart (as `slog_open`) |
 | `FUN_0041fd40` | `slog_open` | `CreateFileA` for writing (shared read and write, create always); a new log id (`DAT_00779230` + 1) out; a log record (`FUN_0041fa80`) takes the handle; 1. An empty name or null out sets 0x57. Callers the gateway and Battle.net logs `FUN_00518300`, `d2d_bnclient_api`, `FUN_00518c70`, `FUN_00518d40` | no counterpart: d2d logs through `d2d::log` |
+| `FUN_0041fdf0` | `slog_dump` | Log id, data, size (`RET 0xc`): a hex dump, eight bytes a line: `FUN_0041fba0(0)` (the stamp's width in spaces and the indent, only with the flag), the offset `%04x: ` (`0x6cff3c`), each byte `%02x ` (`0x6cff34`) or three spaces past the end (`0x6cff30`), two more spaces after each fourth (`0x6cff2c`); then the bytes as text: 0x20 to 0x7e as is (`%c`, `0x6cff28`), 0 and past the end a space (`0x6ffc44`), the rest `.` (`0x6ccad8`), a space after the fourth; `slog_newline`. Then as `slog_printf`: the new text to `OutputDebugStringA` while `DAT_007790ac`, committed (`+0x10` = `+0xc`, `0x41ffa6`), flushed (`FUN_0041fa40`) from 0xc000 bytes. No record: nothing. No callers | no counterpart (as `slog_open`) |
 | `FUN_00420190` | `slog_printf` | Formats into the log record's buffer (`vsprintf`), also to `OutputDebugStringA` while `DAT_007790ac`; flushed (`FUN_0041fa40`) past 0xbfff bytes. Callers `FUN_00518300`, `FUN_00518d40` | no counterpart (as `slog_open`) |
 | `FUN_00420310` | `storm_get_7792f4` | Returns `DAT_007792f4`. Only caller `FUN_0041caf0` | no counterpart |
 | `FUN_004210a0` | `sbig_grow_step` | Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at `+0xc`. Callers `FUN_00420c50`, `d2d_sbig_import_le`, `FUN_00423b30` | no counterpart: d2d has no SRP or Warden big numbers |
