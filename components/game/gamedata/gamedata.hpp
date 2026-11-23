@@ -221,7 +221,8 @@ struct Level {
     // `stamp`: what collision took of it (set_level_tiles): the tile as it
     // was when the room it lies in came up, none if that was before its own.
     // no_fade: the tile's flag 4 (never_fades): a wall in front stays opaque.
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; bool no_fade = false; };
+    // frame / frames: an Animate preset's frame (drlg::PlacedTile), 0 frames when not animated.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; bool no_fade = false; std::uint8_t frame = 0, frames = 0; };
     // A tile's flag 4 as the DRLG makes it (FUN_0066dc50): the DS1 word's bit 3
     // or bit 26, or the DT1 tile's material flags bit 0; FUN_004dd180 then
     // never fades it (walls.md).
@@ -1294,6 +1295,9 @@ std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn);
 void finish_level(Level& level);
+// The tile to draw for `picks[index]` at `elapsed_ms`: an animated one's frame showing now (FUN_0066d3b0), in
+// frame 0's place; null for a later frame's own pick. A plain pick's own tile.
+[[nodiscard]] const d2d::dt1::Tile* animated_tile(std::span<const Level::Pick> picks, std::size_t index, std::uint32_t elapsed_ms);
 // A town of any act: no monsters, no running drain, no town portal.
 [[nodiscard]] inline bool in_town(const Level* level) { return level && d2d::rules::level_ids::is_town(level->id); }
 // A town's spawn spots from its DS1 specials: Level::start, portal_spot.

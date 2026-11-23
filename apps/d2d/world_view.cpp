@@ -305,8 +305,12 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             const auto [cell_level, off] = cell_at(cell_x, cell_y);
             if (!cell_level) continue;
             if (!cell_level->picks.empty()) {
-                for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 0 && pick.orient >= 16 && !pick.hidden) blit_cell(cell_x, cell_y, *pick.tile, 0, &pick);
+                const auto& cell_picks = cell_level->shown()[off];
+                for (std::size_t index = 0; index < cell_picks.size(); ++index) {
+                    const auto& pick = cell_picks[index];
+                    if (pick.layer == 0 && pick.orient >= 16 && !pick.hidden)
+                        if (const auto* tile = game::animated_tile(cell_picks, index, elapsed_ms)) blit_cell(cell_x, cell_y, *tile, 0, &pick);
+                }
                 continue;
             }
             for (const auto& wall_layer : cell_level->ds1.walls()) {
@@ -339,8 +343,12 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 }
             };
             if (!cell_level->picks.empty()) {                   // the floors game.exe picked
-                for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 1 && !pick.hidden) splash(*pick.tile, blit_cell(cell_x, cell_y, *pick.tile, 1, &pick));
+                const auto& cell_picks = cell_level->shown()[off];
+                for (std::size_t index = 0; index < cell_picks.size(); ++index) {
+                    const auto& pick = cell_picks[index];
+                    if (pick.layer == 1 && !pick.hidden)
+                        if (const auto* tile = game::animated_tile(cell_picks, index, elapsed_ms)) splash(*tile, blit_cell(cell_x, cell_y, *tile, 1, &pick));
+                }
                 continue;
             }
 
@@ -394,8 +402,12 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             const auto [cell_level, off] = cell_at(cell_x, cell_y);
             if (!cell_level) continue;
             if (!cell_level->picks.empty()) {
-                for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 2 && !pick.hidden) blit_cell(cell_x, cell_y, *pick.tile, 2, &pick);
+                const auto& cell_picks = cell_level->shown()[off];
+                for (std::size_t index = 0; index < cell_picks.size(); ++index) {
+                    const auto& pick = cell_picks[index];
+                    if (pick.layer == 2 && !pick.hidden)
+                        if (const auto* tile = game::animated_tile(cell_picks, index, elapsed_ms)) blit_cell(cell_x, cell_y, *tile, 2, &pick);
+                }
                 continue;
             }
             for (const auto& shadow_layer : cell_level->ds1.shadows()) {
@@ -583,8 +595,12 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             };
             if (!cell_level->picks.empty()) {
                 int wall_index = 0;
-                for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++, &pick, pick.no_fade);
+                const auto& cell_picks = cell_level->shown()[off];
+                for (std::size_t index = 0; index < cell_picks.size(); ++index) {
+                    const auto& pick = cell_picks[index];
+                    if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden)
+                        if (const auto* tile = game::animated_tile(cell_picks, index, elapsed_ms)) draw_wall(pick.orient, *tile, wall_index++, &pick, pick.no_fade);
+                }
                 continue;
             }
             int wall_index = 0;
