@@ -207,14 +207,14 @@ unit	0x4c	u32	anim_rate	256 = a frame a tick; IAS in it	docs/research/re/unit-so
 unit	0x60	ptr	inventory	inventory (FUN_00647640's equipment gate)	docs/research/re/throw.md:32
 unit	0x6c	u8	state_overlay_byte	the highest-priority active state's own +0x21 byte (FUN_004d97f0)	docs/research/re/collision.md:1537
 unit	0x78	ptr	sound_nodes	head of its own active-sound-node list (FUN_004ca900/004caa10)	docs/research/re/collision.md:1500
-unit	0x7c	u32	sound_time	its last sound	components/game/ai.hpp:186
-unit	0x80	u32	neutral_time	its last Neutral	components/game/ai.hpp:186
-unit	0x84	u32	step_time	its last footstep	components/game/ai.hpp:186
+unit	0x7c	u32	sound_time	its last sound	components/game/ai/units.hpp:225
+unit	0x80	u32	neutral_time	its last Neutral	components/game/ai/units.hpp:225
+unit	0x84	u32	step_time	its last footstep	components/game/ai/units.hpp:225
 unit	0x88	u32	ambient_reserved	sign-edge toggle reserving its ambient sounds' group slots (FUN_004cc160)	docs/research/re/collision.md:1501
-unit	0x90	ptr	events	the head of its event list (FUN_005c0c30)	components/game/ai.hpp:509
-unit	0xa0	u32	struck_by	who last struck it (FUN_00621d50 from FUN_0057c6c0)	components/game/ai.hpp:189
+unit	0x90	ptr	events	the head of its event list (FUN_005c0c30)	docs/research/re/combat.md:402
+unit	0xa0	u32	struck_by	who last struck it (FUN_00621d50 from FUN_0057c6c0)	components/game/ai/units.hpp:228
 unit	0xa4	ptr	chat_node	current chatter record	docs/research/re/ai-control.md:153
-unit	0xb0	u32	hit_class	the last hit's class: the impact its GH / KB / DT plays	components/game/ai.hpp:189
+unit	0xb0	u32	hit_class	the last hit's class: the impact its GH / KB / DT plays	components/game/ai/units.hpp:227
 unit	0xc4	u32	flags	0x400: a sound event queued	docs/research/re/char-panel.md:182
 unit	0xc8	u32	flags_ex	0x80: an object drawn; 0x2000000: classic	docs/research/re/lighting.md:186
 unit	0xd0	u32	unit_list	which of game +0x10f8's lists holds it, 0xb none	docs/research/re/monster-ai.md:57
