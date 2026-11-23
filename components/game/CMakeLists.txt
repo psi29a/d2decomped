@@ -28,6 +28,7 @@ add_library(game STATIC
     gamedata/gamedata_load.cpp
     objgroups.cpp
     protocol.cpp
+    replication.cpp
     world/commands.cpp
     world/objects.cpp
     world/quests/act1.cpp
