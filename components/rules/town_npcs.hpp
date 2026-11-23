@@ -45,7 +45,7 @@ struct NpcVisitor {
 // What a think does. A walk that can't set off thinks again `fail` frames on
 // (FUN_005a73e0's aidel, 15 for every NPC; 25 for a special's).
 struct NpcAct {
-    enum class Kind { stand, walk, mode } kind = Kind::stand;
+    enum class Kind { stand, walk, mode, attack } kind = Kind::stand;   // attack: A1 at the monster it sees (FUN_005ddf90 mode 4)
     int frames = 0;           // stand; -1: no think scheduled (till a talk starts)
     int x = 0, y = 0;         // walk, level subtiles
     int fail = 15;
@@ -93,6 +93,13 @@ NpcAct vendor_think(Rng& seed);
 
 // MonAI JarJar (81, FUN_005e7590: the palace guard, act2guard2).
 NpcAct jarjar_think(NpcBrain& brain, int x, int y, int frame, bool aside, bool stood_aside, const NpcVisitor& visitor);
+
+// MonAI Navi (58, FUN_005e7e20: Flavie). `listed`: a player in her interact
+// list (FUN_00572dc0); `visitor_busy`: the player she heeds is in an
+// interaction (FUN_00535060); `near_flag`: her player search's flag word
+// (under 4 off, or what the stack held: town-npcs.md "Flavie"); `enemy`: a monster under
+// 25 off (FUN_005ddc30). Draws one rand(3) on her unit seed with a visitor.
+NpcAct navi_think(NpcBrain& brain, Rng& seed, bool listed, const NpcVisitor& visitor, bool visitor_busy, bool near_flag, bool enemy);
 
 // The town NPCs' return line (FUN_004e0590 kind 2). The first trip out of an act
 // by its end (FUN_005467e0: Warriv, Meshif; FUN_00546ac0: the hellgate) sets a

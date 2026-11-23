@@ -83,8 +83,8 @@ struct UnitShape {
 };
 
 // The town AIs (MonAI 32 Npc FUN_005e7130, 41 Towner FUN_005e7540, 42
-// Vendor FUN_005e9e00; town-npcs.md).
-enum class TownAi { none, npc, towner, vendor, jarjar };
+// Vendor FUN_005e9e00; town-npcs.md), 81 JarJar, 58 Navi (Flavie).
+enum class TownAi { none, npc, towner, vendor, jarjar, navi };
 
 // Things the DS1 places (its object list): NPCs (type 1, from
 // data\global\monsters) and objects (type 2 — torches, fires, the
