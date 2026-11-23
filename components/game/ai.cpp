@@ -532,7 +532,7 @@ bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crow
                 int room, int& out_x, int& out_y) {
     const auto index = std::size_t(room);
     const auto rect = room < 0 ? std::nullopt : level_room(level, index);
-    if (!rect || !rooms_in_play || index >= rooms_in_play->up.size() || !rooms_in_play->up[index] || index >= rooms_in_play->room_seeds.size()) return false;
+    if (!rect || !rooms_in_play || index >= rooms_in_play->rooms_up.size() || !rooms_in_play->rooms_up[index] || index >= rooms_in_play->room_seeds.size()) return false;
     d2d::rules::SpawnRoom spawn_room{ rect->x * 5, rect->y * 5, rect->width * 5, rect->height * 5, rooms_in_play->room_seeds[index] };
     const auto& shape = game_data.mon_npc[std::size_t(type)].shape;
     const bool placed = d2d::rules::monster_detail::place(spawn_room, x, y, radius, [&](int at_x, int at_y) {

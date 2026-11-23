@@ -412,9 +412,9 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // their unit seed. Proven: tools/emu diff_drlg.py game, $LEVELS from 1.
     // Its room seeds come with the first roll on them (keep_camp_seeds).
     if (level.rooms.empty()) {
-        if (state.up.empty()) state.up.assign(room_count(level), false);
-        if (made_index >= state.up.size() || state.up[made_index]) return;
-        state.up[made_index] = true;
+        if (state.rooms_up.empty()) state.rooms_up.assign(room_count(level), false);
+        if (made_index >= state.rooms_up.size() || state.rooms_up[made_index]) return;
+        state.rooms_up[made_index] = true;
         for (const char* root : { "objects", "monsters" })
             for (auto it = level.npcs.rbegin(); it != level.npcs.rend(); ++it)
                 if (it->room == int(made_index) && !it->quest && it->root == root) {
@@ -428,13 +428,13 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         return;
     }
     const auto& region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
-    if (state.up.empty()) {
-        state.up.assign(level.rooms.size(), false);
+    if (state.rooms_up.empty()) {
+        state.rooms_up.assign(level.rooms.size(), false);
         level.region[std::size_t(difficulty)].clear();
         for (const auto& [row, rarity] : region.types) level.region[std::size_t(difficulty)].push_back(row);
     }
-    if (made_index >= level.rooms.size() || state.up[made_index] || level.walk.empty()) return;
-    state.up[made_index] = true;
+    if (made_index >= level.rooms.size() || state.rooms_up[made_index] || level.walk.empty()) return;
+    state.rooms_up[made_index] = true;
     auto& spawns = state.spawns;
     const std::size_t first = spawns.size();
     const auto& made = level.rooms[made_index];
@@ -1523,8 +1523,8 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
                 const int guard_room = room_of(*level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5);
                 if (guard_room >= 0 && std::size_t(guard_room) < level->rooms.size()) {
                     Spawning::LevelState rooms_in_play;
-                    rooms_in_play.up.assign(level->rooms.size(), false);
-                    rooms_in_play.up[std::size_t(guard_room)] = true;
+                    rooms_in_play.rooms_up.assign(level->rooms.size(), false);
+                    rooms_in_play.rooms_up[std::size_t(guard_room)] = true;
                     rooms_in_play.room_seeds.assign(level->rooms.size(), d2d::rules::Rng{});
                     const std::uint32_t room_seed = std::size_t(guard_room) < level->room1_seeds.size() ? level->room1_seeds[std::size_t(guard_room)]
                                                                                                         : level->rooms[std::size_t(guard_room)].seed;
@@ -1759,7 +1759,7 @@ std::string_view cof_weapon_class(const Npc& npc, std::string_view mode) {
     return npc.base_w;
 }
 
-// One FUN_0061a790 age step as FUN_0052d240 uses it. `up` deliberately is
+// One FUN_0061a790 age step as FUN_0052d240 uses it. `rooms_up` deliberately is
 // not cleared: room2 keeps the populated bit while room1 is absent.
 bool age_live_room(Spawning::LevelState& state, std::size_t room, bool held) {
     if (room >= state.live.size() || !state.live[room]) return false;

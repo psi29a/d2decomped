@@ -29,7 +29,7 @@ void set_sink(Sink sink);
 bool enabled(Level level);
 // Windows colours only once the app has turned on VT processing for its
 // console (SetConsoleMode) and said so here.
-void set_windows_vt(bool on);
+void set_windows_vt(bool processing);
 
 // "error", "warning" (or "warn"), "info", "debug", "trace".
 inline std::optional<Level> parse_level(std::string_view name) {

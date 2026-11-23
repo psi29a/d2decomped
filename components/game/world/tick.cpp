@@ -158,7 +158,7 @@ auto World::fissure_frame(std::uint32_t now_ms) -> void {
         const auto in_play = fight.spawning.levels.find(level);
         const auto room_up = [&](const Npc& fissure_npc) {
             if (in_play == fight.spawning.levels.end()) return true;
-            const auto& up_rooms = in_play->second.up;
+            const auto& up_rooms = in_play->second.rooms_up;
             const int room = room_of(*level, fissure_npc.x, fissure_npc.y);
             return room < 0 || (std::size_t(room) < up_rooms.size() && up_rooms[std::size_t(room)]);
         };

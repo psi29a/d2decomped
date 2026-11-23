@@ -519,7 +519,7 @@ struct ObjectRooms {
     // isn't coming up.
     d2d::rules::Rng* seed_of(std::size_t other) {
         if (other == index || !level_state) return &seed;
-        if (other < level_state->up.size() && level_state->up[other]) return &level_state->room_seeds[other];
+        if (other < level_state->rooms_up.size() && level_state->rooms_up[other]) return &level_state->room_seeds[other];
         if (std::ranges::find(level_state->order, other) == level_state->order.end()) return nullptr;
         auto& early = level_state->early_seeds[other];
         if (!early) early = d2d::rules::Rng{ other < level.room1_seeds.size() ? level.room1_seeds[other] : level.rooms[other].seed };
@@ -1360,7 +1360,7 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
 bool every_room_populated(const Spawning& spawning, const Level& level) {
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end()) return false;
-    const auto& rooms_up = found->second.up;
+    const auto& rooms_up = found->second.rooms_up;
     for (std::size_t i = 0; i < level.rooms.size(); ++i)
         if (!ObjectRooms::none(level, i) && (i >= rooms_up.size() || !rooms_up[i])) return false;
     return true;

@@ -352,7 +352,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
 // monster of `type` fits: FUN_0064d9b0, its shape on the grid and among the
 // units. FUN_005fd350 only refuses the nest BaseIds (0xce, 0xe4, 0x12a,
 // 0x14e, 0x210), none made in play. `rooms_in_play`: the level's rooms as
-// play left them (Spawning::LevelState: up, their seeds); a room not up
+// play left them (Spawning::LevelState: rooms_up, their seeds); a room not up
 // places nothing (game.exe has no room there, FUN_00463740).
 bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play, int type, int x, int y, int radius,
                 int room, int& out_x, int& out_y);

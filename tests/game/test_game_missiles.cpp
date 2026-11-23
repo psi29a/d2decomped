@@ -219,7 +219,7 @@ int main() try {
         bool kept = false;
         for (int tries = 0; tries < 200 && !(kept = keep_camp_seeds(*data, data->town, camp)); ++tries) std::this_thread::sleep_for(std::chrono::milliseconds(10));
         assert(kept);
-        camp.up.assign(camp.room_seeds.size(), true);
+        camp.rooms_up.assign(camp.room_seeds.size(), true);
         const auto council_row = data->monsters.by_id.find("councilmember1");
         const auto hydra_skill = data->skills.by_name.find("Hydra");
         assert(council_row != data->monsters.by_id.end() && hydra_skill != data->skills.by_name.end());
@@ -246,7 +246,7 @@ int main() try {
         const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
         assert(moor && !moor->rooms.empty());
         Spawning::LevelState moor_rooms;
-        moor_rooms.up.assign(moor->rooms.size(), true);
+        moor_rooms.rooms_up.assign(moor->rooms.size(), true);
         for (std::size_t room = 0; room < moor->rooms.size(); ++room) moor_rooms.room_seeds.push_back(d2d::rules::Rng{ std::uint32_t(room + 1) });
         const auto& middle = moor->rooms[moor->rooms.size() / 2];
         const auto [zombie_x, zombie_y] = moor->nearest_free(float(middle.x) + float(middle.width) / 2, float(middle.y) + float(middle.height) / 2);
