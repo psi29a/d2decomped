@@ -398,7 +398,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
                 const int own_x = sub(unit.x), own_y = sub(unit.y), owner_x = sub(actor->player.x), owner_y = sub(actor->player.y);
                 const int gap = d2d::rules::near_distance(owner_x - own_x, owner_y - own_y, kind.size);
-                const auto walk_speed = cells_per_sec(float(kind.velocity)) * float(100 + pet.speed_pct) / 100;
+                const auto walk_speed = cells_per_sec(float(kind.velocity)) * float(std::max(kMonsterVelocityPct + pet.speed_pct, 25)) / 100;   // its walk %: 75 + its stats' (FUN_00573cb0)
                 const int stride = int(std::lround(walk_speed * elapsed * 5 * 4096));
                 if (pet.homing && !unit.path.empty()) {       // the walk the step set going: on to its end
                     if (!walk_on(*level, unit, stride, crowd)) pet.homing = false;
@@ -443,6 +443,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+            // ponytail: the revived monster's stand-in chase (its own MonStats think isn't run for a pet) keeps its old
+            // pace from 100; a real think's would come from 75 (FUN_00573cb0) as pet_walking's does.
             const float speed = cells_per_sec(float(std::max(type_info.run, type_info.velocity))) * float(100 + pet.speed_pct) / 100;
             if (speed <= 0) {                                // a Hydra: it stands and shoots what comes in range
                 if (pet.target >= 0 && std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) > 6.f) pet.target = -1;
