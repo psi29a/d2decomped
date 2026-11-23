@@ -1,0 +1,19 @@
+# SOURCE: small SBig helpers — game.exe 1.14d
+
+`SOURCE` rows (Storm's big numbers, statically linked) of
+`build/gaps/functions.tsv` that were `untouched` on 2026-11-23: leaf
+helpers next to the cited `sbig_*` rows of
+[source-frontier.md](source-frontier.md). `tools/gaps.py` counts no
+callers for them but one each for `FUN_00420eb0` and `FUN_00420fe0`. A number
+keeps its entry count at `+0`, its used count at `+4`, its dword buffer
+at `+8`, its grow step at `+0xc` (`sbig_grow_step`); the temporaries'
+pool keeps 0x14-byte numbers from its start and their top at `+0x140`
+(`sbig_pow_mod`). Read from the disassembly; each row is run by
+`tools/emu/sbig_helpers.py` (its `gaps-runs` line) against a model, with
+`--mutation-check`. Re-check with `tools/ghidra/fn.py <address>`. The
+**d2d** column is as in [game-frontier.md](game-frontier.md): d2d has no
+SRP or Warden big numbers, so no row has a counterpart.
+
+| Address | Name | Reading | d2d |
+|---|---|---|---|
+| `FUN_00420db0` | `sbig_index_in_use` | `ECX` number, n (`RET 4`): 1 when `+0x10` + n is below the used count `+4`, unsigned (`CMP`, `SBB`, `NEG` at `0x420db9`), else 0 | no counterpart (as `sbig_grow_step`) |
