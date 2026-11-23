@@ -596,6 +596,9 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
             if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kSlimeDoor) {           // the Maggot Lair's (FUN_005821a0): NU only, to OP (0x5821b8), once
             if (state.mode == 0) mode = 1;                                              // then ON by its event 1 (slime_doors_on)
+        } else if (door.operate_fn == d2d::rules::operate_fn::kGate) {                // Harrogath's gate, the pen door (FUN_00582080)
+            // 500 ms after its last change (+0xd4): shut (0) opens (1, then 2 by its event 1: slime_doors_on), open shuts.
+            if (now_ms - state.when >= 500) mode = state.mode == 0 ? 1 : state.mode == 2 ? 0 : -1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
             // Mode 2: the first warp tile unit (type 5) of the door's room
             // (room +0x74's list); a room without one is game.exe's assert 0x40e.
@@ -711,11 +714,11 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
-// This level's slime doors OP long enough go ON (event 1, FUN_00581490).
+// This level's slime doors and gates OP long enough go ON (event 1, FUN_00581490).
 
 // A slime door's event 1: with Mode2 (objects.bin +0x141, 0x582209)
 // FUN_005821a0 queues it at FrameCnt1 + 1 frames on (FUN_005417d0,
-// 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
+// 0x58223c; a gate's FUN_00582080 the same); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
 // footprint ON's (HasCollision2). The time is object_op_ticks', as the
 // chests' tick: the sooner of that event and the client's OP counter's end.
 // An event comes only while the game runs the door's room (one near a
@@ -726,7 +729,7 @@ auto World::slime_doors_on(std::uint32_t now_ms) -> void {
         for (const auto& [key, state] : doors) {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
-            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor || !fight.near_players(door.x, door.y)) continue;
+            if ((door.operate_fn != d2d::rules::operate_fn::kSlimeDoor && door.operate_fn != d2d::rules::operate_fn::kGate) || !fight.near_players(door.x, door.y)) continue;
             const int on_ticks = object_op_ticks(door);
             if (on_ticks < 0) continue;
             const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;

@@ -728,9 +728,9 @@ struct World {
     }
     static bool is_door(int operate_fn) {
         using namespace d2d::rules::operate_fn;
-        return operate_fn == kDoor || operate_fn == kTrapDoor || operate_fn == kSecretDoor || operate_fn == kSlimeDoor;
+        return operate_fn == kDoor || operate_fn == kTrapDoor || operate_fn == kSecretDoor || operate_fn == kSlimeDoor || operate_fn == kGate;
     }
-    // A door, trap door, secret door or slime door (rules::door_mode): its new mode,
+    // A door, trap door, secret door, slime door or gate (rules::door_mode): its new mode,
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
