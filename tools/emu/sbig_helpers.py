@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10
+# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -32,6 +32,7 @@ MUTATIONS = {
     0x420DD0: ("take_stride_0x10", "take_no_count", "take_returns_next"),
     0x420E00: ("release_adds",),
     0x420E10: ("take_if_inverted", "take_if_no_bump"),
+    0x420EB0: ("carry_dropped", "add_returns_high", "add_keeps_low"),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
               0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
@@ -66,6 +67,15 @@ class Model:
                 return args[0], None, {}, []
             top = num(0x140)
             return (ecx + top * 0x14) & M32, None, ({} if m == "take_if_no_bump" else {0x140: (top + 1) & M32}), []
+        if address == 0x420EB0:   # 64-bit accumulator + (hi:lo): low dword back, accumulator >>= 32
+            acc = num(0) | num(4) << 32
+            total = acc + (args[0] | args[1] << 32)
+            if m == "carry_dropped":
+                total &= M64
+            low, rest = total & M32, total >> 32
+            if m == "add_keeps_low":
+                rest = total & M64
+            return (rest & M32 if m == "add_returns_high" else low), None, {0: rest & M32, 4: rest >> 32 & M32}, []
         raise ValueError(hex(address))
 
 
