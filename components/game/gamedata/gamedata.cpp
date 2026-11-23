@@ -833,6 +833,29 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     into.npcs.push_back(std::move(npc));
 }
 
+// An Animate preset's tiles (Act 4's lava): FUN_0066d440 lists frames 1..n-1 after the room's other tiles, hidden
+// (+0x14 | 8: the floor draw at 0x4dee52 skips 0x408), with a record {frames, n, position, speed, next}; the speed
+// is its LvlPrest row's +0x24, which no column fills (0x61ec90's field table: Expansion +0x20, SizeX +0x28), so 0:
+// 0x50. Each tick (FUN_0066d410 from 0x61aefd) FUN_0066d3b0 hides the shown frame, steps the position by the speed
+// mod n << 8 and shows frame position >> 8; every room starts at 0, so all run in step.
+// ponytail: the shown frame is drawn in frame 0's place. game.exe adds frames 1..n-1 to the room's list unchained
+// (0x66d6a1: edx 0), and where its floor draw puts them against the rock after them isn't read. The tick is one a
+// game frame (40 ms), also not read.
+const d2d::dt1::Tile* animated_tile(std::span<const Level::Pick> picks, std::size_t index, std::uint32_t elapsed_ms) {
+    const auto& pick = picks[index];
+    if (pick.frames == 0) return pick.tile;
+    if (pick.frame != 0) return nullptr;
+    const auto showing = std::uint8_t(std::uint64_t(elapsed_ms / 40) * 0x50 / 256 % pick.frames);
+    if (showing == 0) return pick.tile;
+    // The nth animated tile of its layer in the cell owns the nth run of frames after it.
+    std::size_t nth = 0;
+    for (std::size_t other = 0; other < index; ++other)
+        if (picks[other].frames && picks[other].frame == 0 && picks[other].layer == pick.layer) ++nth;
+    for (const auto& other : picks)
+        if (other.frames && other.layer == pick.layer && other.frame == showing && nth-- == 0) return other.tile;
+    return pick.tile;
+}
+
 // A level's tile lookup and collision grid, once its ds1 and dt1s are in.
 // The town start, as game.exe picks it on joining: DS1 special walls
 // (orientation 10/11) with main index 30..33 become the level's spawn
@@ -1074,7 +1097,7 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
             cell_picks.push_back(
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), drawn,
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
-                  cell, stamp, Level::never_fades(tile.word, drawn->material_flags) });
+                  cell, stamp, Level::never_fades(tile.word, drawn->material_flags), tile.frame, tile.frames });
         }
     return built;
 }
