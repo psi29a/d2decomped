@@ -77,6 +77,15 @@ struct OverheadRect { int left = 0, top = 0, right = 0, bottom = 0; };
 // (nullopt), no slot taken. The table reads as four (x, y) pairs, but each
 // dword scales both axes (0049e152..0049e165), so only down-right and
 // up-left are tried (bugs.md #119; d2d matches).
+// A frame's first slots (FUN_004a0e70): the NPC speech box while one is up
+// (0x7bf1c0 == 1): x 0x7bf278 = (W - 0x145) / 2, top 0x7225fc = 12, 0x145 by
+// 0x70 (npc-talk.md "Box"); none else.
+[[nodiscard]] inline std::vector<OverheadRect> overhead_frame_slots(bool speech_up, int screen_w) {
+    std::vector<OverheadRect> slots;
+    if (speech_up) slots.push_back({ (screen_w - 0x145) / 2, 12, (screen_w - 0x145) / 2 + 0x145, 12 + 0x70 });
+    return slots;
+}
+
 [[nodiscard]] inline std::optional<OverheadRect> place_overhead(std::vector<OverheadRect>& placed, const OverheadRect& box, int screen_w, int screen_h) {
     static constexpr std::array<int, 8> kSteps = { 1, 1, -1, 1, 1, -1, -1, -1 };
     if (placed.size() >= 16) return box;
