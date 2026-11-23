@@ -3,6 +3,7 @@
 // FUN_005539b0 schedules HPA1HTH; tools/emu/council_modes.py checks its deadlines.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <monsters.hpp>
