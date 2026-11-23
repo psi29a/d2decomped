@@ -209,7 +209,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // The client's do 27 (FUN_004d5090, mephistofirewallmaker): on a frame it entered a new subtile its
         // CltSubMissile1 there (mephistofirewall); every CltParam1 frames of its age a client seed step turns
         // its way: & 3 == 0 to ((x - y) x 3 / 4, (y + x) x 3 / 4), == 2 to ((x + y) x 3 / 4, (y - x) x 3 / 4)
-        // (each truncated toward 0), else on; its target its spot plus the way (FUN_00648ad0).
+        // (each truncated toward 0), else on; either way the flight re-aimed at its subtile plus the way
+        // (FUN_00648ad0, FUN_00649970: `retarget`).
         if (missile.info && missile.info->clt_do == 27 && missile.frame != frame) {
             missile.frame = frame;
             const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
@@ -224,9 +225,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 const int way_x = missile.way_x, way_y = missile.way_y;
                 if (pick == 0) { missile.way_x = (way_x - way_y) * 3 / 4; missile.way_y = (way_y + way_x) * 3 / 4; }
                 else if (pick == 2) { missile.way_x = (way_x + way_y) * 3 / 4; missile.way_y = (way_y - way_x) * 3 / 4; }
-                const float length = std::max(std::hypot(float(missile.way_x), float(missile.way_y)), 0.01f), speed = missile_speed(*missile.info, missile.level);
-                missile.velocity_x = float(missile.way_x) / length * speed; missile.velocity_y = float(missile.way_y) / length * speed;
-                missile.to = std::pair{ missile.x + float(missile.way_x) / 5, missile.y + float(missile.way_y) / 5 };
+                missile.retarget = std::pair{ (float(at_x + missile.way_x) + 0.5f) / 5, (float(at_y + missile.way_y) + 0.5f) / 5 };   // FUN_00648ad0, FUN_00649970
             }
         }
         if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
