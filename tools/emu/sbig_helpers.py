@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30 FUN_00420f60 FUN_00420fd0 FUN_00420fe0
+# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30 FUN_00420f60 FUN_00420fd0 FUN_00420fe0 FUN_00421000
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -37,6 +37,7 @@ MUTATIONS = {
     0x420F60: ("make_swapped", "make_low_only"),
     0x420FD0: ("entry_stride_1",),
     0x420FE0: ("last_one_past", "last_empty_not_null"),
+    0x421000: ("byte_stride_4",),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
               0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
@@ -95,6 +96,8 @@ class Model:
             if num(4) == 0 and m != "last_empty_not_null":
                 return 0, None, {}, []
             return (num(8) + (num(4) - (0 if m == "last_one_past" else 1)) * 4) & M32, None, {}, []
+        if address == 0x421000:   # buffer + n bytes
+            return (num(8) + args[0] * (4 if m == "byte_stride_4" else 1)) & M32, None, {}, []
         raise ValueError(hex(address))
 
 
