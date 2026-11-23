@@ -2468,8 +2468,9 @@ Cited from the decompile (no oracle run); re-check with
   (flags 2 when timed, 0x800 / 8 by the state's table bits), sets the
   stat/value pair, links it and sets the removal callback (default
   FUN_0056e900). d2d: **agrees** with `put_state` (states.cpp:57) on the
-  extend / keep-higher / replace rule; **not ported**: curse resistance
-  (objects.md:82 already notes it), state 57's block and the stat pair.
+  extend / keep-higher / replace rule and state 57's block (Attract: a curse
+  on a unit holding it is refused, `put_state`, 0x56ea40..0x56ea4a); **not
+  ported**: curse resistance (objects.md:82 already notes it) and the stat pair.
 - **FUN_004c6ac0** (796 bytes, client; caller FUN_0045d5e0): for a Skills
   record whose state short (+0x80) and stat short (+0x54) are valid, finds
   or creates the state's list (kind 0, FUN_006251f0), sets the stat to
