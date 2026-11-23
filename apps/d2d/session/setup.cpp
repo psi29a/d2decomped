@@ -150,6 +150,7 @@ auto ClientSession::enter() -> void {
         game_menu.open = false;
         controls.open = false;
         tree_close_down = false;
+        panel_tohit_class = panel_behit_class = 0x13;   // FUN_00467a00: a new game's
         world.enter(character);
         if (scene) load_keys();
         coop.clear();                             // a new game: its first player alone
