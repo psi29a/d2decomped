@@ -84,6 +84,16 @@ extra call) and the pet's `FUN_005e3ea0` follow, `pet-ai.md`
   merc put there (`FUN_00554ea0`), standing 5.
 - Modes 2 (wander), 4 and 5 aren't reached from the think.
 
+## Its walk %
+
+A hireling is a monster unit: FUN_00555230's type-1 case (0x555393..0x5553a0)
+runs FUN_00574250, whose stat init FUN_00573cb0 sets velocitypercent (0x43) to
+75 (0x573f14..0x573f1a); the hireling's level stats (FUN_00572840) leave it.
+Its walk and run go at MonStats Velocity x max(0x43 + its think's pace + its
+gear's faster run/walk (stat 96, 150 v / (150 + v)), 25) % (FUN_00623f50).
+d2d: `Fight::merc_turn`; V: `tools/emu/walk_velocity.py` (merc cases, with
+the gear's stat 96).
+
 ## The footsteps
 
 A player's data +0xa0 (cursor) / +0xa8 (20 spots). `FUN_00580c20`, the walk

@@ -794,3 +794,11 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `summon_one` does the Revive life and level by `rules::revive_life` (the oracle above); the
   registration and the missing clamp are the `pet_add` notes above.
 
+## Walk %
+
+A pet is a monster unit (FUN_0056d940 -> FUN_005b2f20 -> FUN_005b2a00 ->
+FUN_00555230's type-1 case): velocitypercent starts at 75 (FUN_00573cb0,
+0x573f14..0x573f1a), its summoning skill's passives and its think's pace add to
+it, and it walks at MonStats Velocity x that % (at least 25, FUN_00623f50).
+d2d: `Fight::pet_walking`'s sum and the revived monster's walk back to its owner
+from `kMonsterVelocityPct`; V: `tools/emu/walk_velocity.py` (pet cases).
