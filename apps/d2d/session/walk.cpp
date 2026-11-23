@@ -298,8 +298,10 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
                     net_game->log.note("object " + std::to_string(net_operate) + " couldn't be reached on the host");
                     net_operate = 0;
                     net_warp_to = -1;
-                } else if (std::hypot(net_game->host_x - spot_x, net_game->host_y - spot_y) > (warp ? 2.f : 4.f)) {
-                    if (frame_ms - net_follow_ms >= 500) {
+                } else if (const auto [at_x, at_y] = net_game->host_spot(); std::hypot(at_x - spot_x, at_y - spot_y) > (warp ? 2.f : 4.f)) {
+                    // Not sent again while the last walk's still on its way
+                    // there: each would restart host_spot's wait.
+                    if (frame_ms - net_follow_ms >= 500 && !net_game->heading_to(spot_x, spot_y, warp ? 2.f : 4.f)) {
                         net_follow_ms = frame_ms;
                         net_game->move_to(spot_x, spot_y, view.running);
                     }

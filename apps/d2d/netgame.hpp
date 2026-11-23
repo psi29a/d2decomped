@@ -108,6 +108,13 @@ struct NetGame {
     // player's is dropped (FUN_0054d750); the rest go now.
     auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void;
     auto holding() const -> bool { return !when_still.empty(); }   // an item's use waits: don't walk the host's player on
+    // Where the host has our player by now: its last word (0x95 / 0x96 /
+    // 0x18, a few seconds apart), or our last walk's end once the walk has
+    // had its time with no word since.
+    auto host_spot() const -> std::pair<float, float>;
+    // Our last walk sent ends within `reach` of act subtile (x, y), and no
+    // word since its time says it stopped short.
+    auto heading_to(float subtile_x, float subtile_y, float reach) const -> bool;
     // The host's unit of `type` (2 object, 5 warp) nearest act subtile
     // (x, y), of `cls` when >= 0; nullptr when none within `within`.
     auto nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit*;
@@ -253,6 +260,9 @@ private:
     std::uint32_t still_since_ms = 0;          // when the first of them was held
     float walk_to_x = 0, walk_to_y = 0;        // our last walk sent (0x01 / 0x03), and when
     std::uint32_t walk_sent_ms = 0;
+    std::uint32_t walk_needs_ms = 0;           // ... how long the host's player takes to walk it
+    std::uint32_t spot_heard_ms = 0;           // the host's last word of our spot (0x95 / 0x96 / 0x18 / 0x15)
+    [[nodiscard]] auto heard_after_walk() const -> bool;   // a word of our spot since the walk's time
     // A walk past the host's reach goes in legs (kWalkReach): where it ends,
     // and whether it runs; the next leg leaves when the host nears this one's end.
     float walk_goal_x = -1, walk_goal_y = -1;
