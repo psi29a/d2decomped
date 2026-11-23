@@ -868,6 +868,16 @@ int main() try {
         world.actor->character.items = std::move(kept);
         std::printf("OK: the item in hand lies in the corpse's grid\n");
     }
+
+    // Mephisto's death rows: the control's CltSubMissile1 / 2 (+0x1e / +0x20) and the maker's fire, each
+    // loaded as a sub of a row loaded (the dependency pass reads both client columns).
+    {
+        const auto& control = data->missiles.at("mephistodeathcontrol");
+        assert(control.clt_do == 26 && control.clt_sub_info && control.clt_sub2_info);
+        assert(control.clt_sub_info->name == "mephistofirewallmaker" && control.clt_sub2_info->name == "mephistoflyingrocksbig");
+        assert(control.clt_sub_info->clt_sub_info && control.clt_sub_info->clt_sub_info->name == "mephistofirewall");
+        std::printf("OK: Mephisto's death control loads its maker, rocks and fire\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
