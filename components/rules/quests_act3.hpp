@@ -54,6 +54,7 @@ struct LamEsenQuest {
     int holders = 0;               // data+8: tomes carried
     bool flourish = false;         // data+0xc: Alkor's thanks plays on the talk's close (LAB_005b76e0)
     quest::Players rewarded;         // in the record's +0x1c list (FUN_005452c0): handed in this game
+    quest::Players holders_list;     // data+0x1c: the players its item events saw take the tome (FUN_00545200 / 0x545240)
 
     // A later player joins (+0xd8, LAB_005b7bc0): a tome they carry is one
     // more about; the first, with +9 and data +5, resends log 2 (d2d's log
@@ -86,10 +87,12 @@ struct LamEsenQuest {
         if (state != 3) state = 3;
         return true;
     }
-    // The tome picked up (FUN_005b7970) / dropped (LAB_005b7a00): with +9,
-    // state 4 / 3, whatever it was (tools/emu/quest_item_events.py).
-    void picked_up() { if (open) state = 4; }
-    void dropped() { if (open) state = 3; }
+    // The tome into a player's inventory (event 4, FUN_005b7970): with +9 only, state 4 and the player on
+    // the holders list; dropped (event 5, LAB_005b7a00): off the list always, with +9 state 3, whatever it
+    // was (tools/emu/quest_item_events.py). The record's +0x14 cleared and the log sends (2 / 1, through
+    // FUN_005b7340) aren't kept: d2d's log is each player's own (log_state).
+    void picked_up(int player) { if (!open) return; state = 4; holders_list.add(player); }
+    void dropped(int player) { holders_list.remove(player); if (open) state = 3; }
     // What `npc` says (FUN_005b7400; blocks 0x73ecf0, state -> 0x73f188).
     struct E { int npc, string; bool greet; };
     static inline const std::vector<E> kBlocks[5] = {
