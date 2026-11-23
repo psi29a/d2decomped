@@ -130,6 +130,7 @@ address	name	evidence
 00423790	sbig_add	dst, a, b (ret 0xc): dst = a + b via FUN_00422300 (source-sbig-api.md)
 004237b0	sbig_and	dst, a, b (ret 0xc): dst = a & b via FUN_00422440 (source-sbig-api.md)
 004237d0	sbig_copy	dst, src (ret 8): dst = src, digits via FUN_004215c0 unless the same number, then +0xc and +0x10 (source-sbig-api.md)
+00423800	sbig_dec	dst, a (ret 8): dst = a - 1 via FUN_00422fc0 with EAX = 1 (source-sbig-api.md)
 00424e40	sbig_delete	Non-null: FUN_00421d80, then freed ("delete"). Callers FUN_0041d300, FUN_00425330, d2d_warden_verify_signature, FUN_0052a120 (source-frontier.md)
 00424e70	sbig_div	dst, a, b (ret 0xc): dst = a // b via FUN_00423dc0, the remainder to a pool temporary (source-sbig-math.md)
 00424eb0	sbig_gcd	dst, a, b (ret 0xc): dst = gcd(a, b) via FUN_00424180 (source-sbig-math.md)
