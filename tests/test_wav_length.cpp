@@ -40,6 +40,14 @@ int main() try {
     assert(d2d::rules::wav_ms(wav(44100, 66150, true)) == 1500u);   // past an odd chunk's pad byte
     assert(d2d::rules::wav_ms(wav(11100, 5550, false)) == 500u);    // IMA ADPCM: the avg byte rate
     assert(!d2d::rules::wav_ms(wav(0, 100, false)));
+    // A fmt chunk cut short before its byte rate, and a chunk whose size would wrap the walk: none, no overrun or loop.
+    auto cut = wav(44100, 100, false);
+    cut.resize(12 + 8 + 10);
+    assert(!d2d::rules::wav_ms(cut));
+    std::vector<std::byte> huge;
+    put_tag(huge, "RIFF"); put32(huge, 0); put_tag(huge, "WAVE");
+    put_tag(huge, "LIST"); put32(huge, 0xfffffff8u);
+    assert(!d2d::rules::wav_ms(huge));
     std::vector<std::byte> junk(40, std::byte(0));
     assert(!d2d::rules::wav_ms(junk));
     std::puts("OK: wav_ms");
