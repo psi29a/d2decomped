@@ -33,3 +33,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00423a80` | `sbig_shl` | dst, a, n (`RET 0xc`): `EDI` = dst, `EAX` = n, then `FUN_00422d00(a)`; dst = a << n | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423aa0` | `sbig_shr` | dst, a, n (`RET 0xc`): `ESI` = dst, `EAX` = n, then `FUN_00422e70(a)`; dst = a >> n | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423ac0` | `sbig_sub` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00423100(a, b)`; dst = a − b (run for a ≥ b) | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423b80` | `sbig_to_binary_view` | a, pointer out, count out (`RET 0xc`): `FUN_004235f0` fills the byte array at a `+0x158`; *pointer out = its buffer `+0x160` (owned by a), and a non-null count out gets its count `+0x15c`: a's little-endian bytes with no high zero byte (none for 0) | no counterpart (as `sbig_pow_mod`) |
