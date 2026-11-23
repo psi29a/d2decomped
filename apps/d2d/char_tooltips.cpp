@@ -9,6 +9,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <monsters.hpp>
+#include <montypes.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -49,9 +50,9 @@ void draw_char_tooltips(std::vector<std::uint8_t>& framebuffer, const Scene& sce
     const auto stats_of = [&](int cls) { d2d::rules::Rng unused{ 1 }; return d2d::rules::monster_stats(scene.monsters, cls, difficulty, unused); };
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto format = [](std::string pattern, const std::string& name, int pct) {   // %s then %d, "%%" kept as one
-        if (const auto at = pattern.find("%s"); at != std::string::npos) pattern.replace(at, 2, name);
-        if (const auto at = pattern.find("%d"); at != std::string::npos) pattern.replace(at, 2, std::to_string(pct));
-        for (std::size_t at = pattern.find("%%"); at != std::string::npos; at = pattern.find("%%", at + 1)) pattern.erase(at, 1);
+        if (const auto found_at = pattern.find("%s"); found_at != std::string::npos) pattern.replace(found_at, 2, name);
+        if (const auto found_at = pattern.find("%d"); found_at != std::string::npos) pattern.replace(found_at, 2, std::to_string(pct));
+        for (std::size_t pos = pattern.find("%%"); pos != std::string::npos; pos = pattern.find("%%", pos + 1)) pattern.erase(pos, 1);
         return pattern;
     };
     // To hit.
@@ -92,8 +93,8 @@ void draw_char_tooltips(std::vector<std::uint8_t>& framebuffer, const Scene& sce
         if (panel.block > 0) {
             std::string block = string_id(scene, 0x2779);
             block = block.substr(0, block.find('\n'));
-            if (const auto at = block.find("%d"); at != std::string::npos) block.replace(at, 2, std::to_string(panel.block));
-            if (const auto at = block.find("%%"); at != std::string::npos) block.erase(at, 1);
+            if (const auto found_at = block.find("%d"); found_at != std::string::npos) block.replace(found_at, 2, std::to_string(panel.block));
+            if (const auto found_at = block.find("%%"); found_at != std::string::npos) block.erase(found_at, 1);
             lines.push_back({ block, kTxtWhite });
         }
         lines.push_back({ chance, kTxtWhite });

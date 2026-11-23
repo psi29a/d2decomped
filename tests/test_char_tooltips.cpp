@@ -7,6 +7,7 @@
 // 60+115); off it nothing; the defence's under x 80+0xad..80+0x137, y 540-0x11e..540-0x10b draws a hover
 // box from (80+0x8b, 540-0x13b). Made-up rows and a one-glyph font: the places, not the game's art.
 
+#include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 

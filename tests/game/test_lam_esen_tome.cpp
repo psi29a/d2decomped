@@ -11,6 +11,7 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <protocol.hpp>
 #include <quests_act3.hpp>
 #include <rules.hpp>
 #include <world.hpp>
@@ -20,8 +21,6 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <utility>
-#include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;

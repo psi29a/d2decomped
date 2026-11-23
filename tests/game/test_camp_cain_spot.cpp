@@ -9,9 +9,9 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
-#include <level_ids.hpp>
-#include <object_ids.hpp>
+#include <monster_ids.hpp>
 #include <obj_preset.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <world.hpp>
@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <tuple>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
