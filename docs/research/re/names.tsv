@@ -73,6 +73,7 @@ address	name	evidence
 0041ffc0	slog_flush	Log id (ret 4): FUN_0041fa40 on its record: all its text, pending part too, to WriteFile and FlushFileBuffers; both lengths 0 (source-frontier.md)
 00420070	slog_pend	Log id, format, ... (cdecl): back to the committed length +0x10, a stamped vsprintf line and CR LF, not committed: the next pend replaces it (source-frontier.md)
 004200e0	slog_set_indent	Log id, value (ret 8): the indent +0x14 becomes the value; returns the old indent, 0 with no record (source-frontier.md)
+00420120	slog_add_indent	Log id, step (ret 8): the indent +0x14 grows by the step; returns the old indent, 0 with no record. Only caller FUN_00518c70 (source-frontier.md)
 00420190	slog_printf	Formats into the log record's buffer (vsprintf), also to OutputDebugStringA while DAT_007790ac; flushed (FUN_0041fa40) past 0xbfff bytes. Callers FUN_00518300, FUN_00518d40 (source-frontier.md)
 00420310	storm_get_7792f4	Returns DAT_007792f4. Only caller FUN_0041caf0 (source-frontier.md)
 004210a0	sbig_grow_step	Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at +0xc. Callers FUN_00420c50, d2d_sbig_import_le, FUN_00423b30 (source-frontier.md)
