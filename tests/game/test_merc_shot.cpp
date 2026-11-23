@@ -6,7 +6,8 @@
 // with the Missiles row d2d shoots (Fight::merc_shot), its level and the
 // row's own physical min and max at it (256ths, missile_phys), with the
 // game's MPQs (D2_MPQ_DIR). Without arguments: the pick, a roguehire's shot at
-// a zombie in a frame of its turn (merc_turn), and rogue1's point in the blow.
+// a zombie in a frame of its turn (merc_turn), and rogue1's point in the blow
+// (that one without game data, so CI runs it).
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -62,9 +63,34 @@ int shot_cases(const GameData& data, const Fight& fight) {
     return 0;
 }
 
+// rogue1's MinDamage / MaxDamage 1 (HitShift 8): a point more in the roll, before the crit. No game data.
+void row_point_checks() {
+    auto bow = d2d::rules::simple_fighter(10, 10, 1000000);
+    const d2d::rules::Target zombie{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1 };
+    d2d::rules::Swing plain;
+    plain.missile = true;
+    auto with_row = plain;
+    with_row.row_lo = with_row.row_hi = 256;
+    const auto blow = [&](const d2d::rules::Swing& swing) {   // the first that lands, on the same draws each time
+        d2d::rules::Rng roll{ 3 };
+        auto landed = d2d::rules::player_blow(bow, zombie, 2, roll, swing);
+        for (int tries = 0; tries < 20 && !landed.hit; ++tries) landed = d2d::rules::player_blow(bow, zombie, 2, roll, swing);
+        return landed;
+    };
+    assert(blow(plain).hit && blow(plain).phys == 10 && blow(with_row).phys == 11);
+    bow.phys_pct = 50;                                           // the record's +0x78 scales the row's point too
+    assert(blow(plain).phys == 15 && blow(with_row).phys == 16);
+    bow.phys_pct = 0;
+    bow.deadly = 100;
+    assert(blow(with_row).phys == 22);
+    std::puts("OK: rogue1's point joins the roll, scaled by the damage % and doubled by a deadly strike (FUN_0064b860, FUN_005a89a0)");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
+    const bool oracle = argc > 1 && std::string_view(argv[1]) == "--merc-shot";
+    if (!oracle) row_point_checks();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -83,7 +109,7 @@ int main(int argc, char** argv) try {
     World world(&*data, -1, -1);
     world.enter(character);
     auto& fight = world.fight;
-    if (argc > 1 && std::string_view(argv[1]) == "--merc-shot") return shot_cases(*data, fight);
+    if (oracle) return shot_cases(*data, fight);
 
     // The pick: rogue1 at the skill's level; magicarrow at stat 157's, before explodingarrow at 158's; none at 0 or under.
     const auto& rogue_missile = *data->skills.get(data->skills.by_name.at("RogueMissile"));
@@ -128,26 +154,6 @@ int main(int argc, char** argv) try {
     assert(shots > 0);
     std::puts("OK: a roguehire shoots rogue1 at a zombie (RogueMissile, do 110)");
 
-    // rogue1's MinDamage / MaxDamage 1 (HitShift 8): a point more in the roll, before the crit.
-    auto bow = d2d::rules::simple_fighter(10, 10, 1000000);
-    const d2d::rules::Target zombie{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1 };
-    d2d::rules::Swing plain;
-    plain.missile = true;
-    auto with_row = plain;
-    with_row.row_lo = with_row.row_hi = 256;
-    const auto blow = [&](const d2d::rules::Swing& swing) {   // the first that lands, on the same draws each time
-        d2d::rules::Rng roll{ 3 };
-        auto landed = d2d::rules::player_blow(bow, zombie, 2, roll, swing);
-        for (int tries = 0; tries < 20 && !landed.hit; ++tries) landed = d2d::rules::player_blow(bow, zombie, 2, roll, swing);
-        return landed;
-    };
-    assert(blow(plain).hit && blow(plain).phys == 10 && blow(with_row).phys == 11);
-    bow.phys_pct = 50;                                           // the record's +0x78 scales the row's point too
-    assert(blow(plain).phys == 15 && blow(with_row).phys == 16);
-    bow.phys_pct = 0;
-    bow.deadly = 100;
-    assert(blow(with_row).phys == 22);
-    std::puts("OK: rogue1's point joins the roll, scaled by the damage % and doubled by a deadly strike (FUN_0064b860, FUN_005a89a0)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_merc_shot: %s\n", error.what());
