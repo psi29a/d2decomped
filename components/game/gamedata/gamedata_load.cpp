@@ -131,7 +131,7 @@ void place_act1(GameData& game_data, d2d::mpq::Stack& mpqs, const d2d::drlg::Out
 }
 
 // Monster tables (MonStats, MonStats2, MonLvl), unique names and mods, and
-// every level's Levels.txt monster columns (components/rules/monsters.hpp).
+// every level's Levels.txt monster columns (components/rules/monsters/monsters.hpp).
 void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");

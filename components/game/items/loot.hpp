@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Loot: what kills drop (treasure classes, components/rules/drops.hpp) lying
+// Loot: what kills drop (treasure classes, components/rules/items/drops.hpp) lying
 // on each level's floor, drawn with each item's flippy, and picking it
 // up into the purse or the inventory.
 #pragma once
