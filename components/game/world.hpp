@@ -717,7 +717,7 @@ struct World {
         using namespace d2d::rules::operate_fn;
         return std::ranges::contains(std::array{ kCasket, kShrine, kUrn, kChest, kBarrel, kExplodingBarrel, kCorpse, kArmorStand, kWeaponRack, kWell, kBookshelf, kTrapObject, kWirtBody,
                                                  kCubeChest, kScrollChest, kShaftChest, kTeleportPad, kLamTome, kHellgate, kGidbinnAltar, kKhalimHeart, kKhalimEye, kKhalimBrain,
-                                                 kSewerLever, kSewerStairs, kCompellingOrb, kHellforge, kSeal, kSealInfector, kSealDeSeis, kSealVizier, kLastPortal }, operate_fn)
+                                                 kSewerLever, kSewerStairs, kStairs, kDuranceStairs, kCompellingOrb, kHellforge, kSeal, kSealInfector, kSealDeSeis, kSealVizier, kLastPortal }, operate_fn)
             || is_door(operate_fn);
     }
     // The quests' objects a click walks up to and operates (the quest says
@@ -820,6 +820,8 @@ struct World {
     // Taking a warp (a cave mouth): a click by one walks there; close to it, the player goes to the level it
     // leads to and stands at that level's warp back, at its ExitWalk.
     void use_warp();
+    // Through `warp` now (FUN_005550b0): to the level it leads to, at that level's warp back and its ExitWalk.
+    void travel_warp(const Level::Warp& warp);
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
     // tile unit's subtile ((x - y) * 16, (x + y) * 8, FUN_00643260), edges in.
