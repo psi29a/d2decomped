@@ -24,3 +24,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_004238f0` | `sbig_is_odd` | a (`RET 4`): `ESI` = a, then `FUN_00422710`; returns 1 for an odd a, else 0 | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423910` | `sbig_is_one` | a (`RET 4`): `ESI` = a, then `FUN_00422750`; returns 1 when a is 1, else 0 | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423930` | `sbig_is_zero` | a (`RET 4`): `ESI` = a, then `FUN_00422780`; returns 1 when a is 0, else 0 | no counterpart (as `sbig_pow_mod`) |
+| `FUN_004239e0` | `sbig_not` | dst, a (`RET 8`): `ESI` = dst, then `FUN_004228c0(a)`; dst = a with its dwords complemented, over a's width (at least one dword): a XOR (2^(32·w) − 1) | no counterpart (as `sbig_pow_mod`) |
