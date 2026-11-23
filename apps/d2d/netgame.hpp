@@ -61,6 +61,10 @@ struct NetGame {
         float skill_x = 0, skill_y = 0;   // where it went
         std::vector<int> cast_starts;    // received 0x4c / 0x4d starts awaiting the view
         d2d::rules::OneShots cast_overlays;
+        // The current monster skill command's aim. Target IDs use the units map key.
+        std::optional<std::uint64_t> cast_target;
+        int cast_level = 0;
+        bool cast_action = false;    // the current mode passed its action frame
         std::uint64_t follow = 0;     // a monster's 0x68 target (type << 32 | id), re-pathed to while it walks; 0 none
         std::uint32_t follow_ms = 0;  // when it last was (steady ms)
         int velocity_pct = 100;       // a monster's stat 0x43 velocitypercent, from its moves (0x67 / 0x68)

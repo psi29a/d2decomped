@@ -426,7 +426,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     // rand(5) + 1 for its record +0x30, then aimed rand(2n + 1) - n subtiles off on each axis (both 0:
     // x rand(n) + 1), n cHitPar1 (at least 3), its way that offset; all on its client seed (+0x20).
     const auto rock_shards = [&](Missile& missile) {
-        const auto* shard = missile.info ? missile.info->clt_hit_sub_info : nullptr;
+        const auto* shard = missile.info ? missile.info->clt_hit_subs[0] : nullptr;
         if (!shard || missile.info->clt_hit != 33) return;
         if (!missile.client_seeded) {
             missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));

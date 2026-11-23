@@ -298,10 +298,25 @@ calls `FUN_004c68f0` for the active skill, and `FUN_004c6680` reads the
 client missile row at skill record +0xe8. Ice Blast, Glacial Spike,
 and HydraMissile name missile rows 91, 96, and 247. Fire Bolt, Fire Ball,
 Ice Bolt, and Lightning use the same field. Frozen Orb uses its client
-do callback instead. Glacial Spike's client hit callback
-`FUN_004cf640` uses the two client hit sub-missile rows. The TCP/IP
-view plays the start overlays but still omits these client projectiles
-and their impact effects.
+do callback instead. The Act III cold hireling uses Hireling.txt mode
+7 (SC) for Ice Blast and Glacial Spike. MonStats rows 351–353 use A1
+for HydraMissile even though the skill's monanim is SC.
+
+The original also calls `FUN_004af2e0` from `LAB_004b154f`. Its client
+lookup runs `FUN_0063e6b0` with the animation-event gate enabled. For
+Council S1 that lookup produces MissS1 (row 343, highpriestlightning)
+upon crossing the action frame. The client creation request uses
+level 1 and the latest target position. The packet oracle checks both
+missile selectors in the original.
+
+The joined d2d view plays straight monster projectiles from those
+rows and keeps them separate from damage simulation. Glacial Spike's
+client hit callback `FUN_004cf640` names its centre and ejecta
+sub-missiles and chooses the spokes from the missile seed. The joined
+view uses the aimed unit and wall collisions for this effect. Its
+seed starts from the local room, so it does not reproduce the original's
+order of seed draws across client unit creation. Interception by other
+units and the specialized projectile callbacks are still untraced here.
 
 `test_council_a1 --host-pose` dumps every active tick and the end tick
 for A1 and S1 on each of the three classes, at stock speed, through a

@@ -76,6 +76,72 @@ def check_skill_commands(exe):
         print(f"{packet[0]:#04x}: skill 62, command {command:#04x}, aim {aim}")
 
 
+def check_client_missile_rows(exe):
+    """Run the original skill action up to the ordinary client missile constructor."""
+    oracle = Emu(exe=str(exe))
+    tables, rows, caster = (oracle.alloc(size) for size in (0x1000, 338 * 0x23c, 0x200))
+    oracle.w32(0x744304, tables)
+    oracle.w32(tables + 0xb98, rows)
+    oracle.w32(tables + 0xba0, 338)
+    oracle.w32(0x727db0, 1)
+    oracle.w32(0x727ba8, 0)
+    launches = []
+
+    def launch(machine):
+        launches.append((oracle.mu.reg_read(UC_X86_REG_ECX), oracle.mu.reg_read(UC_X86_REG_EDX),
+                         machine.arg(0), machine.arg(1)))
+        return 1
+
+    oracle.hook(0x4c57b0, launch, 6)
+    oracle.hook(0x643a00, lambda _machine: 0, 2)
+    oracle.hook(0x646ca0, lambda _machine: 0, 4)
+    for skill, missile in ((45, 91), (55, 96), (62, -1), (337, 247)):
+        oracle.mu.mem_write(rows + skill * 0x23c + 0xe8, struct.pack("<h", missile))
+        oracle.call(0x4c6680, 4, 0, ecx=caster, edx=skill, limit=1000)
+        assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+        assert launches == ([(missile, caster, skill, 4)] if missile >= 0 else []), launches
+        launches.clear()
+        print(f"skill {skill}: client missile row {missile}")
+
+
+def check_client_s1_missile(exe):
+    """The original client selects MissS1 only when its action frame is crossed."""
+    oracle = Emu(exe=str(exe))
+    tables, rows, caster, target = (oracle.alloc(size) for size in (0x1000, 348 * 0x1a8, 0x200, 0x200))
+    oracle.w32(0x744304, tables)
+    oracle.w32(tables + 0xa78, rows)
+    oracle.w32(tables + 0xa80, 348)
+    oracle.w32(caster, 1)
+    oracle.w32(caster + 0x10, 8)
+    oracle.w32(caster + 0x48, 14 << 8)
+    oracle.w32(caster + 0x4c, 168 | (2 << 16))
+    animation = bytearray(160)
+    animation[16 + 3] = 2
+    oracle.w32(caster + 0x50, oracle.put(bytes(animation)))
+    oracle.hook(0x4648f0, lambda _machine: target, 0)
+    oracle.hook(0x45adf0, lambda _machine: 5707, 0)
+    oracle.hook(0x45ae20, lambda _machine: 4995, 0)
+    oracle.hook(0x4af1b0, lambda _machine: 0, 4)
+    launches = []
+
+    def launch(machine):
+        request = oracle.mu.reg_read(UC_X86_REG_ECX)
+        launches.append(tuple(oracle.r32(request + offset) for offset in (0, 0x10, 0x1c, 0x20, 0x30)))
+        return 0
+
+    oracle.hook(0x4cd540, launch, 0)
+    for monster_class in (345, 346, 347):
+        oracle.w32(caster + 4, monster_class)
+        oracle.mu.mem_write(rows + monster_class * 0x1a8 + 0x3e, struct.pack("<h", 343))
+        for position, fires in ((672, False), (840, True), (1008, False)):
+            oracle.w32(caster + 0x44, position)
+            oracle.call(0x4af2e0, regs={"eax": caster}, limit=1000)
+            assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+            assert launches == ([(0x20, 343, 5707, 4995, 1)] if fires else []), launches
+            launches.clear()
+        print(f"class {monster_class}: client S1 selects missile 343 on the crossing tick")
+
+
 def check_state_stats(exe):
     """Run the original 0xa8 decoder through the signed send fields."""
     oracle = Emu(exe=str(exe))
@@ -115,4 +181,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     check(args.exe)
     check_skill_commands(args.exe)
+    check_client_missile_rows(args.exe)
+    check_client_s1_missile(args.exe)
     check_state_stats(args.exe)

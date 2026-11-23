@@ -283,6 +283,7 @@ struct Skill {
     std::array<std::string, 3> itype_a, itype_b;
     std::array<std::string, 2> etype_a, etype_b;
     std::string monanim;                   // +0x11: a monster's mode for it (FUN_00647110; xx: SQ)
+    std::string clt_missile;                // +0xe8: the missile made on the client's action frame
     int aitype = 0, aibonus = 0;           // +0x230 / +0x232: how the Shadows' AIs score it (pet-ai.md)
     int attack_rank = 0;                   // attackrank (+0x18e): Diablo's target score weighs it (FUN_005e8530)
     bool progressive = false;              // flags +4 bit 2: a charge-up

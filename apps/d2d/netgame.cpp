@@ -558,11 +558,16 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             unit.mode_ms = steady_ms();
             unit.attack_pose = {};
             unit.attack_aim.reset();
+            unit.cast_action = false;
+            unit.cast_target = std::nullopt;
+            unit.cast_level = 1;
             if (command->point) unit.attack_aim = *command->point;
             else if (command->target) {
                 const auto target = units.find(key(command->target->first, command->target->second));
-                if (target != units.end() && &target->second != &unit)
+                if (target != units.end() && &target->second != &unit) {
                     unit.attack_aim = {target->second.x, target->second.y};
+                    unit.cast_target = target->first;
+                }
             }
             if (unit.mode == 8 || unit.mode == 9) { unit.life = 0; unit.moving = false; }   // dying / dead: no hit says so
         }
@@ -703,7 +708,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 15) {
             auto& unit = unit_at(1, read_u32(packet, 1));
             walk(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = packet[5];
+            if (d2d::rules::monster_ids::is_council(unit.cls) || unit.mode == 0x15 || unit.mode == 0x16) unit.mode = packet[5];
             if (const auto pct = std::int16_t(read_u16(packet, 0xd)); pct != 0) {
                 unit.velocity_pct = pct;
                 unit.animation_base_velocity = pct - unit.animation_stats().velocity;
@@ -714,7 +719,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 20) {
             auto& unit = unit_at(1, read_u32(packet, 1));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = packet[5];
+            if (d2d::rules::monster_ids::is_council(unit.cls) || unit.mode == 0x15 || unit.mode == 0x16) unit.mode = packet[5];
             if (const auto pct = std::int16_t(read_u16(packet, 0x12)); pct != 0) {
                 unit.velocity_pct = pct;
                 unit.animation_base_velocity = pct - unit.animation_stats().velocity;
@@ -731,7 +736,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             auto& unit = unit_at(1, read_u32(packet, 1));
             place(unit, read_u16(packet, 5), read_u16(packet, 7));
             unit.life = packet[9];
-            if (d2d::rules::monster_ids::is_council(unit.cls)) unit.mode = 7;
+            if (d2d::rules::monster_ids::is_council(unit.cls) || unit.mode == 0x15 || unit.mode == 0x16) unit.mode = 7;
         }
         break;
     case 0x4c:   // a skill on a unit: +1 caster type, +2 id, +6 u16 skill, +9 target type, +0xa id
@@ -750,11 +755,14 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
                 aim = {target->second.x, target->second.y};
             if (aim) { unit.skill_x = aim->first; unit.skill_y = aim->second; }
             if (aim) unit.cast_starts.push_back(unit.skill);
-            if (living_monster && d2d::rules::monster_ids::is_council(unit.cls)) {
+            if (living_monster && aim) {
                 unit.mode = cast->point ? 0x15 : 0x16;
                 unit.mode_ms = unit.skill_ms;
                 unit.attack_pose = {};
                 unit.attack_aim = aim;
+                unit.cast_action = false;
+                unit.cast_level = cast->level;
+                unit.cast_target = cast->target ? std::optional{key(cast->target->first, cast->target->second)} : std::nullopt;
                 unit.moving = false;
                 unit.follow = 0;
             }
