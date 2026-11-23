@@ -268,12 +268,14 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // one is up (0x7bf1c0 == 1): its x (0x7bf278, (W - 0x145) / 2), its
         // top (0x7225fc, 12), 0x145 by 0x70 (npc-talk.md "Box"), so no box
         // lands on it; then the players', the monsters' and the objects' tables.
-        // ponytail: each table's own order isn't traced; d2d goes in `units` order.
+        // ponytail: each table's own order isn't traced; within each d2d goes in `units` order.
         auto overhead_slots = overhead_frame_slots(speech && speech->npc >= 0, int(kScreenWidth));
+        const auto speakers = overhead_order(std::span<const Unit>(units), [](const Unit& unit) { return unit.says || !unit.said.empty(); },
+                                             [](const Unit& unit) { return unit.npc == -1 || unit.npc <= -4000; });
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-        for (const auto& unit : units) {
-            if (!unit.says && unit.said.empty()) continue;
+        for (const Unit* speaker : speakers) {
+            const auto& unit = *speaker;
             const bool player = unit.npc == -1 || unit.npc <= -4000;
             const int point_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
             const int point_y = kFloorViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2))) - (player ? 0x1e : 10);

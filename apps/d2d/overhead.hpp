@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -84,6 +85,17 @@ struct OverheadRect { int left = 0, top = 0, right = 0, bottom = 0; };
     std::vector<OverheadRect> slots;
     if (speech_up) slots.push_back({ (screen_w - 0x145) / 2, 12, (screen_w - 0x145) / 2 + 0x145, 12 + 0x70 });
     return slots;
+}
+
+// The units whose text goes up this frame, in FUN_004a0e70's order: the
+// players' table (d2d_unit_each_table_a_player), then the monsters' (the
+// objects' carry none here); each table's own order is `units`' (not traced).
+template <class Unit, class Speaks, class IsPlayer>
+[[nodiscard]] std::vector<const Unit*> overhead_order(std::span<const Unit> units, Speaks&& speaks, IsPlayer&& is_player) {
+    std::vector<const Unit*> out;
+    for (const auto& unit : units) if (speaks(unit)) out.push_back(&unit);
+    std::ranges::stable_partition(out, [&](const Unit* unit) { return is_player(*unit); });
+    return out;
 }
 
 [[nodiscard]] inline std::optional<OverheadRect> place_overhead(std::vector<OverheadRect>& placed, const OverheadRect& box, int screen_w, int screen_h) {
