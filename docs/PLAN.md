@@ -94,17 +94,29 @@ and sound.
 
 | Area | Rules (`components/rules`, tested) | Game (`components/game`) | Client (`apps/d2d`) |
 |---|---|---|---|
-| Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `inventory.hpp`, `item_text.hpp` | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
-| Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `ai.hpp` (units, AI, missiles) | `load.hpp` (`load_monsters`) |
-| Monster AI: each MonAI's think, by act | `thinks.hpp`, `thinks/act1..5.hpp` (`test_monster_thinks`, `test_monster_ai`: the emu oracles' cases) | `ai.cpp` (`think`, the driver), `ai/act1..5.cpp` (each AI's game side) | |
-| Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) | |
-| Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) | |
-| Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | skill use in `fight.hpp` | `skillbar.hpp` (HUD buttons, picker, hotkeys) |
-| Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `gamedata.hpp` (`build_level`, `build_outdoor`) | |
+| Items, stores, gambling, hiring, potions | `rules.hpp` (the tables), `items/vendor.hpp`, `items/item_price.hpp`, `items/wear.hpp`, `items/item_gen.hpp`, `items/drink.hpp`, `monsters/hire.hpp` (`test_rules`) | `items/inventory.hpp`, `items/item_text.hpp` | `items/items.hpp`, `panels/store.hpp`, `items/cursor.hpp`, `panels/panels.hpp` |
+| Monsters: tables, spawning, stats | `monsters/monsters.hpp` (`test_monsters`) | `ai/units.hpp` (Monster, Foe, Missile), `ai.hpp` (their functions) | `load.hpp` (`load_monsters`) |
+| Monster AI: each MonAI's think, by act | `ai/thinks.hpp`, `ai/thinks/act1..5.hpp` (`test_monster_thinks`, `test_monster_ai`: the emu oracles' cases) | `ai.cpp` (`think`, the driver), `ai/act1..5.cpp` (each AI's game side) | |
+| Combat: Fighter, blows, speed, experience | `combat/combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) | |
+| Drops: treasure classes, quality | `items/drops.hpp` (`test_drops`) | `items/loot.hpp` (`Loot`) | |
+| Skills: records, calc VM, levels, mana | `combat/skills.hpp` (`test_skills`), `points.hpp` (stat and skill points) | skill use in `fight.hpp` | `skills/bar.hpp` (HUD buttons, picker, hotkeys) |
+| Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `gamedata/level.hpp` (`Level`, `build_level`, `build_outdoor`), `gamedata/spawning.hpp` (rooms in play) | |
 | The game server: levels, units, commands, the 25 Hz tick | | `world.hpp` (`World`), `protocol.hpp` (`Command`), `replication.hpp` (`View`) | |
-| The client: input, panels, camera, drawing | | | `session.hpp` (`ClientSession`), `world_view.hpp` (drawing the level and units) |
+| The client: input, panels, camera, drawing | | | `session.hpp` (`ClientSession`), `render/world_view.hpp` (drawing the level and units), `input/` (pad, keys, `input/touch/`) |
 | Scripted-test verbs | | | `devctl/verbs.hpp`, `debug`'s sub-verbs in `devctl/debug_*.cpp` (+ info/screenshot/quit in `main.cpp`) |
-| World sounds | | `cues.hpp` (`Cues`, queued by the World) | `audio.hpp` (`play_cues`) |
+| World sounds | | `cues.hpp` (`Cues`, queued by the World) | `audio/audio.hpp` (`play_cues`) |
+
+**Folders and headers.** Each component is grouped by subject:
+`components/rules/` in `ai/`, `combat/`, `items/`, `monsters/`, `quests/`,
+`sound/`, `ui/` and `world/`, and `components/game/` in `ai/`, `character/`,
+`fight/`, `gamedata/`, `items/`, `npc/` and `world/`. A component's folders
+are on its include path, so a file there is included by name
+(`<skills.hpp>`). The client's folders (`audio/`, `devctl/`, `frontend/`,
+`input/`, `items/`, `panels/`, `render/`, `session/`, `skills/`) are named in
+the include (`"panels/store.hpp"`). A header holds declarations; bodies go in
+its `.cpp` (AGENTS.md 7). `GameData` holds the town, the MPQs and the act
+layouts by pointer: include `level.hpp` only where a `Level` is built or
+walked, `spawning.hpp` where rooms come into play.
 
 **The game and the client.** The game is `components/game`, namespace
 `d2d::game`: a library that `test_game` links alone, so nothing there may
@@ -297,7 +309,7 @@ D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
    isn't built (Stony Field) logs "not implemented". ponytail: the
    neighbour's NPCs aren't drawn across the edge.
 E. **Monsters** — spawning done: game.exe's monster region and room
-   population (docs/research/re/monsters.md, `components/rules/monsters.hpp`,
+   population (docs/research/re/monsters.md, `components/rules/monsters/monsters.hpp`,
    `test_monsters`); the Blood Moor's monsters draw with rolled components
    and wander (MonWndr). Combat: click a monster to walk up and swing
    (the hit on AnimData's event frame, hit chance and damage from
