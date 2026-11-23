@@ -79,12 +79,27 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         if (const auto* spr = scene.item_sprite(gem); spr && spr->frames_per_direction() > 0) blit_sprite(framebuffer, spr->frame(0, 0), scene.item_pal(gem, pal), socket_x, bottom - box_h);
     }
 }
+// game.exe's item tooltips don't draw on the spot: FUN_0048dd90 (the
+// inventory and storage panels' hovered item, from FUN_0048edf0) hands its
+// text to FUN_00502280, which only keeps it, and FUN_00456ee0 draws it with
+// FUN_00503000 after the panels and the mini-panel (char-panel.md "Hover
+// texts"). So the tooltip sits over the gold and close buttons, and over the
+// stash or cube drawn after the inventory.
+void hover_text_or_keep(KeptHover* keep, std::vector<std::uint8_t>& framebuffer, const Scene& scene, std::vector<TextLine> lines,
+                        int left, int right, int top, int bottom) {
+    if (keep) *keep = KeptHover{ std::move(lines), left, right, top, bottom };
+    else draw_hover_text(framebuffer, scene, lines, left, right, top, bottom);
+}
 }  // namespace
+
+void draw_kept_hover(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const KeptHover& kept) {
+    draw_hover_text(framebuffer, scene, kept.lines, kept.left, kept.right, kept.top, kept.bottom);
+}
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
                     const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two, const d2d::d2s::Header* header,
-                    bool player_state_36) {
+                    bool player_state_36, KeptHover* tip) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -174,8 +189,8 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     if (hover) {
         auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer, &items);
         if (price && *price) add_price_line(lines, (*price)(*hover));
-        draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2],
-                        hover_box[1] + hover_box[3], hover_box[1]);
+        hover_text_or_keep(tip, framebuffer, scene, std::move(lines), hover_box[0], hover_box[0] + hover_box[2],
+                           hover_box[1] + hover_box[3], hover_box[1]);
     }
 }
 
@@ -593,7 +608,7 @@ bool transmute_at(const Scene& scene, int mouse_x, int mouse_y) {
 
 void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
-                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool transmute_down) {
+                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool transmute_down, KeptHover* tip) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     if (panel == d2d::d2s::item_panel::kStash) {
         for (std::uint32_t quarter = 0; quarter < 4 && quarter < art.frames_per_direction(); ++quarter) {
@@ -626,7 +641,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         blit_sprite(framebuffer, frame, pal, kCharPanelX + 0x90, cube_bottom(scene) - 0xbc - int(frame.height) + 1);
     }
     if (hover) draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0], hover_box[1], pal);
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer, panel < 100 ? &items : nullptr), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
+    if (hover) hover_text_or_keep(tip, framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer, panel < 100 ? &items : nullptr), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
 namespace {

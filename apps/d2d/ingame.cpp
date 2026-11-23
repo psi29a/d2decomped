@@ -441,7 +441,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                     }
                 }
                 draw_inventory(framebuffer, scene, layout, *inventory,
-                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header, hud.uninterruptable);
+                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header, hud.uninterruptable, hud.item_tip);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
             }
         };
@@ -454,19 +454,20 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             }
         };
         if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
-        // Each panel draws its own hover text: the one under the mouse goes last so
+        // The store draws its own hover text: the panel under the mouse goes last so
         // the other doesn't cover it (the store on the left, the inventory right).
+        // The inventory's and storage's go to hud.item_tip when set, drawn after every panel.
         if (mouse_x < int(kScreenWidth) / 2) { draw_inventory_panel(); draw_store_panel(); }
         else                                 { draw_store_panel(); draw_inventory_panel(); }
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)
                 draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, d2d::d2s::item_panel::kCube, mouse_x, mouse_y,
-                             hover_wearer, cube_open == 2);
+                             hover_wearer, cube_open == 2, hud.item_tip);
             else
             {
                 draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], d2d::d2s::item_panel::kStash,
-                             mouse_x, mouse_y, hover_wearer);
+                             mouse_x, mouse_y, hover_wearer, false, hud.item_tip);
                 if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y, stash_expansion);
             }
         }
