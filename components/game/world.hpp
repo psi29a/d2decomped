@@ -565,6 +565,7 @@ struct World {
     const Level* izual_level = nullptr;    // where he died: the ghost goes there (0x5b3eaf: Act 4's map, game +0xc8)
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
+    bool last_portal_made = false;         // a4q2's +0x40 == 2: Tyrael's portal made this game (InitFn 78)
     // S->C 0x61 (FUN_0053d940): the cinematic the client plays now (its
     // table 0x721d9c: 7 D2X_OUT), -1 none; after the game's save
     // (FUN_0052e2a0: every player).
@@ -721,10 +722,12 @@ struct World {
     }
     // The quests' objects a click walks up to and operates (the quest says
     // what they do): the Cairn Stones, the Gibbet, the Inifuss Tree, the Sun
-    // Altar, the Orifice, Horazon's Journal, the Sanctuary's portal.
+    // Altar, the Orifice, Horazon's Journal, the Sanctuary's portal; Act 5's
+    // altar, its stairs, frozen Anya, Baal's portals and the last portal.
     static bool quest_object(int operate_fn) {
         using namespace d2d::rules::operate_fn;
-        return std::ranges::contains(std::array{ kCairnStone, kGibbet, kInifussTree, kSunAltar, kOrifice, kJournal, kSanctuaryPortal }, operate_fn);
+        return std::ranges::contains(std::array{ kCairnStone, kGibbet, kInifussTree, kSunAltar, kOrifice, kJournal, kSanctuaryPortal,
+                                                 kAncientsAltar, kAncientsDoor, kFrozenAnya, kBaalsPortal, kHomePortal }, operate_fn);
     }
     static bool is_door(int operate_fn) {
         using namespace d2d::rules::operate_fn;
