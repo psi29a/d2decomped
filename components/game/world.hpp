@@ -945,6 +945,7 @@ struct World {
     void open_act(int act);                                    // FUN_00538680: the save's progression
     void class_cue(std::string_view line, std::uint32_t at_ms);   // the class's voice: <class>_<line>
     void orb_mist(const Monster& orb, std::uint32_t now_ms);      // the compelling orb's break: its mist to object 386 (FUN_005dfee0)
+    void place_camp_cain();                                        // camp Cain made by his start object (FUN_00592960)
     void music_cue(std::string_view sound);                       // one-shot quest music
     void music_cue_near(std::string_view sound, float x, float y);   // to each player whose room or one next to it holds (x, y)
     void give_item(std::string_view code, std::uint32_t now_ms, int ilvl = 1, int quality = 2);

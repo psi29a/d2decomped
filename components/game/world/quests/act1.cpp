@@ -50,7 +50,7 @@ auto World::act1_join() -> void {
         cain = {};
         cain.join(quests(), carries("bks"), carries("bkd"));
         chain(1);
-        cain.camp_spawn();
+        if (cain.camp_spawn()) place_camp_cain();
     }
 
 auto World::act1_enter(const Level& from) -> void {

@@ -824,9 +824,9 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     // keeps its x / y at +0x84 / +0x88). FUN_00592960 finds a size-2 spot
     // there (FUN_00545340(2, 0x100, .., 100) at 0x5929fe), then makes him
     // within 5 of it (FUN_005b2f20 at 0x592a2e).
-    // ponytail: the radius-5 placement (FUN_005b2f20 -> FUN_005b2a00, on the
-    // room's seed) and its retries are taken as the spot itself. A camp
-    // without the object keeps the town start + 3 subtiles (game.exe makes none).
+    // The radius-5 placement on the room's seed and its retries run as he
+    // comes (World::place_camp_cain); this is the free spot they start from.
+    // A camp without the object keeps the town start + 3 subtiles (game.exe makes none).
     const auto cain_start = std::ranges::find_if(game_data.town.ds1.objects(), [](const auto& object) {
         return object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150
             && kObjPreset[0][std::size_t(object.id)] == d2d::rules::object_ids::kCainStart;
