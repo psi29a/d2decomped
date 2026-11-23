@@ -18,3 +18,4 @@ numbers, so no row has a counterpart.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_00420f80` | `sbig_read_count255` | `EBX` bytes, `EDI` their size, `EAX` and `ESI` out pointers (position, value), no stack arguments: both 0, then while the position is below the size a byte is read and the position moves on; 0xff ends the count, any other byte gives value × 255 + byte (`0x420fa5`); the value is then cut to the bytes left (size − position). Only caller `FUN_004234f0` (`0x423503`) | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421160` | `sbig_bytes_grow_step` | `ECX` array, n (`RET 4`): below 0x100 the highest power of two not above n (0 gives 1); from 0x100 on, 0x100, kept at `+0xc` (`0x42118b`). `sbig_grow_step` with a 0x100 cap. Callers `sbig_bytes_reserve` and six more | no counterpart (as `sbig_grow_step`) |
