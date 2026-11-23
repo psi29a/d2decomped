@@ -295,7 +295,7 @@ auto World::drop_new_gold() -> void {
                 pile.label = std::to_string(coins) + " Gold";
                 pile.x = (float(at_x) + 0.5f) / 5;
                 pile.y = (float(at_y) + 0.5f) / 5;
-                pile.id = loot.next_id++;
+                loot.number(pile);
                 (floor == loot.ground_level ? loot.ground : loot.kept[floor]).push_back(std::move(pile));
             }
             state.gold.clear();
