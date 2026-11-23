@@ -12,6 +12,7 @@
 #include "input/hold_confirm.hpp"
 #include "input/keyconfig.hpp"
 #include "input/pad_hold.hpp"
+#include "input/touch/input.hpp"
 #include "internal.hpp"
 #include "items/cursor.hpp"
 #include "items/identify_prompt.hpp"
@@ -28,7 +29,6 @@
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
 #include "skills/tree_close.hpp"
-#include "touch/input.hpp"
 #include "ui.hpp"
 
 #include <ai/units.hpp>

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "input/gamepad_map.hpp"
-#include "touch/input.hpp"
+#include "input/touch/input.hpp"
 
 #include <cstdint>
 #include <span>

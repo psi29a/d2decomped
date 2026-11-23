@@ -5,6 +5,7 @@
 #include "audio/audio.hpp"
 #include "common.hpp"
 #include "input/gamepad_map.hpp"
+#include "input/touch/input.hpp"
 #include "internal.hpp"
 #include "items/use_item.hpp"
 #include "panels/automap_reveal.hpp"
@@ -16,7 +17,6 @@
 #include "render/unit_slide.hpp"
 #include "render/world_view.hpp"
 #include "scene.hpp"
-#include "touch/input.hpp"
 #include "ui.hpp"
 
 #include <ambient_dip.hpp>

@@ -5,13 +5,13 @@
 #include <overlays.hpp>
 
 #include "common.hpp"
+#include "input/touch/input.hpp"
 #include "panels/panels.hpp"
 #include "panels/store.hpp"
 #include "render/overhead.hpp"
 #include "render/tile_blit.hpp"
 #include "render/world_view.hpp"
 #include "scene.hpp"
-#include "touch/input.hpp"
 #include "ui.hpp"
 #include "watchdog.hpp"
 

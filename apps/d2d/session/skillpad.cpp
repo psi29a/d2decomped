@@ -6,9 +6,9 @@
 #include "common.hpp"
 #include "input/gamepad_map.hpp"
 #include "input/teleport_aim.hpp"
+#include "input/touch/input.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
-#include "touch/input.hpp"
 
 #include <d2s_items.hpp>
 #include <level_ids.hpp>

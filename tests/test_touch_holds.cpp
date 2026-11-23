@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
-// test-sources: apps/d2d/touch/gestures.cpp
+// test-sources: apps/d2d/input/touch/gestures.cpp
 // test-includes: apps/d2d
 // Holds distinguish taps, can keep a target, and dispatch only when ready.
 #include "input/gamepad_map.hpp"
-#include "touch/feedback.hpp"
-#include "touch/gestures.hpp"
-#include "touch/input.hpp"
+#include "input/touch/feedback.hpp"
+#include "input/touch/gestures.hpp"
+#include "input/touch/input.hpp"
 
 #include <array>
 #include <cassert>

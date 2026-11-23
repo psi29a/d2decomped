@@ -289,7 +289,7 @@ endif()
 target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem
     # split over several files keeps them in its own directory (audio/, devctl/,
-    # frontend/, input/, items/, panels/, render/, session/, skills/, touch/).
+    # frontend/, input/ (touch/ in it), items/, panels/, render/, session/, skills/).
     common.cpp
     devctl/debug.cpp
     devctl/debug_fight.cpp
@@ -302,6 +302,7 @@ target_sources(d2d PRIVATE
     input/gamepad.cpp
     input/pointer_events.cpp
     input/teleport_aim.cpp
+    input/touch/gestures.cpp
     items/cursor.cpp
     items/items.cpp
     items/use_item.cpp
@@ -339,7 +340,6 @@ target_sources(d2d PRIVATE
     session/view.cpp
     session/walk.cpp
     skills/tree.cpp
-    touch/gestures.cpp
     ui.cpp
     window.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
@@ -386,7 +386,7 @@ if(NINTENDO_SWITCH)
     nx_generate_nacp(d2d.nacp NAME "d2d" AUTHOR "D2: Decomped" VERSION "${D2D_VERSION}")
     nx_create_nro(d2d NACP d2d.nacp)
 endif()
-d2d_check_headers(d2d_headers SUBDIRS audio devctl frontend input items panels render session skills touch LINK
+d2d_check_headers(d2d_headers SUBDIRS audio devctl frontend input input/touch items panels render session skills LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
