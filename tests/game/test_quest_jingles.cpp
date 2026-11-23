@@ -184,6 +184,9 @@ int main() try {
     assert(heard(first, "music_quest_compelling") == 0);   // the first hit
     world.operate(orb_index, 9000);
     assert(heard(first, "music_quest_compelling") == 1 && heard(second, "music_quest_compelling") == 0);
+    // FUN_005dfee0: the orb monster's orbmist toward object 386 (the stairs' marker), drawn, ending there.
+    const auto mist = std::ranges::find_if(world.fight.missiles, [](const Missile& missile) { return missile.info && missile.info->name == "orbmist"; });
+    assert(mist != world.fight.missiles.end() && mist->visual_only && mist->born == 9000 && mist->dies > 9000);
     assert(world.fight.monsters.back().gone);
     std::puts("OK: the Compelling Orb's jingle as the orb monster goes, by it");
 
