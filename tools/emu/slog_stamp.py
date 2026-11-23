@@ -12,7 +12,7 @@ GetLocalTime are scripted; wsprintfA is emu.py's stand-in, so the stamp's
 text checks the format string at 0x6cff0c, not user32. Each case writes a
 record (length +0xc, indent +0x14, stamp flag +0x18, text from +0x1c) and
 compares the record, the cached tick 0x7792f0, the stamp 0x7792b0 and its
-length 0x7792a8 with the model. `--mutation-check` plants 6 defects in the
+length 0x7792a8 with the model. `--mutation-check` plants 7 defects in the
 model and requires each to be caught. Checks game.exe only: d2d has no
 counterpart (source-frontier.md).
 """
@@ -30,7 +30,7 @@ LAST_TICK, STAMP_LENGTH, STAMP_TEXT = 0x7792F0, 0x7792A8, 0x7792B0
 TEXT = 0x1C          # the record's text buffer
 SPAN = 0x400         # how much of it a case compares
 MUTATIONS = ("no_flag_gate", "indent_uncapped", "indent_without_flag",
-             "stamp_every_call", "stamp_when_zero", "no_terminator")
+             "stamp_every_call", "stamp_when_zero", "no_terminator", "cache_without_flag")
 
 
 class Model:
@@ -47,6 +47,8 @@ class Model:
         if not flag and self.mutation != "no_flag_gate":
             if self.mutation == "indent_without_flag":
                 return self.indent(buffer, length, indent)
+            if self.mutation == "cache_without_flag" and tick != self.last_tick:
+                self.last_tick, self.stamp = tick, b"0/0 00:00:00.000  "
             return buffer, length
         if tick != self.last_tick or self.mutation == "stamp_every_call":
             self.last_tick = tick
@@ -129,7 +131,7 @@ def compare(rig, model, seed, count):
         expected, expected_length = model.run(filler, length, indent, flag, with_stamp, tick, when)
         got = (text, new_length, new_indent, new_flag)
         want = (bytes(expected[:SPAN]), expected_length, indent, flag)
-        if flag and (last_tick, stamp) != (model.last_tick, model.stamp):
+        if (last_tick, stamp) != (model.last_tick, model.stamp):   # a flag-0 call leaves both alone
             return f"case {number}: cached tick/stamp {last_tick} {stamp!r} != {model.last_tick} {model.stamp!r}"
         if got != want:
             where = next((i for i in range(SPAN) if text[i] != expected[i]), None)
