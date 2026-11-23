@@ -139,6 +139,7 @@ address	name	evidence
 00423930	sbig_is_zero	a (ret 4): 1 when the number is 0, else 0, via FUN_00422780 (source-sbig-api.md)
 004239e0	sbig_not	dst, a (ret 8): dst = a XOR (2^(32*w) - 1), w = a's dwords (at least 1), via FUN_004228c0 (source-sbig-api.md)
 00423a00	sbig_or	dst, a, b (ret 0xc): dst = a | b via FUN_004229d0 (source-sbig-api.md)
+00423a20	sbig_set_pow2	dst, n (ret 8): dst = 2^n via FUN_00422b00 (source-sbig-api.md)
 00423a80	sbig_shl	dst, a, n (ret 0xc): dst = a << n via FUN_00422d00 (EDI dst, EAX n) (source-sbig-api.md)
 00423aa0	sbig_shr	dst, a, n (ret 0xc): dst = a >> n via FUN_00422e70 (ESI dst, EAX n) (source-sbig-api.md)
 00423ac0	sbig_sub	dst, a, b (ret 0xc): dst = a - b via FUN_00423100, run for a >= b (source-sbig-api.md)
