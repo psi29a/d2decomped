@@ -9,7 +9,7 @@ tail-calls the string lookup (0x524a30) with the name, or 0xe8c when no row
 matches. A message below row 100's (word at 0x722808) searches rows 0..99,
 any other rows 100 up to the count. This runs it on every u16 message with
 the string lookup hooked to return its argument, and compares each answer
-with the runs in components/rules/quests.hpp's quest_name (read from the
+with the runs in components/rules/quests/quests.hpp's quest_name (read from the
 source, first match wins). Row 100 is message 164 (Tools of the Trade): the
 second search starts at it, so 164 gives 3716, not 0xe8c. No MPQs are read.
 """
@@ -30,7 +30,7 @@ ROW_COUNT = 0x722EB4
 SPLIT = 0x722808
 NOT_FOUND = 0xE8C
 LIMIT = 10000
-SOURCE = Path(__file__).resolve().parents[2] / "components" / "rules" / "quests.hpp"
+SOURCE = Path(__file__).resolve().parents[2] / "components" / "rules" / "quests" / "quests.hpp"
 
 
 def require(condition, message):

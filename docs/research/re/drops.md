@@ -1,8 +1,8 @@
 # Drops — treasure classes and item quality (1.14d game.exe)
 
-Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
+Our port: `components/rules/items/drops.hpp` (`tc_upgrade`, `roll_drops`,
 `roll_quality`, `made_quality`, `stand_quality`, `chest_round`,
-`gold_amount`, `add_auto_treasure`), `components/rules/shrines.hpp`
+`gold_amount`, `add_auto_treasure`), `components/rules/world/shrines.hpp`
 (`open_container`, `stand_item`), loaded in
 `components/game/gamedata/gamedata_load.cpp`, used by `components/game/loot.hpp`
 (kills) and `world/` (chests). Checked against game.exe by
@@ -284,7 +284,7 @@ classic game, non-zero in an expansion one, see above).
 6. No quality won: `((record +0x80 & 0x40) | 0x20) >> 5`, that is 3
    (superior) with the bit and 1 (low quality) without.
 
-d2d: `stand_quality` (components/rules/drops.hpp) ports the expansion path
+d2d: `stand_quality` (components/rules/items/drops.hpp) ports the expansion path
 only: it agrees on the try order, `past / d`, the no-draw win under 1 and the
 superior fall-through. It differs from game.exe in: no classic path (no
 version-0 ItemRatio row, qlvl is always taken off, divisors always, computed

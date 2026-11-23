@@ -332,7 +332,7 @@ act's two marker levels at 0x6e1988: (2, 37), (41, 73), (76, 102),
 (104, 108), (109, 136). With `third = (|hi - lo| + 1) / 3`: under
 `lo + third` A, under `lo + 2 third` B, else C.
 
-In d2d: `components/rules/shrines.hpp`, `ClientSession::operate`.
+In d2d: `components/rules/world/shrines.hpp`, `ClientSession::operate`.
 
 - Proven: the tables and branches above, read from the decompile. The
   opening (`open_container`) is emulator-checked; the traps aren't.

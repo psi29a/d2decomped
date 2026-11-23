@@ -5,13 +5,13 @@
 
   FUN_004ca3e0 UNITSND_GetBaseSoundId(EAX classId): fatal past 6, else
     gaUnitSoundTableByClassId[classId] (a pointer into the per-class row at
-    0x72a008; d2d's `kPlayerVoice`, components/rules/sound_ids.hpp).
+    0x72a008; d2d's `kPlayerVoice`, components/rules/sound/sound_ids.hpp).
   FUN_004cb380 UNITSND_GetModeChangeSound(stack prevMode, ESI unit, EDI
     newMode): fatal past class 0x23c or mode 7; else
     gaUnitSoundTableByClassIdExtra[GetSndUnitClassId(unit)] (a pointer into
     0x7295f8's rows), null -> 0, else row[newMode] unless the row is the
     shared record at 0x729328 and prevMode > newMode (0). d2d's
-    `object_sound`, components/rules/object_sounds.hpp.
+    `object_sound`, components/rules/sound/object_sounds.hpp.
   FUN_004cb3e0 UNITSND_GetSpecialSoundByMode(ESI unit, EDI mode): same
     class lookup; class 0x3d -> gaUnitSoundTableSpecialMode[mode] (0x728338,
     8 entries); else row[8]/[9]/[10]/[11] as (sound1, mode1, sound2, mode2):
@@ -45,7 +45,7 @@ TABLE_OBJ = 0x7295F8       # 0x23d pointers, by GetSndUnitClassId's object id
 SHARED_PTR = 0x729328      # the row shared by every "later mode only" object
 SPECIAL_TABLE = 0x728338   # class 0x3d's 8-entry mode table
 MAX_CLASS = 0x23C
-# d2d's kPlayerVoice (components/rules/sound_ids.hpp): hit, death, step.
+# d2d's kPlayerVoice (components/rules/sound/sound_ids.hpp): hit, death, step.
 PLAYER_VOICE = ((2878, 2883, 2768), (2910, 2915, 2720), (2894, 2899, 2720), (2886, 2891, 2768),
                 (2902, 2907, 2816), (2926, 2931, 2720), (2918, 2923, 2720))
 MUTATIONS = ("swap-special-slots", "ignore-shared", "mode-sentinel-7", "class-3d-generic")

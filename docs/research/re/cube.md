@@ -1,7 +1,7 @@
 # The Horadric Cube — game.exe 1.14d
 
 The Cube's Transmute: cubemain.txt compiled at load, matched against what
-the Cube holds, the outputs made. d2d: `components/rules/cube.hpp`
+the Cube holds, the outputs made. d2d: `components/rules/items/cube.hpp`
 (`compile_cube_input` / `_output`, `cube_recipe`, `cube_match`,
 `cube_make`), `World::transmute`, `tests/test_cube.cpp`.
 

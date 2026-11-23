@@ -10,7 +10,7 @@ footstep ring and last arrival spot (player data +0x148), how many pets it
 has and how many crowd this one, the levels under them, town, a foe or none
 (FUN_005dd7f0: its distance and whether it's in melee; FUN_005dc640: a
 clear line), and which moves find a path. Effects are hooked as merc.py
-does; `pet_think` below is components/rules/merc.hpp's necropet_think line
+does; `pet_think` below is components/rules/ai/merc.hpp's necropet_think line
 for line. The effects and the pet's seed after must agree.
 """
 import random
@@ -24,7 +24,7 @@ from merc import OWNER_SPOT, Seed, direction64, gap, spot_gap
 
 
 def pet_think(s, seed, move):
-    """components/rules/merc.hpp necropet_think. Effects as tuples."""
+    """components/rules/ai/merc.hpp necropet_think. Effects as tuples."""
     out = []
     ctx = {"type": 0, "pct": 0, "steps": 0}                             # FUN_005a6260
     def pace(typ, pct, steps):

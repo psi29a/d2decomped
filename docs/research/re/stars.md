@@ -45,7 +45,7 @@ the read at 0x476296 and the write at 0x4763d3), so once a run:
   speed and one now left of 0 is placed again (`again` 1): back in at the
   right edge, on a new row, speed and colour.
 
-d2d: `rules::Stars` (components/rules/stars.hpp), drawn in `render_world`
+d2d: `rules::Stars` (components/rules/quests/stars.hpp), drawn in `render_world`
 (world_view.cpp) before the lower walls. `tools/emu/arcane_stars.py` runs
 `FUN_00476290` for real (only `FUN_00650de0`, `GetTickCount` and the line
 draw hooked) on made-up palettes and screen sizes;

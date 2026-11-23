@@ -17,7 +17,7 @@ owner with and without an inventory (unit +0x60) or a client:
     (EAX = owner) when there is an owner.
 d2d's rules::mend / rules::replenish_fire: flags = (flags | 0x200) & ~0x100
 (tests/test_item_repaired.cpp). The stat write and the hooks' order are
-checked here only; the hand-skill pass is not ported (components/rules/replenish.hpp).
+checked here only; the hand-skill pass is not ported (components/rules/items/replenish.hpp).
 """
 import argparse
 import random

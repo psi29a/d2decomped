@@ -142,7 +142,7 @@ A caller list gives the count and the callers d2d ports.
 | `FUN_004dbfe0` | `hold_500ms` | `DAT_007c89cc` = now + 500. Only caller `FUN_004654c0` | not compared |
 | `FUN_004dc0a0` | `hold_clear` | `DAT_007c89cc` = 0. Only caller `FUN_00482ef0` | not compared |
 | `FUN_004dc510` | `unit_gfx_record_init` | Fastcall unit: a new gfx record (`d2d_gfx_record_new`) at `+0x54`; by unit type 0..2 the mode's graphics load (`d2d_gfx_unit_mode_load`), 3 and 4 nothing; none asserts (line 0x16). 4 callers, ported: `FUN_00465fd0`, the monster colour `FUN_00466360` | not compared |
-| `FUN_004dcf70` | `unit_grid_contains` | (`EAX` x, ECX y, grid): inside the view's unit grid (origin `+0xea68`/`+0xea6c`, size `+0xea78` square). Only caller the grid fill `FUN_004dd7c0` | not compared: d2d's `rules::in_unit_grid` (components/rules/automap_scroll.hpp:37) |
+| `FUN_004dcf70` | `unit_grid_contains` | (`EAX` x, ECX y, grid): inside the view's unit grid (origin `+0xea68`/`+0xea6c`, size `+0xea78` square). Only caller the grid fill `FUN_004dd7c0` | not compared: d2d's `rules::in_unit_grid` (components/rules/ui/automap_scroll.hpp:37) |
 | `FUN_004dcfa0` | `unit_grid_add_unit` | Fastcall grid, `EAX` unit: the next of 3000 0x14-byte entries (count `+0xea64`): kind 0, the unit, its position × 8. Only caller `FUN_004dd7c0` | not compared |
 | `FUN_004dd550` | `unit_grid_add_tile` | `EDI` grid, `EBX` room: an entry of kind 1 at the room's corner × 5 plus the tile's spot (`FUN_00619730`), × 8; the grid's flag 8; appended to the cell's chain (`+0x10`). Only caller `FUN_004dd7c0` | not compared |
 | `FUN_004dd600` | `unit_grid_add_unit_b` | As `unit_grid_add_unit` with `EBX` the grid. Only caller `FUN_004dd7c0` | not compared |
@@ -276,7 +276,7 @@ column list given); d2d reads the same files with its own loaders.
 |---|---|---|---|
 | `FUN_006104a0` | `stpl_list_ctor_a` | (From its calls:) a list object (`FUN_0060f9d0`), emptied (`d2d_stpl_list_unlink_all`). Only caller `d2d_ignorelist_ctor` | no counterpart: d2d has no Battle.net ignore list |
 | `FUN_00610b30` | `stpl_list_ctor_b` | (From its calls:) `FUN_0060ecb0`, `FUN_006100b0`. Only caller `d2d_ignorelist_ctor` | no counterpart (as `stpl_list_ctor_a`) |
-| `FUN_00611760` | `code4_pad_a` | Copies a code of up to 4 characters into `EAX`, padding with spaces. Only caller `FUN_006119f0` | matches: d2d reads a calc name by its first four characters (components/rules/skills.cpp:25) |
+| `FUN_00611760` | `code4_pad_a` | Copies a code of up to 4 characters into `EAX`, padding with spaces. Only caller `FUN_006119f0` | matches: d2d reads a calc name by its first four characters (components/rules/combat/skills.cpp:25) |
 | `FUN_006117d0` | `table_96bcac_get` | The dword `0x96bcac[n]` below the count `0x96bcb4`, else 0. Callers `FUN_00664860`, `FUN_00664930` | not compared |
 | `FUN_0061b530` | `call_61b4f0` | `FUN_0061b4f0()`. Callers `FUN_0061b6f0` and one more | not compared |
 | `FUN_0061b640` | `room_tile_ref_inc_if_zero` | (rooms, level, …, room): the room entry (`FUN_00642bb0`, `FUN_00642c30`; a room from another level counts as none); an entry with count `+0xe` 0 gets `FUN_0061b490`. Only caller `FUN_0061a070` | not compared |

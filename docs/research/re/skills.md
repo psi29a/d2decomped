@@ -228,7 +228,7 @@ Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-b
 FUN_006119f0 and checked black-box: tools/emu can run the compiler itself
 (set `DAT_0096c8b4` = 1 before `FUN_00619300` so the .txt link tables are
 built, then call `FUN_006c1ae0(text, buf, 0x400, 0x611930, 0x6119e0,
-0x6119f0)`). `components/rules/skills.hpp` `compile_calc` is a port, and
+0x6119f0)`). `components/rules/combat/skills.hpp` `compile_calc` is a port, and
 its postfix matches game.exe's on all 1650 calc cells of Skills.txt and
 SkillDesc.txt and 4000 random strings, except the two `miss()` tooltip
 lines (missile names aren't passed in). What it does:
@@ -504,7 +504,7 @@ flag 0x2000, set by what isn't traced.
   shows `frame` of `mode`'s animation; event **1 is a hit** (the skill's
   srvdofunc runs), 3 comes before some of Jab's and Charge's hits: Jab's
   client do (cltdofunc 16) plays its dosound there (unit-sounds.md).
-- Generated into `components/rules/sequences.hpp` by
+- Generated into `components/rules/combat/sequences.hpp` by
   `tools/ghidra/gen/sequences.py` (3450 frames, 207 entries). Which skills
   use them: 1 Jab, 2 Sacrifice, 4 Charge, 5 Conviction, 6 Inferno, 8
   Impale, 9 Fend, 10 Whirlwind, 11 Double Swing / Frenzy, 12 Lightning /
@@ -912,14 +912,14 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   differs) and calls `FUN_00580310`. It answers 0 when the quantity went
   below 0, else the new quantity + 1. V (`tools/emu/shot_spent.py`:
   20,000 cases, every callee hooked, every instruction reached).
-  d2d: `rules::shot_spent` (components/rules/ammo.hpp), from
+  d2d: `rules::shot_spent` (components/rules/items/ammo.hpp), from
   `Fight::spend_ammo` and `Fight::impale_wear`.
 - **Some left** (`FUN_0062a310`, `FUN_0056c4e0`'s answer for the item it
   picked): a quantity above 0; else an item with stat 0x7d
   (item_throwable) always has, its quantity written 0; else only an item
   whose max stack (`FUN_006295b0`) is 0 or less. V
   (`tools/emu/items_traces2.py`). d2d: `rules::quantity_left`
-  (components/rules/ammo.hpp), `Fight::ammo_index`.
+  (components/rules/items/ammo.hpp), `Fight::ammo_index`.
 - **Out of ammo** (`FUN_00580310`, after a spend and when srvstfunc 4
   refuses): hand 4's item, then hand 5's, goes to `FUN_00580030` (the item
   in EAX, the player in EBX, the game on the stack). It acts on a
@@ -2166,7 +2166,7 @@ and per-class base frames, not a table. What's stored:
 
 - **The formula.** `EFCR = FCR × 120 / (120 + FCR)` (integer truncated), the
   same diminishing return as `rules::effective_speed` in
-  `components/rules/combat.cpp:103`. Then
+  `components/rules/combat/combat.cpp:103`. Then
 
   ```
   frames_shown = ceil(base_frames × 256 / (256 + floor(256 × EFCR / 100)))
@@ -2826,7 +2826,7 @@ No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
    (Skills.txt text → the same ops) and evaluator over skillcalc.txt's
    operands; the save's left/right skills and hotkeys (F1–F8); the HUD
    buttons and picker; mana cost. Attack (srvdofunc 1) as today's swing.
-   Files: `components/rules/skills.hpp` + `tests/test_skills.cpp` (records,
+   Files: `components/rules/combat/skills.hpp` + `tests/test_skills.cpp` (records,
    calc compiler/VM, level brackets, mana cost); `load.hpp` (Skills.txt,
    skillcalc.txt); `apps/d2d/skills/bar.hpp` (buttons, picker, hotkeys, from
    the save's +0x38..0x87); `fight.hpp` (casting through `Fight`).
@@ -2998,7 +2998,7 @@ the 005dxxxx SkillAss range).
 ### Hit-recovery (FHR) and block-rate (FBR)
 
 Same shape as FCR / IAS: an effective rate on the stat, then the animation
-plays that much faster. Formula in `components/rules/combat.cpp:103`
+plays that much faster. Formula in `components/rules/combat/combat.cpp:103`
 (`effective_speed`, cap 120): `E = 120 * v / (120 + v)`. Applied at
 `components/game/fight/` for kModeGH / kModeBL / kModeSC:
 `len = base_ms * 100 / (100 + E)`. Stats read at `combat.cpp:81` are 99

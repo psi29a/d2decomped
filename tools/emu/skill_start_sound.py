@@ -16,7 +16,7 @@ unit's hit class) is hooked to the case's. FUN_004ca500 and FUN_004ca4c0
 (the swing table at 0x727ed8, the unit's rate +0x4c) run for real. Each
 FUN_004b9a00 call (ECX sound, EDX unit, the delay in ticks) is a line's
 `sound:ticks`, in call order. d2d's rules::sound_ids::skill_start
-(components/rules/sound_ids.hpp) gives the same for the same line
+(components/rules/sound/sound_ids.hpp) gives the same for the same line
 (tests/test_skill_start_sound.cpp).
 
 A case line: unit type, unit class, the skill's charclass (+0xc, 255 none),

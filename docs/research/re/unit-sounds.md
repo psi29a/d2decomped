@@ -503,7 +503,7 @@ By objects.txt Id: 8 sounds, one as the object enters each mode
 a mode (8 any; FUN_004cb3e0), replayed while it's in sight and in that mode.
 Object 0x3d's loops are by mode at 0x728338. The 13 objects sharing record
 0x729328 play only going to a later mode. Dumped whole into
-`components/rules/object_sounds.hpp`.
+`components/rules/sound/object_sounds.hpp`.
 
 FUN_004cb380 (`UNITSND_GetModeChangeSound`) and FUN_004cb3e0
 (`UNITSND_GetSpecialSoundByMode`) are each driven over every row of

@@ -23,7 +23,7 @@ FUN_0058f0d0). Their MonStats AI picks a row of the AI table at `0x73ca20`
 Traced and built: NecroPet (below, `necropet_think`) and Hydra, Totem,
 Vines, CycleOfLife, AssassinSentry, DeathSentry, BladeCreeper, Raven,
 DruidWolf, DruidBear, ShadowWarrior and ShadowMaster with their inits
-(`components/rules/pets.hpp`, "The other thinks" and "The Shadows").
+(`components/rules/ai/pets.hpp`, "The other thinks" and "The Shadows").
 InvisoPet, 7TIllusion and Buffy aren't any player skill's summon.
 
 The player's other summons have AIs outside that list: Decoy's dopplezon
@@ -164,7 +164,7 @@ the first clear one returns 1.
   `tests/monsters/test_monster_ai.cpp`'s 40 cases.
 - `tools/emu/pet_line.py` runs FUN_005dc640 on random walls: 1 500 cases,
   all equal.
-- Port: `components/rules/pets.hpp` (`necropet_think`, `pet_line_clear`),
+- Port: `components/rules/ai/pets.hpp` (`necropet_think`, `pet_line_clear`),
   run by `Fight::necropet_turn`.
 
 ## The other thinks

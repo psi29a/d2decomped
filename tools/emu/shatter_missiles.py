@@ -11,7 +11,7 @@ class) and the client missile maker FUN_004cd540 (ECX its create struct),
 which records the row (+0x10), the flags (+0), the owner (+4, +8) and +0x30.
 Every unit type 0..3, MonStats2 Height 0..5 and 0xff, with freeze (1) and
 uberminion (184) on or off, against d2d's rules::shatter_rows
-(components/rules/shatter.hpp, copied below line for line). Prints `ok`.
+(components/rules/combat/shatter.hpp, copied below line for line). Prints `ok`.
 """
 import itertools
 import sys

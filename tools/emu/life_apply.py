@@ -86,7 +86,7 @@ class Game:
         return self.life()
 
 
-# Line-for-line copies of d2d's arithmetic (components/rules/combat.hpp missile_blow,
+# Line-for-line copies of d2d's arithmetic (components/rules/combat/combat.hpp missile_blow,
 # components/game/ai.cpp hurt / heal), old = upstream/main af825eda, new = this branch.
 def effective_res(res, pierce):
     return max(res - pierce, -100) if res < 100 else res

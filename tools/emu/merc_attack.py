@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The merc's attack think (FUN_005e5050) and skill pick (FUN_005e4d30)
-against a port (components/rules/merc.hpp merc_attack / merc_skill_pick).
+against a port (components/rules/ai/merc.hpp merc_attack / merc_skill_pick).
 
     uv run python merc_attack.py [cases] [seed]
 
@@ -59,7 +59,7 @@ def skill_info(e, sid):
 
 
 def merc_attack(s, seed, sk, move):
-    """components/rules/merc.hpp merc_attack (+ merc_skill_pick), line for line."""
+    """components/rules/ai/merc.hpp merc_attack (+ merc_skill_pick), line for line."""
     out = []
     melee_cls = s["cls"] in (0x152, 0x230, 0x231)
     chance = 0x62 if melee_cls else min(s["ai14"] + 0x28 + 2 * s["level"], 0x5f)

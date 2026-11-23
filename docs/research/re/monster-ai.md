@@ -1,7 +1,7 @@
 # Monster AI — noticing the player, alerting, thinking (1.14d game.exe)
 
 How a monster finds a target and when it thinks. Placement and population
-are in monsters.md; the per-AI thinks are in `components/rules/thinks/`
+are in monsters.md; the per-AI thinks are in `components/rules/ai/thinks/`
 (a file per act, `mon_think` in `thinks.hpp` finds one by its AI name), the
 game side of each (its own target pick, a think the game runs itself, the
 inputs its think reads, how its skills start and aim) in

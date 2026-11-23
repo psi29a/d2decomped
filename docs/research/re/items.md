@@ -302,7 +302,7 @@ stack lost one of its quantity or ran out, when its max stack
 (`FUN_006295b0`) is above 0. `FUN_0056c310` (a shot's ammunition) calls the
 quantity twin (0x56c35d) after the new quantity is written.
 
-d2d: `rules::replenish_arm` (components/rules/replenish.hpp), on the item's
+d2d: `rules::replenish_arm` (components/rules/items/replenish.hpp), on the item's
 `replenish_in` (frames to its timer, 0 none), called where game.exe calls
 the twins: a character's items on entering (`World::take_character`), a
 socket filled, an item back off the corpse, `Fight::wear`,
@@ -379,7 +379,7 @@ kept by the item's save writer (`FUN_006312b0` clears only 0x80000), so it
 reaches the save. Ported: the flag (`kItemRepaired`, in `rules::mend` for a
 broken item and `rules::replenish_fire`; `tests/test_item_repaired.cpp`,
 oracle `tools/emu/mend_flags.py`), the stats and the durability as before.
-Not ported (`ponytail:` in components/rules/replenish.hpp): the hand-skill
+Not ported (`ponytail:` in components/rules/items/replenish.hpp): the hand-skill
 pass (`FUN_0055c5c0`: it drops a player's hand skill whose weapon is gone or
 refused, `weapon-switch.md` "Dropping hand skills"), as for a smith's repair:
 it needs the character's skills, not `rules/`. `FUN_00663cc0` and the

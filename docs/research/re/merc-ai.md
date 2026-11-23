@@ -6,7 +6,7 @@ table `0x73ca18 + 61*16` = `{0, no init, think 0x5e52d0, other think
 0x5e5280}`. The other think (Diablo's, monster-ai.md "Curse thinks and
 other thinks") clears state 0xc, toggles the AI back and stands 1 frame.
 
-Port: `components/rules/merc.hpp` (`hireable_think`), run by
+Port: `components/rules/ai/merc.hpp` (`hireable_think`), run by
 `Fight::merc_turn`. Checked: `tools/emu/merc.py` runs FUN_005e52d0 natively
 on random setups against the port (30,000 cases: every move tried, stand,
 teleport, attack hand-off and the merc's seed after, all equal);
