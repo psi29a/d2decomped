@@ -5,7 +5,7 @@ import struct
 from pathlib import Path
 
 from unicorn import UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESP
 
 from emu import RET_MAGIC, Emu
 
@@ -53,6 +53,29 @@ def check(exe):
             print(f"{name}: packet {packet[0]:#04x}, command {packet[5]}, correction {correction}")
 
 
+def check_skill_commands(exe):
+    """Run the two original skill packet handlers up to unit dispatch."""
+    oracle = Emu(exe=str(exe))
+    monster = oracle.alloc(0x200)
+    commands = []
+
+    def dispatch(machine):
+        args = oracle.mu.mem_read(machine.arg(0), 28)
+        commands.append((oracle.mu.reg_read(UC_X86_REG_ECX), oracle.mu.reg_read(UC_X86_REG_EDX),
+                         struct.unpack("<7i", args)))
+        return 0
+
+    oracle.hook(0x480c10, dispatch, 2)
+    targeted = bytes.fromhex("4c 01 3f 00 00 00 3e 00 03 00 01 00 00 00 00 00")
+    point = bytes.fromhex("4d 01 3f 00 00 00 3e 00 00 00 03 4b 16 83 13 00 00")
+    for handler, packet, command, aim in ((0x45df00, targeted, 0x16, (0, 1)),
+                                          (0x45df60, point, 0x15, (5707, 4995))):
+        oracle.call(handler, ecx=monster, edx=oracle.put(packet), limit=1000)
+        assert oracle.mu.reg_read(UC_X86_REG_EIP) == RET_MAGIC
+        assert commands.pop() == (command, monster, (62, -1, *aim, 3, 0, 0))
+        print(f"{packet[0]:#04x}: skill 62, command {command:#04x}, aim {aim}")
+
+
 def check_state_stats(exe):
     """Run the original 0xa8 decoder through the signed send fields."""
     oracle = Emu(exe=str(exe))
@@ -91,4 +114,5 @@ if __name__ == "__main__":
     parser.add_argument("--exe", type=Path, required=True)
     args = parser.parse_args()
     check(args.exe)
+    check_skill_commands(args.exe)
     check_state_stats(args.exe)

@@ -277,6 +277,16 @@ changes and holds it in freeze state 1, which makes `FUN_004b13a0`
 skip the living monster's step. Its clock starts on receipt of the
 mode command.
 
+An original host also sends Council casts as 0x4c (target) or 0x4d
+(point). `FUN_0045df00` and `FUN_0045df60` dispatch commands 0x16 and
+0x15. `LAB_004b0c36` and `LAB_004b0cae` start the mode obtained from
+the skill instance by `FUN_00643860`. For a monster, `LAB_006471c5`
+initializes that mode from the skill row's monanim byte at +0x11.
+The 1.14d Skills.txt rows 62 and 179 observed in the capture both
+select S1. d2d resolves these Council packets against Skills.txt
+and starts pose playback at the recorded aim. The packet oracle
+checks both forms.
+
 `test_council_a1 --host-pose` dumps every active tick and the end tick
 for A1 and S1 on each of the three classes, at stock speed, through a
 slowdown and recovery, and through a freeze and thaw.
