@@ -365,15 +365,36 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             d2d::log::info("Khalim's Will: the sewers' stairs open");
             return;
         }
-        if (object.operate_fn == d2d::rules::operate_fn::kSewerStairs) return;   // FUN_005b84e0: open, its warp's taken as any
+        // The stairs that go through a warp whose LvlWarp click box is empty (rows 60, 61, 64: no click takes those):
+        // the sewers' (OperateFn 44, FUN_005b84e0 -> FUN_0059d9d0), a temple's doors (47, FUN_00581f60) and the
+        // Durance's (50, FUN_00582180, which jumps into 47's mode 2). 47 shut (mode 0) opens: mode 1, its event 1 at
+        // FrameCnt1 + 1 frames takes it to 2 (slime_doors_on). In mode 2 each sends its user through (FUN_005550b0) the
+        // warp tile of its room; 47 / 50 without one there, of the first of its near rooms (FUN_00619790) with one.
+        // ponytail: the first warp of a room in level->warps, where game.exe takes its room's units newest first.
+        if (object.operate_fn == d2d::rules::operate_fn::kSewerStairs || object.operate_fn == d2d::rules::operate_fn::kStairs
+            || object.operate_fn == d2d::rules::operate_fn::kDuranceStairs) {
+            const auto state = doors.find({ level, npc_index });
+            const int mode = state != doors.end() ? state->second.mode : mode_index(object.mode);
+            if (object.operate_fn == d2d::rules::operate_fn::kStairs && mode == 0) { set_door_mode(npc_index, 1, now_ms); return; }
+            if (mode != 2 || host_warps) return;
+            const auto warp_in = [&](int room) {
+                return std::ranges::find_if(level->warps, [&](const Level::Warp& warp) { return room >= 0 && room_of(*level, warp.unit_x, warp.unit_y) == room; });
+            };
+            const int room = room_of(*level, object.x, object.y);
+            auto warp = warp_in(room);
+            if (warp == level->warps.end() && object.operate_fn != d2d::rules::operate_fn::kSewerStairs)
+                for (const auto& [near_level, near_room] : near_rooms(*game_data, *level, object.x, object.y))
+                    if (near_level == level && near_room != room && (warp = warp_in(near_room)) != level->warps.end()) break;
+            if (warp != level->warps.end()) travel_warp(*warp);
+            return;
+        }
         // The compelling orb (OperateFn 53, FUN_005bb980): hit with Khalim's
         // Will in hand; the second hit breaks it: the Will goes, the orb
         // (0x16e) leaves, the object to mode 1. Else "I can't".
         // The break's FUN_005dfee0 (ai-control.md): the orb monster's orbmist (row 0x170) from it to
         // object 386 (the marker, class 0x182, its DS1 preset), level 1, flags 0x420; its end (hit 35,
-        // FUN_005abee0) puts 386 in mode 1.
-        // ponytail: object 386 ("Dummy" stairsr) has no Token, so add_object makes no Npc for it: the
-        // mist is drawn, its end changes nothing here (OperateFn 50, LAB_00582180, has nothing to run on).
+        // FUN_005abee0) puts 386 in mode 1 and queues its event 1 FrameCnt1 frames on (FUN_00581490: mode 2).
+        // ponytail: 386 goes to mode 1 at the break, not as the mist lands.
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
             // FUN_0063bef0: the weapon in hand (either arm, item type 0x2d;
@@ -410,6 +431,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 }
             to_mode(1);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
+            for (std::size_t i = 0; i < level->npcs.size(); ++i)
+                if (level->npcs[i].operate_fn == d2d::rules::operate_fn::kDuranceStairs) set_door_mode(int(i), 1, now_ms);
             fight.spawning.orb_smashed = true;
             d2d::log::info("Khalim's Will: the compelling orb broken");
             return;
@@ -596,6 +619,9 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
             if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kSlimeDoor) {           // the Maggot Lair's (FUN_005821a0): NU only, to OP (0x5821b8), once
             if (state.mode == 0) mode = 1;                                              // then ON by its event 1 (slime_doors_on)
+        } else if (door.operate_fn == d2d::rules::operate_fn::kGate) {                // Harrogath's gate, the pen door (FUN_00582080)
+            // 500 ms after its last change (+0xd4): shut (0) opens (1, then 2 by its event 1: slime_doors_on), open shuts.
+            if (now_ms - state.when >= 500) mode = state.mode == 0 ? 1 : state.mode == 2 ? 0 : -1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
             // Mode 2: the first warp tile unit (type 5) of the door's room
             // (room +0x74's list); a room without one is game.exe's assert 0x40e.
@@ -711,11 +737,12 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
-// This level's slime doors OP long enough go ON (event 1, FUN_00581490).
+// This level's slime doors, gates and stairs OP long enough go ON (event 1, FUN_00581490).
 
 // A slime door's event 1: with Mode2 (objects.bin +0x141, 0x582209)
 // FUN_005821a0 queues it at FrameCnt1 + 1 frames on (FUN_005417d0,
-// 0x58223c); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
+// 0x58223c; a gate's FUN_00582080, a temple door's FUN_00581f60 the same, the Durance's stairs' FUN_005abee0
+// FrameCnt1 on); FUN_00581490 takes a door still in mode 1 to mode 2 (ON), its
 // footprint ON's (HasCollision2). The time is object_op_ticks', as the
 // chests' tick: the sooner of that event and the client's OP counter's end.
 // An event comes only while the game runs the door's room (one near a
@@ -726,7 +753,8 @@ auto World::slime_doors_on(std::uint32_t now_ms) -> void {
         for (const auto& [key, state] : doors) {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
-            if (door.operate_fn != d2d::rules::operate_fn::kSlimeDoor || !fight.near_players(door.x, door.y)) continue;
+            using namespace d2d::rules::operate_fn;
+            if (!std::ranges::contains(std::array{ kSlimeDoor, kGate, kStairs, kDuranceStairs }, door.operate_fn) || !fight.near_players(door.x, door.y)) continue;
             const int on_ticks = object_op_ticks(door);
             if (on_ticks < 0) continue;
             const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;

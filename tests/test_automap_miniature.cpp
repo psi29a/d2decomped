@@ -3,7 +3,7 @@
 // The town miniatures (rules/automap_miniature.hpp): FUN_004591a0's grids,
 // worked by hand from its constants. Lut Gholein 5 x 4 of 160 x 100 less
 // the cels at 0x6d6608; the Pandemonium Fortress 2 x 2 of 136 x 90;
-// Harrogath 2 x 2 of 180 x 170; each round the level's middle.
+// Harrogath 3 x 2 of 180 x 170 (0x459209, ExTnMap's 6 cels); each round the level's middle.
 #include <automap_miniature.hpp>
 
 #include <cassert>
@@ -48,8 +48,9 @@ int main() try {
 
     // The Pandemonium Fortress: (-(136 + -3), -(90) + 50) = (-133, -40).
     assert(same(automap_miniature(0x67, 0, 0, 0), { { 0, -133, -40 }, { 1, 3, -40 }, { 2, -133, 50 }, { 3, 3, 50 } }));
-    // Harrogath: (-(180 + -20), -(170) + 155) = (-160, -15).
-    assert(same(automap_miniature(0x6d, 0, 0, 0), { { 0, -160, -15 }, { 1, 20, -15 }, { 2, -160, 155 }, { 3, 20, 155 } }));
+    // Harrogath: (-(180 * 3 / 2 + -20), -(170) + 155) = (-250, -15).
+    assert(same(automap_miniature(0x6d, 0, 0, 0), { { 0, -250, -15 }, { 1, -70, -15 }, { 2, 110, -15 },
+                                                    { 3, -250, 155 }, { 4, -70, 155 }, { 5, 110, 155 } }));
     std::printf("OK: the Pandemonium Fortress and Harrogath\n");
 
     // The middle in act tiles goes to client px (FUN_00643310), then / 10:

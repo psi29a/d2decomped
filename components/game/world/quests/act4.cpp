@@ -101,7 +101,7 @@ auto World::act4_join() -> void {
         gem_rounds = 0;
         forge_inited = false;
         seal_bosses.clear();
-        fortress_warp_done = end_movie = game_closed = false;
+        fortress_warp_done = end_movie = game_closed = last_portal_made = false;
         act4_chain();
     }
 

@@ -49,6 +49,8 @@ struct PlacedTile {
     // layer + 1 OR'd in (not a shadow's); bit 0, any of the words had 0x80.
     int layers = 0;
     bool keep = false;
+    // An Animate preset's tile (FUN_0066d440): its frame (rarity) and its key's frame count; 0 frames, not animated.
+    std::uint8_t frame = 0, frames = 0;
 };
 // A room's area (FUN_0066ca50's entry): level-relative tiles, right /
 // bottom exclusive; id its flood label, skip (+0x20) where it began on a blank floor.
@@ -656,7 +658,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         // FUN_0066d700 / FUN_0066d440 (DrlgAnim.cpp), an Animate preset: each
         // tile of the walls, floors, shadow (as listed so far) whose DT1 says
         // animated (+6 & 0x100) becomes its key's rarity-0 tile, and rarity
-        // 1..n-1 (the frames) follow it onto the list.
+        // 1..n-1 (the frames) follow it onto the list, hidden (+0x14 | 8) till their turn
+        // (FUN_0066d3b0: world_view's animated_tile).
         if (pre->animate)
             for (const int layer : { 0, 1, 2 }) {
                 const std::size_t listed = room.tiles.size();
@@ -670,9 +673,13 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                         return found == frames.end() ? std::pair<const Dt1File*, int>{ nullptr, -1 } : *found;
                     };
                     std::tie(room.tiles[i].file, room.tiles[i].index) = frame(0);
-                    for (int number = 1; number < int(frames.size()); ++number) {
+                    const auto count = std::uint8_t(std::min<std::size_t>(frames.size(), 0xff));
+                    if (count > 1) room.tiles[i].frames = count;
+                    for (int number = 1; number < int(count); ++number) {
                         const auto [file, index] = frame(number);
                         room.tiles.push_back({ layer, tile.x, tile.y, tile.orient, file, index, key });
+                        room.tiles.back().frame = std::uint8_t(number);
+                        room.tiles.back().frames = count;
                     }
                 }
             }

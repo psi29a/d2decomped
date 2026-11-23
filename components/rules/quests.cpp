@@ -73,8 +73,10 @@ void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, Tower
 }
 
 QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
-    if (quest < 1 || quest > 22 || quest == 7 || quest == 8 || quest == 15 || quest == 16) return {};
-    const auto& rec = kQuestLogRecords[std::size_t(quest - (quest < 7 ? 1 : quest < 15 ? 3 : 5))];
+    // The entries at 0x723f30: quests 1..6, 9..14, 17..22, 25..27 and 35..40 have a record.
+    const bool act4 = quest >= 25 && quest <= 27, act5 = quest >= 35 && quest <= 40;
+    if (!act4 && !act5 && (quest < 1 || quest > 22 || quest == 7 || quest == 8 || quest == 15 || quest == 16)) return {};
+    const auto& rec = kQuestLogRecords[std::size_t(quest - (quest < 7 ? 1 : quest < 15 ? 3 : quest < 23 ? 5 : act4 ? 7 : 14))];
     auto flag = [&](int bit) { return d2d::rules::quest::bit(quest_bits, quest, bit); };
     auto game = [&](int bit) { return (quest_state.game[std::size_t(quest)] >> bit & 1) != 0; };
     auto entry = [&](int string, int speech, int shown, int state, bool marks) {
@@ -82,7 +84,11 @@ QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const Q
     };
     const bool bit0 = flag(0), bit1 = flag(1), b13 = flag(13);
     int log_state = quest_state.log[std::size_t(quest)];
-    if (bit0) {                                               // done: 13 in this game, 11 before
+    // Siege on Harrogath's record (0x723d24) with bit 1 goes straight to its log state's line, 4 when there's none
+    // (0x4a1a43), done or not.
+    const bool siege_due = quest == 35 && bit1;
+    if (siege_due && log_state == 0) log_state = 4;
+    if (bit0 && !siege_due) {                                               // done: 13 in this game, 11 before
         log_state = b13 ? 13 : 11;
         return entry(rec[std::size_t(2 * log_state + 1)], rec[1], flag(12) ? 1 : 0, log_state, false);
     }
@@ -91,11 +97,17 @@ QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const Q
         const int tomb = summoner && log_state == 1 ? 7 : flag(3) ? 5 : flag(4) ? 6 : 0;
         if (tomb) return entry(rec[std::size_t(2 * tomb + 1)], rec[std::size_t(2 * tomb + 2)], 3, tomb, false);
     }
-    if (b13 && bit1 && rec[2] != 0xffff) {                    // the reward's due
+    if (!siege_due && b13 && bit1 && rec[2] != 0xffff) {      // the reward's due
         log_state = rec[2] + 1;
         return entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], 3, log_state, true);
     }
-    if (bit1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
+    if (!siege_due && bit1 && flag(15)) {
+        // State 10 (0x4a1cf9), but Prison of Ice (37) 5 without bit 8, 6 with 8 and not 9; Betrayal of Harrogath
+        // (38) 4, 5 with bit 4; Hell's Forge (27) shown as done (1).
+        const int state = quest == 37 ? (!flag(8) ? 5 : !flag(9) ? 6 : 10) : quest == 38 ? (flag(4) ? 5 : 4) : 10;
+        const int line = rec[std::size_t(2 * state + 1)];
+        return line == 3725 ? QuestText{} : entry(line, rec[std::size_t(2 * state + 2)], quest == 27 ? 1 : 3, state, false);
+    }
     if (log_state == 0)
         return (game(13) || game(15)) && !b13 && !bit1 ? entry(3729 + quest_state.multiplayer, 3725, 3, -1, false) : QuestText{};
     if (log_state > 13) return {};
@@ -104,6 +116,8 @@ QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const Q
         if (log_state == 3 || log_state == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
         return text;
     }
+    // ponytail: Rescue on Mount Arreat's (36) state 2 line (22624) appends its count ([0x7bf2ac], 0x4a1fd9); not
+    // shown here. Needs: where the client fills 0x7bf2ac.
     int line = rec[std::size_t(2 * log_state + 1)];
     if ((!b13 && !bit1 && game(13)) || flag(14)) line = 3729 + quest_state.multiplayer;   // "done by another player"
     else if (line == 3727 && !quest_state.multiplayer) line = 3729;

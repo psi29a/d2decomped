@@ -17,6 +17,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
@@ -565,10 +566,10 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
             }
             return true;
         }
-        // The Throne's portal (563, OperateFn 70, FUN_0058e6a0): with Baal gone
-        // in, to the Chamber (FUN_0053aec0(0x84, 11): its town-portal tile);
-        // elsewhere back to the Throne.
-        if (object.object_id == d2d::rules::EveQuest::kChamberPortal) {
+        // Baal's portals (563 / 569, OperateFn 70, FUN_0058e6a0): on the Throne,
+        // with Baal gone in, to the Chamber (FUN_0053aec0(0x84, 11): its
+        // town-portal tile); elsewhere back to the Throne.
+        if (object.operate_fn == d2d::rules::operate_fn::kBaalsPortal) {
             const bool on_throne = level->id == d2d::rules::EveQuest::kThrone;
             if (on_throne && !eve.baal_in) return true;
             const Level* dest = game_data->level(on_throne ? d2d::rules::EveQuest::kChamber : d2d::rules::EveQuest::kThrone);

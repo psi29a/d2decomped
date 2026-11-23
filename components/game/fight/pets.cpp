@@ -388,6 +388,13 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 set_mode(*game_data, monster, "NU", now_ms);
             }
             if (monster.mode == "GH" && now_ms < monster.mode_until) continue;
+            if (monster.mode == "GH") {   // its end (FUN_005a8030) goes to NU, whose start (FUN_005a73e0) files the think aidel on
+                set_mode(*game_data, monster, "NU", now_ms);
+                if (monster.next_act <= now_ms) {
+                    const int aidel = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(monster.difficulty)].aidel;
+                    monster.next_act = now_ms + std::uint32_t(now_ms < monster.stunned_until ? 0x2d : aidel > 0 ? aidel : 15) * 40;
+                }
+            }
             if (ai_name == "NecroPet") { necropet_turn(pet, now_ms, elapsed, crowd); continue; }
             if (traced) { pet_think_turn(pet, now_ms, elapsed, crowd); continue; }
             // Only a revived monster gets here (Revive, do 58). game.exe raises
