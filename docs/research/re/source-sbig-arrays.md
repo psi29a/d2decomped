@@ -45,4 +45,5 @@ numbers, so no row has a counterpart.
 | `FUN_004219d0` | `sbig_bytes_append_one` | `ECX` array, byte pointer (`RET 4`): `sbig_bytes_append(1, pointer)`; returns its result | no counterpart (as `sbig_grow_step`) |
 | `FUN_004219f0` | `sbig_bytes_set_e` | `ECX` array, n, source (`RET 8`): `+0` = n; unless the buffer and n are both 0, `SMemReAlloc(buffer, n, ".E", -2, 0)`; n bytes copied; `+4` = n | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421a50` | `sbig_bytes_set_d` | `ECX` array, n, source (`RET 8`): as `sbig_bytes_set_e` with the tag `.D` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421ab0` | `sbig_reserve_digits` | `ECX` number, n, round flag (`RET 8`): when `+0` is below `+4` + n, that count, rounded up (when the flag is set) to `+0xc` or else `sbig_grow_step` (0x40 cap), goes to `sbig_resize` (dwords, `.I`) | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421ba0` | `sbig_assign_with_step` | `ECX` number, source (`RET 4`): as `sbig_assign`, then the grow step `+0xc` copied too (also for itself); returns the number | no counterpart (as `sbig_grow_step`) |
