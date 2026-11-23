@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -39,6 +39,7 @@ MUTATIONS = {
     0x421240: ("step_cap_0x40", "step_not_kept"),
     0x421280: ("round_always_adds",),
     0x4212D0: ("digit_no_offset", "digit_bound_inclusive"),
+    0x421440: ("even_inverted", "even_ignores_bound"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -132,6 +133,12 @@ class Model:
             index = (a[0] if m == "digit_no_offset" else rec[0x10] + a[0]) & M32
             inside = index <= rec[4] if m == "digit_bound_inclusive" else index < rec[4]
             eax = case["digit"](index) if inside else 0
+        if address in (0x421440, 0x421540):   # 1 when no digits or the low digit is even
+            low = case["digit"](rec[0x10]) if rec[0x10] < rec[4] or m == "even_ignores_bound" else 0
+            empty = rec[4] == rec[0x10]
+            eax = int(empty or not low & 1)
+            if m == "even_inverted":
+                eax ^= 1
         return eax, changes, buffer, calls
 
 
