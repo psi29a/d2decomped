@@ -8,6 +8,7 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <rules.hpp>
+
 #include <cstddef>
 #include <optional>
 #include <utility>

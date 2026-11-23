@@ -114,28 +114,9 @@ struct Crowd {
     // Marks that count while their flag is on: a monster's leap landing (Monster::landing_mark while
     // `leaping`), so one taken mid-frame holds for the monsters that think after it.
     std::vector<std::pair<const UnitState*, const bool*>> held;
-    [[nodiscard]] bool at(float x, float y, const UnitState* self) const {
-        static const UnitShape player;
-        return at(x, y, self ? self->shape : player, self);
-    }
+    [[nodiscard]] bool at(float x, float y, const UnitState* self) const;
     // As something of shape `mover` would stand there, `self` not counted.
-    [[nodiscard]] bool at(float x, float y, const UnitShape& mover, const UnitState* self) const {
-        const int sub_x = int(std::floor(x * 5)), sub_y = int(std::floor(y * 5));
-        const int half = mover.size / 2;
-        auto covers = [&](int cell_x, int cell_y) {
-            if (mover.pattern == 0) return cell_x == sub_x && cell_y == sub_y;
-            if (mover.box()) return cell_x >= sub_x - half && cell_x < sub_x - half + mover.size && cell_y >= sub_y - half && cell_y < sub_y - half + mover.size;
-            return std::abs(cell_x - sub_x) + std::abs(cell_y - sub_y) <= 1;
-        };
-        const auto blocks = [&](const UnitState* other) {
-            if (other == self || !other->shape.stamps() || !(other->shape.bit() & mover.mask)) return false;
-            const int other_x = int(std::floor(other->x * 5)), other_y = int(std::floor(other->y * 5));
-            if (covers(other_x, other_y)) return true;
-            static constexpr std::pair<int, int> kNeighbours[] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-            return other->shape.box() && std::ranges::any_of(kNeighbours, [&](const auto& step) { return covers(other_x + step.first, other_y + step.second); });
-        };
-        return std::ranges::any_of(units, blocks) || std::ranges::any_of(held, [&](const auto& mark) { return *mark.second && blocks(mark.first); });
-    }
+    [[nodiscard]] bool at(float x, float y, const UnitShape& mover, const UnitState* self) const;
 };
 
 // A monster in the level: its type (MonStats row), composite recipe with

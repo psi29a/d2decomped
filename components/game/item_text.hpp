@@ -44,24 +44,7 @@ struct TextLine {
 };
 
 // D2's printf subset in its strings: %d, %+d, %s, %%. Args in order.
-inline std::string d2_format(std::string_view format, std::initializer_list<std::variant<std::int64_t, std::string>> args) {
-    std::string out;
-    auto arg = args.begin();
-    for (std::size_t i = 0; i < format.size(); ++i) {
-        if (format[i] != '%' || i + 1 == format.size()) { out += format[i]; continue; }
-        if (format[i + 1] == '%') { out += '%'; ++i; continue; }
-        const bool plus = format[i + 1] == '+';
-        const std::size_t after = i + (plus ? 2 : 1);
-        if (after >= format.size() || (format[after] != 'd' && format[after] != 's' && format[after] != 'i')) { out += format[i]; continue; }
-        if (arg != args.end()) {
-            if (const auto* number = std::get_if<std::int64_t>(&*arg)) out += (plus && *number >= 0 ? "+" : "") + std::to_string(*number);
-            else out += std::get<std::string>(*arg);
-            ++arg;
-        }
-        i = after;
-    }
-    return out;
-}
+std::string d2_format(std::string_view format, std::initializer_list<std::variant<std::int64_t, std::string>> args);
 
 // An item's property list as the tooltip's text lines, by ItemStatCost
 // descfunc (the column semantics the game's item-description code uses),
@@ -72,160 +55,7 @@ inline std::string d2_format(std::string_view format, std::initializer_list<std:
 // No descfunc 17/18 (time-of-day) or 22 (monster types): no 1.14d item
 // rolls them (of Dawn / of Sunlight aren't spawnable; att-mon% / dmg-mon%
 // are on nothing).
-inline std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl) {
-    auto str = [&](std::string_view key) {
-        if (key.empty()) return std::string{};
-        const std::optional<std::u16string_view> found = lookup_string(game_data, key);
-        std::string text = found ? u16_to_latin1(*found) : std::string(key);
-        while (!text.empty() && (text.back() == '\n' || text.back() == ' ')) text.pop_back();
-        return text;
-    };
-    auto desc = [&](int stat) -> const GameData::StatDesc* {
-        return stat >= 0 && std::size_t(stat) < game_data.stat_desc.size() ? &game_data.stat_desc[std::size_t(stat)] : nullptr;
-    };
-    auto skill = [&](int id) {
-        // SkillDesc "str name" (FUN_004e6ce0, index 0); a skill without one 0x1506 "an evil force".
-        const bool named = id >= 0 && std::size_t(id) < game_data.skill_name.size() && !game_data.skill_name[std::size_t(id)].empty();
-        return named ? str(game_data.skill_name[std::size_t(id)]) : string_id(game_data, 0x1506);
-    };
-    // One stat list, like the unit's: repeats of a (stat, param) add up.
-    {
-        std::vector<d2d::d2s::ItemProp> merged;
-        for (const auto& prop : props) {
-            auto merged_prop = std::ranges::find_if(merged, [&](const auto& other) { return other.stat == prop.stat && other.param == prop.param; });
-            if (merged_prop != merged.end() && prop.stat != d2d::d2s::kChargedSkill) merged_prop->value += prop.value;      // 204: charges don't add
-            else merged.push_back(prop);
-        }
-        props = std::move(merged);
-    }
-    struct Out { int prio; std::string text; };
-    std::vector<Out> out;
-    auto value_of = [&](int stat) -> std::optional<std::int64_t> {
-        for (const auto& prop : props) if (prop.stat == stat) return prop.value;
-        return std::nullopt;
-    };
-    std::unordered_set<int> done;
-    // Hard-coded pairs.
-    auto range = [&](int low, int high, const char* range_key, const char* single_key, int prio, int len_stat = -1) {
-        const auto low_value = value_of(low), high_value = value_of(high);
-        if (!low_value || !high_value) return;
-        std::int64_t x = *low_value, y = *high_value;
-        std::optional<std::int64_t> secs;
-        if (len_stat >= 0) {
-            const auto len = value_of(len_stat).value_or(0);
-            x = x * len / 256; y = y * len / 256; secs = len / 25;
-            done.insert(len_stat);
-        }
-        std::string line_text = x == y && single_key ? (secs ? d2_format(str(single_key), { x, *secs })
-                                                     : d2_format(str(single_key), { x }))
-                      : secs ? d2_format(str(range_key), { x, y, *secs }) : d2_format(str(range_key), { x, y });
-        out.push_back({ prio, std::move(line_text) });
-        done.insert(low); done.insert(high);
-    };
-    range(21, 22, "strModMinDamageRange", nullptr, 127);
-    // Two-handed/thrown copies of min/max damage only show without the base.
-    if (value_of(21)) { done.insert(23); done.insert(159); }
-    if (value_of(22)) { done.insert(24); done.insert(160); }
-    range(48, 49, "strModFireDamageRange", "strModFireDamage", 102);
-    range(50, 51, "strModLightningDamageRange", "strModLightningDamage", 99);
-    range(52, 53, "strModMagicDamageRange", "strModMagicDamage", 104);
-    range(54, 55, "strModColdDamageRange", "strModColdDamage", 96);
-    if (done.contains(54)) done.insert(56);
-    range(57, 58, "strModPoisonDamageRange", "strModPoisonDamage", 92, 59);
-    if (const auto min_damage = value_of(17), max_damage = value_of(18); min_damage && max_damage && *min_damage == *max_damage) {
-        out.push_back({ 130, "+" + std::to_string(*min_damage) + "% " + str("strModEnhancedDamage") });
-        done.insert(17); done.insert(18);
-    }
-    // dgrp groups.
-    std::unordered_map<int, std::vector<int>> groups;
-    for (std::size_t i = 0; i < game_data.stat_desc.size(); ++i)
-        if (game_data.stat_desc[i].dgrp) groups[game_data.stat_desc[i].dgrp].push_back(int(i));
-    for (const auto& [group, members] : groups) {
-        std::optional<std::int64_t> value;
-        bool same = true;
-        for (int member : members) {
-            const auto x = value_of(member);
-            if (!x || (value && *value != *x)) { same = false; break; }
-            value = x;
-        }
-        if (!same || !value) continue;
-        const auto& stat_desc = *desc(members.front());
-        const std::string first = str(*value < 0 ? stat_desc.dgrp_neg : stat_desc.dgrp_pos);
-        std::string line_text;
-        switch (stat_desc.dgrp_func) {
-            case 1: case 6: case 12: line_text = stat_desc.dgrp_val == 2 ? first + " " + d2_format("%+d", { *value }) : d2_format("%+d", { *value }) + " " + first; break;
-            case 3: case 9: line_text = stat_desc.dgrp_val == 2 ? first + " " + std::to_string(*value) : std::to_string(*value) + " " + first; break;
-            case 4: case 8: line_text = stat_desc.dgrp_val == 2 ? first + " " + d2_format("%+d%%", { *value }) : d2_format("%+d%%", { *value }) + " " + first; break;
-            case 19: line_text = d2_format(first, { *value }); break;
-            default: line_text = d2_format(first, { *value }); break;
-        }
-        out.push_back({ stat_desc.prio, std::move(line_text) });
-        for (int member : members) done.insert(member);
-    }
-    for (const auto& prop : props) {
-        if (done.contains(prop.stat)) continue;
-        const auto* stat_desc = desc(prop.stat);
-        if (!stat_desc || stat_desc->func == 0) continue;
-        std::int64_t value = prop.value;
-        // Per-level stats (op 2..5 with op param): value * clvl >> param.
-        if (stat_desc->operation >= 2 && stat_desc->operation <= 5 && stat_desc->op_param > 0) value = value * clvl >> stat_desc->op_param;
-        const std::string first = str(value < 0 ? stat_desc->neg : stat_desc->pos), second = str(stat_desc->str2);
-        auto place = [&](const std::string& num) {
-            if (stat_desc->val == 0) return first;
-            return stat_desc->val == 2 ? first + " " + num : num + " " + first;
-        };
-        auto with2 = [&](const std::string& line_text) { return second.empty() ? line_text : line_text + " " + second; };
-        std::string line_text;
-        switch (stat_desc->func) {
-            case 1: case 12: line_text = place(d2_format("%+d", { value })); break;
-            case 2: line_text = place(std::to_string(value) + "%"); break;
-            case 3: line_text = place(std::to_string(value)); break;
-            case 4: line_text = place(d2_format("%+d%%", { value })); break;
-            case 5: line_text = place(std::to_string(value * 100 / 128) + "%"); break;
-            case 6: line_text = with2(place(d2_format("%+d", { value }))); break;
-            case 7: line_text = with2(place(std::to_string(value) + "%")); break;
-            case 8: line_text = with2(place(d2_format("%+d%%", { value }))); break;
-            case 9: line_text = with2(place(std::to_string(value))); break;
-            case 10: line_text = with2(place(std::to_string(value * 100 / 128) + "%")); break;
-            case 11: line_text = d2_format(first, { std::int64_t(1), value ? 100 / value : 0 }); break;
-            case 13: line_text = d2_format("%+d", { value }) + " " + (prop.param >= 0 && prop.param < 7
-                         ? str(game_data.class_strs[std::size_t(prop.param)].all_skills) : std::string{}); break;
-            case 14: {
-                const int cls = prop.param >> 3, tab = prop.param & 7;
-                if (cls < 0 || cls >= 7 || tab > 2) break;
-                const auto& class_strings = game_data.class_strs[std::size_t(cls)];
-                line_text = d2_format(str(class_strings.tab[tab]), { value }) + " " + str(class_strings.only);
-                break;
-            }
-            case 15: line_text = d2_format(first, { value, std::int64_t(prop.param & 63), skill(prop.param >> 6) }); break;
-            case 16: line_text = d2_format(first, { value, skill(prop.param) }); break;
-            case 19: line_text = d2_format(first, { value }); break;
-            case 20: line_text = place(std::to_string(-value) + "%"); break;
-            case 21: line_text = place(std::to_string(-value)); break;
-            case 23:                                       // FUN_004e4d80 0x17: placed "<v>%" then " " and MonStats row param's NameStr
-                if (prop.param >= 0 && std::size_t(prop.param) < game_data.mon_npc.size())
-                    line_text = place(std::to_string(value) + "%") + " " + game_data.mon_npc[std::size_t(prop.param)].title;
-                break;
-            case 24:                                       // descstr is just "(%d/%d Charges)"
-                line_text = "Level " + std::to_string(prop.param & 63) + " " + skill(prop.param >> 6) + " "
-                  + d2_format(first, { value & 255, value >> 8 });
-                break;
-            case 27: {
-                const int skill_class = std::size_t(prop.param) < game_data.skill_class.size() ? game_data.skill_class[std::size_t(prop.param)] : -1;
-                line_text = d2_format("%+d", { value }) + " to " + skill(prop.param)
-                  + (skill_class >= 0 ? " " + str(game_data.class_strs[std::size_t(skill_class)].only) : "");
-                break;
-            }
-            case 28: line_text = d2_format("%+d", { value }) + " to " + skill(prop.param); break;
-            default: break;
-        }
-        if (!line_text.empty()) out.push_back({ stat_desc->prio, std::move(line_text) });
-    }
-    std::ranges::stable_sort(out, [](const Out& left, const Out& right) { return left.prio > right.prio; });
-    std::vector<std::string> lines;
-    for (auto& line : out) lines.push_back(std::move(line.text));
-    return lines;
-}
+std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl);
 constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105, 105, 255 },
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 }, kTxtRed{ 255, 77, 77 };
@@ -235,10 +65,7 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // 0x48ec27), and the belt's hover after its lines (FUN_00497a40 at
 // 0x497bf1). The string is drawn bottom-up, so it shows on top, and it
 // sets no colour of its own, so it keeps the one the top line ends in.
-inline void add_price_line(std::vector<TextLine>& lines, std::string text) {
-    const auto rgb = lines.empty() ? kTxtWhite : lines.front().split != std::string::npos ? lines.front().tail : lines.front().rgb;
-    lines.insert(lines.begin(), TextLine{ std::move(text), rgb });
-}
+void add_price_line(std::vector<TextLine>& lines, std::string text);
 
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
 // 10..27 (frames, below), column by class and bow/crossbow (0x722078);
@@ -254,20 +81,7 @@ inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 
 // (100 + the item's IAS, stat 93 with its sockets', - its WSM) / 100; 45
 // without the animation. The weapon-speed line and Whirlwind's hit gap
 // (FUN_005d9320) read it.
-inline int weapon_attack_frames(const GameData& game_data, const d2d::d2s::Item& item, int cls) {
-    if (cls < 0 || cls >= 7) return 45;
-    const auto desc = game_data.item_desc.find(item.code);
-    const auto base = game_data.rules.item_base.find(item.code);
-    std::string upper = desc != game_data.item_desc.end() ? desc->second.wclass : std::string{};
-    for (auto& letter : upper) letter = char(std::toupper(static_cast<unsigned char>(letter)));
-    std::int64_t ias = 0;
-    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kFasterAttackRate) ias += prop.value;
-    for (const auto& socketed : item.socketed_items)
-        for (const auto& prop : socket_props(game_data, item, socketed)) if (prop.stat == d2d::d2s::kFasterAttackRate) ias += prop.value;
-    const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
-    const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + ias - (base != game_data.rules.item_base.end() ? base->second.speed : 0)) * std::int64_t(anim->second.speed) / 100 : 0;
-    return rate > 0 ? int((std::int64_t(anim->second.frames) << 8) / rate) : 45;
-}
+int weapon_attack_frames(const GameData& game_data, const d2d::d2s::Item& item, int cls);
 
 // A quest consumable its quest doesn't let the player use now (FUN_00483f80,
 // 0x483f80, on the client's quest words, FUN_004b32d0): the Book of Skill
@@ -275,13 +89,7 @@ inline int weapon_attack_frames(const GameData& game_data, const d2d::d2s::Item&
 // unless the Golden Bird's (0x14) has bit 5, the Scroll of Resistance (tr2)
 // unless the Prison of Ice's (0x25) has bit 8 and not bit 7. The grid tints
 // it red (FUN_00483ff0). Any other code: false.
-inline bool quest_item_held_back(std::string_view code, const d2d::d2s::Header& header) {
-    const int difficulty = header.active_difficulty();
-    if (code == "ass") return !header.quest_flag(difficulty, 9, 5);
-    if (code == "xyz") return !header.quest_flag(difficulty, 0x14, 5);
-    if (code == "tr2") return !header.quest_flag(difficulty, 0x25, 8) || header.quest_flag(difficulty, 0x25, 7);
-    return false;
-}
+bool quest_item_held_back(std::string_view code, const d2d::d2s::Header& header);
 
 // An item's required level (FUN_0062b5b0): its affixes' / set item's /
 // unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
@@ -293,72 +101,16 @@ inline bool quest_item_held_back(std::string_view code, const d2d::d2s::Header& 
 // needs that skill's reqlevel (Skills +0x174), an other class's skill
 // (stat 97, item_nonclassskill) its reqlevel + 6 unless it's the wearer's
 // class's.
-inline int required_level(const GameData& game_data, const d2d::d2s::Item& item, int cls = -1) {
-    auto level_at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
-    auto row_level = [&](const std::vector<std::pair<int, int>>& class_req, const std::vector<int>& req, int index) {   // FUN_00628830
-        if (cls >= 0 && index >= 0 && std::size_t(index) < class_req.size() && class_req[std::size_t(index)].first == cls) return class_req[std::size_t(index)].second;
-        return level_at(req, index);
-    };
-    auto affix_level = [&](bool prefix, int index) {
-        return prefix ? row_level(game_data.prefix_class_req, game_data.prefix_req, index) : row_level(game_data.suffix_class_req, game_data.suffix_req, index);
-    };
-    const int automod = item.class_affix > 0 ? row_level(game_data.automagic_class_req, game_data.automagic_req, item.class_affix - 1) : 0;
-    int level = 0;
-    switch (item.quality) {
-        case 4: level = std::max({ affix_level(true, item.prefix), affix_level(false, item.suffix), automod }); break;
-        case 5: level = level_at(game_data.set_req, item.set_id); break;
-        case 7: level = level_at(game_data.unique_req, item.unique_id); break;
-        case 6: case 8: {
-            int count = 0;
-            for (std::size_t i = 0; i < 6; ++i)
-                if (item.affixes[i] > 0) { level = std::max(level, affix_level(i % 2 == 0, item.affixes[i])); ++count; }
-            if (item.quality == 8) level = std::min(level + 10 + 3 * count, 98);
-            else level = std::max(level, automod);
-            break;
-        }
-        default: break;
-    }
-    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) level = std::max(level, info->second.req_lvl);
-    for (const auto& socketed : item.socketed_items) level = std::max(level, required_level(game_data, socketed, cls));
-    static constexpr std::array<std::string_view, 7> kClassCodes = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
-    for (const auto& prop : item.props)
-        if (const auto* skill = prop.stat == d2d::d2s::kSingleSkill || prop.stat == 97 ? game_data.skills.get(prop.param) : nullptr) {
-            const bool own = cls >= 0 && cls < 7 && skill->cls == kClassCodes[std::size_t(cls)];
-            level = std::max(level, skill->reqlevel + (prop.stat == 97 && !own ? 6 : 0));
-        }
-    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kLevelRequirement) level += int(prop.value);
-    return std::max(level, 0);
-}
+int required_level(const GameData& game_data, const d2d::d2s::Item& item, int cls = -1);
 
 // An item's drop sound (FUN_004c1d60, put down) or use sound (FUN_004c17f0,
 // picked up): misc / armor / weapons.txt's, then a unique's or set item's
 // own row instead. A row counts only when its dropsound is set, for the
 // usesound too.
-inline std::string item_sound(const GameData& game_data, const d2d::d2s::Item& item, bool use) {
-    std::string sound;
-    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end() && !info->second.drop_sound.empty())
-        sound = use ? info->second.use_sound : info->second.drop_sound;
-    const auto* rows = item.quality == 7 ? &game_data.unique_sounds : item.quality == 5 ? &game_data.set_sounds : nullptr;
-    const int row = item.quality == 7 ? item.unique_id : item.set_id;
-    if (rows && row >= 0 && std::size_t(row) < rows->size() && !(*rows)[std::size_t(row)].drop.empty())
-        sound = use ? (*rows)[std::size_t(row)].use : (*rows)[std::size_t(row)].drop;
-    return sound;
-}
+std::string item_sound(const GameData& game_data, const d2d::d2s::Item& item, bool use);
 // The flippy's drop sound and the frame it plays at (FUN_004c16d0): the
 // same rows, each row's dropsfxframe where it's set (12 by default).
-inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const d2d::d2s::Item& item) {
-    std::pair<std::string, int> out{ {}, 12 };
-    auto take = [&out](const std::string& sound, int frame) {
-        if (sound.empty()) return;
-        out.first = sound;
-        if (frame != 0) out.second = frame;
-    };
-    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) take(info->second.drop_sound, info->second.drop_frame);
-    const auto* rows = item.quality == 7 ? &game_data.unique_sounds : item.quality == 5 ? &game_data.set_sounds : nullptr;
-    const int row = item.quality == 7 ? item.unique_id : item.set_id;
-    if (rows && row >= 0 && std::size_t(row) < rows->size()) take((*rows)[std::size_t(row)].drop, (*rows)[std::size_t(row)].drop_frame);
-    return out;
-}
+std::pair<std::string, int> flippy_sound(const GameData& game_data, const d2d::d2s::Item& item);
 
 // An item's hover text as the client's FUN_0048dd90 (UI\inv.cpp) builds
 // it. The string is drawn bottom-up, so its segments, top line first:
@@ -386,294 +138,6 @@ inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const
 // of that row worn or in the inventory, cube or stash (FUN_00486770), else
 // red. `owner_items`: the hovering unit's items (the player's, the merc's);
 // none, every member is red and no bonus shows.
-inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
-                                        const d2d::rules::Wearer* wearer = nullptr, const std::vector<d2d::d2s::Item>* owner_items = nullptr) {
-    auto str = [&](std::string_view key) {
-        if (key.empty()) return std::string{};
-        const std::optional<std::u16string_view> found = lookup_string(game_data, key);
-        return found ? u16_to_latin1(*found) : std::string(key);
-    };
-    auto name_at = [](const std::vector<std::string>& names, int index) -> std::string_view {
-        return index >= 0 && std::size_t(index) < names.size() ? std::string_view(names[std::size_t(index)]) : std::string_view{};
-    };
-    const auto& names = game_data.item_names;
-    const auto info = game_data.rules.item_info.find(item.code);
-    const std::string base = str(info != game_data.rules.item_info.end() && !info->second.namestr.empty()
-                                     ? std::string_view(info->second.namestr) : std::string_view(item.code));
-    std::vector<TextLine> out;
-    auto two = [&](std::string name, std::array<std::uint8_t, 3> colour) {
-        if (name.empty()) { out.push_back({ base, colour }); return; }
-        out.push_back({ std::move(name), colour });
-        out.push_back({ base, colour });
-    };
-    auto join = [](std::string first, const std::string& second) {
-        if (first.empty()) return second;
-        if (second.empty()) return first;
-        return first + " " + second;
-    };
-    if (item.runeword) {
-        const int rank = item.runeword_id == 2718 ? 48 - 27 : item.runeword_id - 27;   // 2718: Delirium's odd ID
-        out.push_back({ str(name_at(names.runeword, rank)), kTxtGold });
-        out.push_back({ base, kTxtGrey });
-    } else switch (item.quality) {
-        case 1: {
-            static constexpr const char* kLow[] = { "Crude", "Cracked", "Damaged", "Low Quality" };
-            out.push_back({ join(str(item.qsub >= 0 && item.qsub < 4 ? kLow[item.qsub] : ""), base), kTxtWhite });
-            break;
-        }
-        case 3: out.push_back({ join(str("Hiquality"), base), kTxtWhite }); break;
-        case 4: out.push_back({ join(join(str(name_at(names.prefix, item.prefix)), base), str(name_at(names.suffix, item.suffix))),
-                                kTxtBlue }); break;
-        case 5: two(str(name_at(names.set, item.set_id)), kTxtGreen); break;
-        case 7: two(str(name_at(names.unique, item.unique_id)), kTxtGold); break;
-        case 6: case 8:
-            two(join(str(name_at(names.rare_pre, item.rare1 - 156)), str(name_at(names.rare_suf, item.rare2 - 1))),
-                item.quality == 6 ? kTxtYellow : kTxtOrange);
-            break;
-        default: out.push_back({ base, item.ethereal || item.socketed ? kTxtGrey : kTxtWhite }); break;
-    }
-    // After the quality's colour, game.exe makes the name orange (code 8) for
-    // the essences, the Token of Absolution, the three organs, the three uber
-    // keys and any rune (itemtype 0x4a): the hover (FUN_0048dd90,
-    // 0x48e9b0..0x48ea15) and the floor label (FUN_004527d0) check alike.
-    static constexpr std::array<std::string_view, 11> kOrangeCodes{ "ceh", "bet", "tes", "fed", "toa", "dhn",
-                                                                    "bey", "mbr", "pk1", "pk2", "pk3" };
-    if (std::ranges::find(kOrangeCodes, std::string_view(item.code)) != kOrangeCodes.end()
-        || (info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, info->second.type, "rune")))
-        for (auto& line : out) line.rgb = kTxtOrange;
-    // Unidentified magic and better: the base name in its colour, no properties.
-    const bool unid = !item.identified && item.quality >= 4 && !item.runeword;
-    if (unid) out = { { base, out.front().rgb } };
-    if (item.personalized && !item.owner.empty()) out.front().text = item.owner + "'s " + out.front().text;
-    if (info == game_data.rules.item_info.end()) return out;
-
-    // The item's stat list: its own and its sockets' (game.exe links them).
-    auto props = item.props;
-    for (const auto& socketed : item.socketed_items) {
-        const auto gem_props = socket_props(game_data, item, socketed);
-        props.insert(props.end(), gem_props.begin(), gem_props.end());
-    }
-    auto stat = [&](int id) {
-        std::int64_t sum = 0;
-        for (const auto& prop : props) if (prop.stat == id) sum += prop.value;
-        return sum;
-    };
-    auto has = [&](int id) { return std::ranges::any_of(props, [&](const auto& prop) { return prop.stat == id && prop.value; }); };
-    auto line = [](const std::string& head, const std::string& tail, bool blue) {
-        TextLine text_line{ head + tail, kTxtWhite };
-        if (blue) { text_line.split = head.size(); text_line.tail = kTxtBlue; }
-        return text_line;
-    };
-    const auto& type = info->second.type;
-    const auto is_type = [&](std::string_view want) { return d2d::rules::type_is(game_data.rules, type, want); };
-    const auto base_row = game_data.rules.item_base.find(item.code);
-    const d2d::rules::ItemBase no_base{};
-    const auto& item_base = base_row != game_data.rules.item_base.end() ? base_row->second : no_base;
-    const auto desc_row = game_data.item_desc.find(item.code);
-    const GameData::ItemDesc no_desc{};
-    const auto& desc = desc_row != game_data.item_desc.end() ? desc_row->second : no_desc;
-    const bool weapon = is_type("weap"), armor = is_type("armo"), throwable = game_data.rules.types.contains(type) && game_data.rules.types.at(type).throwable;
-    const int cls = wearer && wearer->cls >= 0 && wearer->cls < 7 ? wearer->cls : -1;
-    if (wearer) clvl = wearer->lvl;
-    const std::string space = " ", to_text = space + string_id(game_data, 3464) + space;            // "to"
-
-    // The socketed runes' letters (FUN_00486670, 0x486670; FUN_00629900:
-    // an item that takes sockets), runeword or not: each socketed item of
-    // type rune with a gems.txt row adds its letter, in the socket list's
-    // order, between RuneQuotes (20506). Under the name: FUN_0048dd90 puts
-    // its buffer (ebp-0x2434) last but the name's into the bottom-up
-    // string (0x48ebb1), so it's drawn just under the name lines. Gold:
-    // 20506 is a bare "'", but FUN_0048dd90 puts colour code 4 in front as
-    // it joins the buffer (FUN_004521c0, EDX 4 at 0x48ebac).
-    {
-        std::string letters;
-        for (const auto& socketed : item.socketed_items)
-            if (const auto rune_info = game_data.rules.item_info.find(socketed.code); rune_info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, rune_info->second.type, "rune"))
-                if (const auto letter = game_data.gem_letters.find(socketed.code); letter != game_data.gem_letters.end()) letters += letter->second;
-        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtGold });
-    }
-
-    // Defense: armorclass with its +% (16, on the base) and flat adds.
-    if (armor && item.defense >= 0) {
-        const auto def = std::int64_t(item.defense) * (100 + stat(d2d::d2s::kArmorPercent)) / 100 + stat(d2d::d2s::kArmorClass) + stat(d2d::d2s::kArmorPerLevel) * clvl / 8;
-        if (def > 0) out.push_back(line(string_id(game_data, 3461) + space, std::to_string(def), def != item.defense));
-    }
-    // Chance to block (shields): the item's toblock (the block column +
-    // 20s) plus the class's BlockFactor. Holy Shield (state 0x65, skill
-    // 0x75) adds its dm56 (FUN_00645c10: Param5 / Param6) before the cap
-    // of 75 (FUN_00485be0). Blue over the column.
-    const auto* holy_shield = wearer && wearer->holy_shield > 0 ? game_data.skills.get(0x75) : nullptr;
-    if (is_type("shld")) {
-        std::int64_t block = item_base.block + stat(d2d::d2s::kToBlock);
-        if (cls >= 0) block += game_data.class_gains[std::size_t(cls)].block;
-        if (holy_shield) block += d2d::rules::calc_dm(holy_shield->par[4], holy_shield->par[5], wearer->holy_shield);
-        block = std::min<std::int64_t>(block, 75);
-        if (block) out.push_back(line(string_id(game_data, 11018), std::to_string(block) + "%", block > item_base.block));
-    }
-    // Smite (a Paladin's shield) / kick damage (an Assassin's boots): the armor.txt mindam / maxdam.
-    // A shield adds Holy Shield's MinDam..MaxDam, whole points (FUN_00485d40: FUN_00647bc0 / FUN_00647d00 >> 8). Boots do not.
-    const std::string class_code = d2d::rules::type_class(game_data.rules, type);
-    if ((is_type("shld") && cls == d2d::d2s::kPaladin && (class_code.empty() || class_code == "pal")) || (is_type("boot") && cls == d2d::d2s::kAssassin)) {
-        int low = item_base.mindam, high = item_base.maxdam;
-        if (is_type("shld") && holy_shield) {
-            low += d2d::rules::skill_phys(game_data.skills, *holy_shield, {}, wearer->holy_shield, false) >> 8;
-            high += d2d::rules::skill_phys(game_data.skills, *holy_shield, {}, wearer->holy_shield, true) >> 8;
-        }
-        out.push_back({ string_id(game_data, is_type("shld") ? 3468 : 21782) + space + std::to_string(low) + to_text + std::to_string(high), kTxtWhite });
-    }
-    // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
-    // the record (LAB_0062d300 sets them: low quality 3/4, ethereal 3/2),
-    // the +% (18 min, 17 max) on that base, then the flat adds.
-    // A throwing potion (tpot, FUN_00485410's first branch; nothing else of
-    // it runs): its thrown missile (FUN_006288a0) at level 1, its own element
-    // (FUN_0064b100 / 0064b1d0; poison over ELen / 25 seconds, FUN_0064b2a0,
-    // at least 1) plus its physical part (FUN_0064af20 / 0064aff0), >> 8, the
-    // max at least the min. "Throw Damage:" white, the numbers in EType's
-    // colour (0x485bc4: fire red, lightning gold, cold blue, poison green,
-    // else white), one number when they're the same.
-    const auto thrown = is_type("tpot") ? game_data.thrown.find(item.code) : game_data.thrown.end();
-    const auto potion = thrown != game_data.thrown.end() ? game_data.missiles.find(thrown->second) : game_data.missiles.end();
-    if (thrown != game_data.thrown.end()) {
-        if (potion != game_data.missiles.end()) {
-            const auto& missile = potion->second;
-            const int shift = missile.hitshift & 31;
-            const auto element = d2d::rules::row_damage(missile.etype, missile.emin, missile.emax, missile.emin_lev, missile.emax_lev,
-                                                         missile.hitshift, missile.elen, missile.elen_lev, 1);
-            int low = element.elo, high = element.ehi;
-            if (missile.etype == 3) {
-                const int seconds = std::max(element.elen / 25, 1);
-                low /= seconds; high /= seconds;
-            }
-            low = (low + ((missile.min + d2d::rules::level_bonus(missile.min_lev, 1)) << shift)) >> 8;
-            high = std::max((high + ((missile.max + d2d::rules::level_bonus(missile.max_lev, 1)) << shift)) >> 8, low);
-            static constexpr std::array<std::array<std::uint8_t, 3>, 5> kElementColour{ { kTxtRed, kTxtGold, kTxtBlue, kTxtGreen, kTxtWhite } };
-            const std::string head = string_id(game_data, 3467) + space;
-            const std::string numbers = high != low ? std::to_string(low) + to_text + std::to_string(high) : std::to_string(low);
-            out.push_back({ head + numbers, kTxtWhite, head.size(), missile.etype >= 0 && missile.etype < 5 ? kElementColour[std::size_t(missile.etype)] : kTxtWhite });
-        }
-    } else if (weapon) {
-        auto base_damage = [&](std::size_t index) {
-            int value = desc.dam[index];
-            if (item.quality == 1 && value) value = std::max(value * 3 / 4, index % 2 ? 2 : 1);
-            if (item.ethereal) value = value * 3 / 2;
-            return value;
-        };
-        auto damage = [&](int kind, bool max_over_min, int label, bool blue_mods) {
-            static constexpr int kStat[3][2] = { { d2d::d2s::kMinDamage, d2d::d2s::kMaxDamage },
-                                                 { d2d::d2s::kSecondaryMinDamage, d2d::d2s::kSecondaryMaxDamage },
-                                                 { d2d::d2s::kThrowMinDamage, d2d::d2s::kThrowMaxDamage } };
-            const std::int64_t low_base = base_damage(std::size_t(kind) * 2), high_base = base_damage(std::size_t(kind) * 2 + 1);
-            const std::int64_t low = low_base * (100 + stat(d2d::d2s::kMinDamagePercent)) / 100 + stat(kStat[kind][0]);
-            std::int64_t high = high_base * (100 + stat(d2d::d2s::kMaxDamagePercent) + stat(d2d::d2s::kMaxDamagePercentPerLevel) * clvl / 8) / 100 + stat(kStat[kind][1]) + stat(d2d::d2s::kMaxDamagePerLevel) * clvl / 8;
-            high = std::max(high, max_over_min ? low + 1 : low);
-            const bool blue = low_base < low || high_base < high || blue_mods;
-            return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to_text + std::to_string(high), blue);
-        };
-        if (throwable && desc.dam[5]) out.push_back(damage(2, false, 3467, has(17) || has(18) || has(159) || has(160)));
-        if (cls == d2d::d2s::kBarbarian && info->second.one_or_two) {
-            out.push_back(damage(0, false, 3465, false));
-            out.push_back(damage(1, false, 3466, false));
-        } else {
-            out.push_back(info->second.two_handed ? damage(1, true, 3466, false) : damage(0, true, 3465, false));
-        }
-    }
-    // Quantity (stat 70; anything that stacks), unless unidentified or
-    // socketed; a misc.txt spelldesc takes its place (FUN_00486370).
-    {
-        std::string text;
-        if (item.identified && !item.socketed && (item.quantity > 0 || item_base.max_stack > 0))
-            text = string_id(game_data, 3462) + space + std::to_string(std::max(item.quantity, 0));
-        if (wearer && desc.spell_desc >= 1 && desc.spell_desc <= 4 && !desc.spell_str.empty()) {
-            std::int64_t value = desc.spell_calc;
-            if (desc.spell_desc == 2 && cls >= 0) {
-                // Potions by class (FUN_0062a5d0 life, FUN_0062a620 mana): x1.5 or x2.
-                if (desc.spell_stat == d2d::d2s::kLife || desc.spell_stat == d2d::d2s::kHitPointRegeneration) value = d2d::rules::potion_bonus(value, cls, true);
-                if (desc.spell_stat == d2d::d2s::kMana || desc.spell_stat == d2d::d2s::kManaRecovery) value = d2d::rules::potion_bonus(value, cls, false);
-            }
-            const std::string spell = str(desc.spell_str);
-            text = desc.spell_desc == 1 ? spell : desc.spell_desc == 4 ? d2_format(spell, { value }) : spell + space + std::to_string(value);
-        }
-        if (!text.empty()) out.push_back({ std::move(text), kTxtWhite });
-    }
-    if (is_type("char")) out.push_back({ string_id(game_data, 20438), kTxtWhite });            // "Keep in Inventory to Gain Bonus"
-    // Socket fillers (FUN_004e6850): a gem's or rune's gems.txt bonus per
-    // kind, each kind's label before its top line (FUN_004e6410).
-    if (is_type("sock")) {
-        out.push_back({ string_id(game_data, 11080), kTxtWhite });                            // "Can be Inserted into Socketed Items"
-        if (const auto gem = game_data.rules.gem_props.find(item.code); gem != game_data.rules.gem_props.end() && (is_type("gem") || is_type("rune"))) {
-            out.push_back({ std::string{}, kTxtWhite });
-            static constexpr std::pair<int, std::size_t> kKinds[4] = { { 11075, 0 }, { 11076, 1 }, { 11073, 1 }, { 11074, 2 } };
-            for (const auto& [label, kind] : kKinds) {
-                auto kind_lines = prop_lines(game_data, gem->second[kind], clvl);
-                if (kind_lines.empty()) kind_lines.emplace_back();
-                kind_lines.front() = string_id(game_data, std::uint16_t(label)) + space + kind_lines.front();
-                for (auto& kind_line : kind_lines) out.push_back({ std::move(kind_line), kTxtWhite });
-            }
-        }
-    }
-    // Durability (FUN_00629930: a durability column, not nodurability, not
-    // indestructible; not throwing weapons): blue max when 75 changed it.
-    if (item_base.durability && !desc.nodurability && item.max_durability > 0 && !d2d::rules::indestructible(game_data.rules, item) && !throwable)
-        out.push_back(line(string_id(game_data, 3457) + space + std::to_string(item.durability) + space + string_id(game_data, 3463) + space,
-                           std::to_string(d2d::rules::max_durability(item)), has(75)));
-    auto requirement = [&](std::string text, bool met) { out.push_back({ std::move(text), met ? kTxtWhite : kTxtRed }); };
-    for (int index = 0; index < 7; ++index)
-        if (class_code == d2d::rules::kClassCode[std::size_t(index)]) requirement(string_id(game_data, std::uint16_t(10917 + index)), cls < 0 || cls == index);
-    // Strength / dexterity (weapons and armor): the column, item_req_percent
-    // (91) on it, 10 less when ethereal.
-    if (weapon || armor) {
-        auto required = [&](int column) { return column + (stat(d2d::d2s::kRequirementPercent) ? column * stat(d2d::d2s::kRequirementPercent) / 100 : 0) - (item.ethereal ? 10 : 0); };
-        const auto dex = required(info->second.req_dex), strength = required(info->second.req_str);
-        if (info->second.req_dex && dex > 0) requirement(string_id(game_data, 3459) + space + std::to_string(dex), !wearer || (wearer->dex > 0 && wearer->dex >= dex));
-        if (info->second.req_str && strength > 0) requirement(string_id(game_data, 3458) + space + std::to_string(strength), !wearer || (wearer->str > 0 && wearer->str >= strength));
-    }
-    if (const int level = required_level(game_data, item, cls); item.identified && level > 1)
-        requirement(string_id(game_data, 3469) + space + std::to_string(level), !wearer || wearer->lvl >= level);
-    // Weapon speed (FUN_0062a710): the class's A1 frames << 8 over the
-    // animation speed x (100 + IAS (93) - WSM) / 100, banded; class name first.
-    if (weapon && cls >= 0) {
-        const std::int64_t frames = weapon_attack_frames(game_data, item, cls);
-        const int band = frames >= 28 ? 5 : frames < 10 ? 1
-                       : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is_type("bow") || is_type("xbow") ? 1 : 0])];
-        static constexpr std::pair<std::string_view, int> kClassName[] = { { "staf", 4085 }, { "axe", 4078 }, { "swor", 4079 }, { "knif", 4080 },
-            { "tpot", 4081 }, { "jave", 4082 }, { "spea", 4083 }, { "bow", 4084 }, { "pole", 4086 }, { "xbow", 4087 }, { "h2h", 21258 },
-            { "h2h2", 21258 }, { "orb", 4085 }, { "wand", 4085 }, { "blun", 4077 } };
-        std::string head;
-        for (const auto& [want, id] : kClassName)
-            if (is_type(want)) { head = string_id(game_data, std::uint16_t(id)) + space + string_id(game_data, 3996) + space; break; }
-        out.push_back(line(head, string_id(game_data, std::uint16_t(4088 + band)), has(93)));
-    }
-    if (unid) out.push_back({ string_id(game_data, 3455), kTxtRed });                         // "Unidentified"
-    else for (auto& prop_line : prop_lines(game_data, std::move(props), clvl)) out.push_back({ std::move(prop_line), kTxtBlue });
-    if ((weapon || armor) && (item.ethereal || item.socketed)) {
-        std::string text = item.ethereal ? string_id(game_data, 22745) : std::string{};          // "Ethereal (Cannot be Repaired)"
-        if (item.socketed) text += (item.ethereal ? ", " : "") + string_id(game_data, 3453) + " (" + std::to_string(item.sockets) + ")";
-        out.push_back({ std::move(text), kTxtBlue });
-    }
-    const auto& specials = game_data.rules.sets;
-    if (item.quality == 5 && !unid && item.set_id >= 0 && std::size_t(item.set_id) < specials.size() && specials[std::size_t(item.set_id)].set >= 0) {
-        const int set = specials[std::size_t(item.set_id)].set;
-        static const std::vector<d2d::d2s::Item> kNone;
-        const auto& owned = owner_items ? *owner_items : kNone;
-        for (auto& bonus_line : prop_lines(game_data, set_bonus_props(game_data, owned, item), clvl)) out.push_back({ std::move(bonus_line), kTxtGreen });
-        out.push_back({ {}, kTxtWhite });
-        if (item.location == d2d::d2s::item_location::kEquipped)
-            if (auto bonus_lines = prop_lines(game_data, set_props(game_data, owned, set), clvl); !bonus_lines.empty()) {
-                for (auto& bonus_line : bonus_lines) out.push_back({ std::move(bonus_line), kTxtGold });
-                out.push_back({ {}, kTxtWhite });
-            }
-        out.push_back({ str(name_at(names.set_group, set)), kTxtGold });
-        const auto owns = [&](int row) {
-            return std::ranges::any_of(owned, [&](const d2d::d2s::Item& piece) {
-                const bool kept = piece.location == d2d::d2s::item_location::kEquipped
-                               || (piece.location == d2d::d2s::item_location::kStored
-                                   && (piece.panel == d2d::d2s::item_panel::kInventory || piece.panel == d2d::d2s::item_panel::kCube || piece.panel == d2d::d2s::item_panel::kStash));
-                return kept && piece.quality == 5 && piece.identified && piece.set_id == row;
-            });
-        };
-        for (std::size_t row = specials.size(); row-- > 0;)
-            if (specials[row].set == set) out.push_back({ str(name_at(names.set, int(row))), owns(int(row)) ? kTxtGreen : kTxtRed });
-    }
-    return out;
-}
+std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
+                                        const d2d::rules::Wearer* wearer = nullptr, const std::vector<d2d::d2s::Item>* owner_items = nullptr);
 }  // namespace d2d::game
