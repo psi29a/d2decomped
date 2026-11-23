@@ -1693,13 +1693,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // stamps the landing spot (pattern 0x80) till it lands (FUN_005da120).
             // The takeoff's pace (FUN_005d9f70: FUN_00648690 gets MonStats Run (row +0x34)
             // << 8, 16.16 subtiles a frame): Run / 80 cells a frame, `Monster::leap_pace`.
-            // ponytail: the landing's 0x80 stamp (FUN_005d9d50's grid pattern), and the wait at
-            // the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0), aren't
-            // ported: a flight slower than its sequence is snapped to the landing at the end.
+            // FUN_005d9d50 stamps the landing (FUN_0064ea90, the unit's pattern, bits 0x80: the centre's
+            // unit bit 0x1000) till it lands (FUN_005da120 clears it): `landing_mark` in the crowd
+            // (Fight::crowd), so no other unit steps or lands there meanwhile.
+            // ponytail: the wait at the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0)
+            // isn't ported: a flight slower than its sequence is snapped to the landing at the end.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
                 monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
+                monster.landing_mark = {};
+                monster.landing_mark.x = monster.leap_to_x; monster.landing_mark.y = monster.leap_to_y;
+                monster.landing_mark.shape = UnitShape{ 1, 1, unit.shape.mask };   // its centre subtile alone (pattern 1's point)
                 monster.leap_pace = leap_cells_per_frame(type_info.run);
             }
             if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
