@@ -779,17 +779,21 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.env_effect = objects.get(row, "EnvEffect") == "1";
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
-    const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
-                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != d2d::rules::operate_fn::kShrine && npc.operate_fn != d2d::rules::operate_fn::kChest   // shrines / chests: NU until used
-                 && npc.operate_fn != d2d::rules::operate_fn::kCairnStone && npc.operate_fn != d2d::rules::operate_fn::kGibbet   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
-                 && npc.operate_fn != d2d::rules::operate_fn::kSunAltar   // the Tainted Sun's altar: its quest's mode, 0 till used (InitFn 20)
-                 && npc.operate_fn != d2d::rules::operate_fn::kCubeChest && npc.operate_fn != d2d::rules::operate_fn::kScrollChest
-                 && npc.operate_fn != d2d::rules::operate_fn::kShaftChest   // the Horadric Staff's chests: shut till opened (InitFns 31..33 do nothing)
-                 && (npc.operate_fn != d2d::rules::operate_fn::kWaypoint || d2d::rules::level_ids::is_town(into.id))   // waypoints: on in towns (InitFn 17)
-                 && oid != d2d::rules::object_ids::kHellgate   // the hellgate: a3q6's mode, 0 till Mephisto's dead (InitFn 44)
-                 && npc.operate_fn != d2d::rules::operate_fn::kHellforge   // the Hellforge: a4q3's mode, 0 till the soulstone's set (InitFn 48)
-                 && npc.operate_fn != d2d::rules::operate_fn::kSeal && npc.operate_fn != d2d::rules::operate_fn::kSealInfector   // the seals: shut (InitFn 56)
-                 && npc.operate_fn != d2d::rules::operate_fn::kSealDeSeis && npc.operate_fn != d2d::rules::operate_fn::kSealVizier);
+    // Its start mode: a preset object is made in mode 0 (the DS1 loader, FUN_00665950: drlg ds1_units),
+    // as one an object group lays (FUN_00555230); then its InitFn (table 0x731bc0) may set one
+    // (FUN_00624690), read in each: 8 (0x5500c0) 2; 10 (FUN_0054f860) 2 outside the town; 12
+    // (FUN_0054fe70) and 59 (FUN_0054fe10) 1 from mode 0; 14 (0x5500d0) 1; and 22, 26, 28, 34
+    // above. 13 (FUN_00594020) sets 2 only when FUN_00543640 finds no quest record, which a game has. A PreOperate one is ON. Every other
+    // InitFn sets none here (1..3, 5, 24, 27, 57, 58: none at all) or sets its quest's (the stones,
+    // the Gibbet, the altars, the seals, the portals, ...: their World code). The town's waypoint is
+    // on (InitFn 17 activates it where the player has it: game.exe's list, d2d's town rule).
+    const int init_fn = std::atoi(std::string(objects.get(row, "InitFn")).c_str());
+    if (!init_mode) {
+        if (init_fn == 8 || (init_fn == 10 && into.id != d2d::rules::level_ids::kRogueEncampment)) init_mode = "ON";
+        else if (init_fn == 12 || init_fn == 14 || init_fn == 59) init_mode = "OP";
+        else if (init_fn == 17 && d2d::rules::level_ids::is_town(into.id)) init_mode = "ON";
+    }
+    const bool lit_mode = npc.preoperated || (init_mode && std::string_view(init_mode) == "ON");
     npc.mode   = init_mode && !npc.preoperated ? init_mode : lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.
