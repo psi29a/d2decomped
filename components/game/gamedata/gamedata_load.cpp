@@ -306,6 +306,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     std::unordered_set<std::string> skill_missiles;
     for (std::size_t row_index = 0; row_index < skills_table.size(); ++row_index) {
         skill_missiles.emplace(skills_table.get(row_index, "srvmissile"));
+        skill_missiles.emplace(skills_table.get(row_index, "CltMissile"));
         for (const char* column : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(skills_table.get(row_index, column));
         const auto srvdofunc = d2d::rules::ServerDoFunction(num(skills_table.get(row_index, "srvdofunc")));
         if (const std::string missile_name(skills_table.get(row_index, "srvmissilea"));
@@ -340,7 +341,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
     // A second pass loads the ExplosionMissile rows the first pass's name
     // (Missiles.txt +0x16: fireexplode after a fire bolt) and their
-    // CltSubMissile1 / 2 (+0x1e: lightninghit, client do 8's trail; +0x20: client do 26's rocks).
+    // CltSubMissile1 / 2 (+0x1e: lightninghit, client do 8's trail; +0x20: client do 26's rocks)
+    // and CltHitSubMissile1 / 2 (Glacial Spike's impact).
     std::unordered_set<std::string> explosions;
     for (int pass = 0; pass < 2; ++pass)
     for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index) {
@@ -355,11 +357,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
                  || std::ranges::contains(d2d::rules::kShatterRows, std::string_view(name));   // a shattered death's ice (FUN_004afc10)
-        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
+        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name || type_info.miss_s1 == name;
         if (pass == 1) used = explosions.contains(name) && !game_data.missiles.contains(name);
         if (!used) continue;
         if (pass == 0)
-            for (const char* column : { "ExplosionMissile", "CltSubMissile1", "CltSubMissile2" })
+            for (const char* column : { "ExplosionMissile", "CltSubMissile1", "CltSubMissile2", "CltHitSubMissile1", "CltHitSubMissile2" })
                 if (const std::string named(missiles_table.get(row_index, column)); !named.empty()) explosions.insert(named);
         GameData::MissileInfo missile_info;
         missile_info.name = name;
