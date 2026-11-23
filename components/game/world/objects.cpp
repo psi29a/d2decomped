@@ -9,6 +9,7 @@
 #include "cues.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
 
 #include <combat.hpp>

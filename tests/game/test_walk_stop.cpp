@@ -11,6 +11,7 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>
 #include <world.hpp>

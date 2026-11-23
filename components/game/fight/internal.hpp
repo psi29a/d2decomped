@@ -4,6 +4,7 @@
 
 #include "ai/units.hpp"
 #include "gamedata.hpp"
+#include "spawning.hpp"
 
 #include <merc.hpp>
 #include <monsters.hpp>

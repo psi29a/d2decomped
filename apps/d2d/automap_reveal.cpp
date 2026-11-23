@@ -8,9 +8,11 @@
 #include "scene.hpp"
 
 #include <automap_step.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
+#include <spawning.hpp>
 
 #include <algorithm>
 #include <array>

@@ -2,6 +2,7 @@
 // Act 3's think inputs (rules/thinks/act3.hpp reads them).
 #include "ai.hpp"
 #include "ai/units.hpp"
+#include "spawning.hpp"
 
 #include "gamedata.hpp"
 #include "internal.hpp"

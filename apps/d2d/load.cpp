@@ -10,6 +10,7 @@
 #include "ui.hpp"
 
 #include <blend.hpp>
+#include <cof_anim.hpp>
 #include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -17,6 +18,7 @@
 #include <dcc.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <mpq.hpp>

@@ -12,8 +12,10 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <algorithm>

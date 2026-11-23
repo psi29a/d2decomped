@@ -9,6 +9,7 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <tile_pick.hpp>
 
@@ -30,8 +31,8 @@ int main() try {
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
     namespace ids = d2d::rules::level_ids;
-    assert(data->prest_automap_dt1s.contains(ids::kRogueEncampment));
-    for (const int town : ids::kMiniatureTowns) assert(!data->prest_automap_dt1s.contains(town));
+    assert(data->layouts.prest_automap_dt1s.contains(ids::kRogueEncampment));
+    for (const int town : ids::kMiniatureTowns) assert(!data->layouts.prest_automap_dt1s.contains(town));
 
     const Level* moor = data->level(ids::kBloodMoor);   // lends its DRLG tables, as automap_reveal's
     assert(moor && moor->assets);
@@ -40,7 +41,7 @@ int main() try {
     for (const auto& [preset_def, preset] : assets.data.presets)
         if (preset.level_id == ids::kRogueEncampment && (def == 0 || preset_def < def)) def = preset_def;
     assert(def != 0);
-    const auto list = d2d::drlg::room_dt1_list(assets.data.presets.at(def).dt1_mask, data->prest_automap_dt1s.at(ids::kRogueEncampment));
+    const auto list = d2d::drlg::room_dt1_list(assets.data.presets.at(def).dt1_mask, data->layouts.prest_automap_dt1s.at(ids::kRogueEncampment));
     assert(!list.empty());
 
     const auto rooms = preset_rooms(*data, data->town, assets);

@@ -12,7 +12,9 @@
 #include <cues.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <loot.hpp>
+#include <npc.hpp>
 #include <rules.hpp>
 
 #include <algorithm>

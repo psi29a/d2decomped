@@ -5,6 +5,7 @@
 
 #include "gamedata.hpp"
 #include "inventory.hpp"
+#include "level.hpp"
 #include "loot.hpp"
 #include "protocol.hpp"
 #include "world.hpp"

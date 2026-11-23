@@ -9,6 +9,7 @@
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "inventory.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "protocol.hpp"
 

@@ -9,6 +9,7 @@
 #include "gamedata.hpp"
 #include "inventory.hpp"
 #include "item_text.hpp"
+#include "level.hpp"
 
 #include <ammo.hpp>
 #include <aura_filter.hpp>

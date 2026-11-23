@@ -26,6 +26,7 @@
 #include <panel_view.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
 #include <weather.hpp>

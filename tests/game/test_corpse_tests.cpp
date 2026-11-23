@@ -15,6 +15,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <loot.hpp>
 #include <pets.hpp>
 #include <rules.hpp>

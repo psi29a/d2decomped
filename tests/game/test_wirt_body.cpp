@@ -4,10 +4,13 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
+#include <npc.hpp>
 #include <object_ids.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <algorithm>

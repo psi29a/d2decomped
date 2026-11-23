@@ -9,6 +9,7 @@
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <world.hpp>
 
 #include <cassert>

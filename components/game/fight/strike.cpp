@@ -9,8 +9,10 @@
 #include "cues.hpp"
 #include "gamedata.hpp"
 #include "item_text.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "skill_text.hpp"
+#include "spawning.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>

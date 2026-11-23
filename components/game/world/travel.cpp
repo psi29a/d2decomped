@@ -10,11 +10,15 @@
 #include "gamedata.hpp"
 #include "inventory.hpp"
 #include "item_text.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
 
+#include <click_spot.hpp>
 #include <d2s_items.hpp>
 #include <drlg.hpp>
 #include <level_ids.hpp>
+#include <monsters.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
@@ -51,7 +55,7 @@ auto World::cross_level() -> void {
         bool known = level->inside(actor->target_x, actor->target_y);
         for (const auto& neighbour : level->nearby) known = known || neighbour.level->inside(actor->target_x - float(neighbour.dx), actor->target_y - float(neighbour.dy));
         if (!known)
-            for (const auto& placement : game_data->layout_of(level->id))
+            for (const auto& placement : game_data->layouts.layout_of(level->id))
                 if (world_x >= float(placement.x) && world_y >= float(placement.y) && world_x < float(placement.x + placement.width) && world_y < float(placement.y + placement.height)
                     && std::ranges::find(not_there, placement.level) == not_there.end()) {
                     not_there.push_back(placement.level);
@@ -593,5 +597,23 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
         if (arrival == actor->portal_pair) close_portal_pair(arrival);
         arrive(other_end.level, other_end.x, other_end.y + 0.6f, "a town portal");
     }
+
+auto World::warp_clicked(const LevelWarp& warp, float x, float y) -> bool {
+    const int unit_x = int(std::floor(warp.unit_x * 5)), unit_y = int(std::floor(warp.unit_y * 5));
+    const float pixel_x = (x - y) * 80 - float((unit_x - unit_y) * 16), pixel_y = (x + y) * 40 - float((unit_x + unit_y) * 8);
+    const auto [select_x, select_y, select_dx, select_dy] = warp.select;
+    return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
+}
+
+auto World::warp_close(const LevelWarp& warp, float x, float y) -> bool {
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < d2d::rules::kWarpReach;
+}
+
+auto World::warp_arrival(const Level& level, float unit_x, float unit_y) -> std::optional<std::pair<float, float>> {
+    const auto spot = level.warp_spot(int(std::floor(unit_x * 5)), int(std::floor(unit_y * 5)));
+    if (!spot) return std::nullopt;
+    return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
+}
 
 }  // namespace d2d::game

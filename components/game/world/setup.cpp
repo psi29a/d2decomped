@@ -12,7 +12,9 @@
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "inventory.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
 
 #include <d2s_items.hpp>
 #include <level_ids.hpp>

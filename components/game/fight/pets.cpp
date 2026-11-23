@@ -8,6 +8,7 @@
 #include "cues.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "montypes.hpp"
 

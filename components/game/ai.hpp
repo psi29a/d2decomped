@@ -5,6 +5,7 @@
 #include "ai/units.hpp"
 #include "game.hpp"
 #include "gamedata.hpp"
+#include "spawning.hpp"
 
 #include <combat.hpp>
 #include <missiles.hpp>

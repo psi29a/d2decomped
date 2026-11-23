@@ -7,6 +7,7 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <sound_ids.hpp>
 
 #include <cassert>

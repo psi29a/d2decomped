@@ -14,6 +14,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <missile_flight.hpp>
 #include <missiles.hpp>
@@ -22,6 +23,7 @@
 #include <protocol.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 

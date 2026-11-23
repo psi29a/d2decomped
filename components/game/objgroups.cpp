@@ -9,6 +9,8 @@
 // objgroups; levels in turn in one game: drlg-dump ... game.
 #include "ai.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
+#include "spawning.hpp"
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
@@ -1313,7 +1315,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             has_town = true;
         }
     } else if (const int town_id = d2d::rules::level_ids::kActTowns[std::size_t(d2d::rules::level_ids::act_of(level.id))]; level.id != town_id)
-        for (const auto& placed : game_data.layout_of(level.id))
+        for (const auto& placed : game_data.layouts.layout_of(level.id))
             if (placed.level == town_id) { town = { placed.x, placed.y, placed.width, placed.height }; has_town = true; }
     if (has_town) {
         const auto [town_x, town_y, town_w, town_h] = town;

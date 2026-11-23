@@ -8,6 +8,7 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <object_ids.hpp>
 
 #include <cassert>

@@ -10,6 +10,7 @@
 #include "cues.hpp"
 #include "gamedata.hpp"
 #include "loot.hpp"
+#include "spawning.hpp"
 
 #include <chat_commands.hpp>
 #include <combat.hpp>

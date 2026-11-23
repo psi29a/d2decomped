@@ -8,6 +8,7 @@
 #include "scene.hpp"
 
 #include <cues.hpp>
+#include <level.hpp>
 #include <log.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>

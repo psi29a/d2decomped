@@ -3,6 +3,7 @@
 // A new act adds its own file like this one and a call at each hook.
 #include "fight.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "world.hpp"
 #include <algorithm>

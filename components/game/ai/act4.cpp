@@ -10,6 +10,8 @@
 
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "level.hpp"
+#include "npc.hpp"
 
 #include <level_ids.hpp>
 #include <monsters.hpp>

@@ -8,6 +8,7 @@
 
 #include <install.hpp>
 #include <log.hpp>
+#include <mpq.hpp>
 #include <rules.hpp>
 #include <shake.hpp>
 #include <sound_mix.hpp>

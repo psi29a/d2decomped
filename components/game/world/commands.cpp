@@ -9,7 +9,9 @@
 #include "gamedata.hpp"
 #include "inventory.hpp"
 #include "item_text.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
 #include "npc_menu.hpp"
 #include "protocol.hpp"
 

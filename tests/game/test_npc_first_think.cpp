@@ -8,6 +8,8 @@
 
 #include <ai.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
+#include <npc.hpp>
 
 #include <cassert>
 #include <cstdint>

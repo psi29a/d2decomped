@@ -8,6 +8,7 @@
 #include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 
 #include <cassert>
 #include <cmath>

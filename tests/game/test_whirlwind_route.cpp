@@ -16,6 +16,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>

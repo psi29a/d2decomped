@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ai.hpp"
+#include "level.hpp"
 
 #include <missiles.hpp>
 #include <rules.hpp>

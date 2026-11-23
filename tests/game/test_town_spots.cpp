@@ -10,8 +10,10 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
+#include <spawning.hpp>
 
 #include <algorithm>
 #include <cassert>

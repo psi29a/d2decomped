@@ -4,6 +4,7 @@
 // draws: the client adds its sprites on top (apps/d2d load.hpp).
 #pragma once
 
+#include "game.hpp"
 #include "gamedata.hpp"
 
 #include <cstdint>

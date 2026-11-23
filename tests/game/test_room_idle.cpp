@@ -3,7 +3,7 @@
 // FUN_0052d240: an unheld room1 is released after the eleventh sweep; a
 // depth-1 room held by a player resets its age and remains live.
 
-#include <gamedata.hpp>
+#include <spawning.hpp>
 
 #include <cassert>
 #include <cstddef>

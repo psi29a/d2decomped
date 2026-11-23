@@ -10,6 +10,7 @@
 
 #include "ai.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 
 #include <monsters.hpp>
 #include <montypes.hpp>

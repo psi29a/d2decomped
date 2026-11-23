@@ -5,6 +5,7 @@
 // unit's spot, not the warp's cell (World::warp_close).
 
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <world.hpp>
 
 #include <cassert>

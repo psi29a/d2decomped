@@ -4,6 +4,7 @@
 // without it, less 1/16 plus a roll under 1/8 on the unit's seed, 0..0x7fff.
 
 #include <gamedata.hpp>
+#include <npc.hpp>
 
 #include <cassert>
 #include <cstdint>

@@ -8,6 +8,8 @@
 #include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
+#include <npc.hpp>
 #include <object_ids.hpp>
 #include <world.hpp>
 

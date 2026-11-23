@@ -7,6 +7,7 @@
 #include <ai.hpp>
 #include <ai/units.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 
 #include <cassert>
 #include <cstdio>

@@ -5,7 +5,9 @@
 #include "ai/units.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
 #include "world.hpp"
 #include <algorithm>
 #include <cmath>

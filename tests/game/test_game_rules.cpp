@@ -9,7 +9,9 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <monsters.hpp>
+#include <npc.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <replication.hpp>

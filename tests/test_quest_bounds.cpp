@@ -2,6 +2,7 @@
 // test-links: game
 // Act III quest IDs must fit every quest-state representation.
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
