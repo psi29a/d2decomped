@@ -4,16 +4,17 @@
 #include "session.hpp"
 
 #include "common.hpp"
-#include "cursor.hpp"
-#include "gamepad_map.hpp"
-#include "hold_confirm.hpp"
-#include "item_use.hpp"
-#include "pad_hold.hpp"
-#include "panels.hpp"
+#include "input/gamepad_map.hpp"
+#include "input/hold_confirm.hpp"
+#include "input/pad_hold.hpp"
+#include "items/cursor.hpp"
+#include "items/item_use.hpp"
+#include "items/use_item.hpp"
+#include "panels/panels.hpp"
+#include "panels/store.hpp"
 #include "scene.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
-#include "store.hpp"
 #include "touch/belt.hpp"
 #include "touch/binding.hpp"
 #include "touch/feedback.hpp"
@@ -22,7 +23,6 @@
 #include "touch/icon.hpp"
 #include "touch/input.hpp"
 #include "touch/potions.hpp"
-#include "use_item.hpp"
 
 #include <inventory.hpp>
 

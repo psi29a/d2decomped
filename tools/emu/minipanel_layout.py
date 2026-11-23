@@ -13,7 +13,7 @@ buttons: x at 0x7bc898, y at 0x7bc8b8, action at 0x7bc8d8 and cel frame at
 FUN_0047f710 for real (FUN_0047e8b0 with it) at 640 x 480 and 800 x 600,
 each flag and each side, with the drawing and tooltip calls hooked, and
 prints one row each for tests/test_mini_panel.cpp, which checks d2d's
-apps/d2d/mini_panel.hpp against them:
+apps/d2d/panels/mini_panel.hpp against them:
 
     { width, height, party, left, right, bar_x, bar_y, count, { { x... } }, y, { { action... } }, { { frame... } } },
 

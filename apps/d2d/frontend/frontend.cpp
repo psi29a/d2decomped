@@ -1,0 +1,951 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Definitions for frontend/frontend.hpp: title, character select, cinematics screens.
+#include "frontend/frontend.hpp"
+
+#include "frontend/connecting_rules.hpp"
+
+#include "common.hpp"
+#include "frontend/title_rules.hpp"
+#include "render/world_view.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
+
+#include <button_label.hpp>
+#include <d2s.hpp>
+#include <font.hpp>
+#include <palette.hpp>
+#include <text_box.hpp>
+#include <unicode.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+namespace d2d::client {
+
+// FUN_004fd060 adds colour-4 text through FUN_004fc9b0; FUN_004fbf30
+// draws the resulting rows. See frontend-text-box.md for the Latin path.
+static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::font::Font& font,
+                          const std::string& line, int x, int y, int width, int height,
+                          std::uint8_t shade = 255, int margin_x = 0, int margin_y = 0,
+                          int flags = d2d::font::kTextBoxCentre) {
+    const auto rows = d2d::font::text_box_rows(line, x, y, width, height, font.line_height(),
+        [&](std::string_view text) { return font.measure(text); }, margin_x, margin_y, 4, flags);
+    for (const auto& row : rows) {
+        font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
+                                 row.x, row.baseline, row.text, shade, shade, shade);
+    }
+}
+
+// A kind 6 button's label (FUN_00500db0 / FUN_00500c50, frontend-menu-table.md
+// "Button labels"): FontExocet10 or FontRidiculous by the button's height,
+// bottom-anchored on its baseline, multiplied onto the chrome (draw mode
+// 4), 2 left and 2 down when pressed, and never recoloured on hover.
+// `label2` is a second line under the first. The colour is cleared to 0
+// every frame (0x500fba), so a disabled button's label is drawn the same.
+static void draw_button_label(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
+                              const d2d::palette::Palette& pal, const Button& button,
+                              std::string_view label, bool pressed, std::string_view label2 = {}) {
+    const auto& wanted = d2d::font::button_label_font(button.height).exocet10 ? scene.font_exocet10 : scene.font_ridiculous;
+    const auto& font = wanted.line_height() > 0 ? wanted : scene.font;
+    const int bottom = button.y + button.height - 1;
+    const int lines = label2.empty() ? 1 : 2;
+    for (int line = 0; line < lines; ++line) {
+        const auto text = line == 0 ? label : label2;
+        if (text.empty()) continue;
+        const auto spot = d2d::font::button_label_spot(button.x, bottom, button.width, button.height,
+                                                       font.measure(text), font.tbl_height(), pressed, lines, line);
+        font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, spot.x, spot.baseline,
+                                  text, 255, 255, 255, /*multiply=*/true);
+    }
+}
+
+// A disabled button's chrome (FUN_004f96f0(button, 0)) is drawn at mode 1
+// (slot +0x84, FUN_00511fb0): the 50/50 alpha table, each channel half the
+// chrome's and half what's under it (frontend-menu-table.md "Button
+// labels"), in RGB without the table's snap to the palette.
+template <typename Draw>
+static void draw_chrome(std::vector<std::uint8_t>& framebuffer, int top, int height, bool disabled, const Draw& draw) {
+    if (!disabled) { draw(); return; }
+    const int first = std::clamp(top, 0, int(kScreenHeight));
+    const int last = std::clamp(top + height, first, int(kScreenHeight));
+    const std::size_t row_bytes = std::size_t(fb_width(framebuffer)) * 4;
+    const std::size_t begin = std::size_t(first) * row_bytes;
+    const std::vector<std::uint8_t> under(framebuffer.begin() + std::ptrdiff_t(begin),
+                                          framebuffer.begin() + std::ptrdiff_t(std::size_t(last) * row_bytes));
+    draw();
+    for (std::size_t index = 0; index < under.size(); ++index) {
+        if (index % 4 == 3) continue;   // alpha
+        auto& channel = framebuffer[begin + index];
+        channel = std::uint8_t((channel + under[index]) / 2);
+    }
+}
+
+static void draw_button_chrome(std::vector<std::uint8_t>& framebuffer, const d2d::palette::Palette& pal,
+                               const Button& button, bool pressed, bool disabled = false) {
+    if (!button.chrome) return;
+    const int height = button.chrome->frames_per_direction() > 0
+                     ? std::max(button.height, int(button.chrome->frame(0, 0).height)) : button.height;
+    draw_chrome(framebuffer, button.y, height, disabled,
+                [&] { blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, pressed); });
+}
+
+void render_title(std::vector<std::uint8_t>& framebuffer,
+                  const Scene& scene,
+                  std::span<const Button> buttons,
+                  std::uint32_t elapsed_ms,
+                  std::string_view version) {
+    // Full-screen background — no need to clear; the 4×3 grid tiles fill
+    // exactly 800×600 with no gaps.
+    blit_dc6_grid(framebuffer, scene.background, scene.pal, 0, 0, scene.bg_tiles_across);
+
+    // Diablo2.dc6 (menu record 0x708e00) is the CLASSIC-D2 static DIABLO II
+    // logo — a 320×151 pre-baked title asset. In LoD it stays LOADED but
+    // never drawn: the animated D2logo{Black,Fire}{L,R} pieces replace it,
+    // and gameselectscreenEXP.dc6 already has "EXPANSION SET / Lord of
+    // Destruction" baked into the background. Drawing both stacks two
+    // "DIABLO II"s at different anchors — Bret caught the doubled letters.
+    // RE: game.exe gates the classic-mode fallback on DAT_007795ec == 0
+    // (the "expansion installed" flag; see char-create-table.md). We
+    // never load classic-only, so `logo_static` is intentionally unused.
+    (void)scene.logo_static;
+
+    // "DIABLO II" animated logo halves — per RE records at 0x708e30 and
+    // 0x708e60, both anchored at (400, 120). Each DC6 frame's bottom-left
+    // origin (per DCC convention) places itself relative to that anchor.
+    // Black silhouettes first, then fire fills on top with the warm-tint
+    // hack (PL2 hue-variation colormap remains a follow-up).
+    const auto n_logo = scene.logo_bl.frames_per_direction();
+    const auto frame_index = (n_logo == 0) ? 0u
+        : std::uint32_t((elapsed_ms / kBaseFrameMs) % n_logo);
+    constexpr int kLogoAnchorX = 400;
+    constexpr int kLogoAnchorY = 120;
+    blit_at_anchor    (framebuffer, scene.logo_bl.frame(0, frame_index), scene.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_at_anchor    (framebuffer, scene.logo_br.frame(0, frame_index), scene.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (framebuffer, scene.logo_fl.frame(0, frame_index), scene.pal, &scene.sky_pl2, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (framebuffer, scene.logo_fr.frame(0, frame_index), scene.pal, &scene.sky_pl2, kLogoAnchorX, kLogoAnchorY);
+
+    // Buttons — chrome frames from RE'd assets: 2-frame (normal/pressed)
+    // for Short/Medium, 4-frame two-piece composite for Wide/Narrow. No
+    // hover frame or hover colour exists.
+    for (const auto& button : buttons) {
+        const bool pressed = button.hovered && button.pressed;
+        if (button.chrome) blit_button_chrome(framebuffer, scene.pal, *button.chrome, button.x, button.y, pressed);
+        if (button.label) draw_button_label(framebuffer, scene, scene.pal, button, button.label, pressed);
+    }
+    // FUN_004336c0 record 0x115: (0, 599), 200x40, Font16, alignment 2.
+    if (!version.empty()) {
+        const auto box = title_version_box();
+        const int text_x = box.x + (box.width - scene.font.measure(version)) / 2;
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
+                        text_x, rec_top(box.bottom, box.height), version);
+    }
+}
+
+int charselect_max_scroll(int count) {
+    return std::max(0, (count + 1) / 2 * 2 - kSlots);
+}
+
+std::string class_name(const Scene& scene, int save_cls) {
+    const int class_index = kSaveClassToUi[std::clamp(save_cls, 0, 6)];
+    if (auto found = lookup_string(scene, kClassKey[class_index])) return u16_to_latin1(*found);
+    return kClassKey[class_index];
+}
+
+std::string level_class_line(const Scene& scene, const d2d::d2s::Header& header) {
+    const std::string cls = class_name(scene, header.cls);
+    std::string level = "Level";
+    if (auto found = lookup_string(scene, std::uint16_t(0xfd9))) level = u16_to_latin1(*found);
+    return level + " " + std::to_string(header.level) + " " + cls;
+}
+
+int title_tier(const d2d::d2s::Header& header) {
+    const int progression = header.progression;
+    return header.expansion() ? (progression < 5 ? 0 : progression < 10 ? 1 : progression < 15 ? 2 : 3)
+                              : (progression < 4 ? 0 : progression < 8 ? 1 : progression < 12 ? 2 : 3);
+}
+
+std::string char_title(const d2d::d2s::Header& header) {
+    int tier = title_tier(header);
+    if (tier == 0) return {};
+    if (header.hardcore()) tier += 3;
+    const bool female = header.cls == d2d::d2s::kAmazon || header.cls == d2d::d2s::kSorceress || header.cls == d2d::d2s::kAssassin;
+    static constexpr const char* kClassic[2][7] = {
+        { "", "Sir ",  "Lord ", "Baron ",    "Count ",    "Duke ",    "King "  },
+        { "", "Dame ", "Lady ", "Baroness ", "Countess ", "Duchess ", "Queen " },
+    };
+    static constexpr const char* kLod[2][7] = {
+        { "", "Slayer ", "Champion ", "Patriarch ", "Destroyer ", "Conqueror ", "Guardian " },
+        { "", "Slayer ", "Champion ", "Matriarch ", "Destroyer ", "Conqueror ", "Guardian " },
+    };
+    return (header.expansion() ? kLod : kClassic)[female][tier];
+}
+
+int charselect_slot_at(int x, int y) {
+    for (int i = 0; i < kSlots; ++i) {
+        const int slot_x = kSlotX[i % 2], slot_y = kSlotY[i / 2];
+        if (x >= slot_x && x < slot_x + kSlotW && y >= slot_y && y < slot_y + kSlotH) return i;
+    }
+    return -1;
+}
+
+void render_charselect(std::vector<std::uint8_t>& framebuffer,
+                       const Scene& scene,
+                       const CharSelectUI& select_ui,
+                       std::uint32_t elapsed_ms) {
+    const auto& pal = scene.pal;   // char-select shares the Sky palette
+    blit_dc6_grid(framebuffer, scene.charselect_bg, pal, 0, 0, scene.bg_tiles_across);
+
+    for (int i = 0; i < kSlots; ++i) {
+        const int x = kSlotX[i % 2], y = kSlotY[i / 2];
+        // LoD draws ONE frame: the gold charselectbox (record 0x96) moved
+        // onto the selected slot while it's on screen (FUN_004390a0). The
+        // grey box is classic-only (record 0x97, FUN_0043b080).
+        // Two-frame composite: main 256-wide half + 16-wide sliver.
+        const int save_index = select_ui.scroll + i;   // save index shown in this slot
+        const auto& box = scene.charselect_box;
+        if (save_index == select_ui.selected && box.frames_per_direction() >= 2) {
+            blit_sprite(framebuffer, box.frame(0, 0), pal, x,       y);
+            blit_sprite(framebuffer, box.frame(0, 1), pal, x + 256, y);
+        }
+        if (save_index >= int(scene.saves.size())) continue;
+        const auto& header = scene.saves[std::size_t(save_index)];
+        // Portrait: the character's own composite (FUN_00438ad0 builds it
+        // from the save's appearance bytes; FUN_004380f0 parks it at slot
+        // x + 30, slot bottom - 13). Town-neutral, or NU for a living
+        // LoD hardcore character. Direction 0 (FUN_005051a0(anim, 0)).
+        // A dead hardcore one is the ghost: class 8 (female) / 9 (male),
+        // both token RH in 0x72e050, and past class 6 the root is monsters:
+        // monsters\RH, TN, one TR layer.
+        if (header.hardcore() && header.died()) {
+            static const Npc ghost = [] { Npc npc; npc.root = "monsters"; npc.code = "RH"; npc.base_w = "HTH"; npc.comp[1] = "lit"; return npc; }();
+            draw_composite(framebuffer, scene.npc_anim(ghost, "TN"), pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
+        } else {
+            const bool is_ghost = header.hardcore() && (header.expansion() || header.cls < 5);
+            draw_composite(framebuffer, scene.composite(header.cls, is_ghost ? kModeNU : kModeTN, header.look()),
+                           pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
+        }
+        // One row each (FUN_004fcff0 / FUN_004fc9b0 append): the title alone
+        // (0x4382b2; FUN_00505640 gives "" untitled, so the row is there,
+        // empty), the name (0x438352), both colour 1 hardcore / 4; the level
+        // line, colour 0; 0x58cb, colour 2. FUN_004fcff0 reads its text as
+        // UTF-8 into 0x400 units (FUN_00526e40).
+        const auto& name_rgb = header.hardcore() ? kTextRed : kTextGold;
+        const auto as_utf8 = [](std::string_view text) { return u16_to_latin1(tbl::copy_utf8(text, 0x400)); };
+        std::vector<std::pair<std::string, const std::uint8_t*>> lines;
+        lines.emplace_back(as_utf8(char_title(header)), name_rgb);
+        lines.emplace_back(as_utf8(header.name), name_rgb);
+        lines.emplace_back(level_class_line(scene, header), nullptr);
+        if (header.expansion()) {
+            std::string exp = "EXPANSION CHARACTER";
+            if (auto found = lookup_string(scene, std::uint16_t(0x58cb))) exp = u16_to_latin1(*found);
+            lines.emplace_back(std::move(exp), kTextGreen);
+        }
+        std::vector<std::string_view> texts;
+        for (const auto& line : lines) texts.emplace_back(line.first);
+        // Record 0x84+i: (x, bottom y + 92), 200x92, Font16, margins 76 / 3,
+        // flags 0x20 (left-aligned, no wrap).
+        const auto rows = d2d::font::text_box_rows(texts, x, y + kSlotH - 1, 200, 92, scene.font.line_height(),
+            [&](std::string_view text) { return scene.font.measure(text); }, 76, 3, 4, d2d::font::kTextBoxNoWrap);
+        for (std::size_t row = 0; row < rows.size(); ++row) {
+            const std::uint8_t* rgb = lines[row].second;
+            scene.font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, pal, rows[row].x, rows[row].baseline,
+                                            rows[row].text, rgb ? rgb[0] : 255, rgb ? rgb[1] : 255, rgb ? rgb[2] : 255);
+        }
+    }
+
+    // Record 0x9c (85, bottom 78), 466x42, Font42, flags 0x22: FUN_004390a0
+    // puts the selected character's name there, colour 0 (0x4391f9).
+    if (select_ui.selected >= 0 && select_ui.selected < int(scene.saves.size()))
+        draw_text_box(framebuffer, scene, scene.font42, scene.saves[std::size_t(select_ui.selected)].name, 85, 78, 466, 42,
+                      255, 0, 0, d2d::font::kTextBoxCentre | d2d::font::kTextBoxNoWrap);
+
+    if (const int max = charselect_max_scroll(int(scene.saves.size()));
+        max > 0 && scene.charselect_scroll.frames_per_direction() >= 5) {
+        const auto& sprite = scene.charselect_scroll;
+        blit_sprite(framebuffer, sprite.frame(0, 1), pal, kScrollX, kScrollDownTop);
+        if (sprite.frames_per_direction() >= 6)
+            for (int offset = 20, bottom = kScrollBottom - 1; offset < kScrollH; offset += 10)
+                blit_sprite(framebuffer, sprite.frame(0, 5), pal, kScrollX, rec_top(bottom -= 10, kScrollArrow));
+        blit_sprite(framebuffer, sprite.frame(0, 0), pal, kScrollX, kScrollUpTop);
+        // Thumb: pos/max in rows (the widget counts rows, we store saves).
+        const int thumb_bottom = (kScrollH - 30) * (select_ui.scroll / 2) / (max / 2)
+                               - kScrollH + 19 + kScrollBottom;
+        blit_sprite(framebuffer, sprite.frame(0, 4), pal, kScrollX, rec_top(thumb_bottom, kScrollArrow));
+    }
+
+    if (scene.saves.empty()) {
+        // Empty-list placeholder text — centred on the panel.
+        constexpr const char* empty1 = "NO CHARACTERS YET";
+        constexpr const char* empty2 = "click CREATE NEW CHARACTER to start";
+        const int width1 = scene.font.measure(empty1);
+        const int width2 = scene.font.measure(empty2);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - width1/2, 260,
+                           empty1, 255, 208, 80);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - width2/2, 280,
+                           empty2, 200, 200, 200);
+    }
+
+    // Buttons. TallButtonBlank is single-piece 168x60 (frames 0/1 for
+    // normal/pressed); the medium OK/EXIT chrome uses blit_button_chrome.
+    auto draw_tall = [&](const Button& button, bool disabled = false) {
+        if (!button.chrome) return;
+        const bool pressed = button.hovered && button.pressed;
+        const auto& frame = button.chrome->frame(0, pressed ? 1 : 0);
+        draw_chrome(framebuffer, button.y, int(frame.height), disabled,
+                    [&] { blit_sprite(framebuffer, frame, pal, button.x, button.y); });
+        draw_button_label(framebuffer, scene, pal, button, button.label ? button.label : "", pressed,
+                          button.label2 ? button.label2 : "");
+    };
+    draw_tall(select_ui.create_btn);
+    // Convert-to-expansion only applies to a classic character.
+    const bool classic_pick = select_ui.selected >= 0 && select_ui.selected < int(scene.saves.size())
+                           && !scene.saves[std::size_t(select_ui.selected)].expansion();
+    draw_tall(select_ui.convert_btn, !classic_pick);
+    draw_tall(select_ui.delete_btn);
+
+    for (const Button* button : {&select_ui.cancel_btn, &select_ui.ok_btn}) {
+        if (!button->chrome) continue;
+        // OK is disabled until a save is picked (do_switch is gated on that
+        // each frame, before this draw).
+        draw_button_chrome(framebuffer, pal, *button, button->hovered && button->pressed,
+                           button == &select_ui.ok_btn && !button->do_switch);
+        if (button->label)
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed);
+    }
+    if (select_ui.confirm_delete) {
+        // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
+        blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
+        draw_text_box(framebuffer, scene, scene.font, select_ui.delete_text, 268, 320, 264, 120, 255, 10, 8);
+        for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
+            blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
+            draw_button_label(framebuffer, scene, pal, *button, *label, button->hovered && button->pressed);
+        }
+        return;
+    }
+    if (select_ui.confirm_convert) {
+        // CONVERT's question: records 0xda..0xdd (0x439be0), its three lines in Font8, colour 4.
+        blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
+        const auto& font = scene.font_small;
+        const auto gold = scene.sky_pl2.text_palette(pal, 4);
+        const std::vector<std::string_view> texts(select_ui.convert_text.begin(), select_ui.convert_text.end());
+        for (const auto& row : d2d::font::text_box_rows(texts, 268, 310, 264, 120, font.line_height(), [&](std::string_view text) { return font.measure(text); }, 9, 0))
+            font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, gold, row.x, row.baseline, row.text, 255, 255, 255);
+        for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
+            blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
+            draw_button_label(framebuffer, scene, pal, *button, *label, button->hovered && button->pressed);
+        }
+        return;
+    }
+    if (select_ui.pick_difficulty) {
+        blit_dc6_grid(framebuffer, scene.difficulty_levels, pal, 237, rec_top(400, 200), 2);
+        // Record 0xab: Font24 (its font pair at 0x7089bc: font 7), text
+        // colour 7 (FUN_004fc9b0) through the Sky PL2's shift (char-select's palette), centred (flags 2).
+        const int heading_width = scene.font24.measure(select_ui.difficulty_heading);
+        scene.font24.draw(framebuffer, kScreenWidth, kScreenHeight, scene.sky_pl2.text_palette(pal, 7), 264 + (272 - heading_width) / 2,
+                          rec_top(260, 35) + (35 - scene.font24.line_height()) / 2, select_ui.difficulty_heading);
+        for (int index = 0; index < 3; ++index) {
+            const Button& button = select_ui.difficulty_btn[std::size_t(index)];
+            const std::string& label = select_ui.difficulty_label[std::size_t(index)];
+            const bool enabled = index < 2 || select_ui.hell_open;   // FUN_004f96f0(button, 0) greys it
+            const bool pressed = enabled && button.hovered && button.pressed;
+            draw_button_chrome(framebuffer, pal, button, pressed, !enabled);
+            draw_button_label(framebuffer, scene, pal, button, label, pressed);
+        }
+        return;
+    }
+    if (select_ui.popup.empty()) return;
+    // FUN_00433380 on a Sky screen: PopUpOK (record 0xde), the message
+    // (0xe0, Font24) and OK (0xe1).
+    blit_dc6_grid(framebuffer, scene.popup_ok, pal, 268, rec_top(350, 176), 2);
+    draw_text_box(framebuffer, scene, scene.font24, select_ui.popup, 268, 300, 264, 100, 255, 10, 8);
+    const auto& ok = select_ui.popup_ok;
+    blit_button_chrome(framebuffer, pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
+    draw_button_label(framebuffer, scene, pal, ok, select_ui.ok_label, ok.hovered && ok.pressed);
+}
+
+void render_credits(std::vector<std::uint8_t>& framebuffer,
+                    const Scene& scene,
+                    std::uint32_t elapsed_ms) {
+    // creditsbckgexpand.dc6 has the same 4×3 sub-frame grid as the title
+    // background; both add up to exactly 800×600.
+    blit_dc6_grid(framebuffer, scene.credits_bg, scene.pal, 0, 0, scene.bg_tiles_across);
+
+    if (scene.credits.empty()) {
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 300, 300, "(no credits.txt found)");
+    } else {
+        // Line pitch: font16 line-height + 4 px spacing.
+        const int pitch = scene.font.line_height() + 6;
+        const int total_h = int(scene.credits.size()) * pitch;
+        // scroll_y = distance the first line has moved above the bottom.
+        // 40 ms per tick = D2 base; advance one px per tick.
+        const int scroll = int(elapsed_ms / kBaseFrameMs);
+        // total scroll cycle: total_h + kH (start at bottom, end past top).
+        const int cycle = total_h + int(kScreenHeight);
+        const int off   = scroll % (cycle > 0 ? cycle : 1);
+        // Base y for line 0.
+        int y = int(kScreenHeight) - off;
+        // Gold-ish tint for section headers, approximating D2's PL2
+        // hue-shift. Regular lines draw untinted (255,255,255 = pass-through).
+        constexpr std::uint8_t kHdrR = 255, kHdrG = 208, kHdrB = 80;
+        for (const auto& line : scene.credits) {
+            if (y > int(kScreenHeight))          { y += pitch; continue; }
+            if (y + pitch < 0)        { y += pitch; continue; }
+            const bool header = !line.empty() && line.front() == '*';
+            std::string_view text = line;
+            if (header) text.remove_prefix(1);
+            if (text.empty())         { y += pitch; continue; }
+            const int line_width = scene.font.measure(text);
+            const int x = int(kScreenWidth) / 2 - line_width / 2;
+            if (header) {
+                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, x, y, text,
+                                   kHdrR, kHdrG, kHdrB);
+            } else {
+                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, x, y, text);
+            }
+            y += pitch;
+        }
+    }
+}
+
+void advance_char_states(CharCreateUI& create_ui,
+                         const Scene& scene,
+                         std::uint32_t elapsed_ms) {
+    for (std::size_t i = 0; i < 7; ++i) {
+        auto& class_ui = create_ui.classes[i];
+        if (class_ui.state == ClassState::Selecting) {
+            const auto& forward = scene.class_anims[i][2];
+            const auto frames = forward.frames_per_direction();
+            const auto elapsed = elapsed_ms - class_ui.state_start_ms;
+            if (frames == 0 || elapsed / kBaseFrameMs >= frames) {
+                class_ui.state = ClassState::Selected;
+                class_ui.state_start_ms = elapsed_ms;
+            }
+        } else if (class_ui.state == ClassState::Deselecting) {
+            const auto& backward = scene.class_anims[i][4];
+            const auto frames = backward.frames_per_direction();
+            const auto elapsed = elapsed_ms - class_ui.state_start_ms;
+            if (frames == 0 || elapsed / kBaseFrameMs >= frames) {
+                class_ui.state = ClassState::Idle;
+                class_ui.state_start_ms = elapsed_ms;
+            }
+        }
+    }
+}
+
+// The class under the mouse, -1 none: hit inside its current animation's
+// first frame, drawn at the record's (x, y) (FUN_005003a0); the record's
+// w x h isn't used.
+static int class_under(const CharCreateUI& create_ui, const Scene& scene, const Mouse& mouse) {
+    for (int i = 0; i < 7; ++i) {
+        const auto position = kClassPos[i];
+        const auto& class_ui = create_ui.classes[std::size_t(i)];
+        const auto& anim = scene.class_anims[std::size_t(i)][class_ui.state == ClassState::Idle ? 0 : class_ui.state == ClassState::Selecting ? 2 : class_ui.state == ClassState::Selected ? 3 : 4];
+        if (anim.frames_per_direction() == 0) continue;
+        const auto& frame = anim.frame(0, 0);
+        const int left = position.x + frame.offset_x, bottom = position.y + frame.offset_y;
+        if (mouse.x >= left && mouse.x < left + int(frame.width) && mouse.y >= bottom - int(frame.height) && mouse.y < bottom) return i;
+    }
+    return -1;
+}
+
+void handle_charcreate_click(CharCreateUI& create_ui,
+                             const Scene& scene,
+                             const Mouse& mouse,
+                             std::uint32_t elapsed_ms) {
+    create_ui.hovered = class_under(create_ui, scene, mouse);
+    if (!mouse.release_this_frame) return;
+    // The checkboxes toggle on their own 15 x 16 boxes only (FUN_00501090,
+    // the type 6 control's mouse-down): the labels beside them, 0xBD
+    // (339, 581, 100 x 32) and 0xD3 (339, 561, 200 x 32), are text controls
+    // with no callback (record +0x20 = 0), so FUN_004fc2f0 passes the click
+    // on. Hardcore 0xBE at (319, 560); Expansion Character 0xD4 at (319, 540),
+    // shown with a class picked and clearable only for the five classic
+    // classes (FUN_00433bf0; Druid and Assassin get the locked 0xD5).
+    const auto in_box = [&](int top) {
+        return mouse.x >= kHardcoreX && mouse.x < kHardcoreX + kHardcoreW && mouse.y >= top && mouse.y < top + kHardcoreH;
+    };
+    if (create_ui.selected >= 0 && kUiToSaveClass[std::size_t(create_ui.selected)] < 5 && in_box(kExpansionY)) {
+        create_ui.expansion = !create_ui.expansion;
+        return;
+    }
+    if (in_box(kHardcoreY)) {
+        create_ui.hardcore = !create_ui.hardcore;
+        return;
+    }
+    const int picked = create_ui.hovered;
+    if (picked < 0 || create_ui.selected == picked) return;   // clicked selected class → no-op
+    // Deselect old.
+    if (create_ui.selected >= 0) {
+        auto& prev = create_ui.classes[create_ui.selected];
+        prev.state = ClassState::Deselecting;
+        prev.state_start_ms = elapsed_ms;
+    }
+    auto& cur = create_ui.classes[std::size_t(picked)];
+    cur.state = ClassState::Selecting;
+    cur.state_start_ms = elapsed_ms;
+    create_ui.selected = picked;
+    create_ui.expansion = true;   // each pick ticks it again (status |= 0x20)
+}
+
+void render_charcreate(std::vector<std::uint8_t>& framebuffer,
+                       const Scene& scene,
+                       const CharCreateUI& create_ui,
+                       std::uint32_t elapsed_ms) {
+    // fechar palette per FUN_00435580 RE.
+    const auto& pal = scene.charselect_pal;
+
+    blit_dc6_grid(framebuffer, scene.charcreate_bg, pal, 0, 0, scene.bg_tiles_across);
+
+    // Campfire — records 0x70ae70 (345, 470) and 0x70aea0 (345, 454), the
+    // same fire.dc6 twice. A one-sprite widget draws at (x, y) less its
+    // first frame's offsets (FUN_005005b0), so (x, y) is that frame's
+    // bottom-left; an animation set (the classes) draws at (x, y) itself.
+    const auto fire_frames = scene.fire.frames_per_direction();
+    if (fire_frames > 0) {
+        const auto fire_frame = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % fire_frames);
+        // Shadow first, then main flame on top.
+        const auto& first = scene.fire.frame(0, 0);
+        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 - first.offset_x, 454 - first.offset_y);
+        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 - first.offset_x, 470 - first.offset_y);
+    }
+
+    // Per-class draw: pick anim + frame based on state, place at the RE'd
+    // rect's centre-bottom (matches D2's per-class positioning).
+    for (std::size_t i = 0; i < 7; ++i) {
+        const auto& class_ui = create_ui.classes[i];
+        const auto position = kClassPos[i];
+        int anim = 0;
+        std::uint32_t elapsed_for_frame = elapsed_ms + std::uint32_t(i) * 7;
+        bool one_shot = false;
+        switch (class_ui.state) {
+        case ClassState::Idle:        anim = 0; break;
+        case ClassState::Selecting:   anim = 2; one_shot = true; break;
+        case ClassState::Selected:    anim = 3; break;
+        case ClassState::Deselecting: anim = 4; one_shot = true; break;
+        }
+        const auto& spr = scene.class_anims[i][anim];
+        const auto frames = spr.frames_per_direction();
+        if (frames == 0) continue;
+        std::uint32_t frame_index;
+        if (one_shot) {
+            const auto elapsed = elapsed_ms - class_ui.state_start_ms;
+            frame_index = std::min<std::uint32_t>(elapsed / kBaseFrameMs, frames - 1);
+        } else {
+            frame_index = std::uint32_t((elapsed_for_frame / kBaseFrameMs) % frames);
+        }
+        // The record's (x, y) is the anchor; each frame's own DC6 offset
+        // places its pixels.
+        blit_at_anchor(framebuffer, spr.frame(0, frame_index), pal, position.x, position.y);
+    }
+
+    // Selected class name — big warm-gold caption above the panel area.
+    // TBL-sourced ("Amazon" / "Sorceress" / etc. all live under those exact
+    // keys in string.tbl per a probe of the file).
+    std::string caption;
+    if (create_ui.selected >= 0) {
+        if (auto found = lookup_string(scene, kClassKey[create_ui.selected]))
+            caption = u16_to_latin1(*found);
+        else
+            caption = kClassKey[create_ui.selected];
+    } else {
+        caption = "SELECT HERO CLASS";
+    }
+    {
+        const int width = scene.font.measure(caption);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - width/2, 22, caption,
+                           255, 208, 80);
+    }
+
+    // Before a class is picked, the one under the mouse shows its name and
+    // what it is (FUN_004307a0 from the classes' hover handlers, e.g.
+    // FUN_00430870): text boxes 0xc5 (0, 80, 800 x 100; font30) and
+    // 0xc6 (250, 110, 300 x 100; font16), both centred, the second
+    // wrapped. Names 0xfa7.. / patchstring 0x2771..; descriptions string.tbl
+    // 0x1408.. / expansionstring 0x57f6 (Druid), 0x57f7 (Assassin).
+    // The record's +0x28 pair {font, word} (0x7089b4: 2, 0; 0x7089c4: 1, 0)
+    // goes to the box's +0x94 / +0x98 (FUN_004fc7a0); the draw sets font
+    // +0x94 (0x4fbfdb) and never reads +0x98. Each line's colour is the
+    // one it was added with (line +0x14): 0, white, for both (the pushes
+    // at 0x4307c1 / 0x4307e7 before FUN_004fc9b0).
+    if (create_ui.selected < 0 && create_ui.hovered >= 0) {
+        static constexpr std::uint16_t kName[7] = { 0xfa7, 0xfa9, 0xfa8, 0xfab, 0xfaa, 0x2771, 0x2772 };   // BA NE PA AM SO DZ AS
+        static constexpr std::uint16_t kDesc[7] = { 0x140a, 0x1409, 0x140c, 0x1408, 0x140b, 0x57f6, 0x57f7 };
+        const auto hovered = std::size_t(create_ui.hovered);
+        const auto& name_font = scene.font30.line_height() > 0 ? scene.font30 : scene.font;
+        if (const auto name = lookup_string(scene, kName[hovered])) {
+            const auto text = u16_to_latin1(*name);
+            name_font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - name_font.measure(text) / 2, 80, text);
+        }
+        if (const auto desc = lookup_string(scene, kDesc[hovered])) {
+            const auto text = u16_to_latin1(*desc);
+            std::vector<std::string> lines(1);
+            std::size_t word_start = 0;
+            while (word_start < text.size()) {
+                const auto space = text.find(' ', word_start);
+                const auto word = text.substr(word_start, space == std::string::npos ? std::string::npos : space - word_start);
+                const auto joined = lines.back().empty() ? word : lines.back() + ' ' + word;
+                if (!lines.back().empty() && scene.font.measure(joined) > 300) lines.push_back(word);
+                else lines.back() = joined;
+                if (space == std::string::npos) break;
+                word_start = space + 1;
+            }
+            int line_y = 110;
+            for (const auto& line : lines) {
+                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 400 - scene.font.measure(line) / 2, line_y, line);
+                line_y += scene.font.line_height();
+            }
+        }
+    }
+
+    // Name-entry field — per RE record 0x70b290: (319, 519, 169, 26)
+    // with textbox.dc6 chrome. Draw the chrome, then the typed name
+    // centered inside. Prompt "Character Name" shows above the box.
+    if (scene.textbox.frames_per_direction() > 0) {
+        // Above-box prompt (string.tbl id 0x1405 = "Character Name"; a
+        // TBL scan of the 0x1380..0x1500 id band confirmed this).
+        std::string np_owned;
+        const char* nprompt = "CHARACTER NAME";
+        if (auto found = lookup_string(scene, std::uint16_t(0x1405))) {
+            np_owned = u16_to_latin1(*found);
+            if (!np_owned.empty()) nprompt = np_owned.c_str();
+        }
+        const int npw = scene.font.measure(nprompt);
+        constexpr int kNameTop = rec_top(519, 26);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 319 + (169 - npw)/2, kNameTop - 14,
+                           nprompt, 200, 200, 200);
+        blit_sprite(framebuffer, scene.textbox.frame(0, 0), pal, 319, kNameTop);
+        // Typed name over the box.
+        const int name_width = scene.font.measure(create_ui.name);
+        const int nlh = scene.font.line_height();
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal,
+                           319 + (169 - name_width) / 2,
+                           kNameTop + (26 - nlh) / 2,
+                           create_ui.name, 255, 208, 80);
+        // The edit box's caret (FUN_004ff620): "_" in its text colour after
+        // the last letter, on while (GetTickCount / 250) & 1 in the focused box.
+        if (((elapsed_ms / 250) & 1) != 0) {
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal,
+                               319 + (169 - name_width) / 2 + name_width,
+                               kNameTop + (26 - nlh) / 2,
+                               "_", 255, 208, 80);
+        }
+    }
+
+    // Hardcore checkbox — chrome from clickbox.dc6 (frame 0 unchecked,
+    // 1 checked). Label rendered to the LEFT of the box in the pale
+    // grey D2 uses for inactive-but-toggleable text; goes bright gold
+    // when checked.
+    if (scene.clickbox.frames_per_direction() >= 2 && !create_ui.hardcore_label.empty()) {
+        const auto& frame = scene.clickbox.frame(0, create_ui.hardcore ? 1 : 0);
+        blit_sprite(framebuffer, frame, pal, kHardcoreX, kHardcoreY);
+        // Label rendered right of the box — RE'd hitbox 0x70b080 sits at
+        // x=339 (20px right of the box's x=319), covering the label's
+        // click zone.
+        const int line_height = scene.font.line_height();
+        const int label_x = kHardcoreX + kHardcoreW + 5;
+        const int label_y = kHardcoreY + (kHardcoreH - line_height) / 2;
+        if (create_ui.hardcore)
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y,
+                               create_ui.hardcore_label, 255, 208, 80);
+        else
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y,
+                               create_ui.hardcore_label, 180, 180, 180);
+    }
+
+    // Expansion Character, with a class picked: clickbox for a classic
+    // class, the grey locked box for Druid / Assassin; its label as Hardcore's.
+    if (create_ui.selected >= 0 && scene.clickbox.frames_per_direction() >= 2) {
+        const bool locked = kUiToSaveClass[std::size_t(create_ui.selected)] >= 5;
+        const auto& box = locked && scene.clickbox_grey.frames_per_direction() > 0 ? scene.clickbox_grey.frame(0, 0) : scene.clickbox.frame(0, create_ui.expansion ? 1 : 0);
+        blit_sprite(framebuffer, box, pal, kHardcoreX, kExpansionY);
+        const int label_y = kExpansionY + (kHardcoreH - scene.font.line_height()) / 2;
+        const auto shade = create_ui.expansion ? std::array<std::uint8_t, 3>{ 255, 208, 80 } : std::array<std::uint8_t, 3>{ 180, 180, 180 };
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kHardcoreX + kHardcoreW + 5, label_y, create_ui.expansion_label, shade[0], shade[1], shade[2]);
+    }
+
+    // OK / EXIT buttons at the bottom — MediumSelButtonBlank chrome.
+    // OK is disabled (no class picked yet or empty name): its chrome at half.
+    for (const Button* button : {&create_ui.cancel_btn, &create_ui.ok_btn}) {
+        const bool disabled = (button == &create_ui.ok_btn) && !button->do_switch;
+        if (!button->chrome) continue;
+        draw_button_chrome(framebuffer, pal, *button, button->hovered && button->pressed, disabled);
+        if (button->label)
+            draw_button_label(framebuffer, scene, pal, *button, button->label, button->hovered && button->pressed);
+    }
+}
+
+int cinematics_unlocked(const std::string& seen) {
+    auto has = [&](const char* key) { return seen.find(key) != std::string::npos; };
+    if (has("d2xout")) return 7;
+    if (has("d2xintro")) return 6;
+    if (has("act4end")) return 5;
+    if (has("act4start")) return 4;
+    if (has("act3start")) return 3;
+    if (has("act2start")) return 2;
+    return 1;
+}
+
+CinematicsUI cinematics_ui(const Scene& scene, int unlocked) {
+    CinematicsUI cinematics;
+    cinematics.unlocked = unlocked;
+    auto str = [&](std::uint16_t id, const char* fallback) {
+        const auto found = lookup_string(scene, id);
+        return found ? u16_to_latin1(*found) : std::string(fallback);
+    };
+    static constexpr int kBottom[7] = { 181, 224, 268, 310, 353, 396, 439 };
+    for (int i = 0; i < 7; ++i) {
+        cinematics.labels[std::size_t(i)] = str(std::uint16_t(0x5525 + i), "?");
+        cinematics.entry[std::size_t(i)] = Button{ 262, rec_top(kBottom[i], 35), 272, 35, nullptr, &scene.btn_wide };
+    }
+    cinematics.cancel_label = str(0x13ef, "CANCEL");
+    cinematics.cancel = Button{ 334, rec_top(488, 35), 128, 35, nullptr, &scene.medium_button,
+                        Screen::Title, true };
+    cinematics.heading = str(0x13fa, "SELECT CINEMATICS");
+    return cinematics;
+}
+
+void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const CinematicsUI& cinematics) {
+    blit_dc6_grid(framebuffer, scene.background, scene.pal, 0, 0, scene.bg_tiles_across);
+    if (scene.cinematics_panel.frames_per_direction() >= 4) {
+        const auto& panel = scene.cinematics_panel.frame(0, 0);
+        const int x = 237, y = rec_top(505, 427);
+        blit_sprite(framebuffer, panel, scene.pal, x, y);
+        blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 1), scene.pal, x + int(panel.width), y);
+        blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 2), scene.pal, x, y + int(panel.height));
+        blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 3), scene.pal, x + int(panel.width), y + int(panel.height));
+    }
+    // The heading (FUN_004313d0): record 0x3e (262, bottom 153, 272 x 35),
+    // its pair at 0x7089bc (font 7, Font24), centred (flags 2), the text
+    // added by FUN_004fd060 in colour 4 (gold: push 4 at 0x4fd064) through
+    // the Sky PL2's shift (the screen's palette\sky, 0x4313e8). One line
+    // sits as draw_text_box's.
+    {
+        const int width = scene.font24.measure(cinematics.heading);
+        scene.font24.draw(framebuffer, kScreenWidth, kScreenHeight, scene.sky_pl2.text_palette(scene.pal, 4), 262 + (272 - width) / 2,
+                          rec_top(153, 35) + (35 - scene.font24.line_height()) / 2, cinematics.heading);
+    }
+    // Labels bind here: the UI is returned by value, so pointers into its
+    // own strings can't live in the Buttons.
+    auto draw = [&](Button button, const std::string& label, bool enabled) {
+        button.label = label.c_str();
+        const bool pressed = enabled && button.hovered && button.pressed;
+        draw_button_chrome(framebuffer, scene.pal, button, pressed, !enabled);
+        draw_button_label(framebuffer, scene, scene.pal, button, label, pressed);
+    };
+    for (int i = 0; i < 7; ++i) draw(cinematics.entry[std::size_t(i)], cinematics.labels[std::size_t(i)], i < cinematics.unlocked);
+    draw(cinematics.cancel, cinematics.cancel_label, true);
+}
+
+EndgameUI endgame_ui(const Scene& scene, const d2d::d2s::Header& header) {
+    EndgameUI endgame;
+    endgame.background = d2d::dc6::Sprite(scene.mpqs.read(R"(data\global\ui\menu\endgame.dc6)"));
+    endgame.ok = d2d::dc6::Sprite(scene.mpqs.read(R"(data\global\ui\menu\endgameok.dc6)"));
+    endgame.pal = d2d::palette::Palette(scene.mpqs.read(R"(data\global\palette\endgame\pal.dat)"));
+    auto str = [&](std::uint16_t id) {
+        const auto found = lookup_string(scene, id);
+        return found ? u16_to_latin1(*found) : std::string{};
+    };
+    endgame.lines = { str(0x13ea), str(0x13eb), str(0x13ec) };
+    endgame.ok_label = str(0x13ee);
+    endgame.name = header.name;
+    // FUN_005068a0 on the game's difficulty: the title that difficulty earns.
+    auto earned = header;
+    earned.progression = std::uint8_t((header.active_difficulty() + 1) * (header.expansion() ? 5 : 4));
+    endgame.titled = char_title(earned) + header.name;
+    return endgame;
+}
+
+bool endgame_on_ok(int x, int y) {
+    return x >= int(kScreenWidth) / 2 - 0x30 && x <= int(kScreenWidth) / 2 + 0x30 && y >= int(kScreenHeight) - 0x70 && y <= int(kScreenHeight) - 0x50;
+}
+
+void render_endgame(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const EndgameUI& endgame) {
+    constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
+    std::fill(framebuffer.begin(), framebuffer.end(), std::uint8_t{0});
+    for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
+    // FUN_004f6480's y is the row under the frame.
+    static constexpr std::array<std::pair<int, int>, 8> kCells{ { { 0, 256 }, { 256, 256 }, { 0, kHeight - 1 }, { 256, kHeight - 1 },
+        { kWidth / 2, 256 }, { kWidth / 2 + 256, 256 }, { kWidth / 2, kHeight }, { kWidth / 2 + 256, kHeight } } };
+    for (int i = 0; i < std::min(8, int(endgame.background.frames_per_direction())); ++i) {
+        const auto& frame = endgame.background.frame(0, i);
+        blit_sprite(framebuffer, frame, endgame.pal, kCells[std::size_t(i)].first, kCells[std::size_t(i)].second - int(frame.height));
+    }
+    auto centred = [&](const d2d::font::Font& font, const std::string& text, int baseline, const std::uint8_t* tint, int shift = 0) {
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, endgame.pal, kWidth / 2 - font.measure(text) / 2 - shift,
+                         baseline - font.line_height() + 1, text, tint[0], tint[1], tint[2]);
+    };
+    centred(scene.font42, endgame.lines[0], 0x3e, kTextGold);
+    centred(scene.font42, endgame.lines[1], 0x6b, kTextGold);
+    centred(scene.font42, endgame.name, 0xbb, kTextGold);
+    centred(scene.font42, endgame.lines[2], 0xe8, kTextGold);
+    centred(scene.font42, endgame.titled, 0x115, kTextGold);
+    if (endgame.ok.frames_per_direction() >= 2) {
+        const auto& button = endgame.ok.frame(0, endgame.pressed ? 1 : 0);
+        blit_sprite(framebuffer, button, endgame.pal, kWidth / 2 - 0x30, kHeight - 0x50 - int(button.height));
+    }
+    static constexpr std::uint8_t kWhite[3] = { 255, 255, 255 };
+    const int press = endgame.pressed ? 2 : 0;
+    centred(scene.font, endgame.ok_label, kHeight - 0x58 + press, kWhite, press);
+}
+
+TitleUI other_multiplayer_ui(const Scene& scene) {
+    TitleUI menu;
+    menu.labels.reserve(3);
+    menu.buttons.reserve(3);
+    // OPEN BATTLE.NET does nothing (deviations.md, Approximations #16).
+    struct Entry { int y; int tbl_id; const char* fallback; Screen target; };
+    static constexpr Entry kEntries[] = { { 310, 0x13fb, "OPEN BATTLE.NET", Screen::OtherMultiplayer },
+                                          { 350, 0x13fc, "TCP/IP GAME", Screen::TcpIp },
+                                          { 568, 0x13ef, "CANCEL", Screen::Title } };
+    for (const auto& [top, tbl_id, fallback, target] : kEntries) {
+        const auto found = lookup_string(scene, std::uint16_t(tbl_id));
+        menu.labels.push_back(found ? u16_to_latin1(*found) : std::string(fallback));
+        menu.buttons.push_back(Button{ 264, rec_top(top, 35), 272, 35, menu.labels.back().c_str(), &scene.btn_wide,
+                                       target, target != Screen::OtherMultiplayer });
+    }
+    return menu;
+}
+
+TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip) {
+    auto str = [&](std::uint16_t id, const char* fallback) {
+        const auto found = lookup_string(scene, id);
+        return found ? u16_to_latin1(*found) : std::string(fallback);
+    };
+    TcpIpUI tcpip;
+    tcpip.heading = str(0x13fd, "TCP/IP Options");
+    tcpip.ip_label = str(0x1401, "Your IP Address is: ");
+    // FUN_0042ff20: loopback means no network; HOST, JOIN and the label go dark.
+    tcpip.has_ip = own_ip != "127.0.0.1";
+    tcpip.ip = tcpip.has_ip ? own_ip : str(0x1404, "Cannot detect a valid TCP/IP address.");
+    tcpip.host_label = str(0x13fe, "HOST GAME");
+    tcpip.join_label = str(0x13ff, "JOIN GAME");
+    tcpip.cancel_label = str(0x13ef, "CANCEL");
+    tcpip.ok_label = str(0x13ee, "OK");
+    tcpip.host_text = str(0x1402, "");
+    tcpip.join_text = str(0x1403, "");
+    tcpip.prompt = str(0x2b1f, "Enter Host IP Address to Join Game");
+    // HOST GAME hosts d2d players (lan-host.md); JOIN GAME tries a d2d host, then a game.exe one.
+    tcpip.host = Button{ 265, rec_top(206, 35), 272, 35, nullptr, &scene.btn_wide };
+    tcpip.join = Button{ 265, rec_top(264, 35), 272, 35, nullptr, &scene.btn_wide };
+    tcpip.cancel = Button{ 39, rec_top(571, 35), 128, 35, nullptr, &scene.medium_button, Screen::OtherMultiplayer, true };
+    tcpip.box_cancel = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    tcpip.box_ok = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    tcpip.no_connect = str(0x145b, "Cannot Connect to Server");
+    tcpip.popup_ok = Button{ 351, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    return tcpip;
+}
+
+void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms) {
+    blit_dc6_grid(framebuffer, scene.tcpip_bg, scene.pal, 0, 0, 4);
+    constexpr std::uint8_t kGrey = 105;
+    auto button = [&](const Button& place, const std::string& label, bool enabled) {
+        const bool pressed = enabled && place.hovered && place.pressed;
+        draw_button_chrome(framebuffer, scene.pal, place, pressed, !enabled);
+        draw_button_label(framebuffer, scene, scene.pal, place, label, pressed);
+    };
+    auto text = [&](const d2d::font::Font& font, const std::string& line, int x, int y, int width, int height, bool enabled = true) {
+        draw_text_box(framebuffer, scene, font, line, x, y, width, height, enabled ? 255 : kGrey);
+    };
+    text(scene.font42, tcpip.heading, 100, 76, 600, 40);
+    text(scene.font, tcpip.ip_label, 270, 156, 272, 40, tcpip.has_ip);
+    text(scene.font, tcpip.ip, 265, 171, 272, 40);
+    button(tcpip.host, tcpip.host_label, tcpip.has_ip);
+    button(tcpip.join, tcpip.join_label, tcpip.has_ip);
+    button(tcpip.cancel, tcpip.cancel_label, true);
+    // The buttons' hover texts (FUN_00430120 / FUN_00430160 show records 0x108 / 0x109).
+    if (!tcpip.box_open && tcpip.has_ip && (tcpip.host.hovered || tcpip.join.hovered))
+        draw_text_box(framebuffer, scene, scene.font_formal11,
+                      tcpip.host.hovered ? tcpip.host_text : tcpip.join_text, 265, 520, 272, 210,
+                      255, tcpip.join.hovered ? 2 : 0);
+    if (!tcpip.box_open) return;
+    // The join box: PopUpOKCancel2 (0x10f), its prompt (0x10c), IPAddressBox
+    // (0x10e) and the edit line (0x10d, FontFormal12, from its left edge).
+    blit_dc6_grid(framebuffer, scene.popup_ok_cancel, scene.pal, 268, rec_top(350, 176), 2);
+    text(scene.font, tcpip.prompt, 300, 250, 200, 50);
+    if (scene.ip_box.frames_per_direction() > 0) blit_sprite(framebuffer, scene.ip_box.frame(0, 0), scene.pal, 291, rec_top(270, 26));
+    const int edit_y = rec_top(268, 20) + (20 - scene.font_formal12.line_height()) / 2;
+    const int typed = scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 300, edit_y, tcpip.address);
+    // Its caret as the name field's (FUN_004ff620: "_", 250 ms on, 250 off).
+    if (((elapsed_ms / 250) & 1) != 0) scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, typed, edit_y, "_");
+    button(tcpip.box_cancel, tcpip.cancel_label, true);
+    button(tcpip.box_ok, tcpip.ok_label, true);
+}
+
+void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip) {
+    if (tcpip.popup.empty()) return;
+    // FUN_00433380 on a Sky screen: PopUpOK (0xde), the message (0xe0, Font24), OK (0xe1).
+    blit_dc6_grid(framebuffer, scene.popup_ok, scene.pal, 268, rec_top(350, 176), 2);
+    draw_text_box(framebuffer, scene, scene.font24, tcpip.popup, 268, 300, 264, 100, 255, 10, 8);
+    const auto& ok = tcpip.popup_ok;
+    blit_button_chrome(framebuffer, scene.pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
+    draw_button_label(framebuffer, scene, scene.pal, ok, tcpip.ok_label, ok.hovered && ok.pressed);
+}
+
+void render_connecting(std::vector<std::uint8_t>& framebuffer, const Scene& scene) {
+    // FUN_0042f6e0's DAT_007795f0 == 0 branch: records 0xde, 0xdf and
+    // 0xe0.  Record 0xdf is hidden, so only PopUpOK and its text remain.
+    constexpr auto layout = connecting_screen(false);
+    blit_dc6_grid(framebuffer, scene.popup_ok, scene.pal, layout.box_x,
+                  rec_top(layout.box_bottom, layout.box_height), 2);
+    const auto found = lookup_string(scene, layout.string_id);
+    const std::string text = found ? u16_to_latin1(*found) : "PLEASE WAIT";
+    draw_text_box(framebuffer, scene, scene.font24, text, layout.text_x,
+                  layout.text_bottom, layout.text_width, layout.text_height,
+                  255, 10, 8);
+}
+
+TitleUI title_ui(const Scene& scene, bool coop) {
+    struct Spec {
+        int x, y, width, height;
+        std::uint16_t tbl_id;
+        const char* fallback;
+        const d2d::dc6::Sprite* chrome;
+        bool do_switch = false;
+        Screen goto_screen = Screen::Title;
+        bool quit = false;
+    };
+    // ID map derived from menu records — see docs/research/re/frontend-menu-table.md.
+    const auto primary_bottoms = title_primary_bottoms(scene.title_expansion);
+    const Spec specs[] = {
+        {264, primary_bottoms[0], 272, 35, 0x13f2, "SINGLE PLAYER", &scene.btn_wide,
+            true, title_single_player_creates(!scene.saves.empty()) ? Screen::CharCreate : Screen::CharSelect, false},
+        {264, primary_bottoms[1], 272, 35, 0x13f3, "BATTLE.NET",        &scene.btn_wide2},
+        {264, primary_bottoms[2], 272, 25, 0,      "GATEWAY: LOCAL",    &scene.btn_narrow},
+        {264, primary_bottoms[3], 272, 35, 0x13f4, "OTHER MULTIPLAYER", &scene.btn_wide,
+            true, Screen::OtherMultiplayer, false},
+        {264, 528, 135, 25, 0x13f6, "CREDITS",           &scene.btn_short,
+            true, Screen::Credits, false},
+        {402, 528, 135, 25, 0x13f7, "CINEMATICS",        &scene.btn_short,
+            true, Screen::Cinematics, false},
+        {264, 568, 272, 35, 0x13f5, "EXIT DIABLO II",    &scene.btn_wide,
+            false, Screen::Title, true},
+    };
+    TitleUI title;
+    title.version = std::string(title_version_box().text);
+    title.labels.reserve(sizeof(specs) / sizeof(specs[0]));
+    title.buttons.reserve(title.labels.capacity());
+    for (const auto& spec : specs) {
+        std::string label;
+        if (spec.tbl_id) {
+            if (auto found = lookup_string(scene, spec.tbl_id)) label = u16_to_latin1(*found);
+        }
+        if (label.empty() && spec.fallback) label = spec.fallback;
+        if (coop && spec.tbl_id == 0x13f2) label += " / COOP";   // d2d: local co-op starts here too (deviations.md)
+        title.labels.push_back(std::move(label));
+        title.buttons.push_back(Button{
+            spec.x, rec_top(spec.y, spec.height), spec.width, spec.height,
+            title.labels.back().c_str(),
+            spec.chrome, spec.goto_screen, spec.do_switch, spec.quit, false, false,
+        });
+    }
+    return title;
+}
+
+}  // namespace d2d::client

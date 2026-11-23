@@ -3,7 +3,7 @@
 // test-includes: apps/d2d
 // FUN_0042f6e0's three records in each palette branch.
 
-#include <connecting_rules.hpp>
+#include <frontend/connecting_rules.hpp>
 
 #include <cassert>
 #include <cstdio>

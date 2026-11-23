@@ -1493,7 +1493,7 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
 - **`FUN_004bdff0`** (fastcall ECX unit; 0x30 bytes, `004bdff0`..`004be01c`,
   plain `RET`): the object's per-frame step. `FUN_004bcbb0(unit)` runs
   first — the object's own cof/frame-rate advance, already fully ported
-  (`apps/d2d/ingame.cpp:169,175`, `apps/d2d/world_view.cpp:39`,
+  (`apps/d2d/render/ingame.cpp:169,175`, `apps/d2d/render/world_view.cpp:39`,
   `components/game/gamedata/gamedata.hpp:119`, `components/game/world/tick.cpp:53`).
   Then it reads the object's Objects.txt ClientFn (`+0x1b4`, objects.md:574
   already names this field and its dispatch) off the object's row (unit

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// Ctrl + left click on a grid item (apps/d2d/ctrl_click.hpp, FUN_0048ffe0
+// Ctrl + left click on a grid item (apps/d2d/items/ctrl_click.hpp, FUN_0048ffe0
 // at 0x4901f4): with a store open, sold (C->S 0x33, 0x490261) if a vendor
 // buys it, else the hero's "impossible" (FUN_004cb9c0 0x13, 0x490283);
 // with none, nothing (0x4902f8).
-#include "ctrl_click.hpp"
+#include "items/ctrl_click.hpp"
 
 #include <cassert>
 #include <cstdio>

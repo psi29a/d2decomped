@@ -6,11 +6,11 @@
 // main.cpp; `debug`'s sub-verbs are in debug_*.cpp beside this.
 #pragma once
 
-#include "audio.hpp"
+#include "audio/audio.hpp"
 #include "common.hpp"
 #include "debug.hpp"
-#include "frontend.hpp"
-#include "panels.hpp"
+#include "frontend/frontend.hpp"
+#include "panels/panels.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
 #include "session.hpp"

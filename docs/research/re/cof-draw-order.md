@@ -26,7 +26,7 @@ direction order.
   (checked against both tables in the binary).
 
 d2d: `d2d::cof::Cof::priority_row` (components/cof/cof.hpp), used by
-`composite_frames` (apps/d2d/world_view.hpp); `test_cof` checks the
+`composite_frames` (apps/d2d/render/world_view.hpp); `test_cof` checks the
 Barbarian's hand axe (BATN1HS) is behind him facing north and in front
 facing the viewer.
 
@@ -73,7 +73,7 @@ the viewer behind it (the row was taken as the DCC direction).
   13 for both layers; FrameCnt 13 / 20), so nothing draws whatever the
   bytes are: d2d's `past_cof` blanks the unit outright, the same.
 
-d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
+d2d: `composite_frames` (apps/d2d/render/world_view.hpp) does both.
 
 ## A layer's file
 

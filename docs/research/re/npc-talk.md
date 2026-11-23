@@ -67,7 +67,7 @@ Nine calls. The hover-name function `FUN_00454f30` calls it at
 `00455489` when that returns nonzero. It then calls `FUN_004a0000` and
 jumps to the same address when EAX is 1. Otherwise ECX is ESI and it
 calls `FUN_00464a60` (the unit name). d2d cites `FUN_00454f30` for the
-box over the feet (`apps/d2d/world_view.cpp`). The other calls are
+box over the feet (`apps/d2d/render/world_view.cpp`). The other calls are
 `004539df` (`FUN_00453910`: while EAX is nonzero, EDI of 6, 7, 10, 0x11
 or 0x13 falls through, and any other EDI returns 0), `00454ed1`
 (`FUN_00454ad0`), `00456860` (`FUN_004567f0`), `00456acc` and `00456bd3`
@@ -166,7 +166,7 @@ Re-check: `cd tools/emu && uv run python ui_state.py`.
   (`speech_line_visible`, `FUN_00501df0`). A line clear of the box is not drawn.
 - Voice: when a speech starts, `FUN_004a10e0` looks up its string with
   `FUN_004e0650`. That walks `{u32 sound, u32 string}` pairs at
-  `0x72b0e0` (864, zero-terminated; `apps/d2d/speech_sound.hpp`) and plays
+  `0x72b0e0` (864, zero-terminated; `apps/d2d/audio/speech_sound.hpp`) and plays
   the Sounds.txt sound it finds. Example: AkaraIntroGossip1 (11) → 3499
   `akara_act1_intro`, `act1\akara\aka_act1_intro.wav`. Speech WAVs are in
   `data\local\sfx\` (d2speech / d2xtalk); effects are in

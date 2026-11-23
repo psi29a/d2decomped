@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The Party screen's cuts (apps/d2d/party_cut.hpp) against stock 1.14d's
+// The Party screen's cuts (apps/d2d/panels/party_cut.hpp) against stock 1.14d's
 // FUN_0049a2c0 (a row's name) and FUN_0049a830 (a member's area), run by
 // tools/emu/party_cut.py (party_cut_cases.inc) with its font: a letter c
 // measures 5 + c % 9 px.
-#include "party_cut.hpp"
+#include "panels/party_cut.hpp"
 
 #include <cassert>
 #include <cstdio>

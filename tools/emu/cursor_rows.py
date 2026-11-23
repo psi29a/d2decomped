@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The hand cursor's rows as game.exe's own getters read them, the oracle
-for d2d's kCursorRows (apps/d2d/cursor_anim.hpp).
+for d2d's kCursorRows (apps/d2d/input/cursor_anim.hpp).
 
     uv run python cursor_rows.py                                  # check
     uv run python cursor_rows.py inc > ../../tests/cursor_rows_cases.inc

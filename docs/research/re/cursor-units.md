@@ -312,7 +312,7 @@ Read from the code; `FUN_004623c0`, `FUN_00461840`, `FUN_004677b0` and
   is one for both buttons, `0x7a6a94`: a left or right press sets it
   (`FUN_00467a70`) or, with nothing under the cursor, clears it
   (`FUN_00466fe0`), and `FUN_00467a10` checks it each frame. d2d:
-  `apps/d2d/hand_hold.hpp`, used by `ClientSession::input` for both hands.
+  `apps/d2d/input/hand_hold.hpp`, used by `ClientSession::input` for both hands.
 
 Not traced: the byte +0x14 meaning, `FUN_00467a10`, `FUN_00462930`,
 `FUN_00462a20` and `FUN_00462d00` itself (read from the code only; that
@@ -698,6 +698,6 @@ counter n that runs on through all four runs (starting 0, `++n` before use):
 | corners | 0, 1, 8, 9 | (x0, y0 + 12), (R − 12, y0 + 12), (x0, B + 1), (R − 12, B + 1) |
 
 d2d reads the same, cited from the decompile, no oracle run:
-`apps/d2d/controls.cpp` (the `box` lambda at line 434) has the same runs,
+`apps/d2d/panels/controls.cpp` (the `box` lambda at line 434) has the same runs,
 steps, limits, frame formulas and corners (the draw call is the cel getter,
 and the frame choice is plain arithmetic).

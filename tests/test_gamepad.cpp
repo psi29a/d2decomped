@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The gamepad's action mapping (apps/d2d/gamepad_map.hpp): dead zones, the
+// The gamepad's action mapping (apps/d2d/input/gamepad_map.hpp): dead zones, the
 // walk direction, click edges, per-screen keys, panel hops and store
 // buttons, and a pad that goes away.
-#include "gamepad_map.hpp"
+#include "input/gamepad_map.hpp"
 
 #include <algorithm>
 #include <cassert>

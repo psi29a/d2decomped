@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // LAB_00435cd0's no-save destination.
-#include <title_rules.hpp>
+#include <frontend/title_rules.hpp>
 
 #include <cassert>
 #include <cstdio>

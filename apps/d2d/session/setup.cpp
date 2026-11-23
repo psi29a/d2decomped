@@ -6,15 +6,15 @@
 #include "session.hpp"
 
 #include "common.hpp"
-#include "controls.hpp"
-#include "ingame.hpp"
 #include "internal.hpp"
-#include "mini_panel.hpp"
-#include "panels.hpp"
-#include "party.hpp"
+#include "panels/controls.hpp"
+#include "panels/mini_panel.hpp"
+#include "panels/panels.hpp"
+#include "panels/party.hpp"
+#include "panels/storage_close.hpp"
 #include "platform.hpp"
+#include "render/ingame.hpp"
 #include "scene.hpp"
-#include "storage_close.hpp"
 #include "ui.hpp"
 
 #include <cues.hpp>

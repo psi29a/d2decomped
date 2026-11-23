@@ -5,7 +5,7 @@
 // the last View had moves to the blend while drawn and back after; a jump
 // and a new unit stay put; a pet or missile that goes doesn't move the
 // others' starts.
-#include "unit_slide.hpp"
+#include "render/unit_slide.hpp"
 
 #include <world.hpp>
 

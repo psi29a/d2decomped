@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// A mouse button held on the field (apps/d2d/hand_hold.hpp): game.exe's click
+// A mouse button held on the field (apps/d2d/input/hand_hold.hpp): game.exe's click
 // map has a held kind for each hand, 1 left (FUN_00462a20) and 4 right
 // (FUN_00462c20), and the right's goes on only while 0x7a0654 holds the press
 // the field took (FUN_0044c180 / FUN_0044c2c0).
-#include "hand_hold.hpp"
+#include "input/hand_hold.hpp"
 
 #include <cassert>
 #include <cstdio>

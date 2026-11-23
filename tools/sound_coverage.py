@@ -96,7 +96,7 @@ for path in glob.glob("components/**/*.[ch]pp", recursive=True) + glob.glob("app
         text = m.group(1)
         literals.add(text)
         if "{" in text: patterns.append(re.compile("^" + re.sub(r"\\\{[^}]*\\\}", "[a-z0-9]+", re.escape(text)) + "$"))
-numbers |= {int(sound) for _, sound in re.findall(r"\{ (\d+), (\d+) \}", open("apps/d2d/speech_sound.hpp").read())}
+numbers |= {int(sound) for _, sound in re.findall(r"\{ (\d+), (\d+) \}", open("apps/d2d/audio/speech_sound.hpp").read())}
 ids = open("components/rules/sound/sound_ids.hpp").read()
 refs = "\n".join(open(path, encoding="utf-8", errors="ignore").read()
                    for root in ("components", "apps")

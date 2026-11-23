@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: dcc font game SDL3::SDL3
-// test-sources: apps/d2d/pointer_events.cpp
+// test-sources: apps/d2d/input/pointer_events.cpp
 // test-includes: apps/d2d
 // A press is tested where it happened (#545). game.exe handles each window
 // message on its own: the D2Win button's mouse down (FUN_00501090) arms it
@@ -9,7 +9,7 @@
 // poll ends at the first pointer event after a press
 // (waits_for_next_frame): a press off a button and a release on it, both
 // in one frame's queue, no longer click it.
-#include "pointer_events.hpp"
+#include "input/pointer_events.hpp"
 #include "ui.hpp"
 
 #include <SDL3/SDL_events.h>

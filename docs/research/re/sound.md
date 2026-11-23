@@ -239,7 +239,7 @@ not-yet-played track of an 8-track list. Once all 8 have played,
 into `FUN_00514710`), not a random one, and clears `DAT_0088179c`. So
 each time the menus come up, at launch or back from a game, they start on
 introedit (LoD) / common\options (classic). d2d:
-`frontend_track` (apps/d2d/title_rules.hpp).
+`frontend_track` (apps/d2d/frontend/title_rules.hpp).
 
 The list depends on the launch config's expansion flag (`FUN_00514530`
 → `DAT_00881790`):

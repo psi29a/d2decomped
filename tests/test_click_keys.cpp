@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// d2d's click keys (apps/d2d/keyconfig.hpp Clicks, deviations.md
+// d2d's click keys (apps/d2d/input/keyconfig.hpp Clicks, deviations.md
 // improvement 15): Attack / Use and Right-hand Skill on Mouse 3..5 or a
 // key, outside game.exe's table, one function per key across both, and
 // d2d.cfg's form.
-#include "keyconfig.hpp"
+#include "input/keyconfig.hpp"
 
 #include <array>
 #include <cassert>

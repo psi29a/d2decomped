@@ -180,7 +180,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 ### M10. Act 1 playable together — 4 days
 
-- Files: `components/net/client_model`; `apps/d2d/ingame.cpp`,
+- Files: `components/net/client_model`; `apps/d2d/render/ingame.cpp`,
   `panels.cpp`, `ui.cpp` (chat line, party screen), `session/`.
 - Casts built on the client from 0x4c / 0x4d (Fight's missile rules for
   display only), life bytes (0xab), deaths and corpses (0x8e), other

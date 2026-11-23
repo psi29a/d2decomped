@@ -2,7 +2,7 @@
 
 The front end's path to a TCP/IP game: Title → OTHER MULTIPLAYER →
 TCP/IP GAME → JOIN GAME → the IP box → char-select. What happens on the
-wire after that is in net-join.md. d2d: `apps/d2d/frontend.cpp`
+wire after that is in net-join.md. d2d: `apps/d2d/frontend/frontend.cpp`
 (`other_multiplayer_ui`, `tcpip_ui`, `render_tcpip`), input in `main.cpp`.
 
 Records are in the frontend table at `0x708d10 + index * 0x30`

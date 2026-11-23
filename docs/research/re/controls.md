@@ -2,7 +2,7 @@
 
 The key config (`.\UI\CmdTbl.cpp`, 0x469000..0x46ad00) and its screen,
 Configure Controls (UI 0xb, 0x4a43e0..0x4a6800), which the game menu's
-Options → CfgOptions (`0x47f400`) opens. d2d: `apps/d2d/keyconfig.hpp`
+Options → CfgOptions (`0x47f400`) opens. d2d: `apps/d2d/input/keyconfig.hpp`
 (the table, its rules, the files), `apps/d2d/controls.{hpp,cpp}` (the
 screen), wired in `session/`. d2d's two extra rows for the left and right
 buttons' functions are deviations.md improvement 15 (`click_keys`). Checked against game.exe's own code:

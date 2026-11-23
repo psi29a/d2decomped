@@ -6,7 +6,7 @@
 // renderer as its draw mode, and FUN_006c8250 picks the table. Cases from
 // tools/emu/cof_effects.py: {effect, kind, sprite percent}, kind 0 opaque,
 // 1 additive, 2 multiply, 3 alpha, 4 max-component.
-#include "world_view.hpp"
+#include "render/world_view.hpp"
 
 #include <cassert>
 

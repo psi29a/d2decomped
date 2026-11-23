@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The life-bar choice (apps/d2d/bar_pick.hpp). The caller supplies only
+// The life-bar choice (apps/d2d/render/bar_pick.hpp). The caller supplies only
 // monsters the frame is drawing. This does not run ClientSession.
-#include "bar_pick.hpp"
+#include "render/bar_pick.hpp"
 
 #include <cassert>
 #include <cstdio>

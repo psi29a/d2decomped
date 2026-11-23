@@ -8,7 +8,7 @@
 // stays blue.
 
 #include "common.hpp"
-#include "panels.hpp"
+#include "panels/panels.hpp"
 #include "scene.hpp"
 
 #include <d2s_items.hpp>

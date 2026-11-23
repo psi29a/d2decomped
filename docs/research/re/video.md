@@ -2,7 +2,7 @@
 
 Bink files in d2video.mpq / d2xvideo.mpq. d2d decodes them with ffmpeg
 (binkvideo, binkaudio_rdft: 24 fps, 44.1 kHz stereo) through
-`apps/d2d/video.hpp`. The file streams from the MPQ (`mpq::File`); the
+`apps/d2d/frontend/video.hpp`. The file streams from the MPQ (`mpq::File`); the
 D2 intro is 94 MB.
 
 ## Startup (`FUN_00435230`)

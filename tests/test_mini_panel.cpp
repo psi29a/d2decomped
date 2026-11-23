@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The mini-panel's rules (apps/d2d/mini_panel.hpp): d2d.cfg's mini_panel
+// The mini-panel's rules (apps/d2d/panels/mini_panel.hpp): d2d.cfg's mini_panel
 // keeps it shut into the next game as game.exe's "Mini Panel" (FUN_0047f130
 // / FUN_004567f0); Messages shuts the belt and toggles the Message Log
 // (0x47ed08). The bar's layout in both forms, single player's 7 buttons and
 // a multiplayer game's 8 with Party (FUN_0047f0c0), against FUN_0047f710 /
 // FUN_0047e8b0 run in game.exe (tools/emu/minipanel_layout.py).
-#include "mini_panel.hpp"
+#include "panels/mini_panel.hpp"
 
 #include <array>
 #include <cassert>

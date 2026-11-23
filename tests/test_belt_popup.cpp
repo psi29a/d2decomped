@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The belt popup (apps/d2d/belt_popup.hpp): the mouse onto the HUD's belt
+// The belt popup (apps/d2d/panels/belt_popup.hpp): the mouse onto the HUD's belt
 // strip brings it up and leaving the popup takes it down (FUN_00499bb0),
 // unless its key keeps it up (UI 0x1f: FUN_00456ee0); the game menu (UI 9)
 // shuts it (FUN_00499040).
-#include "belt_popup.hpp"
+#include "panels/belt_popup.hpp"
 
 #include <cassert>
 #include <cstdio>

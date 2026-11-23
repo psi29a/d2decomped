@@ -2,22 +2,22 @@
 // ClientSession (session.hpp): walking, and handling the frame's events. The rest is in this directory.
 #include "session.hpp"
 
-#include "audio.hpp"
-#include "automap_reveal.hpp"
+#include "audio/audio.hpp"
 #include "common.hpp"
-#include "controls.hpp"
-#include "gamepad_map.hpp"
-#include "ingame.hpp"
+#include "input/gamepad_map.hpp"
 #include "internal.hpp"
-#include "panels.hpp"
+#include "items/use_item.hpp"
+#include "panels/automap_reveal.hpp"
+#include "panels/controls.hpp"
+#include "panels/panels.hpp"
+#include "panels/store.hpp"
 #include "platform.hpp"
+#include "render/ingame.hpp"
+#include "render/unit_slide.hpp"
+#include "render/world_view.hpp"
 #include "scene.hpp"
-#include "store.hpp"
 #include "touch/input.hpp"
 #include "ui.hpp"
-#include "unit_slide.hpp"
-#include "use_item.hpp"
-#include "world_view.hpp"
 
 #include <ambient_dip.hpp>
 #include <automap_step.hpp>

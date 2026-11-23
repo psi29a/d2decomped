@@ -168,7 +168,7 @@ The buttons' handlers (record +0x20, read from the table):
 | 0xe | CINEMATICS | `FUN_00431600` |
 | 0xf | EXIT DIABLO II | `0x431c30`: `0x7795e8` = 0, `FUN_00515f50(0xb4)`, `FUN_004f9190` |
 
-d2d (`title_ui`, apps/d2d/frontend.cpp) uses the matching classic or LoD
+d2d (`title_ui`, apps/d2d/frontend/frontend.cpp) uses the matching classic or LoD
 four-button positions, draws record 0x115's version text, and sends SINGLE
 PLAYER to character creation when the filtered save list is empty.
 
@@ -239,7 +239,7 @@ BATTLE.NET, OTHER MULTIPLAYER and EXIT follow the 0x23 row, and CREDITS
 and CINEMATICS the 0x19 row, at their own bottoms.
 
 d2d draws every frontend button's label this way (`draw_button_label`,
-apps/d2d/frontend.cpp, with `button_label_spot` in
+apps/d2d/frontend/frontend.cpp, with `button_label_spot` in
 components/font/button_label.hpp). It used to draw them in Font16, whose
 capitals in the Sky palette are mostly index 31 (196, 196, 196) where
 FontExocet10's are mostly index 15 (12, 12, 8) with 29, 31 and 32, and

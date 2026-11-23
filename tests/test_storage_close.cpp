@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The stash, the Cube and a store beside the inventory (apps/d2d/storage_close.hpp):
+// The stash, the Cube and a store beside the inventory (apps/d2d/panels/storage_close.hpp):
 // the inventory's close button shuts the one that's up, as their mouse-up
 // handlers in game.exe do (FUN_00489ac0, FUN_0048a190, FUN_00488b00);
 // the panel keys pass or not as FUN_00453910 lets them, run by
 // tools/emu/panel_keys.py (panel_keys_cases.inc); the stash's and the
 // Cube's close buttons where FUN_00489980 / FUN_00489fb0 take them, run by
 // tools/emu/storage_close.py (storage_close_cases.inc).
-#include "storage_close.hpp"
+#include "panels/storage_close.hpp"
 
 #include <cassert>
 #include <cstdio>

@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // FUN_004336c0's classic and expansion title-record selections.
-#include <title_rules.hpp>
+#include <frontend/title_rules.hpp>
 
 #include <array>
 #include <cassert>

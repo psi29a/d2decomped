@@ -21,11 +21,11 @@ control for every entry.
 ### Port assessment and remaining gaps
 
 The scroll `FUN_0049ff10` / `FUN_0049ff90` open and draw is ported in
-`apps/d2d/scroll.cpp` (quests-act1.md "The client (UI 0x10)"). There is no
+`apps/d2d/panels/scroll.cpp` (quests-act1.md "The client (UI 0x10)"). There is no
 one-to-one d2d counterpart for the other stock UI record managers.
 d2d draws owned strings, panels, NPC menus, and item descriptions from typed
 state rather than the client DLL's linked records and globals. The relevant
-ported caller is the frame draw in `apps/d2d/ingame.cpp`; its comment cites the
+ported caller is the frame draw in `apps/d2d/render/ingame.cpp`; its comment cites the
 stock dispatcher and text controller. The trace did not substantiate a d2d
 output difference, so no C++ fix or regression test was added. Exact internals
 of the called render/control helpers (`FUN_0049d9a0`, `FUN_0049dc40`,

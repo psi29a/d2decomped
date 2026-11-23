@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// An NPC service's item panel (apps/d2d/use_item.hpp, game.exe's
+// An NPC service's item panel (apps/d2d/items/use_item.hpp, game.exe's
 // .\UI\UseItem.cpp): the slot takes only an accepted cursor item
 // (FUN_004bfc50), presses closer than 400 ms are dropped, the first button
 // sends only with an item placed (FUN_004bfaf0) and the wait holds against
 // cancel and Esc (FUN_004c02f0, FUN_004c0150), S->C 0x58 6 / 7 shut it
 // (FUN_004c0550).
-#include "use_item.hpp"
+#include "items/use_item.hpp"
 
 #include <cassert>
 #include <cstdio>

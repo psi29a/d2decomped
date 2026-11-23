@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: palette dc6
 // test-includes: apps/d2d
-// The gauntlet's OS cursor image (apps/d2d/hw_cursor.hpp): its hot spot is
+// The gauntlet's OS cursor image (apps/d2d/input/hw_cursor.hpp): its hot spot is
 // the pixel blit_sprite puts on the mouse, at any scale.
-#include "hw_cursor.hpp"
+#include "input/hw_cursor.hpp"
 
 #include <dc6.hpp>
 #include <palette.hpp>

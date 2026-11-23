@@ -8,7 +8,7 @@
 // the game flags' bit 1, by the sort key (S->C 0x65's word), most first (FUN_004796d0, signed). Each
 // group takes its records backwards first (FUN_00479800), so sort-key ties trade places. With a case
 // file (`party_regroup.py gen`) it prints `id ids...` for each line, as the oracle's `game` does.
-#include "party.hpp"
+#include "panels/party.hpp"
 
 #include <algorithm>
 #include <array>

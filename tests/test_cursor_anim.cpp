@@ -6,7 +6,7 @@
 // idle, ppress looping while pressed and protate again on release, ohand
 // then orotate after 5 s with no input, ohand backward on a move. A tick
 // is a draw at least 17 ms after the last tick.
-#include <cursor_anim.hpp>
+#include <input/cursor_anim.hpp>
 
 #include <cassert>
 #include <cstdint>

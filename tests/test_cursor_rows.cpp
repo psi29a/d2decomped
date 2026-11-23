@@ -5,7 +5,7 @@
 // stock 1.14d's table at 0x712010 and its getters FUN_00467e40 (+4, the
 // row loops) and FUN_00467e90 (+8 << 8, the length in 8.8 frames), run by
 // tools/emu/cursor_rows.py into cursor_rows_cases.inc.
-#include <cursor_anim.hpp>
+#include <input/cursor_anim.hpp>
 
 #include <cassert>
 #include <cstddef>

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// Sounds.txt lookup order (apps/d2d/sound_reads.hpp). No game files.
-#include "sound_reads.hpp"
+// Sounds.txt lookup order (apps/d2d/audio/sound_reads.hpp). No game files.
+#include "audio/sound_reads.hpp"
 
 #include <cassert>
 #include <cstdio>

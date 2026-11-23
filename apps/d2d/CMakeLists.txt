@@ -288,36 +288,41 @@ else()
 endif()
 target_sources(d2d PRIVATE
     # One a line, in name order: a new file goes where it sorts. A subsystem
-    # split over several files keeps them in its own directory (devctl/, session/,
-    # skills/, touch/).
-    automap_reveal.cpp
-    char_tooltips.cpp
+    # split over several files keeps them in its own directory (audio/, devctl/,
+    # frontend/, input/, items/, panels/, render/, session/, skills/, touch/).
     common.cpp
-    controls.cpp
-    cursor.cpp
     devctl/debug.cpp
     devctl/debug_fight.cpp
     devctl/debug_hero.cpp
     devctl/debug_level.cpp
     devctl/debug_net.cpp
-    frontend.cpp
-    gamemenu.cpp
-    gamepad.cpp
-    help.cpp
-    hireling.cpp
-    ingame.cpp
-    items.cpp
+    frontend/frontend.cpp
+    frontend/lobby.cpp
+    frontend/roster.cpp
+    input/gamepad.cpp
+    input/pointer_events.cpp
+    input/teleport_aim.cpp
+    items/cursor.cpp
+    items/items.cpp
+    items/use_item.cpp
     load.cpp
-    lobby.cpp
     main.cpp
     netgame.cpp
-    panels.cpp
-    party.cpp
-    pointer_events.cpp
-    roster.cpp
+    panels/automap_reveal.cpp
+    panels/char_tooltips.cpp
+    panels/controls.cpp
+    panels/gamemenu.cpp
+    panels/help.cpp
+    panels/hireling.cpp
+    panels/panels.cpp
+    panels/party.cpp
+    panels/scroll.cpp
+    panels/store.cpp
+    render/ingame.cpp
+    render/tile_blit.cpp
+    render/world_view.cpp
     scene.cpp
     scene/render.cpp
-    scroll.cpp
     session/ambient.cpp
     session/controls.cpp
     session/draw.cpp
@@ -334,14 +339,9 @@ target_sources(d2d PRIVATE
     session/view.cpp
     session/walk.cpp
     skills/tree.cpp
-    store.cpp
-    teleport_aim.cpp
-    tile_blit.cpp
     touch/gestures.cpp
     ui.cpp
-    use_item.cpp
     window.cpp
-    world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
 # The source dir too: a file in a subdirectory (devctl/, session/) includes
 # the client's headers by name, as the files here do.
@@ -386,7 +386,7 @@ if(NINTENDO_SWITCH)
     nx_generate_nacp(d2d.nacp NAME "d2d" AUTHOR "D2: Decomped" VERSION "${D2D_VERSION}")
     nx_create_nro(d2d NACP d2d.nacp)
 endif()
-d2d_check_headers(d2d_headers SUBDIRS devctl session skills touch LINK
+d2d_check_headers(d2d_headers SUBDIRS audio devctl frontend input items panels render session skills touch LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
