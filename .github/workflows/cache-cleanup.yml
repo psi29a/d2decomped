@@ -2,7 +2,7 @@ name: Cache cleanup
 
 # The repository gets 10 GB of Actions cache; past that GitHub evicts the
 # least recently used, which can be main's ccache and send builds in cold.
-# Keyed-per-run caches (ccache, Flatpak, CodeQL) pile up, and caches made for
+# Keyed-per-run caches (ccache, CodeQL) pile up, and caches made for
 # a PR or a tag are never read again once it's closed or released:
 #   a PR closing   - delete what that PR's runs saved
 #   main's CI done - keep the newest of each kind on main, drop the rest
@@ -49,13 +49,12 @@ jobs:
           caches = json.loads(subprocess.run(
               ["gh", "cache", "list", "--limit", "1000", "--json", "id,key,ref,createdAt"],
               check=True, capture_output=True, text=True).stdout)
-          # What varies per save: a timestamp (ccache), a run id (Flatpak),
-          # a file hash (FFmpeg, Sentry), the ISO week (apt), commit + run (CodeQL).
-          # A kind names the OS and the arch: ffmpeg-macOS alone made ARM64 and
-          # X64 one kind, and each Mac's save deleted the other's.
+          # What varies per save: a timestamp (ccache), a file hash (FFmpeg,
+          # Sentry), the ISO week (apt), commit + run (CodeQL). A kind names
+          # the OS and the arch: ffmpeg-macOS alone made ARM64 and X64 one
+          # kind, and each Mac's save deleted the other's.
           kinds = [
               re.compile(r"^(ccache-.+?)-\d{4}-\d\d-\d\dT"),
-              re.compile(r"^(flatpak-builder-[^-]+)-"),
               re.compile(r"^(ffmpeg-[^-]+-[^-]+)-"),
               re.compile(r"^(sentry-[^-]+-[^-]+)-"),
               re.compile(r"^(apt-.+?)-\d{4}-\d\d$"),
@@ -68,7 +67,10 @@ jobs:
               return None   # a stable key (Qt, Windows deps): replaced in place
           newest, stale = {}, []
           for cache in sorted(caches, key=lambda c: c["createdAt"], reverse=True):
-              if cache["ref"].startswith("refs/tags/"):
+              # The Flatpak build no longer caches (2.3 GB a copy): drop
+              # what earlier runs saved.
+              if (cache["ref"].startswith("refs/tags/")
+                      or cache["key"].startswith("flatpak-builder-")):
                   stale.append(cache)
               elif cache["ref"] == "refs/heads/main" and (k := kind(cache["key"])):
                   if k in newest:

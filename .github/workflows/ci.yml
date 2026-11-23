@@ -644,13 +644,10 @@ jobs:
           arch: ${{ matrix.arch }}
           build-dir: flatpak_app-${{ matrix.arch }}
           keep-build-dirs: true
-          # The action's default key is the manifest's hash: saved once, then
-          # restored as-is, its ccache ever staler. A key per run (the action
-          # appends the arch; restore takes the newest flatpak-builder-<arch>*)
-          # keeps it current. Only main saves, as for ccache above: a PR's
-          # copy (2.3 GB once) evicts main's.
-          cache-key: flatpak-builder-${{ matrix.arch }}-${{ github.run_id }}
-          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          # No cache: its 2.3 GB copy pushed the repo past GitHub's 10 GB
+          # and evicted the build jobs' ccaches, which every pull request
+          # waits on. Only pushes build the Flatpak, so it can run cold.
+          cache: false
 
       - name: Upload Flatpak Sentry debug information
         if: startsWith(github.ref, 'refs/tags/')
