@@ -8,6 +8,7 @@
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <test_data.hpp>
 #include <world.hpp>
 
 #include <cassert>
@@ -17,18 +18,16 @@
 using namespace d2d::game;
 
 int main() try {
-    GameData data;
-    data.monsters.types.resize(1);
-    auto& skeleton = data.monsters.types[0];
-    skeleton.id = "necroskeleton"; skeleton.ai_name = "NecroPet"; skeleton.size = 1; skeleton.velocity = 6; skeleton.run = 6; skeleton.melee_rng = 1;
+    d2d::test::TestData fixture;
+    auto& skeleton = fixture.monster(0, "necroskeleton");
+    skeleton.ai_name = "NecroPet"; skeleton.size = 1; skeleton.velocity = 6; skeleton.run = 6; skeleton.melee_rng = 1;
     for (auto& per_difficulty : skeleton.diff) per_difficulty.aidel = 5;
-    data.mon_npc.resize(1);
     Level field;
     field.id = 2;
     field.ds1 = d2d::ds1::Map(8, 8, 1, 1);
     field.walk.assign(std::size_t(8 * 5) * std::size_t(8 * 5), 0);
     field.rooms.push_back({ .x = 0, .y = 0, .width = 8, .height = 8 });
-    World world(&data, -1, -1);
+    World world(&fixture.data, -1, -1);
     world.level = &field;
     world.fight.mon_level = &field;
     auto& hero = *world.actor;
