@@ -140,6 +140,21 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             cloud.velocity_x = dx / length * speed; cloud.velocity_y = dy / length * speed;
             laid.push_back(std::move(cloud));
         }
+        // The client's do 32 (FUN_004d6c00, radamentdeath): its frames left (FUN_0064a380), the first
+        // entry of 0x6db848 under them {300, 25}, {250, 10}, {100, 8}, {75, 6}, {30, 4} (the walk past the
+        // end reads {0, 100}), and on a frame left that its period divides, a radamenthandofgod (row 0x15c,
+        // `sub`) where it stands (FUN_004cd540, flags 1).
+        if (missile.info && missile.info->clt_do == 32 && missile.sub && missile.frame != frame) {
+            missile.frame = frame;
+            static constexpr std::array<std::array<int, 2>, 6> kHands{ { { 300, 25 }, { 250, 10 }, { 100, 8 }, { 75, 6 }, { 30, 4 }, { 0, 100 } } };
+            const int left = int((missile.dies - std::min(now_ms, missile.dies)) / 40);
+            const auto entry = std::ranges::find_if(kHands.begin(), kHands.end() - 1, [&](const auto& row) { return row[0] < left; });
+            if (left % (*entry)[1] == 0) {
+                Missile hand = missile_from(missile, *missile.sub, missile.x, missile.y, 0, 0, now_ms);
+                hand.visual_only = true;
+                laid.push_back(std::move(hand));
+            }
+        }
         if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
         if (missile.friendly) return hits_monster(missile);
         // A monster's guided one (missile do 7, FUN_005ae780: Bone Spirit)
