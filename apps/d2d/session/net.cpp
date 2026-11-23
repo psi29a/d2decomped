@@ -310,7 +310,16 @@ auto ClientSession::send(const Command& command) -> void {
             net_game->send_items({ d2d::net::d2gs::c2s::resurrect() });   // the host respawns us in town (0x15)
         } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(travel->npc)];
-            if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) {
+            if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f); object && net_game->waypoint_menu == object->id) {
+                // The host has its menu open for us (0x63: we're in its reach), so
+                // the 0x49 goes now; walk()'s retries
+                // cover a drop. Not walking up first: our spot comes only with
+                // the host's 0x96, ~3 s apart (live 2026-11-23: a 5 s wait).
+                net_game->waypoint(object->id, travel->level);
+                net_game->waypoint_menu = 0;
+                net_waypoint_object = object->id; net_waypoint_level = travel->level; net_waypoint_ms = frame_now; net_waypoint_tries = 0;
+                net_warp_to = travel->level;                        // the host's reassign takes us there
+            } else if (object) {
                 net_operate_type = 2; net_operate = object->id; net_operate_ms = frame_now; net_operate_moves = true;   // once the host has us there, stopped
                 net_operate_waypoint = travel->level;
                 net_warp_to = travel->level;                        // the host's reassign takes us there
