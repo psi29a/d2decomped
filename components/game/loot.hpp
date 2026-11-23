@@ -51,7 +51,7 @@ struct Loot {
     std::function<void(std::string_view, std::uint32_t)> class_voice;   // Fight::class_voice
     // An item on the ground (gold: code "gld", `gold` coins).
     struct GroundItem {
-        int id = -1;                         // its unit id (the server's)
+        int id = -1;                         // its unit id (the server's): item.id's, set as it lands
         d2d::d2s::Item item;
         int gold = 0;
         float x = 0, y = 0;
@@ -62,7 +62,9 @@ struct Loot {
         int owner = 0;                       // gold a player dropped (FUN_00535510 -> FUN_00621ce0): taken whole, not shared
     };
     std::vector<GroundItem> ground;        // ground_level's
-    int next_id = 1;                       // the next ground item's unit id
+    // The game's next item unit id, carried or lying (game +0xa0: one
+    // counter per unit type, FUN_00552ee0); World::enter starts it at 1.
+    int next_id = 1;
     // A ground item by unit id: its index in `ground`, or -1.
     [[nodiscard]] int index_of(int id) const {
         const auto found = std::ranges::find(ground, id, &GroundItem::id);
@@ -256,12 +258,17 @@ struct Loot {
     void land(GroundItem ground_item, std::uint32_t now_ms, const Level* onto = nullptr) {
         if (const auto info = game_data->rules.item_info.find(ground_item.item.code);
             info == game_data->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
-        if (onto && onto != ground_level) { ground_item.id = next_id++; kept[onto].push_back(std::move(ground_item)); return; }
+        number(ground_item);
+        if (onto && onto != ground_level) { kept[onto].push_back(std::move(ground_item)); return; }
         cues.cue("item_flippy", now_ms, ground_item.x, ground_item.y);
         const auto [sound, frame] = flippy_sound(*game_data, ground_item.item);
         cues.cue(sound, now_ms + std::uint32_t(frame) * 40, ground_item.x, ground_item.y);
-        ground_item.id = next_id++;
         ground.push_back(std::move(ground_item));
+    }
+    // Its unit id: a dropped item keeps its own, a new one takes the next.
+    void number(GroundItem& ground_item) {
+        if (ground_item.item.id < 0) ground_item.item.id = next_id++;
+        ground_item.id = ground_item.item.id;
     }
 
     // Picking up: gold into the purse (up to 10000 per character level),

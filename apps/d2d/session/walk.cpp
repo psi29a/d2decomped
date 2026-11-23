@@ -193,7 +193,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
             // What the host put in our bags (a pick-up, a buy): where the host put
             // it, so it keeps matching the host's item.
             for (auto& item : net_game->picked) {
-                item.id = world.next_item_id++;
+                item.id = world.loot.next_id++;
                 hero.character.items.push_back(std::move(item));
                 world.cues.cue("item_pickup", 0, hero.player.x, hero.player.y);
             }

@@ -195,9 +195,12 @@ auto World::quests() -> d2d::rules::QuestBits& { return actor->character.header.
 // Its congratulations bits (the save's +0x2E5: rules::NpcReturns).
 auto World::congrats() -> std::uint64_t& { return actor->character.header.congrats[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))]; }
 
+// New items take the game's next item id (loot.next_id: game +0xa0,
+// FUN_00552ee0 from FUN_00555230); one dropped or picked up is the same
+// unit (FUN_00563c00, FUN_00563560 make none) and keeps its id.
 auto World::item_ids() -> void {
-        for (auto& item : actor->character.items) if (item.id < 0) item.id = next_item_id++;
-        if (actor->held && actor->held->id < 0) actor->held->id = next_item_id++;
+        for (auto& item : actor->character.items) if (item.id < 0) item.id = loot.next_id++;
+        if (actor->held && actor->held->id < 0) actor->held->id = loot.next_id++;
     }
 
 // What the client is told (View).
@@ -229,6 +232,7 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.appearance = entering.appearance; actor->character.items = entering.items; actor->character.stats = entering.stats; actor->character.panel = entering.panel;
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
         actor->character.fresh = entering.fresh;
+        for (auto& item : actor->character.items) item.id = -1;   // made anew in this game, each a new unit (FUN_00558cb0)
         const int kept = d2d::rules::wield_settle(game_data->rules, actor->character.items);
         item_ids();                                    // the kept weapon is its unit id (FUN_006233a0)
         actor->kept_weapon = kept >= 0 ? actor->character.items[std::size_t(kept)].id : 0;
@@ -275,6 +279,7 @@ auto World::lay_save_corpse(const Character& entering) -> void {
         };
         const auto [spot_x, spot_y] = corpse_spot(int(std::floor(town->start.first * 5)), int(std::floor(town->start.second * 5)), flags);
         actor->corpses.push_back({ town, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
+        for (auto& item : actor->corpses.back().items) item.id = loot.next_id++;   // made anew in this game, as the bags' are
     }
 
 // Another player joins the game under way (docs/design/local-coop.md):
@@ -348,6 +353,7 @@ auto World::enter(const Character& entering) -> void {
         players.resize(1);
         fight.heroes.assign(1, &lead());
         lead().portal_pair = 0;
+        loot.next_id = 1;                             // a new game's counters start at 0 (FUN_00530930: game +0x90 .. +0xa4)
         take_character(entering);
         stocks.clear();
         kept_gambles.clear();

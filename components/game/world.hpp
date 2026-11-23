@@ -516,7 +516,6 @@ struct World {
     [[nodiscard]] std::vector<d2d::rules::MercOffer> hire_offers(int list_act) const;
     // The player's act (0-based): the act of the level they're on.
     [[nodiscard]] int act() const { return level ? d2d::rules::level_ids::act_of(level->id) : 0; }
-    int next_item_id = 1;                  // the next item's unit id
     d2d::rules::QuestClock quest_clock;    // the quest timers' clock: a step every 20 frames (FUN_0052d870)
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter

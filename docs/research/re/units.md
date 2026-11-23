@@ -349,3 +349,38 @@ script compares stock code to Python expectations, not to a d2d port.
 Re-check with `cd tools/emu && uv run python unit_allocate.py --exe
 /path/to/Game.exe --mutation-check`; the executable's 1.14d SHA-256 is
 checked before execution. No MPQs are needed.
+
+## Server unit ids (`FUN_00552ee0`)
+
+The server's unit maker `FUN_00555230` (fastcall: ECX type, EDX class;
+`RET 0x1c`) allocates the unit through `FUN_00620290` and then takes its
+id from `FUN_00552ee0` (call at `0x555354`: ECX game, EDX type), that
+function's only caller. That function is fatal for a type of 6 or more (line `0x1c4`),
+adds 1 to the dword at game `+0x90 + type × 4` and, if the sum is -1,
+stores 1 instead; the new value is the id. There is one counter per unit
+type: players `+0x90`, monsters `+0x94`, objects `+0x98`, missiles
+`+0x9c`, items `+0xa0`, tiles `+0xa4`. The one exception is a monster
+made with flag 2 (stack `+0x18`), which skips the call and keeps the id
+passed in (stack `+0x20`, `0x55534b`). The id then goes to the type's
+own setup through the jump table at `0x5554e8` (player `FUN_005348c0`,
+monster `FUN_00574250`, object `FUN_0054f5d0`, missile `FUN_0059f8a0`,
+item `FUN_00555d20`); a tile stores it at `+0xc` itself (`0x555440`).
+
+The game's create (`FUN_00530930`, `.\GAME\Game.cpp`) zeroes all six
+counters, so each type's first unit in a game is id 1. A saved item is
+made anew as it loads (`FUN_00558cb0` calls `FUN_00555230` with ECX 4 at
+`0x558d01`), so the save's items take new ids in each game. A drop
+(`FUN_00563c00`, C→S 0x17) finds the item by id (`FUN_00552f60`) and
+moves that unit onto the floor (`FUN_00558aa0`); neither it nor the
+pick-up (`FUN_00563560`) calls `FUN_00555230`, so an item keeps its id
+on and off the ground.
+
+d2d: items have the one counter, `Loot::next_id` (loot.hpp), which
+`World::enter` sets to 1. The character's items, its save's corpse items
+and a new item in the bags or on the floor take the next id, and `Loot::number` keeps a dropped
+item's own (test_item_unit_ids). Monsters and pets share
+`Fight::next_id`, which `Fight::new_game` sets to 1. ponytail: the
+first player is `Hero::id` 0 and joiners take `World::next_player_id`
+(1 on, never reset for a new game); the merc is `merc_foe_id` (negative,
+where game.exe makes it a monster); missiles have no id; objects go by
+their level index.
