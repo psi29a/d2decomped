@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -44,6 +44,7 @@ MUTATIONS = {
     0x421540: ("even_inverted",),
     0x421550: ("low_no_offset",),
     0x4215C0: ("digits_used_unchanged", "digits_bytes", "digits_one_short"),
+    0x421630: ("reserve_no_round", "reserve_inclusive", "reserve_ignores_step"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -148,6 +149,15 @@ class Model:
             changes[0x38] = case["digit"](index) if index < rec[4] or m == "low_ignores_bound" else 0
         if address == 0x4215C0:
             buffer = self.set_digits(rec, a[0], case["source"], changes, calls)
+        if address == 0x421630:   # room for +4 + n bytes: grown (rounded to the step when asked) by FUN_004211c0
+            need = (a[0] + rec[4]) & M32
+            if (rec[0] <= need if m == "reserve_inclusive" else rec[0] < need):
+                if a[1] and m != "reserve_no_round":
+                    step = rec[0xC] if rec[0xC] and m != "reserve_ignores_step" else self.grow_step(rec, need, changes)
+                    need = self.round_up(need, step)
+                changes[0] = need
+                calls.append(("realloc", rec[8], need, TAG_E, 0xFFFFFFFE, 0x10))
+                changes[8] = case["realloc"]
         return eax, changes, buffer, calls
 
 
