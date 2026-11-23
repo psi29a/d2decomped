@@ -633,6 +633,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
                 merc_blow = casting_merc = missile.by_merc;
                 const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
+                if (missile.skill >= 0 && bolt_heals_ally(missile, now_ms)) return true;   // Holy Bolt on a party member: spent
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
                     if (!monster.targetable()) continue;

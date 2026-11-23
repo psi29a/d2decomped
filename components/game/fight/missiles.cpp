@@ -741,6 +741,27 @@ auto Fight::breath_again(const d2d::rules::Skill& skill, float target_x, float t
         return true;
     }
 
+// Holy Bolt's party heal (hit 7, FUN_005a9fb0): TargetAlly (FUN_00554d20, the same party: local
+// co-op's one) on another player its flight crossed this frame (a player is size 2, FUN_00620510),
+// sHitPar1 set: calc1 whole points in 256ths plus a draw below (calc2 - calc1) x 256 on the
+// missile's seed, capped at max life, and the row's ProgOverlay on it. True: the bolt ends there
+// (it returns 1) and strikes nothing. Asked in the flight's collision, before the monsters.
+auto Fight::bolt_heals_ally(Missile& missile, std::uint32_t now_ms) -> bool {
+        using namespace d2d::d2s;
+        const auto* skill = game_data->skills.get(missile.skill);
+        if (!skill || !missile.info || missile.info->hit_func != 7 || !skill->target_ally || missile.info->hit_par1 == 0 || missile.by_merc || heroes.size() < 2) return false;
+        for (Hero* ally : heroes) {
+            if (ally->id == missile.caster || ally->character.stats.values[kLife] <= 0 || !missile_struck(*level, missile, ally->player.x, ally->player.y, 2)) continue;
+            const int low_points = calc(*skill, skill->calc[0], missile.level), high_points = calc(*skill, skill->calc[1], missile.level);
+            const int amount = (missile.seed ? (*missile.seed)((high_points << 8) - (low_points << 8)) : 0) + (low_points << 8);
+            auto& life = ally->character.stats.values[kLife];
+            if (amount > 0) life = std::min(life + amount, ally->character.stats.values[kMaxLife]);
+            if (const int overlay = game_data->overlay_row(missile.info->prog_overlay); overlay > 0) d2d::rules::add_one_shot(ally->one_shots, overlay, now_ms);
+            return true;
+        }
+        return false;
+    }
+
 auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         const int frame = int(now_ms / 40);
         if (frame == missile_frame) return;
@@ -778,24 +799,6 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                         pet.buffs.push_back({ skill->id, missile.level, until });
                         pet_buffs(pet);
                     }
-            }
-            // Holy Bolt's party heal (hit 7, FUN_005a9fb0): TargetAlly (FUN_00554d20: the same party, local
-            // co-op's one) on another player it reaches (a player is size 2, FUN_00620510), sHitPar1 set: calc1
-            // whole points in 256ths plus a draw below (calc2 - calc1) x 256 on the missile's seed, capped at
-            // max life, and the row's ProgOverlay on it; the bolt ends (returns 1) and strikes nothing.
-            if (missile_info.hit_func == 7 && skill->target_ally && missile_info.hit_par1 != 0 && !missile.by_merc && heroes.size() > 1) {
-                using namespace d2d::d2s;
-                for (Hero* ally : heroes) {
-                    if (ally->id == missile.caster || ally->character.stats.values[kLife] <= 0
-                        || !missile_struck(*level, missile, ally->player.x, ally->player.y, 2)) continue;
-                    const int low_points = calc(*skill, skill->calc[0], missile.level), high_points = calc(*skill, skill->calc[1], missile.level);
-                    const int amount = (missile.seed ? (*missile.seed)((high_points << 8) - (low_points << 8)) : 0) + (low_points << 8);
-                    auto& life = ally->character.stats.values[kLife];
-                    if (amount > 0) life = std::min(life + amount, ally->character.stats.values[kMaxLife]);
-                    if (const int overlay = game_data->overlay_row(missile_info.prog_overlay); overlay > 0) d2d::rules::add_one_shot(ally->one_shots, overlay, now_ms);
-                    missile.dies = now_ms;
-                    break;
-                }
             }
             // The recycler delays (missile do 29 / 33, FUN_005afd70 / FUN_005afec0): on their Param1th
             // frame (+0x38: 45) the owner, alive, under its max life (29) or mana (33) in whole points, takes

@@ -766,6 +766,7 @@ struct Fight {
     void breath_do(const d2d::rules::Skill& skill, std::uint32_t now_ms);   // one do of Inferno's channel (FUN_005c8ca0)
     bool breath_again(const d2d::rules::Skill& skill, float target_x, float target_y, std::uint32_t now_ms);   // a held re-cast while it burns
     void inferno_client_start(const d2d::rules::Skill& skill, std::uint32_t now_ms);   // cltstfunc 15's list (LAB_004e3060)
+    bool bolt_heals_ally(Missile& missile, std::uint32_t now_ms);   // Holy Bolt on another player it crossed this frame
     int missile_frame = -1;                // the frame missile_tick last ran
     void missile_tick(std::uint32_t now_ms);
     // An element in 256ths a frame on monster i (a burner's): less its resistance, gathered until whole points
