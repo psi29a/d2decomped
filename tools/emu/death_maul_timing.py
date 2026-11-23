@@ -13,7 +13,7 @@ from pathlib import Path
 
 from unicorn.x86_const import UC_X86_REG_EIP
 
-from council_s1 import animation_record
+from council_modes import animation_record
 from emu import RET_MAGIC, mpq_cache
 from mode_rates import Rig
 
