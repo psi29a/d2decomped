@@ -661,8 +661,10 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* drop = std::get_if<cmd::Drop>(&command)) {           // FUN_0054ab40: the item in hand, not while dead
             if (actor->held && actor->held->id == drop->item && !fight.dead()) {
                 loot.enter(level);
+                const std::string dropped_code = actor->held->code;
                 loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms);
                 actor->held.reset();
+                item_drop_event(dropped_code);                       // event 5 (0x543db0)
                 cues.cue(d2d::rules::sound_ids::kCursorPointDrop, now_ms, actor->player.x, actor->player.y);
             }
             return;

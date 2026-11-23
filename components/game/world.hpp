@@ -293,7 +293,6 @@ struct World {
         std::vector<Event> events;             // for the client, since it last looked
         Store store;                           // the NPC window open (npc < 0: none): its stock
         bool had_gidbinn = false;
-        bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
         std::size_t portal_pair = 0;           // their town portal in World::portal: [pair] where it was cast, [pair + 1] in town
         // Local co-op's death (docs/design/local-coop.md): dead, a ghost that
@@ -963,6 +962,7 @@ struct World {
     // records are new and clear (0x55536f -> FUN_005348c0 -> FUN_00621f90 ->
     // FUN_0065c430).
     void item_event(std::string_view code, std::uint32_t now_ms, bool corpse = false);
+    void item_drop_event(std::string_view code);   // event 5: an item the player dropped (0x543db0)
     void set_waypoint(int index) { if (index >= 0 && index < 40) actor->character.header.waypoints[std::size_t(actor->character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying, killed by a monster: - experience: DifficultyLevels DeathExpPenalty % of the.

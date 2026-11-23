@@ -569,6 +569,15 @@ auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse)
         // [edx + 0xc]). The soulstone's record (a4q1, 0x16) has no item event
         // (FUN_005b42b0 leaves +0xb0 null, FUN_005439a0 skips it).
         if (code == d2d::rules::HellforgeQuest::kHammer) hellforge.hammer_picked(bits);
+        // Lam Esen's Tome (bbb, a3q1's +0xb0, FUN_005b7970): the event's player.
+        if (code == d2d::rules::LamEsenQuest::kTome) lam_esen.picked_up(actor->id);
+    }
+
+// Event 5 (0x543db0 -> FUN_005439a0): an item the player dropped, to the records bound to it; only
+// a3q1's has a handler (+0xb4, LAB_005b7a00: Lam Esen's Tome).
+auto World::item_drop_event(std::string_view code) -> void {
+        if (hosted_quests) return;
+        if (code == d2d::rules::LamEsenQuest::kTome) lam_esen.dropped(actor->id);
     }
 
 // FUN_005466b0(code, ilvl, quality): an item made into the player's
