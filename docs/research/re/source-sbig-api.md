@@ -35,3 +35,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00423ac0` | `sbig_sub` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00423100(a, b)`; dst = a − b (run for a ≥ b) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423b80` | `sbig_to_binary_view` | a, pointer out, count out (`RET 0xc`): `FUN_004235f0` fills the byte array at a `+0x158`; *pointer out = its buffer `+0x160` (owned by a), and a non-null count out gets its count `+0x15c`: a's little-endian bytes with no high zero byte (none for 0) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423c20` | `sbig_to_str` | a, buffer, size (`RET 0xc`): `FUN_00423600` writes a's decimal digits at `+0x160`, then `FUN_004135d0(buffer, text, size)` copies at most size − 1 of them and a NUL (run for sizes 1..120) | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423d60` | `sbig_xor` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00423250(a, b)`; dst = a XOR b | no counterpart (as `sbig_pow_mod`) |
