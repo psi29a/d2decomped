@@ -28,3 +28,4 @@ numbers, so no row has a counterpart.
 | `FUN_00421510` | `sbig_low_digit` | `EAX` number, `EDX` out pointer: out = the digit at `+0x10` when it is below the used count `+4`, else 0. Only caller `sbig_low_digit_stdcall` | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421540` | `sbig_is_even_stdcall` | Number (`RET 4`): `sbig_is_even` with it in `EDX` | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421550` | `sbig_low_digit_stdcall` | Number, out pointer (`RET 8`): `sbig_low_digit` with them in `EAX` and `EDX` | no counterpart (as `sbig_grow_step`) |
+| `FUN_004215c0` | `sbig_set_digits` | `ECX` number, n, source (`RET 8`): `+0` = n; unless the buffer and n are both 0, the buffer becomes `SMemReAlloc(buffer, n × 4, ".I", -2, 0)`; n dwords copied from the source; the used count `+4` = n. Callers the assignments `sbig_assign`, `sbig_assign_with_step` and thirteen more | no counterpart (as `sbig_grow_step`) |
