@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0 FUN_0041ffc0
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
@@ -34,6 +34,7 @@ SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 RECORD_FIND, UNLOCK, HANDLE_CHECK = 0x41FA80, 0x41FCE0, 0x41D1E0
 DUMP = 0x41FDF0
 FLUSH = 0x41FFC0
+PEND = 0x420070
 DEBUG_FLAG, LOCKS, LOCK_SIZE = 0x7790AC, 0x779238, 0x18
 TEXT, BUFFER, FLUSH_AT = 0x1C, 0x10000, 0xC000
 STAMP = b"11/23 22:05:09.042  "
@@ -43,7 +44,9 @@ MUTATIONS = {
     "dump": ("dump_hex_gap_one_space", "dump_ascii_gap_every_4", "dump_zero_as_dot",
              "dump_no_stamp_pad", "dump_no_commit", "dump_flush_above_0xc000"),
     "flush": ("flush_keeps_length", "flush_writes_committed"),
+    "pend": ("pend_appends", "pend_commits", "pend_no_stamp"),
 }
+FORMATS = ((b"%s=%d", "sd"), (b"%x|%s", "xs"), (b"%5d%%", "d"), (b"plain text", ""))
 
 
 class Rec:
@@ -115,6 +118,15 @@ class Model:
             return
         self.flush_record(rec, events, self.mutation == "flush_writes_committed")
 
+    def pend(self, rec, text):
+        """FUN_00420070: back to the committed length, a stamped line, CR LF; nothing committed."""
+        if self.mutation != "pend_appends":
+            rec.length = rec.committed
+        head = b"" if self.mutation == "pend_no_stamp" else self.prefix(rec, True)
+        self.write(rec, head + text + b"\r\n")
+        if self.mutation == "pend_commits":
+            rec.committed = rec.length
+
 
 def wrap(value):
     return struct.unpack("<i", struct.pack("<I", value & 0xFFFFFFFF))[0]
@@ -123,6 +135,7 @@ def wrap(value):
 class Rig:
     def __init__(self, exe):
         self.machine = emu.Emu(exe)
+        self.machine.crt_init()   # vsprintf (FUN_00420070) needs the CRT
         self.events = []
         self.locks = {}
         imports = {"EnterCriticalSection": self.enter, "LeaveCriticalSection": self.leave,
@@ -244,8 +257,31 @@ def case_flush(rig, model, rng, rec, log_id, record):
         model.flush(rec, events)
     return "FUN_0041ffc0", None, events, result
 
+
+def case_pend(rig, model, rng, rec, log_id, record):
+    form, kinds = rng.choice(FORMATS)
+    args, values = [], []
+    place = rig.strings + 0x100
+    for kind in kinds:
+        if kind == "s":
+            word = bytes(rng.randint(0x21, 0x7E) for _ in range(rng.randint(0, 24)))
+            rig.machine.mu.mem_write(place, word + b"\0")
+            args.append(place)
+            values.append(word)
+            place += 0x20
+        else:
+            value = rng.choice((0, 7, -1, rng.randint(-99999, 99999)))
+            args.append(value & 0xFFFFFFFF)
+            values.append(value & 0xFFFFFFFF if kind == "x" else value)
+    rig.machine.mu.mem_write(rig.strings, form + b"\0")
+    result = rig.run(PEND, log_id, rig.strings, *args, cdecl=True)
+    if record:
+        model.pend(rec, form % tuple(values))
+    return f"FUN_00420070 {form!r}", None, [], result
+
 CASES = {"dump": case_dump}
 CASES["flush"] = case_flush
+CASES["pend"] = case_pend
 
 
 def compare(rig, model, seed, count):
