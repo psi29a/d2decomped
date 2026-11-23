@@ -195,8 +195,9 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
             const auto& anim = scene.npc_anim(npc, state && state->walking ? std::string_view("WL") : state && !state->mode.empty() ? state->mode : std::string_view(npc.mode));
             static const std::string none;
-            // An object in a new mode keeps its name where it's Selectable in it (an open door).
-            const bool unselectable = state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1);
+            // An object's name shows in the modes it's Selectable in: its start mode, or the one it's in now (an open door).
+            const std::string_view object_mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
+            const bool unselectable = npc.root == "objects" && !(npc.selectable >> game::mode_index(object_mode) & 1);
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
             if (state && state->alert) {
                 units.back().overlay = &scene.npc_alert;
