@@ -345,6 +345,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
                  || name == "cairnstones"                                                    // the Cairn Stones' dip frames (0x46aee0)
                  || name == "orbmist"                                                        // the compelling orb's break (FUN_005dfee0, row 0x170)
+                 || name == "radamentdeath" || name == "radamenthandofgod"                  // Radament's death (FUN_0056ede0) and its client do 32's (row 0x15c)
                  || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
