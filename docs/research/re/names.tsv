@@ -85,6 +85,7 @@ address	name	evidence
 00420e10	sbig_pool_take_if	ECX pool, number, flag (ret 8): flag 0 returns the number, else the pool's next temporary as sbig_pool_take (source-sbig.md)
 00420eb0	sbig_add_carry	ESI 64-bit accumulator, lo, hi (ret 8): returns the low dword of accumulator + (hi:lo); the accumulator keeps the 65-bit sum >> 32 (source-sbig.md)
 00420f30	sbig_shift_in	ESI 64-bit accumulator, digit (ret 4): accumulator * 2^32 + digit, mod 2^64: the low dword moves up (source-sbig.md)
+00420f60	sbig_make_qword	EAX high dword, digit (ret 4): returns EDX:EAX = EAX * 2^32 + digit (source-sbig.md)
 004210a0	sbig_grow_step	Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at +0xc. Callers FUN_00420c50, d2d_sbig_import_le, FUN_00423b30 (source-frontier.md)
 004216e0	sbig_resize	The dword buffer +8 to n entries (FUN_004133d0, else a new block with the old entries copied and the old freed); +0 = n (source-frontier.md)
 00421e10	sbig_temps_ctor	Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at +0x14, zeroes +0x154..+0x164. Only caller FUN_00423950 (source-frontier.md)

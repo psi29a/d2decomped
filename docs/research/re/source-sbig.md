@@ -22,3 +22,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00420e10` | `sbig_pool_take_if` | `ECX` pool, number, flag (`RET 8`): flag 0 returns the number; otherwise as `sbig_pool_take` with no counter | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420eb0` | `sbig_add_carry` | `ESI` a 64-bit accumulator, low and high dwords (`RET 8`): the 65-bit sum; returns its low dword and keeps the rest (sum >> 32) in the accumulator, the carry out of the 64-bit add included (`0x420ec2`..`0x420eed`, `__allmul` by 2^32) | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420f30` | `sbig_shift_in` | `ESI` a 64-bit accumulator, digit (`RET 4`): accumulator × 2^32 + digit (`__allmul`), so its low dword moves up and the digit comes in below | no counterpart (as `sbig_grow_step`) |
+| `FUN_00420f60` | `sbig_make_qword` | `EAX` high dword, digit (`RET 4`): returns `EDX:EAX` = `EAX` × 2^32 + digit | no counterpart (as `sbig_grow_step`) |
