@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00423790
+# gaps-runs: FUN_00423790 FUN_004237b0
 
 Numbers are made and read through the cited SBigNew (FUN_00423950),
 SBigFromBinary (FUN_00423850) and SBigToBinaryBuffer (FUN_00423b30), with
@@ -45,6 +45,7 @@ def width(a):
 
 OPS = {   # address: (arguments, operation, {mutation: operation})
     0x423790: ("ab", lambda a, b: a + b, {"add_plus_one": lambda a, b: a + b + 1, "add_xor": lambda a, b: a ^ b}),
+    0x4237B0: ("ab", lambda a, b: a & b, {"and_or": lambda a, b: a | b}),
 }
 POPS = {"ab": 3, "ab_ge": 3, "an": 3, "a": 2, "a1": 2, "u": 2, "test": 1}   # popped dwords, as in the RET
 

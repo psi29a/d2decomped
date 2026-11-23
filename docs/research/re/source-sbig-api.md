@@ -16,3 +16,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_00423790` | `sbig_add` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422300(a, b)`; dst = a + b | no counterpart (as `sbig_pow_mod`) |
+| `FUN_004237b0` | `sbig_and` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422440(a, b)`; dst = a AND b | no counterpart (as `sbig_pow_mod`) |
