@@ -8,6 +8,15 @@
 foreach(v CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_MINSIZEREL)
     string(REGEX REPLACE "[-/]DNDEBUG" "" ${v} "${${v}}")
 endforeach()
+# D2D_TESTS_DEBUG_INFO off (CI): no debug info for this directory's
+# compiles, GCC / Clang's -g or MSVC's /Z7 (CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+# sets each target's as it's made).
+if (NOT D2D_TESTS_DEBUG_INFO)
+    foreach(v CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_DEBUG)
+        string(REGEX REPLACE "(^| )-g[0-9]*( |$)" " " ${v} "${${v}}")
+    endforeach()
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "")
+endif()
 
 # A test with no data to run on (no MPQs, ISO or game.exe) exits 77
 # (D2D_TEST_SKIPPED in the C++ tests, sys.exit(77) in the .py tests): ctest
