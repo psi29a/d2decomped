@@ -409,6 +409,7 @@ static std::string dump_npcs(d2d::game::GameData& game, std::uint32_t seed, int 
             switch (act.kind) {
             case d2d::rules::NpcAct::Kind::stand: line += " s" + std::to_string(act.frames); break;
             case d2d::rules::NpcAct::Kind::mode: line += " m" + std::to_string(act.mode); break;
+            case d2d::rules::NpcAct::Kind::attack: line += " a"; break;   // Flavie's (navi_think), not a vendor's or an Npc's
             case d2d::rules::NpcAct::Kind::walk:
                 line += " w" + std::to_string(act.x) + ',' + std::to_string(act.y);
                 x = act.x + (++walks % 2 == 0 ? 4 : 0); y = act.y;
