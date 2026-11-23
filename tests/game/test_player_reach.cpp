@@ -19,6 +19,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_price.hpp>
 #include <level.hpp>
 #include <rules.hpp>
 #include <world.hpp>

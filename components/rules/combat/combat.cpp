@@ -2,9 +2,12 @@
 // The bodies of combat.hpp's functions; the older ones' notes are in the header, newer ones' above their definitions.
 #include "combat.hpp"
 
+#include "item_price.hpp"
 #include "monsters.hpp"
 #include "montypes.hpp"
+#include "points.hpp"
 #include "rules.hpp"
+#include "wear.hpp"
 
 #include <d2s_items.hpp>
 

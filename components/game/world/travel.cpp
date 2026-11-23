@@ -23,8 +23,8 @@
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
 #include <replenish.hpp>
-#include <rules.hpp>
 #include <town_npcs.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

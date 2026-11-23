@@ -5,6 +5,7 @@
 // magic, potions plain), the 6-item cap, TC upgrades.
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <item_gen.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <object_sounds.hpp>

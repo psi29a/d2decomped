@@ -16,10 +16,14 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drink.hpp>
+#include <hire.hpp>
+#include <item_price.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
 #include <overlays.hpp>
+#include <points.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>

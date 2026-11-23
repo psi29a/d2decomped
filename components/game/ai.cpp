@@ -14,6 +14,7 @@
 #include <chat_commands.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <item_gen.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <missiles.hpp>
@@ -22,6 +23,7 @@
 #include <monsters.hpp>
 #include <overlays.hpp>
 #include <pets.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>

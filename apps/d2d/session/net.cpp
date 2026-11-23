@@ -12,6 +12,7 @@
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
@@ -21,6 +22,7 @@
 #include <rules.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

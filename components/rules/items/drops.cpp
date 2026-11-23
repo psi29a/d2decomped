@@ -2,8 +2,11 @@
 // The bodies of drops.hpp's functions, with the research behind each.
 #include "drops.hpp"
 
+#include "item_gen.hpp"
+#include "item_price.hpp"
 #include "replenish.hpp"
 #include "rules.hpp"
+#include "vendor.hpp"
 
 #include <d2s_items.hpp>
 

@@ -18,6 +18,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <hire.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
@@ -31,6 +32,7 @@
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <sound_ids.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

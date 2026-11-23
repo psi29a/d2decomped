@@ -19,6 +19,7 @@
 #include <level.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <wear.hpp>
 #include <world.hpp>
 
 #include <cassert>

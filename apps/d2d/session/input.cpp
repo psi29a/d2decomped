@@ -38,6 +38,7 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <inventory.hpp>
+#include <item_gen.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
@@ -46,6 +47,7 @@
 #include <rules.hpp>
 #include <search_enemy.hpp>
 #include <skills.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

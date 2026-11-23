@@ -38,6 +38,7 @@
 #include <ambient_dip.hpp>
 #include <client_sparks.hpp>
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <lan.hpp>
 #include <light.hpp>
 #include <overlays.hpp>
@@ -47,6 +48,7 @@
 #include <shake.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
+#include <vendor.hpp>
 #include <weather.hpp>
 
 #include <algorithm>

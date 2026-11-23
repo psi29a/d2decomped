@@ -22,6 +22,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <hire.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
@@ -35,6 +36,7 @@
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shake.hpp>
+#include <vendor.hpp>
 
 #include <algorithm>
 #include <array>

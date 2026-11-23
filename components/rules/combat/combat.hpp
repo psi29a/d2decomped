@@ -7,6 +7,7 @@
 #pragma once
 
 #include "monsters.hpp"
+#include "points.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>

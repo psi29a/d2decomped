@@ -8,6 +8,7 @@
 // runtime. With a file argument (replenish.py's `game` output, or its
 // `gen` cases) it prints each line with d2d's answer instead, to diff.
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
 

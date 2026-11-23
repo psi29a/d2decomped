@@ -10,6 +10,7 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <cassert>
 #include <cstdio>

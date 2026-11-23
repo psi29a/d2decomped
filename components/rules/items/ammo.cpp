@@ -2,6 +2,7 @@
 // The bodies of ammo.hpp's functions; their notes are in the header.
 #include "ammo.hpp"
 
+#include "item_price.hpp"
 #include "replenish.hpp"
 #include "rules.hpp"
 

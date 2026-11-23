@@ -17,10 +17,14 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <hire.hpp>
+#include <item_gen.hpp>
+#include <item_price.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
+#include <points.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act5.hpp>
@@ -29,6 +33,8 @@
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <town_npcs.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

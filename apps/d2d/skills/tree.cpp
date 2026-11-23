@@ -10,6 +10,7 @@
 #include <dc6.hpp>
 #include <font.hpp>
 #include <hover_box.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>

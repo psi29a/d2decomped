@@ -3,6 +3,7 @@
 // The one-per-game uniques (game +0x1b24) over hand-made tables:
 // FUN_005566b0 refuses a unique already found, but for a quest item;
 // FUN_00556530 marks the one picked unless nolimit, a quest item's too.
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

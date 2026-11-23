@@ -18,10 +18,12 @@
 #include <blend.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
+#include <item_price.hpp>
 #include <palette.hpp>
 #include <panel_view.hpp>
-#include <rules.hpp>
 #include <show_items.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 #include <weather.hpp>
 
 #include <algorithm>

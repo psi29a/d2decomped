@@ -10,8 +10,11 @@
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <hire_list.hpp>
-#include <rules.hpp>
+#include <item_price.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

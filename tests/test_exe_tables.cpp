@@ -22,9 +22,9 @@
 #include <outdoor.hpp>
 #include <quests.hpp>
 #include <room_tiles.hpp>
-#include <rules.hpp>
 #include <sequences.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 
 #include "audio/speech_sound.hpp"
 #include "panels/panels.hpp"

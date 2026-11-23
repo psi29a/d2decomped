@@ -44,6 +44,7 @@
 #include <rules.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
+#include <wear.hpp>
 
 #include <SDL3/SDL_keycode.h>
 

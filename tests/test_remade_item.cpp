@@ -4,6 +4,7 @@
 // is remade rare (FUN_005573f0), magic when its type can't be rare
 // (FUN_005c21a0 refuses it: a charm); a set magic (FUN_00557380). Either
 // off the own seed's start, with the durability x3 / x2 kept.
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

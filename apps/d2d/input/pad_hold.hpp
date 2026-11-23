@@ -6,6 +6,7 @@
 #pragma once
 
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <cstddef>
 #include <string_view>

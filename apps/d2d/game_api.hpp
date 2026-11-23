@@ -23,6 +23,7 @@
 #include <replication.hpp>
 #include <rules.hpp>
 #include <spawning.hpp>
+#include <vendor.hpp>
 #include <world.hpp>
 
 #include <filesystem>   // IWYU pragma: keep (namespace fs)

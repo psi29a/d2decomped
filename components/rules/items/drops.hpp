@@ -6,6 +6,7 @@
 
 #include "replenish.hpp"
 #include "rules.hpp"
+#include "vendor.hpp"
 
 #include <algorithm>
 #include <array>

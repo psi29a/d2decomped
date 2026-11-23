@@ -28,6 +28,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <points.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
@@ -38,6 +39,7 @@
 #include <sound_ids.hpp>
 #include <town_npcs.hpp>
 #include <unit_size.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

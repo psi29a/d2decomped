@@ -4,6 +4,7 @@
 // nothing when it returns false. A joined game does not send the command.
 #include <d2s_items.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <cassert>
 #include <cstddef>

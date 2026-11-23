@@ -3,7 +3,7 @@
 // Whether a death makes a corpse by the live corpse count: FUN_0057f700's
 // branch at 0x57f730, frozen from tools/emu/corpse_cap.py.
 
-#include <rules.hpp>
+#include <wear.hpp>
 
 #include <cassert>
 #include <cstdio>

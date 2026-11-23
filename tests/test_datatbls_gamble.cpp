@@ -2,6 +2,7 @@
 // test-links: rules
 // Frozen row order from tools/emu/datatbls_gamble.py, FUN_00638ae0.
 #include <rules.hpp>
+#include <vendor.hpp>
 
 #include <array>
 #include <cassert>

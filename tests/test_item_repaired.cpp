@@ -7,6 +7,7 @@
 // No game data: an axe typed in.
 
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
 

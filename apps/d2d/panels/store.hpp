@@ -7,7 +7,10 @@
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <rules.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 
 #include <array>
 #include <cstdint>

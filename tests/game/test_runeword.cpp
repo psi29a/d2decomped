@@ -7,6 +7,7 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_gen.hpp>
 #include <level.hpp>
 #include <rules.hpp>
 

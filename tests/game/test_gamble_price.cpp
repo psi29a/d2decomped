@@ -7,7 +7,7 @@
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
-#include <rules.hpp>
+#include <vendor.hpp>
 
 #include <cassert>
 #include <cstdio>

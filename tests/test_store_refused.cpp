@@ -4,7 +4,7 @@
 // 7 under the box (FUN_00487d30) and Continue puts it back to the plain
 // store, mode 1 (LAB_004b4cf0 -> FUN_00487d40), so a button toggled on is
 // off again: rules::Store::refused.
-#include <rules.hpp>
+#include <vendor.hpp>
 
 #include <cassert>
 #include <exception>
