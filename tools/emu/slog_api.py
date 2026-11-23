@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
@@ -33,6 +33,7 @@ import emu
 SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 RECORD_FIND, UNLOCK, HANDLE_CHECK = 0x41FA80, 0x41FCE0, 0x41D1E0
 DUMP = 0x41FDF0
+FLUSH = 0x41FFC0
 DEBUG_FLAG, LOCKS, LOCK_SIZE = 0x7790AC, 0x779238, 0x18
 TEXT, BUFFER, FLUSH_AT = 0x1C, 0x10000, 0xC000
 STAMP = b"11/23 22:05:09.042  "
@@ -41,6 +42,7 @@ NO_RECORD = (0, 7, 0x10, 0xFFFFFFFF)
 MUTATIONS = {
     "dump": ("dump_hex_gap_one_space", "dump_ascii_gap_every_4", "dump_zero_as_dot",
              "dump_no_stamp_pad", "dump_no_commit", "dump_flush_above_0xc000"),
+    "flush": ("flush_keeps_length", "flush_writes_committed"),
 }
 
 
@@ -104,6 +106,14 @@ class Model:
             rec.committed = rec.length
         if rec.length >= FLUSH_AT + (1 if self.mutation == "dump_flush_above_0xc000" else 0):
             self.flush_record(rec, events)
+
+    def flush(self, rec, events):
+        """FUN_0041ffc0: FUN_0041fa40 on the record, pending text included."""
+        if self.mutation == "flush_keeps_length":
+            if rec.length:
+                events += [("write", rec.handle, bytes(rec.text[:rec.length])), ("flush", rec.handle)]
+            return
+        self.flush_record(rec, events, self.mutation == "flush_writes_committed")
 
 
 def wrap(value):
@@ -226,7 +236,16 @@ def case_dump(rig, model, rng, rec, log_id, record):
         model.dump(rec, data, debug, events)
     return f"FUN_0041fdf0 {size:#x} bytes (debug {debug})", None, events, result
 
+
+def case_flush(rig, model, rng, rec, log_id, record):
+    result = rig.run(FLUSH, log_id)
+    events = []
+    if record:
+        model.flush(rec, events)
+    return "FUN_0041ffc0", None, events, result
+
 CASES = {"dump": case_dump}
+CASES["flush"] = case_flush
 
 
 def compare(rig, model, seed, count):
