@@ -24,7 +24,7 @@ std::vector<MiniatureCell> automap_miniature(int level, int preset_file, int cen
     } else if (level == 0x67) {
         town = { 2, 2, -3, -0x32, 0x88, 0x5a };
     } else if (level == 0x6d) {
-        town = { 2, 2, -0x14, -0x9b, 0xb4, 0xaa };
+        town = { 3, 2, -0x14, -0x9b, 0xb4, 0xaa };   // 0x459209: 3 columns (ExTnMap's 6 cels), 2 rows
     } else {
         return {};
     }
