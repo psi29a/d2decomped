@@ -69,7 +69,7 @@ int main() try {
         assert(world.level == den && world.fight.mon_level == den);
 
         // Every Den room up, its monsters all dead, the last at the first player's hand.
-        world.fight.spawning.levels[den].up.assign(den->rooms.size(), true);
+        world.fight.spawning.levels[den].rooms_up.assign(den->rooms.size(), true);
         for (auto& monster : world.fight.monsters) monster.hit_points = 0;
         world.den.state = 3;
         world.den_left = 1;

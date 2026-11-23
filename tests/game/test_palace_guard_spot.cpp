@@ -53,8 +53,8 @@ int main() try {
         bool placed = false;
         if (guard_room >= 0 && std::size_t(guard_room) < town->rooms.size()) {
             Spawning::LevelState rooms_in_play;
-            rooms_in_play.up.assign(town->rooms.size(), false);
-            rooms_in_play.up[std::size_t(guard_room)] = true;
+            rooms_in_play.rooms_up.assign(town->rooms.size(), false);
+            rooms_in_play.rooms_up[std::size_t(guard_room)] = true;
             rooms_in_play.room_seeds.assign(town->rooms.size(), d2d::rules::Rng{});
             const std::uint32_t room_seed = std::size_t(guard_room) < town->room1_seeds.size() ? town->room1_seeds[std::size_t(guard_room)]
                                                                                                 : town->rooms[std::size_t(guard_room)].seed;

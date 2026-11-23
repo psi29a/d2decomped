@@ -48,9 +48,9 @@ struct ObjectRooms;                                     // objgroups.cpp
 struct Spawning {
     struct LevelState {
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
-        std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+        std::vector<bool> rooms_up;                        // by Level::rooms index: its room1 made (and populated)
         // Which populated rooms currently have a server room1. FUN_0052d240
-        // may drop one without clearing `up`: returning rebuilds its tiles,
+        // may drop one without clearing `rooms_up`: returning rebuilds its tiles,
         // but the stored units, rather than the preset population, come back.
         std::vector<bool> live;
         std::vector<std::uint8_t> idle_sweeps;              // FUN_0061a790's room1 +0xc, saturated for d2d

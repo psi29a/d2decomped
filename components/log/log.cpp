@@ -51,7 +51,7 @@ long long ms() {
 void set_level(Level level) { g_level = level; }
 void set_sink(Sink sink) { g_sink = sink; }
 bool enabled(Level level) { return level <= g_level.load(); }
-void set_windows_vt(bool on) { g_windows_vt = on; }
+void set_windows_vt(bool processing) { g_windows_vt = processing; }
 
 void open(const std::filesystem::path& path, bool append) {
     std::lock_guard lock(g_mutex);

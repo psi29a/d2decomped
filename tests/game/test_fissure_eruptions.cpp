@@ -109,7 +109,7 @@ int main() try {
     if (const int room = room_of(one, one.npcs[0].x, one.npcs[0].y); room >= 0) {
         world.fissures.clear();
         world.npc_states = npc_start(one);
-        auto& rooms_kept = world.fight.spawning.levels[&one].up;
+        auto& rooms_kept = world.fight.spawning.levels[&one].rooms_up;
         rooms_kept.assign(std::size_t(room) + 1, false);
         world.fissure_frame(start);
         assert(!world.fissures.contains(std::pair{ static_cast<const Level*>(&one), 0 }));

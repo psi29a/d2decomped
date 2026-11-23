@@ -587,7 +587,7 @@ auto World::place_camp_cain() -> void {
         const auto camp_cain = std::ranges::find_if(town.npcs, [](const Npc& npc) { return npc.hc_idx == d2d::rules::monster_ids::kCampCain; });
         auto& in_play = fight.spawning.levels[&town];
         if (start == town.ds1.objects().end() || camp_cain == town.npcs.end() || !keep_camp_seeds(*game_data, town, in_play)) return;
-        if (in_play.up.size() < in_play.room_seeds.size()) in_play.up.assign(in_play.room_seeds.size(), true);
+        if (in_play.rooms_up.size() < in_play.room_seeds.size()) in_play.rooms_up.assign(in_play.room_seeds.size(), true);
         const Crowd crowd;
         const auto room_at = [&](int x, int y) { return room_of(town, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5); };
         const auto try_at = [&](int x, int y, int radius, int room) -> bool {

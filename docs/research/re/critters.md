@@ -89,7 +89,7 @@ next subtile's free; the wait runs once the walk is done. Distances are
 larger) / 2.
 
 d2d (2026-10-25): `ClientSession::critter_tick` makes a room's as it comes up
-(Spawning's `up`, the rooms the host would add; the camp keeps no rooms,
+(Spawning's `rooms_up`, the rooms the host would add; the camp keeps no rooms,
 so a camp room's seed is its DRLG room's from `camp_room_seeds`, matched
 by `level_room`'s index as it comes up) and thinks a 40 ms client
 frame at a time; `debug critters` lists them. Seed 3: 23 chickens in the

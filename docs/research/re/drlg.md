@@ -1512,7 +1512,7 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
 
 d2d: a room comes up the first time a player's near list reaches it
 (`player_moved`). Its room1 seed is the first one, and it is populated
-once (`LevelState::up`). `sweep_idle_rooms` now runs the `FUN_0052d240`
+once (`LevelState::rooms_up`). `sweep_idle_rooms` now runs the `FUN_0052d240`
 schedule: every twelfth frame it resets rooms in any player's depth-1 near
 set, ages the others, and after age 10 removes their room index from the
 server and client lay orders. The population bit stays set, so returning
