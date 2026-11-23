@@ -34,6 +34,9 @@ int main() try {
     assert(animated_tile(cell, 1, 4 * 40) == &tiles[2] && animated_tile(cell, 2, 4 * 40) == &tiles[5]);
     assert(animated_tile(cell, 1, 7 * 40) == &tiles[3] && animated_tile(cell, 2, 7 * 40) == &tiles[6]);
     assert(animated_tile(cell, 1, 10 * 40) == &tiles[1]);
+    // A 2-frame tile (A: 1, 2) before a 3-frame one (B: 4, 5, 6): at tick 7 A shows 7 * 0x50 % 0x200 >> 8 = 0, B its frame 2.
+    const std::vector<Level::Pick> mixed{ pick(1, 0, 2), pick(4, 0, 3), pick(2, 1, 2), pick(5, 1, 3), pick(6, 2, 3) };
+    assert(animated_tile(mixed, 1, 7 * 40) == &tiles[6] && animated_tile(mixed, 1, 4 * 40) == &tiles[5]);
     std::puts("OK: one lava frame at a time in frame 0's place, 0x50 a tick; each animated tile its own frames");
     return 0;
 } catch (const std::exception& error) {

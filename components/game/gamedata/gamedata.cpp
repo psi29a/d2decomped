@@ -847,10 +847,10 @@ const d2d::dt1::Tile* animated_tile(std::span<const Level::Pick> picks, std::siz
     if (pick.frame != 0) return nullptr;
     const auto showing = std::uint8_t(std::uint64_t(elapsed_ms / 40) * 0x50 / 256 % pick.frames);
     if (showing == 0) return pick.tile;
-    // The nth animated tile of its layer in the cell owns the nth run of frames after it.
+    // The nth animated tile of its layer in the cell that has this frame owns the nth pick of it after them all.
     std::size_t nth = 0;
     for (std::size_t other = 0; other < index; ++other)
-        if (picks[other].frames && picks[other].frame == 0 && picks[other].layer == pick.layer) ++nth;
+        if (picks[other].frames > showing && picks[other].frame == 0 && picks[other].layer == pick.layer) ++nth;
     for (const auto& other : picks)
         if (other.frames && other.layer == pick.layer && other.frame == showing && nth-- == 0) return other.tile;
     return pick.tile;
