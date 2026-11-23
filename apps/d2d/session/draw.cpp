@@ -157,6 +157,17 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
         }
         if (pmode < 0) unit.mode_ms = std::max(unit.mode_ms, walk_ms);     // a swing's end restarts it too
         const int ui_cls = kSaveClassToUi[std::max(character.character_class, 0)];
+        if (const int hovered = hovered_monster(); hovered >= 0 && scene) {        // FUN_00466de0: the unit the cursor took
+            const int cls = view.monsters[std::size_t(hovered)].type;
+            if (cls >= 0 && std::size_t(cls) < scene->monsters.types.size()) {
+                const auto& type_info = scene->monsters.types[std::size_t(cls)];
+                const bool npc = std::size_t(cls) < scene->mon_is_npc.size() && scene->mon_is_npc[std::size_t(cls)];
+                if (!npc && type_info.align != 1 && type_info.is_att) {
+                    panel_tohit_class = cls;
+                    if (!type_info.inert) panel_behit_class = cls;
+                }
+            }
+        }
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
@@ -359,7 +370,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() || touch_compact,
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact, view.uninterruptable, &item_tip }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks, object_flashes);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact, view.uninterruptable, &item_tip, panel_tohit_class, panel_behit_class }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks, object_flashes);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;

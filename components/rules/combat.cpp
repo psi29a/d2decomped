@@ -183,6 +183,19 @@ int attack_action_tick(int action, int rate, int ias, int wsm, int sias, int sta
     return frame_tick(action, start, attack_speed(rate, ias, wsm, sias));
 }
 
+// FUN_004a7340 / FUN_004a74a0's shared arithmetic (tools/emu/hit_chance.py runs the first): a
+// negative defence moves to the rating's side and a negative rating to the defence's; both 0 is 100 %;
+// else rating x 100 / (rating + defence), then x 2 x the attacker's level / (both levels), truncated
+// (idiv); FUN_004a7340 and FUN_004a7180 (the be-hit's caller) hold it to 5..0x5f.
+int panel_hit_chance(int rating, int defense, int attacker_level, int defender_level) {
+    if (defense < 0) { rating -= defense; defense = 0; }
+    if (rating < 0) { defense -= rating; rating = 0; }
+    const int pct = rating == 0 && defense == 0 ? 100 : rating * 100 / (rating + defense);
+    const int both = attacker_level + defender_level;
+    const int result = both == 0 ? pct : attacker_level * pct * 2 / both;
+    return std::clamp(result, 5, 0x5f);
+}
+
 int attack_start_frame(int player_class, std::string_view wclass) {
     if (player_class < 0 || std::size_t(player_class) >= 7) return 0;
     for (const auto& row : kAttackStart)

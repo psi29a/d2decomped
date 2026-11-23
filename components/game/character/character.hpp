@@ -207,6 +207,7 @@ struct PanelStats {
     // the attributes' (op 8) share. Fight::update_fighters adds it.
     std::array<std::int64_t, 2> max_percent{}, max_flat{};
     std::array<d2d::rules::AttackLine, 2> attack{};   // the left / right skill's block, as the server sends it
+    int block = 0;                               // the chance to block (FUN_00622720): the defence hover's first line (FUN_004a7180)
     std::uint8_t blue = 0, red = 0;              // the states' colours (rules::PanelColour bits)
 };
 

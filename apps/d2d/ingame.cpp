@@ -471,7 +471,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
             }
         };
-        if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
+        if (char_stats) {
+            draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
+            draw_char_tooltips(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, hud, mouse_x, mouse_y);
+        }
         // The store draws its own hover text: the panel under the mouse goes last so
         // the other doesn't cover it (the store on the left, the inventory right).
         // The inventory's and storage's go to hud.item_tip when set, drawn after every panel.

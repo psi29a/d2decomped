@@ -68,6 +68,7 @@ struct MonType {
     bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)
     bool is_att = false;                        // MonStats2 isAtt (flags bit 9, +5 & 2): a state put takes it (FUN_0056e970 0x56e9f6..0x56ea08)
+    bool inert = false;                         // MonStats2 inert (flags bit 17, +6 & 2; read off game.exe's records): no chance-to-be-hit hover (FUN_00466de0)
     int walk_base = 0, run_base = 0;            // MonStats +0x36 / +0x38: the moving modes' animation base (FUN_00650f00, rules::monster_walk_base)
     int hit_class = 0;                          // MonStats2 HitClass (FUN_00623c20): the impact on what it strikes
     int threat = 0;                             // threat (record +0x4e, FUN_005dc920): a mode 5 search's primary at 2 or more

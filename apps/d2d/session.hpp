@@ -678,6 +678,10 @@ struct ClientSession {
     std::map<int, HandItems> hand_items;
     void load_hands(int id);                      // the skillbar's items from hand_items[id] (none yet: -1)
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
+    // The char panel's hover monsters (FUN_00466de0, as the cursor takes a unit): a monster not a MonStats
+    // npc, Align not 1, MonStats2 isAtt sets the to-hit one (0x711f90), not inert as well the be-hit one
+    // (0x711f94); a new game starts both at 0x13 (FUN_00467a00).
+    int   panel_tohit_class = 0x13, panel_behit_class = 0x13;
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
     bool alt_held = false;                 // devctl `debug alt on`: "Show Items" held

@@ -190,8 +190,13 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              std::array<std::string, 2> run_keys{};      // Toggle Run's keys by name, slot 1 then slot 0; empty: unbound (FUN_00497300)
              bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false;     // touch: classic panel X (flags stay off)
              bool uninterruptable = false;               // View::uninterruptable: the player in state 0x36 (the grid's tint)
-             KeptHover* item_tip = nullptr; };           // set: the inventory's and storage's item hover text goes here, for the frame's late draw
+             KeptHover* item_tip = nullptr;              // set: the inventory's and storage's item hover text goes here, for the frame's late draw
+             int tohit_class = 0x13, behit_class = 0x13; };   // the char panel's hover monsters (0x711f90 / 0x711f94, FUN_00466de0)
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
+// The char panel's hover percentages under the mouse (FUN_004a7ae0: the chance to hit by attack line;
+// FUN_004a7180: to block and to be hit, on the defence), against the client's hover monsters (Hud).
+void draw_char_tooltips(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
+                        const PanelStats& panel, const Hud& hud, int mouse_x, int mouse_y);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
