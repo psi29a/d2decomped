@@ -141,6 +141,7 @@ address	name	evidence
 00423a00	sbig_or	dst, a, b (ret 0xc): dst = a | b via FUN_004229d0 (source-sbig-api.md)
 00423a20	sbig_set_pow2	dst, n (ret 8): dst = 2^n via FUN_00422b00 (source-sbig-api.md)
 00423a40	sbig_set_one	a (ret 4): a = 1 via FUN_00422c60 (EDI a) (source-sbig-api.md)
+00423a60	sbig_set_zero	a (ret 4): a = 0 via FUN_00422cc0 (EDI a) (source-sbig-api.md)
 00423a80	sbig_shl	dst, a, n (ret 0xc): dst = a << n via FUN_00422d00 (EDI dst, EAX n) (source-sbig-api.md)
 00423aa0	sbig_shr	dst, a, n (ret 0xc): dst = a >> n via FUN_00422e70 (ESI dst, EAX n) (source-sbig-api.md)
 00423ac0	sbig_sub	dst, a, b (ret 0xc): dst = a - b via FUN_00423100, run for a >= b (source-sbig-api.md)
