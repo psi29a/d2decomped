@@ -17,6 +17,7 @@
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
+#include <obj_preset.hpp>
 #include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
@@ -522,6 +523,53 @@ auto World::stones_portal() -> void {
     }
 
 // Lut Gholein's palace NPCs as the quests stand (rules::palace_spots).
+// Camp Cain made (FUN_00592960, from the start object's InitFn 54, FUN_005940e0): from the start
+// object's spot (+0x84 / +0x88), stepped a subtile down-right at a time (0x15 tries) till it's inside
+// its room's rect less a subtile on the far sides; a size-2 spot free of 0x100 near it
+// (FUN_00545340); then MonStats 0x109 within 5 of it (FUN_005b2f20 -> FUN_005b2a00, on the room's
+// seed: spawn_spot); failing, 20 tries a subtile further down-right, each in the room there with a
+// new free spot, within 10; at last within 15 of the start spot itself.
+// ponytail: all failing, game.exe makes no Cain; d2d keeps the free spot it had (gamedata_load).
+// The camp's room seeds are keep_camp_seeds' (its own ponytail on the room1 seed).
+auto World::place_camp_cain() -> void {
+        auto& town = const_cast<Level&>(game_data->town);              // GameData owns its levels mutable
+        const auto start = std::ranges::find_if(town.ds1.objects(), [](const auto& object) {
+            return object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150
+                && kObjPreset[0][std::size_t(object.id)] == d2d::rules::object_ids::kCainStart;
+        });
+        const auto camp_cain = std::ranges::find_if(town.npcs, [](const Npc& npc) { return npc.hc_idx == d2d::rules::monster_ids::kCampCain; });
+        auto& in_play = fight.spawning.levels[&town];
+        if (start == town.ds1.objects().end() || camp_cain == town.npcs.end() || !keep_camp_seeds(*game_data, town, in_play)) return;
+        if (in_play.up.size() < in_play.room_seeds.size()) in_play.up.assign(in_play.room_seeds.size(), true);
+        const Crowd crowd;
+        const auto room_at = [&](int x, int y) { return room_of(town, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5); };
+        const auto try_at = [&](int x, int y, int radius, int room) -> bool {
+            int out_x = 0, out_y = 0;
+            if (room < 0 || !spawn_spot(*game_data, town, crowd, &in_play, d2d::rules::monster_ids::kCampCain, x, y, radius, room, out_x, out_y)) return false;
+            camp_cain->x = (float(out_x) + 0.5f) / 5; camp_cain->y = (float(out_y) + 0.5f) / 5;
+            return true;
+        };
+        const int start_x = start->x, start_y = start->y;
+        const int room = room_at(start_x, start_y);
+        int x = start_x, y = start_y;
+        if (const auto rect = room >= 0 ? level_room(town, std::size_t(room)) : std::nullopt) {
+            const int left = rect->x * 5, top = rect->y * 5, width = rect->width * 5, height = rect->height * 5;
+            int step = 0;
+            for (; step < 0x15 && !(left <= x && top <= y && x < left + width - 1 && y < top + height - 1); ++step) { ++x; ++y; }
+            if (step == 0x15) x = y = start_y;                       // none inside: local_14 = param_3 (0x5929e4), as game.exe
+        }
+        if (const auto spot = town.free_area(x, y, 2, 0x100, 100)) std::tie(x, y) = *spot;
+        if (try_at(x, y, 5, room)) return;
+        for (int tries = 0; tries < 20; ++tries) {
+            ++x; ++y;
+            int here = room_at(x, y);
+            if (here < 0) { x = start_x; y = start_y; here = room; }
+            if (const auto spot = town.free_area(x, y, 2, 0x100, 100)) std::tie(x, y) = *spot;
+            if (try_at(x, y, 10, here)) return;
+        }
+        (void)try_at(start_x, start_y, 15, room);
+    }
+
 auto World::show_palace() -> void {
         const auto spots = d2d::rules::palace_spots(game_bits, tombs.open, tombs.state);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
