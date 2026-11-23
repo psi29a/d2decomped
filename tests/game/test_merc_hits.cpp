@@ -76,6 +76,8 @@ int main() try {
     std::printf("OK: the merc's swing heals it by its life steal (%d/256 -> %d/256)\n", 50 * 256, actor.merc->life_fine());
     actor.merc->set_life_fine(50 * 256);
     const auto& arrow = data->missiles.at("arrow");
+    struck.slow_until = 0;                                 // its swings slowed it too: only the arrow's slow may count
+    struck.slow_speed = struck.slow_rate = 0;
     bool landed = false;
     for (int shot = 0; shot < 50 && !landed; ++shot) {
         Missile missile{ &arrow, struck.unit.x, struck.unit.y, 0, 0, 0, 1000, 2000, {} };
