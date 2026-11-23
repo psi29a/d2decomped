@@ -336,7 +336,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
     // A second pass loads the ExplosionMissile rows the first pass's name
     // (Missiles.txt +0x16: fireexplode after a fire bolt) and their
-    // CltSubMissile1 (+0x1e: lightninghit, client do 8's trail).
+    // CltSubMissile1 / 2 (+0x1e: lightninghit, client do 8's trail; +0x20: client do 26's rocks).
     std::unordered_set<std::string> explosions;
     for (int pass = 0; pass < 2; ++pass)
     for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index) {
@@ -346,8 +346,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || name == "cairnstones"                                                    // the Cairn Stones' dip frames (0x46aee0)
                  || name == "orbmist"                                                        // the compelling orb's break (FUN_005dfee0, row 0x170)
                  || name == "radamentdeath" || name == "radamenthandofgod"                  // Radament's death (FUN_0056ede0) and its client do 32's (row 0x15c)
-                 || name == "mephistodeathcontrol" || name == "mephistofirewallmaker" || name == "mephistofirewall"
-                 || name == "mephistoflyingrocksbig"                                        // Mephisto's death (FUN_005dfdb0) and its client do 26's
+                 || name == "mephistodeathcontrol" || name == "mephistofirewallmaker"       // Mephisto's death (FUN_005dfdb0), its maker's fire (do 27)
                  || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
@@ -356,7 +355,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (pass == 1) used = explosions.contains(name) && !game_data.missiles.contains(name);
         if (!used) continue;
         if (pass == 0)
-            for (const char* column : { "ExplosionMissile", "CltSubMissile1" })
+            for (const char* column : { "ExplosionMissile", "CltSubMissile1", "CltSubMissile2" })
                 if (const std::string named(missiles_table.get(row_index, column)); !named.empty()) explosions.insert(named);
         GameData::MissileInfo missile_info;
         missile_info.name = name;
