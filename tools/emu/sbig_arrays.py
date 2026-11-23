@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810 FUN_004218b0
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -55,6 +55,7 @@ MUTATIONS = {
     0x421530: ("cmp_inverted",),
     0x421770: ("resize_dwords", "resize_flag_0", "resize_wrong_tag"),
     0x421810: ("free_always", "free_wrong_tag"),
+    0x4218B0: ("append_returns_new", "append_no_round", "append_at_start"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -109,6 +110,23 @@ class Model:
         if self.m != "resize_no_free":
             calls.append(("free", old, tag, 0xFFFFFFFE, 0))
         return bytes(buffer)
+
+    def grow(self, rec, need, round_it, changes, calls, case, tag=TAG_E, unit=1, cap=0x100):
+        """Room for need entries: when +0 is below it, rounded up to the grow step (+0xc, else the
+        capped power of two) when asked, then resized (SMemReAlloc, flag 0x10)."""
+        need &= M32
+        if (rec[0] <= need if self.m in ("slot_inclusive",) else rec[0] < need) or self.m == "used_grows_always":
+            if round_it and self.m not in ("reserve_no_round", "append_no_round"):
+                step = rec[0xC] or self.grow_step(rec, need, changes, 0x100 if self.m == "reserve_cap_0x100" else cap)
+                need = self.round_up(need, step)
+            if self.m == "reserve_wrong_tag":
+                tag = TAG_I
+            changes[0] = need
+            size = need * (1 if self.m == "reserve_byte_units" else unit)
+            calls.append(("realloc", rec[8], size & M32, tag, 0xFFFFFFFE, 0x10))
+            changes[8] = case["realloc"]
+            return case["realloc"]
+        return rec[8]
 
     def compare(self, a, b, digit_a, digit_b):
         """FUN_004212f0: digit by digit from each first digit while either has one left (0 past the
@@ -233,6 +251,20 @@ class Model:
         if address == 0x421810:   # the digit buffer freed, when there is one
             if rec[8] or m == "free_always":
                 calls.append(("free", rec[8], TAG_E if m == "free_wrong_tag" else TAG_I, 0xFFFFFFFE, 0))
+        if address in (0x4218B0, 0x4219D0, 0x421930):   # append n bytes (or one slot): grown and rounded, then copied after +4
+            n = {0x4218B0: a[0] if a else 0, 0x4219D0: 2 if m == "one_appends_two" else 1, 0x421930: 1}[address]
+            buf = self.grow(rec, rec[4] + n, True, changes, calls, case)
+            used = rec[4]
+            if address != 0x421930:
+                out = bytearray(SPAN)
+                at = 0 if m == "append_at_start" else used
+                source = case["bytes"]
+                out[at:at + n] = source[:n]
+                buffer = bytes(out)
+                eax = (used + n if m == "append_returns_new" else used)
+            else:
+                eax = (buf + used + (m == "slot_returns_end")) & M32
+            changes[4] = (used + n) & M32
         return eax, changes, buffer, calls
 
 
@@ -369,6 +401,23 @@ def make_case(rng, rig, address):
         args = [rng.randint(0, SPAN)]
     if address == 0x421810:
         rec[8] = rng.choice((0, rig.data))
+    if address in (0x4218B0, 0x4219D0, 0x421930, 0x421980, 0x4219F0, 0x421A50):
+        rec[8] = rig.dst
+        rec[4] = rng.randint(0, 0x200)
+        rec[0] = rng.choice((rec[4], rec[4] + 1, rng.randint(0, 0x300)))
+        rec[0xC] = rng.choice((0, 0, 1, 0x10, 0x40))
+        data = bytes(rng.randint(0, 0xFF) for _ in range(SPAN))
+        machine.mu.mem_write(rig.old, data)
+        case.update(bytes=data, realloc=rig.dst)
+        if address == 0x4218B0:
+            args = [rng.randint(0, 0x100), rig.old]
+        elif address == 0x4219D0:
+            args = [rig.old]
+        elif address == 0x421980:
+            args = [rng.choice((rec[4], rec[0], rec[0] + 1, rng.randint(0, 0x300)))]
+        elif address in (0x4219F0, 0x421A50):
+            rec[8] = rng.choice((0, rig.data))
+            args = [rng.choice((0, rng.randint(0, SPAN))), rig.old]
     case["args"] = args
     return case, regs, args
 
