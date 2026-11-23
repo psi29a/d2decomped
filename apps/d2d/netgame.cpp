@@ -333,7 +333,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 10) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; }
+            if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; spot_heard_ms = steady_ms(); }
         }
         break;
     case 0x0f:   // a unit to x, y: +1 type, +2 id, +6 the command (1 walk, 0x17 run), +7 target, +0xc where it is
@@ -365,6 +365,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         };
         host_x = float(bits_at(skip, 16));
         host_y = float(bits_at(skip + 16, 16));
+        spot_heard_ms = steady_ms();
         if (packet[0] == 0x96) walked_ms = steady_ms();
         // Life, mana, stamina: whole points, stats 6 / 8 / 10 take them << 8
         // (FUN_0045d4b0); 0x96 has stamina alone.
@@ -811,9 +812,25 @@ auto NetGame::move_to(float subtile_x, float subtile_y, bool run) -> void {
         subtile_y = host_y + (subtile_y - host_y) * kWalkReach / apart;
     }
     send({ d2d::net::d2gs::c2s::move_to(std::uint16_t(subtile_x), std::uint16_t(subtile_y), run) });
+    // At a walk's speed (the slower), as when_still's wait; unknown spot: the most.
+    const float apart = host_x > 0 || host_y > 0 ? std::hypot(subtile_x - host_x, subtile_y - host_y) : kWalkReach;
+    walk_needs_ms = std::uint32_t(std::min(apart / kWalkSubtilesPerSec * 1000.f, 4000.f)) + 500;
     walk_to_x = subtile_x;
     walk_to_y = subtile_y;
     walk_sent_ms = steady_ms();
+}
+
+auto NetGame::heard_after_walk() const -> bool {
+    return std::int32_t(spot_heard_ms - walk_sent_ms) >= std::int32_t(walk_needs_ms);
+}
+
+auto NetGame::host_spot() const -> std::pair<float, float> {
+    if (walk_sent_ms != 0 && walk_goal_x < 0 && steady_ms() - walk_sent_ms >= walk_needs_ms && !heard_after_walk()) return { walk_to_x, walk_to_y };
+    return { host_x, host_y };
+}
+
+auto NetGame::heading_to(float subtile_x, float subtile_y, float reach) const -> bool {
+    return walk_sent_ms != 0 && walk_goal_x < 0 && std::hypot(walk_to_x - subtile_x, walk_to_y - subtile_y) <= reach && !heard_after_walk();
 }
 
 auto NetGame::swap_weapons() -> void {
