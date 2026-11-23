@@ -9,6 +9,7 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
