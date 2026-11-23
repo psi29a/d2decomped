@@ -23,6 +23,7 @@
 #include <world.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -31,6 +32,8 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -152,6 +155,24 @@ int main() try {
     world->fight.start_cast_overlay(*attack, false, pet.one_shots, now + 200 * kTickMs);
     assert(pet.one_shots.empty());
     std::printf("OK: the merc's Fire Ball start plays fire_cast_2 on the merc\n");
+
+    // FUN_004c6140 uses these same rows for casts received from a host.
+    constexpr std::array<std::pair<int, std::string_view>, 13> host_casts{{
+        {36, "fire_cast_1"}, {39, "ice_cast_1"}, {40, "ice_cast_1"}, {45, "ice_cast_1"},
+        {47, "fire_cast_2"}, {49, "light_cast_1"}, {50, "ice_cast_2"}, {55, "ice_cast_2"},
+        {60, "ice_cast_3"}, {62, "fire_cast_2"}, {64, "ice_cast_3"}, {179, "healing"}, {337, ""},
+    }};
+    for (const auto& [id, expected] : host_casts) {
+        const auto* skill = data->skills.get(id);
+        assert(skill && skill->cast_overlay == expected);
+        d2d::rules::OneShots overlays;
+        world->fight.start_cast_overlay(*skill, false, overlays, now);
+        if (expected.empty()) assert(overlays.empty());
+        else {
+            const int overlay_row = data->overlay_row(skill->cast_overlay);
+            assert(overlay_row > 0 && overlays == (d2d::rules::OneShots{{overlay_row, now}}));
+        }
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_cast_overlay: %s\n", error.what());

@@ -287,6 +287,22 @@ select S1. d2d resolves these Council packets against Skills.txt
 and starts pose playback at the recorded aim. The packet oracle
 checks both forms.
 
+Both packet forms also call `FUN_004c6140` through `FUN_004c6eb0` or
+`FUN_004c6f40`. The skill's castoverlay plays on its caster separately
+from the pose. Hydra uses `fire_cast_2`, ZakarumHeal uses `healing`,
+and the accompanying hireling's Ice Blast and Glacial Spike use
+`ice_cast_1` and `ice_cast_2`. HydraMissile has no castoverlay.
+
+The projectile is a separate action-frame effect. `FUN_004af4c0`
+calls `FUN_004c68f0` for the active skill, and `FUN_004c6680` reads the
+client missile row at skill record +0xe8. Ice Blast, Glacial Spike,
+and HydraMissile name missile rows 91, 96, and 247. Fire Bolt, Fire Ball,
+Ice Bolt, and Lightning use the same field. Frozen Orb uses its client
+do callback instead. Glacial Spike's client hit callback
+`FUN_004cf640` uses the two client hit sub-missile rows. The TCP/IP
+view plays the start overlays but still omits these client projectiles
+and their impact effects.
+
 `test_council_a1 --host-pose` dumps every active tick and the end tick
 for A1 and S1 on each of the three classes, at stock speed, through a
 slowdown and recovery, and through a freeze and thaw.
