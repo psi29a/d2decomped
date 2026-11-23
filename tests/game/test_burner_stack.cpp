@@ -43,7 +43,7 @@ int main() try {
     fight.enter(&open);
     fight.skill_level = [](int) { return 1; };
     fight.skill_base = fight.skill_level;
-    constexpr float kX = 8.1f, kY = 8.1f;
+    constexpr float kSpotX = 8.1f, kSpotY = 8.1f;
     std::uint32_t now = 1000 * 40;
     const auto put = [&](int count) {
         fight.monsters.clear();
@@ -51,7 +51,7 @@ int main() try {
             Monster monster;
             monster.type = 0;
             monster.id = 100 + k;
-            monster.unit.x = kX; monster.unit.y = kY;
+            monster.unit.x = kSpotX; monster.unit.y = kSpotY;
             monster.hit_points = monster.stats.hit_points = 100000;
             fight.monsters.push_back(std::move(monster));
         }
@@ -59,7 +59,7 @@ int main() try {
     const auto flames = [&](int count) {
         fight.missiles.clear();
         for (int k = 0; k < count; ++k) {
-            Missile missile{ &flame, kX, kY, 0, 0, 0, now, now + 100 * 40, {} };
+            Missile missile{ &flame, kSpotX, kSpotY, 0, 0, 0, now, now + 100 * 40, {} };
             missile.friendly = true; missile.caster = world.actor->id; missile.skill = 51; missile.level = 1;
             fight.missiles.push_back(std::move(missile));
         }

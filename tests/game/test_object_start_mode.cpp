@@ -26,6 +26,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
+    if (!data->patched) { std::printf("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
     if (!data->builder) { std::printf("SKIP: no level builder\n"); return D2D_TEST_SKIPPED; }
     const auto mode_in = [&](int level_id, int object) {
         const auto* level = data->level(level_id);
