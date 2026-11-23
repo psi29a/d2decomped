@@ -5,6 +5,7 @@
 #include <ai.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
+#include <monsters.hpp>
 #include <rules.hpp>
 
 #include <array>
