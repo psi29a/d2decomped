@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Storm's log-line prefix FUN_0041fba0 on local game.exe 1.14d, against a model.
 
-Run: uv run python slog_stamp.py --exe /path/to/game.exe [--mutation-check]
+Run: uv run python slog_stamp.py [--exe /path/to/game.exe] [--mutation-check]
 
 # gaps-runs: FUN_0041fba0
 
@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import random
 import struct
+from pathlib import Path
 
 import emu
 
@@ -139,16 +140,15 @@ def compare(rig, model, seed, count):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--exe", help="game.exe 1.14d (default: as emu.py finds it)")
+    parser.add_argument("--exe", type=Path, help="game.exe 1.14d (default: bin/game.exe in the data folder emu.py finds)")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--count", type=int, default=5000)
     parser.add_argument("--mutation-check", action="store_true")
     args = parser.parse_args()
-    if args.exe:
-        with open(args.exe, "rb") as handle:
-            if hashlib.sha256(handle.read()).hexdigest() != SHA256:
-                raise SystemExit(f"{args.exe} is not game.exe 1.14d")
-    rig = Rig(args.exe)
+    exe = args.exe or Path(emu.data_path()) / "bin" / "game.exe"
+    if hashlib.sha256(exe.read_bytes()).hexdigest() != SHA256:
+        raise SystemExit(f"{exe} is not game.exe 1.14d")
+    rig = Rig(str(exe))
     difference = compare(rig, Model(), args.seed, args.count)
     if difference:
         raise SystemExit(f"FAIL FUN_0041fba0 {difference}")
@@ -156,7 +156,7 @@ def main():
           f"{rig.calls['GetLocalTime']} GetLocalTime)")
     if args.mutation_check:
         for mutation in MUTATIONS:
-            caught = compare(Rig(args.exe), Model(mutation), args.seed, args.count)
+            caught = compare(Rig(str(exe)), Model(mutation), args.seed, args.count)
             if not caught:
                 raise SystemExit(f"FAIL mutation {mutation} not caught")
             print(f"caught {mutation}: {caught}")
