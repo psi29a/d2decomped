@@ -469,6 +469,9 @@ struct Monster {
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
     std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
     float leap_pace = 0;                      // the takeoff's path pace in cells a frame (FUN_005d9f70: MonStats Run << 8, FUN_00648690), 0: the sequence's time
+    // The landing held while it flies (FUN_005d9d50 -> FUN_0064ea90: its pattern with bits 0x80 there,
+    // the unit bit 0x1000 on the centre subtile; cleared as it lands, FUN_005da120): in the crowd then.
+    UnitState landing_mark;
     // Whirlwind as a monster casts it (srvstfunc 38 / do 76): its A1 sequence
     // looping along its path since whirl_ms, the rows passed, the last unit hit.
     bool whirl = false;
