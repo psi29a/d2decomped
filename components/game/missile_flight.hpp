@@ -210,9 +210,12 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             }
             if (missile.info->srv_do != 5) return false;
             std::erase_if(*missile.struck, [&](int key) { return key / 16 < frame; });
+            // FUN_005ae1f0 -> FUN_00641cb0: the first unit its footprint finds (standing_struck, by the
+            // unit's size), that one alone this frame (FUN_005adf10); overlapping flames each burn.
+            // ponytail: the first is the foes' order, not the near rooms' unit lists (newest first).
             for (auto& foe : foes) {
                 const int key = frame * 16 + int(&foe - foes.data());
-                if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.5f || std::ranges::contains(*missile.struck, key)) continue;
+                if (!foe.alive || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
                 const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
@@ -228,6 +231,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
                 foe.hit_class = missile.info->hit_class;
                 if (soft_hit(missile, rng)) ++foe.soft_hits;
+                break;
             }
             return false;
         }
