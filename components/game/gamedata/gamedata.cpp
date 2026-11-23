@@ -795,13 +795,6 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     }
     const bool lit_mode = npc.preoperated || (init_mode && std::string_view(init_mode) == "ON");
     npc.mode   = init_mode && !npc.preoperated ? init_mode : lit_mode ? "ON" : "NU";
-    // Hover name when selectable in its start mode (Selectable0 = NU,
-    // 2 = ON): objects.txt Name through the string tables.
-    if (objects.get(row, lit_mode ? "Selectable2" : "Selectable0") == "1") {
-        const std::string key(objects.get(row, "Name"));
-        auto name_found = lookup_string(game_data, key);
-        npc.name = name_found ? u16_to_latin1(*name_found) : key;
-    }
     // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
     npc.object_id = oid;
     npc.name_offset = std::atoi(std::string(objects.get(row, "NameOffset")).c_str());
@@ -820,6 +813,13 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         npc.frames[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "FrameCnt" + std::to_string(mode))).c_str()));
         npc.loop_from[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Start" + std::to_string(mode))).c_str()));
         npc.frame_delta[mode] = std::uint16_t(std::atoi(std::string(objects.get(row, "FrameDelta" + std::to_string(mode))).c_str()));
+    }
+    // Hover name: objects.txt Name through the string tables, for one Selectable in any mode; the
+    // hover takes it in the modes it's Selectable in (Selectable0..7 by the mode it's in, ingame.cpp).
+    if (npc.selectable != 0) {
+        const std::string key(objects.get(row, "Name"));
+        auto name_found = lookup_string(game_data, key);
+        npc.name = name_found ? u16_to_latin1(*name_found) : key;
     }
     npc.sync = objects.get(row, "Sync") == "1";
     npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
