@@ -61,6 +61,27 @@ int main() try {
     burner.dmg_par1 = 0;                            // none under 0
     (void)burn(0, &struck);
     assert(struck.soft_hits == 0 && struck.hit_class == 0x24);   // flag 1: every burn puts its class on the unit (FUN_0057cee0)
+    // One flame over two foes burns one a frame (FUN_005ae1f0 returns at the first unit found); two flames burn both.
+    {
+        const auto flames = [&](int count) {
+            std::vector<Missile> missiles;
+            for (int k = 0; k < count; ++k) {
+                Missile fire;
+                fire.info = &burner;
+                fire.x = fire.y = 4.f;
+                fire.born = 0; fire.dies = 100000;
+                fire.row = d2d::rules::MissileDamage{ .etype = 0, .elo = 0x1a0, .ehi = 0x1a0 };
+                missiles.push_back(std::move(fire));
+            }
+            std::array<Foe, 2> two{};
+            for (auto& foe : two) foe.x = foe.y = 4.f;
+            d2d::rules::Rng rng(7);
+            missiles_update(open, missiles, two, rng, 4000, [](float, float) { return std::vector<std::array<int, 4>>{}; },
+                            [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
+            return int(two[0].blows.size() + two[1].blows.size());
+        };
+        assert(flames(1) == 1 && flames(2) == 2);
+    }
     std::puts("OK: a burn keeps its 256ths (0057c852), its MDR at DamageRate / 1024; no get-hit, dParam1 soft hits");
     return 0;
 } catch (const std::exception& error) {
