@@ -14,6 +14,7 @@
 #include <level_ids.hpp>
 #include <monsters.hpp>
 #include <skills.hpp>
+#include <spawning.hpp>
 
 #include <algorithm>
 #include <cmath>

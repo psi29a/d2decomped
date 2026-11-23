@@ -75,27 +75,7 @@ inline int belt_index(const GameData& game_data, const std::vector<d2d::d2s::Ite
 // StorePage: FUN_0062e880; weapons spill onto page 2), one that has no page
 // or no room failing (FUN_00560200's spot: rules::free_spot, a store's
 // first fit). The permanent items stay buyable.
-inline Store open_store(const GameData& game_data, const Level& level, int npc, int act, int difficulty, int clvl, bool expansion,
-                        d2d::rules::Rng& proxy, d2d::rules::Rng& game, std::vector<bool>* found_uniques) {
-    const auto& vendor = level.npcs[std::size_t(npc)];
-    const auto& tables = game_data.rules;
-    Store store;
-    store.npc = npc;
-    store.npc_id = vendor.id;
-    store.hc_idx = vendor.hc_idx;
-    store.vendor = d2d::rules::vendor_index(vendor.hc_idx);
-    if (store.vendor < 0) return store;
-    for (const auto& item : tables.vendor_items[std::size_t(store.vendor)]) if (item.perm) store.perm.push_back(item.code);
-    d2d::rules::store_fill(tables, store.vendor, d2d::rules::store_level(clvl, act, difficulty), expansion, proxy, [&](const d2d::rules::StoreAsk& ask) {
-        auto made = d2d::rules::make_store_item(tables, ask, difficulty, clvl, expansion, proxy, game, found_uniques);
-        if (!made) return false;
-        const auto info = tables.item_info.find(made->code);
-        const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
-        const int page = type != tables.types.end() ? type->second.store_page : -1;
-        return page >= 0 && d2d::rules::store_place(tables, store, page, std::move(*made));
-    });
-    store.first_tab();
-    return store;
-}
+Store open_store(const GameData& game_data, const Level& level, int npc, int act, int difficulty, int clvl, bool expansion,
+                        d2d::rules::Rng& proxy, d2d::rules::Rng& game, std::vector<bool>* found_uniques);
 
 }  // namespace d2d::game

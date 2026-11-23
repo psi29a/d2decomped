@@ -6,8 +6,12 @@
 
 #include "ai.hpp"
 #include "ai/units.hpp"
+#include "cof_anim.hpp"
 #include "game.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
+#include "spawning.hpp"
 
 #include <compcode.hpp>
 #include <drlg.hpp>
@@ -56,6 +60,29 @@
 #include <vector>
 
 namespace d2d::game {
+
+// The heavy members (the MPQs, the town, the act layouts) on the heap: the
+// header holds them by pointer, so most files never parse their types.
+GameData::GameData()
+    : mpq_stack(std::make_unique<d2d::mpq::Stack>()), mpqs(*mpq_stack), town_level(std::make_unique<Level>()), town(*town_level),
+      act_layouts(std::make_unique<ActLayouts>()), layouts(*act_layouts) {}
+// Moved, the references bind to the same heap objects the pointers hand over.
+GameData::GameData(GameData&&) noexcept = default;
+GameData::~GameData() = default;
+
+int level_act(const Level* level) { return level ? d2d::rules::level_ids::act_of(level->id) : 0; }
+
+const std::vector<d2d::drlg::Placed>& ActLayouts::layout_of(int id) const {
+    static const std::vector<d2d::drlg::Placed> kNone;
+    switch (d2d::rules::level_ids::act_of(id)) {
+        case 0: return act1_layout;
+        case 1: return act2_layout;
+        case 2: return act3_layout.levels;
+        case 3: return act4_layout;
+        case 4: return act5_layout;
+        default: return kNone;
+    }
+}
 
 // A composite's COF, the World's part of loading it: the file, its name
 // (animdata's key) and timing.
@@ -1010,7 +1037,7 @@ std::vector<d2d::drlg::BuiltRoom> camp_rooms(const GameData& game_data, const Sp
         if (!std::ranges::contains(came_up, i)) continue;
         auto& room = made.emplace_back();
         room.x = rects[i].x - town.world_x, room.y = rects[i].y - town.world_y, room.width = rects[i].width, room.height = rects[i].height;
-        room.kind = 2, room.def = 1, room.file = std::max(0, d2d::drlg::town_file(game_data.act1_layout)), room.rolled = true;
+        room.kind = 2, room.def = 1, room.file = std::max(0, d2d::drlg::town_file(game_data.layouts.act1_layout)), room.rolled = true;
     }
     std::vector<std::size_t> order;                      // list indices: the list is newest first
     for (const auto room : came_up) order.push_back(made.size() - 1 - std::size_t(std::ranges::count_if(came_up, [&](std::size_t other) { return other < room; })));
@@ -1206,8 +1233,8 @@ std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const 
     for (const auto& [preset_def, preset] : assets.data.presets)
         if (preset.level_id == level.id && (def == 0 || preset_def < def)) def = preset_def;
     if (def == 0) return {};
-    const int file = level.id == ids::kRogueEncampment ? std::max(0, d2d::drlg::town_file(game_data.act1_layout))
-                   : level.id == ids::kLutGholein      ? d2d::drlg::lut_gholein_file(game_data.act2_layout) : 0;
+    const int file = level.id == ids::kRogueEncampment ? std::max(0, d2d::drlg::town_file(game_data.layouts.act1_layout))
+                   : level.id == ids::kLutGholein      ? d2d::drlg::lut_gholein_file(game_data.layouts.act2_layout) : 0;
     std::vector<d2d::drlg::Outdoor::RoomSeed> made;
     for (const auto& rect : room_rects(level)) {
         auto& room = made.emplace_back();
@@ -1215,8 +1242,8 @@ std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const 
         room.kind = 2, room.def = def, room.file = file, room.rolled = true;
     }
     std::vector<std::string> notes;
-    const auto dt1s = game_data.prest_automap_dt1s.find(level.id);
-    auto rooms = d2d::drlg::level_room_tiles(made, {}, assets.data, dt1s == game_data.prest_automap_dt1s.end() ? d2d::drlg::RoomDt1s{} : dt1s->second,
+    const auto dt1s = game_data.layouts.prest_automap_dt1s.find(level.id);
+    auto rooms = d2d::drlg::level_room_tiles(made, {}, assets.data, dt1s == game_data.layouts.prest_automap_dt1s.end() ? d2d::drlg::RoomDt1s{} : dt1s->second,
                                              level.id, d2d::drlg::warp_slots(assets, level.id), notes);
     std::ranges::reverse(rooms);                          // the list is newest first: split order
     for (auto& room : rooms) room.seed = nullptr;        // `made` goes
@@ -1326,8 +1353,8 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
 // An outdoor level of the act (the Blood Moor): drlg generate_outdoor
 // where the act's layout put it, on its level seed.
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level) {
-    const auto outdoor_level = d2d::rules::level_ids::act_of(level.id) == 2 ? d2d::drlg::act3_outdoor_level(assets.levels, game_data.act3_layout, level.id)
-                                                                            : d2d::drlg::outdoor_level(assets.levels, game_data.layout_of(level.id), level.id);
+    const auto outdoor_level = d2d::rules::level_ids::act_of(level.id) == 2 ? d2d::drlg::act3_outdoor_level(assets.levels, game_data.layouts.act3_layout, level.id)
+                                                                            : d2d::drlg::outdoor_level(assets.levels, game_data.layouts.layout_of(level.id), level.id);
     if (outdoor_level.rect.width == 0) { d2d::log::warn("{}: the layout didn't place it", level.name); return false; }
     const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     assets.data.dt1s = &dt1s.heads;                          // stamps pick their shadows as they go (game.exe's rolls)
@@ -1372,8 +1399,8 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
     std::vector<std::string> notes;
     const int size_x = d2d::drlg::to_int(assets.levels.get(row, "SizeX")), size_y = d2d::drlg::to_int(assets.levels.get(row, "SizeY"));
     const auto seed = d2d::drlg::level_seed(game_data.map_seed, level.id);
-    int court_file = level.id == d2d::rules::level_ids::kOuterCloister || level.id == d2d::rules::level_ids::kBarracks ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1;
-    if (level.id == d2d::rules::level_ids::kLutGholein) court_file = d2d::drlg::lut_gholein_file(game_data.act2_layout);   // LutW / LutN by the Rocky Waste's side
+    int court_file = level.id == d2d::rules::level_ids::kOuterCloister || level.id == d2d::rules::level_ids::kBarracks ? d2d::drlg::courtyard_file(game_data.layouts.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1;
+    if (level.id == d2d::rules::level_ids::kLutGholein) court_file = d2d::drlg::lut_gholein_file(game_data.layouts.act2_layout);   // LutW / LutN by the Rocky Waste's side
     const auto [origin_x, origin_y] = d2d::drlg::level_origin(assets.levels, row);
     std::array<int, 4> rect{ origin_x, origin_y, size_x, size_y };
     if (const auto court = d2d::drlg::level_row(assets.levels, d2d::rules::level_ids::kOuterCloister); level.id == d2d::rules::level_ids::kBarracks && court) {   // the Barracks sits beside the Outer Cloister
@@ -1383,7 +1410,7 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
         rect = { court_x, court_y, d2d::drlg::to_int(assets.levels.get(*court, "SizeX")), d2d::drlg::to_int(assets.levels.get(*court, "SizeY")) };
     }
     if (level.id == d2d::rules::level_ids::kRiverOfFlame)   // FUN_00673320 hangs it under the Chaos Sanctuary
-        for (const auto& placement : game_data.act4_layout)
+        for (const auto& placement : game_data.layouts.act4_layout)
             if (placement.level == d2d::rules::level_ids::kChaosSanctuary) rect = { placement.x, placement.y, placement.width, placement.height };
     auto made = preset_level ? d2d::drlg::generate_preset(assets.data, level.id, size_x, size_y, seed, notes, court_file)
                              : d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, seed, game_data.difficulty, notes, court_file, &rect);
@@ -1429,7 +1456,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     level->name = std::string(assets.levels.get(*row, "LevelName"));
     // A preset the layout places (the Monastery Gate, DrlgType 2) builds as a preset: its rooms (64x18: an 8x2 row) are the DS1's.
     const bool outdoor = d2d::drlg::to_int(assets.levels.get(*row, "DrlgType")) == 3 &&
-                         std::ranges::any_of(game_data.layout_of(id), [&](const auto& placement) { return placement.level == id; });
+                         std::ranges::any_of(game_data.layouts.layout_of(id), [&](const auto& placement) { return placement.level == id; });
     if (!(outdoor ? build_outdoor(game_data, *builder.mpqs, assets, *level) : build_maze(game_data, *builder.mpqs, assets, *level, *row))) return nullptr;
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     for (std::size_t row_index = 0; row_index < builder.levels.size(); ++row_index) {
@@ -1587,7 +1614,7 @@ void seed_client_units(Level& level) {
 // level is linked with the act levels already there, both ways, and with the
 // levels it walks into.
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level) {
-    auto in_act = [&](int level_id) { return std::ranges::contains(game_data.layout_of(id), level_id, &d2d::drlg::Placed::level); };
+    auto in_act = [&](int level_id) { return std::ranges::contains(game_data.layouts.layout_of(id), level_id, &d2d::drlg::Placed::level); };
     if (level) {
         const auto walks = walk_links(game_data, id);
         auto linked = [&](int level_id) { return (in_act(id) && in_act(level_id)) || std::ranges::contains(walks, level_id); };
@@ -1600,7 +1627,7 @@ void install_level(const GameData& game_data, int id, std::unique_ptr<Level> lev
         }
     }
     if (level) seed_client_units(*level);
-    if (level && level->assets) std::tie(level->vis, level->vis_warp) = d2d::drlg::level_vis(level->assets->levels, game_data.layout_of(id), id);
+    if (level && level->assets) std::tie(level->vis, level->vis_warp) = d2d::drlg::level_vis(level->assets->levels, game_data.layouts.layout_of(id), id);
     game_data.levels[id] = std::move(level);
 }
 
@@ -1639,7 +1666,7 @@ const Level* GameData::level(int id) const {
 // The levels a player on `l` may reach next: the act's levels touching
 // it, and where its warps lead.
 void want_nearby(const GameData& game_data, const Level& level) {
-    const auto& layout = game_data.layout_of(level.id);
+    const auto& layout = game_data.layouts.layout_of(level.id);
     const auto placement = std::ranges::find(layout, level.id, &d2d::drlg::Placed::level);
     if (placement != layout.end())
         for (const auto& other_placement : layout)

@@ -10,6 +10,7 @@
 #include <d2s_items.hpp>
 #include <drlg.hpp>
 #include <dt1.hpp>
+#include <level.hpp>
 #include <light.hpp>
 #include <object_ids.hpp>
 #include <outdoor_data.hpp>

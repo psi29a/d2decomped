@@ -19,6 +19,7 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <monsters.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>

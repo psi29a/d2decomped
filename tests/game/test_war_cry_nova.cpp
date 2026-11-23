@@ -7,6 +7,7 @@
 
 #include <ai.hpp>
 #include <ai/units.hpp>
+#include <cof_anim.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <level_ids.hpp>

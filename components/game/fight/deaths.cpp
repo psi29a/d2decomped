@@ -8,7 +8,9 @@
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>

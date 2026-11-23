@@ -10,10 +10,12 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <loot.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <algorithm>

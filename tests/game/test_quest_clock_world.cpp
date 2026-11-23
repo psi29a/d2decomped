@@ -9,7 +9,9 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
+#include <npc.hpp>
 #include <object_ids.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>

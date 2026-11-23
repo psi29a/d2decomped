@@ -2,7 +2,9 @@
 // Definitions for gamedata_load.hpp: GameData from the MPQs.
 #include "gamedata_load.hpp"
 
+#include "cof_anim.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
 
 #include <compcode.hpp>
@@ -121,11 +123,11 @@ void place_act1(GameData& game_data, d2d::mpq::Stack& mpqs, const d2d::drlg::Out
     load_town(game_data, mpqs, kTown[std::size_t(std::max(0, d2d::drlg::town_file(layout)))]);
     for (const auto& placement : layout)
         if (placement.level == 1) { game_data.town.world_x = placement.x; game_data.town.world_y = placement.y; }
-    game_data.act1_layout = layout;
-    game_data.act2_layout = d2d::drlg::act2_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
-    game_data.act3_layout = d2d::drlg::act3_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
-    game_data.act4_layout = d2d::drlg::act4_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
-    game_data.act5_layout = d2d::drlg::act5_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.layouts.act1_layout = layout;
+    game_data.layouts.act2_layout = d2d::drlg::act2_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.layouts.act3_layout = d2d::drlg::act3_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.layouts.act4_layout = d2d::drlg::act4_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.layouts.act5_layout = d2d::drlg::act5_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
 }
 
 // Monster tables (MonStats, MonStats2, MonLvl), unique names and mods, and
@@ -1932,7 +1934,7 @@ void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t m
     for (const int level_id : game_data.prest_automap)               // the DT1s preset_rooms picks from
         if (!std::ranges::contains(d2d::rules::level_ids::kMiniatureTowns, level_id))
             if (const auto row = d2d::drlg::level_row(act1->levels, level_id))
-                game_data.prest_automap_dt1s[level_id] = d2d::drlg::load_room_dt1s(
+                game_data.layouts.prest_automap_dt1s[level_id] = d2d::drlg::load_room_dt1s(
                     *act1, [&](const std::string& path) { return mpqs.try_read(path); }, d2d::drlg::to_int(act1->levels.get(*row, "LevelType")));
     // The other levels build when they're first wanted (GameData::level).
     game_data.builder = std::make_shared<GameData::LevelBuilder>();

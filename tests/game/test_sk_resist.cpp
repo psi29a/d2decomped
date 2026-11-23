@@ -17,6 +17,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
 #include <skills.hpp>

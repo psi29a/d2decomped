@@ -13,6 +13,7 @@
 #include <combat.hpp>
 #include <dc6.hpp>
 #include <dt1.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <overlays.hpp>

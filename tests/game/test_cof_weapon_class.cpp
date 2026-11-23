@@ -4,8 +4,10 @@
 // name: FUN_0064f5b0, ..."): DT and DD name hth unless MonStats2 compositeDeath, every
 // other mode BaseW; objects and composite deaths keep BaseW. MonStats2's
 // column reaches the Npc, and a joined client gets it on the wire.
+#include <cof_anim.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <npc.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>
 #include <txt.hpp>

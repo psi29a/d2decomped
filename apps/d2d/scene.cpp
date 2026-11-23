@@ -5,6 +5,7 @@
 #include "common.hpp"
 #include "load.hpp"
 
+#include <cof_anim.hpp>
 #include <d2s_items.hpp>
 #include <dc6.hpp>
 

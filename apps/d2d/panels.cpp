@@ -27,6 +27,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <spawning.hpp>
 
 #include <algorithm>
 #include <array>
@@ -842,11 +843,11 @@ void automap_town(Automap& automap, const GameData& game_data, int layer) {
     for (const int town_id : { d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }) {
         const auto built = game_data.levels.find(town_id);
         if (built == game_data.levels.end() || !built->second || built->second->layer != layer) continue;
-        const auto& layout = game_data.layout_of(town_id);
+        const auto& layout = game_data.layouts.layout_of(town_id);
         const auto placed = std::ranges::find(layout, town_id, &d2d::drlg::Placed::level);
         if (placed == layout.end()) continue;
         // FUN_00668100: the level's middle, x + w / 2, y + h / 2; its preset's file (Lut Gholein's by the Rocky Waste).
-        const int preset_file = town_id == d2d::rules::level_ids::kLutGholein ? d2d::drlg::lut_gholein_file(game_data.act2_layout) : 0;
+        const int preset_file = town_id == d2d::rules::level_ids::kLutGholein ? d2d::drlg::lut_gholein_file(game_data.layouts.act2_layout) : 0;
         automap.cel_file = d2d::rules::miniature_cel_file(town_id);
         const auto& town = *built->second;                       // where d2d draws it: its act tiles
         for (const auto& cell : d2d::rules::automap_miniature(town_id, preset_file, town.world_x + placed->width / 2, town.world_y + placed->height / 2))

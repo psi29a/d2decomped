@@ -2,6 +2,7 @@
 // Act 2's think inputs (rules/thinks/act2.hpp reads them).
 #include "ai.hpp"
 #include "ai/units.hpp"
+#include "level.hpp"
 
 #include "gamedata.hpp"
 #include "internal.hpp"

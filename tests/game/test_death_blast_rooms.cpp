@@ -10,6 +10,7 @@
 // fire within 6 subtiles. No game data: the rooms are built here.
 
 #include <ai/units.hpp>
+#include <level.hpp>
 #include <cassert>
 #include <cstdio>
 #include <ds1.hpp>

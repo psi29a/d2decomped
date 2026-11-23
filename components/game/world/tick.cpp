@@ -11,10 +11,13 @@
 #include "gamedata.hpp"
 #include "internal.hpp"
 #include "inventory.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "loot.hpp"
+#include "npc.hpp"
 #include "npc_talk.hpp"
 #include "protocol.hpp"
+#include "spawning.hpp"
 
 #include <ambient_dip.hpp>
 #include <combat.hpp>

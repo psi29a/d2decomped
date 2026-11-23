@@ -14,6 +14,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <overlays.hpp>
 #include <rules.hpp>

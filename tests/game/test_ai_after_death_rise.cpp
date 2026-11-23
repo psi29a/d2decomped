@@ -7,8 +7,10 @@
 
 #include <ai.hpp>
 #include <ai/units.hpp>
+#include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
 #include <world.hpp>

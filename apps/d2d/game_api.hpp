@@ -7,6 +7,7 @@
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <cof_anim.hpp>
 #include <cues.hpp>
 #include <fight.hpp>
 #include <game.hpp>
@@ -14,12 +15,14 @@
 #include <gamedata_load.hpp>
 #include <inventory.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <loot.hpp>
 #include <npc_menu.hpp>
 #include <npc_talk.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <filesystem>   // IWYU pragma: keep (namespace fs)

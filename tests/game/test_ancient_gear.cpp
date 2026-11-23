@@ -9,6 +9,7 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>

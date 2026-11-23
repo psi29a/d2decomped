@@ -9,8 +9,10 @@
 #include "cues.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "level.hpp"
 #include "log.hpp"
 #include "missile_flight.hpp"
+#include "spawning.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>

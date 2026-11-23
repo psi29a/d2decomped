@@ -25,6 +25,7 @@
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <quests.hpp>

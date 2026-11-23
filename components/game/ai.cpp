@@ -6,7 +6,10 @@
 #include "ai/internal.hpp"
 #include "game.hpp"
 #include "gamedata.hpp"
+#include "level.hpp"
 #include "log.hpp"
+#include "npc.hpp"
+#include "spawning.hpp"
 
 #include <chat_commands.hpp>
 #include <combat.hpp>

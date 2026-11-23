@@ -7,6 +7,7 @@
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "level.hpp"
 
 #include <combat.hpp>
 #include <d2s.hpp>

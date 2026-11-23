@@ -7,6 +7,7 @@
 
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 
 #include <cassert>
 #include <cstdio>

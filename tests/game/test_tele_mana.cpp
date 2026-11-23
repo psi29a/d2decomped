@@ -13,6 +13,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <outdoor.hpp>
 #include <rules.hpp>

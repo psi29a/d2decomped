@@ -11,6 +11,7 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <protocol.hpp>
 #include <quests_act3.hpp>
 #include <rules.hpp>

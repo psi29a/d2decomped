@@ -11,6 +11,7 @@
 #include <ambient_dip.hpp>
 #include <critters.hpp>
 #include <cues.hpp>
+#include <level.hpp>
 #include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>

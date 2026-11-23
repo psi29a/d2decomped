@@ -9,7 +9,9 @@
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <monster_ids.hpp>
+#include <npc.hpp>
 #include <obj_preset.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>

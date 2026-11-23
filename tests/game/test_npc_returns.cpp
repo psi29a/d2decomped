@@ -13,7 +13,9 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
+#include <npc.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>
 #include <sound_ids.hpp>

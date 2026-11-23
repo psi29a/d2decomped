@@ -10,8 +10,10 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
+#include <npc.hpp>
 #include <npc_talk.hpp>
 #include <protocol.hpp>
 #include <rules.hpp>

@@ -10,6 +10,7 @@
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <loot.hpp>
 #include <rules.hpp>
 #include <skills.hpp>

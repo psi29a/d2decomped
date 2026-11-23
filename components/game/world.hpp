@@ -337,7 +337,7 @@ struct World {
         const auto visit = [&](Player& player) {
             const Level* theirs = split_levels && player.on_level ? player.on_level : level;
             act_as(player);
-            each(player, theirs ? d2d::rules::level_ids::act_of(theirs->id) : 0);
+            each(player, level_act(theirs));
         };
         for (auto& player : players) visit(*player);
         for (Player* player : elsewhere) visit(*player);
@@ -514,7 +514,7 @@ struct World {
     std::vector<d2d::rules::HireEntry>& hire_list(int list_act);
     [[nodiscard]] std::vector<d2d::rules::MercOffer> hire_offers(int list_act) const;
     // The player's act (0-based): the act of the level they're on.
-    [[nodiscard]] int act() const { return level ? d2d::rules::level_ids::act_of(level->id) : 0; }
+    [[nodiscard]] int act() const { return level_act(level); }
     d2d::rules::QuestClock quest_clock;    // the quest timers' clock: a step every 20 frames (FUN_0052d870)
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
@@ -825,18 +825,10 @@ struct World {
     // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
     // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
     // tile unit's subtile ((x - y) * 16, (x + y) * 8, FUN_00643260), edges in.
-    [[nodiscard]] static bool warp_clicked(const Level::Warp& warp, float x, float y) {
-        const int unit_x = int(std::floor(warp.unit_x * 5)), unit_y = int(std::floor(warp.unit_y * 5));
-        const float pixel_x = (x - y) * 80 - float((unit_x - unit_y) * 16), pixel_y = (x + y) * 40 - float((unit_x + unit_y) * 8);
-        const auto [select_x, select_y, select_dx, select_dy] = warp.select;
-        return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
-    }
+    [[nodiscard]] static bool warp_clicked(const LevelWarp& warp, float x, float y);
     // Within reach of the warp's tile unit: rules::unit_distance (the
     // player's size 2, a warp unit's 0) under rules::kWarpReach (FUN_00641530).
-    [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
-        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < d2d::rules::kWarpReach;
-    }
+    [[nodiscard]] static bool warp_close(const LevelWarp& warp, float x, float y);
     bool host_warps = false;   // a joined game: the host takes warps; d2d follows its 0x15 there
 
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
@@ -848,11 +840,7 @@ struct World {
     // when free, else the least |dx| + |dy| in the first ring that has one, rings 1 to 49.
     // Level::nearest_free scans each ring in another order and goes out to ring 199, so it lands
     // on another subtile. No spot: nullopt, the warp is not taken (FUN_00554ea0 returns 0).
-    [[nodiscard]] static std::optional<std::pair<float, float>> warp_arrival(const Level& level, float unit_x, float unit_y) {
-        const auto spot = level.warp_spot(int(std::floor(unit_x * 5)), int(std::floor(unit_y * 5)));
-        if (!spot) return std::nullopt;
-        return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
-    }
+    [[nodiscard]] static std::optional<std::pair<float, float>> warp_arrival(const Level& level, float unit_x, float unit_y);
     std::vector<d2d::rules::QuestMsg> quest_talk(int hc_idx, bool fresh = true);   // every quest's messages from that NPC (fresh: rolls the guard's line)
     void andariel_died(const Fight::Kill& kill, std::uint32_t now_ms);
     void mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms);

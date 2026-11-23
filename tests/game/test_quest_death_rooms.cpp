@@ -17,6 +17,7 @@
 #include <ds1.hpp>
 #include <exception>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 

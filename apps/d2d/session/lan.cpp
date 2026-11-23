@@ -11,6 +11,7 @@
 #include <cues.hpp>
 #include <gamedata.hpp>
 #include <lan.hpp>
+#include <level.hpp>
 #include <log.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>

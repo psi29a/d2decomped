@@ -26,6 +26,8 @@ add_library(game STATIC
     fight/tick.cpp
     gamedata/gamedata.cpp
     gamedata/gamedata_load.cpp
+    inventory.cpp
+    loot.cpp
     objgroups.cpp
     protocol.cpp
     replication.cpp

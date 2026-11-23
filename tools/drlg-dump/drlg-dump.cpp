@@ -20,14 +20,17 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <install.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <maze.hpp>
 #include <mpq.hpp>
+#include <npc.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
+#include <spawning.hpp>
 #include <tile_pick.hpp>
 #include <town_npcs.hpp>
 #include <txt.hpp>

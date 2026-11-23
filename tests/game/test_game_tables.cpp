@@ -12,12 +12,14 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>

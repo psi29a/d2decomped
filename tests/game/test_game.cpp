@@ -21,10 +21,12 @@
 #include <gamedata_load.hpp>
 #include <inventory.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
+#include <npc.hpp>
 #include <object_ids.hpp>
 #include <protocol.hpp>
 #include <quests.hpp>
@@ -35,6 +37,7 @@
 #include <skill_text.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 

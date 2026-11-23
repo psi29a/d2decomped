@@ -18,6 +18,7 @@
 // rand(AnimLen) (+0x178) << 8 into +0x44. It lives its row's Range in frames
 // (FUN_004d30c0 counts it down). FUN_0045c3e0 is rules::Rng's roll.
 
+#include "level.hpp"
 #include "world.hpp"
 
 #include <rules.hpp>

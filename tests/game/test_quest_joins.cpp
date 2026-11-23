@@ -10,12 +10,14 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
 #include <rules.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <algorithm>
