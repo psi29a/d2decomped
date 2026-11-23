@@ -28,3 +28,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00423a00` | `sbig_or` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_004229d0(a, b)`; dst = a OR b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a80` | `sbig_shl` | dst, a, n (`RET 0xc`): `EDI` = dst, `EAX` = n, then `FUN_00422d00(a)`; dst = a << n | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423aa0` | `sbig_shr` | dst, a, n (`RET 0xc`): `ESI` = dst, `EAX` = n, then `FUN_00422e70(a)`; dst = a >> n | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423ac0` | `sbig_sub` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00423100(a, b)`; dst = a − b (run for a ≥ b) | no counterpart (as `sbig_pow_mod`) |
