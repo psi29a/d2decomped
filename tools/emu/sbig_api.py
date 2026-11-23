@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a80 FUN_00423aa0 FUN_00423ac0
+# gaps-runs: FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_00423870 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a80 FUN_00423aa0 FUN_00423ac0
 
 Numbers are made and read through the cited SBigNew (FUN_00423950),
 SBigFromBinary (FUN_00423850) and SBigToBinaryBuffer (FUN_00423b30), with
@@ -48,6 +48,7 @@ OPS = {   # address: (arguments, operation, {mutation: operation})
     0x4237B0: ("ab", lambda a, b: a & b, {"and_or": lambda a, b: a | b}),
     0x4237D0: ("a", lambda a: a, {"copy_zero": lambda a: 0}),
     0x423800: ("a1", lambda a: a - 1, {"dec_by_2": lambda a: a - 2}),
+    0x423870: ("str", lambda text: decimal(text), {"from_str_base_16": lambda text: decimal(text, 16)}),
     0x4238B0: ("u", lambda u: u, {"from_low_16": lambda u: u & 0xFFFF}),
     0x4238D0: ("a", lambda a: a + 1, {"inc_by_2": lambda a: a + 2}),
     0x4238F0: ("test", lambda a: a & 1, {"odd_is_even": lambda a: 1 - (a & 1)}),
