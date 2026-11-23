@@ -3,7 +3,7 @@
 // and the picker a click on one opens, plus the skill hotkeys (F1-F8).
 // The chosen skills and hotkeys start from the save (header
 // +0x38..0x87); a character's level in a skill is its points plus item
-// bonuses (components/rules/skills.hpp). The picker's fan anchors and
+// bonuses (components/rules/combat/skills.hpp). The picker's fan anchors and
 // per-row iteration follow spellsel.cpp FUN_004aa7e0 (kLeftX = 0x50,
 // kRightX = screen_width - 0x80, up to five rows keyed by SkillDesc
 // ListRow 0..4). docs/research/re/skills.md "Skill HUD" has the trace.
@@ -32,7 +32,7 @@
 #include <string>
 
 #include "common.hpp"
-#include "items.hpp"
+#include "items/items.hpp"
 #include "scene.hpp"
 #include "skills/list.hpp"
 #include "skills/pad.hpp"

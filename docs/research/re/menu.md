@@ -335,7 +335,7 @@ each, from `tools/emu/minipanel_layout.py` (game.exe's layout at 640 ×
 - Release `FUN_0047ed90` → `FUN_0047ec50`: 0 character, 1 inventory,
   2 skills, 3 the Party screen (only when the game type isn't 0), 4
   automap, 5 messages, 6 quests, 7 the game menu.
-- d2d (apps/d2d/mini_panel.hpp): a joined game (`net_game`, game.exe's
+- d2d (apps/d2d/panels/mini_panel.hpp): a joined game (`net_game`, game.exe's
   type 9) takes the wide form, where its Party screen is; single player,
   local co-op (the HUD hidden) and d2d's own `--host` / `--connect` LAN
   games keep the single-player bar, as the P key opens the Party screen
@@ -368,7 +368,7 @@ The belt's draw (`FUN_00499040`) clears 0x7bef98 when neither UI 0x1f
 nor 0x7bef9c is set (0x4990ce), or UI 9 is up (0x4990e2). A click on
 the strip (`FUN_004996a0`, the mouse-up handler) uses or takes the
 box's item (`FUN_00498870`); it doesn't toggle the popup. d2d:
-`apps/d2d/belt_popup.hpp`, `ClientSession::belt_up`; the mini-panel's move:
+`apps/d2d/panels/belt_popup.hpp`, `ClientSession::belt_up`; the mini-panel's move:
 `belt_popup::moves_mini_panel`, `ClientSession::mini_right`.
 
 ## The pause

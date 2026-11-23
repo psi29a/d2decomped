@@ -2,7 +2,7 @@
 // Definitions for window.hpp: SDL events.
 #include "window.hpp"
 
-#include "controls.hpp"
+#include "panels/controls.hpp"
 
 #include "d2d_icon.hpp"
 #include "platform.hpp"

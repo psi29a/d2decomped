@@ -3,16 +3,16 @@
 // frame. The rest is in this directory.
 #include "session.hpp"
 
-#include "bar_pick.hpp"
 #include "common.hpp"
-#include "ingame.hpp"
 #include "internal.hpp"
-#include "panels.hpp"
+#include "panels/panels.hpp"
 #include "platform.hpp"
+#include "render/bar_pick.hpp"
+#include "render/ingame.hpp"
+#include "render/tile_blit.hpp"
+#include "render/world_view.hpp"
 #include "scene.hpp"
-#include "tile_blit.hpp"
 #include "ui.hpp"
-#include "world_view.hpp"
 
 #include <combat.hpp>
 #include <cues.hpp>

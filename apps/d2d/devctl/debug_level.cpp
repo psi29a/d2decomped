@@ -3,8 +3,8 @@
 // (docs/control_channel.md). In name order: a new one goes where it sorts.
 #include "debug.hpp"
 
-#include "automap_reveal.hpp"
-#include "panels.hpp"
+#include "panels/automap_reveal.hpp"
+#include "panels/panels.hpp"
 #include "session.hpp"
 
 #include <d2s_items.hpp>

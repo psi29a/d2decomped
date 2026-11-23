@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // Controller UX decisions, not original-game parity claims.
-#include "gamepad_map.hpp"
+#include "input/gamepad_map.hpp"
 #include "skills/pad.hpp"
 
 #include <array>

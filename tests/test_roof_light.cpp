@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game dt1 palette font dc6 dcc cof
-// test-sources: apps/d2d/common.cpp apps/d2d/scene/render.cpp apps/d2d/tile_blit.cpp apps/d2d/world_view.cpp
+// test-sources: apps/d2d/common.cpp apps/d2d/scene/render.cpp apps/d2d/render/tile_blit.cpp apps/d2d/render/world_view.cpp
 // test-includes: apps/d2d
 // Raised roofs use the environment's intensity (FUN_004dea70 /
 // FUN_004ddef0 / FUN_0061c0e0), while flat roofs use the local light grid.
 // Synthetic pixels and palettes exercise render_world without game data.
 #include "common.hpp"
+#include "render/tile_blit.hpp"
+#include "render/world_view.hpp"
 #include "scene.hpp"
-#include "tile_blit.hpp"
-#include "world_view.hpp"
 
 #include <ds1.hpp>
 #include <dt1.hpp>

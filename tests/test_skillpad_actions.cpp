@@ -3,7 +3,7 @@
 // test-includes: apps/d2d
 // Issue #144: panel assignments survive a reload; Use works in inventory
 // and shops through the right-click path (FUN_004917c0 / FUN_00487740).
-#include "gamepad_map.hpp"
+#include "input/gamepad_map.hpp"
 #include "skills/pad.hpp"
 
 #include <cassert>

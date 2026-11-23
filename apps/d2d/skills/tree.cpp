@@ -3,7 +3,7 @@
 #include "skills/tree.hpp"
 
 #include "common.hpp"
-#include "items.hpp"
+#include "items/items.hpp"
 #include "scene.hpp"
 
 #include <d2s_items.hpp>

@@ -10,7 +10,7 @@
 // rule's (the gap under its walkways).
 #include <dt1.hpp>
 #include <mpq.hpp>
-#include <tile_blit.hpp>
+#include <render/tile_blit.hpp>
 
 #include <cassert>
 #include <cstdio>

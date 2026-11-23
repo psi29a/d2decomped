@@ -2,7 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 // FUN_004336c0's title version record 0x115.
-#include <title_rules.hpp>
+#include <frontend/title_rules.hpp>
 
 #include <cassert>
 #include <cstdio>

@@ -4,7 +4,7 @@
 // its own View goes back each tick. The rest is in this directory.
 #include "session.hpp"
 
-#include "audio.hpp"
+#include "audio/audio.hpp"
 #include "load.hpp"
 #include "ui.hpp"
 

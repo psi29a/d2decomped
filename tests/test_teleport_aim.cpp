@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
-// test-sources: apps/d2d/teleport_aim.cpp
+// test-sources: apps/d2d/input/teleport_aim.cpp
 // test-includes: apps/d2d
-#include "teleport_aim.hpp"
+#include "input/teleport_aim.hpp"
 #include "touch/input.hpp"
 
 #include <cassert>

@@ -2,8 +2,8 @@
 // test-links:
 // test-includes: apps/d2d
 // UX decisions; original aura selection uses SelectSkill, not an attack.
-#include "gamepad_map.hpp"
-#include "item_use.hpp"
+#include "input/gamepad_map.hpp"
+#include "items/item_use.hpp"
 #include "skills/pad.hpp"
 
 #include <cassert>

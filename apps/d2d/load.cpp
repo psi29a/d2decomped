@@ -3,9 +3,9 @@
 #include "load.hpp"
 
 #include "common.hpp"
-#include "cursor_anim.hpp"
-#include "gamemenu.hpp"
-#include "save_list.hpp"
+#include "frontend/save_list.hpp"
+#include "input/cursor_anim.hpp"
+#include "panels/gamemenu.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 

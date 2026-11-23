@@ -4,11 +4,11 @@
 // this directory.
 #include "session.hpp"
 
-#include "audio.hpp"
+#include "audio/audio.hpp"
+#include "items/use_item.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
-#include "use_item.hpp"
 
 #include <d2s_items.hpp>
 #include <item_text.hpp>

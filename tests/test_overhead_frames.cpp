@@ -6,7 +6,7 @@
 // overhead_string: a monster's or object's text is atol'd, 1..0xfffe
 // (FUN_004a0d20); a player's needs 0xff 0xff and one of FUN_004a0b30's
 // ranges. overhead_text_shown: FUN_0049e280's language check.
-#include "overhead.hpp"
+#include "render/overhead.hpp"
 
 #include <cassert>
 #include <cstdio>

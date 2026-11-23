@@ -36,7 +36,7 @@ by stock 1.14d (unit-sounds.md "In d2d"), so in a game d2d hosts it
 plays every sound the original does; a joined game takes each monster's
 impact from the host's hit class (S->C 0x0c, unit-sounds.md "In d2d").
 Sounds start and mix as game.exe's do (sound.md "Starting a sound",
-"Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio.hpp):
+"Solo and the game menu"; rules/sound_start.hpp, apps/d2d/audio/audio.hpp):
 Compound, Defer / Stop Inst, one line at a time per unit, the Solo duck
 to 70% and the menu's fade-out. Nothing open.
 

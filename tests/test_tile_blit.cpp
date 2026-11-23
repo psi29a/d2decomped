@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game dt1 palette font dc6
-// test-sources: apps/d2d/tile_blit.cpp
+// test-sources: apps/d2d/render/tile_blit.cpp
 // test-includes: apps/d2d
 // The DT1 tile blitters (tile_blit.cpp) against a copy of their first,
 // per-pixel form: the same bytes for every tile, clip, alpha, hole and
 // light grid. `test_tile_blit --bench` times both.
 #include "common.hpp"
-#include "tile_blit.hpp"
+#include "render/tile_blit.hpp"
 
 #include <dt1.hpp>
 #include <light.hpp>

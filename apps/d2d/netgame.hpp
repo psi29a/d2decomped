@@ -8,7 +8,7 @@
 // casts, items or own moves to the host yet (tier C).
 #pragma once
 
-#include "party.hpp"
+#include "panels/party.hpp"
 
 #include <d2s_items.hpp>
 #include <join.hpp>

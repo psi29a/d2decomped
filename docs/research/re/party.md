@@ -464,7 +464,7 @@ uv run python party_regroup.py inc 2000 7 | diff - ../../tests/party_regroup_cas
     less the suffix's width, then the suffix is appended: "Catacombs
     Lev...4".
 
-  d2d: `client::cut_party_name` / `cut_party_area` (apps/d2d/party_cut.hpp)
+  d2d: `client::cut_party_name` / `cut_party_area` (apps/d2d/panels/party_cut.hpp)
   match stock 1.14d on 2000 cases with a hooked font
   (`tools/emu/party_cut.py`, tests/test_party_cut.cpp).
 - `FUN_0049a690`: the party button, `partybuttons` frame 0 at (0xbe, y),

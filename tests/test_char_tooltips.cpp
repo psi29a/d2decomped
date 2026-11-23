@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: dcc font game
-// test-sources: apps/d2d/char_tooltips.cpp apps/d2d/common.cpp apps/d2d/items.cpp
+// test-sources: apps/d2d/panels/char_tooltips.cpp apps/d2d/common.cpp apps/d2d/items/items.cpp
 // test-includes: apps/d2d
 // The char panel's hovers (FUN_004a7ae0 / FUN_004a7180), where game.exe puts them at 800x600: attack
 // line 1's under x 80+0xa2..80+0x140, y 540-0x14e..540-0x13b darkens its 0x9b x 0x1e box at (80+154,
@@ -8,7 +8,7 @@
 // box from (80+0x8b, 540-0x13b). Made-up rows and a one-glyph font: the places, not the game's art.
 
 #include "common.hpp"
-#include "panels.hpp"
+#include "panels/panels.hpp"
 #include "scene.hpp"
 
 #include <d2s.hpp>

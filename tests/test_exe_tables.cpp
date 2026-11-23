@@ -26,9 +26,9 @@
 #include <sequences.hpp>
 #include <uniques.hpp>
 
-#include "panels.hpp"
-#include "speech_sound.hpp"
-#include "store.hpp"
+#include "audio/speech_sound.hpp"
+#include "panels/panels.hpp"
+#include "panels/store.hpp"
 #include "ui.hpp"
 
 #include <array>

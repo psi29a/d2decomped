@@ -3,7 +3,7 @@
 // test-sources: apps/d2d/touch/gestures.cpp
 // test-includes: apps/d2d
 // Holds distinguish taps, can keep a target, and dispatch only when ready.
-#include "gamepad_map.hpp"
+#include "input/gamepad_map.hpp"
 #include "touch/feedback.hpp"
 #include "touch/gestures.hpp"
 #include "touch/input.hpp"

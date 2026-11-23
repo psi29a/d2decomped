@@ -3,7 +3,7 @@
 // test-includes: apps/d2d
 // FUN_00514990's frontend playlist pick: track 0 after FUN_005148f0
 // turns it on (0x514a21), else the roll stepping past played tracks.
-#include <title_rules.hpp>
+#include <frontend/title_rules.hpp>
 
 #include <array>
 #include <cassert>

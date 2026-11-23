@@ -60,7 +60,7 @@ with a draw callback in ECX (`004a0f10`..`004a0f29`): players
 `FUN_004a0b30` takes a string id only after the bytes 0xff 0xff, with an
 `_atol` of the rest in 0x42d..0x50f, 0x5586..0x5615 or 0x2aa4; any other
 text, a bare number too, is drawn as it is, after `FUN_0049e280`'s
-language check. d2d: `overhead_string` (apps/d2d/overhead.hpp,
+language check. d2d: `overhead_string` (apps/d2d/render/overhead.hpp,
 test_overhead_frames); a player's own text isn't drawn (`ponytail:` in
 session/draw.cpp).
 
@@ -123,9 +123,9 @@ where d2d draws a unit's feet (that row is still in unverified.md). x is
 the player's point less W/2, the side panel's quarter added by the caller,
 as units are drawn.
 
-d2d: `render_ingame` (apps/d2d/ingame.cpp) from `kFloorViewY` (rounded,
+d2d: `render_ingame` (apps/d2d/render/ingame.cpp) from `kFloorViewY` (rounded,
 not floored at 1/32 subtile: a pixel off at most), and `place_overhead`
-(apps/d2d/overhead.hpp, tests/test_overhead_place.cpp) for
+(apps/d2d/render/overhead.hpp, tests/test_overhead_place.cpp) for
 `FUN_0049e070`. Not done: slot 0 for the NPC menu (d2d's frame starts
 empty), and game.exe's unit order (`FUN_004a0e70`'s walk of its unit
 tables, not traced here), which decides who moves; d2d goes in its draw

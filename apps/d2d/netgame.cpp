@@ -2,7 +2,7 @@
 #include "netgame.hpp"
 
 #include "game_api.hpp"
-#include "party.hpp"
+#include "panels/party.hpp"
 
 #include <d2gs/c2s.hpp>
 #include <d2gs/c2s_names.hpp>

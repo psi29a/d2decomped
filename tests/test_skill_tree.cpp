@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: dcc font game
-// test-sources: apps/d2d/common.cpp apps/d2d/items.cpp apps/d2d/skills/tree.cpp
+// test-sources: apps/d2d/common.cpp apps/d2d/items/items.cpp apps/d2d/skills/tree.cpp
 // test-includes: apps/d2d
 // FUN_004abf60 icon colour (5 grey, 3 hover, else the act palette), FontFormal10
 // and a 4 px left shift from level 10, and blue/red when items change the level.

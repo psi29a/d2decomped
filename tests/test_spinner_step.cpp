@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-// The gold box's spinner held (apps/d2d/spinner_step.hpp, FUN_004bbfb0): its
+// The gold box's spinner held (apps/d2d/input/spinner_step.hpp, FUN_004bbfb0): its
 // step grows with the frames drawn (FUN_004bbe70's +0x40), not the time alone.
-#include "spinner_step.hpp"
+#include "input/spinner_step.hpp"
 
 #include <cassert>
 #include <cstdio>

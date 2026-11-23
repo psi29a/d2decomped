@@ -3,7 +3,7 @@
 #pragma once
 
 #include "common.hpp"
-#include "hw_cursor.hpp"
+#include "input/hw_cursor.hpp"
 #include "platform.hpp"
 #include "ui.hpp"
 

@@ -4,8 +4,8 @@
 #include "session.hpp"
 
 #include "common.hpp"
-#include "ingame.hpp"
 #include "platform.hpp"
+#include "render/ingame.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 

@@ -3,9 +3,9 @@
 #include "session.hpp"
 
 #include "common.hpp"
-#include "ingame.hpp"
 #include "netgame.hpp"
 #include "platform.hpp"
+#include "render/ingame.hpp"
 #include "scene.hpp"
 
 #include <ambient_dip.hpp>
