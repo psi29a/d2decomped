@@ -1643,6 +1643,7 @@ address	name	evidence
 005a7b30	monster_skill_reset	ESI monster: its skill node 0; unless EDI is 0 or 0xc, FUN_005541b0 then FUN_005a73e0(1). Callers FUN_005a7c20 and two more (unnamed-frontier.md)
 005a8910	missile_stat_roll	two stat reads on the missile, 0 if either < 1, lower end + optional bonus-stat term + seed draw (missiles.md "The roll helper")
 005a8c70	missile_fill_damage_record	ECX game, EDX missile, stack unit and 0x70-byte record: per element class (FUN_0064b0c0) rolls the missile's stats into the record, physical scaled by stat 0x19 / 0x79 / 0x7a and doubled by 0x8d (missiles.md "The record fill")
+005a99e0	missile_ride_owner	EBX missile: with an owner (FUN_00552fd0) and a path, FUN_00650be0 moves its path to the owner's subtile and room (static path +0xc / +0x10 for types 2, 4, 5); missile do 20 and 30 (missiles.md)
 005aa5b0	ring_target_pick	(From its calls:) a target in a ring around the unit (d2d_rules_ring_pick, FUN_005aa460, FUN_0064a730). Only caller FUN_005aa650 (unnamed-frontier.md)
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
 005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3

@@ -535,6 +535,44 @@ list). `FUN_005ae520`: ported without the 0x40 stamp (collision.md "By shape"
 says `FUN_0064ea00` isn't ported) and without the frame stepping, which only
 changes the picture.
 
+## A missile on its owner's spot — FUN_005a99e0 (EBX the missile)
+
+Missile do 20 (`FUN_005af540`, `0x73c768 + 20 * 4 = 0x73c7b8`) and do 30
+(`FUN_005b0010`, `0x73c7e0`) call it (`0x5af55c`, `0x5b00f3`) once the
+missile's owner is found and `FUN_005541b0` returns 0 for it (a player or
+monster with +0xc6 bit 0 clear, not in mode 0 nor 0x11 / 0xc). Missiles.txt 1.14d has one row of each:
+`blade creeper` (do 20) and `rabiesplague` (do 30).
+
+- EBX the missile; ECX (the game) passes through to the owner lookup
+  `FUN_00552fd0` (EDX = the missile, `0x5a99e5`: flags_ex +0xc8 bit 0x400,
+  then the unit of type +0x94, id +0x98). No stack arguments, plain `RET`.
+- Nothing without an owner or a missile path (+0x2c) (`0x5a99f6`,
+  `0x5a99fa`).
+- The owner's subtile: types 2, 4 and 5 (signed compares, `0x5a99fe` to
+  `0x5a9a0c`, as `FUN_00620bb0`'s) read the static path at its +0x2c, x
+  +0xc and y +0x10; the others the dynamic path's x (`FUN_006488c0`, +2)
+  and y (`FUN_00648900`, +6), 0 and 0 when it has none.
+- Its room: `FUN_00620bb0(owner)` (the static path's +0, else the dynamic
+  path's +0x1c through `FUN_00648a80`, 0 without a path).
+- `FUN_00650be0(missile path, missile, room, x, y)` (`RET 0x14`; the
+  missile argument isn't read): `FUN_00650910` (EAX the path, room,
+  x | y << 16, each cut to 16 bits) moves the missile's path there, and when
+  it returns non-zero the path's point count +0x28 becomes 0 (`0x650c0f`).
+
+Do 20 then sets the missile's frames left to 10 (`FUN_0064a330(missile,
+10)`, `0x5af564`) and strikes as do 1 (`FUN_005ae1f0`, `0x5af56d`), and
+returns 1; with no owner, or a dead one, `FUN_005adf10(0, 1)` and 2. So the
+blade creeper missile is put on its owner each time do 20 runs, and lasts
+as long as the owner does. Who that owner is (Blade Sentinel's bladecreeper
+monster, MonAI 102, is a lead) is not traced here, nor do 30's rest.
+
+Checked: `tools/emu/missile_ride.py` runs `FUN_005a99e0` with the path
+readers, `FUN_00620bb0` and `FUN_00650be0` for real on 3000 owners of unit
+types 0 to 7 and -1 (`--mutation-check`: 7 model defects caught). Hooked,
+not claimed: the owner lookup `FUN_00552fd0` and the move `FUN_00650910`.
+d2d's do 20 (`missiles.cpp`, "20 (Blade Sentinel)") moves the missile
+itself back and forth between the caster's spot and its point instead.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
