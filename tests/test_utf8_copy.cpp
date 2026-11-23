@@ -40,7 +40,8 @@ auto words(const std::u16string& units) -> std::string {
         std::snprintf(word, sizeof word, "%04x", unsigned(unit));
         out += word;
     }
-    return out.empty() ? "-" : out;
+    if (out.empty()) return "-";
+    return out;                                       // moved, not copied (the ternary made a copy: Coverity CID 662453)
 }
 
 // One case's answers, as utf8_copy.py's `game` prints them.
