@@ -2,9 +2,9 @@
 // test-links:
 // test-includes: apps/d2d
 // Actual touch adapter: independent fingers, latched page/skill, safe cancellation.
+#include "input/touch/feedback.hpp"
+#include "input/touch/input.hpp"
 #include "skills/pad.hpp"
-#include "touch/feedback.hpp"
-#include "touch/input.hpp"
 
 #include <algorithm>
 #include <array>

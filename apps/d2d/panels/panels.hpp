@@ -3,8 +3,8 @@
 #pragma once
 
 #include "common.hpp"
+#include "input/touch/quest_notice.hpp"
 #include "scene.hpp"
-#include "touch/quest_notice.hpp"
 
 #include <ai/units.hpp>
 #include <automap_cells.hpp>

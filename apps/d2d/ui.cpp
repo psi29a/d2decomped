@@ -3,8 +3,8 @@
 #include "ui.hpp"
 
 #include "common.hpp"
+#include "input/touch/input.hpp"
 #include "scene.hpp"
-#include "touch/input.hpp"
 
 #include <box_pieces.hpp>
 #include <dc6.hpp>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: palette
 // test-includes: apps/d2d
-#include "touch/icon.hpp"
+#include "input/touch/icon.hpp"
 
 #include <palette.hpp>
 

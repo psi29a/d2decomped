@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
-#include "touch/glyph.hpp"
+#include "input/touch/glyph.hpp"
 
 #include <array>
 #include <cassert>

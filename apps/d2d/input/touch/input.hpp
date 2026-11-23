@@ -2,7 +2,7 @@
 // Touch adapter in logical 800x600 coordinates. No SDL, game rules or saves.
 #pragma once
 
-#include "touch/feedback.hpp"
+#include "input/touch/feedback.hpp"
 
 #include <algorithm>
 #include <array>

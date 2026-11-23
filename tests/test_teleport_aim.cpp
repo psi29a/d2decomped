@@ -3,7 +3,7 @@
 // test-sources: apps/d2d/input/teleport_aim.cpp
 // test-includes: apps/d2d
 #include "input/teleport_aim.hpp"
-#include "touch/input.hpp"
+#include "input/touch/input.hpp"
 
 #include <cassert>
 #include <cstdio>
