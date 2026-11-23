@@ -149,6 +149,30 @@ NpcAct vendor_think(Rng& seed) {
     return NpcAct{ .frames = 30 };
 }
 
+// Talked to, stand 10. A player she heeds (FUN_005ddf20, the visitor pick;
+// none hands back Flavie herself), not busy, rand(3) not 0 (drawn only
+// then) and the search's flag set: her greeting timer (AI control +0x18)
+// at 0 becomes 60 with the greeting (FUN_00553380(unit, 0x12, player)),
+// else a negative one goes to 0 and a positive one counts down; stand 20.
+// Else A1 at a monster under 25 (FUN_005ddc30, TownRogue's test), or stand
+// 50. Checked against game.exe by tools/emu navi.py.
+NpcAct navi_think(NpcBrain& brain, Rng& seed, bool listed, const NpcVisitor& visitor, bool visitor_busy, bool near_flag, bool enemy) {
+    if (listed) return NpcAct{ .frames = 10 };
+    if (visitor.present && !visitor_busy && seed(3) != 0 && near_flag) {
+        NpcAct act{ .frames = 20 };
+        if (brain.greeted == 0) {
+            brain.greeted = 60;
+            act.greet = true;
+        } else {
+            brain.greeted = std::max(brain.greeted, 0);
+            if (brain.greeted > 0) --brain.greeted;
+        }
+        return act;
+    }
+    if (enemy) return NpcAct{ .kind = NpcAct::Kind::attack };
+    return NpcAct{ .frames = 50 };
+}
+
 // Its home (AI control command 10: +0xc, +0x10; +0x18 the frame it last
 // moved or heeded). Till he stands aside (FUN_0059b8b0: record 0xb's
 // data+0x40 is 2, +0x18 / +0x19 clear): once 200 frames, back home from

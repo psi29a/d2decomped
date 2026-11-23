@@ -467,6 +467,38 @@ int main() try {
         }
         assert(checked > 30);
     }
+    {   // Flavie's think (MonAI Navi, FUN_005e7e20; tools/emu navi.py --dump):
+        // talked to, a player heeded and its reach, busy, the flag word's
+        // stale value, the greeting timer, a monster and its distance, the
+        // seed | kind (0 stand, 3 attack), frames, greeted, the timer and seed after.
+        static constexpr std::string_view kCases[] = {
+#include "navi_cases.inc"
+        };
+        int checked = 0;
+        for (const std::string_view case_line : kCases) {
+            const std::string line(case_line);
+            std::istringstream fields(line.substr(0, line.find('|'))), tail(line.substr(line.find('|') + 1));
+            int listed = 0, heeded = 0, reach = 0, busy = 0, stale = 0, timer = 0, enemy = 0, enemy_dist = 0;
+            std::uint32_t low = 0, high = 0;
+            fields >> listed >> heeded >> reach >> busy >> stale >> timer >> enemy >> enemy_dist >> low >> high;
+            int kind = 0, frames = 0, greeted = 0, after_timer = 0;
+            std::uint32_t after_low = 0, after_high = 0;
+            tail >> kind >> frames >> greeted >> after_timer >> after_low >> after_high;
+            d2d::rules::NpcBrain brain;
+            brain.greeted = timer;
+            Rng seed;
+            seed.low = low; seed.high = high;
+            const d2d::rules::NpcVisitor visitor{ .present = heeded != 0 && reach < 16, .distance = reach };   // FUN_005dde80: under 16
+            const auto got = d2d::rules::navi_think(brain, seed, listed != 0, visitor, busy != 0, reach < 4 || stale != 0, enemy != 0 && enemy_dist < 25);
+            const int got_kind = got.kind == d2d::rules::NpcAct::Kind::attack ? 3 : int(got.kind);
+            if (got_kind != kind || got.frames != frames || int(got.greet) != greeted || brain.greeted != after_timer || seed.low != after_low || seed.high != after_high)
+                std::fprintf(stderr, "navi: %s\n  got %d %d %d %d %u %u\n", line.c_str(), got_kind, got.frames, int(got.greet), brain.greeted, seed.low, seed.high);
+            assert(got_kind == kind && got.frames == frames && int(got.greet) == greeted && brain.greeted == after_timer);
+            assert(seed.low == after_low && seed.high == after_high);
+            ++checked;
+        }
+        assert(checked > 30);
+    }
     {   // A town NPC's think (MonAI Npc, FUN_005e7130; tools/emu npcs.py).
         using d2d::rules::NpcAct;
         assert(d2d::rules::npc_distance(0, 0, 4, 1) == 4 && d2d::rules::npc_distance(0, 0, 1, 4) == 4);

@@ -444,8 +444,12 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             visitor.talking = listed || (visitor.present && busy[0] >= 0);
         }
         // The palace guard (JarJar): aside as record 0xb's data+0x40 is 2 (rules::ArcaneQuest::guard_state).
+        // Flavie (Navi): her search's flag word as set (under 4; town-npcs.md "Flavie"), the visitor busy as its talking above.
+        // ponytail: no monster is passed (NPCs don't see the fight), so she never shoots.
         const auto act = npc.town_ai == TownAi::jarjar ? d2d::rules::jarjar_think(state.brain, x, y, int(now_ms / kFrameMs), guard_aside, guard_aside, visitor)
                        : npc.town_ai == TownAi::vendor ? d2d::rules::vendor_think(npc.seed)
+                       : npc.town_ai == TownAi::navi   ? d2d::rules::navi_think(state.brain, npc.seed, listed, visitor, visitor.present && busy[0] >= 0,
+                                                                                visitor.present && visitor.distance < 4, false)
                                                        : d2d::rules::npc_think(state.brain, npc.seed, points, x, y, npc.hc_idx, npc.modes, 1, visitor, npc.town_ai == TownAi::towner);
         if (act.face >= 0) state.dir = facing16(act.face);
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
@@ -460,6 +464,11 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             break;
         case d2d::rules::NpcAct::Kind::mode:
             state.mode = act.mode == 8 ? "S1" : act.mode == 9 ? "S2" : act.mode == 10 ? "S3" : "S4";
+            state.mode_ms = now_ms;
+            state.wait_until = now_ms + game_data.npc_timing(npc, state.mode).length_ms();
+            break;
+        case d2d::rules::NpcAct::Kind::attack:                  // A1, no arrow: unreached while no monster is passed
+            state.mode = "A1";
             state.mode_ms = now_ms;
             state.wait_until = now_ms + game_data.npc_timing(npc, state.mode).length_ms();
             break;
