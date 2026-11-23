@@ -72,6 +72,22 @@ inline auto monster_command(std::span<const std::uint8_t> packet) -> std::option
     return out;
 }
 
+struct UnitSkill {
+    std::uint32_t id, skill;
+    std::uint8_t type;
+    std::optional<std::pair<std::uint16_t, std::uint16_t>> point;
+    std::optional<std::pair<std::uint8_t, std::uint32_t>> target;
+};
+
+// FUN_0045df00 / FUN_0045df60 dispatch a skill on a unit / at a point.
+inline auto unit_skill(std::span<const std::uint8_t> packet) -> std::optional<UnitSkill> {
+    if (packet.size() == 16 && packet[0] == 0x4c)
+        return UnitSkill{read_u32(packet, 2), read_u16(packet, 6), packet[1], {}, {{packet[9], read_u32(packet, 10)}}};
+    if (packet.size() == 17 && packet[0] == 0x4d)
+        return UnitSkill{read_u32(packet, 2), read_u32(packet, 6), packet[1], {{read_u16(packet, 11), read_u16(packet, 13)}}, {}};
+    return std::nullopt;
+}
+
 // 0x27 NPC info, mode 1: the NPC's quest lines for this player
 // (FUN_004a1600 -> FUN_00661510): +2 u32 the NPC's id, +6 u8 count (< 8),
 // from +8 four bytes a line, u8 kind (0 greets, 2 a topic) and u16 message

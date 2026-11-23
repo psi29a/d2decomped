@@ -55,7 +55,7 @@ struct NetGame {
         std::optional<std::pair<float, float>> attack_aim;
         d2d::rules::FixedAnimationClock attack_pose;
         std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;   // another player's: by item id (0x9d)
-        int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id
+        int skill = -1;               // a player or Council skill (0x4c / 0x4d), Skills.txt id
         std::uint32_t skill_ms = 0;   // when (steady ms)
         float skill_x = 0, skill_y = 0;   // where it went
         std::uint64_t follow = 0;     // a monster's 0x68 target (type << 32 | id), re-pathed to while it walks; 0 none

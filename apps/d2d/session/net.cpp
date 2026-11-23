@@ -545,19 +545,26 @@ auto ClientSession::net_overlay() -> void {
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
             monster.scheduled_anim_position.reset();
-            const bool council_attack = d2d::rules::monster_ids::is_council(unit.cls) && unit.mode >= 10 && unit.mode <= 13
-                && unit.life != 0;
-            if (council_attack) {
+            int council_mode = -1;
+            if (d2d::rules::monster_ids::is_council(unit.cls) && unit.life != 0) {
+                if (unit.mode >= 10 && unit.mode <= 13) council_mode = unit.mode <= 11 ? 4 : 8;
+                if (unit.mode == 0x15 || unit.mode == 0x16) {
+                    // LAB_004b0c36 / LAB_004b0cae use the skill's monster mode
+                    // (FUN_00643860) before calling the mode setter.
+                    if (const auto* skill = scene->skills.get(unit.skill))
+                        council_mode = d2d::game::monster_mode(skill->monanim, -1);
+                }
+            }
+            if (council_mode >= 0 && council_mode != 14) {
                 // FUN_00623f50 derives each rate from the client unit's stats;
                 // FUN_00623e00 advances the existing pose at that rate.
-                const bool melee = unit.mode <= 11;
-                const std::string_view mode = melee ? "A1" : "S1";
+                const auto mode = d2d::game::kMonsterModes[std::size_t(council_mode)];
                 const auto& anim = scene->npc_anim(monster.npc, mode);
                 const auto& type = scene->monsters.types[std::size_t(monster.type)];
                 const auto stats = unit.animation_stats();
                 // FUN_004b13a0 skips the living monster's step in state 1.
                 const auto rate = std::ranges::contains(unit.states, 1) ? 0 : d2d::rules::monster_mode_rate({
-                    .mode = melee ? 4 : 8,
+                    .mode = council_mode,
                     .speed = int(anim.speed ? anim.speed : anim.cof_speed),
                     .base = {type.walk_base, type.run_base},
                     .velocity_pct = unit.animation_base_velocity.value_or(d2d::game::kMonsterVelocityPct + monster.boss_speed)
@@ -572,7 +579,8 @@ auto ClientSession::net_overlay() -> void {
             } else {
                 monster.mode = host_mode(unit, monster.npc);
             }
-            if ((monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1") && unit.attack_aim) {
+            if ((monster.scheduled_anim_position || monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1")
+                && unit.attack_aim) {
                 const auto [aim_x, aim_y] = *unit.attack_aim;
                 if (aim_x != unit.x || aim_y != unit.y) monster.unit.dir = direction16(aim_x - unit.x, aim_y - unit.y);
             }

@@ -736,13 +736,28 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0x4c:   // a skill on a unit: +1 caster type, +2 id, +6 u16 skill, +9 target type, +0xa id
     case 0x4d:   // ... at x, y: +6 u32 skill, +0xb x, +0xd y
-        if (size >= 15 && packet[1] == 0 && read_u32(packet, 2) != self_id) {
-            auto& unit = unit_at(0, read_u32(packet, 2));
-            unit.skill = packet[0] == 0x4c ? read_u16(packet, 6) : int(read_u32(packet, 6));
+        if (const auto cast = d2d::net::d2gs::s2c::unit_skill(packet)) {
+            const auto caster = units.find(key(cast->type, cast->id));
+            const bool council = cast->type == 1 && caster != units.end()
+                && d2d::rules::monster_ids::is_council(caster->second.cls);
+            if (!council && (cast->type != 0 || cast->id == self_id)) break;
+            auto& unit = unit_at(cast->type, cast->id);
+            unit.skill = int(cast->skill);
             unit.skill_ms = steady_ms();
             unit.skill_x = unit.x; unit.skill_y = unit.y;
-            if (packet[0] == 0x4d) { unit.skill_x = read_u16(packet, 0xb); unit.skill_y = read_u16(packet, 0xd); }
-            else if (const auto target = units.find(key(packet[9], read_u32(packet, 0xa))); target != units.end()) { unit.skill_x = target->second.x; unit.skill_y = target->second.y; }
+            std::optional<std::pair<float, float>> aim;
+            if (cast->point) aim = *cast->point;
+            else if (const auto target = units.find(key(cast->target->first, cast->target->second)); target != units.end())
+                aim = {target->second.x, target->second.y};
+            if (aim) { unit.skill_x = aim->first; unit.skill_y = aim->second; }
+            if (council && unit.life != 0) {
+                unit.mode = cast->point ? 0x15 : 0x16;
+                unit.mode_ms = unit.skill_ms;
+                unit.attack_pose = {};
+                unit.attack_aim = aim;
+                unit.moving = false;
+                unit.follow = 0;
+            }
         }
         break;
     case 0x2c:   // unit sound: +1 type, +2 u32 id, +6 u16 sound; a player's Say (0x19..0x20) plays its class's voice (FUN_004cb9c0)
