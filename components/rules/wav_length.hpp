@@ -23,12 +23,16 @@ namespace d2d::rules {
     std::uint32_t byte_rate = 0;
     for (std::size_t pos = 12; pos + 8 <= file.size();) {
         const std::uint32_t size = u32(pos + 4);
-        if (tag(pos, "fmt ") && size >= 12 && pos + 16 <= file.size()) byte_rate = u32(pos + 16);
+        if (tag(pos, "fmt ") && size >= 12 && pos + 20 <= file.size()) byte_rate = u32(pos + 16);   // +8 .. +11 of the chunk's body
         if (tag(pos, "data")) {
             if (byte_rate == 0) return std::nullopt;
             return std::uint32_t(std::uint64_t(size) * 1000 / byte_rate);
         }
-        pos += 8 + size + (size & 1);
+        // The next chunk, past this one's body and pad byte; a size running past the file ends the walk
+        // (no wrap-around: the sum is 64-bit and checked against what's left).
+        const std::uint64_t skip = std::uint64_t(8) + size + (size & 1);
+        if (skip > file.size() - pos) break;
+        pos += std::size_t(skip);
     }
     return std::nullopt;
 }
