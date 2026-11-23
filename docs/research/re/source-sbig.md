@@ -19,3 +19,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00420db0` | `sbig_index_in_use` | `ECX` number, n (`RET 4`): 1 when `+0x10` + n is below the used count `+4`, unsigned (`CMP`, `SBB`, `NEG` at `0x420db9`), else 0 | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420dd0` | `sbig_pool_take` | `ECX` pool, counter pointer (`RET 4`): a non-null counter grows by 1; returns the temporary at pool + top × 0x14 (top `+0x140`), the top grows by 1 | no counterpart (as `sbig_grow_step`) |
 | `FUN_00420e00` | `sbig_pool_release` | `ECX` pool, n (`RET 4`): the top `+0x140` goes back by n | no counterpart (as `sbig_grow_step`) |
+| `FUN_00420e10` | `sbig_pool_take_if` | `ECX` pool, number, flag (`RET 8`): flag 0 returns the number; otherwise as `sbig_pool_take` with no counter | no counterpart (as `sbig_grow_step`) |
