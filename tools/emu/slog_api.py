@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120 FUN_00420160
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
@@ -37,6 +37,7 @@ FLUSH = 0x41FFC0
 PEND = 0x420070
 SET_INDENT = 0x4200E0
 ADD_INDENT = 0x420120
+SET_STAMP = 0x420160
 DEBUG_FLAG, LOCKS, LOCK_SIZE = 0x7790AC, 0x779238, 0x18
 TEXT, BUFFER, FLUSH_AT = 0x1C, 0x10000, 0xC000
 STAMP = b"11/23 22:05:09.042  "
@@ -49,6 +50,7 @@ MUTATIONS = {
     "pend": ("pend_appends", "pend_commits", "pend_no_stamp"),
     "set_indent": ("set_indent_returns_new", "set_indent_adds"),
     "add_indent": ("add_indent_returns_new", "add_indent_sets"),
+    "set_stamp": ("set_stamp_bool",),
 }
 FORMATS = ((b"%s=%d", "sd"), (b"%x|%s", "xs"), (b"%5d%%", "d"), (b"plain text", ""))
 
@@ -142,6 +144,10 @@ class Model:
         old = rec.indent
         rec.indent = value if self.mutation == "add_indent_sets" else wrap(rec.indent + value)
         return rec.indent if self.mutation == "add_indent_returns_new" else old
+
+    def set_stamp(self, rec, value):
+        """FUN_00420160: the stamp flag becomes the value, as is."""
+        rec.flag = int(value != 0) if self.mutation == "set_stamp_bool" else value
 
 
 def wrap(value):
@@ -309,11 +315,20 @@ def case_add_indent(rig, model, rng, rec, log_id, record):
     want = wrap(model.add_indent(rec, value)) if record else 0
     return f"FUN_00420120 {value}", want, [], result
 
+
+def case_set_stamp(rig, model, rng, rec, log_id, record):
+    value = rng.choice((0, 1, 2, -1, rng.randint(-0x80000000, 0x7FFFFFFF)))
+    result = rig.run(SET_STAMP, log_id, value & 0xFFFFFFFF)
+    if record:
+        model.set_stamp(rec, value)
+    return f"FUN_00420160 {value}", None, [], result
+
 CASES = {"dump": case_dump}
 CASES["flush"] = case_flush
 CASES["pend"] = case_pend
 CASES["set_indent"] = case_set_indent
 CASES["add_indent"] = case_add_indent
+CASES["set_stamp"] = case_set_stamp
 
 
 def compare(rig, model, seed, count):
