@@ -427,10 +427,14 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         // The merc's plain shot (a missile row with no Skill, so the owner's weapon damage x SrcDamage / 128, FUN_0064b860)
         // as its swing's blow (merc_strike): its gear's elements, leech, Crushing Blow (halved), Open Wounds, item_slow,
         // which a record with SrcDamage carries into the owner's event 6 (record flag 0x20, 0x5ad893).
-        // ponytail: game.exe's roguehire shoots RogueMissile (do 110, FUN_005ce1b0): rogue1, MinDamage / MaxDamage 1 (a
-        // point more than arrow), or magicarrow / explodingarrow from its stats 157 / 158 (FUN_00645f00); d2d flies arrow.
+        // Its row's own physical (rogue1's MinDamage / MaxDamage 1, Fight::merc_shot) goes in the roll with the weapon's.
+        // ponytail: explodingarrow's explosion (its hit function) isn't run on this path.
         d2d::rules::Swing flight{ .srcdam = missile.info ? missile.info->src_damage : 128 };
         flight.missile = true;
+        if (missile.by_merc && missile.info) {
+            flight.row_lo = missile_phys(*game_data, *missile.info, merc_calc_env(), -1, missile.level, false);
+            flight.row_hi = missile_phys(*game_data, *missile.info, merc_calc_env(), -1, missile.level, true);
+        }
         auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_strike)
         auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)

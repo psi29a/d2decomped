@@ -208,6 +208,7 @@ enum class ServerDoFunction : int {
     kDesertTurret = 105,           // FUN_005cd6a0: calc1 srvmissilea fanned at the skill's point
     kArcaneTower = 106,            // FUN_005cd870: the nova of its srvmissilea (FUN_0056d400)
     kMonFrenzy = 109,              // FUN_005cdf10: a strike (FUN_005cddd0), the frenzy state on
+    kRogueMissile = 110,           // FUN_005ce1b0: the Act 1 merc's shot, srvmissilea or its gear's arrow
     kMonCurseCast = 112,           // FUN_005ce2b0: one of five curses (0x6e3228) on rand(5)
     kBookOrScroll = 113,           // Identify, Town Portal
     kRaven = 114,
