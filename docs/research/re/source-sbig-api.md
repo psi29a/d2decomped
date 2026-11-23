@@ -27,3 +27,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_004239e0` | `sbig_not` | dst, a (`RET 8`): `ESI` = dst, then `FUN_004228c0(a)`; dst = a with its dwords complemented, over a's width (at least one dword): a XOR (2^(32·w) − 1) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a00` | `sbig_or` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_004229d0(a, b)`; dst = a OR b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423a80` | `sbig_shl` | dst, a, n (`RET 0xc`): `EDI` = dst, `EAX` = n, then `FUN_00422d00(a)`; dst = a << n | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00423aa0` | `sbig_shr` | dst, a, n (`RET 0xc`): `ESI` = dst, `EAX` = n, then `FUN_00422e70(a)`; dst = a >> n | no counterpart (as `sbig_pow_mod`) |
