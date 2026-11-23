@@ -64,15 +64,18 @@ int main() try {
     constexpr std::uint32_t kStart = 40000;
     set_mode(data, caller, "S1", kStart);
     caller.next_act = caller.mode_until + 40;                    // no think till the cast's done
-    for (std::uint32_t now = kStart; now < caller.mode_until && shots.empty(); now += 40)
+    std::uint32_t cast_at = kStart;                               // the frame the nova was made on
+    for (std::uint32_t now = kStart; now < caller.mode_until && shots.empty(); now += 40) {
         monster_update(data, here, caller, player, rng, now, 0.04f, crowd, shots, pack);
+        cast_at = now;
+    }
     std::printf("Shout: %zu missiles\n", shots.size());
     assert(shots.size() == 64);
     for (const auto& shot : shots) assert(shot.visual_only && shot.info == &data.missiles.at("shout"));
     // The ally 0.4 cells off gets the state once the nova reaches it (hit 18), not at the cast.
     assert(std::ranges::none_of(pack[1].states, [&](const Monster::SkillState& held) { return held.skill == 1; }));
     std::array<Foe, 1> nobody{};
-    for (std::uint32_t now = kStart + 40; now < kStart + 2000 && !shots.empty(); now += 40) {
+    for (std::uint32_t now = cast_at + 40; now < cast_at + 2000 && !shots.empty(); now += 40) {   // from the frame after it was made
         missiles_update(here, shots, std::span<Foe>(nobody.data(), 0), rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },
                         [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});   // the flight (crossed subtiles)
         war_cry_reach(data, here, shots, pack, now);
