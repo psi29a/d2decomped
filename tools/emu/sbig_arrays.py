@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -54,6 +54,7 @@ MUTATIONS = {
     0x421470: ("low_bit_highest", "low_bit_absolute"),
     0x421530: ("cmp_inverted",),
     0x421770: ("resize_dwords", "resize_flag_0", "resize_wrong_tag"),
+    0x421810: ("free_always", "free_wrong_tag"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -229,6 +230,9 @@ class Model:
                     break
         if address == 0x421770:
             buffer = self.resize(rec, a[0], case, changes, calls, TAG_D)
+        if address == 0x421810:   # the digit buffer freed, when there is one
+            if rec[8] or m == "free_always":
+                calls.append(("free", rec[8], TAG_E if m == "free_wrong_tag" else TAG_I, 0xFFFFFFFE, 0))
         return eax, changes, buffer, calls
 
 
@@ -363,6 +367,8 @@ def make_case(rng, rig, address):
         rec[4] = rng.randint(0, SPAN)
         case.update(realloc=rng.choice((0, FAKE)), new=rig.dst, old_bytes=old)
         args = [rng.randint(0, SPAN)]
+    if address == 0x421810:
+        rec[8] = rng.choice((0, rig.data))
     case["args"] = args
     return case, regs, args
 
