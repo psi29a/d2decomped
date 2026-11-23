@@ -15,6 +15,7 @@
 #include <d2s_items.hpp>
 #include <join.hpp>
 #include <net_log.hpp>
+#include <overlays.hpp>
 #include <quests.hpp>
 #include <shake.hpp>
 #include <tcp.hpp>
@@ -58,6 +59,8 @@ struct NetGame {
         int skill = -1;               // a player or Council skill (0x4c / 0x4d), Skills.txt id
         std::uint32_t skill_ms = 0;   // when (steady ms)
         float skill_x = 0, skill_y = 0;   // where it went
+        std::vector<int> cast_starts;    // received 0x4c / 0x4d starts awaiting the view
+        d2d::rules::OneShots cast_overlays;
         std::uint64_t follow = 0;     // a monster's 0x68 target (type << 32 | id), re-pathed to while it walks; 0 none
         std::uint32_t follow_ms = 0;  // when it last was (steady ms)
         int velocity_pct = 100;       // a monster's stat 0x43 velocitypercent, from its moves (0x67 / 0x68)

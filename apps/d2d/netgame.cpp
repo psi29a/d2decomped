@@ -738,9 +738,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x4d:   // ... at x, y: +6 u32 skill, +0xb x, +0xd y
         if (const auto cast = d2d::net::d2gs::s2c::unit_skill(packet)) {
             const auto caster = units.find(key(cast->type, cast->id));
-            const bool council = cast->type == 1 && caster != units.end()
-                && d2d::rules::monster_ids::is_council(caster->second.cls);
-            if (!council && (cast->type != 0 || cast->id == self_id)) break;
+            const bool living_monster = cast->type == 1 && caster != units.end() && caster->second.life != 0;
+            if (!living_monster && (cast->type != 0 || cast->id == self_id)) break;
             auto& unit = unit_at(cast->type, cast->id);
             unit.skill = int(cast->skill);
             unit.skill_ms = steady_ms();
@@ -750,7 +749,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             else if (const auto target = units.find(key(cast->target->first, cast->target->second)); target != units.end())
                 aim = {target->second.x, target->second.y};
             if (aim) { unit.skill_x = aim->first; unit.skill_y = aim->second; }
-            if (council && unit.life != 0) {
+            if (aim) unit.cast_starts.push_back(unit.skill);
+            if (living_monster && d2d::rules::monster_ids::is_council(unit.cls)) {
                 unit.mode = cast->point ? 0x15 : 0x16;
                 unit.mode_ms = unit.skill_ms;
                 unit.attack_pose = {};

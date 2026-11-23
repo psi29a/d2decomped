@@ -479,6 +479,12 @@ auto ClientSession::net_overlay() -> void {
             return unit.moving ? "WL" : "NU";
         };
         for (auto& [unit_key, unit] : net_game->units) {
+            // FUN_004c6eb0 / FUN_004c6f40 enter FUN_004c6140 for a host skill.
+            // Its cast overlay is independent of the caster's animation mode.
+            for (const int skill : unit.cast_starts)
+                if (const auto* row = scene->skills.get(skill))
+                    world.fight.start_cast_overlay(*row, false, unit.cast_overlays, world_ms);
+            unit.cast_starts.clear();
             if (unit.type == 0) {
                 if (unit.id == net_game->self_id) continue;
                 View::OtherPlayer other{ .cls = unit.cls, .name = unit.name, .id = unit.id };
@@ -505,6 +511,7 @@ auto ClientSession::net_overlay() -> void {
                 shown.skill_ms = unit.skill_ms;
                 other.unit.mode_ms = shown.since;
                 other.states = host_states(unit.states);
+                other.one_shots = unit.cast_overlays;
                 // Its walk's % from its class's run / walk and the host's chill (state 11);
                 // ponytail: its FRW isn't sent, so a faster run / walk's legs don't show.
                 other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, 0, std::ranges::find(other.states, std::string_view("cold")) != other.states.end());
@@ -517,6 +524,7 @@ auto ClientSession::net_overlay() -> void {
                     view.merc->unit.x = cell_x(unit.x);
                     view.merc->unit.y = cell_y(unit.y);
                     view.merc->unit.walking = unit.moving;
+                    view.merc->one_shots = unit.cast_overlays;
                     if (const auto mode = view.merc->npc ? host_mode(unit, *view.merc->npc) : view.merc->mode; mode != view.merc->mode) { view.merc->mode = mode; view.merc->unit.mode_ms = world_ms; }
                 }
                 continue;
@@ -587,6 +595,7 @@ auto ClientSession::net_overlay() -> void {
             if (monster.mode != monster.last_mode) monster.unit.mode_ms = world_ms;   // the animation starts over
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             monster.host_states = host_states(unit.states);
+            monster.one_shots = unit.cast_overlays;
             monster.align = std::ranges::contains(monster.host_states, std::string_view("conversion")) ? 2 : 0;   // the host converted it: no target, as Fight::monster_states
             // The host sends no MonSounds: game.exe's client plays them itself, from the unit's
             // mode (FUN_004cc410, FUN_004cb890), its first showing (FUN_004cc380), Neutral
