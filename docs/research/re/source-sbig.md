@@ -27,3 +27,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00420fe0` | `sbig_last_entry` | `ECX` number: the address of the last used entry, `+8` + (`+4` − 1) × 4; 0 when the used count `+4` is 0 | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421000` | `sbig_byte_at` | `ECX` number, n (`RET 4`): buffer `+8` + n bytes | no counterpart (as `sbig_grow_step`) |
 | `FUN_004210e0` | `round_up_multiple` | Value, step (`RET 8`): the value rounded up to a multiple of the step (`DIV`, unsigned, wrapping past 2^32); a step of 0 faults (divide by zero) | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421110` | `sbig_set_count` | `ECX` number, n (`RET 4`): the entry count `+0` = n; unless the buffer `+8` and n are both 0, the buffer becomes `FUN_004133d0(buffer, n × 4, ".I" 0x708874, -2, 0)` (`SMemReAlloc`); the used count `+4` stays | no counterpart (as `sbig_grow_step`) |
