@@ -145,7 +145,7 @@ layer's cel file, and adds a grid of cells to list 3:
 |---|---|---|---|---|---|
 | 0x28 Lut Gholein | 1 | 5 × 4 | 160, 100 | 0x35, -0x51 | 0 with file 1, else 20 |
 | 0x67 the Pandemonium Fortress | 2 | 2 × 2 | 136, 90 | -3, -0x32 | 0 |
-| 0x6d Harrogath | 3 | 2 × 2 | 180, 170 | -0x14, -0x9b | 0 |
+| 0x6d Harrogath | 3 | 3 × 2 | 180, 170 | -0x14, -0x9b | 0 |
 
 - The middle goes to client px (`FUN_00643310`: (x − y)·80,
   (x + y)·80 >> 1) and over 10.
