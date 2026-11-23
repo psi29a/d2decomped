@@ -5,7 +5,7 @@
 // isn't seen, however close. The owner's path words its follow compares are
 // the path's target and the target it was last worked out to (+0x10 / +0x18,
 // SP1 / SP3: Hero::target_x, player.goal_x). No game data.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>

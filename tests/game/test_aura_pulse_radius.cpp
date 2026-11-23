@@ -2,7 +2,7 @@
 // test-links: game
 // FUN_0056b7e0 / FUN_006492a0: pulse range uses integer subtiles.
 // Synthetic rows keep the geometry regression runnable without MPQs.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>

@@ -3,6 +3,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
@@ -199,7 +200,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             for (const auto& [to_x, to_y] : makers.aims) {
                 const float aim_x = (float(to_x) + 0.5f) / 5, aim_y = (float(to_y) + 0.5f) / 5;
                 auto& made = launch(maker->second, skill, lvl, from_x, from_y, aim_x - from_x, aim_y - from_y, maker->second.range + maker->second.lev_range * lvl, now_ms);
-                made.to = std::pair{ aim_x, aim_y };
+                made.aim_at = std::pair{ aim_x, aim_y };
                 made.hops = makers.count; made.target_id = first;
                 made.subtile_x = piece_x; made.subtile_y = piece_y;
             }

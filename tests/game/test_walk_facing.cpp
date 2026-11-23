@@ -7,6 +7,7 @@
 // turning on a step a frame after (turn_frame).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missiles.hpp>

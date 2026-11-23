@@ -8,7 +8,7 @@
 // net-host.md's section 1.
 #pragma once
 
-#include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "character_store.hpp"
 #include "cues.hpp"

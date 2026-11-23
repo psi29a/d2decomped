@@ -7,6 +7,7 @@
 // its percent, fire / lightning / cold / magic damage on every blow (the
 // enchants' slots), poison as its own poison stats. No game data.
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <gamedata.hpp>

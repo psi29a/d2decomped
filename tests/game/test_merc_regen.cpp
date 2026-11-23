@@ -20,7 +20,7 @@
 // of town and stops under one point in town; a level-up sets the value again;
 // a merc that joins has no event.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <cues.hpp>

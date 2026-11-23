@@ -6,7 +6,7 @@
 #include "scene.hpp"
 #include "touch_quest_notice.hpp"
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <automap_cells.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>

@@ -7,6 +7,7 @@
 // on Level::free_area (test_town_spots). Needs the 1.14d MPQs.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>

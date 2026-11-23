@@ -8,6 +8,7 @@
 // its flight (FUN_00649970). Made-up rows.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
@@ -62,7 +63,7 @@ int main() try {
     missiles.clear();
     Missile alone{ &maker, 20.f, 20.f, missile_speed(maker, 1), 0, 0, 0, 50 * 40, {} };   // east
     alone.visual_only = true; alone.level = 1;
-    alone.to = std::pair{ 24.f, 20.f };
+    alone.aim_at = std::pair{ 24.f, 20.f };
     alone.way_x = 20; alone.subtile_x = 100; alone.subtile_y = 100;
     missiles.push_back(alone);
     float turned = 0;

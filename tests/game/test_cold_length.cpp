@@ -7,6 +7,7 @@
 // the ticks from now the chill ends, or `none`, one line each, to diff.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

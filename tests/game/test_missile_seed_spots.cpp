@@ -7,6 +7,7 @@
 // spoke at its own offset.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
@@ -75,11 +76,11 @@ int main() try {
     end.born = 0; end.dies = 400;
     std::vector<Missile> missiles{ std::move(end) };
     update(open, missiles, 400);
-    assert(missiles.size() == 1 && missiles[0].info == &bolt && missiles[0].to);
+    assert(missiles.size() == 1 && missiles[0].info == &bolt && missiles[0].aim_at);
     d2d::rules::Rng seed{ 20 };
     const int to_x = 20 - 2 + seed(5), to_y = 21 - 2 + seed(5);
-    assert(std::abs(missiles[0].to->first - (float(to_x) + 0.5f) / 5) < 0.001f);
-    assert(std::abs(missiles[0].to->second - (float(to_y) + 0.5f) / 5) < 0.001f);
+    assert(std::abs(missiles[0].aim_at->first - (float(to_x) + 0.5f) / 5) < 0.001f);
+    assert(std::abs(missiles[0].aim_at->second - (float(to_y) + 0.5f) / 5) < 0.001f);
 
     // Both draws on its own subtile (sHitPar1 1: rand(3) twice 1, first at subtile x 6): FUN_0059fa30
     // (0x59fbbe) aims the moving sub missile, with no target unit, at (+1, +1).
@@ -90,8 +91,8 @@ int main() try {
     own.born = 0; own.dies = 400;
     missiles = { std::move(own) };
     update(open, missiles, 400);
-    assert(missiles.size() == 1 && missiles[0].to);
-    assert(std::abs(missiles[0].to->first - 7.5f / 5) < 0.001f && std::abs(missiles[0].to->second - 10.5f / 5) < 0.001f);
+    assert(missiles.size() == 1 && missiles[0].aim_at);
+    assert(std::abs(missiles[0].aim_at->first - 7.5f / 5) < 0.001f && std::abs(missiles[0].aim_at->second - 10.5f / 5) < 0.001f);
 
     // hit 59: each spoke aims at its ring offset from the start (FUN_005a9370 flag 2), not (+1, +1).
     GameData::MissileInfo poison;
@@ -111,7 +112,7 @@ int main() try {
         const float want_x = (float(at_x + kRingWayX[std::size_t(way)]) + 0.5f) / 5.f;
         const float want_y = (float(at_y + kRingWayY[std::size_t(way)]) + 0.5f) / 5.f;
         const auto spoke = std::ranges::find_if(missiles, [&](const Missile& laid) {
-            return laid.to && std::abs(laid.to->first - want_x) < 0.001f && std::abs(laid.to->second - want_y) < 0.001f;
+            return laid.aim_at && std::abs(laid.aim_at->first - want_x) < 0.001f && std::abs(laid.aim_at->second - want_y) < 0.001f;
         });
         assert(spoke != missiles.end());
     }

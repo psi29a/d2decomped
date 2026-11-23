@@ -6,7 +6,7 @@
 // FUN_005ae780) steers only at a unit, so Bone Spirit flies to the point,
 // past a monster beside its line, and ends there. Needs the game data.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s.hpp>

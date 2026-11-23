@@ -40,8 +40,8 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
         const int from_x = origin_x + subtile(missile.x), from_y = origin_y + subtile(missile.y);
         const int path_velocity = int(std::lround(std::hypot(missile.velocity_x, missile.velocity_y) * 4096 / 5));
         const int max_velocity = missile.info ? missile.info->max_vel << 8 : path_velocity, accel = missile.info ? missile.info->accel : 0;
-        const bool aimed = missile.to.has_value();
-        int to_x = aimed ? origin_x + subtile(missile.to->first) : from_x, to_y = aimed ? origin_y + subtile(missile.to->second) : from_y;
+        const bool aimed = missile.aim_at.has_value();
+        int to_x = aimed ? origin_x + subtile(missile.aim_at->first) : from_x, to_y = aimed ? origin_y + subtile(missile.aim_at->second) : from_y;
         if (to_x == from_x && to_y == from_y) { ++to_x; ++to_y; }   // FUN_0059fa30: target = start moves + (1, 1)
         missile.flight = d2d::rules::MissileFlight::launch(from_x, from_y, to_x, to_y, path_velocity, max_velocity, accel);
         if (!missile.route.empty()) missile.flight.points = missile.route;
@@ -135,7 +135,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const float from_x = std::floor(missile.x * 5) + float(seed.next() & 1) - 1, from_y = std::floor(missile.y * 5) + float(seed.next() & 1) - 1;
             Missile cloud = missile_from(missile, *missile.sub, (from_x + 0.5f) / 5, (from_y + 0.5f) / 5, 0, 0, now_ms);
             cloud.visual_only = true;
-            cloud.to = std::pair{ (from_x + float(off_x) + 0.5f) / 5, (from_y + float(off_y) + 0.5f) / 5 };
+            cloud.aim_at = std::pair{ (from_x + float(off_x) + 0.5f) / 5, (from_y + float(off_y) + 0.5f) / 5 };
             const float speed = missile_speed(*missile.sub, 0), dx = float(off_x), dy = float(off_y), length = std::max(std::hypot(dx, dy), 0.01f);
             cloud.velocity_x = dx / length * speed; cloud.velocity_y = dy / length * speed;
             laid.push_back(std::move(cloud));
@@ -172,7 +172,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const float length = std::max(std::hypot(float(off_x), float(off_y)), 0.01f), speed = missile_speed(info, missile.level);
             Missile made = missile_from(missile, info, missile.x, missile.y, float(off_x) / length * speed, float(off_y) / length * speed, now_ms);
             made.visual_only = true;
-            made.to = std::pair{ missile.x + float(off_x) / 5, missile.y + float(off_y) / 5 };
+            made.aim_at = std::pair{ missile.x + float(off_x) / 5, missile.y + float(off_y) / 5 };
             made.way_x = off_x; made.way_y = off_y;
             made.subtile_x = int(std::floor(missile.x * 5)); made.subtile_y = int(std::floor(missile.y * 5));
             return made;
@@ -378,7 +378,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const float to_x = float(spot_x) + 0.5f, to_y = float(spot_y) + 0.5f;
             const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f);
             laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
-            laid.back().to = { missile.x + dx, missile.y + dy };
+            laid.back().aim_at = { missile.x + dx, missile.y + dy };
             return;
         }
         const auto ring = [&](int first, int step, int velocity) {
@@ -389,7 +389,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 const float speed = missile_speed((velocity << 7) * 75 / 100);   // flags 0x14: the velocity as is
                 laid.push_back(missile_from(missile, *sub, missile.x, missile.y, float(dx) / span * speed, float(dy) / span * speed, now_ms));
                 // FUN_005a9370 flags 0x17 include flag 2: this offset is the target, relative to the start.
-                laid.back().to = { (float(at_x + dx) + 0.5f) / 5.f, (float(at_y + dy) + 0.5f) / 5.f };
+                laid.back().aim_at = { (float(at_x + dx) + 0.5f) / 5.f, (float(at_y + dy) + 0.5f) / 5.f };
             }
         };
         ring(0, 2, sub->param1);

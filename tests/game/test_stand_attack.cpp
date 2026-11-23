@@ -4,7 +4,7 @@
 // player stands, at the click (flag 0x20 -> FUN_00461700(0)), and nothing walks; without shift the
 // player walks up to it (FUN_00481030); in reach either way it swings at the monster. Zeal at a spot
 // swings at the foe in reach (FUN_005daf40).
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

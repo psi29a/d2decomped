@@ -9,7 +9,7 @@
 // lists that under "Still to change" (d2d's own wire, not game.exe's).
 #pragma once
 
-#include "ai.hpp"
+#include "ai/units.hpp"
 #include "gamedata.hpp"
 #include "inventory.hpp"
 #include "log.hpp"

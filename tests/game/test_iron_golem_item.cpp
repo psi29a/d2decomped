@@ -5,7 +5,6 @@
 // it off the floor and the golem wears it (FUN_005606b0) before its stats
 // (FUN_005c50c0), so the item's damage and stats are the golem's. No metal
 // item at the spot: no golem. Synthetic rows: no game data.
-#include <ai.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>

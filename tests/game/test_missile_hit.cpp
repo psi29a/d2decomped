@@ -8,6 +8,7 @@
 // drawn on the case's seed.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <gamedata.hpp>

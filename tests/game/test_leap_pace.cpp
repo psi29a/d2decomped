@@ -4,6 +4,7 @@
 // (FUN_006502d0), so Run / 16 subtiles = Run / 80 cells a frame. The flight is that pace's, not the sequence's time.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 
 #include <cassert>
 #include <cmath>

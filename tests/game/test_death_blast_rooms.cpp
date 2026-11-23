@@ -9,7 +9,7 @@
 // there. The Fire Golem's blast (FUN_005a2840) is 100 physical and 100
 // fire within 6 subtiles. No game data: the rooms are built here.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cassert>
 #include <cstdio>
 #include <ds1.hpp>

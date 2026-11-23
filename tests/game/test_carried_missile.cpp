@@ -5,6 +5,7 @@
 // No game data: the row and the skill are typed in.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <rules.hpp>

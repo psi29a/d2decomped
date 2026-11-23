@@ -5,7 +5,7 @@
 // potions and regeneration, monster sounds.
 #pragma once
 
-#include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"

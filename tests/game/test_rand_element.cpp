@@ -4,7 +4,7 @@
 // rand(5) + 1 (FUN_005a4f50 at 0x5a52f1, its table at 0x5a5444: 1 fire,
 // 2 lightning, 3 magic, 4 cold with 25 frames when the row has none, 5 poison).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 
 #include <cassert>
 

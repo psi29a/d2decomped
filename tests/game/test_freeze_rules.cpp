@@ -11,6 +11,7 @@
 //   uv run python freeze_rules.py compare cases.tsv game.tsv d2d.tsv
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

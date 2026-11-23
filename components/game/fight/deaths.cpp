@@ -4,6 +4,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
@@ -55,7 +56,7 @@ bool rise_spot_blocked(const Level* level, const Crowd& crowd, std::span<const F
     constexpr UnitShape kPlus{ 1, 2, 0x3c01 };
     if (crowd.at((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, kPlus, &self)) return true;
     return std::ranges::any_of(foes, [&](const Foe& foe) {
-        return foe.alive && !foe.of && std::abs(int(std::floor(foe.x * 5)) - sub_x) + std::abs(int(std::floor(foe.y * 5)) - sub_y) <= 1;
+        return foe.alive && !foe.monster && std::abs(int(std::floor(foe.x * 5)) - sub_x) + std::abs(int(std::floor(foe.y * 5)) - sub_y) <= 1;
     });
 }
 
@@ -118,7 +119,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                         boss_missile(monster, name, dir_x, dir_y, ring, now_ms, bolt_level);
                         if (pending.size() == made) continue;
                         auto& bolt = pending.back();
-                        bolt.to = { (std::floor(monster.unit.x * 5) + dir_x + 0.5f) / 5, (std::floor(monster.unit.y * 5) + dir_y + 0.5f) / 5 };
+                        bolt.aim_at = { (std::floor(monster.unit.x * 5) + dir_x + 0.5f) / 5, (std::floor(monster.unit.y * 5) + dir_y + 0.5f) / 5 };
                         bolt.bolt = k;
                     }
             };
@@ -263,7 +264,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                             const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                             const std::size_t had = pending.size();
                             boss_missile(monster, "coldunique", float(aim_x), float(aim_y), ring, now_ms);
-                            if (pending.size() > had) pending.back().to = offset_target(monster.unit.x, monster.unit.y, aim_x, aim_y);   // FUN_0056d400
+                            if (pending.size() > had) pending.back().aim_at = offset_target(monster.unit.x, monster.unit.y, aim_x, aim_y);   // FUN_0056d400
                         }
                     }
                 }

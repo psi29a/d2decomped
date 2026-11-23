@@ -5,7 +5,7 @@
 // unit (FUN_005cedc0's count); else 0x55 goes off. Sanctuary has no target
 // state, so its one point is never paid; an aura with one takes it from a
 // player who has the mana. Synthetic rows: no game data.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>

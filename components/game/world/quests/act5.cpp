@@ -2,6 +2,7 @@
 // Act 5's quests at the World's quest hooks (world.hpp: World::actN_*;
 // rules/quests_act5.hpp, docs/research/re/quests-act5.md).
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
@@ -224,7 +225,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 const auto frames = velocity > 0 ? std::uint32_t((std::int64_t(apart) << 16) / (std::int64_t(velocity) << 4)) : 0u;
                 Missile missile{ &center->second, kill.x, kill.y, dx / length * speed, dy / length * speed, missile_facing(kill.x, kill.y, dx, dy), now_ms, now_ms + std::max(frames, 1u) * kTickMs, {} };
                 missile.visual_only = true; missile.owner = kill.id; missile.sub = &cloud->second;
-                missile.to = std::pair{ statue_at->x, statue_at->y };
+                missile.aim_at = std::pair{ statue_at->x, statue_at->y };
                 fight.missiles.push_back(std::move(missile));
             }
         }

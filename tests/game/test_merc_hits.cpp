@@ -8,6 +8,7 @@
 // leech skips the divisors, 0x57c58a..0x57c597).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

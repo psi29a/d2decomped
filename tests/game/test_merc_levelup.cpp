@@ -16,7 +16,7 @@
 // stat 6 := stat 7), its items' max life left out, lower too; one that
 // doesn't leaves its life alone.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>

@@ -6,7 +6,7 @@
 // flag 1 alone (no GetHit: FUN_005ad730), so no get-hit; pSrvDmgFunc 3 (FUN_005ad220) makes it a soft hit (0x4000) when
 // a draw's low 7 bits are under dParam1: the struck sound. Its hit class goes on the unit either way (flag 1).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>

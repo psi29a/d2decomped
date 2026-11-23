@@ -7,7 +7,7 @@
 // while the state is on is taken mid-channel (FUN_0057edd0 with an end event queued): it pays again,
 // holds the state 6 more frames and makes a flame at once. The channel ends with the state.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

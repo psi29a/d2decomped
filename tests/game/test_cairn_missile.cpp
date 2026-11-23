@@ -9,6 +9,7 @@
 // Fight::missile_tick seeds the others the same way.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <gamedata.hpp>

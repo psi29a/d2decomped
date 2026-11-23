@@ -8,7 +8,7 @@
 // 1), the hit with no unit); one in the open doesn't. No game data: a row
 // typed in.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
@@ -57,7 +57,7 @@ int main() try {
         flying.friendly = true;
         flying.x = flying.y = 4.1f;                 // subtile (20, 20), sent east at subtile 39
         flying.velocity_x = 5.f;
-        flying.to = std::pair{ 7.9f, 4.1f };
+        flying.aim_at = std::pair{ 7.9f, 4.1f };
         flying.born = 0; flying.dies = 100000;
         std::vector<Missile> missiles;
         missiles.push_back(std::move(flying));

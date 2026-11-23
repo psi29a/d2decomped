@@ -5,6 +5,7 @@
 // FUN_0059fa30 flag 1), heading a subtile on at (+1, +1). No game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 
 #include <cassert>
@@ -29,7 +30,7 @@ int main() try {
     missile_at_target(game_data, monster, "centre", 3, -2, 0, missiles, 1);
     assert(missiles[1].x == 13 && missiles[1].y == 18);                               // a moving one starts there too
     assert(missiles[1].velocity_x > 0 && std::abs(missiles[1].velocity_x - missiles[1].velocity_y) < 1e-4f);
-    assert(missiles[1].to && missiles[1].to->first > 13 && missiles[1].to->second > 18);
+    assert(missiles[1].aim_at && missiles[1].aim_at->first > 13 && missiles[1].aim_at->second > 18);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_target_missile: %s\n", error.what());

@@ -7,6 +7,7 @@
 // think. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>

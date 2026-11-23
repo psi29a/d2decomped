@@ -6,6 +6,7 @@
 // so the charge's path reaches four times as far.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 

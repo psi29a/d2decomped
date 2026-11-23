@@ -2,6 +2,7 @@
 // Act 4's quests at the World's quest hooks (world.hpp: World::actN_*;
 // rules/quests_act4.hpp, docs/research/re/quests-act4.md).
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"

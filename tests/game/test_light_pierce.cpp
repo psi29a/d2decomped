@@ -5,6 +5,7 @@
 // standing monsters along its line. Skips (rc 77) without that argument or the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

@@ -3,7 +3,7 @@
 // Dragon Flight in play (do 52, FUN_005d7850 on each event of its sequence 21, rows 9 and 14): the row
 // the event is read on (unit +0x38 >> 8, rules::seq_step_row) odd kicks the target where it stands, even
 // flies to it; at the plain rate the kick comes first, then the flight.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

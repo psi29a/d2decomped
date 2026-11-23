@@ -5,7 +5,7 @@
 // state's, FUN_0056e970): a monster's curse, or a shrine's state (128..137,
 // curse 1), on the player's foe. Battle Orders isn't one. Needs the game data.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

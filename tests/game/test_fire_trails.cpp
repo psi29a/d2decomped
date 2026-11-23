@@ -5,7 +5,7 @@
 // subtile only on a frame they entered a new one (FUN_006505c0: path +0x34 & 8), so no two flames share a subtile.
 // Blaze (FUN_005c9d90): a flame at the player's subtile on each new subtile walked into, none while standing in one.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

@@ -5,7 +5,7 @@
 // amount: here calc1 and calc2 are 0, so the life stays and the overlay
 // still comes. Made-up data (test_data.hpp); test_holy_bolt has the real rows.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <overlays.hpp>

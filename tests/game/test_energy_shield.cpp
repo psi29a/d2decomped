@@ -6,7 +6,7 @@
 // With no game data the rules::energy_shield_blows checks run; with it the REAL Fight::absorb runs a grid of
 // single-element blows against the same arithmetic written out here.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

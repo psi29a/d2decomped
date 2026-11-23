@@ -11,6 +11,7 @@
 // stands 10 (walk_failed), each on its seed. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -75,7 +76,7 @@ int main() try {
     fight[1].listed = false;
     std::array<Foe, 2> foes{};
     foes[0].x = 1.1f; foes[0].y = 1.1f;                           // the player, 50 subtiles off
-    foes[1].x = fight[1].unit.x; foes[1].y = fight[1].unit.y; foes[1].of = &fight[1]; foes[1].id = fight[1].id; foes[1].size = 1;
+    foes[1].x = fight[1].unit.x; foes[1].y = fight[1].unit.y; foes[1].monster = &fight[1]; foes[1].id = fight[1].id; foes[1].size = 1;
     fight[0].aware = true;
     monster_update(*data, here, fight[0], foes, rng, 200000, 0.04f, crowd, shots, fight);
     assert(fight[0].chase != 1);                                  // caged: no target

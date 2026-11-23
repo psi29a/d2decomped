@@ -12,6 +12,7 @@
 //   inner  the arithmetic alone (static_field_fine + resisted_fine, or `skip`).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

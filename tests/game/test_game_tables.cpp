@@ -5,6 +5,7 @@
 // collision shapes, every level's monster region, Act 1's drops.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>

@@ -5,6 +5,7 @@
 #include "gamedata.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "game.hpp"
 #include "log.hpp"
 

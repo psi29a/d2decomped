@@ -13,6 +13,7 @@
 //   mana after a burn through Fight::hurt_side and a Normal level 9 unique's hit (4..7 points: 1,024 to 1,792 mana).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s.hpp>

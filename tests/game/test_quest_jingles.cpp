@@ -10,6 +10,7 @@
 // S->C 0x89 {3} itself goes to every player (ev::UniqueEvent, its light show).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

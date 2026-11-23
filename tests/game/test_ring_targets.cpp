@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A ring's missiles each get a target point (Missile::to) at the start's
+// A ring's missiles each get a target point (Missile::aim_at) at the start's
 // subtile plus the ring's offset: FUN_0059fa30's flag 2, as FUN_0056d400
 // (the novas), FUN_005ccd10 (PrimePoisonNova), FUN_005af030 (Frozen Orb's
 // spin) and FUN_005abb00 (hit 29) pass it. With no point, missile_fly aims
@@ -8,6 +8,7 @@
 // Needs the game data.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <ds1.hpp>
@@ -46,7 +47,7 @@ namespace {
 // The missile aims at its start's subtile plus (offset_x, offset_y).
 bool aims_at(const Missile& missile, int offset_x, int offset_y) {
     const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-    return missile.to && subtile(missile.to->first) == subtile(missile.x) + offset_x && subtile(missile.to->second) == subtile(missile.y) + offset_y;
+    return missile.aim_at && subtile(missile.aim_at->first) == subtile(missile.x) + offset_x && subtile(missile.aim_at->second) == subtile(missile.y) + offset_y;
 }
 
 // The missile starts on the subtile of (x, y).

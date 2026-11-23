@@ -15,6 +15,7 @@
 // curse still goes on. Two other states keep their own nodes side by side.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <skills.hpp>

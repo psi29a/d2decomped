@@ -4,7 +4,7 @@
 // at the start plus (1, 1) (FUN_0059fa30). The room follows (path flag 1,
 // FUN_006492f0) only when that point lies outside the first room. A re-aim in
 // flight aims from the fine position at the new point's centre.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
@@ -63,14 +63,14 @@ int main() try {
             return rooms;
         };
         Missile crossing = shot_at(4.1f, 4.1f);
-        crossing.to = { 7.f, 4.1f };
+        crossing.aim_at = { 7.f, 4.1f };
         assert(missile_fly(level, crossing, growing));          // launched, still in its own room
         east_up = true;
         bool still = true;
         for (int step = 0; step < 8 && still; ++step) still = missile_fly(level, crossing, growing);
         assert(crossing.x > 4.4f);                              // past x 22 (4.4 cells): the east room let it in
         Missile blocked = shot_at(4.1f, 4.1f);
-        blocked.to = { 7.f, 4.1f };
+        blocked.aim_at = { 7.f, 4.1f };
         east_up = false;
         still = missile_fly(level, blocked, growing);
         for (int step = 0; step < 8 && still; ++step) still = missile_fly(level, blocked, growing);
@@ -78,14 +78,14 @@ int main() try {
     }
 
     Missile inside = shot_at(4.1f, 4.1f);
-    inside.to = { 4.5f, 4.5f };                 // subtile (22, 22), inside the room
+    inside.aim_at = { 4.5f, 4.5f };                 // subtile (22, 22), inside the room
     assert(missile_fly(level, inside, whole));
     const auto [inside_x, inside_y] = d2d::rules::missile_aim(centre_of(20), centre_of(20), centre_of(22), centre_of(22));
     assert(inside.flight.aim_x == inside_x && inside.flight.aim_y == inside_y);
     assert(!inside.follow);
 
     Missile outside = shot_at(4.1f, 4.1f);
-    outside.to = { 10.f, 4.1f };                // subtile (50, 20), past the room
+    outside.aim_at = { 10.f, 4.1f };                // subtile (50, 20), past the room
     static_cast<void>(missile_fly(level, outside, whole));   // only the launch's follow flag is checked
     assert(outside.follow);
 
@@ -93,7 +93,7 @@ int main() try {
 
     // A re-aim in flight (FUN_00649970 -> FUN_006492f0): from the fine position kept, at the point's centre.
     Missile guided = shot_at(4.1f, 4.1f);
-    guided.to = { 6.1f, 4.1f };
+    guided.aim_at = { 6.1f, 4.1f };
     assert(missile_fly(level, guided, whole));
     const auto flown_x = guided.flight.x, flown_y = guided.flight.y;
     guided.retarget = std::pair{ 4.1f, 6.1f };   // subtile (20, 30)

@@ -4,7 +4,7 @@
 // up into the purse or the inventory.
 #pragma once
 
-#include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"

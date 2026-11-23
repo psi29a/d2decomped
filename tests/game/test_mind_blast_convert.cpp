@@ -7,6 +7,7 @@
 // replayed on a copy of the fight's rng, cast by cast.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

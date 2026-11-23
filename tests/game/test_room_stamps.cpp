@@ -6,7 +6,6 @@
 // rules::room_order lists each room by stamp, highest first (the index on a
 // tie, newest first). A unit that crosses to another level is stamped anew
 // there, whatever room index it lands in. No game data: the rooms are built here.
-#include <ai.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>

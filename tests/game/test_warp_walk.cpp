@@ -14,6 +14,7 @@
 // Needs the data (SKIPs without D2_MPQ_DIR and the 1.14d patch installer).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <gamedata.hpp>

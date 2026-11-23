@@ -5,6 +5,7 @@
 // 0x1000), not the AI distance.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <monsters.hpp>
 
 #include <cassert>

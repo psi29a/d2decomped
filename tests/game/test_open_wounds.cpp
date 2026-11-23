@@ -6,6 +6,7 @@
 // superunique and a minion. game.exe hands FUN_0056e970 v (256ths a frame) for 200 frames: 200 v / 256 points.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

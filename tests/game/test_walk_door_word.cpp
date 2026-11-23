@@ -6,6 +6,7 @@
 // reads at the next think, and a new path zeroes it (FUN_00649970).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 

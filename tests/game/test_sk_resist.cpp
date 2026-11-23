@@ -9,6 +9,7 @@
 // and cold; physical and poison print "-" (whole-point / per-tick paths).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

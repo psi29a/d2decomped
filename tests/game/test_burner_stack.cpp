@@ -6,7 +6,7 @@
 // one monster burn it twice a frame, and one flame on two monsters burns one: the newest (a room's list head).
 // Made-up rows (test_data.hpp): the rule, not the game's numbers.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>

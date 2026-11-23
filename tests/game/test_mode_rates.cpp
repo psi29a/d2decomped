@@ -12,6 +12,7 @@
 // made-up rows, and the get-hit rate as rules::get_hit_rate's.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

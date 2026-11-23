@@ -4,7 +4,7 @@
 // a monster whose MonStats Align isn't 1 swings for x 10 / 12 damage and
 // x 10 / 15 to-hit, its elements as they are, no player-count growth.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <monsters.hpp>
 
 #include <cassert>

@@ -7,6 +7,7 @@
 // test_game_rules has the checks that need no data, test_game_tables the tables'.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

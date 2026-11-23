@@ -3,6 +3,7 @@
 #include "fight.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
@@ -304,7 +305,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                     const auto& missile_info = game_data->missiles.at("arrow");
                     const float speed = missile_speed(missile_info, actor->merc_st.level);
                     Missile missile{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, missile_facing(unit.x, unit.y, dx, dy), now_ms, now_ms + std::uint32_t(missile_info.range) * 40, {} };
-                    missile.to = { target.unit.x, target.unit.y };
+                    missile.aim_at = { target.unit.x, target.unit.y };
                     const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
                     missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
                     seed_pierce(missile, true);                             // FUN_0059f940: the maker's, for every missile of a Pierce row

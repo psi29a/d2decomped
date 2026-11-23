@@ -7,7 +7,7 @@
 // one 6 cells off too); a subtile off him, it backs off. Needs the
 // game data; SKIPs without it.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

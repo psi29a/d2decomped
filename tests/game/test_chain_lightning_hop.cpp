@@ -7,6 +7,7 @@
 // ln34 / 5 = 7 bolts, round a pack of four in id order (FUN_0056bd10).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

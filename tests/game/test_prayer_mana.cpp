@@ -9,7 +9,7 @@
 // (0x580713). A right skill set clears it (FUN_005701b0, 0x5701db), a
 // left one doesn't. Needs the game data.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

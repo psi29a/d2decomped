@@ -8,7 +8,7 @@
 // game data, the rows that carry it (lightningbolt, chainlightning ->
 // lightninghit, loaded though no skill names it).
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <client_sparks.hpp>

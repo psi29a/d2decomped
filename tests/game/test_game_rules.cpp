@@ -4,6 +4,7 @@
 // missile's frame, the view codec, MonProp's stats on a monster, and the like.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
@@ -206,7 +207,7 @@ int main() try {
         }
         monster.props.knock = 0; monster.props.crush = 100;    // always
         Foe player, confused;
-        confused.of = &monster; confused.crush_divisor = 4;    // monster_foe_props' for a plain monster
+        confused.monster = &monster; confused.crush_divisor = 4;    // monster_foe_props' for a plain monster
         monprop_hit(monster, player, false); monprop_hit(monster, player, true); monprop_hit(monster, confused, false);
         assert((player.crushed == std::vector{ 10, 20 }) && (confused.crushed == std::vector{ 4 }) && !player.knocked_from);
         monster.props.crush = 0;

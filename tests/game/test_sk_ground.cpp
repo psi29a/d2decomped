@@ -24,6 +24,7 @@
 // tools/emu/sk_ground_roll.py, one record for the burst).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>

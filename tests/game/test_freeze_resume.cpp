@@ -9,6 +9,7 @@
 // swing, and to the first from the second freeze's frame on (`-` none).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>

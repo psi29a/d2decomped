@@ -9,6 +9,7 @@
 // seed.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

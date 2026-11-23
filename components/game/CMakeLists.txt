@@ -50,4 +50,4 @@ target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRE
                                        ${CMAKE_CURRENT_SOURCE_DIR}/gamedata ${CMAKE_CURRENT_SOURCE_DIR}/npc)
 target_link_libraries(game PUBLIC log mpq d2s rules drlg txt userdir install_detect cof compcode ds1 dt1 tbl)
 target_compile_features(game PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
-d2d_check_headers(game_headers SUBDIRS character fight gamedata npc world LINK game)
+d2d_check_headers(game_headers SUBDIRS ai character fight gamedata npc world LINK game)

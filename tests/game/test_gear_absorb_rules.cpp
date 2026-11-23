@@ -6,7 +6,7 @@
 // game.exe's lives (tools/emu/gear_absorb.py game, FUN_0057c6c0 on a player); test_gear_absorb runs them through Fight::hurt_side.
 // One more case runs Energy Shield's pass (rules::energy_shield_blows) with an absorb.
 
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <combat.hpp>
 #include <gear_absorb_case.hpp>
 #include <monsters.hpp>

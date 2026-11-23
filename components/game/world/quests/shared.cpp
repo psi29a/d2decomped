@@ -4,6 +4,7 @@
 #include "world.hpp"
 
 #include "ai.hpp"
+#include "ai/units.hpp"
 #include "character.hpp"
 #include "cues.hpp"
 #include "fight.hpp"

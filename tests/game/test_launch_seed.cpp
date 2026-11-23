@@ -5,7 +5,6 @@
 // two made one after the other take two steps in that order; a monster's as its
 // think returns (Fight::seed_missiles). No game data.
 
-#include <ai.hpp>
 #include <cues.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>

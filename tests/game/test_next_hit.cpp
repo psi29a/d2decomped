@@ -4,6 +4,7 @@
 // without that argument or without the game data (D2_MPQ_DIR).
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>

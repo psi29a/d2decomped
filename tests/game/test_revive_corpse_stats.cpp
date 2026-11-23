@@ -5,7 +5,7 @@
 // unit seed, and its life is rolled on that seed, not the game's. A MonStats
 // Level of 0 stays 0 (FUN_00573cb0 0x573e18..0x573e70, MonLvl row 0).
 // Synthetic rows: no game data.
-#include <ai.hpp>
+#include <ai/units.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>
