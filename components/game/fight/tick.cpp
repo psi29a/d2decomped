@@ -325,7 +325,7 @@ auto Fight::crowd(Crowd& crowd_out) -> void {
         for (auto& monster : monsters)
             if (monster.targetable() && std::abs(monster.unit.x - actor->player.x) < 12 && std::abs(monster.unit.y - actor->player.y) < 12) {
                 crowd_out.units.push_back(&monster.unit);
-                if (monster.leaping) crowd_out.units.push_back(&monster.landing_mark);   // its landing, held (FUN_005d9d50)
+                crowd_out.held.emplace_back(&monster.landing_mark, &monster.leaping);   // its landing while it leaps (FUN_005d9d50), one taken this frame too
             }
         for (auto& pet : actor->pets)                                 // pets stand in the way too (Bone Wall)
             if (pet.monster.alive() && pet.where == level) crowd_out.units.push_back(&pet.monster.unit);
@@ -337,7 +337,7 @@ auto Fight::crowd_around(Crowd& crowd_out, float x, float y) -> void {
         for (auto& monster : monsters)
             if (monster.targetable() && std::abs(monster.unit.x - x) < 12 && std::abs(monster.unit.y - y) < 12) {
                 crowd_out.units.push_back(&monster.unit);
-                if (monster.leaping) crowd_out.units.push_back(&monster.landing_mark);   // its landing, held (FUN_005d9d50)
+                crowd_out.held.emplace_back(&monster.landing_mark, &monster.leaping);   // its landing while it leaps (FUN_005d9d50), one taken this frame too
             }
         for (auto* hero : heroes)
             for (auto& pet : hero->pets)
