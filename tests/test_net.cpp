@@ -182,10 +182,10 @@ int main() try {
         const d2d::net::Bytes council_target{ 0x4c, 1, 63, 0, 0, 0, 62, 0, 3, 0, 1, 0, 0, 0, 0, 0 };
         const d2d::net::Bytes council_point{ 0x4d, 1, 63, 0, 0, 0, 62, 0, 0, 0, 3, 0x4b, 0x16, 0x83, 0x13, 0, 0 };
         const auto target_cast = d2gs::s2c::unit_skill(council_target);
-        assert(target_cast && target_cast->type == 1 && target_cast->id == 63 && target_cast->skill == 62 && !target_cast->point);
+        assert(target_cast && target_cast->type == 1 && target_cast->id == 63 && target_cast->skill == 62 && target_cast->level == 3 && !target_cast->point);
         assert(target_cast->target && target_cast->target->first == 0 && target_cast->target->second == 1);
         const auto point_cast = d2gs::s2c::unit_skill(council_point);
-        assert(point_cast && point_cast->type == 1 && point_cast->id == 63 && point_cast->skill == 62 && !point_cast->target);
+        assert(point_cast && point_cast->type == 1 && point_cast->id == 63 && point_cast->skill == 62 && point_cast->level == 3 && !point_cast->target);
         assert(point_cast->point && point_cast->point->first == 5707 && point_cast->point->second == 4995);
         assert(!d2gs::s2c::unit_skill(std::span(council_target).first(15)));
         assert(!d2gs::s2c::unit_skill(std::span(council_point).first(16)));

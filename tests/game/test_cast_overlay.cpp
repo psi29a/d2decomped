@@ -173,6 +173,18 @@ int main() try {
             assert(overlay_row > 0 && overlays == (d2d::rules::OneShots{{overlay_row, now}}));
         }
     }
+    // FUN_004c6680 uses these client rows on the action frame.
+    assert(data->skills.get(45)->clt_missile == "iceblast");
+    assert(data->skills.get(55)->clt_missile == "glacialspike");
+    assert(data->skills.get(62)->clt_missile.empty());
+    assert(data->skills.get(337)->clt_missile == "hydra");
+    const auto& spike = data->missiles.at("glacialspike");
+    assert(spike.clt_hit == 14 && spike.clt_hit_subs[0] && spike.clt_hit_subs[1]);
+    assert(spike.clt_hit_subs[0]->name == "freezingarrowexp1" && spike.clt_hit_subs[1]->name == "freezingarrowexp2");
+    for (const auto class_id : {345u, 346u, 347u}) {
+        const auto& council = data->monsters.types.at(data->mon_bin.at(class_id));
+        assert(data->missiles.at(council.miss_s1).id == 343);
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_cast_overlay: %s\n", error.what());

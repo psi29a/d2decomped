@@ -74,7 +74,7 @@ inline auto monster_command(std::span<const std::uint8_t> packet) -> std::option
 
 struct UnitSkill {
     std::uint32_t id, skill;
-    std::uint8_t type;
+    std::uint8_t type, level;
     std::optional<std::pair<std::uint16_t, std::uint16_t>> point;
     std::optional<std::pair<std::uint8_t, std::uint32_t>> target;
 };
@@ -82,9 +82,9 @@ struct UnitSkill {
 // FUN_0045df00 / FUN_0045df60 dispatch a skill on a unit / at a point.
 inline auto unit_skill(std::span<const std::uint8_t> packet) -> std::optional<UnitSkill> {
     if (packet.size() == 16 && packet[0] == 0x4c)
-        return UnitSkill{read_u32(packet, 2), read_u16(packet, 6), packet[1], {}, {{packet[9], read_u32(packet, 10)}}};
+        return UnitSkill{read_u32(packet, 2), read_u16(packet, 6), packet[1], packet[8], {}, {{packet[9], read_u32(packet, 10)}}};
     if (packet.size() == 17 && packet[0] == 0x4d)
-        return UnitSkill{read_u32(packet, 2), read_u32(packet, 6), packet[1], {{read_u16(packet, 11), read_u16(packet, 13)}}, {}};
+        return UnitSkill{read_u32(packet, 2), read_u32(packet, 6), packet[1], packet[10], {{read_u16(packet, 11), read_u16(packet, 13)}}, {}};
     return std::nullopt;
 }
 
