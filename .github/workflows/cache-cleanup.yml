@@ -51,11 +51,13 @@ jobs:
               check=True, capture_output=True, text=True).stdout)
           # What varies per save: a timestamp (ccache), a run id (Flatpak),
           # a file hash (FFmpeg, Sentry), the ISO week (apt), commit + run (CodeQL).
+          # A kind names the OS and the arch: ffmpeg-macOS alone made ARM64 and
+          # X64 one kind, and each Mac's save deleted the other's.
           kinds = [
               re.compile(r"^(ccache-.+?)-\d{4}-\d\d-\d\dT"),
               re.compile(r"^(flatpak-builder-[^-]+)-"),
-              re.compile(r"^(ffmpeg-[^-]+)-"),
-              re.compile(r"^(sentry-[^-]+)-"),
+              re.compile(r"^(ffmpeg-[^-]+-[^-]+)-"),
+              re.compile(r"^(sentry-[^-]+-[^-]+)-"),
               re.compile(r"^(apt-.+?)-\d{4}-\d\d$"),
               re.compile(r"^(codeql-.+)-[0-9a-f]{40}-\d+-\d+$"),
           ]
