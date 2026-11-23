@@ -262,21 +262,30 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
     }
 
-// A pet's own swing (FUN_0057b420 on its stats 21 / 22): its damagepercent, stat 25, is one sum of its own
-// (summons.cpp, baked into A1 on the unscaled range) and a curse's (Weaken), floored at -90 (0x57b5a8), and
-// scales both ends before the roll (0x57b5c1..0x57b5dc), so the record's physical (+8) carries it.
-// ponytail: game.exe scales in 256ths, x + MulDiv(x, pct, 100) on one sum, and rolls on the pet's own seed;
-// here whole points, its own percent already in A1 and the curse's x unscaled / 100 truncated on top, rolled on
-// the fight's rng (base 8, own +25 %, Weaken -33 %: 7.36 points there, 8 here).
+// A pet's own swing (FUN_0057b420 on its stats 21 / 22, disassembled 0x57b420..0x57b62b): the range in
+// 256ths (no weapon: at least 1 and 2 points, 0x57b499 / 0x57b4b2), stat 111 added to both (none on a
+// pet), the low under 1 made 0x100 and a high not above it the low + 0x100 (0x57b4d8..0x57b4f4); one %
+// sum, stat 25 (its own damagepercent, summons.cpp, and a curse's: Weaken) floored at -90 (0x57b5a8),
+// and each end + MulDiv(end, sum, 100) (stats 18 / 17 add to the low's / high's sum, none on a pet),
+// then low + rand(high - low) (0x57b5f7): player_blow's roll on these 256ths.
+// ponytail: the draw is on the pet's own seed (+0x20, FUN_0045c3e0) in game.exe, the fight's rng here
+// (player_blow rolls the to-hit and block on the same rng); approximation 18.
 auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
         const auto swung = pet.monster.classic_stats();
         const int curse = std::max(pet_buff_stat(pet, d2d::d2s::kDamagePercent), -90 - pet.damage_pct);
-        // The curse's base is the unscaled A1 through the same classic cut (classic_swing) as the swing's.
+        // The unscaled A1 through the same classic cut (classic_swing) as the swing's; with none kept,
+        // the swing's own (its percent already in it), the curse's alone on top.
         auto unscaled = pet.monster.stats;
         unscaled.a1_min = pet.a1_unscaled[0]; unscaled.a1_max = pet.a1_unscaled[1];
         if (pet.monster.classic) d2d::rules::classic_swing(unscaled, pet.monster.difficulty, pet.monster.row_align);
-        const auto base = pet.a1_unscaled[1] > 0 ? std::array<int, 2>{ unscaled.a1_min, unscaled.a1_max } : std::array<int, 2>{ swung.a1_min, swung.a1_max };
-        return d2d::rules::simple_fighter(std::max(swung.a1_min + base[0] * curse / 100, 0), std::max(swung.a1_max + base[1] * curse / 100, 0), swung.to_hit);
+        const bool own_range = pet.a1_unscaled[1] > 0;
+        auto fighter = d2d::rules::simple_fighter(own_range ? unscaled.a1_min : swung.a1_min, own_range ? unscaled.a1_max : swung.a1_max, swung.to_hit);
+        int low = fighter.min << 8, high = fighter.max << 8;
+        if (low < 1) low = 0x100;
+        if (high <= low) high = low + 0x100;
+        fighter.phys_lo = low; fighter.phys_hi = high;
+        fighter.phys_pct = (own_range ? pet.damage_pct : 0) + curse;
+        return fighter;
     }
 
 // A Shadow's blow is its owner's Fighter (its copied gear) with its own
