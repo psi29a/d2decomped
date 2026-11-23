@@ -363,6 +363,32 @@ int main() try {
         quest::set(tomb_bits, 14, 13);                                                       // in this game: the general path
         assert(quest_text(tomb_bits, 14, tomb_state).state != 7);
     }
+    {   // Acts 4 and 5 (records 19..27, 0x723c64 on; #685), and their own cases.
+        QuestBits act45_bits{};
+        QuestState act45_state{};
+        assert(quest_text(act45_bits, 28, act45_state).shown == 2 && quest_text(act45_bits, 41, act45_state).shown == 2);   // no record
+        quest::set(act45_bits, 25, 0);                                                        // Izual done in a game before: state 11
+        assert(quest_text(act45_bits, 25, act45_state).string == 3728 && quest_text(act45_bits, 25, act45_state).speech == 675);
+        quest::set(act45_bits, 27, 1); quest::set(act45_bits, 27, 15);                          // the Hellforge closed: state 10, shown done
+        assert(quest_text(act45_bits, 27, act45_state).string == 3728 && quest_text(act45_bits, 27, act45_state).shown == 1);
+        quest::set(act45_bits, 35, 1); quest::set(act45_bits, 35, 0);                           // the Siege with bit 1: state 4, done or not
+        text = quest_text(act45_bits, 35, act45_state);
+        assert(text.string == 21786 && text.speech == 20090 && text.state == 4);
+        quest::set(act45_bits, 37, 1); quest::set(act45_bits, 37, 15);                          // Prison of Ice: 5, 6 with bit 8, 10 with 8 and 9
+        assert(quest_text(act45_bits, 37, act45_state).state == 5 && quest_text(act45_bits, 37, act45_state).string == 22631);
+        quest::set(act45_bits, 37, 8);
+        assert(quest_text(act45_bits, 37, act45_state).state == 6 && quest_text(act45_bits, 37, act45_state).string == 22632);
+        quest::set(act45_bits, 37, 9);
+        assert(quest_text(act45_bits, 37, act45_state).state == 10 && quest_text(act45_bits, 37, act45_state).string == 22631);
+        quest::set(act45_bits, 38, 1); quest::set(act45_bits, 38, 15);                          // Betrayal: 4, 5 with bit 4
+        assert(quest_text(act45_bits, 38, act45_state).state == 4 && quest_text(act45_bits, 38, act45_state).string == 22636);
+        quest::set(act45_bits, 38, 4);
+        assert(quest_text(act45_bits, 38, act45_state).string == 21790 && quest_text(act45_bits, 38, act45_state).speech == 20148);
+        quest::set(act45_bits, 39, 13); quest::set(act45_bits, 39, 1);                          // Rite of Passage's reward due: state 3 + 1
+        assert(quest_text(act45_bits, 39, act45_state).string == 22639 && quest_text(act45_bits, 39, act45_state).state == 4);
+        act45_state.log[40] = 2;
+        assert(quest_text(act45_bits, 40, act45_state).string == 21881 && quest_text(act45_bits, 40, act45_state).speech == 20169);
+    }
     quest::set(text_bits, 5, 1); quest::set(text_bits, 5, 15);                                     // closed with the reward due: state 10, none
     assert(quest_text(text_bits, 5, log_state).shown == 2);
     quest::set(text_bits, 2, 1); quest::set(text_bits, 2, 15);
