@@ -188,10 +188,10 @@ storm_message	0x0c	u32	lparam	Storm message lparam	docs/research/re/source-modul
 storm_message	0x10	u32	notification	Storm message notification	docs/research/re/source-module.md:49
 storm_message	0x18	u32	result	Storm message result	docs/research/re/source-module.md:49
 storm_message	0x1c	u32	handled	Storm message handled	docs/research/re/source-module.md:49
-unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/object_ids.hpp:10
+unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/world/object_ids.hpp:10
 unit	0x04	u32	class	its row: MonStats, objects.txt, Missiles, ...	tools/emu/life_apply.py:50
 unit	0x0c	u32	id	unit ID used in a minion list	docs/research/re/ai-control.md:81
-unit	0x10	u32	mode	animation mode	components/rules/monsters.hpp:923
+unit	0x10	u32	mode	animation mode	components/rules/monsters/monsters.hpp:923
 unit	0x14	ptr	data	type-specific data; item data for type 4	docs/research/re/items.md:4
 unit	0x20	u32	seed_low	the unit seed {low, 666} (FUN_00552df0)	docs/research/re/drops.md:129
 unit	0x24	u32	seed_high	666 when made	docs/research/re/drops.md:129
@@ -218,4 +218,4 @@ unit	0xb0	u32	hit_class	the last hit's class: the impact its GH / KB / DT plays	
 unit	0xc4	u32	flags	0x400: a sound event queued	docs/research/re/char-panel.md:182
 unit	0xc8	u32	flags_ex	0x80: an object drawn; 0x2000000: classic	docs/research/re/lighting.md:186
 unit	0xd0	u32	unit_list	which of game +0x10f8's lists holds it, 0xb none	docs/research/re/monster-ai.md:57
-unit	0xd4	u32	operate_time	an object's last change, ms	components/rules/shrines.hpp:157
+unit	0xd4	u32	operate_time	an object's last change, ms	components/rules/world/shrines.hpp:157

@@ -1,8 +1,8 @@
 # Players and parties — counts, experience, gold (1.14d game.exe)
 
-Our port: `components/rules/monsters.hpp` (`player_life_pct`,
-`player_exp_pct`, `monster_stats`), `components/rules/combat.hpp`
-(`party_shares`), `components/rules/drops.hpp` (`roll_drops`' `nearby`),
+Our port: `components/rules/monsters/monsters.hpp` (`player_life_pct`,
+`player_exp_pct`, `monster_stats`), `components/rules/combat/combat.hpp`
+(`party_shares`), `components/rules/items/drops.hpp` (`roll_drops`' `nearby`),
 `components/game/fight/deaths.cpp` (`Fight::killed`, `drop_counts`),
 `components/game/loot.hpp` (`Loot::take`'s gold), `World::credit_party`.
 Tests: `tests/game/test_game.cpp` (two players). The first survey is in

@@ -60,7 +60,7 @@ def roll_game(lo, hi, seed):
 
 
 def roll_d2d(lo, hi, seed):
-    """components/rules/combat.hpp missile_blow before the fix: Rng::range, inclusive."""
+    """components/rules/combat/combat.hpp missile_blow before the fix: Rng::range, inclusive."""
     hi = max(hi, lo)
     if hi <= 0:
         return 0

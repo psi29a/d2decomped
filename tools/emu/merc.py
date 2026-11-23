@@ -11,7 +11,7 @@ moves find a path. Its effects are hooked: a move set off (FUN_005a7c20:
 mode, spot, the path ctx's type / pct / steps from FUN_005a6260, the stop
 distance), a stand (FUN_005de080), a teleport (FUN_0054dc40 / FUN_00554ea0),
 the attack think (FUN_005e5050). The rolls are game.exe's own on the merc's
-seed (+0x20). `merc_think` below is components/rules/merc.hpp line for line;
+seed (+0x20). `merc_think` below is components/rules/ai/merc.hpp line for line;
 the effects and the seed after must agree. Prints `ok` or each mismatch.
 """
 import random
@@ -65,7 +65,7 @@ def spot_gap(x, y, tx, ty):
 
 
 def merc_think(s, seed, move):
-    """components/rules/merc.hpp hireable_think. `s`: the setup; `move(kind,
+    """components/rules/ai/merc.hpp hireable_think. `s`: the setup; `move(kind,
     x, y, mode, ctx)` sets off (True: it found a path). Effects as tuples."""
     out = []
     ctx = {"type": 0, "pct": 0, "steps": 0}                             # FUN_005a6260

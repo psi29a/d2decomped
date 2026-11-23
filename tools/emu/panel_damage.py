@@ -38,7 +38,7 @@ FUN_004e9260 (the wielded hand's weapon, the other's), FUN_00627910 (their
 stats on and off), FUN_00625500 (a unit's own stat). FUN_004e96e0 (the
 draw) records min, max and colour, FUN_004e9870 (two values) its two strings and
 colours. d2d's rules::attack_line
-(components/rules/skills.hpp) is the Python below; prints the cases that
+(components/rules/combat/skills.hpp) is the Python below; prints the cases that
 differ.
 
 The attack rating's descatt table at 0x72d7f8 (FUN_004eda80) the same

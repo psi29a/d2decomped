@@ -1552,7 +1552,7 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
     overlay block, skipping the 0x46 check mode 3 has.
   - the shared overlay block: `FUN_00470390(unit, 0x46, kind=6, 8, 0, 0, 8,
     0)` (`GFX_AddOverlayToUnit`, already ported at
-    `components/rules/overlays.hpp`; its own comment there notes kind 6 is
+    `components/rules/ui/overlays.hpp`; its own comment there notes kind 6 is
     the only kind that "waits" rather than looping). Overlay.txt row 0x46's
     name was not read here. Then return.
   d2d: the overlay call itself is already ported (`overlays.hpp`); the
@@ -1996,7 +1996,7 @@ switches on the code:
 
 - `0x14d`, `0xf2`/`0x2c0` (shared tail) and `0x21f` each call the
   already-identified `FUN_00470390` (`GFX_AddOverlayToUnit`, ported
-  `components/rules/overlays.hpp`, first cited line 1416 above) on the
+  `components/rules/ui/overlays.hpp`, first cited line 1416 above) on the
   new unit with a different overlay id and kind each time (`0xba`/kind
   2; `0x7a`/kind 3; `0x113`/kind 3).
 - `0x154`..`0x157` (a 4-entry jump table) each call `FUN_004da000(unit)`
@@ -2606,7 +2606,7 @@ and a value under 0xe (14) returns the dword at `DAT_00727ed8 + (EDX &
 0xf) * 8`; 0xe or above is fatal too (message `0xb60`). `0x727ed8` is the
 8-byte `{sound, frames}` table "The swing, FUN_004cb6a0" already names
 (`unit-sounds.md:51`, ported whole as `kSwing` in
-`components/rules/sound_ids.hpp:49`) — this function returns only the
+`components/rules/sound/sound_ids.hpp:49`) — this function returns only the
 `sound` half of the pair, given the hit class directly rather than
 computing it. Its three callers (`FUN_004c6140` Skills.cpp's skill-start
 dispatcher, ported; `FUN_004c7d50`, `FUN_004c8ed0`, `FUN_004f4c20`, all
@@ -2629,7 +2629,7 @@ Re-check: `python3 tools/ghidra/fn.py 004ca4c0 004c6140`; disassemble
 Two UNIT functions a short distance after batch 8's sound-node pair,
 both gated on `FUN_004ca320` (**GetSndUnitType**, `unit-sounds.md:38`)
 returning 1 (monster) and then `d2d_uniques_boss_sound(unit)`
-(`components/rules/uniques.cpp:112`, already ported) returning a non-null
+(`components/rules/monsters/uniques.cpp:112`, already ported) returning a non-null
 MonSounds.txt row pointer (0x94-byte stride, confirmed via that function's
 own tail calls `FUN_00656f90`/`FUN_00656fc0`, which compute `row * 0x94 +
 DAT_0096c6b4`):
@@ -2692,7 +2692,7 @@ above also make):
   `unit-sounds.md:38`) as an objects.txt id, bound-checked under 0x23d
   (else fatal, id `0x1213`); if `DAT_007295f8[id]` (the per-object sound
   record "Objects (0x7295f8)" names, `unit-sounds.md:369`, dumped whole
-  as `kObjectSounds` in `components/rules/object_sounds.hpp`) is set, call
+  as `kObjectSounds` in `components/rules/sound/object_sounds.hpp`) is set, call
   `FUN_004822b0(record->modes[i], EDX)` for all eight of its `modes`
   entries.
 
@@ -2735,7 +2735,7 @@ on the branch that needs it, at `+0x96`, a signed 16-bit field):
   default: 1.
 
 Its only caller, `FUN_004d5310` (`andycontrol0`, client function 29,
-already `d2d verified`: `components/rules/shake.hpp:60`,
+already `d2d verified`: `components/rules/world/shake.hpp:60`,
 `unit-sounds.md:570`, with a committed oracle,
 `tools/emu/shake.py`/`tests/quake_control_cases.inc`), passes the
 MissileTypeTxt-shaped record it already holds (stride `0x1a4`,
@@ -4636,7 +4636,7 @@ dead code; a pointer-table use was not searched.
   signature calls the third argument `pDamage`; the disassembly shows ESI is
   the record (`ADD [ESI+0xc], EAX` at `0057b64e`). d2d's live
   demon bonus is the missile one (`FUN_005ad2f0`, `damage.demon_pct`,
-  components/rules/combat.cpp:432); the item stat 0x79 term here is not
+  components/rules/combat/combat.cpp:432); the item stat 0x79 term here is not
   in d2d, and since the function has no caller the live game may not use it
   either (the live function, `FUN_0057b7d0`, was not re-read in this pass).
 - **`FUN_0057c3e0`** (`0057c3e0`..`0057c41a`, **ECX** monster unit, one

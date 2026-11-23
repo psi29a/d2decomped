@@ -97,7 +97,7 @@ for path in glob.glob("components/**/*.[ch]pp", recursive=True) + glob.glob("app
         literals.add(text)
         if "{" in text: patterns.append(re.compile("^" + re.sub(r"\\\{[^}]*\\\}", "[a-z0-9]+", re.escape(text)) + "$"))
 numbers |= {int(sound) for _, sound in re.findall(r"\{ (\d+), (\d+) \}", open("apps/d2d/speech_sound.hpp").read())}
-ids = open("components/rules/sound_ids.hpp").read()
+ids = open("components/rules/sound/sound_ids.hpp").read()
 refs = "\n".join(open(path, encoding="utf-8", errors="ignore").read()
                    for root in ("components", "apps")
                    for path in glob.glob(root + "/**/*.[ch]pp", recursive=True))
@@ -115,7 +115,7 @@ for path in glob.glob("components/**/*.cpp", recursive=True):
     for line in re.findall(r'class_cue\("([^"]+)"', source):
         numbers |= {by_name[f"{prefix}_{line}"] for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
 # The find lines (rules::kFindLines) go to class_cue from a table.
-find_lines = re.findall(r'\{ \{[^}]*\}, \d+, "(act\d_find_\w+)"', open("components/rules/quests.hpp", encoding="utf-8").read())
+find_lines = re.findall(r'\{ \{[^}]*\}, \d+, "(act\d_find_\w+)"', open("components/rules/quests/quests.hpp", encoding="utf-8").read())
 numbers |= {by_name[f"{prefix}_{line}"] for line in find_lines for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
 # Say sounds are selected by arithmetic from each class's first phrase row.
 town = "".join(open(path, encoding="utf-8").read() for path in sorted(glob.glob("apps/d2d/session/*.cpp")))
@@ -126,7 +126,7 @@ for line in ids.splitlines():                  # the impact's element rows (hex)
     if "out.element =" in line: numbers |= {int(n, 16) for n in re.findall(r"0x([0-9a-f]+)", line.split("out.element =", 1)[1])}
 numbers |= {int(n) for n in re.findall(r"out\.impact = (\d+)", ids)}
 # The object table's sound fields only: { id, { 8 mode rows }, { sound, mode, sound, mode } }, and object 0x3d's loops.
-objects = open("components/rules/object_sounds.hpp").read()
+objects = open("components/rules/sound/object_sounds.hpp").read()
 for modes, loops in re.findall(r"\{ \d+, \{ ([\d, ]+) \}, \{ ([\d, ]+) \}", objects):
     loop = [int(n) for n in loops.split(",")]
     numbers |= {int(n) for n in modes.split(",")} | {loop[0], loop[2]}

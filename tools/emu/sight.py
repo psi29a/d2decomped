@@ -17,7 +17,7 @@ import emu
 
 
 def port(x1, y1, s1, x2, y2, s2, wall):
-    """components/rules/monsters.hpp sight_blocked, line for line."""
+    """components/rules/monsters/monsters.hpp sight_blocked, line for line."""
     s1, s2 = min(s1, 2), min(s2, 2)
     across, down = abs(x2 - x1), abs(y2 - y1)
     if across + down < s1 + s2: return False

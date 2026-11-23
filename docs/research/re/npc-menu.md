@@ -398,7 +398,7 @@ it counts durability `!=` max and restocks only a throwable stack
 (`FUN_0062e5d0`).
 
 d2d: `rules::shop_click`, `rules::shop_kind`, `rules::repair_gate` /
-`repair_click_gate` (components/rules/shop_action.hpp). The town update asks
+`repair_click_gate` (components/rules/items/shop_action.hpp). The town update asks
 `shop_click` before sending a buy: a held item stops it, as at 0x4b3a77 (d2d's
 server would have bought with it), and the gate before it sends a repair of one
 item (an unidentified throwing stack short of its max was mended before: Repair

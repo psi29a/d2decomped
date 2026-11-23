@@ -17,7 +17,7 @@ Every step within 12 subtiles on each axis, the 0xff / 0x100 edges, for a
 press, a running press, held, held running, a release and no flag, from a
 unit at (1000, 2000). Each line is {dx, dy, flags, sent, spot dx, spot dy}:
 sent 0 leaves the spot as it was. d2d's rules::click_spot
-(components/rules/click_spot.hpp) is checked against these by
+(components/rules/world/click_spot.hpp) is checked against these by
 tests/test_click_spot.cpp.
 """
 import emu

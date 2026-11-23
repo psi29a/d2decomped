@@ -78,7 +78,7 @@ def tdiv(a, b): return a // b if (a >= 0) == (b > 0) else -(-a // b)    # C's tr
 
 
 def mul_div(a, b, c):
-    """FUN_00483360 as d2d's mul_div (components/rules/combat.hpp) writes it."""
+    """FUN_00483360 as d2d's mul_div (components/rules/combat/combat.hpp) writes it."""
     if c == 0: return 0
     if a <= 0x100000:
         if b <= 0x10000: return tdiv(s32((a * b) & 0xFFFFFFFF), c)

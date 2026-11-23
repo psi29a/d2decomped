@@ -4,7 +4,7 @@ How a missile is made and moved on the server. `.\MISSILES\Missiles.cpp`
 (make), `.\MISSILES\MissMode.cpp` (per frame), Path.cpp (the move).
 Proven by `tools/emu/missiles.py`: game.exe's own FUN_0059fa30 and
 srvdofunc 1 in a Blood Moor game, frame by frame, against
-`components/rules/missiles.hpp` (thousands of flights: arrow, spike1/5,
+`components/rules/combat/missiles.hpp` (thousands of flights: arrow, spike1/5,
 shafire1, firebolt, icebolt, andypoisonbolt, chargedbolt, random
 Vel/MaxVel/Accel rows; walls, rooms and foes of size 1..3).
 
@@ -432,7 +432,7 @@ FUN_0063e990(unit) (undead) and for dParam2 (+0x7c) > 0 and FUN_0063e940(unit)
 (demon) FUN_005a9270 adds FUN_00483360(100) (roll × dParam / 100) more.
 
 d2d: reads the same, cited from the decompile, no oracle run in this pass
-(ported at fight/missiles.cpp:739 and components/rules/combat.cpp:536; an existing
+(ported at fight/missiles.cpp:739 and components/rules/combat/combat.cpp:536; an existing
 tools/emu/hammer_hit.py and tests/game/test_hammer_hit.cpp are not part of
 this change). The
 slot-13 wrapper (FUN_005ad5c0) is not ported.
@@ -1181,7 +1181,7 @@ Re-check: `python3 tools/ghidra/fn.py 005a8910`,
 d2d: **not ported** for the bonus term (a gap, not shown to disagree: whether a
 missile unit carries the mastery stats, or the skill calc already adds them, is
 not settled here). The min / max / zero rules read the same as `missile_blow`
-(components/rules/combat.hpp:388), cited from the decompile, no oracle run.
+(components/rules/combat/combat.hpp:388), cited from the decompile, no oracle run.
 
 ## Monster class test: demon — FUN_0063e940
 
@@ -1196,7 +1196,7 @@ decompile, below).
 Re-check: `python3 tools/ghidra/fn.py 0063e940`,
 `python3 tools/ghidra/calls.py 0063e940`.
 
-d2d: reads the same, cited from the decompile, no oracle run. `Target::demon` (components/rules/combat.hpp:341, "MonStats
+d2d: reads the same, cited from the decompile, no oracle run. `Target::demon` (components/rules/combat/combat.hpp:341, "MonStats
 demon") is the same bit; components/game/fight/missiles.cpp:638 uses it for the
 dParam2 bonus.
 
@@ -1211,8 +1211,8 @@ FUN_0056b3e0, FUN_0057b660; FUN_005a8c70 also calls it.
 Re-check: `python3 tools/ghidra/fn.py 0063e990`,
 `python3 tools/ghidra/calls.py 0063e990`.
 
-d2d: reads the same, cited from the decompile, no oracle run. `Target::undead` (components/rules/combat.hpp:340) and
-`kUndead` (components/rules/aura_filter.hpp:17) are the same two bits; the
+d2d: reads the same, cited from the decompile, no oracle run. `Target::undead` (components/rules/combat/combat.hpp:340) and
+`kUndead` (components/rules/combat/aura_filter.hpp:17) are the same two bits; the
 dParam1 bonus (components/game/fight/missiles.cpp:638) and the AI check at
 components/game/ai.cpp:1043 use it.
 
@@ -1251,7 +1251,7 @@ Re-check: `python3 tools/ghidra/fn.py 005a8c70`,
 `python3 tools/ghidra/calls.py 005a8c70`.
 
 d2d: **not ported** for the physical case. `rules::missile_blow`
-(components/rules/combat.hpp:371) rolls the physical from `phys_lo` / `phys_hi`
+(components/rules/combat/combat.hpp:371) rolls the physical from `phys_lo` / `phys_hi`
 and applies neither the 0x19 / 0x79 / 0x7a percent nor the 0x8d doubling; the
 undead / demon bonus d2d has is the Blessed Hammer slot's (FUN_005ad2f0). Whether a
 missile unit carries those stats (they would have to be copied from the

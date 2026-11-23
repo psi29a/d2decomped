@@ -25,7 +25,7 @@ def rand(seed, bound):
 
 
 def port(life, level, dex, defense, seed):
-    """components/rules/shrines.hpp object_blast, line for line."""
+    """components/rules/world/shrines.hpp object_blast, line for line."""
     low = max(life >> 5, 1)
     high = max(life >> 3, low + 1)
     roll = (rand(seed, level >> 2) + level) & 0xFF

@@ -2,7 +2,7 @@
 
 The quest scripts are D2Game's `Quests/aNqM.cpp`, linked into game.exe.
 The asserts name the files: a1q1.cpp, the Den of Evil, is at
-`0x58fd20..0x590830`. d2d's port is `components/rules/quests.hpp`
+`0x58fd20..0x590830`. d2d's port is `components/rules/quests/quests.hpp`
 (`DenQuest`, test_quests).
 
 ## Flags
@@ -51,7 +51,7 @@ patterns, guard bytes, independent simultaneous buffers, release order,
 and null header/payload paths. Every call is bounded and must return.
 Run `uv run python quest_buffer.py` from the oracle's directory.
 
-d2d's `rules::QuestBits` (`components/rules/quests.hpp`) owns 96 bytes by
+d2d's `rules::QuestBits` (`components/rules/quests/quests.hpp`) owns 96 bytes by
 value; the save's three blocks (`components/d2s/d2s.hpp`) are initialized
 with `{}`. It has no separately allocated bit-buffer header or pool
 release calls. These helpers are verified stock behavior, rather than
@@ -368,7 +368,7 @@ sends message 9 when `FUN_00599510` says so and returns 0.
 | `FUN_005b6e20` / `FUN_005b6e30` / `FUN_005b6930` | quest 39's status filter (clears the status byte, false), active filter (true for class 0xf5 until the player has spoken to it) and an empty stub |
 
 d2d has no port of these; the only one it cites is `FUN_005913c0`
-(`components/rules/quests.hpp`, the Den talk close).
+(`components/rules/quests/quests.hpp`, the Den talk close).
 
 ## Frontier accessors (stock executable)
 

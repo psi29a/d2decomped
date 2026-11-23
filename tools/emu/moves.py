@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A monster's move: its path, its chase check and when it thinks, against
-components/rules/monsters.hpp toward_path / chase_check and ai.cpp.
+components/rules/monsters/monsters.hpp toward_path / chase_check and ai.cpp.
 
     uv run python moves.py [cases] [seed] [--dump] [--break]
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A missile's flight: game.exe makes it (FUN_0059fa30) and steps it each
 frame (its srvdofunc 1, FUN_005ae1f0 -> FUN_00554ca0 -> FUN_00650840),
-against a line-for-line copy of components/rules/missiles.hpp.
+against a line-for-line copy of components/rules/combat/missiles.hpp.
 
     uv run python missiles.py [cases] [seed] [--dump] [--break]
 
@@ -47,7 +47,7 @@ def cdiv(a, b):
     return q if (a < 0) == (b < 0) else -q
 
 
-# --- the port: components/rules/missiles.hpp, line for line ---
+# --- the port: components/rules/combat/missiles.hpp, line for line ---
 
 def missile_velocity(vel, vel_lev, level):
     """FUN_0059fa30: ((Vel + VelLev x lvl / 8) << 8) x 75 / 100."""

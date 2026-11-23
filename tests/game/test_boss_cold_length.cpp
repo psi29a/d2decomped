@@ -3,7 +3,7 @@
 // A Cold Enchanted unique's cold rides its blow for the unit's level x 5 + 100 frames
 // (FUN_005a1c70, stat 0x38), through the REAL make_boss: the rule is rules::boss_elem_length.
 // Fire and cold together both ride it; a minion takes them too, without the mods' events.
-// (components/rules/uniques.hpp), the level is the unit's after make_boss's level mods.
+// (components/rules/monsters/uniques.hpp), the level is the unit's after make_boss's level mods.
 // tools/emu/umod_stats.py runs game.exe's init against rules::boss_stats (test_umod_stats).
 
 #include <ai.hpp>

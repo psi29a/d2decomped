@@ -13,7 +13,7 @@ stack argument. Hooked: FUN_004648f0 (the unit's target, 12 only),
 FUN_006256b0 (the state's stat list), FUN_00625d00 (the stat's value, the
 count), FUN_00470390 (the overlay). Each FUN_004b9a00 call (ECX the sound,
 EDX the unit) is a line's `sound`; none prints nothing. d2d's
-rules::sound_ids::charge_up (components/rules/sound_ids.hpp) gives the same
+rules::sound_ids::charge_up (components/rules/sound/sound_ids.hpp) gives the same
 (tests/test_charge_up_sound.cpp).
 
 A case line: the cltprgfunc (12 or 13), the skill's flags byte +4, its

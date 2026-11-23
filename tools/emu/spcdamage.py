@@ -15,7 +15,7 @@ list). The claim, over every BaseId 0x140..0x175 and area levels from -3 to
   - level (stat 12) = the area level, 1 under 2, or 2 with no room;
   - to-hit (stat 0x13) = level + 50, at most 90;
   - BaseId 0x146, 0x147 / 0x148, 0x149, 0x14a / 0x171 add the stat pairs of
-    components/rules/uniques.hpp's rules::spcdamage, in that order.
+    components/rules/monsters/uniques.hpp's rules::spcdamage, in that order.
 `inc` prints the game's answers for tests/monsters/test_spcdamage.cpp to stdout
 (diagnostics go to stderr); `inc --out FILE` writes them to FILE only once the
 whole run has passed, so a failed run leaves the checked-in fixture alone.

@@ -189,7 +189,7 @@ Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
 - Hover tooltips (chance to hit / be hit): FUN_004a7340, FUN_004a74a0,
   FUN_004a7ae0, FUN_004a7180.
 
-d2d: `rules::attack_line` (components/rules/skills.hpp) computes the
+d2d: `rules::attack_line` (components/rules/combat/skills.hpp) computes the
 numbers on the server in `Fight::update_fighters` from the Fighter
 (`phys_lo/hi/pct`, `elem`, `ar_base/pct`), `skill_tohit`, `skill_phys`,
 `elem_damage`; they reach the client in the View
@@ -223,12 +223,12 @@ register arguments are partly dropped), so argument order is a reading.
   to the log at `DAT_006cc837`, and exits through `FUN_00681e09(-1)`. Otherwise
   it tail-calls `FUN_00643930` (the left skill, list +8; named in
   names.tsv:122). d2d reads the same, cited from the decompile, no oracle run (`components/game/world/commands.cpp:364`,
-  `components/rules/pets.cpp:33`); it has no fatal path (its callers check the
+  `components/rules/ai/pets.cpp:33`); it has no fatal path (its callers check the
   player first, as far as read). The register that carries the argument is not in the decompile
   (a unit whose skill list `FUN_00643930` reads is likely; not seen).
 - **`FUN_006201d0` (right_skill, 56 bytes)**: the same shape as `FUN_00620190`
   with string 0x64a, tail-calling `FUN_00643960` (the right skill, list +0xc;
-  names.tsv:123). d2d reads the same, cited from the decompile, no oracle run (`components/rules/pets.cpp:33`); same note on
+  names.tsv:123). d2d reads the same, cited from the decompile, no oracle run (`components/rules/ai/pets.cpp:33`); same note on
   the fatal path.
 - **`FUN_00644140` (skill_record, 10 bytes)**: a skill entry -> the dword at
   its +0, or 0 for a null entry. `tools/emu/cast_mana.py:86` hooks it as "the
@@ -244,8 +244,8 @@ register arguments are partly dropped), so argument order is a reading.
   (the item / stat bonuses) is added. Negative -> 0, then capped at
   `FUN_00611830(0)` (a level at or past it returns that value). d2d reads the same, cited from the decompile, no oracle run,
   with the use: `components/game/skill_text.hpp:467` (flag 1 vs 0 = item
-  levels), `components/rules/monsters.cpp:236`; the cap is not modelled in
-  d2d's `skill_level` users (`grep -n FUN_006442a0 components/rules/monsters.hpp`),
+  levels), `components/rules/monsters/monsters.cpp:236`; the cap is not modelled in
+  d2d's `skill_level` users (`grep -n FUN_006442a0 components/rules/monsters/monsters.hpp`),
   probably harmless (the cap's value was not read here).
 - **`FUN_0044dcc0` (is_expansion, 6 bytes)**: returns the dword `DAT_007a04f4`.
   `tools/emu/skill_tips.py:28` sets it to 1 for "an expansion game", and
@@ -268,7 +268,7 @@ register arguments are partly dropped), so argument order is a reading.
   `FUN_004a7d00`, twice (`:181` / `:183` in the decompile), each result
   into `FUN_004a7340` (the chance-to-hit hover), then `FUN_004a7ae0`. d2d:
   not ported as a function; `rules::attack_line` computes the number only
-  for descatt 1, 2 and 5 (`components/rules/skills.cpp:281`); for descatt 3
+  for descatt 1, 2 and 5 (`components/rules/combat/skills.cpp:281`); for descatt 3
   and 4, whose handlers are listed above, it leaves the rating 0. d2d draws no chance-to-hit hover (tooltips are
   listed as not done above). The 0x48 bound is
   loose (bugs.md 65). Which register holds which argument is read from d2d's

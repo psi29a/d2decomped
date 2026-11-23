@@ -9,7 +9,7 @@ real here, with FUN_00463860 / FUN_00463900 (the target's MonStats BaseId,
 from a small MonStats table set up here) too; hooked: FUN_00641530 (the
 distance), FUN_00622870 (the unit's range), FUN_00622aa0 (the 0x804 line
 test) and FUN_00621190 (a player's mode). d2d's rules::melee_reach and
-rules::unit_moving (components/rules/melee_reach.hpp) are the Python
+rules::unit_moving (components/rules/combat/melee_reach.hpp) are the Python
 below; prints the cases that differ and how often the line test was asked
 where d2d wouldn't ask it.
 """

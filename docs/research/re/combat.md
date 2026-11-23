@@ -1,6 +1,6 @@
 # Combat — damage, poison, regeneration (1.14d game.exe)
 
-Our port: `components/rules/monsters.hpp` (`Fighter`, `make_fighter`,
+Our port: `components/rules/monsters/monsters.hpp` (`Fighter`, `make_fighter`,
 `player_blow`, `monster_blow`, `attack_ticks`, `open_wounds_per_sec`),
 applied in `apps/d2d/session.hpp` (`land`, `strike`, `monster_dots`,
 `apply_regen`) and `components/game/ai.hpp` (`monster_update`, `missiles_update`).

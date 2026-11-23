@@ -42,7 +42,7 @@ tools/emu/boss_level.py hook it to record stat writes.
 
 Re-check: `python3 tools/ghidra/fn.py 00627260`.
 
-d2d: reads the same, cited from the decompile, no oracle run. components/rules/monsters.hpp:880 and d2s_write.hpp:60 cite
+d2d: reads the same, cited from the decompile, no oracle run. components/rules/monsters/monsters.hpp:880 and d2s_write.hpp:60 cite
 it only as "stat set"; d2d has no player-only queue (no net-sync of stats).
 
 ## Capped gold set — FUN_00530ea0 (ECX unit, EDX stat, stack value)
@@ -184,7 +184,7 @@ Cited, read from the decompile.
 
 d2d: reads the same, cited from the decompile, no oracle run, as
 `components/game/fight/states.cpp:43` and
-`components/rules/monsters.hpp:3869` (the callback runs when the stat
+`components/rules/monsters/monsters.hpp:3869` (the callback runs when the stat
 list comes off); `weapon-switch.md:142` cites it too. Step 3's buffer
 is 16 ints with no count check: bugs.md #53.
 Re-check: `python3 tools/ghidra/fn.py 006269f0`.

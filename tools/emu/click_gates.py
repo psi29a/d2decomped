@@ -27,7 +27,7 @@ Three gates, each line {kind, a, b, c, d, result, after}:
   logged.
 
 d2d's rules::held_walk_goes, held_frame_goes, warp_click_goes and
-kWarpReach (components/rules/click_spot.hpp) are checked against these by
+kWarpReach (components/rules/world/click_spot.hpp) are checked against these by
 tests/test_click_gates.cpp.
 """
 from unicorn.x86_const import UC_X86_REG_ECX

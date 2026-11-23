@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Regenerate components/rules/sequences.hpp from game.exe's player sequence
+"""Regenerate components/rules/combat/sequences.hpp from game.exe's player sequence
 table. Dump the bytes first (0x745000..0x748418, the frames and the table):
   analyzeHeadless tools/ghidra/project D2Decomp -process game.exe -noanalysis -readOnly \
     -scriptPath tools/ghidra/scripts -postScript DumpBytes 0x745000 0x748418 4 <dir>/seqraw.txt
-then: python3 tools/ghidra/gen/sequences.py <dir> > components/rules/sequences.hpp
+then: python3 tools/ghidra/gen/sequences.py <dir> > components/rules/combat/sequences.hpp
 (<dir> holds seqraw.txt; the header template is sequences_head.txt beside this script)."""
 import os,re,sys
 S=sys.argv[1]

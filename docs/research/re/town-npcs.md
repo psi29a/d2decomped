@@ -245,7 +245,7 @@ diff_drlg.py 1-40 0 npcs`: 40/40.
 
 ## In d2d
 
-`rules::npc_think` (components/rules/town_npcs.hpp) is the think;
+`rules::npc_think` (components/rules/ai/town_npcs.hpp) is the think;
 `npc_patrol` (components/game/ai.cpp) drives it: stands as frames, walks
 along its path (`follow_path`) at Velocity, the special modes as S1 / S2 for their
 animation's length. The visitor: `NpcVisitor` (`npc_patrol` fills it

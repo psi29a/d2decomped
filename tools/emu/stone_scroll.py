@@ -7,7 +7,7 @@ The stock draw runs for real over a scripted clock (GetTickCount), order
 (0x7bf098) and step count (0x7bf243 / 0x7bf247). The scroll itself
 (FUN_0049fa10), the font, the cel draw (FUN_004f6480) and the sound
 (FUN_004b9a00) are hooked and logged; the cel files are already loaded
-(0x7bf270, 0x7bf26c). The model is components/rules/stone_scroll.hpp's
+(0x7bf270, 0x7bf26c). The model is components/rules/quests/stone_scroll.hpp's
 StoneScrollClock and stone_symbol, as tests/test_stone_scroll.cpp checks.
 No MPQ data is read.
 """

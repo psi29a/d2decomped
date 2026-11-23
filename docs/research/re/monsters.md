@@ -1,6 +1,6 @@
 # Monsters — spawning (1.14d game.exe)
 
-Our port: `components/game/objgroups.cpp` (room population), `components/rules/monsters.hpp`
+Our port: `components/game/objgroups.cpp` (room population), `components/rules/monsters/monsters.hpp`
 (`monster_region`, `monster_stats`), loaded by `load_monsters` (components/game/gamedata/gamedata_load.cpp), tested by
 `tests/monsters/`. How they notice the player and when they think:
 monster-ai.md.
@@ -443,7 +443,7 @@ mod 26 to, so that name looks wrong and is not used here. Not ported
 - DifficultyLevels +0x34 / +0x30 (ChampionDamageBonus / UniqueDamageBonus,
   90 / 75 / 66) scale the champion and strong damage and to-hit bonuses.
 
-d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`,
+d2d: `components/rules/monsters/uniques.hpp` (`roll_boss`, `boss_stats`,
 `fire_blast`, `kSpectralElement`, `kBossBonus`), objgroups.cpp's `unique()`
 with a `Population`; `make_boss` (ai.hpp) applies the stats and mana burn when a
 game's monsters are made; `Fight::boss_events` runs the lightning bolts

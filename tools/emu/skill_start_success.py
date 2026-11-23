@@ -7,7 +7,7 @@ Run from tools/emu with the repository venv:
 
 Runs stock FUN_004e39a0 and FUN_004c9b40 on synthetic unit/skill records.
 Their subsystem boundaries are hooked and driven by each case. The compared
-model is components/rules/skills.hpp client_start_succeeds: Hydra needs the
+model is components/rules/combat/skills.hpp client_start_succeeds: Hydra needs the
 caster and selected point in rooms and refuses a non-InTown skill in town;
 Charge needs a selected skill record and dynamic path and rejects the local
 player's already-selected flagged record. The accepted Charge case returns

@@ -10,7 +10,7 @@ The callback (the room search FUN_005dd0b0 calls it for every unit near; the sha
 hooked around it (answers outside the claim): the class (FUN_00463860), the corpse bookkeeping (FUN_006259b0, FUN_0063a770,
 FUN_0063a320: none), the squared distance (FUN_005b0bd0: dx^2 + dy^2, as upstream's mon_ais.py hooks it), the flag test (FUN_005a0180).
 Its own checks: type 1, class 0x13 / 0x3a, the corpse bit (+0xc4 bit 1), mode DD (+0x10 == 0xc), squared distance <= limit, flags & 0xc == 0.
-d2d side: the real rules::shaman_corpse_reach (components/rules/monsters.hpp); --old is the arithmetic ai.cpp had (ai_distance < 80,
+d2d side: the real rules::shaman_corpse_reach (components/rules/monsters/monsters.hpp); --old is the arithmetic ai.cpp had (ai_distance < 80,
 `unique` = Boss::unique / superunique, a champion not looked at), copied into the harness. Never runs a game."""
 import random
 import sys

@@ -49,7 +49,7 @@ def confuse_align(align, draw):
 
 
 def search_pick(foes, best, need_sight):
-    """components/rules/monsters.hpp search_pick, line for line."""
+    """components/rules/monsters/monsters.hpp search_pick, line for line."""
     target, nearest, skip, nine, nine_best = -1, 0x7fffffff, True, -1, 0x7fffffff
     for i, f in enumerate(foes):
         d = f["distance"]
@@ -70,7 +70,7 @@ def search_pick(foes, best, need_sight):
 
 
 def search_near(foes, align, need_sight):
-    """components/rules/monsters.hpp search_near, line for line."""
+    """components/rules/monsters/monsters.hpp search_near, line for line."""
     pick = [-1, 0x7fffffff, -1, 0x7fffffff]
     for i, f in enumerate(foes):
         if f["skip"]: continue

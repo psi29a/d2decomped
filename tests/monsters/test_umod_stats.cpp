@@ -2,7 +2,7 @@
 // test-links: rules
 // `--umod-stats CASES`: d2d's champion / unique / minion stat mods on the cases
 // tools/emu/umod_stats.py writes (game.exe's FUN_005a2120 and the mods' inits).
-// Calls rules::boss_stats (components/rules/uniques.hpp) and applies it the way
+// Calls rules::boss_stats (components/rules/monsters/uniques.hpp) and applies it the way
 // game::make_boss does (components/game/ai.cpp), on the case's fixed base (level,
 // exp 1000, life 1000, defence 100, the row's resistances), so each field compares
 // with game.exe's. A minion takes its leader's mods' inits (FUN_0058f380, flag 0).
