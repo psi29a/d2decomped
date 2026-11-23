@@ -93,6 +93,7 @@ address	name	evidence
 004210a0	sbig_grow_step	Below 0x40 the highest power of two not above the count (0 → 1); else 0x40, kept at +0xc. Callers FUN_00420c50, d2d_sbig_import_le, FUN_00423b30 (source-frontier.md)
 004210e0	round_up_multiple	Value, step (ret 8): the value rounded up to a multiple of the step (unsigned DIV); a step of 0 faults (source-sbig.md)
 00421110	sbig_set_count	ECX number, n (ret 4): +0 = n; the buffer +8 reallocated to n dwords (FUN_004133d0, tag .I) unless it and n are both 0 (source-sbig.md)
+00421160	sbig_bytes_grow_step	ECX array, n (ret 4): below 0x100 the highest power of two up to n (0 gives 1); else 0x100, kept at +0xc (source-sbig-arrays.md)
 004216e0	sbig_resize	The dword buffer +8 to n entries (FUN_004133d0, else a new block with the old entries copied and the old freed); +0 = n (source-frontier.md)
 00421e10	sbig_temps_ctor	Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at +0x14, zeroes +0x154..+0x164. Only caller FUN_00423950 (source-frontier.md)
 00421fe0	sbig_reserve	Makes room for +0x10 + n entries: grows (by +0xc, else sbig_grow_step, rounded up to its multiple) and zero-fills the new part (FUN_0041d300), +4 = that size (source-frontier.md)
