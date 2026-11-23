@@ -264,10 +264,12 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // 0x12 + 15 a line (the first lines in the last slots). Before
         // both, FUN_0049e070 moves a box clear of the frame's earlier ones
         // (place_overhead), or drops it.
-        // ponytail: game.exe's frame starts with the NPC menu in slot 0
-        // (FUN_004a0e70, 0x7bf1c0 == 1) and walks its unit tables in an
-        // order not traced; d2d starts empty and goes in `units` order.
-        std::vector<OverheadRect> overhead_slots;
+        // FUN_004a0e70 starts the frame's slots with the NPC speech box while
+        // one is up (0x7bf1c0 == 1): its x (0x7bf278, (W - 0x145) / 2), its
+        // top (0x7225fc, 12), 0x145 by 0x70 (npc-talk.md "Box"), so no box
+        // lands on it; then the players', the monsters' and the objects' tables.
+        // ponytail: each table's own order isn't traced; d2d goes in `units` order.
+        auto overhead_slots = overhead_frame_slots(speech && speech->npc >= 0, int(kScreenWidth));
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const auto& unit : units) {

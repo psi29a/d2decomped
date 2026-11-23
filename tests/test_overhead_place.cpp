@@ -13,6 +13,8 @@
 #include <optional>
 #include <vector>
 
+using d2d::client::overhead_frame_slots;
+using d2d::client::overhead_rects_meet;
 using d2d::client::OverheadRect;
 using d2d::client::place_overhead;
 
@@ -41,6 +43,13 @@ int main() try {
     std::vector<OverheadRect> sixteen(16, OverheadRect{ 0, 0, 800, 600 });
     const auto unchecked = place_overhead(sixteen, first, 800, 600);
     assert(unchecked && unchecked->left == 100 && sixteen.size() == 16);
+    // With the NPC speech up the frame starts with its box (FUN_004a0e70): 0x145 x 0x70 at ((W - 0x145) / 2, 12),
+    // so an overhead text there moves off it; with none the frame starts empty.
+    assert(overhead_frame_slots(false, 800).empty());
+    auto speech = overhead_frame_slots(true, 800);
+    assert(speech.size() == 1 && speech[0].left == 237 && speech[0].top == 12 && speech[0].right == 562 && speech[0].bottom == 124);
+    const auto off_box = place_overhead(speech, { 300, 50, 380, 71 }, 800, 600);
+    assert(off_box && !overhead_rects_meet(*off_box, speech[0]));
     std::puts("overhead place ok");
     return 0;
 } catch (const std::exception& error) {
