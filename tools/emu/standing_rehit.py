@@ -14,7 +14,13 @@ frames. FUN_005adf10 (the hit) is hooked to the part this asks about: a unit
 the missile struck last (FUN_0064a470, 0x5adf9f) is passed by, any other is
 struck and made the last (FUN_0064a400, 0x5adfae), as those two read and
 write the missile's +0x14 record (+0x18 type, +0x1c id; every row here has
-LastCollide).
+LastCollide but the burners').
+The burners (srvdofunc 5, FUN_005ae520: Fire Wall's flames, Meteor's fire) step
+through the same FUN_005ae1f0 and strike one unit, never both: Meteor's fire
+(Size 1, both units in its footprint) takes B, the newer, its room list's head
+(FUN_00641cb0). Only frame 1 strikes here: FUN_005ae1f0 searches only on the
+path's contact flags (FUN_00648eb0), which these still units don't set again;
+how often a burner strikes in play is not what this run shows.
 
 Prints `S row frame unit` per strike, unit A (the first) or B, and `N row`
 for a row that made no missile. d2d's rule (Fight::skill_missile_hits,
@@ -24,7 +30,7 @@ import sys
 
 import missiles
 
-ROWS = {"poisonjavcloud": 39, "corpsepoisoncloud": 155, "blizzard1": 159, "poisonexplosioncloud": 217}   # Missiles.txt Id
+ROWS = {"firewall": 69, "meteorfire": 240, "poisonjavcloud": 39, "corpsepoisoncloud": 155, "blizzard1": 159, "poisonexplosioncloud": 217}   # Missiles.txt Id
 
 
 def main():
