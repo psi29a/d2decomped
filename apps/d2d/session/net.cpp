@@ -108,7 +108,7 @@ void ClientSession::net_step_missiles() {
         return d2d::game::missile_rooms(*scene, *level, x, y, &world.fight.spawning);
     };
     std::vector<HostMissile> effects;
-    std::erase_if(net_missiles, [&](HostMissile& shown) {
+    const auto step = [&](HostMissile& shown, bool make_impact) {
         auto& missile = shown.missile;
         while (world_ms - shown.stepped >= 40) {
             shown.stepped += 40;
@@ -127,7 +127,7 @@ void ClientSession::net_step_missiles() {
                     host_cell(unit.x, level->world_x), host_cell(unit.y, level->world_y), size);
             }
             if (flying && (!hit || !missile.info->collide_kill)) continue;
-            if (missile.info->clt_hit == 14) {
+            if (make_impact && missile.info->clt_hit == 14) {
                 // FUN_004cf640: the centre cel, then three or four ejecta
                 // cels from the same point, with the missile's seed.
                 const auto add = [&](const auto* row, float aim_x, float aim_y) {
@@ -153,7 +153,11 @@ void ClientSession::net_step_missiles() {
             return true;
         }
         return false;
-    });
+    };
+    std::erase_if(net_missiles, [&](HostMissile& shown) { return step(shown, true); });
+    // Glacial Spike's impact rows are terminal effects. Catch up each one
+    // from its birth tick before adding it to the render view.
+    std::erase_if(effects, [&](HostMissile& shown) { return step(shown, false); });
     std::ranges::move(effects, std::back_inserter(net_missiles));
     for (const auto& shown : net_missiles) {
         const auto& missile = shown.missile;
