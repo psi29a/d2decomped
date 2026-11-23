@@ -209,7 +209,7 @@ auto World::use_warp() -> void {
         travel_warp(warp);
     }
 
-auto World::travel_warp(const Level::Warp& warp) -> void {
+auto World::travel_warp(const LevelWarp& warp) -> void {
         // The sewers' stairs down (a3q2's, FUN_0059d9d0 -> FUN_005550b0): shut
         // till the lever's opened them, or once Khalim's Will's done.
         if (level->id == d2d::rules::level_ids::kKurastSewersLevel1 && warp.destination == d2d::rules::level_ids::kKurastSewersLevel1 + 1 && !khalim.stairs_open) {

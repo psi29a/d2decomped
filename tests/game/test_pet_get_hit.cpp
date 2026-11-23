@@ -8,6 +8,7 @@
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <test_data.hpp>
 #include <world.hpp>
 
