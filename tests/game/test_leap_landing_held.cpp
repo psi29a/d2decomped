@@ -2,7 +2,8 @@
 // test-links: game
 // A leaping monster holds its landing while it flies (FUN_005d9d50 -> FUN_0064ea90: its pattern with
 // bits 0x80 there, the unit bit 0x1000 on the centre subtile, cleared as it lands, FUN_005da120):
-// another unit finds that subtile taken in the real Fight::crowd_around, and free once it has landed.
+// another unit finds that subtile taken in the real Fight::crowd_around, and free once it has landed;
+// a leap taken after the crowd was made holds it in that crowd too.
 // Made-up rows (test_data.hpp).
 
 #include <ai.hpp>
@@ -61,8 +62,14 @@ int main() try {
         Crowd crowd;
         fight.crowd_around(crowd, 11.f, 10.f);
         assert(!crowd.at(12.1f, 10.1f, &other));
+        // A leap taken after the frame's crowd was made (a monster earlier in Fight::world's loop):
+        // its stamp is in the map at once, so a later monster's search finds it in the same crowd.
+        auto& again = fight.monsters.back();
+        again.landing_mark.x = 13.1f; again.landing_mark.y = 10.1f;
+        again.leaping = true;
+        assert(crowd.at(13.1f, 10.1f, &other));
     }
-    std::puts("OK: a leap holds its landing till it lands");
+    std::puts("OK: a leap holds its landing till it lands, from the frame it takes off");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_leap_landing_held: %s\n", error.what());

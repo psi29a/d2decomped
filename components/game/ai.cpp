@@ -1694,8 +1694,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // The takeoff's pace (FUN_005d9f70: FUN_00648690 gets MonStats Run (row +0x34)
             // << 8, 16.16 subtiles a frame): Run / 80 cells a frame, `Monster::leap_pace`.
             // FUN_005d9d50 stamps the landing (FUN_0064ea90, the unit's pattern, bits 0x80: the centre's
-            // unit bit 0x1000) till it lands (FUN_005da120 clears it): `landing_mark` in the crowd
-            // (Fight::crowd), so no other unit steps or lands there meanwhile.
+            // unit bit 0x1000) till it lands (FUN_005da120 clears it): `landing_mark` in the crowd's
+            // held marks (Fight::crowd), so no other unit steps or lands there meanwhile, those that
+            // think later this frame included.
             // ponytail: the wait at the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0)
             // isn't ported: a flight slower than its sequence is snapped to the landing at the end.
             if (landing) {
