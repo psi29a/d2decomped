@@ -4,6 +4,7 @@
 // and standalone M5A2HTH at 10/18. See tools/emu/death_maul_timing.py.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

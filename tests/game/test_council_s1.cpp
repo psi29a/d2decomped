@@ -3,6 +3,7 @@
 // Original FUN_005539b0 and FUN_005a7ba0: tools/emu/council_modes.py.
 
 #include <ai.hpp>
+#include <ai/units.hpp>
 #include <gamedata.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
