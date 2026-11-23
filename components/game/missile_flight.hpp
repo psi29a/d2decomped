@@ -205,6 +205,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 Missile fire = missile;
                 fire.info = missile.sub; fire.sub = nullptr; fire.velocity_x = fire.velocity_y = 0; fire.born = now_ms;
                 fire.dies = now_ms + std::uint32_t(std::max(missile.sub->range + missile.sub->lev_range * missile.level, 1)) * 40;
+                fire.struck = std::make_shared<std::vector<int>>();   // each flame its own (FUN_005ae1f0 keeps nothing across missiles)
                 laid.push_back(std::move(fire));
                 return false;
             }
