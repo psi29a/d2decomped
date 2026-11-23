@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120 FUN_00420160 FUN_00420220
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120 FUN_00420160 FUN_00420220 FUN_0041fff0
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
