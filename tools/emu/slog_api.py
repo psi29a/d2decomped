@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
@@ -35,6 +35,7 @@ RECORD_FIND, UNLOCK, HANDLE_CHECK = 0x41FA80, 0x41FCE0, 0x41D1E0
 DUMP = 0x41FDF0
 FLUSH = 0x41FFC0
 PEND = 0x420070
+SET_INDENT = 0x4200E0
 DEBUG_FLAG, LOCKS, LOCK_SIZE = 0x7790AC, 0x779238, 0x18
 TEXT, BUFFER, FLUSH_AT = 0x1C, 0x10000, 0xC000
 STAMP = b"11/23 22:05:09.042  "
@@ -45,6 +46,7 @@ MUTATIONS = {
              "dump_no_stamp_pad", "dump_no_commit", "dump_flush_above_0xc000"),
     "flush": ("flush_keeps_length", "flush_writes_committed"),
     "pend": ("pend_appends", "pend_commits", "pend_no_stamp"),
+    "set_indent": ("set_indent_returns_new", "set_indent_adds"),
 }
 FORMATS = ((b"%s=%d", "sd"), (b"%x|%s", "xs"), (b"%5d%%", "d"), (b"plain text", ""))
 
@@ -126,6 +128,12 @@ class Model:
         self.write(rec, head + text + b"\r\n")
         if self.mutation == "pend_commits":
             rec.committed = rec.length
+
+    def set_indent(self, rec, value):
+        """FUN_004200e0: the indent becomes the value; the old indent back."""
+        old = rec.indent
+        rec.indent = wrap(rec.indent + value) if self.mutation == "set_indent_adds" else value
+        return rec.indent if self.mutation == "set_indent_returns_new" else old
 
 
 def wrap(value):
@@ -279,9 +287,17 @@ def case_pend(rig, model, rng, rec, log_id, record):
         model.pend(rec, form % tuple(values))
     return f"FUN_00420070 {form!r}", None, [], result
 
+
+def case_set_indent(rig, model, rng, rec, log_id, record):
+    value = rng.choice((0, 2, 0x80, -3, rng.randint(-0x80000000, 0x7FFFFFFF)))
+    result = rig.run(SET_INDENT, log_id, value & 0xFFFFFFFF)
+    want = wrap(model.set_indent(rec, value)) if record else 0
+    return f"FUN_004200e0 {value}", want, [], result
+
 CASES = {"dump": case_dump}
 CASES["flush"] = case_flush
 CASES["pend"] = case_pend
+CASES["set_indent"] = case_set_indent
 
 
 def compare(rig, model, seed, count):
