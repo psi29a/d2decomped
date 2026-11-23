@@ -1,9 +1,11 @@
 # SOURCE frontier — game.exe 1.14d
 
-The 26 `SOURCE` rows (Storm, statically linked) of
-`build/gaps/functions.tsv` with `frontier = true` on 2026-11-18. The
+The `SOURCE` rows (Storm, statically linked) of
+`build/gaps/functions.tsv` with `frontier = true` on 2026-11-18, and
+`FUN_0041fba0` on 2026-11-23. The
 module's cited functions are in [source-module.md](source-module.md).
-Read from the decompile; no oracle was run for these rows. Re-check with
+Read from the decompile; no oracle was run for these rows but
+`FUN_0041fba0` (`tools/emu/slog_stamp.py`). Re-check with
 `tools/ghidra/fn.py <address>`. The **d2d** column is as in
 [game-frontier.md](game-frontier.md). d2d reads MPQs through StormLib and
 uses the standard library for the rest, so most rows have no counterpart.
@@ -18,6 +20,7 @@ uses the standard library for the rest, so most rows have no counterpart.
 | `FUN_0041ba60` | `sfile_open_plain` | Opens a plain file as an archive record: name required (0x57), made absolute unless it starts with `\` or a drive spec, `CreateFileA` read; a 0x25c-byte `AUARCHIVEREC` (`SFile.Storm`) with the path, handle, flags from the third argument (bit 0 needs `FUN_00415960`, bits 1, 2), a 0x20-byte block (line 0x1052), the file size; `FUN_0041b6b0` finishes. Error 0xf when bit 0 is set and the check fails. Callers as `sfile_close` and `FUN_00517079` | no counterpart (StormLib) |
 | `FUN_0041c1f0` | `rtti_name_short` | A name of the form `.?AU<name>@...` (at least 6 characters): `<name>` up to `?` or `@`, trailing `_` trimmed, between two fixed strings (`0x6cf328`, `0x6cf324`), into `ESI` (`EBX` characters); 1, else 0. Only caller `FUN_0041caf0` | no counterpart |
 | `FUN_0041d200` | `mem_compare` | `memcmp` (dword steps, then bytes): -1, 0 or 1. Callers `FUN_0040d290`, `FUN_0041d300`, `d2d_warden_verify_signature`, `d2d_warden_module_load` | no counterpart (the standard library) |
+| `FUN_0041fba0` | `slog_stamp` | `EAX` the log record, one stack argument (`RET 4`). Nothing, not even the indent, unless the record's stamp flag `+0x18` is set: `slog_open` sets it to 1 (`0x41fdc4`), and its only other writer `FUN_00420160` has no references. When `GetTickCount` differs from the cached `DAT_007792f0`, `GetLocalTime` goes through `%u/%u %02u:%02u:%02u.%03u  ` (`0x6cff0c`: month/day hour:minute:second.ms, two spaces) into `0x7792b0`, its length into `0x7792a8`. A non-zero argument copies that stamp and its 0 to the end of the text (`+0x1c` + the length `+0xc`); 0 writes as many spaces and a 0. Then `FUN_0041fb40`: `+0x14` spaces (the indent, at most 0x80, none unless positive) and a 0. The length grows by both. Callers `slog_printf` and `FUN_00420070` (argument 1), the hex dump `FUN_0041fdf0` (0: its lines line up under the stamp) | no counterpart (as `slog_open`) |
 | `FUN_0041fd40` | `slog_open` | `CreateFileA` for writing (shared read and write, create always); a new log id (`DAT_00779230` + 1) out; a log record (`FUN_0041fa80`) takes the handle; 1. An empty name or null out sets 0x57. Callers the gateway and Battle.net logs `FUN_00518300`, `d2d_bnclient_api`, `FUN_00518c70`, `FUN_00518d40` | no counterpart: d2d logs through `d2d::log` |
 | `FUN_00420190` | `slog_printf` | Formats into the log record's buffer (`vsprintf`), also to `OutputDebugStringA` while `DAT_007790ac`; flushed (`FUN_0041fa40`) past 0xbfff bytes. Callers `FUN_00518300`, `FUN_00518d40` | no counterpart (as `slog_open`) |
 | `FUN_00420310` | `storm_get_7792f4` | Returns `DAT_007792f4`. Only caller `FUN_0041caf0` | no counterpart |
