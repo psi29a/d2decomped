@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_00423870 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a20 FUN_00423a40 FUN_00423a60 FUN_00423a80 FUN_00423aa0 FUN_00423ac0 FUN_00423b80 FUN_00423c20 FUN_00423d60
+# gaps-runs: FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_00423870 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a20 FUN_00423a40 FUN_00423a60 FUN_00423a80 FUN_00423aa0 FUN_00423ac0 FUN_00423b80 FUN_00423c20 FUN_00423c60 FUN_00423d60
 
 Numbers are made and read through the cited SBigNew (FUN_00423950),
 SBigFromBinary (FUN_00423850) and SBigToBinaryBuffer (FUN_00423b30), with
@@ -64,6 +64,7 @@ OPS = {   # address: (arguments, operation, {mutation: operation})
     0x423AC0: ("ab_ge", lambda a, b: a - b, {"sub_minus_one": lambda a, b: a - b - 1}),
     0x423B80: ("view", lambda a: a.to_bytes((a.bit_length() + 7) // 8, "little"), {"view_extra_zero": lambda a: a.to_bytes((a.bit_length() + 7) // 8 + 1, "little")}),
     0x423C20: ("tostr", lambda a, size: str(a).encode()[:max(size - 1, 0)], {"tostr_untruncated": lambda a, size: str(a).encode()}),
+    0x423C60: ("strview", lambda a: str(a).encode(), {"strview_hex": lambda a: b"%x" % a}),
     0x423D60: ("ab", lambda a, b: a ^ b, {"xor_or": lambda a, b: a | b}),
 }
 POPS = {"ab": 3, "ab_ge": 3, "an": 3, "a": 2, "a1": 2, "u": 2, "test": 1}   # popped dwords, as in the RET
@@ -150,6 +151,12 @@ def compare(rig, seed, count, mutation=None, only=None):
                 want = int.from_bytes(text + b"\0", "little")
                 got = int.from_bytes(rig.machine.read(buffer, len(text) + 1), "little")
                 n = size
+            elif kind == "strview":
+                pointer = rig.machine.alloc(4)
+                rig.run(address, ha, pointer, popped=2)
+                text = operation(a)
+                want = int.from_bytes(text + b"\0", "little")
+                got = int.from_bytes(rig.machine.read(rig.machine.r32(pointer), len(text) + 1), "little")
             elif kind == "test":
                 got, want = rig.run(address, ha, popped=1), operation(a)
             else:
