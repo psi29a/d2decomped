@@ -906,6 +906,22 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   missile (`FUN_00645f00`): magicarrow (Id 27) with stat 157, explodingarrow
   (41) with stat 158, else arrow (0) / bolt (31). It spends ammo unless
   the missile is magicarrow.
+- **The Act 1 merc's shot** (RogueMissile, Skills.txt 336, do 110,
+  `FUN_005ce1b0`; MonStats roguehire Skill1, Sk1mode A1, Sk1lvl 1): for a
+  unit not a player `FUN_00645f00` gives magicarrow at stat 157's value as
+  the level, else explodingarrow at stat 158's, else nothing, and then the
+  skill's srvmissilea, rogue1 (Id 120), at the skill's level; made through
+  `FUN_0056ecb0` (`FUN_0056ee90` with the skill row's +0x04 flag). rogue1
+  is arrow with MinDamage / MaxDamage 1 at HitShift 8: `FUN_0064af20` /
+  `FUN_0064aff0` give 256 / 256 at any level, and `FUN_0064b860` adds them
+  to the record's min / max after the weapon's part (0x64bdf7), so the
+  hit's roll (`FUN_005a89a0`) takes them with it: the missile's stat 25
+  (the record's +0x78: enhanced damage, the str / dex bonus, 0x64ae64)
+  and the demons' / undead's % scale the sum, and a crit (stat 0x8d on the
+  missile) doubles it. d2d:
+  `Fight::merc_shot`, `Swing::row_lo` / `row_hi`; tools/emu/merc_shot.py
+  runs `FUN_005ce1b0` and the row's physical (0 of 100,144 differ, seeds 1
+  and 2, 2026-11-23).
 - **Throw** (do 3, `FUN_0056f460`): the throwable in hand (ItemTypes
   Throwable, `FUN_0062ba80`, or stat 125) flies as its weapons.txt
   missiletype, spending one; `FUN_0056c600` then adds the skill's to-hit
