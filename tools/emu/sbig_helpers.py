@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30
+# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30 FUN_00420f60
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -34,6 +34,7 @@ MUTATIONS = {
     0x420E10: ("take_if_inverted", "take_if_no_bump"),
     0x420EB0: ("carry_dropped", "add_returns_high", "add_keeps_low"),
     0x420F30: ("shift_keeps_high", "shift_by_16"),
+    0x420F60: ("make_swapped", "make_low_only"),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
               0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
@@ -81,6 +82,11 @@ class Model:
             high = num(0 if m != "shift_keeps_high" else 4)
             acc = ((high << (16 if m == "shift_by_16" else 32)) + args[0]) & M64
             return None, None, {0: acc & M32, 4: acc >> 32}, []
+        if address == 0x420F60:   # EDX:EAX = EAX : the digit
+            eax = regs["eax"]
+            if m == "make_swapped":
+                return eax, args[0], {}, []
+            return args[0], (0 if m == "make_low_only" else eax), {}, []
         raise ValueError(hex(address))
 
 
