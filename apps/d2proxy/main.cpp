@@ -27,6 +27,7 @@
 #include <d2gs/split.hpp>
 #include <d2gs/wire.hpp>
 #include <log.hpp>
+#include <log_file.hpp>
 #include <net_log.hpp>
 #include <tcp.hpp>
 

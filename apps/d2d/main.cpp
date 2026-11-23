@@ -51,6 +51,7 @@
 #include <join.hpp>
 #include <lan.hpp>
 #include <log.hpp>
+#include <log_file.hpp>
 #include <mpq.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
@@ -2132,7 +2133,7 @@ int main(int argc, char** argv) {
     // Warnings in colour: escape codes only work once VT processing is on.
     if (const HANDLE console = GetStdHandle(STD_ERROR_HANDLE); console != INVALID_HANDLE_VALUE) {
         DWORD mode = 0;
-        d2d::log::g_windows_vt = GetConsoleMode(console, &mode) && SetConsoleMode(console, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        d2d::log::set_windows_vt(GetConsoleMode(console, &mode) && SetConsoleMode(console, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING));
     }
 #endif
 
