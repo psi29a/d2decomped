@@ -103,6 +103,7 @@ address	name	evidence
 00421510	sbig_low_digit	EAX number, EDX out: the low digit (index +0x10) when below the used count +4, else 0 (source-sbig-arrays.md)
 00421540	sbig_is_even_stdcall	Number (ret 4): sbig_is_even (FUN_00421440) with it in EDX (source-sbig-arrays.md)
 00421550	sbig_low_digit_stdcall	Number, out (ret 8): sbig_low_digit (FUN_00421510) with them in EAX and EDX (source-sbig-arrays.md)
+004215c0	sbig_set_digits	ECX number, n, source (ret 8): +0 = n; buffer reallocated to n dwords (.I) unless it and n are 0; n dwords copied; +4 = n (source-sbig-arrays.md)
 004216e0	sbig_resize	The dword buffer +8 to n entries (FUN_004133d0, else a new block with the old entries copied and the old freed); +0 = n (source-frontier.md)
 00421e10	sbig_temps_ctor	Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at +0x14, zeroes +0x154..+0x164. Only caller FUN_00423950 (source-frontier.md)
 00421fe0	sbig_reserve	Makes room for +0x10 + n entries: grows (by +0xc, else sbig_grow_step, rounded up to its multiple) and zero-fills the new part (FUN_0041d300), +4 = that size (source-frontier.md)
