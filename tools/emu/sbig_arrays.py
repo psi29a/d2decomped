@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810 FUN_004218b0 FUN_00421930
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0 FUN_00421470 FUN_00421530 FUN_00421770 FUN_00421810 FUN_004218b0 FUN_00421930 FUN_00421980
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -57,6 +57,7 @@ MUTATIONS = {
     0x421810: ("free_always", "free_wrong_tag"),
     0x4218B0: ("append_returns_new", "append_no_round", "append_at_start"),
     0x421930: ("slot_returns_end", "slot_inclusive"),
+    0x421980: ("used_grows_always", "used_keeps"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -266,6 +267,12 @@ class Model:
             else:
                 eax = (buf + used + (m == "slot_returns_end")) & M32
             changes[4] = (used + n) & M32
+        if address == 0x421980:   # the used count set to n, the buffer grown (rounded) when n passes both counts
+            n = a[0]
+            if rec[4] < n or m == "used_grows_always":
+                self.grow(rec, n, True, changes, calls, case)
+            if m != "used_keeps":
+                changes[4] = n
         return eax, changes, buffer, calls
 
 
