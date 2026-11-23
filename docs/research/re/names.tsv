@@ -104,6 +104,7 @@ address	name	evidence
 00421440	sbig_is_even	EDX number: 1 when it has no digits (+4 = +0x10) or its low digit is even, else 0 (source-sbig-arrays.md)
 00421470	sbig_low_bit	Number (ret 4): the lowest set bit as digit index (from +0x10) * 32 + bit; 0 when the number is 0 (source-sbig-arrays.md)
 00421510	sbig_low_digit	EAX number, EDX out: the low digit (index +0x10) when below the used count +4, else 0 (source-sbig-arrays.md)
+00421530	sbig_compare_jump	Two numbers (ret 8): jumps to sbig_compare (FUN_004212f0) (source-sbig-arrays.md)
 00421540	sbig_is_even_stdcall	Number (ret 4): sbig_is_even (FUN_00421440) with it in EDX (source-sbig-arrays.md)
 00421550	sbig_low_digit_stdcall	Number, out (ret 8): sbig_low_digit (FUN_00421510) with them in EAX and EDX (source-sbig-arrays.md)
 004215c0	sbig_set_digits	ECX number, n, source (ret 8): +0 = n; buffer reallocated to n dwords (.I) unless it and n are 0; n dwords copied; +4 = n (source-sbig-arrays.md)
