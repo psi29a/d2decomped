@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0 FUN_00420dd0
+# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -30,6 +30,7 @@ REALLOC, INT_TAG = 0x4133D0, 0x708874
 MUTATIONS = {
     0x420DB0: ("below_signed", "below_or_equal", "below_no_offset"),
     0x420DD0: ("take_stride_0x10", "take_no_count", "take_returns_next"),
+    0x420E00: ("release_adds",),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
               0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
@@ -57,6 +58,8 @@ class Model:
             changes[0x140] = (top + 1) & M32
             stride = 0x10 if m == "take_stride_0x10" else 0x14
             return (ecx + (top + (m == "take_returns_next")) * stride) & M32, None, changes, []
+        if address == 0x420E00:   # the pool's top back by n
+            return None, None, {0x140: (num(0x140) + (args[0] if m == "release_adds" else -args[0])) & M32}, []
         raise ValueError(hex(address))
 
 
