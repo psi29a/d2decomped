@@ -79,13 +79,16 @@ struct OverheadRect { int left = 0, top = 0, right = 0, bottom = 0; };
 // dword scales both axes (0049e152..0049e165), so only down-right and
 // up-left are tried (bugs.md #119; d2d matches).
 // A frame's first slots (FUN_004a0e70): the NPC speech box while one is up
-// (0x7bf1c0 == 1): x 0x7bf278 = (W - 0x145) / 2, top 0x7225fc = 12, 0x145 by
-// 0x70 (npc-talk.md "Box"); none else.
-[[nodiscard]] inline std::vector<OverheadRect> overhead_frame_slots(bool speech_up, int screen_w) {
+// (0x7bf1c0 == 1), in the overhead buffer's own pixels; none else.
+[[nodiscard]] inline std::vector<OverheadRect> overhead_frame_slots(const std::optional<OverheadRect>& speech_box) {
     std::vector<OverheadRect> slots;
-    if (speech_up) slots.push_back({ (screen_w - 0x145) / 2, 12, (screen_w - 0x145) / 2 + 0x145, 12 + 0x70 });
+    if (speech_box) slots.push_back(*speech_box);
     return slots;
 }
+
+// game.exe's speech slot on an 800-wide screen: x 0x7bf278 = (W - 0x145) / 2,
+// top 0x7225fc = 12, 0x145 by 0x70 (npc-talk.md "Box").
+[[nodiscard]] constexpr OverheadRect speech_slot(int screen_w) { return { (screen_w - 0x145) / 2, 12, (screen_w - 0x145) / 2 + 0x145, 12 + 0x70 }; }
 
 // The units whose text goes up this frame, in FUN_004a0e70's order: the
 // players' table (d2d_unit_each_table_a_player), then the monsters' (the
