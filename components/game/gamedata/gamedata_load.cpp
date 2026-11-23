@@ -766,8 +766,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
     // Type-2 objects: id -> objects.txt Id through game.exe's own preset
     // table (obj_preset.hpp), then that row's Token and layer flags. Start
-    // mode: ON for things with a light in ON (torches, fires, the camp
-    // waypoint), else NU. ponytail: D2 sets it per object in its InitFn.
+    // mode: mode 0 as made, then what its InitFn sets (add_object).
     const auto objects = txt("objects");
     // Shrines.txt, and each level's area level (chests' treasure class).
     const auto shr = txt("Shrines"), lvs = txt("Levels");
