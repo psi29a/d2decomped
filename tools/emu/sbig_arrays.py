@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0 FUN_004213b0
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -50,6 +50,7 @@ MUTATIONS = {
     0x421870: ("assign_self_copies", "assign_copies_step"),
     0x421BA0: ("assign_self_copies", "assign_keeps_step"),
     0x4212F0: ("cmp_low_decides", "cmp_inverted", "cmp_stops_at_shorter"),
+    0x4213B0: ("top_from_low", "top_plus_one"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -206,6 +207,15 @@ class Model:
             eax = case["dest"]
         if address in (0x4212F0, 0x421530):   # compare two numbers
             eax = self.compare(rec, case["b_rec"], case["digit"], case["b_digit"]) & M32
+        if address == 0x4213B0:   # the highest set bit, as digit index * 32 + bit (from +0x10), 0 when none
+            eax, count = 0, rec[4] - rec[0x10]
+            order = range(count) if m == "top_from_low" else range(count - 1, -1, -1)
+            for k in order:
+                d = case["digit"](rec[0x10] + k)
+                if d:
+                    bit = (d.bit_length() - 1) if m != "top_from_low" else (d & -d).bit_length() - 1
+                    eax = k * 32 + bit + (m == "top_plus_one")
+                    break
         return eax, changes, buffer, calls
 
 
@@ -323,6 +333,16 @@ def make_case(rng, rig, address):
         machine.mu.mem_write(rig.other, struct.pack("<16I", *[b.get(o, 0) for o in range(0, 0x40, 4)]))
         case["b_rec"], case["b_digit"] = b, lambda i: words[i]
         regs, args = {}, [rig.record, rig.other]
+    if address in (0x4213B0, 0x421470):
+        rec[0x10] = rng.randint(0, 6)
+        rec[4] = rec[0x10] + rng.randint(0, 10)
+        for i in range(rec[0x10], rec[4]):
+            if rng.random() < 0.6:
+                digits[i] = 0
+            elif rng.random() < 0.5:
+                digits[i] = 1 << rng.randrange(32)
+        machine.mu.mem_write(rig.data, struct.pack(f"<{SPAN // 4}I", *digits))
+        regs, args = {}, [rig.record]
     case["args"] = args
     return case, regs, args
 
