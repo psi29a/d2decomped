@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -47,6 +47,7 @@ MUTATIONS = {
     0x421630: ("reserve_no_round", "reserve_inclusive", "reserve_ignores_step"),
     0x421680: ("bytes_dwords", "bytes_wrong_tag"),
     0x4216B0: ("bytes_dwords", "bytes_wrong_tag"),
+    0x421870: ("assign_self_copies", "assign_copies_step"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -168,6 +169,17 @@ class Model:
             if rec[8] or a[0]:
                 calls.append(("realloc", rec[8], (a[0] * (4 if m == "bytes_dwords" else 1)) & M32, tag, 0xFFFFFFFE, 0))
                 changes[8] = case["realloc"]
+        if address in (0x421870, 0x421BA0):   # copy the source's digits unless it is the record itself; the record back
+            source, words = case["src_rec"], case["source"]
+            if case["self"]:
+                source, words = (rec, case["own"]) if m == "assign_self_copies" else (None, None)
+            if source is not None:
+                buffer = self.set_digits(rec, source[4], words, changes, calls)
+            if address == 0x421BA0 and m != "assign_keeps_step":
+                changes[0xC] = (source or rec)[0xC]
+            if address == 0x421870 and m == "assign_copies_step":
+                changes[0xC] = (source or rec)[0xC]
+            eax = case["dest"]
         return eax, changes, buffer, calls
 
 
