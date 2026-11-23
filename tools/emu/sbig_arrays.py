@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -36,6 +36,7 @@ MUTATIONS = {
     0x421160: ("step_cap_0x40", "step_zero_stays", "step_not_kept"),
     0x4211A0: ("round_always_adds",),
     0x4211C0: ("resize_dwords", "resize_copies_count", "resize_no_free", "resize_flag_0"),
+    0x421240: ("step_cap_0x40", "step_not_kept"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
@@ -116,6 +117,8 @@ class Model:
                 value = min(value, size - pos)
             changes[0x30], changes[0x34] = pos, value
         if address == 0x421160:
+            eax = self.grow_step(rec, a[0], changes)
+        if address == 0x421240:
             eax = self.grow_step(rec, a[0], changes)
         if address == 0x4211A0:
             eax = self.round_up(*a)
