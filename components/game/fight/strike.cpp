@@ -17,14 +17,18 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drink.hpp>
+#include <item_price.hpp>
 #include <leap.hpp>
 #include <monsters.hpp>
 #include <pets.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

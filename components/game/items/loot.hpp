@@ -14,6 +14,7 @@
 
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <item_gen.hpp>
 #include <monster_ids.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>

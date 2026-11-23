@@ -19,6 +19,7 @@
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <hire.hpp>
 #include <install.hpp>
 #include <level.hpp>
 #include <level_ids.hpp>
@@ -35,6 +36,7 @@
 #include <town_npcs.hpp>
 #include <txt.hpp>
 #include <uniques.hpp>
+#include <vendor.hpp>
 
 #include <algorithm>
 #include <array>

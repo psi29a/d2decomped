@@ -32,9 +32,12 @@
 #include <dc6.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
+#include <item_gen.hpp>
 #include <log.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

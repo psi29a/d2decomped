@@ -31,6 +31,7 @@
 #include <cues.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
+#include <hire.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -42,6 +43,7 @@
 #include <shake.hpp>
 #include <staff_show.hpp>
 #include <userdir.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

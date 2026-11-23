@@ -8,6 +8,7 @@
 
 #include <box_pieces.hpp>
 #include <dc6.hpp>
+#include <hire.hpp>
 #include <hire_list.hpp>
 #include <monster_ids.hpp>
 #include <palette.hpp>

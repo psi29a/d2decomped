@@ -19,6 +19,7 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 #include <world.hpp>
 
 #include <algorithm>

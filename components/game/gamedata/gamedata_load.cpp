@@ -14,6 +14,7 @@
 #include <drops.hpp>
 #include <dt1.hpp>
 #include <install.hpp>
+#include <item_gen.hpp>
 #include <level_ids.hpp>
 #include <mon_equip.hpp>
 #include <monster_ids.hpp>
@@ -28,6 +29,7 @@
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <txt.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

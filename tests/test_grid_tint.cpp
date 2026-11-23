@@ -14,6 +14,7 @@
 #include <d2s_items.hpp>
 #include <palette.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <array>
 #include <cassert>

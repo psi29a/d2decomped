@@ -8,7 +8,9 @@
 // mended through FUN_005762b0 -> FUN_005761c0. No game data: an axe typed in.
 
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <rules.hpp>
+#include <vendor.hpp>
 
 #include <cassert>
 #include <cstdint>

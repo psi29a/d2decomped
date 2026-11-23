@@ -6,6 +6,7 @@
 // (FUN_00579d60) and a runeword's mods roll on it: rules::item_seed, fresh
 // {fingerprint, 666} only for an item loaded from a save (FUN_0062cbe0 at
 // 0x62cd16). Synthetic tables: no game data.
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

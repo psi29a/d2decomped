@@ -3,7 +3,14 @@
 // Store rules over hand-made tables: prices, buy/sell gold, placement, stock.
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <drink.hpp>
+#include <hire.hpp>
+#include <item_gen.hpp>
+#include <item_price.hpp>
+#include <points.hpp>
 #include <rules.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

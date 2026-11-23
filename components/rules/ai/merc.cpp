@@ -2,7 +2,9 @@
 // The bodies of merc.hpp's functions; their notes are in the header.
 #include "merc.hpp"
 
+#include "item_price.hpp"
 #include "rules.hpp"
+#include "wear.hpp"
 
 #include <d2s_items.hpp>
 

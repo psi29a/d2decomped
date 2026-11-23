@@ -15,6 +15,7 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <merc.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>

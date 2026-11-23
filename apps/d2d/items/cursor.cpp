@@ -8,7 +8,8 @@
 #include "scene.hpp"
 
 #include <d2s_items.hpp>
-#include <rules.hpp>
+#include <item_gen.hpp>
+#include <wear.hpp>
 
 #include <cmath>
 #include <cstddef>

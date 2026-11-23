@@ -11,6 +11,7 @@
 
 #include <d2s_items.hpp>
 #include <overlays.hpp>
+#include <vendor.hpp>
 #include <weather.hpp>
 
 #include <cstdint>

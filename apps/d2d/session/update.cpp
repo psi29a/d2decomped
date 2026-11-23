@@ -40,6 +40,7 @@
 #include <log.hpp>
 #include <palette.hpp>
 #include <panel_view.hpp>
+#include <points.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>

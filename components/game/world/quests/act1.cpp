@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <d2s_items.hpp>
 #include <format>
+#include <item_gen.hpp>
 #include <iterator>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>

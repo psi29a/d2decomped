@@ -5,6 +5,7 @@
 // slots (3..4 for a jewel), a coin each between prefix and suffix, at most
 // 3 a side, only affixes with the rare column; no name, or no affix at
 // all: remade magic (FUN_00557380).
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

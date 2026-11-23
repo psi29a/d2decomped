@@ -7,6 +7,7 @@
 #include "d2s_items.hpp"
 #include "rules.hpp"
 #include "shop_action.hpp"
+#include <item_price.hpp>
 
 #include <cassert>
 #include <cstdio>

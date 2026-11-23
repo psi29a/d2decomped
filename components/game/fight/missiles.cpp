@@ -15,15 +15,18 @@
 #include <aura_filter.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <overlays.hpp>
+#include <points.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

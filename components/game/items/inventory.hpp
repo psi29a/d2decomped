@@ -10,6 +10,8 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <rules.hpp>
+#include <vendor.hpp>
+#include <wear.hpp>
 
 #include <cstddef>
 #include <optional>

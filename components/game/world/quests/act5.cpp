@@ -27,6 +27,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <vendor.hpp>
 
 namespace d2d::game {
 

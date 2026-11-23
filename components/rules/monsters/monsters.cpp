@@ -3,7 +3,9 @@
 #include "monsters.hpp"
 
 #include "combat.hpp"
+#include "item_gen.hpp"
 #include "montypes.hpp"
+#include "points.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>

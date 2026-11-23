@@ -20,6 +20,8 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <inventory.hpp>
+#include <item_gen.hpp>
+#include <item_price.hpp>
 #include <item_text.hpp>
 #include <level.hpp>
 #include <level_ids.hpp>
@@ -39,6 +41,7 @@
 #include <sound_ids.hpp>
 #include <spawning.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 #include <world.hpp>
 
 #include <algorithm>

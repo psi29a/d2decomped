@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <d2s_items.hpp>
 #include <format>
+#include <hire.hpp>
 #include <iterator>
 #include <monster_ids.hpp>
 #include <quests.hpp>

@@ -28,6 +28,7 @@
 #include <rules.hpp>
 #include <skills.hpp>
 #include <spawning.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

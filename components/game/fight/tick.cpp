@@ -17,6 +17,7 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <level_ids.hpp>
 #include <melee_reach.hpp>
 #include <merc.hpp>

@@ -5,7 +5,7 @@
 // tools/emu/mana_frame.py: rules::mana_per_frame. No game data needed at
 // runtime. With a file argument (mana_frame.py's `game` output, or its
 // `gen` cases) it prints each line with d2d's amount instead, to diff.
-#include <rules.hpp>
+#include <points.hpp>
 
 #include <cassert>
 #include <cstdint>

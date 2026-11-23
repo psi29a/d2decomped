@@ -15,6 +15,7 @@
 #include <chat_commands.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <hud_globe.hpp>
 #include <overlays.hpp>
 #include <rules.hpp>

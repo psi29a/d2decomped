@@ -5,6 +5,7 @@
 // bytes, and an amount that takes a nonzero base below 1 held, the min at
 // 1 (1 - base), the max at 0 (-base).
 #include <d2s_items.hpp>
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

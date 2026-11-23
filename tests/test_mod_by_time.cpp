@@ -4,6 +4,7 @@
 // table at 0x7462f8): the stat at param 0 with the period (param 0..3) plus
 // ((max + 256) << 10 | (min + 256)) << 2, each part 0..1023; no draw.
 #include <d2s_items.hpp>
+#include <item_gen.hpp>
 #include <rules.hpp>
 
 #include <cassert>

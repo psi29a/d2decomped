@@ -17,8 +17,10 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_price.hpp>
 #include <level.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 #include <world.hpp>
 
 #include <algorithm>

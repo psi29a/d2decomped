@@ -9,7 +9,9 @@
 
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <item_price.hpp>
 #include <rules.hpp>
+#include <vendor.hpp>
 
 #include <cassert>
 #include <cstdio>

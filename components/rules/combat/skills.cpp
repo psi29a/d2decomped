@@ -3,7 +3,9 @@
 #include "skills.hpp"
 
 #include "combat.hpp"
+#include "points.hpp"
 #include "rules.hpp"
+#include "wear.hpp"
 
 #include <d2s_items.hpp>
 

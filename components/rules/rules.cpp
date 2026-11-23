@@ -2,7 +2,13 @@
 // The bodies of rules.hpp's functions; their notes are in the header.
 #include "rules.hpp"
 
+#include "drink.hpp"
+#include "hire.hpp"
+#include "item_gen.hpp"
+#include "item_price.hpp"
 #include "monster_ids.hpp"
+#include "vendor.hpp"
+#include "wear.hpp"
 
 #include <d2s.hpp>
 #include <d2s_items.hpp>

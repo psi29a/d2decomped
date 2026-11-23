@@ -14,6 +14,7 @@
 #include <item_text.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

@@ -17,6 +17,7 @@
 #include <level.hpp>
 #include <level_ids.hpp>
 #include <overlays.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>

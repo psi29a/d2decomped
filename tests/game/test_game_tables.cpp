@@ -11,6 +11,7 @@
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_gen.hpp>
 #include <item_text.hpp>
 #include <level.hpp>
 #include <monster_ids.hpp>

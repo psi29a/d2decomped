@@ -21,6 +21,7 @@
 #include <devctl.hpp>
 #include <hire_list.hpp>
 #include <rules.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

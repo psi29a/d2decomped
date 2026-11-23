@@ -6,10 +6,13 @@
 // merc's stats.
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <hire.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
+#include <points.hpp>
 #include <rules.hpp>
 #include <sound_ids.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

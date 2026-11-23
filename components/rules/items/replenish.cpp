@@ -2,6 +2,7 @@
 // The bodies of replenish.hpp's functions; their notes are in the header.
 #include "replenish.hpp"
 
+#include "item_price.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>

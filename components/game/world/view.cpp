@@ -22,6 +22,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

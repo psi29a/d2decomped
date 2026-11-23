@@ -16,6 +16,7 @@
 #include <monster_ids.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
+#include <wear.hpp>
 
 #include <algorithm>
 #include <array>

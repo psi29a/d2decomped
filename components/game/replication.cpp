@@ -13,10 +13,12 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
+#include <hire.hpp>
 #include <log.hpp>
 #include <overlays.hpp>
 #include <rules.hpp>
 #include <shake.hpp>
+#include <vendor.hpp>
 
 #include <array>
 #include <cstddef>

@@ -28,6 +28,7 @@
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <item_gen.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 
