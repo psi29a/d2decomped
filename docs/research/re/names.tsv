@@ -99,6 +99,7 @@ address	name	evidence
 00421240	sbig_bytes_grow_step_2	ECX array, n (ret 4): as FUN_00421160 (highest power of two up to n, 0x100 cap kept at +0xc) (source-sbig-arrays.md)
 00421280	round_up_multiple_3	Value, step (ret 8): the value rounded up to a multiple of the step, as FUN_004210e0 (source-sbig-arrays.md)
 004212d0	sbig_digit	ECX number, i (ret 4): digit +0x10 + i of the buffer +8 when below the used count +4, else 0 (source-sbig-arrays.md)
+004212f0	sbig_compare	Two numbers (ret 8): compares digits from +0x10 up, 0 past the used count; the most significant difference decides: 1, -1 or 0 (source-sbig-arrays.md)
 00421440	sbig_is_even	EDX number: 1 when it has no digits (+4 = +0x10) or its low digit is even, else 0 (source-sbig-arrays.md)
 00421510	sbig_low_digit	EAX number, EDX out: the low digit (index +0x10) when below the used count +4, else 0 (source-sbig-arrays.md)
 00421540	sbig_is_even_stdcall	Number (ret 4): sbig_is_even (FUN_00421440) with it in EDX (source-sbig-arrays.md)

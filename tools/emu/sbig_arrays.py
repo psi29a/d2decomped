@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_arrays.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0
+# gaps-runs: FUN_00420f80 FUN_00421160 FUN_004211a0 FUN_004211c0 FUN_00421240 FUN_00421280 FUN_004212d0 FUN_00421440 FUN_00421510 FUN_00421540 FUN_00421550 FUN_004215c0 FUN_00421630 FUN_00421680 FUN_004216b0 FUN_00421870 FUN_00421ba0 FUN_004212f0
 
 Each case calls one helper on game.exe with a random array record (entry
 count +0, used count +4, buffer +8, grow step +0xc, first digit +0x10) in
@@ -49,10 +49,14 @@ MUTATIONS = {
     0x4216B0: ("bytes_dwords", "bytes_wrong_tag"),
     0x421870: ("assign_self_copies", "assign_copies_step"),
     0x421BA0: ("assign_self_copies", "assign_keeps_step"),
+    0x4212F0: ("cmp_low_decides", "cmp_inverted", "cmp_stops_at_shorter"),
 }
 STACK_ARGS = {0x420F80: 0, 0x421160: 1, 0x4211A0: 2, 0x4211C0: 1, 0x421240: 1, 0x421280: 2,
               0x4212D0: 1, 0x421440: 0, 0x421510: 0, 0x421540: 1, 0x421550: 2, 0x4215C0: 2,
-              0x421630: 2, 0x421680: 1, 0x4216B0: 1, 0x421870: 1, 0x421BA0: 1}
+              0x421630: 2, 0x421680: 1, 0x4216B0: 1, 0x421870: 1, 0x421BA0: 1,
+              0x4212F0: 2, 0x4213B0: 1, 0x421470: 1, 0x421530: 2, 0x421770: 1, 0x421810: 0,
+              0x4218B0: 2, 0x421930: 0, 0x421980: 1, 0x4219D0: 1, 0x4219F0: 2, 0x421A50: 2,
+              0x421AB0: 2, 0x421B00: 2}
 
 
 class Model:
@@ -80,16 +84,17 @@ class Model:
             value = (value + step - value % step) & M32
         return value
 
-    def resize(self, rec, n, case, changes, calls):
-        """FUN_004211c0: +0 = n; SMemReAlloc(buffer, n, ".E", -2, 0x10), else a new block, the old bytes copied, the old freed."""
+    def resize(self, rec, n, case, changes, calls, tag=TAG_E):
+        """FUN_004211c0 (".E") / FUN_00421770 (".D"): +0 = n; SMemReAlloc(buffer, n, tag, -2, 0x10), else a new block, the old bytes copied, the old freed."""
         old = rec[8]
+        tag = TAG_I if self.m == "resize_wrong_tag" else tag
         changes[0] = n
         size = n * 4 if self.m == "resize_dwords" else n
-        calls.append(("realloc", old, size, TAG_E, 0xFFFFFFFE, 0 if self.m == "resize_flag_0" else 0x10))
+        calls.append(("realloc", old, size, tag, 0xFFFFFFFE, 0 if self.m == "resize_flag_0" else 0x10))
         if case["realloc"]:
             changes[8] = case["realloc"]
             return None
-        calls.append(("alloc", size, TAG_E, 0xFFFFFFFE, 0))
+        calls.append(("alloc", size, tag, 0xFFFFFFFE, 0))
         changes[8] = case["new"]
         if not old:
             return None
@@ -97,8 +102,26 @@ class Model:
         buffer = bytearray(SPAN)
         buffer[:count] = case["old_bytes"][:count]
         if self.m != "resize_no_free":
-            calls.append(("free", old, TAG_E, 0xFFFFFFFE, 0))
+            calls.append(("free", old, tag, 0xFFFFFFFE, 0))
         return bytes(buffer)
+
+    def compare(self, a, b, digit_a, digit_b):
+        """FUN_004212f0: digit by digit from each first digit while either has one left (0 past the
+        end); the last pair that differs decides: 1 when a's is bigger, -1, or 0."""
+        i, j, result = a[0x10], b[0x10], 0
+        while i < a[4] or j < b[4]:
+            if self.m == "cmp_stops_at_shorter" and not (i < a[4] and j < b[4]):
+                break
+            x = digit_a(i) if i < a[4] else 0
+            y = digit_b(j) if j < b[4] else 0
+            if x != y:
+                result = 1 if y < x else -1
+                if self.m == "cmp_inverted":
+                    result = -result
+                if self.m == "cmp_low_decides":
+                    return result
+            i, j = i + 1, j + 1
+        return result
 
     def set_digits(self, rec, n, source, changes, calls):
         """FUN_004215c0: +0 = n; the buffer reallocated to n dwords (".I") unless it and n are 0; n dwords copied; +4 = n."""
@@ -181,6 +204,8 @@ class Model:
             if address == 0x421870 and m == "assign_copies_step":
                 changes[0xC] = (source or rec)[0xC]
             eax = case["dest"]
+        if address in (0x4212F0, 0x421530):   # compare two numbers
+            eax = self.compare(rec, case["b_rec"], case["digit"], case["b_digit"]) & M32
         return eax, changes, buffer, calls
 
 
@@ -285,6 +310,19 @@ def make_case(rng, rig, address):
         case["dest"] = rig.record
         case["realloc"] = rig.dst
         args = [rig.record if case["self"] else rig.other]
+    if address in (0x4212F0, 0x421530):
+        words = [rng.choice((0, rng.randint(0, M32))) for _ in range(SPAN // 4)]
+        rec[0x10], rec[4] = rng.randint(0, 6), rng.randint(0, 14)
+        b = {4: rng.randint(0, 14), 8: rig.old, 0x10: rng.randint(0, 6)}
+        if rng.random() < 0.3:   # equal digits, or one apart
+            words[b[0x10]:b[0x10] + 8] = digits[rec[0x10]:rec[0x10] + 8]
+            b[4] = rec[4] - rec[0x10] + b[0x10] if rec[4] >= rec[0x10] else b[4]
+            if rng.random() < 0.5 and b[4] > b[0x10]:
+                words[rng.randrange(b[0x10], b[4])] ^= 1 << rng.randrange(32)
+        machine.mu.mem_write(rig.old, struct.pack(f"<{SPAN // 4}I", *words))
+        machine.mu.mem_write(rig.other, struct.pack("<16I", *[b.get(o, 0) for o in range(0, 0x40, 4)]))
+        case["b_rec"], case["b_digit"] = b, lambda i: words[i]
+        regs, args = {}, [rig.record, rig.other]
     case["args"] = args
     return case, regs, args
 
