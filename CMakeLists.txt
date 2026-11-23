@@ -161,6 +161,9 @@ else()
 endif()
 option(D2D_BUILD_TOOLS "Build helper tools under tools/"  ${_d2d_tools_default})
 option(D2D_BUILD_TESTS "Build tests under tests/"         ${_d2d_tests_default})
+# CI turns it off: a test's debug info was ~25% of its compile and most of
+# its object (the cache's size); a local build keeps it to debug a test.
+option(D2D_TESTS_DEBUG_INFO "Build the tests with debug info" ON)
 
 # Components (shared libs) must configure before apps/tests that link them.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/components/CMakeLists.txt")

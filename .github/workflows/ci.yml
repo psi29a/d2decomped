@@ -311,6 +311,7 @@ jobs:
           fi
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DD2D_TESTS_DEBUG_INFO=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }} \
@@ -341,6 +342,7 @@ jobs:
             -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
             -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
             -DD2D_CHECK_HEADERS=OFF `
+            -DD2D_TESTS_DEBUG_INFO=OFF `
             -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }} `
             "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
             "-DSDL3_DIR=$sdl\cmake" `
