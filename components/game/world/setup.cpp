@@ -23,6 +23,7 @@
 #include <quests.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -37,6 +38,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -55,6 +57,48 @@ int waypoint_index(const GameData& game_data, int level_id) {
     for (const auto& act_levels : game_data.waypoint_levels)
         if (const auto found = std::ranges::find(act_levels, level_id, &GameData::WaypointLevel::level); found != act_levels.end()) return found->waypoint;
     return -1;
+}
+
+// At --start-cam-x/y, else the town start (Level::start), else the map's middle; then
+// the nearest free spot, so a game never starts inside a tent.
+World::World(const GameData* loaded_data, int start_x, int start_y) : game_data(loaded_data), level(loaded_data ? &loaded_data->town : nullptr) {
+    act_as(add_player());
+    loot.gold_sharers = [this] {
+        std::vector<Character*> others;
+        for (const auto& player : players)
+            if (player.get() != actor && player->pmode != kModeDT && player->pmode != kModeDD) others.push_back(&player->character);
+        return others;
+    };
+    loot.class_voice = [this](std::string_view name, std::uint32_t now_ms) { fight.class_voice(name, now_ms); };
+    const bool have_world = level && !level->dt1s.empty();
+    actor->player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
+    actor->player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
+    if (have_world && start_x < 0 && start_y < 0 && level->start.first >= 0)
+        std::tie(actor->player.x, actor->player.y) = level->start;
+    if (have_world) std::tie(actor->player.x, actor->player.y) = level->nearest_free(actor->player.x, actor->player.y);
+    if (game_data) npc_states = npc_start(*level);
+    if (game_data) fight.new_game(0);
+    actor->target_x = actor->player.x; actor->target_y = actor->player.y;
+    actor->player.dir = 4;                    // south, facing the viewer
+    // Its monsters open its doors (monster_door).
+    fight.open_door = [this](const Monster& monster, std::uint32_t now_ms) { return monster_door(monster, now_ms); };
+    // The character's skill levels for the fight, the skill shrine's
+    // +all skills (item_allskills) while its boost lasts, and a self
+    // state's (Battle Command's aurastat1: its stats on the player,
+    // FUN_00644180 adding item_allskills to every skill).
+    fight.skill_base = [this](int id) { return skill_base_level(*game_data, actor->character, id); };
+    fight.skill_level = [this](int id) {
+        if (fight.from_charges(id)) return actor->item_charge.level;   // a charged entry's own level: no +skills (the entry's, SKILLS_AddOrRemoveItemSkill)
+        std::vector<d2d::d2s::ItemProp> extra;
+        if (now < actor->boost.until)
+            for (const auto& [stat, value] : actor->boost.stats) if (stat == d2d::d2s::kAllSkills) extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
+        for (const auto& state : actor->self_states)
+            if (const auto* skill = game_data->skills.get(state.skill); skill && now < state.until)
+                for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+                    if (skill->aurastat[k] == d2d::d2s::kAllSkills)
+                        extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], {}, skill->id, state.level) });
+        return skill_level(*game_data, actor->character, id, extra);
+    };
 }
 
 auto World::act_as(Player& player) -> void {
