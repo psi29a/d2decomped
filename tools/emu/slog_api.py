@@ -3,7 +3,7 @@
 
 Run: uv run python slog_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120 FUN_00420160
+# gaps-runs: FUN_0041fdf0 FUN_0041ffc0 FUN_00420070 FUN_004200e0 FUN_00420120 FUN_00420160 FUN_00420220
 
 Each case gives a pool of eight log records (made by game.exe's own
 FUN_0041fa80, create on) fresh fields: a file handle `+8`, a length `+0xc`,
@@ -38,6 +38,7 @@ PEND = 0x420070
 SET_INDENT = 0x4200E0
 ADD_INDENT = 0x420120
 SET_STAMP = 0x420160
+DESTROY = 0x420220
 DEBUG_FLAG, LOCKS, LOCK_SIZE = 0x7790AC, 0x779238, 0x18
 TEXT, BUFFER, FLUSH_AT = 0x1C, 0x10000, 0xC000
 STAMP = b"11/23 22:05:09.042  "
@@ -51,6 +52,8 @@ MUTATIONS = {
     "set_indent": ("set_indent_returns_new", "set_indent_adds"),
     "add_indent": ("add_indent_returns_new", "add_indent_sets"),
     "set_stamp": ("set_stamp_bool",),
+    "destroy": ("destroy_no_flush", "destroy_buckets_reversed", "destroy_no_handle_check",
+                "destroy_deletes_3"),
 }
 FORMATS = ((b"%s=%d", "sd"), (b"%x|%s", "xs"), (b"%5d%%", "d"), (b"plain text", ""))
 
@@ -148,6 +151,21 @@ class Model:
     def set_stamp(self, rec, value):
         """FUN_00420160: the stamp flag becomes the value, as is."""
         rec.flag = int(value != 0) if self.mutation == "set_stamp_bool" else value
+
+    def destroy(self, pool, events):
+        """FUN_00420220: every record flushed (FUN_0041fff0), then each closed, freed and reported."""
+        order = sorted(range(len(pool)), key=lambda n: (pool[n][0] & 3, n))
+        buckets = (3, 2, 1, 0) if self.mutation == "destroy_buckets_reversed" else (0, 1, 2, 3)
+        order = [n for bucket in buckets for n in order if pool[n][0] & 3 == bucket]
+        if self.mutation != "destroy_no_flush":
+            for n in order:
+                self.flush_record(pool[n][2], events)
+        for n in order:
+            events += [("close", pool[n][2].handle), ("free", pool[n][1])]
+            if self.mutation != "destroy_no_handle_check":
+                events.append(("check", b"HSLOG"))
+        for i in range(3 if self.mutation == "destroy_deletes_3" else 4):
+            events.append(("delete", LOCKS + i * LOCK_SIZE))
 
 
 def wrap(value):
@@ -331,11 +349,35 @@ CASES["add_indent"] = case_add_indent
 CASES["set_stamp"] = case_set_stamp
 
 
+def destroy_case(rig, model, rng, number):
+    """FUN_00420220 on the whole pool with fresh small records, then a new pool."""
+    recs = []
+    for n, (_, record) in enumerate(rig.pool):
+        rec = fresh(rng, 0x100 + n)
+        rec.length = rng.choice((0, rng.randint(1, 0x40)))
+        rec.committed = rng.randint(0, rec.length)
+        rec.text[rec.length] = 0
+        rig.load(record, rec)
+        recs.append(rec)
+    events = []
+    model.destroy([(log_id, record, rec) for (log_id, record), rec in zip(rig.pool, recs)], events)
+    _, got, held = rig.run(DESTROY)
+    rig.make_pool()
+    if got != events or held:
+        where = next((i for i, (a, b) in enumerate(zip(got, events)) if a != b), min(len(got), len(events)))
+        return f"case {number}: FUN_00420220: event {where}: {got[where:where + 2]} != {events[where:where + 2]}, held {held}"
+    return None
+
+
 def compare(rig, model, seed, count):
     """Runs the cases on game.exe and the model; returns the first difference or None."""
     rng = random.Random(seed)
     kinds = sorted(CASES)
     for number in range(count):
+        if number % 50 == 49:
+            if difference := destroy_case(rig, model, rng, number):
+                return difference
+            continue
         slot = rng.randrange(len(rig.pool))
         log_id, record = rig.pool[slot]
         rec = fresh(rng, 0x100 + slot)
