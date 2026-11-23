@@ -26,3 +26,4 @@ numbers, so no row has a counterpart.
 | `FUN_004212d0` | `sbig_digit` | `ECX` number, i (`RET 4`): the digit at `+0x10` + i when that index is below the used count `+4` (unsigned), else 0. Callers the bit scans `FUN_004213b0` and `FUN_00421470`, and two more | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421440` | `sbig_is_even` | `EDX` number (`ECX` unused): 1 when it has no digits (`+4` = `+0x10`) or its low digit (0 past the used count) is even, else 0. Callers `sbig_is_even_stdcall` and one more | no counterpart (as `sbig_grow_step`) |
 | `FUN_00421510` | `sbig_low_digit` | `EAX` number, `EDX` out pointer: out = the digit at `+0x10` when it is below the used count `+4`, else 0. Only caller `sbig_low_digit_stdcall` | no counterpart (as `sbig_grow_step`) |
+| `FUN_00421540` | `sbig_is_even_stdcall` | Number (`RET 4`): `sbig_is_even` with it in `EDX` | no counterpart (as `sbig_grow_step`) |
