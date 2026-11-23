@@ -745,17 +745,18 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             const auto caster = units.find(key(cast->type, cast->id));
             const bool living_monster = cast->type == 1 && caster != units.end() && caster->second.life != 0;
             if (!living_monster && (cast->type != 0 || cast->id == self_id)) break;
-            auto& unit = unit_at(cast->type, cast->id);
-            unit.skill = int(cast->skill);
-            unit.skill_ms = steady_ms();
-            unit.skill_x = unit.x; unit.skill_y = unit.y;
             std::optional<std::pair<float, float>> aim;
             if (cast->point) aim = *cast->point;
             else if (const auto target = units.find(key(cast->target->first, cast->target->second)); target != units.end())
                 aim = {target->second.x, target->second.y};
+            if (living_monster && !aim) break;
+            auto& unit = unit_at(cast->type, cast->id);
+            unit.skill = int(cast->skill);
+            unit.skill_ms = steady_ms();
+            unit.skill_x = unit.x; unit.skill_y = unit.y;
             if (aim) { unit.skill_x = aim->first; unit.skill_y = aim->second; }
             if (aim) unit.cast_starts.push_back(unit.skill);
-            if (living_monster && aim) {
+            if (living_monster) {
                 unit.mode = cast->point ? 0x15 : 0x16;
                 unit.mode_ms = unit.skill_ms;
                 unit.attack_pose = {};
