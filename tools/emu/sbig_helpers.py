@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0
+# gaps-runs: FUN_00420db0 FUN_00420dd0
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -29,6 +29,7 @@ M32, M64 = 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF
 REALLOC, INT_TAG = 0x4133D0, 0x708874
 MUTATIONS = {
     0x420DB0: ("below_signed", "below_or_equal", "below_no_offset"),
+    0x420DD0: ("take_stride_0x10", "take_no_count", "take_returns_next"),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
               0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
@@ -49,6 +50,13 @@ class Model:
             if m == "below_signed":
                 return int(s32(left) < s32(num(4))), None, {}, []
             return int(left <= num(4) if m == "below_or_equal" else left < num(4)), None, {}, []
+        if address == 0x420DD0:   # the pool's next temporary, an optional counter bumped
+            top, changes = num(0x140), {}
+            if args[0] and m != "take_no_count":
+                changes["counter"] = (mem["counter"] + 1) & M32
+            changes[0x140] = (top + 1) & M32
+            stride = 0x10 if m == "take_stride_0x10" else 0x14
+            return (ecx + (top + (m == "take_returns_next")) * stride) & M32, None, changes, []
         raise ValueError(hex(address))
 
 
