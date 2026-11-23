@@ -544,7 +544,7 @@ struct RiteQuest {
 // 3 Baal gone in, 4 dead.
 struct EveQuest {
     static constexpr int kQuest = 0x28, kTyrael = 0x209, kCain = act5_detail::kCain, kThrone = 131, kChamber = 132;
-    static constexpr int kChamberPortal = 563, kLastPortal = 565, kWaves = 5, kFirstSubject = 61;
+    static constexpr int kChamberPortal = 563, kThronePortal = 569, kLastPortal = 565, kWaves = 5, kFirstSubject = 61;   // 563 / 569: both OperateFn 70
     static constexpr int kBaalThrone = 543, kBaal = 544, kBaalStairs = 0x22f;
     static constexpr int kTyraelFrames = 650, kCryFrames = 250, kWaveFrames = 100;
     static constexpr int kEndMovie = 7;   // the last portal's cinematic (S->C 0x61 {7}: D2X_OUT)
@@ -556,6 +556,9 @@ struct EveQuest {
     bool baal_in = false;          // data +0x86
     bool tyrael_heard = false;     // data +0x98
     bool news = false;
+    // The mode the next Baal's portal (InitFn 75) / last portal (InitFn 77) starts in: data +0x94 / +0x9c,
+    // 1 at the record's alloc (FUN_0058e500), 2 once one's made (FUN_0058e670 / FUN_0058e710).
+    int chamber_portal_mode = 1, last_portal_mode = 1;
 
     // A later player joins (+0xd8, LAB_0058e3f0): done, bit 10.
     static void join_more(QuestBits& quest_bits) { if (quest::bit(quest_bits, kQuest, 0)) quest::set(quest_bits, kQuest, 10); }

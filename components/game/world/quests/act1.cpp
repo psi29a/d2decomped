@@ -16,8 +16,10 @@
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace d2d::game {
@@ -67,7 +69,11 @@ auto World::act1_enter(const Level& from) -> void {
 // its record closed at the join (+9 clear) puts it in mode 3, not selectable; the malus
 // stand's InitFn 15 (FUN_00544950) with its record off, mode 2; cellar 5's
 // chests' InitFn 47 (FUN_00595a50) lists each (up to 8) for the Countess's
-// treasure, then FUN_005954f0.
+// treasure, then FUN_005954f0. Tyrael's portal to Harrogath (InitFn 78,
+// FUN_005b5840), Baal's portals (75, FUN_0058e670) and the last portal (77,
+// FUN_0058e710) take their record's mode: the game's first mode 1, later ones 2
+// (both Selectable; mode 0 isn't).
+// ponytail: what takes such a portal from mode 1 to 2 isn't traced; it stays in 1, selectable there.
 auto World::init_new_objects() -> void {
         auto& seen = objects_inited[level];
         for (; seen < level->npcs.size(); ++seen) {
@@ -81,6 +87,13 @@ auto World::init_new_objects() -> void {
             if (operate_fn == d2d::rules::operate_fn::kMoldyTome && closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)])
                 doors.try_emplace({ level, int(seen) }, Door{ 3, now });
             if (operate_fn == d2d::rules::ToolsQuest::kStand && !tools.active) doors.try_emplace({ level, int(seen) }, Door{ 2, now });
+            if (made.root != "objects") continue;
+            if (made.object_id == d2d::rules::object_ids::kLastPortal)
+                doors.try_emplace({ level, int(seen) }, Door{ std::exchange(last_portal_made, true) ? 2 : 1, now });
+            if (made.object_id == d2d::rules::EveQuest::kChamberPortal || made.object_id == d2d::rules::EveQuest::kThronePortal)
+                doors.try_emplace({ level, int(seen) }, Door{ std::exchange(eve.chamber_portal_mode, 2), now });
+            if (made.object_id == d2d::rules::EveQuest::kLastPortal)
+                doors.try_emplace({ level, int(seen) }, Door{ std::exchange(eve.last_portal_mode, 2), now });
         }
     }
 
