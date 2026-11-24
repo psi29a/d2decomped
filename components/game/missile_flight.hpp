@@ -160,8 +160,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // count (data +0x28) is out, one (FUN_004ce530, flags 2) aimed n-ish subtiles off, rand(2n + 1) - n
         // on each axis on its client seed (both 0: x rand(n - 1) + 1), its way that offset, the count CltParam1;
         // likewise its CltSubMissile2 (data +0x2c, flags 0x102: a rand(5) + 1 drawn first, the offset, then its
-        // data +0x28 rand(5) once made), the count CltParam2; each count steps down a frame.
-        // ponytail: the rocks' client hit 33 (CltHitSubMissile1: the small rocks) isn't ported.
+        // data +0x28 rand(5) once made: its hit 33's count), the count CltParam2; each count steps down a frame.
         const auto client_seed = [&]() -> d2d::rules::Rng& {
             if (!missile.client_seeded) {
                 missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));
@@ -201,7 +200,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                     (void)seed(5);                                  // record +0x30
                     const auto [off_x, off_y] = offset();
                     laid.push_back(aimed(*rock, off_x, off_y));
-                    (void)seed(5);                                  // the rock's data +0x28
+                    laid.back().clt_count[0] = int(seed(5));        // the rock's data +0x28
                     missile.clt_count[1] = missile.info->clt_params[1];
                 }
                 --missile.clt_count[1];
@@ -396,9 +395,38 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         ring(0, 2, sub->param1);
         ring(1, spread, sub->param2);
     };
+    // The client's hit 33 (FUN_004d07e0: mephistoflyingrocksbig's) as it goes off (FUN_004d2d70): its
+    // data +0x28 (the count do 26 gave it) CltHitSubMissile1s (flags 0x102) from where it is, each a
+    // rand(5) + 1 for its record +0x30, then aimed rand(2n + 1) - n subtiles off on each axis (both 0:
+    // x rand(n) + 1), n cHitPar1 (at least 3), its way that offset; all on its client seed (+0x20).
+    const auto rock_shards = [&](Missile& missile) {
+        const auto* shard = missile.info ? missile.info->clt_hit_sub_info : nullptr;
+        if (!shard || missile.info->clt_hit != 33) return;
+        if (!missile.client_seeded) {
+            missile.client_seed = client_unit_seed(level, room_of(level, missile.x, missile.y));
+            missile.client_seeded = true;
+        }
+        auto& seed = missile.client_seed;
+        const int spread = std::max(missile.info->clt_hit_pars[0], 3);
+        const float speed = missile_speed(*shard, missile.level);
+        for (int made = 0; made < missile.clt_count[0]; ++made) {
+            (void)seed(5);                                          // record +0x30
+            int off_x = int(seed(2 * spread + 1)) - spread;
+            const int off_y = int(seed(2 * spread + 1)) - spread;
+            if (off_x == 0 && off_y == 0) off_x = int(seed(spread)) + 1;
+            const float length = std::max(std::hypot(float(off_x), float(off_y)), 0.01f);
+            Missile small = missile_from(missile, *shard, missile.x, missile.y, float(off_x) / length * speed, float(off_y) / length * speed, now_ms);
+            small.visual_only = true;
+            small.aim_at = std::pair{ missile.x + float(off_x) / 5, missile.y + float(off_y) / 5 };
+            small.way_x = off_x; small.way_y = off_y;
+            small.subtile_x = int(std::floor(missile.x * 5)); small.subtile_y = int(std::floor(missile.y * 5));
+            laid.push_back(std::move(small));
+        }
+    };
     std::erase_if(ms_, [&](Missile& missile) {
         if (!spent(missile)) return false;
         if (now_ms >= missile.dies || missile.flight_over) hit_spawn(missile);
+        if (now_ms < missile.dies || (missile.info && missile.info->always_explode)) rock_shards(missile);
         if (const auto* explosion = missile.info ? missile.info->explosion : nullptr; explosion && !missile.visual_only && (now_ms < missile.dies || missile.info->always_explode)) {
             Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
             burst.visual_only = true;

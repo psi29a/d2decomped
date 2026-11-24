@@ -5,7 +5,7 @@
 // rand(2n + 1) - n subtiles off on its client seed (n CltParam3, 20); the makers (client do 27,
 // FUN_004d5090) lay their fire on each new subtile and turn by 45 degrees x 3/4 on seed steps.
 // Over its life: makers on frames 1, 17 .. 273 (18), rocks on 1, 5 .. 273 (69); a maker's turns bend
-// its flight (FUN_00649970). Made-up rows.
+// its flight (FUN_00649970). A big rock's client hit 33 (FUN_004d07e0) sends small rocks off. Made-up rows.
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -58,6 +58,35 @@ int main() try {
     std::printf("makers %d, rocks %d, fires %d\n", makers, rocks, fires);
     assert(makers == 18 && rocks == 69 && fires > makers);
     std::puts("OK: Mephisto's death control lays its makers, rocks and fires");
+
+    // A big rock's client hit 33 (FUN_004d07e0) as it goes off (AlwaysExplode at its range's end): its data
+    // +0x28 (rand(5) from do 26) small rocks, each aimed 1..n subtiles off (n cHitPar1, 20), flying that way.
+    GameData::MissileInfo small;
+    small.name = "mephistoflyingrockssmall"; small.range = 5; small.vel = 12; small.max_vel = 12;
+    GameData::MissileInfo big = rock;
+    big.always_explode = true; big.clt_hit = 33; big.clt_hit_pars = { 20, 0, 0 }; big.clt_hit_sub_info = &small; big.max_vel = 12;
+    int shards = 0, owed = 0;
+    for (int count = 0; count < 5; ++count) {
+        missiles.clear();
+        Missile flying{ &big, 20.f, 20.f, missile_speed(big, 1), 0, 0, 0, 10 * 40, {} };
+        flying.visual_only = true; flying.level = 1; flying.clt_count[0] = count;
+        missiles.push_back(flying);
+        owed += count;
+        for (std::uint32_t now = 40; now <= 12 * 40; now += 40) {
+            missiles_update(open, missiles, std::span<Foe>(nobody.data(), 0), rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },
+                            [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
+            for (const auto& shard : missiles)
+                if (shard.info == &small && shard.born == now) {
+                    ++shards;
+                    assert(shard.visual_only && (shard.way_x != 0 || shard.way_y != 0) && std::abs(shard.way_x) <= 20 && std::abs(shard.way_y) <= 20);
+                    assert(std::hypot(shard.velocity_x, shard.velocity_y) > 0);
+                }
+        }
+        assert(std::ranges::none_of(missiles, [&](const Missile& missile) { return missile.info == &big; }));
+    }
+    std::printf("small rocks %d of %d\n", shards, owed);
+    assert(shards == owed && owed == 10);
+    std::puts("OK: a big rock's client hit 33 sends its count of small rocks off");
 
     // A maker alone: its turns re-aim the flight itself (`retarget`), so where it goes bends off its first way.
     missiles.clear();
