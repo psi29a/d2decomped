@@ -22,3 +22,4 @@ such Storm bit streams.
 | `FUN_0041d940` | `storm_bits_written` | `ECX` writer: returns the next byte `+8` minus the start `+0` | no counterpart |
 | `FUN_0041d950` | `storm_bits_put` | `ECX` writer, value, n (`RET 8`): value goes in above the held bits (`SHL` by the count, mod 32), the count grows by n; then while 8 or more are held, the low byte is stored at `+8` when the room `+4` is non-zero (next byte + 1, room − 1), else dropped, and the bits shift down by 8 | no counterpart |
 | `FUN_0041d9a0` | `storm_bits_flush` | `ECX` writer: while bits are held, the low byte is stored as in `storm_bits_put` (dropped with no room), the bits shift down by 8 and the count goes down by 8 at most | no counterpart |
+| `FUN_0041da30` | `storm_bits_widths` | `EDX` selector, `ECX` byte out, `EAX` dword out, no stack arguments: 1 or 2 give 4 and 6, 3 gives 6 and 8, others (0 included) 5 and 7. Callers `FUN_0041e360`, `FUN_0041e3c0` | no counterpart |

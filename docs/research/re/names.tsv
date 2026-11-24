@@ -72,6 +72,7 @@ address	name	evidence
 0041d940	storm_bits_written	ECX bit writer: returns +8 - +0, the bytes written (source-bits.md)
 0041d950	storm_bits_put	ECX bit writer, value, n (ret 8): appends n bits; whole bytes go out while room is left, else are dropped (source-bits.md)
 0041d9a0	storm_bits_flush	ECX bit writer: stores the held bits, a partial last byte included, while room is left (source-bits.md)
+0041da30	storm_bits_widths	EDX selector, ECX byte out, EAX dword out: 1-2 -> 4, 6; 3 -> 6, 8; else 5, 7 (source-bits.md)
 0041fb80	slog_newline	ESI log record: CR LF and a 0 (0x6cff08) at the end of its text (+0x1c + length +0xc); the length +0xc grows by 2. Ends each slog_printf line (source-frontier.md)
 0041fba0	slog_stamp	EAX log record, one argument (ret 4); only with the stamp flag +0x18 (set by slog_open at 0x41fdc4): a GetLocalTime stamp "%u/%u %02u:%02u:%02u.%03u  " (0x6cff0c), refreshed when GetTickCount changes, or ... (source-frontier.md)
 0041fce0	slog_unlock	EAX lock index: LeaveCriticalSection(0x779238 + index * 0x18), the section FUN_0041fa80 entered for a found record (index id & 3); every SLog caller passes it back (source-frontier.md)
