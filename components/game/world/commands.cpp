@@ -34,6 +34,7 @@
 #include <sound_ids.hpp>
 #include <town_npcs.hpp>
 #include <vendor.hpp>
+#include <waypoint_refusal.hpp>
 #include <wear.hpp>
 
 #include <algorithm>
@@ -426,10 +427,17 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // (tile + 3 subtiles, FUN_0066ad80), which lights up if it's dark.
         // game.exe's 10 s refusal counts from the player's last hostile
         // declaration (player data +0x160, written only by FUN_0055b720 from
-        // FUN_005a5e50), not from a level change: no hostility here, no wait.
-        // ponytail: hostile (PvP) declarations aren't modelled, so nothing
-        // refuses; an act change arrives at once (game.exe's load not traced).
+        // FUN_005a5e50), not from a level change: FUN_0054c5d0 refuses while
+        // GetTickCount is under that stamp + 10000 (32-bit, so it wraps), ends the
+        // interaction and goes no further. A level change writes nothing.
+        // ponytail: nothing declares hostility yet (no PvP, C->S 0x5d, in a hosted
+        // world: FUN_005a5e50's level 9 / town / relation tests aren't ported), so
+        // Player::declare_hostile has no caller outside the test; an act change
+        // arrives at once (game.exe's load not traced).
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
+            // FUN_0054c5d0 tests the clock before the target (FUN_00549570); it also speaks (FUN_00553380)
+            // and ends the interaction (FUN_00554190): the voice and that end aren't ported.
+            if (d2d::rules::waypoint_refused(actor->hostile_at, now_ms)) return true;
             const int index = waypoint_index(*game_data, travel->level);
             if (std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != d2d::rules::operate_fn::kWaypoint
                 || travel->level == level->id || !actor->character.header.waypoint(actor->character.header.active_difficulty(), index)) return true;
