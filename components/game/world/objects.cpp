@@ -372,7 +372,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // Durance's (50, FUN_00582180, which jumps into 47's mode 2). 47 shut (mode 0) opens: mode 1, its event 1 at
         // FrameCnt1 + 1 frames takes it to 2 (slime_doors_on). In mode 2 each sends its user through (FUN_005550b0) the
         // warp tile of its room; 47 / 50 without one there, of the first of its near rooms (FUN_00619790) with one.
-        // ponytail: the first warp of a room in level->warps, where game.exe takes its room's units newest first.
+        // A room's units run newest first, and its warp units are made in its tile walk (FUN_0066e9b0 ->
+        // FUN_0066e1c0), the order level->warps keeps a room's: its last there is the one found.
         if (object.operate_fn == d2d::rules::operate_fn::kSewerStairs || object.operate_fn == d2d::rules::operate_fn::kStairs
             || object.operate_fn == d2d::rules::operate_fn::kDuranceStairs) {
             const auto state = doors.find({ level, npc_index });
@@ -380,7 +381,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (object.operate_fn == d2d::rules::operate_fn::kStairs && mode == 0) { set_door_mode(npc_index, 1, now_ms); return; }
             if (mode != 2 || host_warps) return;
             const auto warp_in = [&](int room) {
-                return std::ranges::find_if(level->warps, [&](const Level::Warp& warp) { return room >= 0 && room_of(*level, warp.unit_x, warp.unit_y) == room; });
+                const auto newest = std::find_if(level->warps.rbegin(), level->warps.rend(), [&](const Level::Warp& warp) { return room >= 0 && room_of(*level, warp.unit_x, warp.unit_y) == room; });
+                return newest == level->warps.rend() ? level->warps.end() : std::prev(newest.base());
             };
             const int room = room_of(*level, object.x, object.y);
             auto warp = warp_in(room);

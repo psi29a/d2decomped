@@ -5,7 +5,7 @@
 // (FUN_00581490) at FrameCnt1 + 1 frames takes it to 2, and then a click
 // sends the player through the warp tile of its room (FUN_005550b0). The
 // sewers' stairs (44, FUN_005b84e0) do the same only open (mode 2), and
-// only through a warp in their own room. No game data.
+// only through a warp in their own room. Of two in a room, the newest (the later made). No game data.
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <level.hpp>
@@ -40,8 +40,10 @@ int main() try {
     GameData data;
     auto& bazaar = open_level(data, 80);
     auto& temple = open_level(data, 94);
+    auto& other = open_level(data, 95);
     bazaar.warps.push_back({ .x = 4, .y = 4, .destination = 94, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
     temple.warps.push_back({ .x = 4, .y = 4, .destination = 80, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
+    other.warps.push_back({ .x = 4, .y = 4, .destination = 80, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
     bazaar.npcs.resize(2);
     auto& door = bazaar.npcs[0];
     door.root = "objects"; door.mode = "NU"; door.operate_fn = kStairs;
@@ -65,6 +67,12 @@ int main() try {
     assert(world.level == &bazaar);
     world.operate(0, open_ms);                                  // the door open: through its room's warp
     assert(world.level == &temple);
+    // Two warps in its room: the newest unit of the room's list (the later in its tile walk).
+    bazaar.warps.push_back({ .x = 6, .y = 6, .destination = 95, .exit_x = 0, .exit_y = 0, .unit_x = 6.5f, .unit_y = 6.5f });
+    world.level = &bazaar;
+    world.actor->player.x = 4; world.actor->player.y = 5;
+    world.operate(0, open_ms + 1000);
+    assert(world.level == &other);
     std::puts("OK: a temple door opens, goes ON, and leads through its room's warp; the sewers' stairs only through their own room's");
     return 0;
 } catch (const std::exception& error) {
