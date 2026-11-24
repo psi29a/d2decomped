@@ -826,8 +826,13 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         // type 0) on the barrel's seed, life in 256ths; an exploding barrel
         // (class 0xb) still in mode 0 under 3 off (FUN_006416d0) goes off there
         // and then (FUN_00584330), the walk going on after it.
-        // ponytail: the other barrels list last (objects keep no room stamp); game.exe's walk puts
-        // an object group's barrel, made after the room's preset monsters, ahead of them.
+        // A room's units are made in a set order (room_objects): its preset units, objects before
+        // monsters (FUN_005559a0), then its object groups, then its populate, each at the list's
+        // head. So a preset barrel lists after the room's preset monsters, a group's barrel ahead
+        // of them and after the populate's, of those still where they were made (made_stamp);
+        // anyone come in since is ahead of all. Keys: a unit's room_stamp x 2; a group barrel one
+        // past its room's newest preset monster still there (else one short of its oldest
+        // populate monster); a preset barrel 0.
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
         const int room = room_of(*level, barrel.x, barrel.y);
         const auto in_room = [&](float x, float y) { return level->rooms.empty() || room_of(*level, x, y) == room; };
@@ -841,18 +846,27 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
             listed.push_back(entry);
             order.push_back({ 0, true, stamp });
         };
+        std::uint32_t newest_preset = 0, oldest_populate = 0;
+        if (fight.mon_level == level)
+            for (const auto& monster : fight.monsters) {
+                const auto& unit = monster.unit;
+                if (unit.room_stamp == 0 || unit.room_stamp != unit.made_stamp || !in_room(unit.x, unit.y)) continue;
+                if (monster.preset) newest_preset = std::max(newest_preset, unit.room_stamp);
+                else if (oldest_populate == 0 || unit.room_stamp < oldest_populate) oldest_populate = unit.room_stamp;
+            }
+        const std::uint32_t group_key = newest_preset ? 2 * newest_preset + 1 : oldest_populate ? 2 * oldest_populate - 1 : 1;
         each_player([&](Player& player) {
-            add({ Kind::player, &player }, player.player.x, player.player.y, player.player.room_stamp);
-            if (player.merc) add({ Kind::merc, &player }, player.merc->unit.x, player.merc->unit.y, player.merc->unit.room_stamp);
+            add({ Kind::player, &player }, player.player.x, player.player.y, 2 * player.player.room_stamp);
+            if (player.merc) add({ Kind::merc, &player }, player.merc->unit.x, player.merc->unit.y, 2 * player.merc->unit.room_stamp);
             for (auto& pet : player.pets)
-                if (pet.where == level) add({ Kind::pet, &player, &pet }, pet.monster.unit.x, pet.monster.unit.y, pet.monster.unit.room_stamp);
+                if (pet.where == level) add({ Kind::pet, &player, &pet }, pet.monster.unit.x, pet.monster.unit.y, 2 * pet.monster.unit.room_stamp);
         });
         if (fight.mon_level == level)
             for (std::size_t k = 0; k < fight.monsters.size(); ++k)
-                add({ Kind::monster, nullptr, nullptr, k }, fight.monsters[k].unit.x, fight.monsters[k].unit.y, fight.monsters[k].unit.room_stamp);
+                add({ Kind::monster, nullptr, nullptr, k }, fight.monsters[k].unit.x, fight.monsters[k].unit.y, 2 * fight.monsters[k].unit.room_stamp);
         for (std::size_t k = 0; k < level->npcs.size(); ++k)
             if (int(k) != npc_index && level->npcs[k].object_id == d2d::rules::object_ids::kExplodingBarrel)
-                add({ Kind::other_barrel, nullptr, nullptr, k }, level->npcs[k].x, level->npcs[k].y, 0);
+                add({ Kind::other_barrel, nullptr, nullptr, k }, level->npcs[k].x, level->npcs[k].y, level->npcs[k].group ? group_key : 0);
         const std::vector<int> one_room{ 0 };
         for (const int listed_at : d2d::rules::room_order(order, one_room)) {
             const auto& entry = listed[std::size_t(listed_at)];

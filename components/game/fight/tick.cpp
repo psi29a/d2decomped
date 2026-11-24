@@ -460,6 +460,7 @@ auto Fight::restamp() -> void {
             unit.room_seen = room;
             unit.room_level = level;
             unit.room_stamp = ++room_stamps;
+            if (unit.made_stamp == 0) unit.made_stamp = unit.room_stamp;
         };
         for (Hero* hero : heroes) {
             seen(hero->player);

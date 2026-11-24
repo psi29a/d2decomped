@@ -238,6 +238,7 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
             if (region.types[i].first == spawn.type) sets = &region.components[i];
         monster.cage = spawn.cage;
+        monster.preset = spawn.preset;
         monster.listed = spawn.cage < 0;                              // a prisoner is in no target list (Monster::listed)
         d2d::rules::Rng unit_seed{ spawn.seed };
         const auto look = d2d::rules::monster_look(sets, type_info.choices, unit_seed);

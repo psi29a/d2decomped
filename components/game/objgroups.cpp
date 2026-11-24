@@ -143,6 +143,7 @@ struct ObjectRooms {
         const auto before = level.npcs.size();
         auto gold = rgn;
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
+        if (group && level.npcs.size() > before) level.npcs.back().group = true;
         const bool door = obj(id, "IsDoor"), missile = obj(id, "BlockMissile");
         const std::uint16_t bits = door ? obj(id, "BlocksVis") ? 0x806 : missile ? 0x808 : 0x400 : obj(id, "SubClass") & 4 ? 0x8000 : missile ? 0x404 : 0x400;
         const bool operated = level.npcs.size() > before && level.npcs.back().preoperated;
@@ -455,6 +456,7 @@ struct ObjectRooms {
     Box area{};
     std::size_t index = 0;
     std::vector<d2d::rules::Spawn>* spawns = nullptr;
+    bool presetting = false;                         // within presets(): its monsters are the room's preset units
     Spawning::LevelState* level_state = nullptr;
     const Spawning* spawning_now = nullptr;           // every level's rooms up (missile_rooms)
     int leader = 0;
@@ -640,7 +642,10 @@ struct ObjectRooms {
             }
         }
         const bool npc = type_at(type) && std::size_t(type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(type)];
-        if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value, {}, false, -1, std::move(gear) });
+        if (spawns && !npc) {
+            spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value, {}, false, -1, std::move(gear) });
+            spawns->back().preset = presetting;
+        }
         last_made = own;
         last_spot = { at_x, at_y };
         return own;
@@ -956,6 +961,7 @@ struct ObjectRooms {
         }
     }
     void presets(std::size_t room_at) {
+        presetting = true;
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
@@ -1113,6 +1119,7 @@ struct ObjectRooms {
                     for (const auto& [off_x, off_y] : unit.path) (*spawns)[std::size_t(leader)].path.emplace_back(unit.x + off_x, unit.y + off_y);
             }
         }
+        presetting = false;
     }
 
     // FUN_00552560: whether the room gets groups, counting it.
