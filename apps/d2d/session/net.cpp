@@ -15,6 +15,7 @@
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
 #include <item_price.hpp>
+#include <level.hpp>
 #include <light.hpp>
 #include <log.hpp>
 #include <missile_flight.hpp>
@@ -25,6 +26,7 @@
 #include <quests_act5.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 #include <wear.hpp>
 
