@@ -661,6 +661,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
                     if (!monster.targetable()) continue;
+                    // FUN_005a8730: the player's side's missile passes a monster on its side (rogue2, a converted
+                    // one) by, unless CollideFriend (FUN_00554200: the owner, a player, against its alignment).
+                    if (d2d::rules::friends(2, monster.align) && !(missile.info && missile.info->collide_friend)) continue;
                     if (const int size = game_data->monsters.types[std::size_t(monster.type)].size;
                         moving ? !missile_struck(*level, missile, monster.unit.x, monster.unit.y, size) : !standing_struck(missile, monster.unit.x, monster.unit.y, size)) continue;
                     if (missile.row) {                             // a shrine's potion: everyone in its burst
