@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_math.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00424e70 FUN_00424eb0
+# gaps-runs: FUN_00424e70 FUN_00424eb0 FUN_00424ed0
 
 Numbers are made and read through the cited SBigNew (FUN_00423950),
 SBigFromBinary (FUN_00423850) and SBigToBinaryBuffer (FUN_00423b30), with
@@ -34,6 +34,7 @@ M32 = 0xFFFFFFFF
 OPS = {   # address: (arguments, operation, {mutation: operation})
     0x424E70: ("ab", lambda a, b: a // b, {"div_rounds_up": lambda a, b: -(-a // b)}),
     0x424EB0: ("ab0", math.gcd, {"gcd_min": lambda a, b: min(a, b) if a and b else a or b}),
+    0x424ED0: ("ab", lambda a, b: a % b, {"mod_quotient": lambda a, b: a // b}),
 }
 
 
