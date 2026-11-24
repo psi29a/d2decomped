@@ -200,11 +200,11 @@ d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::
 // What a monster's MissA / MissS1 / MissC shot carries (Ai::tick, FUN_0059f900 ->
 // FUN_0064b860): the physical part in 256ths, as FUN_0064af20 / FUN_0064aff0 make
 // it: the owner's damage x SrcDamage / 128 (the stat is points, so x 256 first,
-// truncated; none for a cast, MissC, or a row with no SrcDamage), plus the row's
+// truncated; a cast's, MissC, is its S1 damage; none for a row with no SrcDamage), plus the row's
 // MinDamage / MaxDamage and its MinLevDam / MaxLevDam level brackets
 // (FUN_00644b70, `lvl` the missile's level), shifted left by HitShift.
 struct MonsterShotPhys { int low = 0, high = 0; };
-MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl);
+MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, int lvl);
 // The owner's stats as the missile carries them (what monster_blow rolls on impact).
 d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl);
 // `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level, monster level), with its own row's
