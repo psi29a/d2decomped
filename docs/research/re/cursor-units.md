@@ -503,11 +503,23 @@ picks, no difference). d2d: `ClientSession::near_pick` (apps/d2d/session/input.c
 each cast of such a skill from the mouse, with the client's monsters (and
 for Iron Golem its ground items) in view order.
 
-Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, and `FUN_00467490`'s
-order of units across near rooms (`FUN_0065ac70`; the oracle puts all of them
-in the player's room). The SearchEnemyXY walk's order is `search_walk.py`'s
-(above); pets as units of the walk (`FUN_00465c60` with a pet, the pet list)
-are not traced.
+**The finder's walk order (`FUN_0065ac70`).** `tools/emu/search_walk_near.py` runs
+`FUN_00467490` natively on the 5 x 5 room level of `search_walk.py` with the
+local player near the room edges and units on both sides: the finder takes
+the near list of the player's room (`FUN_0065a6b0` picks the room alone when
+the square of 9 lies inside it, which gives the same units), each room's units
+from its list head, and the first of equally near units wins. 6000 cases, 0
+differ against a model of it; the view-order and tie-order mutants are caught.
+`rules::search_enemy_near_walk` (`search_walk.hpp`, fixture
+`search_walk_near_cases.inc`, 3000; `gen 20000 3`: 9407 picks, no difference;
+`test_search_walk_near`, which counts the cases the view order gets wrong) is
+`ClientSession::near_pick`'s call; a unit outside the near rooms stays only as
+the click's target. Not covered: the near list's order on a real level, and the
+items' places in their room's list.
+
+Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, other players as
+units of the finder (`FUN_00466870` -> `FUN_00465c60` for a player target),
+and pets as units of either search (`FUN_00465c60` with a pet, the pet list).
 
 ## The label helpers of `FUN_00454f30`
 
