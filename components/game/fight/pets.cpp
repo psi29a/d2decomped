@@ -413,8 +413,9 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         pending.push_back(std::move(x));
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
-                        // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
-                        auto blow = pet.mirror ? d2d::rules::player_blow(shadow_fighter(pet, actor->player_combat), target, monster.stats.level, rng)
+                        // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's. Its damage rolls on its own
+                        // unit seed too (FUN_0057b420 takes the swinging unit's seed, the pet's and a Shadow's alike).
+                        auto blow = pet.mirror ? d2d::rules::player_blow(shadow_fighter(pet, actor->player_combat), target, monster.stats.level, rng, {}, &monster.seed)
                                                : d2d::rules::player_blow(pet_swing(pet), target, monster.stats.level, rng, {}, &monster.seed);
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
                         pet_strike(pet, monster_index, blow, now_ms);
