@@ -3,7 +3,7 @@
 
 Run: uv run python storm_bits.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940
+# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940 FUN_0041d950
 
 Each case gives one helper a record (`ECX`) with random fields, a random
 source or destination buffer and random arguments, runs it on game.exe and
@@ -64,6 +64,21 @@ class Model:
             rec[3] = rec[4] = 0
         if address == 0x41D940:   # bytes written
             result = (rec[2] - rec[0] + (m == "written_plus")) & M32
+        if address in (0x41D950, 0x41D9A0):   # put n bits / flush
+            if address == 0x41D950:
+                value, n = args
+                rec[3] = (rec[3] | (value << (rec[4] & 31))) & M32
+                rec[4] = (rec[4] + n) & M32
+                full = 8 + (m == "put_nine")
+            else:
+                full = 1
+            while rec[4] >= full and rec[4] and not (address == 0x41D9A0 and m == "flush_none"):
+                if rec[1] or m == "put_ignores_room":
+                    buf[rec[2] - base] = rec[3] & 0xFF
+                    rec[2] = (rec[2] + 1) & M32
+                    rec[1] = (rec[1] - 1) & M32
+                rec[3] >>= 8
+                rec[4] -= min(8, rec[4])
         return rec, bytes(buf), result
 
 
@@ -73,6 +88,7 @@ MUTATIONS = {
     0x41D900: ["skip_one_more"],
     0x41D920: ["winit_size_plus"],
     0x41D940: ["written_plus"],
+    0x41D950: ["put_nine", "put_ignores_room"],
 }
 
 
