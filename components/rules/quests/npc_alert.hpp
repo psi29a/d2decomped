@@ -11,9 +11,9 @@ namespace d2d::rules {
 
 class NpcAlertBoard {
 public:
-    // 0x8a at world time ms: FUN_00470390 first removes the unit's overlay of that row (FUN_0046f0c0),
+    // 0x8a at world time_ms: FUN_00470390 first removes the unit's overlay of that row (FUN_0046f0c0),
     // so a repeated packet starts it over.
-    void ring(std::uint32_t id, std::uint32_t ms) { start_[id] = ms; }
+    void ring(std::uint32_t id, std::uint32_t time_ms) { start_[id] = time_ms; }
     // An NPC's talk opened: every unit whose MonStats npc flag is set loses it (the board holds only NPCs).
     void talk_opened() { start_.clear(); }
     // Level change or new game: the units are gone.
