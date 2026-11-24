@@ -793,6 +793,9 @@ The handlers, in address order (row numbers are Properties.txt rows):
 | `0x65e440` | 124..132, 178, 182..194, 231..241 | `mov eax, 1` / `ret 0x1c`, which Ghidra has no function for: these rows do nothing on a classic item. |
 | `FUN_0065e450` | 55..57, 76..87 (swing, move, balance, block, cast 1..3) | A draw, then FUN_0065d070 with the row's stat. |
 
+Rows 244..267 aren't in the table, but the bound is the whole Properties
+count, so they read the func table at `0x7462f8` as pairs: bugs.md #137.
+
 What d2d does differently: it runs a classic item's mods through the same
 `apply_mod` (rules.cpp) as an expansion item's, on the Properties.txt
 funcs. So on a classic item:
