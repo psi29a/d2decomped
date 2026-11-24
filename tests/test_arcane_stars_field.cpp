@@ -3,7 +3,6 @@
 // The stars' field (FUN_00476190 reads DAT_007a5220 / DAT_007a521c, which FUN_0044ba20 sets to the
 // screen's width and its height less 0x28): no star is placed in the bottom 40 rows, at either
 // resolution the function knows (640 x 480, 800 x 600).
-#include <rules.hpp>
 #include <stars.hpp>
 
 #include <cassert>
