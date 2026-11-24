@@ -347,7 +347,13 @@ the mask table at 0x6ce268 (1, 2, 4, ..., 0x80): TargetableOnly +6 & 0x10
    (`FUN_00466de0`, x / y = `FUN_0045adf0` / `FUN_0045ae20`, target null).
    A click on the player's own subtile calls `FUN_004c51e0`.
 2. A held frame (flag 8) with flag 1 and without shift (0x20), while the player
-   walks or runs (`FUN_00622d00`: mode 2, 3 or 6) keeps the target.
+   walks or runs (`FUN_00622d00`: mode 2, 3 or 6) keeps the target and runs no
+   search. Flag 1 is the left button's (`FUN_00462d00` ORs 9 for kind 1, 0xa
+   for the right's held kind 4, 5 / 6 for the presses): the right hand's held
+   frame is not gated. d2d: `rules::skill_search_goes` (click_spot.hpp), asked
+   by `ClientSession::input`'s `use_hand` on a held frame; oracle
+   `tools/emu/search_gate.py` runs `FUN_00467880` itself (the searches, the
+   status and the walking test hooked) over every flag byte.
 3. The skill's status (`FUN_004d9fc0`) not 0 keeps it. d2d: the World leaves
    each hand's status in the View (`World::hand_statuses`,
    `View::hand_status`), and `ClientSession::input`'s `use_hand` searches only at 0.
