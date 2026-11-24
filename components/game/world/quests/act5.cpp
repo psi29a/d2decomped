@@ -622,7 +622,11 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         }
         if (object.object_id != d2d::rules::PrisonQuest::kFana) return false;
         if (hosted_quests) return true;
-        if (prison.thaw(quests(), carries(d2d::rules::PrisonQuest::kPotionCode))) {
+        const bool potion = carries(d2d::rules::PrisonQuest::kPotionCode);
+        // Without the potion she speaks her 20131 to the clicker (0x58abfb: FUN_005456a0, S->C 0x27, as the
+        // Moldy Tome's), the speech box that sends the player to Malah.
+        if (!potion) actor->events.push_back(ev::Speech{ npc_index, d2d::rules::PrisonQuest::kNoPotion });
+        if (prison.thaw(quests(), potion)) {
             take_carried(d2d::rules::PrisonQuest::kPotionCode);
             // LAB_00589aa0 (FUN_005537d0): the rest, bit 14.
             each_player([&](Player&) {
