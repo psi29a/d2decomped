@@ -305,7 +305,8 @@ std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreA
     }
     for (int tries = 0; tries < 5; ++tries) {
         Rng unit_seed{ game.next() }, item_seed{ game.next() };
-        auto item = generate_item(tables, code, ask.ilvl, made_quality(tables, code, ask.quality), item_seed, &unit_seed, found_uniques, false, difficulty);
+        if (!expansion) (void)stand_quality(tables, code, ask.ilvl, item_seed, true);   // FUN_00557450: a classic item's roll draws all the same
+        auto item = generate_item(tables, code, ask.ilvl, made_quality(tables, code, ask.quality), item_seed, &unit_seed, found_uniques, false, difficulty, 0, !expansion);
         if (item.quality == 1 && item.qsub == 1) continue;
         if (ask.fill && found->second.max_stack > 0) item.quantity = found->second.max_stack;
         replenish_arm(tables, item);   // FUN_00558d90's end (0x559117, 0x559120)

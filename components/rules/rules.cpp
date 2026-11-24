@@ -3,6 +3,7 @@
 #include "rules.hpp"
 
 #include "drink.hpp"
+#include "drops.hpp"
 #include "hire.hpp"
 #include "item_gen.hpp"
 #include "item_price.hpp"
@@ -1543,18 +1544,27 @@ int books_row(const Tables& tables, const std::string& code, bool scroll) {
 // (FUN_005c1560 off the base's auto prefix group). `special_wanted`: a
 // unique / set row + 1 that wins with no draw when it fits (struct +0x40:
 // FUN_005566b0, FUN_005c25c0).
+// A classic item (`classic`: version 0, game +0x78 in a classic game,
+// FUN_0055a550) takes the version-0 branches: low (FUN_005c2af0) durability
+// dur / 3 and no staff mods; staff mods FUN_005c0d70 (tiers to 4 at ilvl
+// 25, no item-type test or tries, skill 0x49 redrawn); a normal one's
+// fix-ups FUN_00556d80 (a book or scroll by its own type, else the staff
+// mods and a socket roll); no ethereal or class affix (FUN_00557450's
+// tail, version 100+ only); sockets (FUN_00556b60) never on ItemTypes row 3
+// (tors), else min(most, 3), 2 on a helm (row 0x25), with no draw for it.
 // ponytail: without a unit seed (an imbue, tests) a rare's affixes are
 // 3..6 alternating prefix / suffix, a magic's 1/4 prefix, 1/4 suffix, 1/2
-// both; the classic (version < 100) rules aren't here (an elixir's base
-// roll, FUN_0065e8e0, is in stubs.md: nothing makes one); without a unit seed everything comes
+// both (an elixir's base roll, FUN_0065e8e0, is in stubs.md: nothing
+// makes one); without a unit seed everything comes
 // off `rng` and none of the above is rolled; base damage isn't kept on
 // the item, so low's 75%, ethereal's 3/2 and dmg%'s +1 max damage on a
 // weak weapon only reach its props.
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
-                         int difficulty, int special_wanted) {
+                         int difficulty, int special_wanted, bool classic) {
     d2d::d2s::Item item;
     item.code = code;
+    item.version = classic ? 0 : 101;                      // item data +0x30 (FUN_0055a550: game +0x78)
     item.identified = true;
     item.ilvl = std::max(ilvl, 1);                         // FUN_00628220: at least 1, no cap (Uber Diablo's are 110)
     const auto* info = info_of(tables, item);
@@ -1596,6 +1606,24 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         if (!item_type || item_type->staff_mods >= 7) return;
         auto percent = [&] { return int(rng.next() % 100); };
         const int roll = percent(), count = roll < 31 ? 0 : roll < 71 ? 1 : roll < 91 ? 2 : 3;
+        if (classic) {                                     // FUN_005c0d70
+            const int tier = item.ilvl >= 25 ? 4 : item.ilvl >= 19 ? 3 : item.ilvl >= 12 ? 2 : 1;
+            const int first = tables.class_first_skill[std::size_t(item_type->staff_mods)];
+            std::array<int, 3> picks{ -1, -1, -1 };
+            for (int k = 0; k < count; ++k) {
+                const int tier_roll = percent();
+                const int skill_tier = std::max(tier_roll < 11 ? tier - 2 : tier_roll < 31 ? tier - 1 : tier_roll < 81 ? tier : tier + 1, 1);
+                int skill = 0;
+                do skill = int(rng.next() % 5) + (skill_tier - 1) * 5 + first;
+                while (skill == 0x49 || std::ranges::find(picks, skill) != picks.end());
+                picks[std::size_t(k)] = skill;
+                const int level_roll = percent(), level = level_roll < 60 ? 1 : level_roll < 90 ? 2 : 3;
+                const auto old = std::ranges::find_if(item.props, [&](const auto& prop) { return prop.stat == d2d::d2s::kSingleSkill && prop.param == skill; });
+                if (old != item.props.end()) old->value = level;
+                else item.props.push_back({ d2d::d2s::kSingleSkill, skill, level });
+            }
+            return;
+        }
         const int tier = item.ilvl >= 37 ? 5 : item.ilvl >= 25 ? 4 : item.ilvl >= 19 ? 3 : item.ilvl >= 12 ? 2 : 1;
         const int first = tables.class_first_skill[std::size_t(item_type->staff_mods)];
         std::array<int, 3> picks{ -1, -1, -1 };
@@ -1617,25 +1645,29 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
             else item.props.push_back({ d2d::d2s::kSingleSkill, skill, level });
         }
     };
-    // FUN_00557450's tail on every quality: ethereal, sockets, the class affix.
+    // FUN_00556b60: a normal or superior item's sockets.
+    auto roll_sockets = [&] {
+        if (item.quality < 2 || item.quality > 3 || !base || !base->has_inv || base->stackable || !item_type || !info) return;
+        const int by_ilvl = item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)];
+        const int most = std::min(base->gem_sockets, by_ilvl);                             // FUN_0062bc20
+        const int capped = std::min(most, std::array{ 3, 4, 6 }[std::size_t(std::clamp(difficulty, 0, 2))]);
+        if (capped <= 0 || (classic && type_is(tables, type, "tors")) || rng(100) >= 33) return;
+        const int count = !classic ? int(start % std::uint32_t(capped)) + 1 : std::min(capped, type_is(tables, type, "helm") ? 2 : 3);
+        item.socketed = true;                              // FUN_0062bcb0: at most the grid, 6
+        item.sockets = std::min({ count, info->width * info->height, 6 });
+    };
+    // FUN_00557450's tail on every quality: ethereal, sockets, the class
+    // affix (a classic item: the sockets only).
     auto finish = [&] {
         if (!unit_seed || !base) return std::move(item);
-        if ((kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability() && rng(100) < 5) {
+        if (!classic && (kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability() && rng(100) < 5) {
             item.ethereal = true;                          // FUN_0065e4d0
             if (kind == 1) item.defense = item.defense * 3 / 2;
             if (has_durability()) { item.max_durability = item.max_durability / 2 + 1; item.durability = max_durability(); }
         }
-        if (item.quality >= 2 && item.quality <= 3 && base->has_inv && !base->stackable && item_type && info) {
-            const int by_ilvl = item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)];
-            const int most = std::min(base->gem_sockets, by_ilvl);                         // FUN_0062bc20
-            const int capped = std::min(most, std::array{ 3, 4, 6 }[std::size_t(std::clamp(difficulty, 0, 2))]);
-            if (capped > 0 && rng(100) < 33) {
-                item.socketed = true;                      // FUN_0062bcb0: at most the grid, 6
-                item.sockets = std::min({ int(start % std::uint32_t(capped)) + 1, info->width * info->height, 6 });
-            }
-        }
+        roll_sockets();
         static constexpr std::array kAuto{ 1, 2, 3, 4, 6, 8, 9 };
-        if (base->auto_prefix != 0 && std::ranges::find(kAuto, item.quality) != kAuto.end()) {
+        if (!classic && base->auto_prefix != 0 && std::ranges::find(kAuto, item.quality) != kAuto.end()) {
             rng.next();                                    // FUN_005c1560's coin (forced on)
             const int alvl = affix_level(item.ilvl, qlvl, base->magic_lvl);
             std::vector<std::pair<int, int>> fits;         // (row, weight)
@@ -1669,14 +1701,15 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     // (ItemTypes row 0x16) or a tome's (0x12) Books row into suffix slot
     // 0, the save's 5 bits (FUN_005c2540; the tome's test runs last).
     // A charm's affix (FUN_00556a60) and a body part's monster (FUN_00629df0)
-    // aren't set: stubs.md, suspected unreachable.
-    // ponytail: a classic item (version 0) takes FUN_00556d80 (the same Books
-    // row, by its own type).
+    // aren't set: stubs.md, suspected unreachable. A classic item (version
+    // 0) takes FUN_00556d80: the same Books row by its own type (0x16, 0x12),
+    // any other the staff mods and a socket roll (`classic_rest`).
     auto fix_ups = [&] {
         if (item.quality != 2) return;
-        if (type_is(tables, type, "scro")) item.tome = books_row(tables, code, true);
-        if (type_is(tables, type, "book")) item.tome = books_row(tables, code, false);
+        if (classic ? type == "scro" : type_is(tables, type, "scro")) item.tome = books_row(tables, code, true);
+        if (classic ? type == "book" : type_is(tables, type, "book")) item.tome = books_row(tables, code, false);
     };
+    auto classic_rest = [&] { return classic && type != "scro" && type != "book" && type != "char" && type != "body" && type != "play"; };
     // Low / normal / superior (also magic's fallback, FUN_00557320).
     auto plain = [&](int plain_quality) {
         quality = plain_quality;
@@ -1688,13 +1721,13 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
             made = false;
         } else if (item.quality == 1) {
             item.qsub = rng(4);
-            if (has_durability()) {
-                const int most = std::max(base->durability * 33 / 100, 1);
+            if (has_durability()) {                        // a classic item's dur / 3 (FUN_005c2af0)
+                const int most = std::max(classic ? base->durability / 3 : base->durability * 33 / 100, 1);
                 item.durability = std::max((*unit_seed)(most >> 1) + (most >> 1), 1);
                 item.max_durability = most;
             }
             if (kind == 1) item.defense = std::max(item.defense * 75 / 100, 1);
-            staff_mods();
+            if (!classic) staff_mods();
         } else if (item.quality == 3) {
             made = false;
             const bool four = (item_type && item_type->throwable) || base->no_durability;
@@ -1723,7 +1756,8 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         }
         if (!made) { rng = Rng(start); item.quality = 2; item.qsub = -1; }
         fix_ups();                                         // before the staff mods, as FUN_00556e80 ends in FUN_005c1260
-        if (item.quality == 2) staff_mods();
+        if (item.quality == 2 && (!classic || classic_rest())) staff_mods();
+        if (item.quality == 2 && classic_rest()) roll_sockets();
         return finish();
     };
     if (quality <= 3) return plain(quality);
@@ -1936,7 +1970,7 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
-    if (!item.prefix && !item.suffix) return roll_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
+    if (!item.prefix && !item.suffix) return roll_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty, 0, classic);
     return item;
 }
 
@@ -1946,9 +1980,9 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
 // the seed goes on from where the making left it (Item::seed_kept).
 d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                              Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
-                             int difficulty, int special_wanted) {
+                             int difficulty, int special_wanted, bool classic) {
     const std::uint32_t fingerprint = unit_seed ? unit_seed->low : 0;
-    auto item = roll_item(tables, code, ilvl, quality, rng, unit_seed, found_uniques, bovine, difficulty, special_wanted);
+    auto item = roll_item(tables, code, ilvl, quality, rng, unit_seed, found_uniques, bovine, difficulty, special_wanted, classic);
     if (unit_seed) {
         item.uid = fingerprint;
         item.seed_low = unit_seed->low;
@@ -2164,7 +2198,8 @@ Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int diffic
         }
         ++made;
         Rng unit_seed{ game.next() }, item_seed{ game.next() };
-        auto item = generate_item(tables, code, level, quality, item_seed, &unit_seed, found_uniques, false, difficulty);
+        if (!expansion) (void)stand_quality(tables, code, level, item_seed, true);   // FUN_00557450: a classic item's roll draws all the same
+        auto item = generate_item(tables, code, level, quality, item_seed, &unit_seed, found_uniques, false, difficulty, 0, !expansion);
         item.identified = false;
         const auto info = tables.item_info.find(item.code);
         const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();

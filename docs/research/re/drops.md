@@ -637,10 +637,11 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
 Evidence: `python3 tools/ghidra/fn.py 00556b60`, `python3 tools/ghidra/fn.py 00627e70`,
 `python3 tools/ghidra/fn.py 0062bc20`, `python3 tools/ghidra/fn.py 0062bcb0`.
 d2d: reads the same, cited from the decompile, no oracle run, for version 100+ (`generate_item`'s `finish`: `rng(100) < 33`, `start % capped + 1`,
-the 3 / 4 / 6 caps, `!stackable`). Not ported: the version-0 branch, the row 3 / row 0x25
-tests, and the record flags (those are the forced picks the `ponytail:` there lists). d2d keeps
-quality 2..3 itself; the game's own test here is only `quality >= 2`, the caller's choice
-(`FUN_00557450`) was not read for this. Cited from the decompile, no oracle run.
+the 3 / 4 / 6 caps, `!stackable`), and the version-0 branch with its row 3 / row 0x25 tests
+(`roll_sockets`, `tests/test_classic_items.cpp`). Not ported: the record flags (the forced picks
+the `ponytail:` there lists). FUN_00557450's tail calls it for quality 1..3 (`iVar7 - 1U < 3`),
+so with its own `quality >= 2` test only normal and superior items roll. Cited from the
+decompile, no oracle run.
 
 ## The per-type fix-ups after an item is made (`FUN_00556e80`)
 
@@ -678,9 +679,31 @@ d2d: `rules::books_row`, set by `generate_item` on a normal scroll or tome (`Ite
 `test_books_row`: the oracle's cases with the data, hand-made tables without). Before, a made
 tome or scroll kept -1 and its 5 save bits were written as 0, Town Portal's row, an Identify
 one's too (not traced: which field `FUN_0062cbe0` reads them back into). Not ported (`ponytail:` there): the charm path (row 0xd), whose two
-rolls repeat magic's that just failed, and the body-part `+0x28` (no drop makes one); the
-classic branch with the rest of the classic rules.
-Evidence: `python3 tools/ghidra/fn.py 00556e80 00556f30 005c2540 00629df0 00627fb0`.
+rolls repeat magic's that just failed, and the body-part `+0x28` (no drop makes one).
+
+The classic `FUN_00556d80` switches on the item's own type (`d2d_item_unit_type`): 7 and 0x28
+the `+0x28` store, 0xd the charm path, 0x12 / 0x16 the Books row, and any other type the staff
+mods (`FUN_005c1260`) then a socket roll (`FUN_00556b60`), so a classic normal item rolls its
+sockets twice, here and in FUN_00557450's tail. d2d: `roll_item`'s `fix_ups` and
+`classic_rest`, `tests/test_classic_items.cpp`.
+Evidence: `python3 tools/ghidra/fn.py 00556e80 00556f30 00556d80 005c2540 00629df0 00627fb0`.
+
+## A classic item's rules (version 0)
+
+An item's version (item data `+0x30`) is the game's `+0x78`: 101 in an expansion game, 0 in a
+classic one (FUN_0055a550). FUN_00557450 and its helpers branch on it (`FUN_0062a670`):
+
+- Low (case 1, `d2d_item_low_quality_if_v0` → `FUN_005c2af0`): as `FUN_005c2d40` but the
+  durability's most is the base's / 3 (at least 1), not × 33 / 100, and no staff mods.
+- Staff mods (`FUN_005c1260` → `d2d_item_props_apply`, 0x5c0d70): the count roll as
+  `FUN_005c0f90`'s (0 below 31, 1 below 71, 2 below 91, else 3), tiers 1..4 by ilvl (12, 19,
+  25), each skill `rand % 5 + (tier − 1) × 5 + first` redrawn while it is 0x49 or taken (no
+  item-type test, no try limit, no low cap), its level 1 / 2 / 3 below 60 / 90.
+- The tail: no ethereal (`FUN_00556ca0`) and no class affix, both version 100+ only.
+
+d2d: `roll_item(..., classic)`, passed by drops (`Loot::put`), stores, gambling and the Cube
+from the character's expansion flag; `tests/test_classic_items.cpp`.
+Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70`.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

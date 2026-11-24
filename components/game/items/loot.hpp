@@ -120,7 +120,7 @@ struct Loot {
                 const int rolled = dropped.quality && !classic ? 0 : d2d::rules::stand_quality(game_data->rules, dropped.code, ilvl, item_seed, classic);
                 const int quality = dropped.quality ? dropped.quality : rolled;
                 ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, quality, item_seed, &unit_seed, &found_uniques, bovine,
-                                                            character->header.active_difficulty(), dropped.special);
+                                                            character->header.active_difficulty(), dropped.special, classic);
                 ground_item.item.identified = quality <= 3;
                 d2d::rules::replenish_arm(game_data->rules, ground_item.item);   // FUN_00558d90's end (0x559117, 0x559120)
                 const auto lines = item_lines(*game_data, ground_item.item, int(character->stats.get(d2d::d2s::kLevel)));
