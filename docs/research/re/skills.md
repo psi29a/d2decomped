@@ -922,6 +922,17 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `Fight::merc_shot`, `Swing::row_lo` / `row_hi`; tools/emu/merc_shot.py
   runs `FUN_005ce1b0` and the row's physical (0 of 100,144 differ, seeds 1
   and 2, 2026-11-23).
+- **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
+  `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
+  0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
+  is set and `FUN_00623c60` isn't 1. `FUN_00623c60` is the weapon's class:
+  `FUN_00629fe0` maps its ItemsTxt wclass (+0xc0) through the 8 pairs at
+  0x7446a0 (bow 1, 1hs 2, 1ht 3, stf 4, 2hs 5, 2ht 6, xbw 7, ht1 12), 0
+  without one. So a crossbow's Multiple Shot shoots multipleshotbolt and
+  its Strafe strafebolt; the other do 8 / 10 / 12 rows have srvmissileb
+  empty or the same row. d2d: `Fighter::bow`, `Fight::skill_missile`;
+  tools/emu/bolt_pick.py runs do 8 for each do-8 row and classes 0..13
+  (0 of 56 differ, 2026-11-23).
 - **Throw** (do 3, `FUN_0056f460`): the throwable in hand (ItemTypes
   Throwable, `FUN_0062ba80`, or stat 125) flies as its weapons.txt
   missiletype, spending one; `FUN_0056c600` then adds the skill's to-hit

@@ -68,6 +68,7 @@ struct Fighter {
     bool prevent_heal = false;                      // stat 117 (item_preventheal)
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int attack_start = 0;                           // the frame an A1 swing starts on with this weapon (attack_start_frame)
+    bool bow = false;                               // its weapon's wclass is bow: a do 8 / 10 / 12 keeps srvmissilea
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
     int sias = 0;           // stat 68 attackrate the states give (auras, skills): added raw, not diminished (FUN_00623f50, 0x6241e7)
