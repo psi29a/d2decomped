@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <numeric>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -406,6 +407,23 @@ SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sigh
     if (nine >= 0 && pick.target < 0) { pick.target = nine; pick.best = nine_best; }
     pick.nine = nine; pick.nine_best = nine_best;
     return pick;
+}
+
+// FUN_005b1900 inserts each pet right after its player's list head (0x5b1966..0x5b1979) and FUN_005dd7f0 takes
+// only a strictly nearer candidate (0x5dd960), so on a tie the pet that entered last wins. A summon enters where
+// it is made; the merc when it is hired or joins and again when it is revived (FUN_00579aa0 at 0x579b43).
+// `serial` is the order they entered (greater is newer). With one player the pets after it are sorted newest first
+// (equal serials keep d2d's order) and the rest (monsters) follow; with several players d2d's order stays.
+// ponytail: a converted monster (FUN_005d0350 at 0x5d0501) is the caster's newest pet in game.exe; here it stays after the pets.
+std::vector<std::size_t> search_order(std::span<const ListEntry> entries) {
+    std::vector<std::size_t> order(entries.size());
+    std::iota(order.begin(), order.end(), std::size_t(0));
+    if (std::ranges::count(entries, ListKind::player, &ListEntry::kind) != 1) return order;
+    const auto head = std::ranges::find(entries, ListKind::player, &ListEntry::kind) - entries.begin();
+    const auto from = order.begin() + head + 1;
+    const auto pets = std::stable_partition(from, order.end(), [&](std::size_t slot) { return entries[slot].kind == ListKind::pet; });
+    std::stable_sort(from, pets, [&](std::size_t one, std::size_t other) { return entries[one].serial > entries[other].serial; });
+    return order;
 }
 
 // A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think
