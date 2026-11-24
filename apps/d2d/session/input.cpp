@@ -228,11 +228,14 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // the target monster's subtile when there is one: a live monster, or with a TargetCorpse skill a
 // corpse in DD; Iron Golem a ground item of a metal base (Items bitfield1 & 2), at any distance.
 // None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
-// ponytail: the units go in view order, not the near rooms' list order
-// (FUN_0065ac70), so equals tie apart; other players aren't among them (two players without the
-// hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
-// target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
-// as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
+// The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
+// room's units by their room stamp), so equals tie apart as game.exe's do.
+// ponytail: other players aren't among them (two players without the hostility flag fail
+// FUN_00466870's FUN_00465c60); the ground items' places in their room's list aren't kept (they go
+// in view order within a room: only Iron Golem's search sees them); the stamps are the ones the
+// last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
+// 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes as its spot, and the
+// World takes the one there (Fight::golem_item_at), not by its id.
 auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
@@ -242,22 +245,33 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
         const int level_id = level ? level->id : 0;
         const bool iron_golem = skill == kIronGolemSkill;
         std::vector<d2d::rules::NearUnit> units;
+        std::vector<d2d::rules::RoomUnit> listed;
         units.reserve(view.monsters.size() + (iron_golem ? view.ground.size() : 0));
+        listed.reserve(units.capacity());
         for (const auto& monster : view.monsters) {
             const bool alive = monster.alive();
             const int mode = alive ? 1 : monster.mode == "DD" ? 0xc : 0;
             const bool hit = !monster.ally_not_interact(*scene, level_id) && (alive ? monster.targetable() : info->target_corpse && monster.usable_corpse());
             units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
+            listed.push_back({ level ? d2d::game::room_of(*level, monster.unit.x, monster.unit.y) : -1, true, monster.unit.room_stamp });
         }
         if (iron_golem)
-            for (const auto& ground : view.ground) {
+            for (std::size_t item = 0; item < view.ground.size(); ++item) {
+                const auto& ground = view.ground[item];
                 const auto base = scene->rules.item_base.find(ground.item.code);
                 const bool metal = base != scene->rules.item_base.end() && (base->second.bitfield1 & 2) != 0;
                 units.push_back({ 4, cell_subtile(ground.x), cell_subtile(ground.y), 0, false, true, metal });
+                // An item's place in its room's list isn't kept: view order, the first the newest.
+                listed.push_back({ level ? d2d::game::room_of(*level, ground.x, ground.y) : -1, true, std::uint32_t(view.ground.size() - item) });
             }
+        // FUN_0065ac70 walks the near list of the local player's room.
+        std::vector<int> rooms;
+        if (level)
+            for (const auto& [room_level, room] : d2d::game::near_rooms(*scene, *level, view.player.x, view.player.y))
+                if (room_level == level) rooms.push_back(room);
         int spot_x = cell_subtile(at_x), spot_y = cell_subtile(at_y);
-        const int pick = d2d::rules::search_enemy_near(info->target_corpse, iron_golem, d2d::rules::level_ids::is_town(level_id), -1, view.monster(unit),
-                                                       spot_x, spot_y, units);
+        const int pick = d2d::rules::search_enemy_near_walk(info->target_corpse, iron_golem, d2d::rules::level_ids::is_town(level_id), -1, view.monster(unit),
+                                                            spot_x, spot_y, units, listed, rooms);
         if (pick < 0) return true;
         const auto& found = units[std::size_t(pick)];
         unit = std::size_t(pick) < view.monsters.size() ? view.monsters[std::size_t(pick)].id : -1;
