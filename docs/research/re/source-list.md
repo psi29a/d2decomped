@@ -23,6 +23,7 @@ its lists in standard containers.
 | `FUN_0041c700` | `slist_raw_next_2` | Another copy of `slist_raw_next` (`FUN_004206e0`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c770` | `slist_clear_2` | Another copy of `slist_clear` (`FUN_00420750`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c7b0` | `slist_destroy_2` | Another copy of `slist_destroy` (`FUN_00420790`): the same reading, run on the same cases | no counterpart |
+| `FUN_0041c840` | `slist_new_node_2` | As `slist_new_node` (`FUN_00420820`) with the tag `".?AUHANDLER@"` (0x708434) | no counterpart |
 | `FUN_0041c8a0` | `slink_delete_2` | Another copy of `slink_delete` (`FUN_00420880`): the same reading, run on the same cases | no counterpart |
 | `FUN_004203a0` | `storm_set_7792f4` | Value (`RET 4`): `DAT_007792f4` = value, returns 1 (the getter is `storm_get_7792f4`) | no counterpart |
 | `FUN_004203f0` | `slink_next_link` | `ECX` link, offset (`RET 4`): the next link: a negative next `+4` complemented (the terminator); else next + offset, and for a negative offset the link's own offset, link − its previous link's next | no counterpart |
