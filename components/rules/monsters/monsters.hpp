@@ -986,7 +986,9 @@ struct ThinkEffect {
     // +0x14 its id), a minion takes its command's unit as target (FUN_006416d0).
     // Baal's: a Vile Effigy made (clone, FUN_005fc860).
     // The ElementalBeast's: its mode's action event filed id frames on (strike, FUN_005417d0 type 0).
-    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget, clone, strike } kind;
+    // The spawners': a monster made (spawn, FUN_005b2f20: id its class row, -1 the spawner's own
+    // spawn column); a minion out of its leader's list (leave_group, FUN_0058f160).
+    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget, clone, strike, spawn, leave_group } kind;
     int id = 0, value = 0;
 };
 struct ThinkIn {
@@ -1151,6 +1153,15 @@ struct ThinkIn {
     // mask 0x805), by kTurretStep; `usable` the line to its target.
     int trap_kind = 0;
     std::array<bool, 8> ray_clear{};
+    // The spawners' and the special AIs' (thinks.hpp): its mode (unit +0x10);
+    // the unit it made came out (FUN_005b2f20); its class 0x2c7 (demonhole);
+    // a leader or owner found (FUN_0058f0d0, FUN_00553540) and that's itself,
+    // its mode and spot; a group member just hit (FUN_0058f380 with
+    // LAB_005e5710); its command's point (+0xc / +0x10, with `command`); a
+    // unit found by its search (FUN_005dd7f0 / FUN_005de890) and that one in
+    // melee (the search's out flag).
+    int mode = 1, owner_mode = 0, owner_x = 0, owner_y = 0, command_x = 0, command_y = 0;
+    bool spawned = true, demon_hole = false, owner = true, self_owner = false, group_hit = false, found = false, found_melee = false;
 };
 
 // A monster's skill level: Sk*lvl + DifficultyLevels MonsterSkillBonus.
