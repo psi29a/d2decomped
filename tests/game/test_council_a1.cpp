@@ -6,6 +6,7 @@
 #include <ai/units.hpp>
 #include <combat.hpp>
 #include <gamedata.hpp>
+#include <level.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 
