@@ -383,6 +383,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.clt_sub = missiles_table.get(row_index, "CltSubMissile1"); missile_info.init_steps = number("InitSteps");
         missile_info.clt_sub2 = missiles_table.get(row_index, "CltSubMissile2");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
+        missile_info.clt_hit = number("pCltHitFunc"); missile_info.clt_hit_sub = missiles_table.get(row_index, "CltHitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
         missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.hit_class = number("HitClass");
@@ -403,7 +404,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     for (auto& [name, missile_info] : game_data.missiles)
         for (auto [wanted, into] : { std::pair{ &missile_info.explosion_name, &missile_info.explosion }, std::pair{ &missile_info.sub, &missile_info.subs[0] },
                                   std::pair{ &missile_info.sub2, &missile_info.subs[1] }, std::pair{ &missile_info.hit_sub, &missile_info.hit_sub_info },
-                                  std::pair{ &missile_info.clt_sub, &missile_info.clt_sub_info }, std::pair{ &missile_info.clt_sub2, &missile_info.clt_sub2_info } })
+                                  std::pair{ &missile_info.clt_sub, &missile_info.clt_sub_info }, std::pair{ &missile_info.clt_sub2, &missile_info.clt_sub2_info },
+                                  std::pair{ &missile_info.clt_hit_sub, &missile_info.clt_hit_sub_info } })
             if (const auto found = game_data.missiles.find(*wanted); found != game_data.missiles.end()) *into = &found->second;
     // SuperUniques.txt: name (string key), Class, minions. Replaceable and
     // EClass are never read by game.exe (docs/research/re/superuniques.md).
