@@ -49,5 +49,13 @@ d2d: `rules::Stars` (components/rules/quests/stars.hpp), drawn in `render_world`
 (world_view.cpp) before the lower walls. `tools/emu/arcane_stars.py` runs
 `FUN_00476290` for real (only `FUN_00650de0`, `GetTickCount` and the line
 draw hooked) on made-up palettes and screen sizes;
-tests/test_arcane_stars.cpp checks d2d's draws against it. Not traced:
-whether the driver moves the stars when a side panel shifts the view.
+tests/test_arcane_stars.cpp checks d2d's draws against it. Traced: a side panel
+doesn't move them. `FUN_0044ba20` (the resolution change) is the only
+writer of the field's size, `DAT_007a5220` = the width (0x280 / 0x320) and
+`DAT_007a521c` = the height less 0x28 (0x1b8 / 0x230); the line, slot
+`+0xc0`, takes buffer coordinates and bounds-checks them against the
+buffer's `0x7c9138` x `0x7c913c` with no offset (GDI `0x6c8c80` and
+DirectDraw `0x512930` are the same code; Glide `0x50c270` and Direct3D
+`0x6b7b30` check the same two globals). So the stars live in the rows above
+the bottom 40 pixels. d2d passed the full screen height, and its stars
+reached the bottom 40 rows: now `Stars::field_height`.
