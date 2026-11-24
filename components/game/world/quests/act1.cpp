@@ -205,7 +205,11 @@ auto World::act1_quest_step() -> void {
 // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a player it's for. a1q5's
 // (the Forgotten Tower: FUN_00594960, FUN_00595010, Q05_TimerNotifyCompletion); the others' stay the View's change.
 auto World::act1_update() -> void {
-        if (std::exchange(tower.news, false) && d2d::rules::TowerQuest::log_goes_to(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::TowerQuest::kQuest });
+        if (!std::exchange(tower.news, false)) return;
+        for (auto& player : players) {   // each player's own bits decide (FUN_00594830), not the lead's alone
+            const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+            if (d2d::rules::TowerQuest::log_goes_to(player->character.header.quests[difficulty])) player->events.push_back(ev::QuestNews{ d2d::rules::TowerQuest::kQuest });
+        }
     }
 
 auto World::act1_alert(int hc_idx) -> bool {
