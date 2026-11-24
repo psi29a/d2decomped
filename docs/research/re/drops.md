@@ -777,7 +777,7 @@ The handlers, in address order (row numbers are Properties.txt rows):
 | `FUN_0065d110` | 141..177, 179, 180 (the `/lvl` rows, rep-dur, rep-quant) | No draw: the value is the mod's param; 0 does nothing. The ac rule for stats 0x10..0x12 or kind 1, then as FUN_0065d070. |
 | `FUN_0065d1c0`, `FUN_0065d2b0` | most single-stat rows; `FUN_0065d2b0` has ac%, mana%, hp%, dmg-to-mana, dur%, regen-stam, regen-mana, att%, dmg-demon, dmg-undead | FUN_0065cf40 with the row's stat, its flag 0 / 1 (1: the ac rule on any kind). |
 | `FUN_0065d1f0`, `FUN_0065d2e0` | none | FUN_0065d070 with its flag 0 / 1. Orphans: no call, jump or pointer (`f0 d1 65 00` and `e0 d2 65 00` found nowhere). |
-| `FUN_0065d220` | 133 sock | Item flag 0x800 (FUN_006280d0) and the socket count set to the mod's param (FUN_0062be00): no draw, no cap. No mod is fatal (id 0x312). |
+| `FUN_0065d220` | 133 sock | Item flag 0x800 (FUN_006280d0), then FUN_0062be00(item, the mod's param): no draw. FUN_0062be00 takes the grid (Items `+0x10f` × `+0x110`; 6 at most, `0x62be4e`; 0 or less sets nothing), caps it by FUN_0062bc20, takes the param as 1 at least and caps it by that (`0x62be72`..`0x62be80`), then sets flag 0x800 and stat 0xc2. No mod is fatal (id 0x312). |
 | `FUN_0065d270` | 242 indestruct | Sets stats 0x49 and 0x48 (max durability, durability) to 0 (FUN_00627260) on the item, or on the last argument when that is a unit of type 4. |
 | `FUN_0065d310`, `FUN_0065d4b0` | 41 res-all, 42 res-all-max | Version 0: FUN_0065cf40 four times, stats 0x27 / 0x29 / 0x2b / 0x2d (0x28 / 0x2a / 0x2c / 0x2e for max), each its own draw. The version-1 branch (one draw, FUN_0065d070 four times) can't be reached from the table. They return their stat argument. |
 | `FUN_0065d650`, `FUN_0065d7d0` | 27 dmg-min, 28 dmg-max | One draw. With the base (FUN_006335f0 of the item, or of `EDX` when that is an item): the one-hand stat 0x15 / 0x16 unless a weapon (type 0x2d) whose one-hand byte (`+0xfe` / `+0xff`) is 0 and two-hand byte (`+0x102` / `+0x103`) isn't; the two-hand stat 0x17 / 0x18 unless a weapon the other way round; the throw stat 0x9f / 0xa0 unless a weapon that isn't throwable (FUN_0062ba80). Each through FUN_0065d070, so the value goes in as drawn. |
@@ -785,7 +785,7 @@ The handlers, in address order (row numbers are Properties.txt rows):
 | `FUN_0065db90` | 104 allskills | FUN_0065cf40 for stat 0x7f. |
 | `FUN_0065dbc0` | 243 charged | Func 19's level, charges and packing (FUN_0065f6a0, "Item mods" above): the same draw, rand(c − c / 8) + c / 8 + 1 (`0x65dcf0`..`0x65dd1d`, `0x65f7e2`..`0x65f80e`), and the same (now & 0xff) + c × 256 with param skill << `[0x744304] + 0xc6c` + (level & the word at `+0xc70`) (`0x65dd2a`..`0x65dd5b`). It returns 1 where FUN_0065f6a0 returns c, and has no item check. |
 | `FUN_0065dd80` | 195..230 (the `/time` rows) | Func 18's packing (FUN_0065f870) without its stat-row check; max below min is fatal (id 0x444). |
-| `FUN_0065de40` | 134..136, 139, 140 (dmg-fire, -ltng, -mag, -throw, -norm) | No draw: min to the stat, max to stat + 1 (both scaled). For 0x15 (dmg-norm) the hands as FUN_0065d650, but the one-hand pair tests the max bytes (`+0xff`, `+0x103`) and the two-hand pair `+0x103` then `+0xfe`; the throw pair when throwable or not a weapon. |
+| `FUN_0065de40` | 134..136, 139, 140 (dmg-fire, -ltng, -mag, -throw, -norm) | No draw: min to the stat, max to stat + 1 (both scaled). For 0x15 (dmg-norm) the hands as FUN_0065d650, but the one-hand pair tests the max bytes (`+0xff`, `+0x103`) and the two-hand pair `+0x103` then `+0xfe`; the throw pair only when throwable (`0x65df76`: no weapon test first, unlike FUN_0065d650). |
 | `FUN_0065e070` | 137 dmg-cold, 138 dmg-pois | No draw: min, max and param to stats n, n + 1, n + 2 (length); stat 0x39 adds 0x146 = 1. Fatal id 0x4ad with no list. |
 | `FUN_0065e170` | 123 skill | A draw; the param must be a Skills row (below `[0x744304] + 0xba0`), else nothing; stat 0x6b, layer the param. |
 | `FUN_0065e230` | 103 fireskill | A draw (0: nothing); stat 0x7e, layer 1. |
@@ -803,7 +803,8 @@ funcs. So on a classic item:
 - res-all / res-all-max put one value in all four;
 - dmg% is one draw for both stats, with the weapon rule;
 - dmg-min / dmg-max keep a nonzero base at 1 / 0 (func 5 / 6's hold);
-- sock caps the count (func 14);
+- sock counts func 14's draw (min..max, else the param) where game.exe
+  takes the param alone (both cap it alike);
 - indestruct puts stat 152 (func 20) where game.exe zeroes the
   durability;
 - the do-nothing rows still apply: Wizendraw (UniqueItems, version 0)
