@@ -55,6 +55,7 @@ auto World::act1_join() -> void {
         cain.join(quests(), carries("bks"), carries("bkd"));
         chain(1);
         if (cain.camp_spawn()) place_camp_cain();
+        camp_cain_state();                                           // the join keeps the current level's states
     }
 
 auto World::act1_enter(const Level& from) -> void {
@@ -63,7 +64,7 @@ auto World::act1_enter(const Level& from) -> void {
         if (tower.enter(quests(), from.id, level->id, actor->id)) each_player([&](Player&) { tower.mark(quests()); });
         tools.enter(quests(), from.id);
         const bool cain_open = cain.state != 7;
-        cain.enter(quests(), from.id, level->id, actor->id);
+        if (cain.enter(quests(), from.id, level->id, actor->id)) place_camp_cain();   // FUN_00596de0: into the camp, at the start object
         if (cain_open && cain.state == 7) each_player([&](Player& player) { cain.missed_it(quests(), player.id); });   // FUN_00592b10 over the players
     }
 
