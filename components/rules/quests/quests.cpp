@@ -1275,14 +1275,16 @@ auto TowerQuest::alert(const QuestBits&, int npc, int player) const -> bool {
 // state moved, every player's bits to mark ("mark all").
 auto TowerQuest::enter(const QuestBits& quest_bits, int from, int dest, int player) -> bool {
     if (dest == kTower) {
-        if (state == 0) { state = 2; log = 3; }
+        if (state == 0) { state = 2; log = 3; }                  // FUN_00595010: each sets the log with flag 1
         else if (state <= 3 && log == 1) log = 4;
         else return false;
+        news = true;
         return true;
     }
     if (dest == kCellar) {
         if (state > 3 || log == 2) return false;
         state = 3; log = 2;
+        news = true;
         return true;
     }
     if (from == 1) {                               // out of town

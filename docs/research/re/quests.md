@@ -748,10 +748,15 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: a3q6, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: a1q5, a3q6, a4q2 .. a4q4, act 5's six); the client
 doesn't also read a change in their View's log for a send
-(`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). Acts 1
-and 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+(`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
+sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
+(`FUN_00594960`: log 1, and log 2 when it was 3), a level change
+(`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
+kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
+ported. Each goes to a player unless done without bit 13 / 14
+(`FUN_00594830`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
 Not traced against d2d's records: those quests' flag-1 sites, and the act
 test above (the events and the change both skip it).

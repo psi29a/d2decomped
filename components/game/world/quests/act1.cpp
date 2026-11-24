@@ -202,6 +202,12 @@ auto World::act1_quest_step() -> void {
         if (stones_portal_in > 0 && --stones_portal_in == 0) stones_portal();      // 0x59366e -> FUN_00592d50
     }
 
+// A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a player it's for. a1q5's
+// (the Forgotten Tower: FUN_00594960, FUN_00595010, Q05_TimerNotifyCompletion); the others' stay the View's change.
+auto World::act1_update() -> void {
+        if (std::exchange(tower.news, false) && d2d::rules::TowerQuest::log_goes_to(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::TowerQuest::kQuest });
+    }
+
 auto World::act1_alert(int hc_idx) -> bool {
         return den.alert(quests(), hc_idx)
             || andy.alert(quests(), hc_idx, actor->id)
