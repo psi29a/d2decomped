@@ -122,6 +122,38 @@ int main() try {
     std::printf("through the player: %d shots, its life %d of %d\n", shots, int(life >> 8), int(full >> 8));
     std::fflush(stdout);
     assert(shots > 0 && life == full);
+
+    // The player's own arrow passes it by too (FUN_005a8730 for the player's side): sent through
+    // the rogue, it flies on to the zombie behind it (land() has always refused it the rogue's life,
+    // but the arrow was spent there).
+    const auto* arrow = &data->missiles.at("arrow");
+    auto send = [&](const Monster& toward) {
+        Missile sent;
+        sent.info = arrow;
+        sent.friendly = true;
+        sent.caster = actor->id;
+        sent.x = toward.unit.x - 1.f; sent.y = toward.unit.y;
+        sent.velocity_x = 5.f;
+        sent.aim_at = std::pair{ toward.unit.x + 3.f, toward.unit.y };
+        sent.born = now; sent.dies = now + 40 * 40;
+        sent.min = sent.max = 5; sent.attack_rating = 100000;
+        fight.missiles.push_back(std::move(sent));
+    };
+    fight.monsters[0].next_act = fight.monsters[1].next_act = 0xffffffffu;   // both stand
+    fight.monsters[1].unit.x = fight.monsters[0].unit.x + 1.f; fight.monsters[1].unit.y = fight.monsters[0].unit.y;
+    fight.monsters[1].stats.armor_class = -1000;
+    const int rogue_life = fight.monsters[0].hit_points, zombie_life = fight.monsters[1].hit_points;
+    fight.missiles.clear();                                          // the rogue's arrows still in flight
+    send(fight.monsters[0]);
+    for (int frame = 0; frame < 20; ++frame) {
+        now += kTickMs;
+        actor->player.x = base_x - 12.f; actor->player.y = base_y;
+        fight.monsters[0].next_act = fight.monsters[1].next_act = 0xffffffffu;
+        world->tick({}, now, now - kTickMs);
+    }
+    std::printf("the player's arrows: the rogue's life %d -> %d, the zombie's %d -> %d\n", rogue_life, fight.monsters[0].hit_points, zombie_life, fight.monsters[1].hit_points);
+    std::fflush(stdout);
+    assert(fight.monsters[0].hit_points == rogue_life && fight.monsters[1].hit_points < zombie_life);
     std::printf("test_wanderer_fight: ok\n");
     return 0;
 } catch (const std::exception& error) {
