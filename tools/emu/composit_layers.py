@@ -12,6 +12,8 @@ TR torso, LG legs, RA rArm, LA lArm, S1 rspad, S2 lspad; any other layer below
 16 is fatal (line 0x274), 16 and up too (0x265). d2d's compcode.hpp `kTier`
 and its two lit-layer lists (`lit_layer`, `each_layer`'s `kLayer`) are compared against these tables. The ItemsTxt
 lookup is hooked to return a synthetic record; no MPQ is read.
+FUN_004630e0 also writes 0xff to all appearance layers for an empty
+inventory. The current-player lookup is hooked to supply that player.
 """
 import argparse
 import hashlib
@@ -98,6 +100,14 @@ def main():
     machine.hook(FATAL_EXIT, fatal, 0)
     record = machine.alloc(0x200)
     machine.hook(ITEMS_LINE, lambda e: record, 1)
+
+    player, inventory, appearance = machine.alloc(0x200), machine.alloc(0x40), machine.alloc(16)
+    machine.w32(player + 0x60, inventory)
+    machine.w32(inventory, 0x01020304)
+    machine.hook(0x463dd0, lambda e: player, 0)
+    result = call("FUN_004630e0", 0x4630e0, ecx=appearance, edx=16)
+    require(result == 1 and machine.read(appearance, 16) == b"\xff" * 16,
+            "empty inventory did not leave all 16 saved appearance bytes at 0xff")
 
     # Which layers have colours.
     lit = [layer for layer in range(16) if call("FUN_0064f420", HAS_COLOURS, layer) == 1]

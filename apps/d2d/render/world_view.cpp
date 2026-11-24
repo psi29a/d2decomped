@@ -427,7 +427,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             const float back = unit.object ? 0.1f : 0.f;      // game.exe's position, as the unit's draw
             const auto [anchor_x, anchor_y] = iso_point(unit.x - back, unit.y - back);
             if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
-            auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
+            auto elapsed = unit.composite_elapsed ? *unit.composite_elapsed : std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
             if (unit.hold && !unit.frames) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
             elapsed = object_elapsed(unit, elapsed);
             elapsed = get_hit_elapsed(unit, elapsed);
@@ -544,7 +544,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 if (bounds[2] > 0 && bounds[0] < screen_w && bounds[3] > 0 && bounds[1] < int(kScreenHeight)) Scene::note_drawn("items", unit.sprite_file);   // on screen
                 if (items) items->push_back({ &unit, { anchor_x, anchor_y } });
             } else {
-                auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
+                auto elapsed = unit.composite_elapsed ? *unit.composite_elapsed : std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
                 const auto last = std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame();
                 if (unit.hold && !unit.frames) elapsed = std::min(elapsed, last);
                 if (unit.reverse) elapsed = last - std::min(elapsed, last);

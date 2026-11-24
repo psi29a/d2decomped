@@ -64,7 +64,7 @@ int main() try {
     GameData::MissileInfo small;
     small.name = "mephistoflyingrockssmall"; small.range = 5; small.vel = 12; small.max_vel = 12;
     GameData::MissileInfo big = rock;
-    big.always_explode = true; big.clt_hit = 33; big.clt_hit_pars = { 20, 0, 0 }; big.clt_hit_sub_info = &small; big.max_vel = 12;
+    big.always_explode = true; big.clt_hit = 33; big.clt_hit_pars = { 20, 0, 0 }; big.clt_hit_subs[0] = &small; big.max_vel = 12;
     int shards = 0, owed = 0;
     for (int count = 0; count < 5; ++count) {
         missiles.clear();
