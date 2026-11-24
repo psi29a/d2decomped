@@ -223,6 +223,7 @@ struct View {
     d2d::rules::QuestLogStates quest_log{};      // log states as the server sends them, by quest (FUN_00544190)
     d2d::rules::QuestGameFlags game_quests{};    // the game's quest flags (FUN_00544720): 13 done in this game, 15 closed at the first join
     int den_left = 0;                            // the Den's monsters left (the quest log)
+    int arreat_left = 0;                         // Rescue on Mount Arreat's soldiers left (the quest log)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.

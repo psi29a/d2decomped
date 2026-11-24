@@ -630,6 +630,7 @@ auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
             view.game_quests = net_game->game_quests;
         }
         view.den_left = net_game->den_left;
+        view.arreat_left = net_game->arreat_left;
         if (net_game->sky) { world.day.set(net_game->sky->phase, net_game->sky->time, net_game->sky->eclipse); net_game->sky.reset(); }
         // The item panel's answer (S->C 0x58: an NPC's service done or refused).
         if (const int kind = std::exchange(net_game->use_item_reply, -1); kind >= 0) {

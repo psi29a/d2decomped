@@ -225,6 +225,8 @@ private:
 public:
     // Every cage up and each prisoner made dead or freed (the last portal's test).
     [[nodiscard]] bool all_in() const { return made == dead + freed && std::ranges::all_of(cages, &Cage::up); }
+    // The soldiers left to rescue, the quest log's count (FUN_00588c50).
+    [[nodiscard]] int left() const;
     // A party member's share of it, 12 or more freed: in act 5, neither done nor due: bits 13, 1 and 5 / 6 / 7
     // by the count.
     void party_share(QuestBits& quest_bits) const;

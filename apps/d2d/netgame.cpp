@@ -476,11 +476,14 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0x5d: {   // quest log news: +1 quest record, +2 flags (2: a sound), +3 log state, +4 s16 (quests.md)
         // No flags: the record's log state (its row is its word) and the Quest
-        // Log button; flags 0x20 (the Den's): the state and the count.
+        // Log button; flags 0x20: record 0x20's (Rescue on Mount Arreat) its
+        // count alone (0x7bf2ac), any other's the state and the count (FUN_004a2cb0).
         const int row = size >= 4 ? d2d::net::d2gs::s2c::quest_word_of_record(packet[1]) : -1;
-        if (row >= 0 && (packet[2] == 0 || (packet[2] & 0x20) != 0)) quest_log[std::size_t(row)] = packet[3];
+        const bool arreat_count = size >= 6 && (packet[2] & 0x20) != 0 && packet[1] == 0x20;
+        if (row >= 0 && !arreat_count && (packet[2] == 0 || (packet[2] & 0x20) != 0)) quest_log[std::size_t(row)] = packet[3];
         if (row >= 0 && packet[2] == 0) quest_news.push_back(row);
-        if (size >= 6 && (packet[2] & 0x20) != 0) den_left = std::int16_t(read_u16(packet, 4));
+        if (arreat_count) arreat_left = std::int16_t(read_u16(packet, 4));
+        else if (size >= 6 && (packet[2] & 0x20) != 0) den_left = std::int16_t(read_u16(packet, 4));
         send({ d2d::net::d2gs::c2s::update_quests() });   // the words behind it (0x28)
         break;
     }

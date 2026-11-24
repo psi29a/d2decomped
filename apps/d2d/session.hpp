@@ -772,7 +772,7 @@ struct ClientSession {
     [[nodiscard]] LevelButtons level_buttons_now() const;
     // The quest log's inputs: this difficulty's flags, what the server told.
     [[nodiscard]] const d2d::rules::QuestBits& quest_bits() const;
-    [[nodiscard]] QuestState quest_state() const { return { view.quest_log, view.game_quests, view.den_left, net_game != nullptr }; }
+    [[nodiscard]] QuestState quest_state() const { return { view.quest_log, view.game_quests, view.den_left, view.arreat_left, net_game != nullptr }; }
     int view_act() const;
     void toggle_quest_log();               // Q and the mini-panel (FUN_004a3fe0)
     void toggle_inventory();               // I, C, T and the mini-panel (FUN_00455f20 via FUN_00453910)

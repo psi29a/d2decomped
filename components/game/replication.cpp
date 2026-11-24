@@ -66,7 +66,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.day.eclipse).i32(view.day.dimmed).i32(view.day.environment).u8(view.den_cleared).u8(view.diablo_red).i32(view.light_bonus);
         for (const auto quest : view.quest_log) chunk.u8(quest);
         for (const auto quest : view.game_quests) chunk.u16(quest);
-        chunk.i32(view.den_left);
+        chunk.i32(view.den_left).i32(view.arreat_left);
         const auto& panel = view.panel;
         for (const std::int64_t number : { panel.next, panel.defense }) chunk.u32(std::uint32_t(number)).u32(std::uint32_t(std::uint64_t(number) >> 32));
         for (const auto* numbers : { &panel.res, &panel.res_cap }) for (const auto number : *numbers) chunk.i32(int(number));
@@ -304,6 +304,7 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
         for (auto& quest : view.quest_log) quest = std::uint8_t(byte());
         for (auto& quest : view.game_quests) quest = std::uint16_t(u16());
         view.den_left = i32();
+        view.arreat_left = i32();
         auto& panel = view.panel;
         for (auto* number : { &panel.next, &panel.defense }) { const std::uint64_t low = u32(), high = u32(); *number = std::int64_t(low | high << 32); }
         for (auto* numbers : { &panel.res, &panel.res_cap }) for (auto& number : *numbers) number = i32();

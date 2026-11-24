@@ -1041,6 +1041,7 @@ struct QuestState {
     QuestLogStates log{};                  // the log state the server sent, by quest (the view's quest_log)
     QuestGameFlags game{};                 // the game's quest flags (the view's game_quests)
     int den_left = 0;                      // DAT_007bf2a4
+    int arreat_left = 0;                   // DAT_007bf2ac: Rescue on Mount Arreat's soldiers left
     bool multiplayer = false;              // DAT_007a0610 != 0: any game type but single player's (a joined game)
 };
 QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state);
