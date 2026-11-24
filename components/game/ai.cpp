@@ -404,10 +404,16 @@ int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string
 // mode_rate) and files the event frame's marker on the first tick that
 // reaches it, rules::frame_tick (council-s1.md).
 // ponytail: a mode with no event frame files no marker there (flags 1, 2, 4
-// only), but a skill's mode can still cast: FUN_005a75c0, the start, runs the
-// skill path when the unit has an active skill entry (council-s1.md), and
-// stock 1.14d's ZMS1HTH (a teleporting zombie's MonTeleport) has no event. Not
-// traced which; d2d strikes such a mode halfway.
+// only): FUN_005539b0 has no fallback (only the end, type 1), FUN_005a8030
+// (the end) runs no do, and FUN_005a75c0's skill path (FUN_0056faf0 ->
+// FUN_0056f640) runs only the srvstfunc (table 0x732140). So with no MonSeq
+// sequence (FUN_006634c0's rows instead) such a mode's action never runs:
+// stock 1.14d's ZMS1HTH plays MonTeleport (srvdofunc 98, no srvstfunc) without
+// the teleport. 25 monster modes have no marker in AnimData (ZMS1 / ZMS2, FAS1
+// / FAS2, MMS1, SKS1*, SUS1, SMS1 and more); which of them play through a
+// sequence isn't checked yet, so d2d still strikes such a mode halfway; with no
+// action there, test_game_missiles' teleporting unique zombie would not land,
+// so an oracle run of game.exe's own update on it settles which before a port.
 std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, std::string_view mode) {
     const auto& timing = game_data.npc_timing(monster.npc, mode);
     if (timing.action < 0) return timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
