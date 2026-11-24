@@ -7,7 +7,7 @@ Runs in upstream d2decomped's tools/emu (needs its `emu` module and the
 read-only game.exe as `$D2_MPQ_DIR/bin/game.exe`).
 
     python pets_merc.py N SEED cases.txt > g.txt
-    g++ -O2 -std=c++20 -I<d2d>/components -I<d2d>/components/d2s pets_merc_harness.cpp -o h
+    g++ -O2 -std=c++23 -I../../components $(find ../../components -name '*.hpp' -printf '-I%h\n' | sort -u) pets_merc_harness.cpp ../../build/components/rules/librules.a -o h
     ./h before < cases.txt | diff g.txt - | grep -c '^>'
     ./h after < cases.txt | diff g.txt -
 
