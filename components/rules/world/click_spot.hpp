@@ -21,7 +21,7 @@ namespace d2d::rules {
 }
 
 // The click's flags, as FUN_00462d00 hands them to FUN_00462a20.
-inline constexpr std::uint32_t kClickPress = 0x4, kClickHeld = 0x8, kClickRelease = 0x10, kClickRun = 0x40;
+inline constexpr std::uint32_t kClickLeft = 0x1, kClickPress = 0x4, kClickHeld = 0x8, kClickRelease = 0x10, kClickShift = 0x20, kClickRun = 0x40;
 
 // The least distance a click's spot goes out to (LAB_004624a1..LAB_004624d6):
 // a press 3, or 5 running; held 4, or 5 running; a release 0.
@@ -61,6 +61,15 @@ inline constexpr int kUnitWarp = 5;
     if (target_type < 0) return true;
     if (target_type > 1 && target_type != kUnitWarp) return false;
     return !walk_mode(player_mode);
+}
+
+// FUN_00467880's first gate (0x46795f..0x467977): a held frame of the left button
+// (flags 8 and 1) without shift (0x20) while the player walks or runs
+// (FUN_00622d00, `moving`) runs none of the skill's own searches, whatever the
+// skill; everything else goes on to the status test. The right button's held
+// frame (flags 8 and 2) isn't gated. tools/emu/search_gate.py.
+[[nodiscard]] constexpr bool skill_search_goes(std::uint32_t flags, bool moving) noexcept {
+    return !((flags & kClickHeld) && (flags & kClickLeft) && !(flags & kClickShift) && moving);
 }
 
 // FUN_00461dc0's warp (type 5, LAB_00461fb7): refused till 0x7a04c8 (an
