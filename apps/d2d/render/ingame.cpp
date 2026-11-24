@@ -271,7 +271,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // one is up (0x7bf1c0 == 1): its x (0x7bf278, (W - 0x145) / 2), its
         // top (0x7225fc, 12), 0x145 by 0x70 (npc-talk.md "Box"), so no box
         // lands on it; then the players', the monsters' and the objects' tables.
-        // ponytail: each table's own order isn't traced; within each d2d goes in `units` order.
+        // Each table is walked by bucket (id & 0x7f), highest id first within one (overhead.hpp); the draw's units
+        // carry no game.exe id, so within a table d2d goes in `units` order (the ponytail: at overhead_order).
         // The speech box in the world buffer's pixels (the screen's start at `off`); the touch layout's box
         // is where draw_speech paints it there (a d2d layout, no game.exe slot of its own).
         std::optional<OverheadRect> speech_box;
@@ -288,7 +289,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         }
         auto overhead_slots = overhead_frame_slots(speech_box);
         const auto speakers = overhead_order(std::span<const Unit>(units), [](const Unit& unit) { return unit.says || !unit.said.empty(); },
-                                             [](const Unit& unit) { return unit.npc == -1 || unit.npc <= -4000; });
+                                             [](const Unit& unit) { return unit.npc == -1 || unit.npc <= -4000 ? 0 : unit.object ? 2 : 1; },
+                                             [](const Unit&) { return 0; });
         const auto& chat_font = scene.font_chat.line_height() > 0 ? scene.font_chat : scene.font;
         const auto& says_pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         for (const Unit* speaker : speakers) {
