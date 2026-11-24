@@ -78,15 +78,16 @@ int pick_affix(const Tables& tables, const std::vector<Affix>& list, const std::
 int books_row(const Tables& tables, const std::string& code, bool scroll);
 
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6 rare, 7 unique; a set / unique none fits is
-// remade, below), identified, with its defence and durability rolled.
+// remade, below), identified, with its defence and durability rolled. `classic`: a classic game's
+// (version 0) item, by the classic rules.
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                         int difficulty = 0, int special_wanted = 0);
+                         int difficulty = 0, int special_wanted = 0, bool classic = false);
 
 // The item as roll_item makes it, with its unit's seed.
 d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                              Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
-                             int difficulty = 0, int special_wanted = 0);
+                             int difficulty = 0, int special_wanted = 0, bool classic = false);
 
 // The item's unit seed: where the making left it while it's in play, else fresh from its fingerprint, as a
 // loaded item's.

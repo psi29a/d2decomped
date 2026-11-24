@@ -267,8 +267,10 @@ CubeMade cube_make(const Tables& tables, const CubeRecipe& recipe, const CubeMat
             if ((output.flags & kRegular) && source) { quality = source->quality; named = (source->quality == 5 ? source->set_id : source->unique_id) + 1; }
             Rng unit_seed{ game_seed.next() };
             own = Rng{ game_seed.next() };
-            if (!quality) quality = stand_quality(tables, code, level, own);
-            auto item = generate_item(tables, code, level, quality == 8 ? 6 : quality, own, &unit_seed, found_uniques, false, difficulty);
+            // FUN_00557450 rolls the quality first: a classic item's roll draws even when it's asked.
+            const int rolled = quality && expansion ? 0 : stand_quality(tables, code, level, own, !expansion);
+            if (!quality) quality = rolled;
+            auto item = generate_item(tables, code, level, quality == 8 ? 6 : quality, own, &unit_seed, found_uniques, false, difficulty, 0, !expansion);
             if (quality == 8) item.quality = 8;
             if (named && quality == 7) item.unique_id = named - 1;
             if (named && quality == 5) item.set_id = named - 1;
