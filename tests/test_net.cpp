@@ -4,6 +4,7 @@
 // synthetic Huffman table (no game.exe bytes): docs/design/net-join-plan.md
 // M1-M3.
 #include <allow.hpp>
+#include <d2gs/bit_buffer.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/frame.hpp>
@@ -21,6 +22,7 @@
 #include <exception>
 #include <random>
 #include <span>
+#include <utility>
 #include <vector>
 
 using namespace d2d::net;
@@ -160,6 +162,45 @@ int main() try {
         assert((d2gs::c2s::select_skill(0, false) == d2d::net::Bytes{ 0x3c, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff }));
         // 0x31: 9 bytes, the host's size check (54ba90); Atma's 304 heard.
         assert((d2gs::c2s::quest_message(0x12345678, 304) == d2d::net::Bytes{ 0x31, 0x78, 0x56, 0x34, 0x12, 0x30, 0x01, 0x00, 0x00 }));
+        // FUN_00597e20 sends A1/S1 through these two correction-bearing forms.
+        const d2d::net::Bytes point_packet{ 0x6b, 123, 0, 0, 0, 12, 111, 0, 222, 0, 0, 0, 77, 1, 188, 1 };
+        const auto at_point = d2gs::s2c::monster_command(point_packet);
+        assert(at_point && at_point->id == 123 && at_point->command == 12 && !at_point->target);
+        assert(at_point->point && at_point->point->first == 111 && at_point->point->second == 222);
+        assert(at_point->correction && at_point->correction->first == 333 && at_point->correction->second == 444);
+        const d2d::net::Bytes unit_packet{ 0x6c, 123, 0, 0, 0, 10, 0, 142, 2, 0, 0, 0, 77, 1, 188, 1 };
+        const auto at_unit = d2gs::s2c::monster_command(unit_packet);
+        assert(at_unit && at_unit->command == 10 && !at_unit->point && at_unit->correction == at_point->correction);
+        assert(at_unit->target && at_unit->target->first == 0 && at_unit->target->second == 654);
+        assert(!d2gs::s2c::monster_command(std::span(point_packet).first(15)));
+        auto uncorrected = point_packet;
+        uncorrected[0] = 0x69;
+        uncorrected.resize(12);
+        const auto command_without_correction = d2gs::s2c::monster_command(uncorrected);
+        assert(command_without_correction && !command_without_correction->correction);
+        // FUN_0045df00 and FUN_0045df60 dispatch the two skill packet forms.
+        const d2d::net::Bytes council_target{ 0x4c, 1, 63, 0, 0, 0, 62, 0, 3, 0, 1, 0, 0, 0, 0, 0 };
+        const d2d::net::Bytes council_point{ 0x4d, 1, 63, 0, 0, 0, 62, 0, 0, 0, 3, 0x4b, 0x16, 0x83, 0x13, 0, 0 };
+        const auto target_cast = d2gs::s2c::unit_skill(council_target);
+        assert(target_cast && target_cast->type == 1 && target_cast->id == 63 && target_cast->skill == 62 && target_cast->level == 3 && !target_cast->point);
+        assert(target_cast->target && target_cast->target->first == 0 && target_cast->target->second == 1);
+        const auto point_cast = d2gs::s2c::unit_skill(council_point);
+        assert(point_cast && point_cast->type == 1 && point_cast->id == 63 && point_cast->skill == 62 && point_cast->level == 3 && !point_cast->target);
+        assert(point_cast->point && point_cast->point->first == 5707 && point_cast->point->second == 4995);
+        assert(!d2gs::s2c::unit_skill(std::span(council_target).first(15)));
+        assert(!d2gs::s2c::unit_skill(std::span(council_point).first(16)));
+        // FUN_0045ee20 reads the selected ItemStatCost fields as signed.
+        std::array<std::pair<int, int>, 97> send_widths{};
+        send_widths[67] = send_widths[68] = {10, 0};
+        send_widths[93] = send_widths[96] = {9, 0};
+        // The same stat list is decoded by game.exe in council_host_packets.py.
+        const std::array<std::uint8_t, 11> state_bytes{ 0x43, 0xc4, 0x27, 0xe2, 0x7c, 0x17, 0x0a, 0x60, 0xec, 0xff, 0x07 };
+        d2gs::BitReader state_bits(state_bytes);
+        const auto rates = d2gs::s2c::read_state_stats(state_bits, send_widths);
+        assert(rates && rates->animation.velocity == -30 && rates->animation.attack_rate == -50
+            && rates->animation.ias == 20 && rates->animation.frw == -10);
+        d2gs::BitReader truncated_state(std::span<const std::uint8_t>(state_bytes).first(10));
+        assert(!d2gs::s2c::read_state_stats(truncated_state, send_widths));
         // 0x27 mode 1: Atma's greeting (kind 0) and a topic (kind 2); a lone
         // kind 3 is a number, not lines. 0x5d's record 8 (Radament) is word 9.
         d2d::net::Bytes info(40, 0);

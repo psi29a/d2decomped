@@ -11,9 +11,82 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace d2d::net::d2gs::s2c {
+
+struct AnimationStats {
+    int velocity = 0, attack_rate = 0, ias = 0, frw = 0;
+    [[nodiscard]] bool empty() const { return velocity == 0 && attack_rate == 0 && ias == 0 && frw == 0; }
+};
+
+struct StateStats {
+    AnimationStats animation;
+    int skill = -1, level = 0;
+};
+
+// FUN_0045ee20 and FUN_0045efa0 read state lists using ItemStatCost's send widths.
+// The animation stats selected below are signed in 1.14d and have no param bits.
+inline auto read_state_stats(BitReader& bits, std::span<const std::pair<int, int>> send_bits)
+    -> std::optional<StateStats> {
+    StateStats out;
+    for (;;) {
+        const auto stat = bits.read(9);
+        if (bits.cursor().overflow) return std::nullopt;
+        if (stat == 0x1ff) return out;
+        if (stat >= send_bits.size()) return std::nullopt;
+        const auto [width, param] = send_bits[stat];
+        if (width <= 0 || width > 32 || param < 0 || param > 32) return std::nullopt;
+        bits.read(param);
+        switch (stat) {
+        case 67: out.animation.velocity = bits.read_signed(width); break;
+        case 68: out.animation.attack_rate = bits.read_signed(width); break;
+        case 93: out.animation.ias = bits.read_signed(width); break;
+        case 96: out.animation.frw = bits.read_signed(width); break;
+        case 0x15e: out.skill = int(bits.read(width)); break;
+        case 0x15f: out.level = int(bits.read(width)); break;
+        default: bits.read(width); break;
+        }
+        if (bits.cursor().overflow) return std::nullopt;
+    }
+}
+
+struct MonsterCommand {
+    std::uint32_t id;
+    std::uint8_t command;
+    std::optional<std::pair<std::uint16_t, std::uint16_t>> point, correction;
+    std::optional<std::pair<std::uint8_t, std::uint32_t>> target;
+};
+
+// FUN_0045cea0 / FUN_0045cef0 dispatch the aim. FUN_0045cf40 /
+// FUN_0045cfb0 first correct the monster to the subtiles at +0xc and +0xe.
+inline auto monster_command(std::span<const std::uint8_t> packet) -> std::optional<MonsterCommand> {
+    if (packet.empty() || packet[0] < 0x69 || packet[0] > 0x6c) return std::nullopt;
+    const bool corrected = packet[0] >= 0x6b;
+    if (packet.size() != (corrected ? 16u : 12u)) return std::nullopt;
+    MonsterCommand out{read_u32(packet, 1), packet[5], {}, {}, {}};
+    if (packet[0] == 0x69 || packet[0] == 0x6b) out.point = {read_u16(packet, 6), read_u16(packet, 8)};
+    else out.target = {packet[6], read_u32(packet, 7)};
+    if (corrected) out.correction = {read_u16(packet, 12), read_u16(packet, 14)};
+    return out;
+}
+
+struct UnitSkill {
+    std::uint32_t id, skill;
+    std::uint8_t type, level;
+    std::optional<std::pair<std::uint16_t, std::uint16_t>> point;
+    std::optional<std::pair<std::uint8_t, std::uint32_t>> target;
+};
+
+// FUN_0045df00 / FUN_0045df60 dispatch a skill on a unit / at a point.
+inline auto unit_skill(std::span<const std::uint8_t> packet) -> std::optional<UnitSkill> {
+    if (packet.size() == 16 && packet[0] == 0x4c)
+        return UnitSkill{read_u32(packet, 2), read_u16(packet, 6), packet[1], packet[8], {}, {{packet[9], read_u32(packet, 10)}}};
+    if (packet.size() == 17 && packet[0] == 0x4d)
+        return UnitSkill{read_u32(packet, 2), read_u32(packet, 6), packet[1], packet[10], {{read_u16(packet, 11), read_u16(packet, 13)}}, {}};
+    return std::nullopt;
+}
 
 // 0x27 NPC info, mode 1: the NPC's quest lines for this player
 // (FUN_004a1600 -> FUN_00661510): +2 u32 the NPC's id, +6 u8 count (< 8),

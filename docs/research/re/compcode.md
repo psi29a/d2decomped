@@ -149,7 +149,11 @@ necromancer's head, 16 none; the token table and the per-item writer are in
   circlets aren't drawn (0xff);
 - body armour: TR LG RA LA S1 S2 = 1 (lit) + its Torso, Legs, rArm, lArm,
   rSPad, lSPad tier (0..2);
-- nothing worn: TR LG RA LA S1 S2 lit, the rest 0xff.
+- nothing worn: the sprite uses lit for TR LG RA LA S1 S2. The save
+  writer initializes all appearance bytes to 0xff at `LAB_0056923a`
+  before `FUN_0063e510` overlays equipped pieces. A bare body in a save
+  therefore keeps 0xff on those layers. Older d2d saves can store lit
+  explicitly and both forms render as lit.
 
 Checked against all 20 real saves (test_d2s). d2d rebuilds the look each
 tick (`GameData::look_of`), so equipping changes it.
