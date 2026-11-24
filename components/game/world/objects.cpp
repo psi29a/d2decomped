@@ -394,8 +394,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // (0x16e) leaves, the object to mode 1. Else "I can't".
         // The break's FUN_005dfee0 (ai-control.md): the orb monster's orbmist (row 0x170) from it to
         // object 386 (the marker, class 0x182, its DS1 preset), level 1, flags 0x420; its end (hit 35,
-        // FUN_005abee0) puts 386 in mode 1 and queues its event 1 FrameCnt1 frames on (FUN_00581490: mode 2).
-        // ponytail: 386 goes to mode 1 at the break, not as the mist lands.
+        // FUN_005abee0) puts 386 in mode 1 and queues its event 1 FrameCnt1 frames on (FUN_00581490: mode 2):
+        // durance_stairs_due, as the mist lands (slime_doors_on).
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
             // FUN_0063bef0: the weapon in hand (either arm, item type 0x2d;
@@ -424,16 +424,16 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             // The orb monster's death (FUN_005ddfc0, mode 0) runs its questcomplete
             // mod's client hook (0x4ad2f0, class 0x16e): the jingle, with object 386
             // in its near list (FUN_005dfee0 asserts it is), for each client seeing it.
+            durance_stairs_due = { level, now_ms };
             for (auto& monster : fight.monsters)
                 if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e]) && !monster.gone) {
                     monster.gone = true;
                     music_cue_near("music_quest_compelling", monster.unit.x, monster.unit.y);
-                    orb_mist(monster, now_ms);
+                    durance_stairs_due.at_ms = orb_mist(monster, now_ms);
                 }
             to_mode(1);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
-            for (std::size_t i = 0; i < level->npcs.size(); ++i)
-                if (level->npcs[i].operate_fn == d2d::rules::operate_fn::kDuranceStairs) set_door_mode(int(i), 1, now_ms);
+            slime_doors_on(now_ms);
             fight.spawning.orb_smashed = true;
             d2d::log::info("Khalim's Will: the compelling orb broken");
             return;
@@ -751,6 +751,11 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // comes as it's run again. A level no player is on
 // runs no rooms.
 auto World::slime_doors_on(std::uint32_t now_ms) -> void {
+        if (durance_stairs_due.level == level && now_ms >= durance_stairs_due.at_ms) {
+            for (std::size_t i = 0; i < level->npcs.size(); ++i)
+                if (level->npcs[i].operate_fn == d2d::rules::operate_fn::kDuranceStairs) set_door_mode(int(i), 1, durance_stairs_due.at_ms);
+            durance_stairs_due = {};
+        }
         for (const auto& [key, state] : doors) {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
@@ -1066,21 +1071,22 @@ auto World::trap_think(int trap, float x, float y, int alvl, std::uint32_t now_m
 // FUN_005dfee0: the marker (FUN_0065a620: object class 0x182 in the orb's room; the level's
 // one, its preset unit), then a missile 0x170 (orbmist) at its spot from the orb, flags 0x420,
 // level 1 (FUN_0059fa30). It ends as it reaches the marker (hit 35 there); drawn only.
-auto World::orb_mist(const Monster& orb, std::uint32_t now_ms) -> void {
+auto World::orb_mist(const Monster& orb, std::uint32_t now_ms) -> std::uint32_t {
         constexpr int kMarker = 0x182;
         const auto marker = std::ranges::find_if(level->units, [](const d2d::drlg::Unit& unit) { return unit.type == d2d::rules::unit_type::kObject && unit.id == kMarker; });
         const auto mist = game_data->missiles.find("orbmist");
-        if (marker == level->units.end() || mist == game_data->missiles.end()) return;
+        if (marker == level->units.end() || mist == game_data->missiles.end()) return now_ms;
         const float to_x = (float(marker->x) + 0.5f) / 5, to_y = (float(marker->y) + 0.5f) / 5;
         const float dx = to_x - orb.unit.x, dy = to_y - orb.unit.y;
         const std::size_t had = fight.missiles.size();
         andariel_missile(*game_data, orb, "orbmist", dx, dy, now_ms, fight.missiles, 1);
-        if (fight.missiles.size() == had) return;
+        if (fight.missiles.size() == had) return now_ms;
         auto& sent = fight.missiles.back();
         sent.visual_only = true;
         const float speed = missile_speed(mist->second, 1);
         if (speed > 0) sent.dies = std::min(sent.dies, now_ms + std::uint32_t(std::hypot(dx, dy) / speed * 1000.f));
         d2d::log::info("Khalim's Will: the orb's mist to the stairs");
+        return sent.dies;
     }
 
 }  // namespace d2d::game

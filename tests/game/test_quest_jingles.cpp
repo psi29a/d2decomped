@@ -193,6 +193,14 @@ int main() try {
     assert(mist != world.fight.missiles.end() && mist->visual_only && mist->born == 9000 && mist->dies > 9000);
     assert(world.fight.monsters.back().gone);
     std::puts("OK: the Compelling Orb's jingle as the orb monster goes, by it");
+    // Its end (hit 35 on 386, FUN_005abee0): the Durance's stairs go to mode 1 as it lands, not at the break.
+    const int stairs = find_object(*travincal, d2d::rules::operate_fn::kDuranceStairs);
+    assert(stairs >= 0 && !world.doors.contains({ travincal, stairs }));
+    world.slime_doors_on(mist->dies - 1);
+    assert(!world.doors.contains({ travincal, stairs }));
+    world.slime_doors_on(mist->dies);
+    assert(world.doors.at({ travincal, stairs }).mode == 1 && world.doors.at({ travincal, stairs }).when == mist->dies);
+    std::puts("OK: the Durance's stairs open as the orb's mist lands");
 
     // Izual's death.
     const auto* plains = data->level(level_ids::kPlainsOfDespair);
