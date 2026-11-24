@@ -5,15 +5,22 @@
 // cases (`skill wclass`: a do-8 Skills.txt row and the weapon's class number,
 // FUN_00623c60) and prints each with the Missiles row d2d makes
 // (Fight::skill_missile), with the game's MPQs (D2_MPQ_DIR). Without
-// arguments: Multiple Shot, Strafe and Guided Arrow by a bow or a crossbow.
+// arguments: the rule on made-up rows (test_data.hpp, no game data, so CI runs
+// it), then Multiple Shot, Strafe and Guided Arrow by a bow or a crossbow.
 
 #include <character.hpp>
 #include <character_store.hpp>
+#include <cues.hpp>
 #include <d2s_items.hpp>
+#include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
+#include <loot.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
+#include <test_data.hpp>
 #include <world.hpp>
 
 #include <cassert>
@@ -25,6 +32,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -51,9 +59,57 @@ int pick_cases(const GameData& data, World& world) {
     return 0;
 }
 
+// The rule on made-up rows: do 8 / 10 / 12 take srvmissileb without a bow, srvmissilea with one or when
+// srvmissileb is empty; another do (a nova) keeps srvmissilea.
+void rule_checks() {
+    d2d::test::TestData fixture;
+    auto& data = fixture.data;
+    for (const auto& [name, id] : { std::pair{ "arrowrow", 1 }, std::pair{ "boltrow", 2 } }) {
+        auto& missile = data.missiles[name];
+        missile.name = name;
+        missile.id = id;
+    }
+    using Do = d2d::rules::ServerDoFunction;
+    const auto add = [&](int id, const char* name, Do kind, const char* alternate) {
+        auto& skill = fixture.skill(id, name);
+        skill.name = name;
+        skill.srvdofunc = kind;
+        skill.srvmissilea = "arrowrow";
+        skill.srvmissileb = alternate;
+    };
+    add(1, "fan", Do::kMissileFan, "boltrow");
+    add(2, "guided", Do::kGuidedMissile, "boltrow");
+    add(3, "strafe", Do::kStrafe, "boltrow");
+    add(4, "fan without", Do::kMissileFan, "");
+    add(5, "nova", Do::kNova, "boltrow");
+    Level arena;
+    arena.id = 2;
+    arena.ds1 = d2d::ds1::Map(30, 30, 0, 1);
+    arena.walk.resize(150 * 150);
+    const Level* level = &arena;
+    d2d::rules::Rng random{ 7 };
+    Cues cues;
+    cues.game_data = &data;
+    Loot loot{ &data, level, random, cues };
+    Fight fight{ &data, level, random, loot, cues };
+    Fight::Hero hero;
+    fight.act_as(hero);
+    const auto row = [&](int skill_id, bool bow) {
+        hero.player_combat.bow = bow;
+        const auto* missile = fight.skill_missile(*data.skills.get(skill_id));
+        return missile ? missile->id : -1;
+    };
+    for (const int skill_id : { 1, 2, 3 }) assert(row(skill_id, true) == 1 && row(skill_id, false) == 2);
+    assert(row(4, true) == 1 && row(4, false) == 1);
+    assert(row(5, true) == 1 && row(5, false) == 1);
+    std::puts("OK: do 8 / 10 / 12 take srvmissileb without a bow, srvmissilea with one or with none set (made-up rows)");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
+    const bool oracle = argc > 1 && std::string_view(argv[1]) == "--bolt-pick";
+    if (!oracle) rule_checks();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -71,7 +127,7 @@ int main(int argc, char** argv) try {
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
     World world(&*data, -1, -1);
     world.enter(character);
-    if (argc > 1 && std::string_view(argv[1]) == "--bolt-pick") return pick_cases(*data, world);
+    if (oracle) return pick_cases(*data, world);
     // A crossbow's Multiple Shot and Strafe shoot bolts, a bow's arrows; Guided Arrow is guidedarrow either way.
     const auto row = [&](const char* name, bool bow) {
         world.actor->player_combat.bow = bow;
