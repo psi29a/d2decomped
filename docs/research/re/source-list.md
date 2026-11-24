@@ -20,6 +20,7 @@ its lists in standard containers.
 | `FUN_0041c560` | `slist_link_or_terminator_2` | Another copy of `slist_link_or_terminator` (`FUN_00420520`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c630` | `slist_next_node_2` | Another copy of `slist_next_node` (`FUN_004205f0`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c690` | `slist_unlink_2` | Another copy of `slist_unlink` (`FUN_00420650`): the same reading, run on the same cases | no counterpart |
+| `FUN_0041c700` | `slist_raw_next_2` | Another copy of `slist_raw_next` (`FUN_004206e0`): the same reading, run on the same cases | no counterpart |
 | `FUN_004203a0` | `storm_set_7792f4` | Value (`RET 4`): `DAT_007792f4` = value, returns 1 (the getter is `storm_get_7792f4`) | no counterpart |
 | `FUN_004203f0` | `slink_next_link` | `ECX` link, offset (`RET 4`): the next link: a negative next `+4` complemented (the terminator); else next + offset, and for a negative offset the link's own offset, link − its previous link's next | no counterpart |
 | `FUN_00420520` | `slist_link_or_terminator` | `ECX` list, link (`RET 4`): the link, or the terminator `+4` when it is 0 | no counterpart |
