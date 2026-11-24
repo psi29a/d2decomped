@@ -18,3 +18,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | `FUN_00424eb0` | `sbig_gcd` | dst, a, b (`RET 0xc`): `EDI` = dst, `EAX` = b, `FUN_00424180(a, pool)`; dst = gcd(a, b), gcd(a, 0) = a | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00424ed0` | `sbig_mod` | dst, a, b (`RET 0xc`): as `sbig_div` with the two outputs swapped, `FUN_00423dc0(temporary, dst, b, pool)`; dst = a mod b (run for b ≠ 0) | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00424f10` | `sbig_mul` | dst, a, b (`RET 0xc`): `FUN_004242c0(dst, a, b, pool)`; dst = a × b | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00424f30` | `sbig_mul_mod` | dst, a, b, c (`RET 0x10`): `ESI` = pool, `EDX` = b, `FUN_004245f0(dst, a, c)`; dst = a × b mod c (run for c ≠ 0) | no counterpart (as `sbig_pow_mod`) |
