@@ -64,6 +64,25 @@ language check. d2d: `overhead_string` (apps/d2d/render/overhead.hpp,
 test_overhead_frames); a player's own text isn't drawn (`ponytail:` in
 session/draw.cpp).
 
+The order the texts take their slots in is the order of those walks. They
+run players (`FUN_00464950`, `0x7a5e70`), monsters (`FUN_00464990`,
+`0x7a6070`), then objects (`FUN_004649d0`, `0x7a6270`) in that order
+(`0x4a0e70`), each through `FUN_00463c90`: bucket 0 to 0x7f of 0x80 heads,
+each chain from its head along `+0xe4`. `FUN_00463a50` links a unit
+(ESI) into bucket `id & 0x7f` of `0x7a5e70 + type * 0x200` (`0x7a5270` when
+unit flag `0x200000` is set), before the first node whose id (`+0xc`) is not
+above its own, compared unsigned: a chain runs highest id first. Each slot
+is taken by the first box that meets none before it
+(`place_overhead`), so this order decides who is moved. d2d:
+`overhead_walk_before` and `overhead_order` (`tests/test_overhead_walk.cpp`);
+`tools/emu/unit_table_order.py` inserts and walks random units in game.exe.
+The monsters' table before the objects' holds. Within a table d2d goes in
+`units` order: the draw's `Unit` has no game.exe unit id (objects go by
+their level index, units.md "Server unit ids"; players by `Hero::id`),
+and no id is given. Not traced: how game.exe numbers the town NPCs and
+monsters a level makes (the id sequence is per type, units.md), so which
+bucket a given NPC falls in.
+
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
 

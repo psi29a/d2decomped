@@ -54,7 +54,8 @@ int main() try {
     // The players' table before the monsters' (FUN_004a0e70), each in its own order; a silent unit takes no slot.
     struct Speaker { int id; bool player, speaks; };
     const std::vector<Speaker> crowd{ { 1, false, true }, { 2, true, true }, { 3, false, false }, { 4, false, true }, { 5, true, true } };
-    const auto order = d2d::client::overhead_order(std::span<const Speaker>(crowd), [](const Speaker& unit) { return unit.speaks; }, [](const Speaker& unit) { return unit.player; });
+    const auto order = d2d::client::overhead_order(std::span<const Speaker>(crowd), [](const Speaker& unit) { return unit.speaks; }, [](const Speaker& unit) { return unit.player ? 0 : 1; },
+                                                [](const Speaker&) { return 0; });
     assert(order.size() == 4 && order[0]->id == 2 && order[1]->id == 5 && order[2]->id == 1 && order[3]->id == 4);
     std::puts("overhead place ok");
     return 0;
