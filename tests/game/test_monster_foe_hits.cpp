@@ -2,7 +2,8 @@
 // test-links: game
 // A monster's missile at the monsters (Fight::world's monster foes, FUN_005a8730): an evil owner's
 // CollideFriend row (catapultchargedballbolt) strikes another evil monster though none is aligned
-// or cursed.
+// or cursed; a physical one at a good monster (rogue2) comes off by that monster's physical
+// resistance (FUN_0057bf80's percent: the foe's dr_pct), so an immune one takes none.
 #include <ai.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
@@ -104,6 +105,34 @@ int main() try {
     std::fflush(stdout);
     assert(fight.monsters[0].hit_points < 100000);
 
+    // A physical arrow from the zombie at a good rogue, 0 % then 100 % physical resistance.
+    const auto* arrow = &data->missiles.at("arrow");
+    auto rogue_hit = [&](int resist) {
+        auto target = make_monster(*data, rogue_type, fight.monsters[1].unit.x - 2.f, fight.monsters[1].unit.y, rng, 0, true, 1, moor.id);
+        target.id = 0x7ffff3;
+        target.hit_points = target.stats.hit_points = 100000;
+        target.stats.armor_class = -1000;
+        target.boss_res[0] = resist;
+        fight.monsters[0] = std::move(target);
+        hold();
+        fight.missiles.clear();
+        Missile shot;
+        shot.info = arrow;
+        shot.owner = fight.monsters[1].id; shot.owner_align = 0;
+        shot.src.a2_min = shot.src.a2_max = 40;
+        shot.src.no_hit_roll = shot.src.unblockable = true;          // it lands: no roll, no block
+        shot.x = fight.monsters[1].unit.x - 1.f; shot.y = fight.monsters[1].unit.y;
+        shot.velocity_x = -5.f;
+        shot.aim_at = std::pair{ fight.monsters[1].unit.x - 5.f, fight.monsters[1].unit.y };
+        shot.born = now; shot.dies = now + 40 * 40;
+        fight.missiles.push_back(std::move(shot));
+        run(20);
+        return 100000 - fight.monsters[0].hit_points;
+    };
+    const int plain = rogue_hit(0), immune = rogue_hit(100);
+    std::printf("the physical arrow at the rogue: %d at 0 %%, %d at 100 %%\n", plain, immune);
+    std::fflush(stdout);
+    assert(plain > 0 && immune == 0);
     std::printf("test_monster_foe_hits: ok\n");
     return 0;
 } catch (const std::exception& error) {
