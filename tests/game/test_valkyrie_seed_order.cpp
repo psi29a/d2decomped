@@ -21,12 +21,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <memory>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     namespace fs = std::filesystem;
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -76,4 +77,7 @@ int main() {
     const auto& actual = world->actor->pets.front().monster.seed;
     assert(actual.low == expected.low && actual.high == expected.high);
     std::puts("OK: Valkyrie gear starts after her life draw; her zero-bound look draws nothing");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "FAIL: %s\n", error.what());
+    return 1;
 }
