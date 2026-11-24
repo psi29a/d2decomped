@@ -155,13 +155,14 @@ struct Special {
     bool bonus_apart = false;                              // add func: the bonuses go to their own lists (else the item's)
     int add_func = 0;                                      // add func: 1 a list per other member worn, 2 by the count
     int member = -1;                                       // its place in its set, in row order (+0x2e, FUN_00634dc0)
+    int version = 0;                                       // version: 100 an expansion row
 };
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };
 // Sets.txt row: its partial bonuses PCode2a, 2b, 3a .. 5b (8, code empty
 // when unused), its full bonuses FCode1..8, and how many SetItems rows
 // belong to it (the record's +0xc).
-struct SetBonus { std::vector<Mod> partial, full; int pieces = 0; };
+struct SetBonus { std::vector<Mod> partial, full; int pieces = 0, version = 0; };   // version: 100 an expansion set
 // DifficultyLevels gamble odds: rare / set / unique per 100000 (+0x44 ..
 // +0x4c), the upgrades' weight per level over the upgrade's (of 10000).
 struct GambleRates { int rare = 10000, set = 100, unique = 50, uber = 0, ultra = 0; };   // + GambleUber / GambleUltra (+0x50 / +0x54)

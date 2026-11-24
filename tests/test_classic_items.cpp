@@ -4,7 +4,8 @@
 // ethereal or class affix; sockets (FUN_00556b60) never on body armor (ItemTypes row 3), else
 // min(most, 3) or 2 on a helm, a normal item's fix-ups (FUN_00556d80) rolling them once more; a
 // low item's durability dur / 3 (FUN_005c2af0); staff mods (FUN_005c0d70) to tier 4 at ilvl 25,
-// skill 0x49 never.
+// skill 0x49 never. A unique (FUN_005566b0) the first version-0 row of its code, durability x5,
+// not marked found; a set (d2d_set_pick_old) the last classic set holding its code from rand(n).
 #include <d2s_items.hpp>
 #include <item_gen.hpp>
 #include <rules.hpp>
@@ -14,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <vector>
 
 using namespace d2d::rules;
 
@@ -89,6 +91,38 @@ int main() try {
     // A normal item's fix-ups roll its sockets once more, so more normal shields than superior helms take them.
     assert(shield_socketed > helm_socketed * 3 / 2);
     assert(classic_most < 66 + 25 && expansion_most >= 66 + 25 && !classic_73);
+
+    // Uniques: an expansion row first, then two classic ones (the first at level 99: no level test).
+    auto special = [](const char* code, int version, int set = -1) {
+        Special row;
+        row.code = code;
+        row.level = 99;
+        row.version = version;
+        row.set = set;
+        row.member = set >= 0 ? 0 : -1;
+        return row;
+    };
+    tables.uniques = { special("cap", 100), special("cap", 0), special("cap", 0) };
+    std::vector<bool> found(3, false);
+    auto unique = [&](std::uint32_t seed) {
+        Rng unit_seed{ seed * 7919 }, item_seed{ seed };
+        return generate_item(tables, "cap", 5, 7, item_seed, &unit_seed, &found, false, 0, 0, true);
+    };
+    const auto first = unique(5);
+    assert(first.quality == 7 && first.unique_id == 1 && first.max_durability == 150);
+    assert(!found[1]);                                      // not marked
+    found[1] = true;
+    assert(unique(5).unique_id == 2);
+    // Sets: two classic sets and an expansion one, each with a cap; rand(2) picks where the round starts.
+    tables.set_bonuses.resize(3);
+    tables.set_bonuses[2].version = 100;
+    tables.sets = { special("cap", 0, 0), special("cap", 0, 1), special("cap", 0, 2) };
+    for (std::uint32_t seed = 1; seed < 50; ++seed) {
+        Rng unit_seed{ seed * 7919 }, item_seed{ seed }, expect{ seed };
+        const int start = expect(2);
+        const auto made = generate_item(tables, "cap", 5, 5, item_seed, &unit_seed, nullptr, false, 0, 0, true);
+        assert(made.quality == 5 && made.set_id == (start == 0 ? 1 : 0) && made.max_durability == 60);
+    }
     std::puts("OK: a classic item's version-0 rules (FUN_00557450, FUN_00556d80, FUN_00556b60, FUN_005c0d70)");
     return 0;
 } catch (const std::exception& error) {

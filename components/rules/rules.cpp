@@ -1776,14 +1776,49 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         }
         return pick;
     };
+    // A classic item's (version 0) unique (FUN_005566b0's branch): its
+    // durability x5 first, then the first row of version < 100, enabled,
+    // of its code, not ladder (outside a ladder game) and not found yet
+    // (but for a quest item), no draw and no level test; none marks it
+    // found. Its set (d2d_set_pick_old, 0x5c2740): durability x2, then
+    // rand(n) over the n leading Sets rows of version < 100, and from that
+    // set on, round all n, each set's first member of the item's code: the
+    // last one found wins. Failing either adds no durability in
+    // FUN_00557450 (x3 / x2 there are version 100+ only).
+    auto classic_special = [&]() -> int {
+        auto times = [&](int factor) {
+            item.durability = std::min(item.durability * factor, 255);
+            item.max_durability = std::min(item.max_durability * factor, 255);
+        };
+        if (quality == 7) {
+            if (has_durability()) times(5);
+            for (std::size_t row = 0; row < tables.uniques.size(); ++row) {
+                const auto& unique = tables.uniques[row];
+                const bool found_already = found_uniques && row < found_uniques->size() && (*found_uniques)[row];
+                if (unique.enabled && unique.version < 100 && !unique.ladder && unique.code == code && (!found_already || (base && base->quest))) return int(row);
+            }
+            return -1;
+        }
+        times(2);
+        int count = 0;
+        while (std::size_t(count) < tables.set_bonuses.size() && tables.set_bonuses[std::size_t(count)].version < 100) ++count;
+        const int first = count < 1 ? 0 : rng(count);
+        int picked = -1;
+        for (int step = 0; step < count; ++step) {
+            const int set = (step + first) % count;
+            const auto member = std::ranges::find_if(tables.sets, [&](const Special& row) { return row.set == set && row.member >= 0 && row.code == code; });
+            if (member != tables.sets.end()) picked = int(member - tables.sets.begin());
+        }
+        return picked;
+    };
     if (quality == 7 || quality == 5) {
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
-        const int picked = special(list);
+        const int picked = classic ? classic_special() : special(list);
         int special_row = picked;
         // FUN_005566b0 tests the one-per-game bit (but for a quest item);
         // FUN_00556530 then sets it unless nolimit (UniqueItems +0x2c bit
         // 2), a quest item's too.
-        if (quality == 7 && special_row >= 0 && found_uniques && base) {
+        if (!classic && quality == 7 && special_row >= 0 && found_uniques && base) {
             if (found_uniques->size() <= std::size_t(special_row)) found_uniques->resize(std::size_t(special_row) + 1);
             if (!base->quest && (*found_uniques)[std::size_t(special_row)]) special_row = -1;
             else if (!list[std::size_t(special_row)].nolimit) (*found_uniques)[std::size_t(special_row)] = true;
@@ -1807,11 +1842,11 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
                 }
             return finish();
         }
-        if (quality == 7 && picked < 0 && base && base->only_unique) {    // no row (the Malus, Gidbinn): FUN_005566b0 keeps it unique, id unset
+        if (!classic && quality == 7 && picked < 0 && base && base->only_unique) {    // no row (the Malus, Gidbinn): FUN_005566b0 keeps it unique, id unset
             item.quality = 7;
             return finish();
         }
-        if (has_durability()) {                            // FUN_00629930: durability, not nodurability (6hx has both), not indestructible
+        if (!classic && has_durability()) {                // FUN_00629930: durability, not nodurability (6hx has both), not indestructible
             const int times = quality == 7 ? 3 : 2;
             item.durability = std::min(item.durability * times, 255);
             item.max_durability = std::min(item.max_durability * times, 255);
