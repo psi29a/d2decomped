@@ -18,6 +18,7 @@ add_library(rules STATIC
     combat/shatter.cpp
     combat/skills.cpp
     items/ammo.cpp
+    items/classic_mod.cpp
     items/cube.cpp
     items/drops.cpp
     items/replenish.cpp
