@@ -460,8 +460,14 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             // Its search is its monster's (FUN_005dd7f0): alignment 2 (FUN_005c55c0's FUN_005543b0), so
             // FUN_005dd0b0 mode 5 over the monsters about it (search_foe), the player's side its friends.
             // A revived one keeps its corpse's sighted flag (8: no sight test once it has found one).
-            // ponytail: it runs only when the stand-in has no target (game.exe searches each think).
-            if (pet.target < 0) {
+            // It searches on each think, a target or not (its pick replaces the last), the next think
+            // AIDel frames on (FUN_005a73e0's filing, as the get-hit's end above). One that can't walk
+            // (Velocity 0) times its shots by that clock below: it searches when it has no target.
+            const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+            const bool standing = type_info.velocity <= 0;
+            if (standing ? pet.target < 0 : now_ms >= monster.next_act) {
+                const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
+                if (!standing) monster.next_act = now_ms + std::uint32_t(aidel > 0 ? aidel : 15) * 40;
                 restamp();                                    // the room lists as they stand now
                 std::vector<Foe> foes;
                 foes.reserve(monsters.size());
@@ -474,11 +480,10 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
                 pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
-            const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
             // The chase goes in WL: MonStats Velocity (FUN_00621360 mode 1, +0x32) at the walk % from 75
             // (FUN_00573cb0, 0x573f16) + its velocitypercent, as pet_walking's.
             const int stride = path_velocity(type_info.velocity, std::max(kMonsterVelocityPct + pet.speed_pct, 25));
-            if (type_info.velocity <= 0) {                                // a Hydra: it stands and shoots what comes in range
+            if (standing) {                                  // a Hydra: it stands and shoots what comes in range
                 if (pet.target >= 0 && std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) > 6.f) pet.target = -1;
                 for (std::size_t i = 0; pet.target < 0 && i < monsters.size(); ++i)
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - unit.x, monsters[i].unit.y - unit.y) <= 6.f) pet.target = int(i);
