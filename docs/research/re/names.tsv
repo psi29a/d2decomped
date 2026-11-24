@@ -70,6 +70,7 @@ address	name	evidence
 0041c700	slist_raw_next_2	Same as slist_raw_next (FUN_004206e0), another copy (source-list.md)
 0041c770	slist_clear_2	Same as slist_clear (FUN_00420750), another copy (source-list.md)
 0041c7b0	slist_destroy_2	Same as slist_destroy (FUN_00420790), another copy (source-list.md)
+0041c840	slist_new_node_2	Same as slist_new_node (FUN_00420820) with the tag .?AUHANDLER@ (0x708434) (source-list.md)
 0041c8a0	slink_delete_2	Same as slink_delete (FUN_00420880), another copy (source-list.md)
 0041d200	mem_compare	memcmp (dword steps, then bytes): -1, 0 or 1. Callers FUN_0040d290, FUN_0041d300, d2d_warden_verify_signature, d2d_warden_module_load (source-frontier.md)
 0041d880	storm_bits_read_init	ECX bit reader, source (ret 4): +4 = first dword, +0 = source + 4, +8 = 32 (source-bits.md)
