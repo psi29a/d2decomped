@@ -87,6 +87,7 @@ address	name	evidence
 00420190	slog_printf	Formats into the log record's buffer (vsprintf), also to OutputDebugStringA while DAT_007790ac; flushed (FUN_0041fa40) past 0xbfff bytes. Callers FUN_00518300, FUN_00518d40 (source-frontier.md)
 00420220	slog_destroy	No arguments: flushes every log (FUN_0041fff0), closes and frees each still open, reporting it to the handle check FUN_0041d1e0("HSLOG"), deletes the four sections (source-frontier.md)
 00420310	storm_get_7792f4	Returns DAT_007792f4. Only caller FUN_0041caf0 (source-frontier.md)
+004203a0	storm_set_7792f4	Value (ret 4): DAT_007792f4 = value, returns 1 (source-list.md)
 00420db0	sbig_index_in_use	ECX number, n (ret 4): 1 when +0x10 + n is below the used count +4 (unsigned), else 0 (source-sbig.md)
 00420dd0	sbig_pool_take	ECX pool, counter pointer (ret 4): counter + 1 when non-null; returns pool + top * 0x14 (top +0x140), then top + 1 (source-sbig.md)
 00420e00	sbig_pool_release	ECX pool, n (ret 4): the top +0x140 goes back by n (source-sbig.md)
