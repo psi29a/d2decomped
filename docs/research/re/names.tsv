@@ -66,6 +66,7 @@ address	name	evidence
 0041c1f0	rtti_name_short	A name of the form .?AU<name>@... (at least 6 characters): <name> up to ? or @, trailing _ trimmed, between two fixed strings (0x6cf328, 0x6cf324), into ESI (EBX characters); 1, else 0. Only caller FUN_0041caf0 (source-frontier.md)
 0041d200	mem_compare	memcmp (dword steps, then bytes): -1, 0 or 1. Callers FUN_0040d290, FUN_0041d300, d2d_warden_verify_signature, d2d_warden_module_load (source-frontier.md)
 0041d880	storm_bits_read_init	ECX bit reader, source (ret 4): +4 = first dword, +0 = source + 4, +8 = 32 (source-bits.md)
+0041d8d0	storm_bits_peek	ECX bit reader, n, mask (ret 8): refills 16 bits when the count is at most n; returns the held bits & mask (source-bits.md)
 0041fb80	slog_newline	ESI log record: CR LF and a 0 (0x6cff08) at the end of its text (+0x1c + length +0xc); the length +0xc grows by 2. Ends each slog_printf line (source-frontier.md)
 0041fba0	slog_stamp	EAX log record, one argument (ret 4); only with the stamp flag +0x18 (set by slog_open at 0x41fdc4): a GetLocalTime stamp "%u/%u %02u:%02u:%02u.%03u  " (0x6cff0c), refreshed when GetTickCount changes, or ... (source-frontier.md)
 0041fce0	slog_unlock	EAX lock index: LeaveCriticalSection(0x779238 + index * 0x18), the section FUN_0041fa80 entered for a found record (index id & 3); every SLog caller passes it back (source-frontier.md)

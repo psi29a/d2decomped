@@ -16,3 +16,4 @@ such Storm bit streams.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_0041d880` | `storm_bits_read_init` | `ECX` reader, source (`RET 4`): the bits `+4` = the source's first dword, the pointer `+0` = source + 4, the count `+8` = 0x20 | no counterpart |
+| `FUN_0041d8d0` | `storm_bits_peek` | `ECX` reader, n, mask (`RET 8`): when the count `+8` is at most n (unsigned), the next 16-bit word goes in above the held bits (`SHL` by the count, mod 32), the count grows by 16 and the pointer by 2; returns the held bits AND mask, nothing consumed | no counterpart |
