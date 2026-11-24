@@ -198,5 +198,14 @@ constexpr bool list_held_step(int& count) { ++count; return count != 0 && count 
 constexpr int list_enter(std::uint32_t draws, int selected, std::uint32_t key) {
     return draws >= 2 && selected != -1 && key == 0xd ? selected : -1;
 }
+// Enter as a character (WM_CHAR, FUN_00426f90): Storm hands it to every
+// handler registered for it, newest first, handled or not, so the chat box
+// (FUN_0047ca70, while open) and the hire list (FUN_004b7a90 ->
+// FUN_004bebc0) both take it. hire_row: list_enter's row (-1: none); chat:
+// the chat box also gets it.
+struct EnterTakers { int hire_row; bool chat; };
+constexpr EnterTakers enter_takers(bool chat_open, std::uint32_t draws, int selected) {
+    return { list_enter(draws, selected, 0xd), chat_open };
+}
 
 }  // namespace d2d::rules
