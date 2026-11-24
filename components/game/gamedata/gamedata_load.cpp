@@ -317,6 +317,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     if (const auto skill_desc = txt("SkillDesc"); skill_desc.size() > 0)
         for (std::size_t row_index = 0; row_index < skill_desc.size(); ++row_index)
             for (const char* column : { "descmissile1", "descmissile2", "descmissile3" }) skill_missiles.emplace(skill_desc.get(row_index, column));
+    // A monster's MissS1 / MissC rows (the Council's S1, the Wills o' the Wisp's casts: FUN_0063e6b0's mode
+    // fields), fired as its MissA1 / MissA2 are (the first pass below takes those).
+    for (const auto& type_info : monsters.types)
+        for (const auto* fired : { &type_info.miss_s1, &type_info.miss_c })
+            if (!fired->empty()) skill_missiles.emplace(*fired);
     // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
     // Double Throw.
     std::unordered_map<int, std::string> thrown_ids;
