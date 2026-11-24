@@ -18,6 +18,7 @@ python3 tools/ghidra/fn.py 00433130 004331c0 004332b0 00433460
 python3 tools/ghidra/fn.py 004361b0 00434e00 00436910 00435030 004365b0 004370c0
 python3 tools/ghidra/fn.py 004378d0 00437730 00436d50 00437620 00436c10 00437550 00436ad0
 python3 tools/ghidra/fn.py 00434700 00434500 0042f540 004f9710 004fb990 0042fdd0
+python3 tools/ghidra/fn.py 0043c180 0043b8e0 0043b940 0043bf40 0043c540 0043c6a0
 ```
 
 Screen helpers, from other docs:
@@ -155,9 +156,9 @@ Its only caller `FUN_004365b0`, called by the character creation OK
   `DAT_00779984`.
 - With `+0x1ef` bit 4 it makes one call (not traced here) and stops.
 - Otherwise, by the mode:
-  - **0:** a teardown, two calls on `+0xed` and the flags (not traced
-    here), `FUN_0043c6b0`; `+0x35e` = 1, `+0x19` = 0, `DAT_007795e8` = 1.
-  - **2:** the same with one more call first, and `+0x35e` = 3.
+  - **0:** a teardown, the new character's header (`FUN_0043c540`,
+    below), `FUN_0043c6b0`; `+0x35e` = 1, `+0x19` = 0, `DAT_007795e8` = 1.
+  - **2:** the same with `FUN_0043c6a0` first, and `+0x35e` = 3.
   - **3:** the realm connection closed (`FUN_00449ad0`), then the same;
     `+0x3c1` = 1, 16 bytes from `0x6d4d88` into `+0x3a1`, `+0x3b1` zeroed
     (16), `+0x3c2` = flags bit 6, `+0x3cb` = the flags, `+0x35e` = 4,
@@ -248,8 +249,8 @@ account and password boxes (0x22, 0x23; record `+0x24`).
 - 0 goes back to the title (`FUN_004336c0`).
 - With the button `DAT_00779594` off (`FUN_004f9710`) it returns 0.
 - It keeps the account and password (`FUN_00432080`, `DAT_0077958c`,
-  `DAT_00779334`) and runs the login exchange (one function, not traced
-  here) with 0.
+  `DAT_00779334`) and runs the login exchange (`FUN_0043c180`, below)
+  with 0.
 - On success it writes the account to the registry value `Diablo II\Last
   BNet` (`FUN_00415070`). In mode 1 (Battle.net) it goes to character
   select. Otherwise it goes there when a save exists (`FUN_00430bc0`,
@@ -292,7 +293,8 @@ account and password boxes (0x22, 0x23; record `+0x24`).
 - It runs the same checks on the account, new (`DAT_00779340`) and verify
   (`DAT_007795a8`) boxes (the 20 at `0x435105`). An error's callback is
   `FUN_00432100`.
-- It clears `DAT_007795f4` and runs the login exchange with 1:
+- It clears `DAT_007795f4` and runs the login exchange with 1 (change
+  the password first):
   - on success, `Last BNet`, the popups freed and `FUN_0042fdd0`;
   - on failure with `DAT_007795f4` set, the Change Password screen again.
 
@@ -345,8 +347,8 @@ account and password boxes (0x22, 0x23; record `+0x24`).
 
 **The email registration screen** (`FUN_00436d50`):
 
-- The login exchange runs it when the client's `+0xb4` is nonzero, as a
-  screen run (`FUN_004fa590`, `LAB_00436e90`). Then
+- The login exchange runs it when the client's `+0xb4` is nonzero
+  (`0x43c448`), as a screen run (`FUN_004fa590`, `LAB_00436e90`). Then
   `FUN_00436ea0` returns `DAT_007799d8`; when it is set, the exchange
   closes the realm connection and goes back to the title.
 - It clears `DAT_007799d8`, then adds the title screen's base and two
@@ -400,6 +402,78 @@ null text is 0.
     "Getting player profile");
   - 0xe6 gets 1 to 20 dots: ((now − `DAT_007799b8`) / 250) mod 20 + 1.
 
+**The login exchange** (`FUN_0043c180`: ECX the record, EDX "create
+the account first", stack "change the password first"; `ret 4`).
+Callers: LOG IN (`0x4361f6`, 0 and 0), Change Password's OK (`0x435125`,
+0 and 1), the new-account notice's OK (`LAB_00436280`, `0x436297`, 1 and
+0) and `FUN_00434a00` (`0x434aa0`, 0 and 0). It returns 1 when logged in.
+
+1. With the client's `+0x68` zero: 0x14e3 ("You were disconnected…") in
+   `FUN_00433450`, going back to the title, and 0.
+2. Already logged in (`DAT_0077ac08`): 1.
+3. The PLEASE WAIT box (`FUN_0042f6e0`), then the client's `+0x28` into
+   an error word.
+4. **Create** (EDX nonzero, no error):
+   - the client's `+0x60` with the account (`+0x8d`) and password
+     (`+0xa5`), and a screen run checked by `FUN_0043b8e0`;
+   - a cancel (`DAT_0077ac04`) frees the popups (`FUN_0042f880`) and
+     returns 0;
+   - then the result from `+0x64`. A nonzero result while still
+     connected goes to the message handler (`FUN_0043bf40`): 2..8 as
+     codes 0x14..0x1a, anything else as 0x13. That returns 0.
+5. **Change** (stack nonzero, no error):
+   - the client's `+0x9c` with the account, the old password
+     (`0x779550`) and the new one (`+0xa5`), checked by `FUN_0043b940`;
+   - a result from `+0xa0` other than 1, while connected, is code 0xe,
+     and returns 0.
+6. **Log in**, when connected with no error:
+   - the client's `+8` with the account and password;
+   - then the password at `+0xa5`..`+0xbc` is zeroed;
+   - a screen run checked by `LAB_0043b890`. A cancel, or
+     `FUN_0042f6d0` (`DAT_00779974`) set, frees the popups and returns
+     0.
+7. The client's `+0x28` again, and the popups freed. An error goes to
+   `FUN_0043b9f0` and returns what it gives.
+8. `DAT_0077ac08` = 1. When still connected and `+0xb4` is nonzero: the
+   email registration screen (`0x43c448`). A cancel there
+   (`FUN_00436ea0`) closes the realm connection, calls the client's
+   `+0x10`, and goes back to the title with 0.
+9. Still connected: `FUN_0042ff10(0)` (`DAT_00779980`) and 1. Otherwise
+   code 0x12 to `FUN_0043b9f0`, and 0.
+
+The three checks are alike. Each calls one client slot (`+0x64`, `+0xa0`;
+`LAB_0043b890` `+0xc`) and ends the run (`FUN_004f9190`) when it reports
+done. They also end it, after the client's `+0x10`, on a cancel, a lost
+connection or `DAT_00779974`.
+
+- `FUN_0043bf40` (code in `EAX`, `ECX`) passes `{EAX, ECX}` to
+  `FUN_0043b9f0`.
+- `FUN_0042f880` frees the popup controls, the same code as
+  `FUN_0042f3f0`.
+
+**The new character's header** (`FUN_0043c540`: ECX the name, DL the
+class; stack the stat string's buffer, the flags word; `ret 8`).
+`FUN_004365b0` passes record `+0xbd`, `+0x1ee`, `+0xed` and `+0x1ef`.
+
+- It zeroes 0x14f bytes at `0x77ac10`, then writes a save header:
+  - `+0` `0xaa55aa55`, `+4` version 0x60, `+8` size 0x14f;
+  - `+0x14` the name (`FUN_004135d0`);
+  - `+0x24` the flags with bit 0 set (and 0x20 for class 5 or 6);
+  - `+0x28` the class, `+0x29` 0x10, `+0x2a` 0x1e, `+0x2b` level 1;
+  - `+0x2c` and `+0x30` the time (`_time32`);
+  - `+0x88`..`+0x97` the 16 bytes at `0x70ccc8`, `+0x98`..`+0xa7` 0xff.
+- The buffer gets a stat string in char-select.md's layout ("`out` gets a
+  stat string"):
+  - the word 0xe, then 11 bytes from `0x70ccc8`, the class + 1, 11 bytes
+    of 0xff;
+  - level 1, the header's flags word, the word 0, three 0xff and a 0.
+- d2d's writer (`components/d2s/d2s_write.hpp`) writes the same `+0x29`
+  and `+0x2a`.
+
+`FUN_0043c6a0` (ECX) sets header bit 2 (`0x77ac34 |= 2`) when ECX is
+nonzero. Both calls (`0x43673a`, `0x4367e2`) pass 0, and both come before
+`FUN_0043c540`, which zeroes the header (stubs.md).
+
 **The gateway list's OK** (`FUN_00434700`, record 0x4b, and
 `FUN_00435d50`, record 0x4a's click when `FUN_00431a60` is nonzero):
 
@@ -450,7 +524,10 @@ writes each text, a line per `\n`, in colour 0 or 4.
 | `FUN_0042e6a0` | Set the box callback `DAT_007795bc` | `FUN_00437550` |
 | `FUN_0042e6b0` | `DAT_00779954` = 1 | `FUN_00437550` |
 | `FUN_0042f540` | One- or two-button box | the registration and SEND handlers |
+| `FUN_0042f6d0` | Returns `DAT_00779974` | `FUN_0043c180`, its three checks |
+| `FUN_0042f880` | Free the popup controls (as `FUN_0042f3f0`) | `FUN_0043c180` |
 | `FUN_0042fdd0` | Go to character select | `FUN_004361b0`, `FUN_00435030`, the disk box |
+| `FUN_0042ff10` | `DAT_00779980` = ECX | `FUN_0043c180` |
 | `FUN_00430a20` | Free the realm list | `realm_list_load`, `LAB_00437a60`, `FUN_00437b90` |
 | `FUN_00430c80` | Credits: 50 blank lines and `The End` | `FUN_00431050` |
 | `FUN_00430ef0` | Credits: pad the three boxes | `FUN_00431050` |
@@ -478,8 +555,8 @@ writes each text, a line per `\n`, in colour 0 or 4.
 | `FUN_00436ad0` | Connecting box: state text and dots | `FUN_00437550`, `LAB_004374f0` |
 | `FUN_00436c10` | Email address test | `FUN_00436eb0`, `FUN_004371e0`, `FUN_00437620` |
 | `FUN_00436cf0` | REGISTER on when either box has text | `FUN_00436d50`, `LAB_00436d40` |
-| `FUN_00436d50` | Email registration screen | the login exchange (one call) |
-| `FUN_00436ea0` | Returns `DAT_007799d8` (registration cancelled) | the login exchange (one call) |
+| `FUN_00436d50` | Email registration screen | `FUN_0043c180` (`0x43c448`) |
+| `FUN_00436ea0` | Returns `DAT_007799d8` (registration cancelled) | `FUN_0043c180` (`0x43c45c`) |
 | `FUN_00436eb0` | GET NEW PASSWORD: SEND on or off | `LAB_00436f20`, `LAB_004370ab` |
 | `FUN_004370c0` | Account Settings screen | `LAB_00432340`, `LAB_00432310`, `FUN_00435030`, `LAB_004374e0`, `LAB_00437710`, the SEND handlers |
 | `FUN_004371e0` | CHANGE EMAIL: SEND on or off | `LAB_004372a0`, `LAB_004374d5` |
@@ -487,5 +564,11 @@ writes each text, a line per `\n`, in colour 0 or 4.
 | `FUN_00437620` | REGISTER | record 0x128 (`0x70c4b0`) |
 | `FUN_00437730` | CHANGE EMAIL's SEND | records 0x141..0x14b |
 | `FUN_004378d0` | GET NEW PASSWORD's SEND | records 0x12c, 0x131, 0x134 |
+| `FUN_0043b8e0` | Login exchange: the create check | `FUN_0043c180` (a screen run) |
+| `FUN_0043b940` | Login exchange: the change check | `FUN_0043c180` (a screen run) |
+| `FUN_0043bf40` | `{EAX, ECX}` to `FUN_0043b9f0` | `FUN_0043c180` |
+| `FUN_0043c180` | The login exchange: create, change, log in, register | `FUN_004361b0`, `FUN_00435030`, `LAB_00436280`, `FUN_00434a00` |
+| `FUN_0043c540` | New character: save header and stat string | `FUN_004365b0` |
+| `FUN_0043c6a0` | Header bit 2 when ECX is nonzero (always 0) | `FUN_004365b0` |
 | `FUN_004f9710` | A control's `+8` bit 0 | the account handlers |
 | `FUN_004fb990` | A list's selected line `+0x60` | `FUN_00434700` |
