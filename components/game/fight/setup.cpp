@@ -566,8 +566,10 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const bool plain = actor->swing_skill == 0 || (swing_row && swing_row->anim == "A1");
             const int start = mode == kModeA1 && plain ? actor->player_combat.attack_start : 0;
             // The start's attackrate list (FUN_0056e520: Dragon Tail's -40) holds for this mode: rules::start_attack_rate.
-            // ponytail: only the server's length and action tick take it; the swing and start sounds below keep the
-            // client's rate without it (attackrate is Send Other in ItemStatCost; when the client gets it is not traced).
+            // The client's own list (cltstfunc 9, FUN_004f26d0: the row's Param4, Dragon Tail's only) is the same
+            // value, but nothing the client plays from it depends on the rate here: Dragon Tail's KK has no
+            // stsounddelay or weaponsnd, and a Bash-family start puts its list on the server's unit only (a
+            // flags-4 list is not queued for sending). tools/emu/client_attackrate.py.
             const int start_rate = swing_row && actor->swing_skill != 0
                 ? d2d::rules::start_attack_rate(game_data->skills, *swing_row, calc_env(), skill_level ? skill_level(actor->swing_skill) : 1) : 0;
             const int rate = int(anim.speed ? anim.speed : 256), sias = actor->player_combat.sias + chill_rate(now_ms) + start_rate;

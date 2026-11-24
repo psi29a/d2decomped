@@ -2400,8 +2400,16 @@ Cited from the decompile (no oracle run); re-check with
   `rules::start_attack_rate`, added to the swing's SIAS in `Fight::set_pmode`.
   This function does not free the list itself; SetMode does, at the next
   mode change (above).
-- **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
-  FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
+- **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5 (the client's
+  list). Callers: cltstfunc 27 FUN_004c7cf0 (table 0x727a90 + 27 * 4; cltcalc1,
+  +0x114, at the skill and level; Skills.txt: Double Swing only) and cltstfunc 9
+  FUN_004f26d0 (the row's Param4, +0x154, or 0 for an id outside the table; the
+  sites 0x4f26f3 / 0x4f2706; Dragon Tail only, -40). The Bash family has no
+  cltstfunc, and the server's flags-4 list is not queued for the client (FUN_006270b0
+  queues only on a list with flag 0x80000000), so only Dragon Tail's rate is on both
+  units. Its client effect on sounds is nil (no stsounddelay or weaponsnd on its row).
+  Oracle: `tools/emu/client_attackrate.py`. d2d: not ported as a list; the draw
+  rate of KK (apps) is not traced here.
 - **FUN_0056ff10**(unit in EDI, skill in the stack arg; only caller
   FUN_005701b0) (354 bytes): returns at once unless the Skills record
   (stride 0x23c at tables +0xb98) has flag +4 & 0x20 and a valid
