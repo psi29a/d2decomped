@@ -1295,9 +1295,11 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     release(std::size_t(tgt), now_ms);
                 };
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
-                    if (tgt < 0) break;
-                    if (!(flight_part & 1)) { dragon_kick(); break; }
-                    const auto& target = monsters[std::size_t(tgt)];
+                    // The flight goes to the target while it exists (FUN_00553490 drops only a freed unit), a corpse too.
+                    const int there = actor->attack_mon >= 0 && !monsters[std::size_t(actor->attack_mon)].gone ? actor->attack_mon : -1;
+                    if (there < 0) break;
+                    if (!(flight_part & 1)) { if (tgt >= 0) dragon_kick(); break; }
+                    const auto& target = monsters[std::size_t(there)];
                     if (std::hypot(target.unit.x - actor->player.x, target.unit.y - actor->player.y) * 5 > float(calc(skill, skill.aurarange, lvl))) break;
                     const float dx = actor->player.x - target.unit.x, dy = actor->player.y - target.unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                     target_x = target.unit.x + dx / distance * 0.8f; target_y = target.unit.y + dy / distance * 0.8f;
@@ -1334,7 +1336,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 actor->player.path.clear(); actor->player.walking = false;
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;
                 actor->reassigned = true;                                           // FUN_00554ea0's 0x10000: the client's 0x15
-                if (skill.srvdofunc == ServerDoFunction::kDragonFlight && (flight_part & 2)) dragon_kick();   // with no sequence: both at once
+                if (skill.srvdofunc == ServerDoFunction::kDragonFlight && (flight_part & 2) && tgt >= 0) dragon_kick();   // with no sequence: both at once
                 break;
             }
             case ServerDoFunction::kTelekinesis:                                         // Telekinesis (do 21): its damage and a knockback on the monster

@@ -671,6 +671,12 @@ flag 0x2000, set by what isn't traced.
   events on rows 9 and 14 as the player's) at its SQ rate
   (`Fight::shadow_sequence`), whether its think asks for a sequence or a
   skill (the Master's FUN_005dead0).
+- A target the kick killed is still the flight's: FUN_00553540 runs
+  FUN_00553490 first, which clears the path's target (+0x58, FUN_00648b90
+  with 0) only when FUN_00552f60 no longer finds it by its id (freed) or
+  it's an item in mode 1 or 2. A corpse is found, so the flight goes to
+  its spot (FUN_0056d2c0). d2d: the flight while the monster isn't
+  `gone`, the kick only at a live one (`Fight::spot`, `Fight::shadow_cast`).
 
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,
