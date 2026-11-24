@@ -290,9 +290,8 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
 // pet), the low under 1 made 0x100 and a high not above it the low + 0x100 (0x57b4d8..0x57b4f4); one %
 // sum, stat 25 (its own damagepercent, summons.cpp, and a curse's: Weaken) floored at -90 (0x57b5a8),
 // and each end + MulDiv(end, sum, 100) (stats 18 / 17 add to the low's / high's sum, none on a pet),
-// then low + rand(high - low) (0x57b5f7): player_blow's roll on these 256ths.
-// ponytail: the draw is on the pet's own seed (+0x20, FUN_0045c3e0) in game.exe, the fight's rng here
-// (player_blow rolls the to-hit and block on the same rng); approximation 18.
+// then low + rand(high - low) (0x57b5f7): player_blow's roll on these 256ths,
+// on the pet's own seed (+0x20, FUN_0045c3e0), apart from its hit and block rolls.
 auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
         const auto swung = pet.monster.classic_stats();
         const int curse = std::max(pet_buff_stat(pet, d2d::d2s::kDamagePercent), -90 - pet.damage_pct);
@@ -415,7 +414,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
-                        auto blow = d2d::rules::player_blow(pet.mirror ? shadow_fighter(pet, actor->player_combat) : pet_swing(pet), target, monster.stats.level, rng);
+                        auto blow = pet.mirror ? d2d::rules::player_blow(shadow_fighter(pet, actor->player_combat), target, monster.stats.level, rng)
+                                               : d2d::rules::player_blow(pet_swing(pet), target, monster.stats.level, rng, {}, &monster.seed);
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
                         pet_strike(pet, monster_index, blow, now_ms);
                     }
@@ -1448,7 +1448,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng), now_ms);
+            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng, {}, &monster.seed), now_ms);
     }
 
 }  // namespace d2d::game
