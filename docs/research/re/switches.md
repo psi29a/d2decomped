@@ -207,11 +207,11 @@ class bool whose ini default is 1. The other four class bools default
 to 0.
 
 `-set` and `-lng` are not in the table. They are Storm SCmd switches,
-with `-?`, `-h`, `-help`, `-mode`, `-c`, `-r` and `-p`, read only from
-the registry value `Diablo II\Default Command Line`, never from the
-command line ([storm-cmd.md](storm-cmd.md)). The help box that names
-them (`FUN_0044b4e0`, `FUN_0044b600`) is shown for every Windows
-account except `rseis`: a match skips it (`0x44b51c`).
+with `-?`, `-h`, `-help`, `-mode`, `-c`, `-r` and `-p`, read from the
+registry value `Diablo II\Default Command Line` and any `@` response file
+it names, never from the command line ([storm-cmd.md](storm-cmd.md)).
+The help box that names them (`FUN_0044b4e0`, `FUN_0044b600`) is shown
+for every Windows account except `rseis`: a match skips it (`0x44b51c`).
 
 ## Plan for d2d
 
